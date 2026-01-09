@@ -1,13 +1,13 @@
-# EPIC-004: 对账引擎与匹配算法
+# EPIC-004: Reconciliation Engine & Matching
 
 > **Status**: ⏳ Pending  
 > **Phase**: 3  
-> **周期**: 4 周  
-> **依赖**: EPIC-003  
+> **Duration**: 4 周  
+> **Dependencies**: EPIC-003  
 
 ---
 
-## 🎯 目标
+## 🎯 Objective
 
 自动匹配银行流水与总账分录，实现智能对账与审核队列，达到 ≥95% 的自动匹配准确率。
 
@@ -20,9 +20,9 @@
 
 ---
 
-## 👥 角色审议
+## 👥 Multi-Role Review
 
-| 角色 | 关注点 | 审议意见 |
+| Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🔗 **Reconciler** | 匹配算法 | 多维度加权评分，阈值可调，支持一对多/多对一 |
 | 🏗️ **Architect** | 系统设计 | 匹配引擎独立服务，支持批量处理和增量匹配 |
@@ -33,7 +33,7 @@
 
 ---
 
-## ✅ 任务清单
+## ✅ Task Checklist
 
 ### 数据模型 (Backend)
 
@@ -114,9 +114,9 @@
 
 ## 📏 做得好不好的标准
 
-### 🟢 合格标准 (Must Have)
+### 🟢 Must Have
 
-| 标准 | 验证方法 | 权重 |
+| Standard | Verification | Weight |
 |------|----------|------|
 | **自动匹配准确率 ≥ 95%** | 真实数据测试集验证 | 🔴 关键 |
 | **误匹配率 < 0.5%** | 人工抽检 100 笔 | 🔴 关键 |
@@ -126,9 +126,9 @@
 | 批量处理 10,000 笔 < 10s | 性能测试 | 必须 |
 | 匹配后状态正确更新 | JournalEntry/BankTxn 状态检查 | 必须 |
 
-### 🌟 优秀标准 (Nice to Have)
+### 🌟 Nice to Have
 
-| 标准 | 验证方法 | 状态 |
+| Standard | Verification | Status |
 |------|----------|------|
 | 自动匹配率 > 70% | 减少人工审核 | ⏳ |
 | 审核队列平均处理时间 < 30s/笔 | 用户行为统计 | ⏳ |
@@ -136,7 +136,7 @@
 | 机器学习权重调优 | 基于历史数据优化 | ⏳ |
 | 匹配规则可视化配置 | 管理界面 | ⏳ |
 
-### 🚫 不合格信号
+### 🚫 Not Acceptable Signals
 
 - 误匹配率 > 2%（严重污染账本）
 - 准确率 < 90%（失去自动化意义）
@@ -146,7 +146,7 @@
 
 ---
 
-## 🧪 测试场景
+## 🧪 Test Scenarios
 
 ### 匹配算法测试 (必须)
 
@@ -201,7 +201,7 @@ def test_concurrent_matching():
 
 ---
 
-## 📚 SSOT 引用
+## 📚 SSOT References
 
 - [schema.md](../ssot/schema.md) - ReconciliationMatch 表
 - [reconciliation.md](../ssot/reconciliation.md) - 对账规则
@@ -209,7 +209,7 @@ def test_concurrent_matching():
 
 ---
 
-## 🔗 交付物
+## 🔗 Deliverables
 
 - [ ] `apps/backend/src/models/reconciliation.py`
 - [ ] `apps/backend/src/services/reconciliation.py`
@@ -222,9 +222,9 @@ def test_concurrent_matching():
 
 ---
 
-## 📝 技术债务
+## 📝 Technical Debt
 
-| 项目 | 优先级 | 计划解决时间 |
+| Item | Priority | Planned Resolution |
 |------|--------|--------------|
 | ML 权重自动调优 | P2 | v2.0 |
 | 多币种匹配 | P2 | EPIC-005 后 |
@@ -232,7 +232,7 @@ def test_concurrent_matching():
 
 ---
 
-## ❓ Q&A (待确认问题)
+## ❓ Q&A (Clarification Required)
 
 ### Q1: 匹配阈值是否可调
 > **问题**: 85/60 的阈值是固定的，还是用户可以调整？
@@ -447,9 +447,9 @@ CREATE TABLE transaction_embeddings (
 
 ---
 
-## 📅 时间线
+## 📅 Timeline
 
-| 阶段 | 内容 | 预计工时 |
+| Phase | Content | Estimated Hours |
 |------|------|----------|
 | Week 1 | 数据模型 + 基础匹配算法 | 16h |
 | Week 2 | 评分维度实现 + 特殊场景 | 20h |

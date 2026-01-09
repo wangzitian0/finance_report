@@ -1,13 +1,13 @@
-# EPIC-002: 复式记账核心引擎
+# EPIC-002: Double-Entry Bookkeeping Core
 
 > **Status**: 🟡 In Progress  
 > **Phase**: 1  
-> **周期**: 3 周  
-> **依赖**: EPIC-001  
+> **Duration**: 3 周  
+> **Dependencies**: EPIC-001  
 
 ---
 
-## 🎯 目标
+## 🎯 Objective
 
 实现符合会计恒等式的复式记账系统，支持手工分录与账户管理。
 
@@ -19,9 +19,9 @@ SUM(DEBIT) = SUM(CREDIT)  // 每笔分录必须平衡
 
 ---
 
-## 👥 角色审议
+## 👥 Multi-Role Review
 
-| 角色 | 关注点 | 审议意见 |
+| Role | Focus | Review Opinion |
 |------|--------|----------|
 | 📊 **Accountant** | 会计正确性 | 必须严格遵循复式记账规则，五大类账户借贷方向不能错 |
 | 🏗️ **Architect** | 数据模型 | JournalEntry + JournalLine 模式支持一对多、多对多场景 |
@@ -31,7 +31,7 @@ SUM(DEBIT) = SUM(CREDIT)  // 每笔分录必须平衡
 
 ---
 
-## ✅ 任务清单
+## ✅ Task Checklist
 
 ### 数据模型 (Backend)
 
@@ -79,9 +79,9 @@ SUM(DEBIT) = SUM(CREDIT)  // 每笔分录必须平衡
 
 ## 📏 做得好不好的标准
 
-### 🟢 合格标准 (Must Have)
+### 🟢 Must Have
 
-| 标准 | 验证方法 | 权重 |
+| Standard | Verification | Weight |
 |------|----------|------|
 | **会计恒等式 100% 满足** | `verify_accounting_equation()` 测试 | 🔴 关键 |
 | **所有 posted 分录借贷平衡** | SQL 查询验证 + 单元测试 | 🔴 关键 |
@@ -91,9 +91,9 @@ SUM(DEBIT) = SUM(CREDIT)  // 每笔分录必须平衡
 | 过账后不可编辑 | 只能 void 后重做 | 必须 |
 | API 响应时间 p95 < 200ms | 负载测试 | 必须 |
 
-### 🌟 优秀标准 (Nice to Have)
+### 🌟 Nice to Have
 
-| 标准 | 验证方法 | 状态 |
+| Standard | Verification | Status |
 |------|----------|------|
 | 单元测试覆盖率 > 90% | coverage report | ⏳ |
 | 支持多币种分录 | fx_rate 字段正确使用 | ⏳ |
@@ -101,7 +101,7 @@ SUM(DEBIT) = SUM(CREDIT)  // 每笔分录必须平衡
 | 分录模板功能 | 常用分录一键创建 | ⏳ |
 | 前端实时平衡验证 | 输入时显示借贷差额 | ⏳ |
 
-### 🚫 不合格信号
+### 🚫 Not Acceptable Signals
 
 - posted 分录存在借贷不平衡
 - 会计恒等式不满足
@@ -111,7 +111,7 @@ SUM(DEBIT) = SUM(CREDIT)  // 每笔分录必须平衡
 
 ---
 
-## 🧪 测试场景
+## 🧪 Test Scenarios
 
 ### 单元测试 (必须)
 
@@ -169,7 +169,7 @@ def test_many_lines_entry():
 
 ---
 
-## 📚 SSOT 引用
+## 📚 SSOT References
 
 - [schema.md](../ssot/schema.md) - 数据库表结构
 - [accounting.md](../ssot/accounting.md) - 会计规则
@@ -177,7 +177,7 @@ def test_many_lines_entry():
 
 ---
 
-## 🔗 交付物
+## 🔗 Deliverables
 
 - [ ] `apps/backend/src/models/account.py`
 - [ ] `apps/backend/src/models/journal.py`
@@ -191,9 +191,9 @@ def test_many_lines_entry():
 
 ---
 
-## 📝 技术债务
+## 📝 Technical Debt
 
-| 项目 | 优先级 | 计划解决时间 |
+| Item | Priority | Planned Resolution |
 |------|--------|--------------|
 | 多币种余额折算 | P2 | EPIC-005 |
 | 科目层级树 | P3 | 后续迭代 |
@@ -201,7 +201,7 @@ def test_many_lines_entry():
 
 ---
 
-## ❓ Q&A (待确认问题)
+## ❓ Q&A (Clarification Required)
 
 ### Q1: 账户编码规范
 > **问题**: 是否需要强制使用 1xxx-5xxx 的科目编码？还是用户可以自定义？  
@@ -254,9 +254,9 @@ def test_many_lines_entry():
 
 ---
 
-## 📅 时间线
+## 📅 Timeline
 
-| 阶段 | 内容 | 预计工时 |
+| Phase | Content | Estimated Hours |
 |------|------|----------|
 | Week 1 | 数据模型 + API 骨架 | 16h |
 | Week 2 | 业务逻辑 + 测试 | 20h |

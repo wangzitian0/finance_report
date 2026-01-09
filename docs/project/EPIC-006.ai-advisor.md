@@ -1,13 +1,13 @@
-# EPIC-006: AI 财务顾问
+# EPIC-006: AI Financial Advisor
 
 > **Status**: ⏳ Pending  
 > **Phase**: 4  
-> **周期**: 2 周  
-> **依赖**: EPIC-005  
+> **Duration**: 2 周  
+> **Dependencies**: EPIC-005  
 
 ---
 
-## 🎯 目标
+## 🎯 Objective
 
 基于 Gemini 3 Flash 构建对话式 AI 财务顾问，帮助用户理解财务状况、解读报表、回答财务问题。
 
@@ -20,9 +20,9 @@ AI 只做解读和建议，不直接修改账本
 
 ---
 
-## 👥 角色审议
+## 👥 Multi-Role Review
 
-| 角色 | 关注点 | 审议意见 |
+| Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🏗️ **Architect** | 安全边界 | AI 只读账本数据，无写入权限；Prompt 注入防护 |
 | 📊 **Accountant** | 专业性 | Prompt 需包含会计常识，避免基础错误 |
@@ -32,7 +32,7 @@ AI 只做解读和建议，不直接修改账本
 
 ---
 
-## ✅ 任务清单
+## ✅ Task Checklist
 
 ### AI 服务 (Backend)
 
@@ -92,9 +92,9 @@ AI 只做解读和建议，不直接修改账本
 
 ## 📏 做得好不好的标准
 
-### 🟢 合格标准 (Must Have)
+### 🟢 Must Have
 
-| 标准 | 验证方法 | 权重 |
+| Standard | Verification | Weight |
 |------|----------|------|
 | **AI 无法修改账本** | 安全测试（尝试注入写入指令） | 🔴 关键 |
 | **回答基于真实数据** | 验证引用数据准确性 | 🔴 关键 |
@@ -103,9 +103,9 @@ AI 只做解读和建议，不直接修改账本
 | 流式输出体验流畅 | 用户测试 | 必须 |
 | 支持中英文 | 双语测试 | 必须 |
 
-### 🌟 优秀标准 (Nice to Have)
+### 🌟 Nice to Have
 
-| 标准 | 验证方法 | 状态 |
+| Standard | Verification | Status |
 |------|----------|------|
 | 常见问题预设回答 | 减少 API 调用 | ⏳ |
 | 上下文连贯（多轮对话） | 用户测试 | ⏳ |
@@ -113,7 +113,7 @@ AI 只做解读和建议，不直接修改账本
 | 用户反馈机制（👍👎） | 收集改进 | ⏳ |
 | 导出对话记录 | 分享功能 | ⏳ |
 
-### 🚫 不合格信号
+### 🚫 Not Acceptable Signals
 
 - AI 能够写入或删除数据
 - 回答包含明显错误数据
@@ -123,7 +123,7 @@ AI 只做解读和建议，不直接修改账本
 
 ---
 
-## 🧪 测试场景
+## 🧪 Test Scenarios
 
 ### 功能测试 (必须)
 
@@ -213,14 +213,14 @@ AI: 您本月支出 5,200 SGD，较上月增加 30%。主要原因是：
 
 ---
 
-## 📚 SSOT 引用
+## 📚 SSOT References
 
 - [reporting.md](../ssot/reporting.md) - 报表数据
 - [reconciliation.md](../ssot/reconciliation.md) - 对账状态
 
 ---
 
-## 🔗 交付物
+## 🔗 Deliverables
 
 - [ ] `apps/backend/src/services/ai_advisor.py`
 - [ ] `apps/backend/src/routers/chat.py`
@@ -231,9 +231,9 @@ AI: 您本月支出 5,200 SGD，较上月增加 30%。主要原因是：
 
 ---
 
-## 📝 技术债务
+## 📝 Technical Debt
 
-| 项目 | 优先级 | 计划解决时间 |
+| Item | Priority | Planned Resolution |
 |------|--------|--------------|
 | 语音输入 | P3 | v2.0 |
 | 图表生成（AI 创建可视化） | P3 | v2.0 |
@@ -241,7 +241,7 @@ AI: 您本月支出 5,200 SGD，较上月增加 30%。主要原因是：
 
 ---
 
-## ❓ Q&A (待确认问题)
+## ❓ Q&A (Clarification Required)
 
 ### Q1: AI 服务可用性要求
 > **问题**: 如果 Gemini API 不可用，如何处理？
@@ -367,9 +367,9 @@ AI: 您本月支出 5,200 SGD，较上月增加 30%。主要原因是：
 
 ---
 
-## 📅 时间线
+## 📅 Timeline
 
-| 阶段 | 内容 | 预计工时 |
+| Phase | Content | Estimated Hours |
 |------|------|----------|
 | Week 1 | AI 服务 + Prompt 工程 + API | 16h |
 | Week 2 | 前端界面 + 安全测试 + 调优 | 16h |

@@ -1,13 +1,13 @@
-# EPIC-003: 智能对账单解析
+# EPIC-003: Smart Statement Parsing
 
 > **Status**: ⏳ Pending  
 > **Phase**: 2  
-> **周期**: 3 周  
-> **依赖**: EPIC-002  
+> **Duration**: 3 周  
+> **Dependencies**: EPIC-002  
 
 ---
 
-## 🎯 目标
+## 🎯 Objective
 
 使用 Gemini 3 Flash Vision 解析银行/券商对账单，自动提取交易明细并生成候选分录。
 
@@ -18,9 +18,9 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ---
 
-## 👥 角色审议
+## 👥 Multi-Role Review
 
-| 角色 | 关注点 | 审议意见 |
+| Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🏗️ **Architect** | 解耦设计 | AI 只做解析，不直接写入账本，通过验证层过滤错误 |
 | 💻 **Developer** | API 集成 | Gemini 3 Flash 调用封装，含重试、降级、成本控制 |
@@ -31,7 +31,7 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ---
 
-## ✅ 任务清单
+## ✅ Task Checklist
 
 ### 数据模型 (Backend)
 
@@ -103,9 +103,9 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ## 📏 做得好不好的标准
 
-### 🟢 合格标准 (Must Have)
+### 🟢 Must Have
 
-| 标准 | 验证方法 | 权重 |
+| Standard | Verification | Weight |
 |------|----------|------|
 | **解析成功率 ≥ 95%** | 10 份真实对账单测试 | 🔴 关键 |
 | **余额验证 100% 执行** | 期初+流水≈期末检查 | 🔴 关键 |
@@ -115,9 +115,9 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 | 文件大小限制 10MB | 上传验证 | 必须 |
 | 解析时间 < 30s | 性能测试 | 必须 |
 
-### 🌟 优秀标准 (Nice to Have)
+### 🌟 Nice to Have
 
-| 标准 | 验证方法 | 状态 |
+| Standard | Verification | Status |
 |------|----------|------|
 | 支持 XLSX 格式 | Excel 样本测试 | ⏳ |
 | 解析结果可编辑 | 前端表格编辑 | ⏳ |
@@ -125,7 +125,7 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 | 解析缓存 | 相同文件不重复调用 API | ⏳ |
 | Gemini 成本报告 | Token 使用统计 | ⏳ |
 
-### 🚫 不合格信号
+### 🚫 Not Acceptable Signals
 
 - 解析成功率 < 90%
 - 余额验证被跳过
@@ -135,7 +135,7 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ---
 
-## 🧪 测试场景
+## 🧪 Test Scenarios
 
 ### 单元测试 (必须)
 
@@ -179,14 +179,14 @@ def test_gemini_retry_on_timeout():
 
 ---
 
-## 📚 SSOT 引用
+## 📚 SSOT References
 
 - [schema.md](../ssot/schema.md) - BankStatement/BankStatementTransaction 表
 - [extraction.md](../ssot/extraction.md) - 解析规则与 Prompt 设计
 
 ---
 
-## 🔗 交付物
+## 🔗 Deliverables
 
 - [ ] `apps/backend/src/models/statement.py`
 - [ ] `apps/backend/src/services/extraction.py`
@@ -199,9 +199,9 @@ def test_gemini_retry_on_timeout():
 
 ---
 
-## 📝 技术债务
+## 📝 Technical Debt
 
-| 项目 | 优先级 | 计划解决时间 |
+| Item | Priority | Planned Resolution |
 |------|--------|--------------|
 | 本地 PDF 解析降级 | P2 | 后续迭代 |
 | 更多银行支持 (UOB, Citi) | P3 | 后续迭代 |
@@ -209,7 +209,7 @@ def test_gemini_retry_on_timeout():
 
 ---
 
-## ❓ Q&A (待确认问题)
+## ❓ Q&A (Clarification Required)
 
 ### Q5: 支持的银行优先级
 > **问题**: 第一版需要支持哪些银行的对账单？
@@ -331,9 +331,9 @@ def test_gemini_retry_on_timeout():
 
 ---
 
-## 📅 时间线
+## 📅 Timeline
 
-| 阶段 | 内容 | 预计工时 |
+| Phase | Content | Estimated Hours |
 |------|------|----------|
 | Week 1 | 数据模型 + Gemini 集成 | 16h |
 | Week 2 | 验证层 + API + Prompt 调优 | 20h |
