@@ -1,4 +1,4 @@
-"""SQLAlchemy models."""
+"""PingState model for demo."""
 
 from datetime import datetime, timezone
 

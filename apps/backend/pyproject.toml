@@ -18,6 +18,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
     "httpx>=0.27.0",
     "ruff>=0.4.0",
 ]
@@ -39,3 +40,15 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=50"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/__init__.py", "src/models/__init__.py", "src/schemas/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

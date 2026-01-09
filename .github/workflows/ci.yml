@@ -45,11 +45,17 @@ jobs:
         working-directory: apps/backend
         run: uv run ruff check src/
       
-      - name: Test
+      - name: Test with coverage
         working-directory: apps/backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test
-        run: uv run pytest -v
+        run: uv run pytest -v --cov=src --cov-report=xml --cov-report=term-missing
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: apps/backend/coverage.xml
+          fail_ci_if_error: false
 
   frontend:
     name: Frontend Build
