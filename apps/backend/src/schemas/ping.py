@@ -10,6 +10,6 @@ class PingStateResponse(BaseModel):
 
     state: str
     toggle_count: int
-    last_toggled: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)

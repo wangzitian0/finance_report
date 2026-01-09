@@ -14,8 +14,12 @@ Personal financial management system with double-entry bookkeeping.
 ## Quick Start
 
 ```bash
-# 1. Start database
-docker compose up -d
+# 1. Start database (use podman on macOS, docker on Linux)
+podman machine start  # macOS only
+podman compose -f docker-compose.ci.yml up -d postgres
+
+# Or with docker:
+# docker compose -f docker-compose.ci.yml up -d postgres
 
 # 2. Copy environment file
 cp .env.example .env
@@ -34,6 +38,22 @@ npm run dev
 
 Open http://localhost:3000 to see the ping-pong demo.
 
+## API Documentation
+
+Once the backend is running, visit:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+### Key Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/accounts` | GET/POST | List/create accounts |
+| `/api/accounts/{id}` | GET/PUT | Get/update account |
+| `/api/journal-entries` | GET/POST | List/create entries |
+| `/api/journal-entries/{id}/post` | POST | Post draft entry |
+| `/api/journal-entries/{id}/void` | POST | Void posted entry |
+
 ## Project Structure
 
 ```
@@ -41,11 +61,17 @@ finance_report/
 ├── .moon/              # Moonrepo config
 ├── apps/
 │   ├── backend/        # FastAPI + SQLAlchemy
+│   │   ├── src/
+│   │   │   ├── models/     # Account, JournalEntry, JournalLine
+│   │   │   ├── schemas/    # Pydantic validation
+│   │   │   ├── services/   # Accounting logic
+│   │   │   └── routers/    # API endpoints
+│   │   └── tests/      # 70%+ coverage
 │   └── frontend/       # Next.js 14
 ├── docs/
 │   ├── ssot/           # Single Source of Truth
 │   └── project/        # EPIC tracking
-├── docker-compose.yml  # Local dev database
+├── docker-compose.ci.yml  # Local dev services
 └── AGENTS.md           # AI agent guidelines
 ```
 
@@ -53,14 +79,32 @@ finance_report/
 
 | Command | Description |
 |---------|-------------|
-| `docker compose up -d` | Start Postgres + Redis |
+| `podman compose -f docker-compose.ci.yml up -d` | Start Postgres + Redis + MinIO |
 | `moon run backend:dev` | Start backend |
 | `moon run frontend:dev` | Start frontend |
 | `moon run backend:test` | Run backend tests |
 | `moon run frontend:build` | Build frontend |
+
+## Testing
+
+```bash
+cd apps/backend
+
+# Run all tests
+uv run pytest -v
+
+# Run with coverage
+uv run pytest --cov=src --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/test_accounting.py -v
+```
+
+**Current Coverage**: 73%+ (target: 70%)
 
 ## Documentation
 
 - [AGENTS.md](./AGENTS.md) - Development guidelines
 - [init.md](./init.md) - Project specification
 - [docs/ssot/](./docs/ssot/) - Technical truth
+- [docs/project/](./docs/project/) - EPIC tracking
