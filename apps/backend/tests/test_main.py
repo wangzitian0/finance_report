@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from src.database import Base, get_db
 from src.main import app
 
-
 # Use in-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -104,3 +103,173 @@ async def test_ping_toggle(client: AsyncClient) -> None:
     data = response.json()
     assert data["state"] == "ping"
     assert data["toggle_count"] == 2
+
+
+async def test_get_statement_not_found(client: AsyncClient) -> None:
+    """Test getting a non-existent statement."""
+    response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+async def test_get_pending_review_empty(client: AsyncClient) -> None:
+    """Test getting pending review list when empty."""
+    response = await client.get("/statements/pending-review")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+
+
+async def test_approve_statement_not_found(client: AsyncClient) -> None:
+    """Test approving a non-existent statement."""
+    response = await client.post(
+        "/statements/00000000-0000-0000-0000-000000000000/approve",
+        json={"approved": True}
+    )
+    assert response.status_code == 404
+
+
+async def test_upload_no_file(client: AsyncClient) -> None:
+    """Test upload endpoint without file."""
+    response = await client.post(
+        "/statements/upload",
+        data={"institution": "DBS"}
+    )
+    # Should fail validation - no file
+    assert response.status_code == 422
+
+
+async def test_health_endpoint_structure(client: AsyncClient) -> None:
+    """Test health endpoint returns proper structure."""
+    response = await client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert "timestamp" in data
+    assert data["status"] == "healthy"
+
+
+async def test_ping_multiple_toggles(client: AsyncClient) -> None:
+    """Test multiple ping toggles."""
+    # Toggle 3 times
+    for i in range(3):
+        response = await client.post("/ping/toggle")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["toggle_count"] == i + 1
+
+    # Check final state is pong (odd number of toggles)
+    response = await client.get("/ping")
+    assert response.json()["state"] == "pong"
+
+
+class TestSchemas:
+    """Tests for Pydantic schemas."""
+
+    def test_review_decision_approved(self):
+        """Test ReviewDecision with approved."""
+        from src.schemas.extraction import ReviewDecision
+        decision = ReviewDecision(approved=True)
+        assert decision.approved is True
+        assert decision.notes is None
+
+    def test_review_decision_rejected_with_notes(self):
+        """Test ReviewDecision rejected with notes."""
+        from src.schemas.extraction import ReviewDecision
+        decision = ReviewDecision(approved=False, notes="Incorrect amount")
+        assert decision.approved is False
+        assert decision.notes == "Incorrect amount"
+
+    def test_confidence_level_enum(self):
+        """Test ConfidenceLevelEnum values."""
+        from src.schemas.extraction import ConfidenceLevelEnum
+        assert ConfidenceLevelEnum.HIGH.value == "high"
+        assert ConfidenceLevelEnum.MEDIUM.value == "medium"
+        assert ConfidenceLevelEnum.LOW.value == "low"
+
+    def test_statement_status_enum(self):
+        """Test StatementStatusEnum values."""
+        from src.schemas.extraction import StatementStatusEnum
+        assert StatementStatusEnum.UPLOADED.value == "uploaded"
+        assert StatementStatusEnum.PARSED.value == "parsed"
+        assert StatementStatusEnum.APPROVED.value == "approved"
+
+    def test_event_update_request(self):
+        """Test EventUpdateRequest partial update."""
+        from decimal import Decimal
+
+        from src.schemas.extraction import EventUpdateRequest
+        update = EventUpdateRequest(amount=Decimal("100.00"))
+        assert update.amount == Decimal("100.00")
+        assert update.description is None
+
+
+class TestDatabase:
+    """Tests for database module."""
+
+    def test_base_metadata(self):
+        """Test Base has proper metadata."""
+        from src.database import Base
+        assert Base.metadata is not None
+
+    def test_get_db_depends(self):
+        """Test get_db is a proper dependency."""
+        import inspect
+
+        from src.database import get_db
+        assert inspect.isasyncgenfunction(get_db)
+
+
+class TestModels:
+    """Tests for SQLAlchemy models."""
+
+    def test_statement_model_table_name(self):
+        """Test Statement model has correct table name."""
+        from src.models.statement import Statement
+        assert Statement.__tablename__ == "statements"
+
+    def test_account_event_model_table_name(self):
+        """Test AccountEvent model has correct table name."""
+        from src.models.statement import AccountEvent
+        assert AccountEvent.__tablename__ == "account_events"
+
+    def test_statement_status_enum(self):
+        """Test StatementStatus enum values."""
+        from src.models.statement import StatementStatus
+        assert StatementStatus.UPLOADED.value == "uploaded"
+        assert StatementStatus.PARSED.value == "parsed"
+
+    def test_confidence_level_enum(self):
+        """Test ConfidenceLevel enum values."""
+        from src.models.statement import ConfidenceLevel
+        assert ConfidenceLevel.HIGH.value == "high"
+        assert ConfidenceLevel.LOW.value == "low"
+
+    def test_statement_relationship(self):
+        """Test Statement has events relationship."""
+        from src.models.statement import Statement
+        assert hasattr(Statement, "events")
+
+    def test_account_event_relationship(self):
+        """Test AccountEvent has statement relationship."""
+        from src.models.statement import AccountEvent
+        assert hasattr(AccountEvent, "statement")
+
+
+class TestConfig:
+    """Tests for configuration."""
+
+    def test_config_defaults(self):
+        """Test Settings has reasonable defaults."""
+        from src.config import Settings
+        settings = Settings()
+        assert settings.openrouter_model == "google/gemini-2.5-flash-lite"
+        assert settings.s3_bucket == "statements"
+
+    def test_config_database_url(self):
+        """Test database URL is set."""
+        from src.config import Settings
+        settings = Settings()
+        assert "postgresql" in settings.database_url or "sqlite" in settings.database_url
+

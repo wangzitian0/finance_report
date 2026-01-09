@@ -1,0 +1,192 @@
+{
+  "file": "Apr2025_MariBank_e-Statement.pdf",
+  "institution": "MariBank",
+  "success": true,
+  "statement": {
+    "period_start": "2025-04-01",
+    "period_end": "2025-04-30",
+    "opening_balance": "300000.00",
+    "closing_balance": "299932.66",
+    "currency": "SGD",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "2025-04-01",
+      "description": "Interest\nInterest",
+      "amount": "100.19",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-02",
+      "description": "****** PTE. LTD..\nPayNow Transfer\ng",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-04",
+      "description": "*** *** *** LTD\nPayNow Transfer\ng",
+      "amount": "8.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-05",
+      "description": "Repayment\nMari Credit Card",
+      "amount": "40.03",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-07",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "8.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-08",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "9.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-08",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-10",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "8.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-10",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-11",
+      "description": "****** PTE. LTD..\nPayNow Transfer\nQSBanMianSales",
+      "amount": "10.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-11",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "8.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-15",
+      "description": "*** *** *** LTD\nPayNow Transfer",
+      "amount": "8.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-15",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-17",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "8.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-17",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-23",
+      "description": "*** *** *** LTD\nPayNow Transfer",
+      "amount": "8.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-24",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "7.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-24",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-25",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "7.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-25",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-28",
+      "description": "*** *** *** LTD\nPayNow Transfer",
+      "amount": "8.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-29",
+      "description": "*** *** *** LTD\nPayNow Transfer",
+      "amount": "8.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-30",
+      "description": "****** PTE. LTD..\nPayNow Transfer",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    }
+  ]
+}

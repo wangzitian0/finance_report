@@ -1,0 +1,262 @@
+{
+  "file": "gxs-2506.pdf",
+  "institution": "GXS",
+  "success": true,
+  "statement": {
+    "period_start": "2025-06-01",
+    "period_end": "2025-06-30",
+    "opening_balance": "300000.00",
+    "closing_balance": "251222.32",
+    "currency": "SGD",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "2025-06-01",
+      "description": "Interest Earned",
+      "amount": "2.38",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-02",
+      "description": "Interest Earned",
+      "amount": "2.38",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-02",
+      "description": "Payment to GrabPay Wallet",
+      "amount": "200.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-03",
+      "description": "Interest Earned",
+      "amount": "2.38",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-04",
+      "description": "Interest Earned",
+      "amount": "2.37",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-05",
+      "description": "Interest Earned",
+      "amount": "2.37",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-06",
+      "description": "Interest Earned",
+      "amount": "2.37",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-07",
+      "description": "Interest Earned",
+      "amount": "2.38",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-08",
+      "description": "Interest Earned",
+      "amount": "2.37",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-08",
+      "description": "Payment to ****** ANG",
+      "amount": "48000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-09",
+      "description": "Interest Earned",
+      "amount": "0.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-10",
+      "description": "Interest Earned",
+      "amount": "0.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-11",
+      "description": "Interest Earned",
+      "amount": "0.17",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-12",
+      "description": "Interest Earned",
+      "amount": "0.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-12",
+      "description": "Payment to GrabPay Wallet",
+      "amount": "200.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "Interest Earned",
+      "amount": "0.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-14",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-15",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-16",
+      "description": "Interest Earned",
+      "amount": "0.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-17",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-18",
+      "description": "Interest Earned",
+      "amount": "0.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-19",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-19",
+      "description": "Payment to GrabPay Wallet",
+      "amount": "200.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-20",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-21",
+      "description": "Interest Earned",
+      "amount": "0.14",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-22",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-23",
+      "description": "Interest Earned",
+      "amount": "0.14",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-24",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-25",
+      "description": "Interest Earned",
+      "amount": "0.14",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-26",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-27",
+      "description": "Interest Earned",
+      "amount": "0.14",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-28",
+      "description": "Interest Earned",
+      "amount": "0.15",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-29",
+      "description": "Interest Earned",
+      "amount": "0.14",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-29",
+      "description": "Payment to GrabPay Wallet",
+      "amount": "200.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-30",
+      "description": "Interest Earned",
+      "amount": "0.14",
+      "direction": "IN",
+      "confidence": "high"
+    }
+  ]
+}

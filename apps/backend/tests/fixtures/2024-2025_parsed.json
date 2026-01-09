@@ -1,0 +1,521 @@
+{
+  "file": "2024-2025.pdf",
+  "institution": "CMB",
+  "success": true,
+  "statement": {
+    "period_start": "2024-01-01",
+    "period_end": "2025-12-31",
+    "opening_balance": "300000.00",
+    "closing_balance": "300000.00",
+    "currency": "CNY",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "2024-01-02",
+      "description": "卖出 上港集团",
+      "amount": "-24550.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-02",
+      "description": "卖出 江苏银行",
+      "amount": "-22814.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-02",
+      "description": "卖出 格力电器",
+      "amount": "-25736.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-02",
+      "description": "买入 航发动力",
+      "amount": "-26178.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-02",
+      "description": "买入 陕西煤业",
+      "amount": "-25001.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-02",
+      "description": "买入 中国广核",
+      "amount": "-21846.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-02",
+      "description": "港股通组合费",
+      "amount": "-1.13",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-03",
+      "description": "港股通组合费",
+      "amount": "-0.28",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "卖出 航发动力",
+      "amount": "25830.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "卖出 中国核电",
+      "amount": "26894.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "卖出 藏格矿业",
+      "amount": "28897.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "买入 北京银行",
+      "amount": "-27600.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "买入 上港集团",
+      "amount": "-26728.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "买入 大秦铁路",
+      "amount": "-26460.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "买入 中国广核",
+      "amount": "-984.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-04",
+      "description": "港股通组合费",
+      "amount": "-0.27",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "银证转入",
+      "amount": "110500.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "卖出 陕西煤业",
+      "amount": "26592.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "买入 建设银行",
+      "amount": "-55361.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "买入 长江电力",
+      "amount": "-28548.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "买入 华能水电",
+      "amount": "-26820.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "买入 国电电力",
+      "amount": "-26100.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-05",
+      "description": "港股通组合费",
+      "amount": "-0.28",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-08",
+      "description": "港股通组合费",
+      "amount": "-0.83",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "卖出 小鹏汽车-W",
+      "amount": "399977.28",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "卖出 美的集团",
+      "amount": "27340.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "卖出 上海银行",
+      "amount": "27180.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 国投电力",
+      "amount": "-56112.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 纳思达",
+      "amount": "-54216.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 中国银行",
+      "amount": "-28560.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 交通银行",
+      "amount": "-28714.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 工商银行",
+      "amount": "-29220.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 XD华夏银",
+      "amount": "-28616.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 农业银行",
+      "amount": "-29600.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 潞安环能",
+      "amount": "-27760.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 中联重科",
+      "amount": "-28864.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 中国广核",
+      "amount": "-29700.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 双汇发展",
+      "amount": "-29231.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 北京银行",
+      "amount": "-28365.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 上港集团",
+      "amount": "-26061.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "买入 大秦铁路",
+      "amount": "-28743.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-09",
+      "description": "港股通组合费",
+      "amount": "-0.26",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-10",
+      "description": "卖出 国电电力",
+      "amount": "52824.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-10",
+      "description": "卖出 中国广核",
+      "amount": "54931.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-10",
+      "description": "买入 格力电器",
+      "amount": "-53935.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-10",
+      "description": "买入 中国海油",
+      "amount": "-52850.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-10",
+      "description": "港股通组合费",
+      "amount": "-0.17",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-11",
+      "description": "港股通组合费",
+      "amount": "-0.17",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "卖出 中国银行",
+      "amount": "53198.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "卖出 交通银行",
+      "amount": "54625.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "卖出 纳思达",
+      "amount": "55674.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "买入 美的集团",
+      "amount": "-54900.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "买入 福耀玻璃",
+      "amount": "-54544.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "买入 中国核电",
+      "amount": "-54303.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "卖出 双汇发展",
+      "amount": "55944.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "买入 中国神华",
+      "amount": "-56593.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-12",
+      "description": "港股通组合费",
+      "amount": "-0.18",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-15",
+      "description": "港股通组合费",
+      "amount": "-0.55",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-16",
+      "description": "卖出 中国海油",
+      "amount": "52150.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-16",
+      "description": "卖出 福耀玻璃",
+      "amount": "53984.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-16",
+      "description": "买入 上海银行",
+      "amount": "-53234.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-16",
+      "description": "港股通组合费",
+      "amount": "-0.18",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-17",
+      "description": "卖出 中国核电",
+      "amount": "57792.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-17",
+      "description": "卖出 江苏银行",
+      "amount": "54993.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-17",
+      "description": "买入 交通银行",
+      "amount": "-56448.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-17",
+      "description": "买入 福耀玻璃",
+      "amount": "-55097.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-17",
+      "description": "买入 江苏银行",
+      "amount": "-1422.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-17",
+      "description": "港股通组合费",
+      "amount": "-0.18",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-18",
+      "description": "卖出 上海银行",
+      "amount": "53320.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-18",
+      "description": "买入 金山办公",
+      "amount": "-53478.38",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-18",
+      "description": "港股通组合费",
+      "amount": "-0.18",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2024-01-19",
+      "description": null,
+      "amount": "0",
+      "direction": "OUT",
+      "confidence": "high"
+    }
+  ]
+}

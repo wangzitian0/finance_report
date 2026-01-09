@@ -1,0 +1,45 @@
+{
+  "file": "futu-2506.pdf",
+  "institution": "Futu",
+  "success": true,
+  "statement": {
+    "period_start": null,
+    "period_end": "2025-06",
+    "opening_balance": "300000.00",
+    "closing_balance": "348600.00",
+    "currency": "HKD",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "UNKNOWN",
+      "description": "股票和股票期權",
+      "amount": "275130.00",
+      "direction": "IN",
+      "confidence": "low"
+    },
+    {
+      "date": "UNKNOWN",
+      "description": "現金結餘",
+      "amount": "1238.57",
+      "direction": "IN",
+      "confidence": "low"
+    },
+    {
+      "date": "UNKNOWN",
+      "description": "股票和股票期權 valuation",
+      "amount": "323730.00",
+      "direction": "IN",
+      "confidence": "low"
+    },
+    {
+      "date": "UNKNOWN",
+      "description": "現金結餘",
+      "amount": "1238.57",
+      "direction": "IN",
+      "confidence": "low"
+    }
+  ]
+}
