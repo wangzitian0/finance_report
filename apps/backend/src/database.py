@@ -1,5 +1,7 @@
 """Database configuration and session management."""
 
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -8,6 +10,7 @@ from src.config import settings
 
 class Base(DeclarativeBase):
     """SQLAlchemy declarative base."""
+
     pass
 
 
@@ -24,7 +27,7 @@ async_session_maker = async_sessionmaker(
 )
 
 
-async def get_db():
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for database session."""
     async with async_session_maker() as session:
         try:
@@ -33,9 +36,9 @@ async def get_db():
             await session.close()
 
 
-async def init_db():
+async def init_db() -> None:
     """Initialize database tables."""
     from src.models import PingState  # noqa: F401
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -28,7 +28,7 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, []) // API_URL is a module-level constant, no need in deps
 
   const toggleState = async () => {
     setToggling(true)
