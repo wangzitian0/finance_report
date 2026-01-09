@@ -1,15 +1,20 @@
 """Account model for double-entry bookkeeping."""
 
+from __future__ import annotations
+
 import enum
 from datetime import UTC, datetime
-from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, String, DECIMAL
+from sqlalchemy import Boolean, DateTime, Enum, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+
+if TYPE_CHECKING:
+    from src.models.journal import JournalLine
 
 
 class AccountType(str, enum.Enum):
@@ -45,11 +50,14 @@ class Account(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
-    journal_lines: Mapped[list["JournalLine"]] = relationship(
+    journal_lines: Mapped[list[JournalLine]] = relationship(
         "JournalLine", back_populates="account", lazy="selectin"
     )
 

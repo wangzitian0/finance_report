@@ -1,15 +1,30 @@
 """Journal entry models for double-entry bookkeeping."""
 
+from __future__ import annotations
+
 import enum
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, DECIMAL, CheckConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import (
+    DECIMAL,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+
+if TYPE_CHECKING:
+    from src.models.account import Account
 
 
 class JournalEntryStatus(str, enum.Enum):
@@ -65,11 +80,14 @@ class JournalEntry(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
-    lines: Mapped[list["JournalLine"]] = relationship(
+    lines: Mapped[list[JournalLine]] = relationship(
         "JournalLine", back_populates="journal_entry", cascade="all, delete-orphan"
     )
 
@@ -109,10 +127,10 @@ class JournalLine(Base):
     )
 
     # Relationships
-    journal_entry: Mapped["JournalEntry"] = relationship(
+    journal_entry: Mapped[JournalEntry] = relationship(
         "JournalEntry", back_populates="lines"
     )
-    account: Mapped["Account"] = relationship(
+    account: Mapped[Account] = relationship(
         "Account", back_populates="journal_lines"
     )
 
