@@ -2,16 +2,53 @@
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import StaticPool
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from src.database import Base, get_db
 from src.main import app
+
+
+# Use in-memory SQLite for tests
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+test_engine = create_async_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+
+TestingSessionLocal = async_sessionmaker(
+    test_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def override_get_db() -> AsyncSession:
+    """Override database dependency for tests."""
+    async with TestingSessionLocal() as session:
+        yield session
+
+
+@pytest.fixture(autouse=True)
+async def setup_database() -> None:
+    """Create tables before each test."""
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture
 async def client() -> AsyncClient:
-    """Async test client."""
+    """Async test client with test database."""
+    app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -30,27 +67,24 @@ async def test_ping_initial_state(client: AsyncClient) -> None:
     response = await client.get("/ping")
     assert response.status_code == 200
     data = response.json()
-    assert data["state"] in ["ping", "pong"]
-    assert "toggle_count" in data
+    assert data["state"] == "ping"
+    assert data["toggle_count"] == 0
 
 
 @pytest.mark.asyncio
 async def test_ping_toggle(client: AsyncClient) -> None:
     """Test toggle endpoint."""
-    # Get initial state
-    response = await client.get("/ping")
-    assert response.status_code == 200
-    initial_data = response.json()
-    initial_state = initial_data["state"]
-    initial_count = initial_data["toggle_count"]
-
-    # Toggle state
+    # First toggle - should go from ping to pong
     response = await client.post("/ping/toggle")
     assert response.status_code == 200
     data = response.json()
-
-    # State should be toggled
-    expected_state = "pong" if initial_state == "ping" else "ping"
-    assert data["state"] == expected_state
-    assert data["toggle_count"] == initial_count + 1
+    assert data["state"] == "pong"
+    assert data["toggle_count"] == 1
     assert "last_toggled" in data
+
+    # Second toggle - should go back to ping
+    response = await client.post("/ping/toggle")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["state"] == "ping"
+    assert data["toggle_count"] == 2
