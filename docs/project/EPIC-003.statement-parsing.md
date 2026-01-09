@@ -35,8 +35,8 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ### Data Model (Backend)
 
-- [ ] `BankStatement` model - Statement header (account_id, period, opening/closing_balance)
-- [ ] `BankStatementTransaction` model - Transaction details (txn_date, amount, direction, description)
+- [ ] `BankStatement` model - Statement header (user_id, account_id?, institution, account_last4, currency, period_start/period_end, opening/closing_balance, file_path, file_hash, original_filename, status, confidence_score, balance_validated)
+- [ ] `BankStatementTransaction` model - Transaction details (txn_date, amount, direction, description, reference, status, confidence, raw_text)
 - [ ] Alembic migration script
 - [ ] Pydantic Schema
 
@@ -48,13 +48,17 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
   - [ ] `parse_xlsx()` - Excel parsing
 - [ ] Prompt template management
   - [ ] DBS/POSB statement template
-  - [ ] OCBC statement template
-  - [ ] Credit card statement generic template
+  - [ ] CMB statement template
+  - [ ] Maybank statement template
+  - [ ] Wise/fintech generic template
+  - [ ] Brokerage generic template
+  - [ ] Insurance generic template
 - [ ] Structured parsing results
   ```python
   class ParsedStatement:
-      bank_name: str
-      account_number: str  # Last 4 digits
+      institution: str
+      account_last4: str
+      currency: str
       period_start: date
       period_end: date
       opening_balance: Decimal
@@ -67,7 +71,9 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 - [ ] `services/validation.py` - Validation service
   - [ ] `validate_balance()` - Opening + Transactions ≈ Closing (tolerance 0.1 USD)
   - [ ] `validate_completeness()` - Required field validation
-  - [ ] `detect_duplicates()` - Duplicate import detection
+  - [ ] `detect_duplicates()` - Duplicate import detection (file_hash)
+  - [ ] `compute_confidence_score()` - Score 0-100 based on SSOT factors
+  - [ ] `route_by_threshold()` - Auto-accept / review queue / manual entry
 - [ ] Validation failure handling
   - [ ] Mark as "Requires Manual Review"
   - [ ] Log failure reason
@@ -78,6 +84,7 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 - [ ] `POST /api/statements/upload` - File upload
 - [ ] `GET /api/statements` - Statement list
 - [ ] `GET /api/statements/{id}` - Statement details (with transactions)
+- [ ] `GET /api/statements/pending-review` - Review queue list
 - [ ] `POST /api/statements/{id}/approve` - Approve statement
 - [ ] `POST /api/statements/{id}/reject` - Reject statement
 - [ ] `GET /api/statements/{id}/transactions` - Transaction list
@@ -109,9 +116,10 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 |------|----------|------|
 | **Parsing success rate ≥ 95%** | Test with 10 real statements | 🔴 Critical |
 | **Balance validation 100% enforced** | Opening+Transactions≈Closing check | 🔴 Critical |
+| **Confidence score routing enforced** | ≥85 auto-accept, 60-84 review, <60 manual | 🔴 Critical |
 | **Parsing errors not persisted** | Validation failure returns error | 🔴 Critical |
-| Support PDF format (DBS, OCBC) | Bank sample testing | Required |
-| Support generic CSV format | Standard CSV testing | Required |
+| Support PDF format (DBS/POSB, CMB, Maybank) | Bank sample testing | Required |
+| Support PDF/CSV format (Wise/fintech, brokerage generic) | Sample testing | Required |
 | File size limit 10MB | Upload validation | Required |
 | Parsing time < 30s | Performance testing | Required |
 
@@ -173,9 +181,10 @@ def test_gemini_retry_on_timeout():
 | Bank | Format | Sample Count | Expected Accuracy |
 |------|------|--------|------------|
 | DBS/POSB | PDF | 3 | ≥ 95% |
-| OCBC | PDF | 2 | ≥ 95% |
-| Credit Card | PDF | 3 | ≥ 90% |
-| Generic | CSV | 2 | ≥ 98% |
+| CMB | PDF | 2 | ≥ 95% |
+| Maybank | PDF | 2 | ≥ 95% |
+| Wise | PDF/CSV | 2 | ≥ 95% |
+| Brokerage (generic) | PDF/CSV | 2 | ≥ 90% |
 
 ---
 
@@ -211,10 +220,10 @@ def test_gemini_retry_on_timeout():
 
 ## Issues & Gaps
 
-- [ ] SSOT extraction defines `Statement/AccountEvent` with storage + dedup + confidence fields (`file_path`, `file_hash`, `original_filename`, `institution`, `account_last4`, `currency`, `confidence_score`, `balance_validated`), but EPIC-003 only models `BankStatement/BankStatementTransaction`; align with `docs/ssot/extraction.md`.
-- [ ] Model/config mismatch: EPIC-003 uses Gemini 3 Flash + fallback models and OpenRouter daily limit, while SSOT specifies Gemini Flash 2.0 and `OPENROUTER_MODEL=google/gemini-2.5-flash-lite`.
-- [ ] SSOT requires confidence scoring and a review queue (`/statements/pending-review`), but EPIC-003 tasks/AC only mention validation and approve/reject.
-- [ ] Institution/template scope is inconsistent between checklist (DBS/OCBC/credit card), Q5 decision (DBS/CMB/Maybank/Wise + brokerages), and SSOT supported institutions.
+- [x] Align BankStatement and BankStatementTransaction fields with SSOT extraction (file_hash, confidence_score, balance_validated, etc.).
+- [x] Align model/config with SSOT (Gemini 3 Flash + fallback models and OpenRouter limits).
+- [x] Add confidence scoring and review queue routing (`/api/statements/pending-review`) to tasks and acceptance criteria.
+- [x] Standardize institution/template scope across checklist, Q5 decision, and SSOT supported institutions.
 
 ---
 
@@ -235,11 +244,11 @@ def test_gemini_retry_on_timeout():
   - `custom_fields`: User-defined custom fields
 - **Prompt templates** grouped by institution type:
   - `templates/dbs.yaml`
-  - `templates/ocbc.yaml`
-  - `templates/citic.yaml`
+  - `templates/cmb.yaml`
+  - `templates/maybank.yaml`
+  - `templates/fintech_generic.yaml` (Wise, Revolut, etc.)
   - `templates/brokerage_generic.yaml`
   - `templates/insurance_generic.yaml`
-  - `templates/fintech_generic.yaml` (Wise, Revolut, etc.)
 - **Institution library maintenance**:
   - Frontend provides institution/account type selector
   - Users can configure prompt templates for new institutions
@@ -278,7 +287,7 @@ def test_gemini_retry_on_timeout():
   │     └─ ❌ Fail → Show partial results + Edit form
   └─ User can always manually add/edit transactions
   ```
-- Environment variables: `PRIMARY_MODEL=gemini-3-flash`, `FALLBACK_MODELS=["gemini-2.0", "gpt-4-turbo"]`
+- Environment variables: `PRIMARY_MODEL=google/gemini-3-flash`, `FALLBACK_MODELS=google/gemini-2.0,openai/gpt-4-turbo`
 - UI displays retry progress and current model in use
 
 ### Q8: Statement-Account Linking
