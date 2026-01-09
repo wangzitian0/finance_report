@@ -19,7 +19,7 @@
 **Reading Order (10-minute overview)**
 1. [init.md](init.md) — Project goals, business flows, phased delivery
 2. [README.md](README.md) — Tech stack, quick start commands
-3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [db.schema.md](docs/ssot/db.schema.md)
+3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [schema.md](docs/ssot/schema.md)
 4. [.claude/skills/README.md](.claude/skills/README.md) — Available agent roles
 
 **Routing Rules (where to go when)**
@@ -70,7 +70,7 @@ AI must use this cascade structure before processing tasks:
 
 ### 3. Actions (Execution Steps)
 - **Atomic Operations**: Define specific action sequence for each task
-- **SSOT Alignment**: Actions must conform to [domain.accounting.md](docs/ssot/domain.accounting.md) and [domain.reconciliation.md](docs/ssot/domain.reconciliation.md)
+- **SSOT Alignment**: Actions must conform to [accounting.md](docs/ssot/accounting.md) and [reconciliation.md](docs/ssot/reconciliation.md)
 - **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
 
 ### 4. Result (Verification)
@@ -107,11 +107,14 @@ AI must use this cascade structure before processing tasks:
 
 ```
 docs/
-├── ssot/                 # Technical Truth (MECE by domain)
-│   ├── db.schema.md      # Database layer
-│   ├── domain.accounting.md    # Accounting domain
-│   └── domain.reconciliation.md # Reconciliation domain
-├── project/              # EPIC & Task Tracking (TODO)
+├── ssot/                 # Technical Truth (Flat Ontology)
+│   ├── schema.md         # Database layer
+│   ├── accounting.md     # Accounting domain
+│   ├── reconciliation.md # Reconciliation domain
+│   ├── extraction.md     # Document parsing
+│   ├── reporting.md      # Financial reports
+│   └── market_data.md    # FX & stock prices
+├── project/              # EPIC & Task Tracking
 │   ├── README.md
 │   └── EPIC-001.phase0-setup.md
 └── onboarding/           # User Manual (TODO)

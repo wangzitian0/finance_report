@@ -1,28 +1,35 @@
-# Data Model SSOT Index
+# SSOT Documentation Index
 
 > **SSOT = Single Source of Truth**
 > This directory is the **authoritative reference** for all technical decisions.
 
-## Document Structure (MECE Organization)
+## Document Index (Flat Ontology)
 
-Documents are organized by layer to ensure Mutually Exclusive, Collectively Exhaustive coverage:
+All documents are at the same level, organized by domain:
 
-### Database Layer
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
-| [db.schema.md](./db.schema.md) | `db.schema` | PostgreSQL tables, ER diagram, indexes |
+| [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes |
+| [accounting.md](./accounting.md) | `accounting` | Double-entry rules, accounting equation |
+| [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching algorithm, confidence scoring |
+| [extraction.md](./extraction.md) | `extraction` | Gemini Vision parsing, validation pipeline |
+| [reporting.md](./reporting.md) | `reporting` | Financial reports, multi-currency consolidation |
+| [market_data.md](./market_data.md) | `market_data` | FX rates, stock prices, sync schedule |
 
-### Domain Layer
-| Document | SSOT Key | Description |
-|----------|----------|-------------|
-| [domain.accounting.md](./domain.accounting.md) | `domain.accounting` | Double-entry rules, accounting equation |
-| [domain.reconciliation.md](./domain.reconciliation.md) | `domain.reconciliation` | Matching algorithm, confidence scoring |
+## Document Dependency Graph
 
-### Future Documents (TODO)
-- `domain.reporting.md` — Financial report generation
-- `domain.extraction.md` — Gemini document parsing
-- `ops.backup.md` — Backup and recovery procedures
-- `ops.deployment.md` — Dokploy deployment guide
+```mermaid
+flowchart TD
+    schema[schema.md] --> accounting[accounting.md]
+    schema --> reconciliation[reconciliation.md]
+    schema --> extraction[extraction.md]
+    schema --> market_data[market_data.md]
+    
+    extraction --> reconciliation
+    accounting --> reconciliation
+    accounting --> reporting[reporting.md]
+    market_data --> reporting
+```
 
 ## Design Principles
 
@@ -31,9 +38,9 @@ Documents are organized by layer to ensure Mutually Exclusive, Collectively Exha
 3. **SSOT before implementation** — Define truth before writing code
 4. **Immediate sync on drift** — If code differs, update SSOT immediately
 
-## SSOT Template
+## SSOT Template Structure
 
-Each SSOT document should follow this structure:
+Each document follows this structure:
 1. **Source of Truth** — Physical file locations
 2. **Architecture Model** — Diagrams, key decisions
 3. **Design Constraints** — Dos & Don'ts
