@@ -201,6 +201,13 @@ def test_many_lines_entry():
 
 ---
 
+## Issues & Gaps
+
+- [ ] Data model checklist omits SSOT fields for `Account` and `JournalLine` (e.g., `code`, `parent_id`, `is_active`, `fx_rate`, `event_type`, `tags`, `updated_at`), which risks schema drift from `docs/ssot/schema.md`.
+- [ ] Multi-currency is required in v1, but FX rate sourcing lives in `docs/ssot/market_data.md` / EPIC-005; EPIC-002 does not declare a dependency or interim FX strategy.
+
+---
+
 ## ❓ Q&A (Clarification Required)
 
 ### Q1: Account Code Standards

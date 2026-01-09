@@ -209,6 +209,15 @@ def test_gemini_retry_on_timeout():
 
 ---
 
+## Issues & Gaps
+
+- [ ] SSOT extraction defines `Statement/AccountEvent` with storage + dedup + confidence fields (`file_path`, `file_hash`, `original_filename`, `institution`, `account_last4`, `currency`, `confidence_score`, `balance_validated`), but EPIC-003 only models `BankStatement/BankStatementTransaction`; align with `docs/ssot/extraction.md`.
+- [ ] Model/config mismatch: EPIC-003 uses Gemini 3 Flash + fallback models and OpenRouter daily limit, while SSOT specifies Gemini Flash 2.0 and `OPENROUTER_MODEL=google/gemini-2.5-flash-lite`.
+- [ ] SSOT requires confidence scoring and a review queue (`/statements/pending-review`), but EPIC-003 tasks/AC only mention validation and approve/reject.
+- [ ] Institution/template scope is inconsistent between checklist (DBS/OCBC/credit card), Q5 decision (DBS/CMB/Maybank/Wise + brokerages), and SSOT supported institutions.
+
+---
+
 ## ❓ Q&A (Clarification Required)
 
 ### Q5: Bank Priority Support
