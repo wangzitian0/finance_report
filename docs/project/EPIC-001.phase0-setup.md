@@ -9,7 +9,7 @@
 
 ## 🎯 Objective
 
-搭建可运行的 Monorepo 开发环境，完成用户认证与基础项目骨架。
+搭建可运行  Monorepo 开发环境, 完成用户认证and基础项目骨架。
 
 **From [init.md Section 7](../../init.md) - Phase 0**
 
@@ -19,10 +19,10 @@
 
 | Role | Focus | Review Opinion |
 |------|--------|----------|
-| 🏗️ **Architect** | 技术选型 | Moonrepo + FastAPI + Next.js 组合验证完毕，符合多语言 monorepo 需求 |
-| 💻 **Developer** | 开发体验 | 热重载、类型提示、调试工具链完备 |
-| 📋 **PM** | MVP 价值 | 最小可演示版本（ping-pong demo）验证端到端连通 |
-| 🧪 **Tester** | 测试基础 | pytest + vitest 框架配置完成，CI 就绪 |
+| 🏗️ **Architect** | 技术选型 | Moonrepo + FastAPI + Next.js 组合验证完毕, 符合多语言 monorepo 需求 |
+| 💻 **Developer** | 开发体验 | 热重载, 类型提示, 调试工具链完备 |
+| 📋 **PM** | MVP 价值 | 最小可演示版本 (ping-pong demo)验证端到端连通 |
+| 🧪 **Tester** | 测试基础 | pytest + vitest 框架配置完成, CI 就绪 |
 
 ---
 
@@ -58,7 +58,7 @@
 
 ---
 
-## 📏 做得好不好的标准
+## 📏 做得好不好 标准
 
 ### 🟢 Must Have
 
@@ -92,14 +92,14 @@
 ## 📚 SSOT References
 
 - [schema.md](../ssot/schema.md) - 数据库结构
-- [accounting.md](../ssot/accounting.md) - 会计模型
+- [accounting.md](../ssot/accounting.md) - 会计model
 
 ---
 
 ## 🔗 Deliverables
 
-- [x] 可运行的 `apps/backend/` 项目
-- [x] 可运行的 `apps/frontend/` 项目
+- [x] 可运行  `apps/backend/` 项目
+- [x] 可运行  `apps/frontend/` 项目
 - [x] `docker-compose.yml` 本地环境
 - [x] `README.md` 快速开始指南
 
@@ -117,7 +117,7 @@
 
 ## ❓ Q&A (Clarification Required)
 
-> 本 EPIC 已完成，无待确认问题。
+> 本 EPIC Complete, 无To Be ConfirmedQuestion。
 
 ---
 

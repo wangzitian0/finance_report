@@ -3,19 +3,19 @@
 > **Status**: ⏳ Pending  
 > **Phase**: 4  
 > **Duration**: 3 周  
-> **Dependencies**: EPIC-002 (可与 EPIC-003/004 并行)  
+> **Dependencies**: EPIC-002 (可and EPIC-003/004 并行)  
 
 ---
 
 ## 🎯 Objective
 
-生成标准财务三表（资产负债表、利润表、现金流量表），可视化资产结构与趋势，帮助用户全面了解财务状况。
+生成标准财务三表 (资产负债表, 利润表, 现金流量表), 可视化资产结构and趋势, 帮助用户全面了解财务状况。
 
 **核心约束**:
 ```
 资产负债表: Assets = Liabilities + Equity
 利润表: Net Income = Income - Expenses
-会计恒等式验证: 报表必须符合会计恒等式
+Accounting equation验证: 报表Required符合Accounting equation
 ```
 
 ---
@@ -24,11 +24,11 @@
 
 | Role | Focus | Review Opinion |
 |------|--------|----------|
-| 📊 **Accountant** | 报表准确性 | 三表必须符合会计准则，数据来源可追溯 |
-| 🏗️ **Architect** | 计算性能 | 大数据量报表需缓存或物化视图 |
-| 💻 **Developer** | 图表实现 | Recharts 轻量场景，ECharts 复杂图表 |
-| 📋 **PM** | 用户理解 | 报表需添加说明和示例，非会计专业用户也能看懂 |
-| 🧪 **Tester** | 计算验证 | 与手工计算对比，误差 < 1% |
+| 📊 **Accountant** | 报表准确性 | 三表Required符合会计准则, 数据来源可追溯 |
+| 🏗️ **Architect** | 计算性能 | 大数据量报表需缓存or物化视图 |
+| 💻 **Developer** | 图表实现 | Recharts 轻量场景, ECharts 复杂图表 |
+| 📋 **PM** | 用户理解 | 报表需添加说明and示例, 非会计专业用户也能看懂 |
+| 🧪 **Tester** | 计算验证 | and手工计算对比, 误差 < 1% |
 
 ---
 
@@ -53,9 +53,9 @@
 - [ ] `services/fx.py` - 汇率服务
   - [ ] `get_exchange_rate()` - 获取汇率
   - [ ] `convert_to_base()` - 折算到本位币
-  - [ ] 汇率缓存（每日更新）
+  - [ ] 汇率缓存 (每日更新)
 - [ ] 报表币种配置
-  - [ ] 本位币设置（默认 SGD）
+  - [ ] 本位币设置 (default SGD)
   - [ ] 报表统一折算
 
 ### API 端点 (Backend)
@@ -74,17 +74,17 @@
 ### 仪表板 (Frontend)
 
 - [ ] `/dashboard` - 首页仪表板
-  - [ ] 资产总览卡片（总资产、总负债、净资产）
-  - [ ] 资产趋势折线图（近 12 个月）
-  - [ ] 收支对比柱状图（月度）
-  - [ ] 账户分布饼图（按类型）
+  - [ ] 资产总览卡片 (总资产, 总负债, 净资产)
+  - [ ] 资产趋势折线图 (近 12 个月)
+  - [ ] 收支对比柱状图 (月度)
+  - [ ] 账户分布饼图 (按类型)
   - [ ] 最近交易列表
   - [ ] 未匹配提醒
 
 ### 报表页面 (Frontend)
 
 - [ ] `/reports/balance-sheet` - 资产负债表
-  - [ ] 三栏式布局（资产 | 负债 | 权益）
+  - [ ] 三栏式布局 (资产 | 负债 | 权益)
   - [ ] 账户层级展开/折叠
   - [ ] 日期选择器
   - [ ] 导出按钮
@@ -93,7 +93,7 @@
   - [ ] 同比/环比对比
   - [ ] 时间范围选择
 - [ ] `/reports/cash-flow` - 现金流量表 (P2)
-- [ ] 筛选与交互
+- [ ] 筛选and交互
   - [ ] 日期范围
   - [ ] 账户类型
   - [ ] 币种切换
@@ -108,7 +108,7 @@
 
 ---
 
-## 📏 做得好不好的标准
+## 📏 做得好不好 标准
 
 ### 🟢 Must Have
 
@@ -116,17 +116,17 @@
 |------|----------|------|
 | **资产负债表平衡** | Assets = Liabilities + Equity | 🔴 关键 |
 | **利润表计算正确** | 手工验证 5 个月数据 | 🔴 关键 |
-| **报表与分录一致** | 报表金额可追溯到分录 | 🔴 关键 |
-| 报表生成时间 < 2s | 性能测试（1 年数据） | 必须 |
-| 移动端适配 | 响应式布局 | 必须 |
-| 数据导出可用 | Excel/CSV 下载 | 必须 |
+| **报表and分录一致** | 报表金额可追溯到分录 | 🔴 关键 |
+| 报表生成时间 < 2s | 性能测试 (1 年数据) | Required |
+| 移动端适配 | 响应式布局 | Required |
+| 数据导出可用 | Excel/CSV 下载 | Required |
 
 ### 🌟 Nice to Have
 
 | Standard | Verification | Status |
 |------|----------|------|
-| 报表缓存（减少重复计算） | Redis 缓存命中 | ⏳ |
-| 图表交互（drill-down） | 点击查看明细 | ⏳ |
+| 报表缓存 (减少重复计算) | Redis 缓存命中 | ⏳ |
+| 图表交互 (drill-down) | 点击查看明细 | ⏳ |
 | 预算对比 | 实际 vs 预算 | ⏳ |
 | 自定义报表 | 用户选择维度 | ⏳ |
 | 定期报表邮件 | 自动发送月报 | ⏳ |
@@ -134,16 +134,16 @@
 ### 🚫 Not Acceptable Signals
 
 - 资产负债表不平衡
-- 报表金额与分录合计不一致
-- 图表数据与报表数据不一致
-- 性能超时（> 10s）
+- 报表金额and分录合计不一致
+- 图表数据and报表数据不一致
+- 性能超时 (> 10s)
 - 移动端布局错乱
 
 ---
 
 ## 🧪 Test Scenarios
 
-### 报表计算测试 (必须)
+### 报表计算测试 (Required)
 
 ```python
 def test_balance_sheet_equation():
@@ -157,11 +157,11 @@ def test_income_statement_calculation():
     assert report.net_income == report.total_income - report.total_expenses
 
 def test_report_matches_journal():
-    """报表金额与分录合计一致"""
-    # 手工计算某账户余额，与报表对比
+    """报表金额and分录合计一致"""
+    # 手工计算某账户余额, and报表对比
 ```
 
-### 多币种测试 (必须)
+### 多币种测试 (Required)
 
 ```python
 def test_multi_currency_conversion():
@@ -172,19 +172,19 @@ def test_fx_rate_update():
     """汇率更新后报表重算"""
 ```
 
-### 性能测试 (必须)
+### 性能测试 (Required)
 
 ```python
 def test_report_generation_performance():
     """1 年数据报表生成 < 2s"""
-    # 插入 1000 笔分录，测试报表生成时间
+    # 插入 1000 笔分录, 测试报表生成时间
 ```
 
 ---
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - 账户与分录表
+- [schema.md](../ssot/schema.md) - 账户and分录表
 - [reporting.md](../ssot/reporting.md) - 报表计算规则
 - [market_data.md](../ssot/market_data.md) - 汇率数据源
 
@@ -217,97 +217,97 @@ def test_report_generation_performance():
 ## ❓ Q&A (Clarification Required)
 
 ### Q1: 报表期间定义
-> **问题**: 利润表的"月度"如何定义？
+> **Question**: 利润表 "月度"如何定义？
 
-**✅ 你的回答**: A - 自然月 (1-31)，最直观
+**✅ Your Answer**: A - 自然月 (1-31), 最直观
 
-**决策**: 使用自然月
-- 所有报表默认按自然月分组（1 月 1 日至 1 月 31 日）
+**Decision**: 使用自然月
+- 所有报表default按自然月分组 (1 月 1 日至 1 月 31 日)
 - API 参数: `period_type` = "natural_month"
-- 后续可扩展支持其他周期（week, quarter, year）
-- 数据库查询优化：按 `DATE_TRUNC('month', entry_date)` 分组
+- 后续可扩展支持其他Duration (week, quarter, year)
+- 数据库查询优化:按 `DATE_TRUNC('month', entry_date)` 分组
 
 ### Q2: 汇率数据源
-> **问题**: 使用什么汇率数据源？
+> **Question**: 使用什么汇率数据源？
 
-**✅ 你的回答**: B - Yahoo Finance API（免费）
+**✅ Your Answer**: B - Yahoo Finance API (免费)
 
-**决策**: 使用 Yahoo Finance 作为汇率源
-- 集成 yfinance 库或直接调用 Yahoo Finance API
-- 支持的货币对：SGD/USD, SGD/CNY, SGD/HKD 等（通过 Forex 数据）
-- 缓存策略：
-  - 每日更新一次汇率（早上 UTC 9:00）
+**Decision**: 使用 Yahoo Finance 作为汇率源
+- 集成 yfinance 库or直接Call Yahoo Finance API
+- 支持 货币对:SGD/USD, SGD/CNY, SGD/HKD 等 (通过 Forex 数据)
+- 缓存策略:
+  - 每日更新一次汇率 (早上 UTC 9:00)
   - Redis 缓存 24 小时
   - 支持手动刷新按钮
-- 汇率历史：
+- 汇率历史:
   - 记录每日汇率到 `ExchangeRate` 表
   - 格式: `date, from_currency, to_currency, rate`
-- 降级方案：
-  - 如果 Yahoo Finance 不可用，使用上次缓存汇率
-  - 如果无缓存，提示用户手动设置
+- 降级方案:
+  - 如果 Yahoo Finance 不可用, 使用上次缓存汇率
+  - 如果无缓存, 提示用户手动设置
 
 ### Q3: 历史汇率处理
-> **问题**: 历史交易使用当时汇率还是当前汇率折算？
+> **Question**: 历史交易使用当时汇率还是当前汇率折算？
 
-**✅ 你的回答**: A - 使用交易日汇率（记录在分录中，符合会计准则）
+**✅ Your Answer**: A - 使用交易日汇率 (记录在分录中, 符合会计准则)
 
-**决策**: 历史汇率记录在分录
-- JournalLine 的 `fx_rate` 字段记录交易日的汇率
-- 分录创建时，自动查询当日汇率并存储
-- 报表计算时使用分录中的 fx_rate，不查实时汇率
-- 好处：
-  - ✅ 符合 GAAP 准则（交易日原则）
-  - ✅ 报表可回溯（修改汇率不影响历史报表）
+**Decision**: 历史汇率记录在分录
+- JournalLine   `fx_rate` field记录交易日 汇率
+- 分录创建时, 自动查询当日汇率并存储
+- 报表计算时使用分录中  fx_rate, 不查实时汇率
+- 好处:
+  - ✅ 符合 GAAP 准则 (交易日原则)
+  - ✅ 报表可回溯 (修改汇率不Impact历史报表)
   - ✅ 可追溯汇兑损益
-- 汇兑损益计算：
-  - 原币金额 × 交易日汇率 = 本位币余额（记账时）
+- 汇兑损益计算:
+  - 原币金额 × 交易日汇率 = 本位币余额 (记账时)
   - 原币金额 × 报表日汇率 = 报表日折算值
-  - 差额 = 汇兑损益（Forex Gain/Loss）
+  - 差额 = 汇兑损益 (Forex Gain/Loss)
 
 ### Q4: 图表库选择
-> **问题**: 使用 Recharts 还是 ECharts？
+> **Question**: 使用 Recharts 还是 ECharts？
 
-**✅ 你的回答**: B - 仅 ECharts，因为需要 K 线图等金融图表
+**✅ Your Answer**: B - 仅 ECharts, 因为需要 K 线图等金融图表
 
-**决策**: 统一使用 ECharts
-- ECharts 提供丰富的金融图表：K 线、Candlestick、Volume 等
-- 应用场景：
-  - 资产趋势：K 线图（显示开盘、收盘、最高、最低）
-  - 收支分析：柱状图、折线图
-  - 资产分布：饼图、Sunburst 图
-  - 现金流：Sankey 图（收支流向）
-- 优化：
-  - 按需加载 ECharts 的子模块（减少 bundle 大小）
-  - 使用 Canvas 渲染大数据量图表（性能优化）
-- 依赖：`echarts`, `echarts-for-react` (React wrapper)
+**Decision**: 统一使用 ECharts
+- ECharts 提供丰富 金融图表:K 线, Candlestick, Volume 等
+- 应用场景:
+  - 资产趋势:K 线图 (显示开盘, 收盘, 最高, 最低)
+  - 收支分析:柱状图, 折线图
+  - 资产分布:饼图, Sunburst 图
+  - 现金流:Sankey 图 (收支流向)
+- 优化:
+  - 按需加载 ECharts  子模块 (减少 bundle 大小)
+  - 使用 Canvas 渲染大数据量图表 (性能优化)
+- 依赖:`echarts`, `echarts-for-react` (React wrapper)
 
 ### Q5: 报表导出格式
-> **问题**: 需要支持哪些导出格式？
+> **Question**: 需要支持哪些导出格式？
 
-**✅ 你的回答**: CSV 作为中间产物（数据导出），PDF 作为最终报表（演示用）
+**✅ Your Answer**: CSV 作为中间产物 (数据导出), PDF 作为最终报表 (演示用)
 
-**决策**: 多格式导出策略
+**Decision**: 多格式导出策略
 - **CSV** (中间产物 - 数据导出):
-  - 用于数据分析、二次加工
-  - 包含完整字段：账户、金额、日期、备注、标签等
-  - 支持导出范围筛选（日期、账户、类型）
-  - 示例：`accounts_export_2025_01.csv`, `transactions_export_2025_01.csv`
+  - 用于数据分析, 二次加工
+  - 包含完整field:账户, 金额, 日期, 备注, 标签等
+  - 支持导出范围筛选 (日期, 账户, 类型)
+  - 示例:`accounts_export_2025_01.csv`, `transactions_export_2025_01.csv`
   
 - **PDF** (最终报表 - 演示用):
-  - 使用 reportlab 或 weasyprint 库生成
-  - 包含：资产负债表、利润表、汇总图表
-  - 专业排版：公司名、日期、签名线等
-  - 嵌入图表（静态图片）
-  - 示例：`Financial_Report_2025_01.pdf`
+  - 使用 reportlab or weasyprint 库生成
+  - 包含:资产负债表, 利润表, 汇总图表
+  - 专业排版:公司名, 日期, 签名线等
+  - 嵌入图表 (静态图片)
+  - 示例:`Financial_Report_2025_01.pdf`
   
-- **Excel** (可选，后续迭代):
-  - 暂不实现（v1.0 不提供）
+- **Excel** (可选, 后续迭代):
+  - 暂不实现 (v1.0 不提供)
   - 如需要可在 v1.5+ 添加
 
 - **导出 API**:
   - `GET /api/reports/balance-sheet/export?format=pdf`
   - `GET /api/reports/transactions/export?format=csv`
-  - 后端动态生成文件，返回下载链接（或流式下载）
+  - 后端动态生成文件, 返回下载链接 (or流式下载)
 
 ---
 
@@ -321,4 +321,4 @@ def test_report_generation_performance():
 
 **总预计**: 52 小时 (3 周)
 
-**注意**: 本 EPIC 可在 EPIC-002 完成后启动，与 EPIC-003/004 并行开发。
+**注意**: 本 EPIC 可在 EPIC-002 完成后启动, and EPIC-003/004 并行开发。
