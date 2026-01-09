@@ -1,12 +1,13 @@
 """Tests for Pydantic schemas validation."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from pydantic import ValidationError
 
+from src.models import AccountType, Direction
 from src.schemas import (
     AccountCreate,
     AccountUpdate,
@@ -14,7 +15,6 @@ from src.schemas import (
     JournalLineCreate,
     VoidJournalEntryRequest,
 )
-from src.models import AccountType, Direction
 
 
 class TestAccountSchemas:

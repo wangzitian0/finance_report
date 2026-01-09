@@ -1,11 +1,10 @@
 """Integration tests for accounting service with database."""
 
-import pytest
-from datetime import date, datetime, UTC
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import select
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -18,11 +17,11 @@ from src.models import (
     JournalLine,
 )
 from src.services.accounting import (
-    calculate_account_balance,
-    verify_accounting_equation,
-    post_journal_entry,
-    void_journal_entry,
     ValidationError,
+    calculate_account_balance,
+    post_journal_entry,
+    verify_accounting_equation,
+    void_journal_entry,
 )
 
 

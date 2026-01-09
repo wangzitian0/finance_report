@@ -1,18 +1,17 @@
 """Unit tests for accounting service."""
 
-import pytest
 from decimal import Decimal
-from datetime import date
 from uuid import uuid4
 
-from src.models import Account, AccountType, Direction, JournalEntry, JournalLine, JournalEntryStatus
+import pytest
+
+from src.models import (
+    Direction,
+    JournalLine,
+)
 from src.services.accounting import (
-    validate_journal_balance,
-    calculate_account_balance,
-    verify_accounting_equation,
-    post_journal_entry,
-    void_journal_entry,
     ValidationError,
+    validate_journal_balance,
 )
 
 
