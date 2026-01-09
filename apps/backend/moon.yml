@@ -1,0 +1,51 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+language: python
+type: application
+
+fileGroups:
+  sources:
+    - 'src/**/*.py'
+  tests:
+    - 'tests/**/*.py'
+
+tasks:
+  install:
+    command: 'uv sync'
+    inputs:
+      - 'pyproject.toml'
+    outputs:
+      - '.venv'
+
+  dev:
+    command: 'uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000'
+    local: true
+    deps:
+      - 'install'
+
+  lint:
+    command: 'uv run ruff check src/'
+    inputs:
+      - '@globs(sources)'
+    deps:
+      - 'install'
+
+  format:
+    command: 'uv run ruff format src/'
+    local: true
+    deps:
+      - 'install'
+
+  test:
+    command: 'uv run pytest'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - 'install'
+
+  migrate:
+    command: 'uv run alembic upgrade head'
+    local: true
+    deps:
+      - 'install'
