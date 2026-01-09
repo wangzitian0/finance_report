@@ -28,6 +28,13 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 
+@pytest.fixture(scope="session", autouse=True)
+async def cleanup_resources() -> AsyncGenerator[None, None]:
+    """Cleanup resources after all tests."""
+    yield
+    await test_engine.dispose()
+
+
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     """Override database dependency for tests."""
     async with TestingSessionLocal() as session:
