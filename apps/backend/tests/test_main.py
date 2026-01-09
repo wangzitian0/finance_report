@@ -1,5 +1,7 @@
 """Backend tests."""
 
+from collections.abc import AsyncGenerator
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import StaticPool
@@ -25,14 +27,14 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 
-async def override_get_db() -> AsyncSession:
+async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     """Override database dependency for tests."""
     async with TestingSessionLocal() as session:
         yield session
 
 
 @pytest.fixture(autouse=True)
-async def setup_database() -> None:
+async def setup_database() -> AsyncGenerator[None, None]:
     """Create tables before each test."""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -42,7 +44,7 @@ async def setup_database() -> None:
 
 
 @pytest.fixture
-async def client() -> AsyncClient:
+async def client() -> AsyncGenerator[AsyncClient, None]:
     """Async test client with test database."""
     app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
@@ -51,7 +53,6 @@ async def client() -> AsyncClient:
     app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
 async def test_health(client: AsyncClient) -> None:
     """Test health endpoint."""
     response = await client.get("/health")
@@ -61,7 +62,6 @@ async def test_health(client: AsyncClient) -> None:
     assert "timestamp" in data
 
 
-@pytest.mark.asyncio
 async def test_ping_initial_state(client: AsyncClient) -> None:
     """Test initial ping state."""
     response = await client.get("/ping")
@@ -69,9 +69,9 @@ async def test_ping_initial_state(client: AsyncClient) -> None:
     data = response.json()
     assert data["state"] == "ping"
     assert data["toggle_count"] == 0
+    assert data["last_toggled"] is None
 
 
-@pytest.mark.asyncio
 async def test_ping_toggle(client: AsyncClient) -> None:
     """Test toggle endpoint."""
     # First toggle - should go from ping to pong

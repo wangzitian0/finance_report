@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.database import get_db, init_db
 from src.models import PingState
+from src.schemas import PingStateResponse
 
 
 @asynccontextmanager
@@ -44,24 +45,20 @@ async def health_check() -> dict[str, str]:
     return {"status": "healthy", "timestamp": datetime.now(UTC).isoformat()}
 
 
-@app.get("/ping")
-async def get_ping_state(db: AsyncSession = Depends(get_db)) -> dict:
+@app.get("/ping", response_model=PingStateResponse)
+async def get_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
     """Get current ping-pong state."""
     result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
     state = result.scalar_one_or_none()
 
     if state is None:
-        return {"state": "ping", "toggle_count": 0}
+        return PingStateResponse(state="ping", toggle_count=0, last_toggled=None)
 
-    return {
-        "state": state.state,
-        "toggle_count": state.toggle_count,
-        "last_toggled": state.updated_at.isoformat() if state.updated_at else None,
-    }
+    return PingStateResponse.model_validate(state)
 
 
-@app.post("/ping/toggle")
-async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> dict:
+@app.post("/ping/toggle", response_model=PingStateResponse)
+async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
     """Toggle between ping and pong state."""
     result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
     state = result.scalar_one_or_none()
@@ -72,11 +69,7 @@ async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> dict:
         db.add(new_state)
         await db.commit()
         await db.refresh(new_state)
-        return {
-            "state": new_state.state,
-            "toggle_count": new_state.toggle_count,
-            "last_toggled": new_state.updated_at.isoformat(),
-        }
+        return PingStateResponse.model_validate(new_state)
 
     # Toggle existing state
     state.state = "pong" if state.state == "ping" else "ping"
@@ -85,8 +78,4 @@ async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> dict:
     await db.commit()
     await db.refresh(state)
 
-    return {
-        "state": state.state,
-        "toggle_count": state.toggle_count,
-        "last_toggled": state.updated_at.isoformat(),
-    }
+    return PingStateResponse.model_validate(state)

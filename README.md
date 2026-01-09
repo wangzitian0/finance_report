@@ -16,8 +16,9 @@ cd apps/backend
 uv sync
 uv run uvicorn src.main:app --reload
 
-# 4. Install frontend deps & start (in another terminal)
-cd apps/frontend
+# 4. Install frontend deps & start (open new terminal)
+# Note: Navigate from project root
+cd ../../apps/frontend
 npm install
 npm run dev
 ```
