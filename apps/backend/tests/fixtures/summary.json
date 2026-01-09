@@ -1,0 +1,2151 @@
+[
+  {
+    "file": "2504.pdf",
+    "institution": "DBS",
+    "success": true,
+    "statement": {
+      "period_start": "2025-04-01",
+      "period_end": "2025-04-30",
+      "opening_balance": "300000.00",
+      "closing_balance": "308665.78",
+      "currency": "SGD",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "2025-04-01",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+        "amount": "8.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-01",
+        "description": "Debit Card Transaction\nAPPLE.COM/BILL XXXXXX1087 IRL 29MAR\nXXXX-XXXX-XXXX-2507",
+        "amount": "10.26",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-02",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+        "amount": "11.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-03",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+        "amount": "9.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-03",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-03",
+        "description": "Debit Card Transaction\nAPPLE.COM/BILL XXXXXX1087 IRL 02APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "14.37",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-07",
+        "description": "GIRO Payments / Collections via GIRO\nIRAS\nITX\nSXXXXXXXH",
+        "amount": "5951.20",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-07",
+        "description": "Interest Earned\nPREFERENTIAL RATE BASED ON TOTAL\nMONTHLY TRANSACTIONS",
+        "amount": "160.75",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-08",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+        "amount": "16.30",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-08",
+        "description": "Debit Card Transaction\nADOBE SAGGART, DUBL IRL 05APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "27.54",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-09",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+        "amount": "16.40",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-09",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+        "amount": "0.30",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-11",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+        "amount": "15.70",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-11",
+        "description": "Debit Card Transaction\nAPPLE.COM/BILL XXXXXX1087 IRL 10APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "2.04",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-16",
+        "description": "GIRO Payments / Collections via GIRO\n***IFE-OPERATIONS\nINS XXXX2025\nXXXXXX5127",
+        "amount": "1000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-20",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019\nVALUE DATE: 20/04/2025",
+        "amount": "65.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-21",
+        "description": "Debit Card Transaction\nOPENAI *CHATGPT SUBSCR OP USA 18APR\nXXXX-XXXX-XXXX-2507 USD21.80",
+        "amount": "29.62",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-22",
+        "description": "Advice FAST Payment / Receipt\nMSL:XXXXXX6176:I-BANK\nTRANSFER\nMB164826295130\nOTHER",
+        "amount": "2152.16",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-22",
+        "description": "Debit Card Transaction\nPATH RESTAURANT SINGAPORE SGP 19APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "476.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-23",
+        "description": "Debit Card Transaction\nSINGTEL PREPAID HI!ACC SI SGP 20APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "19.90",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-25",
+        "description": "Debit Card Transaction\nGRAB SUBSCRIPTION* V4- SI SGP 23APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "5.99",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-27",
+        "description": "ATM Cash Withdrawal\nXXXX2507,CITYHALL MRT",
+        "amount": "1000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-29",
+        "description": "GIRO Salary\n***PEE SINGAPORE PTE\nSALARY",
+        "amount": "19369.68",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-29",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+        "amount": "14.60",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-29",
+        "description": "Debit Card Transaction\nDELIVERYCHINATOWN SI SGP 26APR\nXXXX-XXXX-XXXX-2507",
+        "amount": "9.90",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+        "amount": "7.90",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "Interest Earned",
+        "amount": "1.53",
+        "direction": "IN",
+        "confidence": "high"
+      }
+    ]
+  },
+  {
+    "file": "Apr2025_MariBank_e-Statement.pdf",
+    "institution": "MariBank",
+    "success": true,
+    "statement": {
+      "period_start": "2025-04-01",
+      "period_end": "2025-04-30",
+      "opening_balance": "300000.00",
+      "closing_balance": "299932.66",
+      "currency": "SGD",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "2025-04-01",
+        "description": "Interest\nInterest",
+        "amount": "100.19",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-02",
+        "description": "****** PTE. LTD..\nPayNow Transfer\ng",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-04",
+        "description": "*** *** *** LTD\nPayNow Transfer\ng",
+        "amount": "8.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-05",
+        "description": "Repayment\nMari Credit Card",
+        "amount": "40.03",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-07",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "8.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-08",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "9.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-08",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-10",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "8.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-10",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-11",
+        "description": "****** PTE. LTD..\nPayNow Transfer\nQSBanMianSales",
+        "amount": "10.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-11",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "8.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-15",
+        "description": "*** *** *** LTD\nPayNow Transfer",
+        "amount": "8.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-15",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-17",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "8.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-17",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-23",
+        "description": "*** *** *** LTD\nPayNow Transfer",
+        "amount": "8.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-24",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "7.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-24",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-25",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "7.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-25",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-28",
+        "description": "*** *** *** LTD\nPayNow Transfer",
+        "amount": "8.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-29",
+        "description": "*** *** *** LTD\nPayNow Transfer",
+        "amount": "8.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "****** PTE. LTD..\nPayNow Transfer",
+        "amount": "2.00",
+        "direction": "OUT",
+        "confidence": "high"
+      }
+    ]
+  },
+  {
+    "file": "moomoo-2504.pdf",
+    "institution": "Moomoo",
+    "success": true,
+    "statement": {
+      "period_start": "2025-03-31",
+      "period_end": "2025-04-30",
+      "opening_balance": "300000.00",
+      "closing_balance": "248048.38",
+      "currency": "SGD",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "2025-04-14",
+        "description": "Fund Subscription#Fullerton Fund - Fullerton SGD Liquidity Fund",
+        "amount": "-0.01",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "Fund Subscription#Fullerton Fund - Fullerton SGD Liquidity Fund",
+        "amount": "0.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "Fund Subscription#CSOP USD Money Market Fund",
+        "amount": "-80.27",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "Fund Subscription#CSOP USD Money Market Fund",
+        "amount": "0.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-05-01",
+        "description": "Fund Subscription#CSOP USD Money Market Fund",
+        "amount": "-1614.03",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-05-01",
+        "description": "Fund Subscription#CSOP USD Money Market Fund",
+        "amount": "0.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-11",
+        "description": "TSM 150.XXXX0000 SHARES DIVIDENDS 0.677693 USD PER SHARE",
+        "amount": "101.64",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-11",
+        "description": "TSM 150.XXXX0000 SHARES WITHHOLDING TAX -0.XXXX1556 USD PER SHARE - TAX",
+        "amount": "-21.36",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "JD 1650.XXXX0000 SHARES DIVIDENDS 0.XXXX9984 USD PER SHARE",
+        "amount": "1650.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "JD DIVIDEND FEE -0.XXXX9987 USD PER SHARE",
+        "amount": "-33.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-30",
+        "description": "GST - JD DIVIDEND FEE -0.XXXX9987 USD PER SHARE",
+        "amount": "-2.97",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "Fullerton Fund - Fullerton SGD Liquidity Fund",
+        "amount": "0.01",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-14",
+        "description": "CSOP USD Money Market Fund",
+        "amount": "80.27",
+        "direction": "IN",
+        "confidence": "high"
+      }
+    ]
+  },
+  {
+    "file": "futu-2506.pdf",
+    "institution": "Futu",
+    "success": true,
+    "statement": {
+      "period_start": null,
+      "period_end": "2025-06",
+      "opening_balance": "300000.00",
+      "closing_balance": "348600.00",
+      "currency": "HKD",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "UNKNOWN",
+        "description": "股票和股票期權",
+        "amount": "275130.00",
+        "direction": "IN",
+        "confidence": "low"
+      },
+      {
+        "date": "UNKNOWN",
+        "description": "現金結餘",
+        "amount": "1238.57",
+        "direction": "IN",
+        "confidence": "low"
+      },
+      {
+        "date": "UNKNOWN",
+        "description": "股票和股票期權 valuation",
+        "amount": "323730.00",
+        "direction": "IN",
+        "confidence": "low"
+      },
+      {
+        "date": "UNKNOWN",
+        "description": "現金結餘",
+        "amount": "1238.57",
+        "direction": "IN",
+        "confidence": "low"
+      }
+    ]
+  },
+  {
+    "file": "gxs-2506.pdf",
+    "institution": "GXS",
+    "success": true,
+    "statement": {
+      "period_start": "2025-06-01",
+      "period_end": "2025-06-30",
+      "opening_balance": "300000.00",
+      "closing_balance": "251222.32",
+      "currency": "SGD",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "2025-06-01",
+        "description": "Interest Earned",
+        "amount": "2.38",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "Interest Earned",
+        "amount": "2.38",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "Payment to GrabPay Wallet",
+        "amount": "200.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-03",
+        "description": "Interest Earned",
+        "amount": "2.38",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-04",
+        "description": "Interest Earned",
+        "amount": "2.37",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-05",
+        "description": "Interest Earned",
+        "amount": "2.37",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-06",
+        "description": "Interest Earned",
+        "amount": "2.37",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-07",
+        "description": "Interest Earned",
+        "amount": "2.38",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-08",
+        "description": "Interest Earned",
+        "amount": "2.37",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-08",
+        "description": "Payment to ****** ANG",
+        "amount": "48000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "Interest Earned",
+        "amount": "0.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "Interest Earned",
+        "amount": "0.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "Interest Earned",
+        "amount": "0.17",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "Interest Earned",
+        "amount": "0.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-12",
+        "description": "Payment to GrabPay Wallet",
+        "amount": "200.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "Interest Earned",
+        "amount": "0.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "Interest Earned",
+        "amount": "0.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-17",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "Interest Earned",
+        "amount": "0.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-19",
+        "description": "Payment to GrabPay Wallet",
+        "amount": "200.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-20",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-21",
+        "description": "Interest Earned",
+        "amount": "0.14",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-22",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-23",
+        "description": "Interest Earned",
+        "amount": "0.14",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-24",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-25",
+        "description": "Interest Earned",
+        "amount": "0.14",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-26",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-27",
+        "description": "Interest Earned",
+        "amount": "0.14",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-28",
+        "description": "Interest Earned",
+        "amount": "0.15",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-29",
+        "description": "Interest Earned",
+        "amount": "0.14",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-29",
+        "description": "Payment to GrabPay Wallet",
+        "amount": "200.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-30",
+        "description": "Interest Earned",
+        "amount": "0.14",
+        "direction": "IN",
+        "confidence": "high"
+      }
+    ]
+  },
+  {
+    "file": "2024-2025.pdf",
+    "institution": "CMB",
+    "success": true,
+    "statement": {
+      "period_start": "2024-01-01",
+      "period_end": "2025-12-31",
+      "opening_balance": "300000.00",
+      "closing_balance": "300000.00",
+      "currency": "CNY",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "2024-01-02",
+        "description": "卖出 上港集团",
+        "amount": "-24550.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "卖出 江苏银行",
+        "amount": "-22814.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "卖出 格力电器",
+        "amount": "-25736.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "买入 航发动力",
+        "amount": "-26178.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "买入 陕西煤业",
+        "amount": "-25001.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "买入 中国广核",
+        "amount": "-21846.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-02",
+        "description": "港股通组合费",
+        "amount": "-1.13",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-03",
+        "description": "港股通组合费",
+        "amount": "-0.28",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "卖出 航发动力",
+        "amount": "25830.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "卖出 中国核电",
+        "amount": "26894.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "卖出 藏格矿业",
+        "amount": "28897.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "买入 北京银行",
+        "amount": "-27600.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "买入 上港集团",
+        "amount": "-26728.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "买入 大秦铁路",
+        "amount": "-26460.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "买入 中国广核",
+        "amount": "-984.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-04",
+        "description": "港股通组合费",
+        "amount": "-0.27",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "银证转入",
+        "amount": "110500.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "卖出 陕西煤业",
+        "amount": "26592.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "买入 建设银行",
+        "amount": "-55361.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "买入 长江电力",
+        "amount": "-28548.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "买入 华能水电",
+        "amount": "-26820.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "买入 国电电力",
+        "amount": "-26100.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-05",
+        "description": "港股通组合费",
+        "amount": "-0.28",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-08",
+        "description": "港股通组合费",
+        "amount": "-0.83",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "卖出 小鹏汽车-W",
+        "amount": "399977.28",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "卖出 美的集团",
+        "amount": "27340.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "卖出 上海银行",
+        "amount": "27180.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 国投电力",
+        "amount": "-56112.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 纳思达",
+        "amount": "-54216.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 中国银行",
+        "amount": "-28560.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 交通银行",
+        "amount": "-28714.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 工商银行",
+        "amount": "-29220.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 XD华夏银",
+        "amount": "-28616.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 农业银行",
+        "amount": "-29600.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 潞安环能",
+        "amount": "-27760.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 中联重科",
+        "amount": "-28864.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 中国广核",
+        "amount": "-29700.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 双汇发展",
+        "amount": "-29231.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 北京银行",
+        "amount": "-28365.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 上港集团",
+        "amount": "-26061.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "买入 大秦铁路",
+        "amount": "-28743.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-09",
+        "description": "港股通组合费",
+        "amount": "-0.26",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "卖出 国电电力",
+        "amount": "52824.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "卖出 中国广核",
+        "amount": "54931.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "买入 格力电器",
+        "amount": "-53935.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "买入 中国海油",
+        "amount": "-52850.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-10",
+        "description": "港股通组合费",
+        "amount": "-0.17",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-11",
+        "description": "港股通组合费",
+        "amount": "-0.17",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "卖出 中国银行",
+        "amount": "53198.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "卖出 交通银行",
+        "amount": "54625.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "卖出 纳思达",
+        "amount": "55674.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "买入 美的集团",
+        "amount": "-54900.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "买入 福耀玻璃",
+        "amount": "-54544.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "买入 中国核电",
+        "amount": "-54303.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "卖出 双汇发展",
+        "amount": "55944.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "买入 中国神华",
+        "amount": "-56593.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-12",
+        "description": "港股通组合费",
+        "amount": "-0.18",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-15",
+        "description": "港股通组合费",
+        "amount": "-0.55",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-16",
+        "description": "卖出 中国海油",
+        "amount": "52150.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-16",
+        "description": "卖出 福耀玻璃",
+        "amount": "53984.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-16",
+        "description": "买入 上海银行",
+        "amount": "-53234.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-16",
+        "description": "港股通组合费",
+        "amount": "-0.18",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "卖出 中国核电",
+        "amount": "57792.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "卖出 江苏银行",
+        "amount": "54993.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "买入 交通银行",
+        "amount": "-56448.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "买入 福耀玻璃",
+        "amount": "-55097.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "买入 江苏银行",
+        "amount": "-1422.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-17",
+        "description": "港股通组合费",
+        "amount": "-0.18",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-18",
+        "description": "卖出 上海银行",
+        "amount": "53320.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-18",
+        "description": "买入 金山办公",
+        "amount": "-53478.38",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-18",
+        "description": "港股通组合费",
+        "amount": "-0.18",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2024-01-19",
+        "description": null,
+        "amount": "0",
+        "direction": "OUT",
+        "confidence": "high"
+      }
+    ]
+  },
+  {
+    "file": "2025.pdf",
+    "institution": "CMB",
+    "success": true,
+    "statement": {
+      "period_start": "2024-12-31",
+      "period_end": "2025-12-31",
+      "opening_balance": "300000.00",
+      "closing_balance": "572132.11",
+      "currency": "CNY",
+      "confidence_score": 100,
+      "balance_validated": true,
+      "validation_error": null
+    },
+    "events": [
+      {
+        "date": "2025-01-02",
+        "description": "信用卡预约还款",
+        "amount": "115.01",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-05",
+        "description": "银联快捷支付",
+        "amount": "2000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-05",
+        "description": "银联快捷支付",
+        "amount": "2000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-19",
+        "description": "转账汇款",
+        "amount": "106953.82",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-19",
+        "description": "银证转账(第三方存管)",
+        "amount": "150000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-23",
+        "description": "快捷支付",
+        "amount": "10000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "银证转账(第三方存管)",
+        "amount": "2300000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "转账汇款",
+        "amount": "1000000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "转账汇款",
+        "amount": "999999.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-24",
+        "description": "转账汇款",
+        "amount": "300000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "快捷支付",
+        "amount": "159.16",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "快捷支付",
+        "amount": "233.70",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "快捷支付",
+        "amount": "2000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-29",
+        "description": "银联快捷支付",
+        "amount": "2000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "快捷退款",
+        "amount": "159.16",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "快捷退款",
+        "amount": "77.90",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "汇入汇款",
+        "amount": "500000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-30",
+        "description": "汇入汇款",
+        "amount": "200000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-31",
+        "description": "快捷支付",
+        "amount": "5301.70",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-31",
+        "description": "转账汇款",
+        "amount": "53024.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-01-31",
+        "description": "转账汇款",
+        "amount": "300000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-01",
+        "description": "汇入汇款",
+        "amount": "500000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-02",
+        "description": "信用卡预约还款",
+        "amount": "324.68",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-02",
+        "description": "转账汇款",
+        "amount": "26600.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-03",
+        "description": "转账汇款",
+        "amount": "40000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-03",
+        "description": "汇入汇款",
+        "amount": "300000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-03",
+        "description": "汇入汇款",
+        "amount": "150000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "汇入汇款",
+        "amount": "50000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "转账汇款",
+        "amount": "35881.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "转账汇款",
+        "amount": "18000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "银证转账(第三方存管)",
+        "amount": "110.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-05",
+        "description": "银证转账(第三方存管)",
+        "amount": "1100000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-10",
+        "description": "转账汇款",
+        "amount": "10795.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-02-17",
+        "description": "快捷支付",
+        "amount": "5418.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-02",
+        "description": "信用卡预约还款",
+        "amount": "307.13",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-07",
+        "description": "转账汇款",
+        "amount": "54389.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-08",
+        "description": "快捷支付",
+        "amount": "920.20",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-12",
+        "description": "快捷支付",
+        "amount": "16338.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-13",
+        "description": "转账汇款",
+        "amount": "37500.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-15",
+        "description": "银联快捷支付",
+        "amount": "21645.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-17",
+        "description": "银联快捷支付",
+        "amount": "27149.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-21",
+        "description": "账户结息",
+        "amount": "68.05",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-03-23",
+        "description": "快捷支付",
+        "amount": "140.61",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-04-02",
+        "description": "信用卡预约还款",
+        "amount": "1188.44",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-05-02",
+        "description": "信用卡预约还款",
+        "amount": "59856.62",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-02",
+        "description": "信用卡预约还款",
+        "amount": "953.34",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "银证转账(第三方存管)",
+        "amount": "250000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-09",
+        "description": "转账汇款",
+        "amount": "83832.21",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "银证转账(第三方存管)",
+        "amount": "300000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "转账汇款",
+        "amount": "150000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "转账汇款",
+        "amount": "137228.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-10",
+        "description": "银联快捷支付",
+        "amount": "11171.93",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "银联快捷支付",
+        "amount": "9482.45",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "银联快捷支付",
+        "amount": "27941.24",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-11",
+        "description": "转账汇款",
+        "amount": "11193.21",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "转账汇款",
+        "amount": "55964.83",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "银证转账(第三方存管)",
+        "amount": "20.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "银证转账(第三方存管)",
+        "amount": "200000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "转账汇款",
+        "amount": "111929.66",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "银证转账(第三方存管)",
+        "amount": "538188.86",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-13",
+        "description": "快捷支付",
+        "amount": "50000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "银联快捷支付",
+        "amount": "115.95",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "转账汇款",
+        "amount": "56027.46",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-14",
+        "description": "转账汇款",
+        "amount": "137267.28",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "转账汇款",
+        "amount": "112054.92",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-15",
+        "description": "转账汇款",
+        "amount": "112054.91",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-16",
+        "description": "转账汇款",
+        "amount": "112054.93",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-18",
+        "description": "转账汇款",
+        "amount": "35925.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-06-21",
+        "description": "账户结息",
+        "amount": "15.97",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-01",
+        "description": "代发股权激励",
+        "amount": "151454.35",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-01",
+        "description": "汇入汇款",
+        "amount": "50.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-02",
+        "description": "信用卡预约还款",
+        "amount": "261.48",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-03",
+        "description": "汇入汇款",
+        "amount": "350000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-08",
+        "description": "汇入汇款",
+        "amount": "100000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-10",
+        "description": "代发股权激励",
+        "amount": "475116.38",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-12",
+        "description": "快捷支付",
+        "amount": "334.63",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-23",
+        "description": "结售汇即时售汇",
+        "amount": "358965.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-23",
+        "description": "结售汇即时售汇",
+        "amount": "50000.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-23",
+        "description": "付汇扣客户户口",
+        "amount": "50000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-23",
+        "description": "国际结算费用",
+        "amount": "100.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-28",
+        "description": "快捷退款",
+        "amount": "199.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-07-28",
+        "description": "快捷退款",
+        "amount": "17.91",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-02",
+        "description": "信用卡预约还款",
+        "amount": "744.29",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-12",
+        "description": "转账汇款",
+        "amount": "250000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-13",
+        "description": "代发股权激励",
+        "amount": "1207621.27",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-20",
+        "description": "快捷支付",
+        "amount": "28000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-20",
+        "description": "转账汇款",
+        "amount": "150000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-22",
+        "description": "银联快捷支付",
+        "amount": "5000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-23",
+        "description": "转账汇款",
+        "amount": "55941.23",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-24",
+        "description": "转账汇款",
+        "amount": "47550.05",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-26",
+        "description": "转账汇款",
+        "amount": "55619.72",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-28",
+        "description": "转账汇款",
+        "amount": "214620.06",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-08-28",
+        "description": "转账汇款",
+        "amount": "140000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-02",
+        "description": "信用卡预约还款",
+        "amount": "3401.46",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-06",
+        "description": "快捷支付",
+        "amount": "512.30",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-09",
+        "description": "快捷支付",
+        "amount": "30000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-15",
+        "description": "转账汇款",
+        "amount": "55595.70",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-16",
+        "description": "转账汇款",
+        "amount": "55649.58",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-20",
+        "description": "快捷支付",
+        "amount": "10000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-21",
+        "description": "账户结息",
+        "amount": "127.31",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-22",
+        "description": "转账汇款",
+        "amount": "221495.16",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-24",
+        "description": "快捷支付",
+        "amount": "1041.77",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-09-26",
+        "description": "代发工资",
+        "amount": "62585.00",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-10-02",
+        "description": "信用卡预约还款",
+        "amount": "1091.94",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-10-25",
+        "description": "网联收款",
+        "amount": "39.80",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-11-02",
+        "description": "信用卡预约还款",
+        "amount": "912.89",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-11-06",
+        "description": "转账汇款",
+        "amount": "213802.50",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-11-06",
+        "description": "转账汇款",
+        "amount": "237320.77",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-11-24",
+        "description": "转账汇款",
+        "amount": "30000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-11-24",
+        "description": "快捷支付",
+        "amount": "42635.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-11-24",
+        "description": "快捷支付",
+        "amount": "1.00",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-12-02",
+        "description": "信用卡预约还款",
+        "amount": "5.65",
+        "direction": "OUT",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-12-21",
+        "description": "账户结息",
+        "amount": "70.87",
+        "direction": "IN",
+        "confidence": "high"
+      },
+      {
+        "date": "2025-12-21",
+        "description": "转账汇款",
+        "amount": "10000.00",
+        "direction": "OUT",
+        "confidence": "high"
+      }
+    ]
+  }
+]

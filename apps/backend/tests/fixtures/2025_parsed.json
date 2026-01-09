@@ -1,0 +1,815 @@
+{
+  "file": "2025.pdf",
+  "institution": "CMB",
+  "success": true,
+  "statement": {
+    "period_start": "2024-12-31",
+    "period_end": "2025-12-31",
+    "opening_balance": "300000.00",
+    "closing_balance": "572132.11",
+    "currency": "CNY",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "2025-01-02",
+      "description": "信用卡预约还款",
+      "amount": "115.01",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-05",
+      "description": "银联快捷支付",
+      "amount": "2000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-05",
+      "description": "银联快捷支付",
+      "amount": "2000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-19",
+      "description": "转账汇款",
+      "amount": "106953.82",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-19",
+      "description": "银证转账(第三方存管)",
+      "amount": "150000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-23",
+      "description": "快捷支付",
+      "amount": "10000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-24",
+      "description": "银证转账(第三方存管)",
+      "amount": "2300000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-24",
+      "description": "转账汇款",
+      "amount": "1000000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-24",
+      "description": "转账汇款",
+      "amount": "999999.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-24",
+      "description": "转账汇款",
+      "amount": "300000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-29",
+      "description": "快捷支付",
+      "amount": "159.16",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-29",
+      "description": "快捷支付",
+      "amount": "233.70",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-29",
+      "description": "快捷支付",
+      "amount": "2000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-29",
+      "description": "银联快捷支付",
+      "amount": "2000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-30",
+      "description": "快捷退款",
+      "amount": "159.16",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-30",
+      "description": "快捷退款",
+      "amount": "77.90",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-30",
+      "description": "汇入汇款",
+      "amount": "500000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-30",
+      "description": "汇入汇款",
+      "amount": "200000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-31",
+      "description": "快捷支付",
+      "amount": "5301.70",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-31",
+      "description": "转账汇款",
+      "amount": "53024.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-01-31",
+      "description": "转账汇款",
+      "amount": "300000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-01",
+      "description": "汇入汇款",
+      "amount": "500000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-02",
+      "description": "信用卡预约还款",
+      "amount": "324.68",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-02",
+      "description": "转账汇款",
+      "amount": "26600.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-03",
+      "description": "转账汇款",
+      "amount": "40000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-03",
+      "description": "汇入汇款",
+      "amount": "300000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-03",
+      "description": "汇入汇款",
+      "amount": "150000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-05",
+      "description": "汇入汇款",
+      "amount": "50000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-05",
+      "description": "转账汇款",
+      "amount": "35881.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-05",
+      "description": "转账汇款",
+      "amount": "18000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-05",
+      "description": "银证转账(第三方存管)",
+      "amount": "110.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-05",
+      "description": "银证转账(第三方存管)",
+      "amount": "1100000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-10",
+      "description": "转账汇款",
+      "amount": "10795.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-02-17",
+      "description": "快捷支付",
+      "amount": "5418.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-02",
+      "description": "信用卡预约还款",
+      "amount": "307.13",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-07",
+      "description": "转账汇款",
+      "amount": "54389.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-08",
+      "description": "快捷支付",
+      "amount": "920.20",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-12",
+      "description": "快捷支付",
+      "amount": "16338.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-13",
+      "description": "转账汇款",
+      "amount": "37500.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-15",
+      "description": "银联快捷支付",
+      "amount": "21645.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-17",
+      "description": "银联快捷支付",
+      "amount": "27149.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-21",
+      "description": "账户结息",
+      "amount": "68.05",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-03-23",
+      "description": "快捷支付",
+      "amount": "140.61",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-02",
+      "description": "信用卡预约还款",
+      "amount": "1188.44",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-05-02",
+      "description": "信用卡预约还款",
+      "amount": "59856.62",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-02",
+      "description": "信用卡预约还款",
+      "amount": "953.34",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-09",
+      "description": "银证转账(第三方存管)",
+      "amount": "250000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-09",
+      "description": "转账汇款",
+      "amount": "83832.21",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-10",
+      "description": "银证转账(第三方存管)",
+      "amount": "300000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-10",
+      "description": "转账汇款",
+      "amount": "150000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-10",
+      "description": "转账汇款",
+      "amount": "137228.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-10",
+      "description": "银联快捷支付",
+      "amount": "11171.93",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-11",
+      "description": "银联快捷支付",
+      "amount": "9482.45",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-11",
+      "description": "银联快捷支付",
+      "amount": "27941.24",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-11",
+      "description": "转账汇款",
+      "amount": "11193.21",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "转账汇款",
+      "amount": "55964.83",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "银证转账(第三方存管)",
+      "amount": "20.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "银证转账(第三方存管)",
+      "amount": "200000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "转账汇款",
+      "amount": "111929.66",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "银证转账(第三方存管)",
+      "amount": "538188.86",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-13",
+      "description": "快捷支付",
+      "amount": "50000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-14",
+      "description": "银联快捷支付",
+      "amount": "115.95",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-14",
+      "description": "转账汇款",
+      "amount": "56027.46",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-14",
+      "description": "转账汇款",
+      "amount": "137267.28",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-15",
+      "description": "转账汇款",
+      "amount": "112054.92",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-15",
+      "description": "转账汇款",
+      "amount": "112054.91",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-16",
+      "description": "转账汇款",
+      "amount": "112054.93",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-18",
+      "description": "转账汇款",
+      "amount": "35925.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-06-21",
+      "description": "账户结息",
+      "amount": "15.97",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-01",
+      "description": "代发股权激励",
+      "amount": "151454.35",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-01",
+      "description": "汇入汇款",
+      "amount": "50.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-02",
+      "description": "信用卡预约还款",
+      "amount": "261.48",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-03",
+      "description": "汇入汇款",
+      "amount": "350000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-08",
+      "description": "汇入汇款",
+      "amount": "100000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-10",
+      "description": "代发股权激励",
+      "amount": "475116.38",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-12",
+      "description": "快捷支付",
+      "amount": "334.63",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-23",
+      "description": "结售汇即时售汇",
+      "amount": "358965.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-23",
+      "description": "结售汇即时售汇",
+      "amount": "50000.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-23",
+      "description": "付汇扣客户户口",
+      "amount": "50000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-23",
+      "description": "国际结算费用",
+      "amount": "100.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-28",
+      "description": "快捷退款",
+      "amount": "199.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-07-28",
+      "description": "快捷退款",
+      "amount": "17.91",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-02",
+      "description": "信用卡预约还款",
+      "amount": "744.29",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-12",
+      "description": "转账汇款",
+      "amount": "250000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-13",
+      "description": "代发股权激励",
+      "amount": "1207621.27",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-20",
+      "description": "快捷支付",
+      "amount": "28000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-20",
+      "description": "转账汇款",
+      "amount": "150000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-22",
+      "description": "银联快捷支付",
+      "amount": "5000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-23",
+      "description": "转账汇款",
+      "amount": "55941.23",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-24",
+      "description": "转账汇款",
+      "amount": "47550.05",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-26",
+      "description": "转账汇款",
+      "amount": "55619.72",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-28",
+      "description": "转账汇款",
+      "amount": "214620.06",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-08-28",
+      "description": "转账汇款",
+      "amount": "140000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-02",
+      "description": "信用卡预约还款",
+      "amount": "3401.46",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-06",
+      "description": "快捷支付",
+      "amount": "512.30",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-09",
+      "description": "快捷支付",
+      "amount": "30000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-15",
+      "description": "转账汇款",
+      "amount": "55595.70",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-16",
+      "description": "转账汇款",
+      "amount": "55649.58",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-20",
+      "description": "快捷支付",
+      "amount": "10000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-21",
+      "description": "账户结息",
+      "amount": "127.31",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-22",
+      "description": "转账汇款",
+      "amount": "221495.16",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-24",
+      "description": "快捷支付",
+      "amount": "1041.77",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-09-26",
+      "description": "代发工资",
+      "amount": "62585.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-10-02",
+      "description": "信用卡预约还款",
+      "amount": "1091.94",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-10-25",
+      "description": "网联收款",
+      "amount": "39.80",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-11-02",
+      "description": "信用卡预约还款",
+      "amount": "912.89",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-11-06",
+      "description": "转账汇款",
+      "amount": "213802.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-11-06",
+      "description": "转账汇款",
+      "amount": "237320.77",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-11-24",
+      "description": "转账汇款",
+      "amount": "30000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-11-24",
+      "description": "快捷支付",
+      "amount": "42635.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-11-24",
+      "description": "快捷支付",
+      "amount": "1.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-12-02",
+      "description": "信用卡预约还款",
+      "amount": "5.65",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-12-21",
+      "description": "账户结息",
+      "amount": "70.87",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-12-21",
+      "description": "转账汇款",
+      "amount": "10000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    }
+  ]
+}

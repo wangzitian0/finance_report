@@ -1,0 +1,206 @@
+{
+  "file": "2504.pdf",
+  "institution": "DBS",
+  "success": true,
+  "statement": {
+    "period_start": "2025-04-01",
+    "period_end": "2025-04-30",
+    "opening_balance": "300000.00",
+    "closing_balance": "308665.78",
+    "currency": "SGD",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "2025-04-01",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+      "amount": "8.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-01",
+      "description": "Debit Card Transaction\nAPPLE.COM/BILL XXXXXX1087 IRL 29MAR\nXXXX-XXXX-XXXX-2507",
+      "amount": "10.26",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-02",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+      "amount": "11.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-03",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+      "amount": "9.50",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-03",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+      "amount": "2.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-03",
+      "description": "Debit Card Transaction\nAPPLE.COM/BILL XXXXXX1087 IRL 02APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "14.37",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-07",
+      "description": "GIRO Payments / Collections via GIRO\nIRAS\nITX\nSXXXXXXXH",
+      "amount": "5951.20",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-07",
+      "description": "Interest Earned\nPREFERENTIAL RATE BASED ON TOTAL\nMONTHLY TRANSACTIONS",
+      "amount": "160.75",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-08",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+      "amount": "16.30",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-08",
+      "description": "Debit Card Transaction\nADOBE SAGGART, DUBL IRL 05APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "27.54",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-09",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+      "amount": "16.40",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-09",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+      "amount": "0.30",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-11",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+      "amount": "15.70",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-11",
+      "description": "Debit Card Transaction\nAPPLE.COM/BILL XXXXXX1087 IRL 10APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "2.04",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-16",
+      "description": "GIRO Payments / Collections via GIRO\n***IFE-OPERATIONS\nINS XXXX2025\nXXXXXX5127",
+      "amount": "1000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-20",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019\nVALUE DATE: 20/04/2025",
+      "amount": "65.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-21",
+      "description": "Debit Card Transaction\nOPENAI *CHATGPT SUBSCR OP USA 18APR\nXXXX-XXXX-XXXX-2507 USD21.80",
+      "amount": "29.62",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-22",
+      "description": "Advice FAST Payment / Receipt\nMSL:XXXXXX6176:I-BANK\nTRANSFER\nMB164826295130\nOTHER",
+      "amount": "2152.16",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-22",
+      "description": "Debit Card Transaction\nPATH RESTAURANT SINGAPORE SGP 19APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "476.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-23",
+      "description": "Debit Card Transaction\nSINGTEL PREPAID HI!ACC SI SGP 20APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "19.90",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-25",
+      "description": "Debit Card Transaction\nGRAB SUBSCRIPTION* V4- SI SGP 23APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "5.99",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-27",
+      "description": "ATM Cash Withdrawal\nXXXX2507,CITYHALL MRT",
+      "amount": "1000.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-29",
+      "description": "GIRO Salary\n***PEE SINGAPORE PTE\nSALARY",
+      "amount": "19369.68",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-29",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : XXXX5019",
+      "amount": "14.60",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-29",
+      "description": "Debit Card Transaction\nDELIVERYCHINATOWN SI SGP 26APR\nXXXX-XXXX-XXXX-2507",
+      "amount": "9.90",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-30",
+      "description": "Advice Funds Transfer\nTOP-UP TO PAYLAH! : **",
+      "amount": "7.90",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-30",
+      "description": "Interest Earned",
+      "amount": "1.53",
+      "direction": "IN",
+      "confidence": "high"
+    }
+  ]
+}

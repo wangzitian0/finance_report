@@ -1,0 +1,108 @@
+{
+  "file": "moomoo-2504.pdf",
+  "institution": "Moomoo",
+  "success": true,
+  "statement": {
+    "period_start": "2025-03-31",
+    "period_end": "2025-04-30",
+    "opening_balance": "300000.00",
+    "closing_balance": "248048.38",
+    "currency": "SGD",
+    "confidence_score": 100,
+    "balance_validated": true,
+    "validation_error": null
+  },
+  "events": [
+    {
+      "date": "2025-04-14",
+      "description": "Fund Subscription#Fullerton Fund - Fullerton SGD Liquidity Fund",
+      "amount": "-0.01",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "Fund Subscription#Fullerton Fund - Fullerton SGD Liquidity Fund",
+      "amount": "0.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "Fund Subscription#CSOP USD Money Market Fund",
+      "amount": "-80.27",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "Fund Subscription#CSOP USD Money Market Fund",
+      "amount": "0.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-05-01",
+      "description": "Fund Subscription#CSOP USD Money Market Fund",
+      "amount": "-1614.03",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-05-01",
+      "description": "Fund Subscription#CSOP USD Money Market Fund",
+      "amount": "0.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-11",
+      "description": "TSM 150.XXXX0000 SHARES DIVIDENDS 0.677693 USD PER SHARE",
+      "amount": "101.64",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-11",
+      "description": "TSM 150.XXXX0000 SHARES WITHHOLDING TAX -0.XXXX1556 USD PER SHARE - TAX",
+      "amount": "-21.36",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-30",
+      "description": "JD 1650.XXXX0000 SHARES DIVIDENDS 0.XXXX9984 USD PER SHARE",
+      "amount": "1650.00",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-30",
+      "description": "JD DIVIDEND FEE -0.XXXX9987 USD PER SHARE",
+      "amount": "-33.00",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-30",
+      "description": "GST - JD DIVIDEND FEE -0.XXXX9987 USD PER SHARE",
+      "amount": "-2.97",
+      "direction": "OUT",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "Fullerton Fund - Fullerton SGD Liquidity Fund",
+      "amount": "0.01",
+      "direction": "IN",
+      "confidence": "high"
+    },
+    {
+      "date": "2025-04-14",
+      "description": "CSOP USD Money Market Fund",
+      "amount": "80.27",
+      "direction": "IN",
+      "confidence": "high"
+    }
+  ]
+}

@@ -10,9 +10,9 @@ from src.database import Base
 
 class PingState(Base):
     """Simple ping-pong state model for demo."""
-    
+
     __tablename__ = "ping_state"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     state: Mapped[str] = mapped_column(String(10), default="ping")
     toggle_count: Mapped[int] = mapped_column(Integer, default=0)
