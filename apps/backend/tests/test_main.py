@@ -1,6 +1,7 @@
 """Backend tests."""
 
 from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -31,6 +32,14 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     """Override database dependency for tests."""
     async with TestingSessionLocal() as session:
         yield session
+
+
+@pytest.fixture(autouse=True)
+async def mock_init_db() -> AsyncGenerator[None, None]:
+    """Mock init_db to prevent real DB connection during lifespan."""
+    # Patch the init_db imported in main.py
+    with patch("src.main.init_db", new_callable=AsyncMock) as mock:
+        yield mock
 
 
 @pytest.fixture(autouse=True)
