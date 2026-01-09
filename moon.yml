@@ -1,0 +1,27 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+# Root project - defines shared tasks
+type: root
+
+tasks:
+  setup:
+    command: 'echo "Setting up workspace..."'
+    deps:
+      - 'backend:install'
+      - 'frontend:install'
+
+  dev:
+    command: 'echo "Use moon run backend:dev or moon run frontend:dev"'
+    local: true
+
+  lint:
+    command: 'echo "Linting all projects..."'
+    deps:
+      - 'backend:lint'
+      - 'frontend:lint'
+
+  test:
+    command: 'echo "Testing all projects..."'
+    deps:
+      - 'backend:test'
+      - 'frontend:test'

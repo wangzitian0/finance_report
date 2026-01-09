@@ -1,0 +1,25 @@
+$schema: 'https://moonrepo.dev/schemas/workspace.json'
+
+# Workspace root
+vcs:
+  manager: git
+  defaultBranch: main
+
+# Node.js settings
+node:
+  version: '20.11.0'
+  packageManager: npm
+
+# Python settings (via proto)
+# Note: Python toolchain managed externally via uv
+
+# Project discovery
+projects:
+  - 'apps/*'
+  - 'packages/*'
+  - 'infra'
+
+# Task runner settings
+runner:
+  cacheLifetime: '7 days'
+  inheritColorsForPipedTasks: true

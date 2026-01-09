@@ -1,0 +1,50 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+language: javascript
+type: application
+
+fileGroups:
+  sources:
+    - 'src/**/*.{ts,tsx}'
+  tests:
+    - 'src/**/*.test.{ts,tsx}'
+
+tasks:
+  install:
+    command: 'npm install'
+    inputs:
+      - 'package.json'
+    outputs:
+      - 'node_modules'
+
+  dev:
+    command: 'npm run dev'
+    local: true
+    deps:
+      - 'install'
+
+  build:
+    command: 'npm run build'
+    inputs:
+      - '@globs(sources)'
+    outputs:
+      - '.next'
+    deps:
+      - 'install'
+
+  start:
+    command: 'npm run start'
+    local: true
+    deps:
+      - 'build'
+
+  lint:
+    command: 'npm run lint'
+    inputs:
+      - '@globs(sources)'
+    deps:
+      - 'install'
+
+  test:
+    command: 'echo "No tests configured yet"'
+    local: true
