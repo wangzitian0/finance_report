@@ -38,7 +38,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database tables."""
-    from src.models import AccountEvent, PingState, Statement  # noqa: F401
+    from src.models import (
+        Account,
+        AccountEvent,
+        JournalEntry,
+        JournalLine,
+        PingState,
+        Statement,
+    )  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

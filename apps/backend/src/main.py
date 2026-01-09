@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from src.config import settings
 from src.database import get_db, init_db
 from src.models import PingState, Statement, StatementStatus
+from src.routers import accounts, journal
 from src.schemas import (
     PingStateResponse,
     ReviewDecision,
@@ -46,6 +47,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# Include routers
+app.include_router(accounts.router)
+app.include_router(journal.router)
 
 
 # --- Health & Demo Endpoints ---
