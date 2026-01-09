@@ -214,6 +214,14 @@ def test_report_generation_performance():
 
 ---
 
+## Issues & Gaps
+
+- [ ] Base currency default conflicts with SSOT: EPIC-005 uses SGD, while `docs/ssot/reporting.md` specifies USD.
+- [ ] FX conversion rules conflict: EPIC-005 uses transaction-date `fx_rate` from JournalLine, while SSOT requires period-end rates for balance sheet and average rates for income statement, plus separate unrealized FX gain/loss.
+- [ ] FX data service ownership is unclear: EPIC-005 proposes `services/fx.py`, but SSOT market data uses `services/market_data.py` with yfinance + Twelve Data fallback.
+
+---
+
 ## ❓ Q&A (Clarification Required)
 
 ### Q1: Report Period Definition

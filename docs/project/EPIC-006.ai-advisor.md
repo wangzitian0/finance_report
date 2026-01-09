@@ -241,6 +241,14 @@ The above analysis is for reference only.
 
 ---
 
+## Issues & Gaps
+
+- [ ] Core principle "data is processed locally only, not uploaded to third parties" conflicts with Gemini/OpenRouter usage; this needs a revised requirement or a local model plan.
+- [ ] No SSOT exists for AI advisor data model, prompt policy, and access scope; violates "SSOT first" rule before implementation.
+- [ ] Dependencies list only EPIC-005, but advisor also relies on reconciled/posted data and reconciliation stats; dependency should include EPIC-004 and EPIC-002.
+
+---
+
 ## ❓ Q&A (Clarification Required)
 
 ### Q1: AI Service Availability Requirements

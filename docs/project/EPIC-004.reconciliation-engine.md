@@ -232,6 +232,14 @@ def test_concurrent_matching():
 
 ---
 
+## Issues & Gaps
+
+- [ ] SSOT defines scoring weights/thresholds in `config/reconciliation.yaml`, but EPIC-004 does not include this config deliverable, so weights may become hardcoded.
+- [ ] EPIC-004 introduces new tables and dependencies (ReconciliationRule, MerchantPattern, transaction_embeddings, pgvector) that are not defined in `docs/ssot/schema.md`; SSOT must be updated before implementation.
+- [ ] Dual-layer versioned `ReconciliationMatch` (version/superseded) is not reflected in SSOT schema or ER model; schema alignment is required.
+
+---
+
 ## ❓ Q&A (Clarification Required)
 
 ### Q1: Are matching thresholds adjustable?
