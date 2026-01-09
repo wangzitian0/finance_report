@@ -49,13 +49,14 @@ jobs:
         working-directory: apps/backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test
-        run: uv run pytest -v --cov=src --cov-report=xml --cov-report=term-missing
+        run: uv run pytest -v --cov=src --cov-report=lcov --cov-report=term-missing
       
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
         with:
-          files: apps/backend/coverage.xml
-          fail_ci_if_error: false
+          file: apps/backend/coverage.lcov
+          flag-name: backend
+          parallel: true
 
   frontend:
     name: Frontend Build
