@@ -294,7 +294,7 @@ def test_report_generation_performance():
   - 示例:`accounts_export_2025_01.csv`, `transactions_export_2025_01.csv`
   
 - **PDF** (最终报表 - 演示用):
-  - 使用 reportlab or weasyprint 库生成
+  - 使用 ReportLab or WeasyPrint 库生成
   - 包含:资产负债表, 利润表, 汇总图表
   - 专业排版:公司名, 日期, 签名线等
   - 嵌入图表 (静态图片)

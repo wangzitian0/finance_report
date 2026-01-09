@@ -57,4 +57,3 @@ Completed projects moved to `docs/project/archived/`
 - [Project Specification](../../init.md)
 - [SSOT Index](../ssot/README.md)
 - [AGENTS.md](../../AGENTS.md)
-- [Skills](.claude/skills/) - AI Role Definitions

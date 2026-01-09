@@ -2,7 +2,7 @@
 
 > **Status**: ⏳ Pending  
 > **Phase**: 3  
-> **Duration**: 4 周  
+> **Duration**: 5 weeks  
 > **Dependencies**: EPIC-003  
 
 ---
@@ -451,9 +451,10 @@ CREATE TABLE transaction_embeddings (
 
 | Phase | Content | Estimated Hours |
 |------|------|----------|
-| Week 1 | Data Model + 基础匹配算法 | 16h |
-| Week 2 | 评分维度实现 + 特殊场景 | 20h |
-| Week 3 | 审核队列 + 异常检测 | 16h |
-| Week 4 | 前端界面 + 调优测试 | 20h |
+| Week 1 | Data Model + Basic matching algorithm | 16h |
+| Week 2 | Scoring dimensions + Special scenarios | 20h |
+| Week 3 | Review queue + Anomaly detection | 16h |
+| Week 4 | Frontend UI + Tuning testing | 20h |
+| Week 5 | Embedding integration + Time-aware rules + Dual-layer model | 16h |
 
-**总预计**: 72 小时 (4 周)
+**Total estimate**: 88 hours (5 weeks)

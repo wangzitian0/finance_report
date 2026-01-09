@@ -2,7 +2,7 @@
 
 > **Status**: ⏳ Pending  
 > **Phase**: 2  
-> **Duration**: 3 周  
+> **Duration**: 4 weeks  
 > **Dependencies**: EPIC-002  
 
 ---
@@ -335,8 +335,9 @@ def test_gemini_retry_on_timeout():
 
 | Phase | Content | Estimated Hours |
 |------|------|----------|
-| Week 1 | Data Model + Gemini 集成 | 16h |
-| Week 2 | 验证层 + API + Prompt 调优 | 20h |
-| Week 3 | 前端界面 + 多银行测试 | 16h |
+| Week 1 | Data Model + Gemini integration | 16h |
+| Week 2 | Validation layer + API + Prompt tuning | 20h |
+| Week 3 | Frontend UI + Multi-bank testing | 16h |
+| Week 4 | ETL queue + Layered retry + Integration | 16h |
 
-**总预计**: 52 小时 (3 周)
+**Total estimate**: 68 hours (4 weeks)
