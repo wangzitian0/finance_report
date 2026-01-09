@@ -1,5 +1,7 @@
 # Finance Report
 
+[![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
+
 Personal financial management system with double-entry bookkeeping.
 
 ## Quick Start
