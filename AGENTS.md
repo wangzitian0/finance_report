@@ -1,98 +1,138 @@
-# Finance Report Development Specification
+# Finance Report AI Agent Behavioral Guidelines
 
-> Unauthorized modification of this document is prohibited.
-> **AI Agent Development Guide** - Understand the project essence, make correct decisions.
+> **Prohibition**: AI may NOT modify this file without explicit authorization.
 
-## 📌 Current Status
+## 🧭 Wiki Entry Map (Level 0/1)
 
-**Phase 0**: Project initialization in progress
+**Level 0 Entry**: `AGENTS.md` (you are here)
 
-## 🎯 Ultimate Goal
+**Level 1 Entries (by purpose)**
+1. **Global Project Overview** → [README.md](README.md)
+2. **Project Goals & Specification** → [init.md](init.md)
+3. **Technical Truth / SSOT** → [docs/ssot/README.md](docs/ssot/README.md)
+4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md) (TODO)
 
-**Double-entry accuracy + Smart reconciliation efficiency** → Trustworthy financial reports
+**Supplementary Entries**
+- **Agent Skills** → [.claude/skills/README.md](.claude/skills/README.md)
+- **Copilot Instructions** → [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
-Core Constraints:
-- **Accounting Equation**: `Assets = Liabilities + Equity + (Income - Expenses)`
-- **Reconciliation Precision**: 0.1 USD
-- **Statistics Tolerance**: 1%
+**Reading Order (10-minute overview)**
+1. [init.md](init.md) — Project goals, business flows, phased delivery
+2. [README.md](README.md) — Tech stack, quick start commands
+3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [db.schema.md](docs/ssot/db.schema.md)
+4. [.claude/skills/README.md](.claude/skills/README.md) — Available agent roles
 
-## 🧠 Design Philosophy
+**Routing Rules (where to go when)**
+- Need to understand business logic → [init.md](init.md)
+- Need to write code → [.github/copilot-instructions.md](.github/copilot-instructions.md) + skill files
+- Need data model reference → [docs/ssot/](docs/ssot/)
+- Need to track current work → [docs/project/](docs/project/) (TODO)
 
+---
+
+## 📌 Core Domain Context
+
+**Read [init.md](init.md) for complete specification. Key points:**
+
+### Accounting Equation (MUST satisfy)
 ```
-Bank Statement (PDF/CSV)
-    ↓ Gemini Vision parsing
-Structured Transactions (BankStatementTransaction)
-    ↓ Balance verification (Opening + Net ≈ Closing)
-Candidate Entries (JournalEntry draft)
-    ↓ Multi-dimensional match scoring
-Reconciliation Match (≥85 auto / 60-84 review / <60 unmatched)
-    ↓ Manual confirmation
-Posted Entries (JournalEntry posted)
-    ↓ Report generation
-Financial Reports + AI Interpretation
-```
-
-## 📁 Directory Structure
-
-```
-finance_report/
-├── .claude/skills/     # AI Agent role definitions
-│   ├── pm.md           # Product Manager
-│   ├── architect.md    # System Architect
-│   ├── developer.md    # Full-Stack Developer
-│   ├── accountant.md   # Accounting Advisor
-│   ├── reconciler.md   # Reconciliation Specialist
-│   └── tester.md       # QA Engineer
-├── .github/
-│   ├── copilot-instructions.md  # Project-level Copilot config
-│   └── instructions/   # File-pattern instructions
-│       ├── python.instructions.md
-│       └── frontend.instructions.md
-├── docs/
-│   └── ssot/           # Data model SSOT
-│       ├── db.schema.md           # Database table structure
-│       ├── domain.accounting.md   # Double-entry model
-│       └── domain.reconciliation.md # Reconciliation engine model
-├── apps/
-│   ├── backend/        # FastAPI + SQLAlchemy
-│   └── frontend/       # Next.js 14 + shadcn/ui
-├── packages/           # Shared types, utilities
-└── infra/              # Docker + deployment scripts
+Assets = Liabilities + Equity + (Income - Expenses)
 ```
 
-## 🔑 Core Concepts
+### Reconciliation Thresholds
+| Score | Action |
+|-------|--------|
+| ≥ 85 | Auto-accept |
+| 60-84 | Review queue |
+| < 60 | Unmatched |
 
-### Data Models
+### Precision Requirements
+- **Reconciliation tolerance**: 0.1 USD
+- **Statistics tolerance**: 1%
 
-| Model | Description |
-|-------|-------------|
-| `Account` | Chart of accounts (5 types: Asset/Liability/Equity/Income/Expense) |
-| `JournalEntry` | Entry header (draft → posted → reconciled) |
-| `JournalLine` | Entry line (debit/credit, amount, account) |
-| `BankStatement` | Bank statement |
-| `BankStatementTransaction` | Bank transaction |
-| `ReconciliationMatch` | Reconciliation match record |
+---
 
-### Technology Stack
+## 🛠️ Problem Solving Framework (STAR)
 
-| Component | Choice | Reason |
-|-----------|--------|--------|
-| Auth | FastAPI Users | Out-of-box JWT/OAuth2 |
-| ORM | SQLAlchemy 2 | Async support, mature |
-| Database | PostgreSQL 15 | ACID transactions |
-| Market Data | yfinance + Twelve Data | Dual source redundancy |
-| AI | Gemini 3 Flash | Vision + Text |
+AI must use this cascade structure before processing tasks:
 
-## 📏 Coding Standards
+### 1. Situation (Context Assessment)
+- **Anchor Project**: Bind to a project in `docs/project/` (TODO: create structure)
+- **Current State**: Describe system status and problem impact
+- **Truth Check**: Read relevant topics in `docs/ssot/`, identify gap between current state and ideal
 
-### Monetary Handling
+### 2. Tasks (Multi-Dimensional Breakdown)
+- **Goal Decomposition**: Break down based on Situation
+- **Layer Assignment**: Assign tasks to appropriate layers:
+  - **Backend**: `apps/backend/` (FastAPI, SQLAlchemy)
+  - **Frontend**: `apps/frontend/` (Next.js, React)
+  - **Infrastructure**: `infra/` (Docker, deployment)
+
+### 3. Actions (Execution Steps)
+- **Atomic Operations**: Define specific action sequence for each task
+- **SSOT Alignment**: Actions must conform to [domain.accounting.md](docs/ssot/domain.accounting.md) and [domain.reconciliation.md](docs/ssot/domain.reconciliation.md)
+- **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
+
+### 4. Result (Verification)
+- **Self-Check**: Compare against project goals in [init.md](init.md)
+- **Evidence Loop**: Use verification methods from SSOT "The Proof" sections
+- **Update Docs**: Update README, Project docs, SSOT as needed
+
+---
+
+## 🚨 Core Mandatory Principles
+
+### SSOT First
+1. **SSOT is the highest truth**: The **sole authoritative source** is `docs/ssot/`. README is navigation only.
+2. **No SSOT, no work**: Before introducing new components, define their truth in `docs/ssot/`.
+3. **No hidden drift**: When code differs from SSOT, sync immediately. Never let SSOT rot.
+
+### Accounting Integrity
+4. **Entries must balance**: Every JournalEntry must have balanced debits and credits.
+5. **Equation must hold**: At any point, the accounting equation must be satisfied.
+6. **Use Decimal for money**: NEVER use float for monetary calculations.
+
+---
+
+## 📁 Documentation Hierarchy
+
+| Category | Path | Purpose | Audience |
+|----------|------|---------|----------|
+| **Project EPIC** | `docs/project/` | Task tracking, milestones | AI / Maintainers |
+| **Module README** | Each `apps/*/README.md` | Directory intro, design guide | Developers |
+| **SSOT** | `docs/ssot/` | Technical truth, authoritative reference | Everyone |
+| **User Manual** | `docs/onboarding/` (TODO) | User-facing guides | End Users |
+
+### MECE Document Organization
+
+```
+docs/
+├── ssot/                 # Technical Truth (MECE by domain)
+│   ├── db.schema.md      # Database layer
+│   ├── domain.accounting.md    # Accounting domain
+│   └── domain.reconciliation.md # Reconciliation domain
+├── project/              # EPIC & Task Tracking (TODO)
+│   ├── README.md
+│   └── EPIC-001.phase0-setup.md
+└── onboarding/           # User Manual (TODO)
+    └── README.md
+```
+
+---
+
+## 💻 Coding Standards
+
+### Python (Backend)
 ```python
+# ✅ Correct - Use Decimal
 from decimal import Decimal
-amount = Decimal("100.50")  # ✅ Correct
-# amount = 100.50  # ❌ Float precision issues
+amount = Decimal("100.50")
+
+# ❌ Wrong - Float precision
+amount = 100.50
 ```
 
-### Entry Balance Validation
+### Entry Validation
 ```python
 def validate_balance(lines: list[JournalLine]) -> bool:
     debit = sum(l.amount for l in lines if l.direction == "DEBIT")
@@ -100,108 +140,45 @@ def validate_balance(lines: list[JournalLine]) -> bool:
     return abs(debit - credit) < Decimal("0.01")
 ```
 
-### Precision Configuration
-```python
-RECONCILIATION_TOLERANCE = Decimal("0.10")  # 0.1 USD
-STATISTICS_TOLERANCE = Decimal("0.01")      # 1%
-```
+### TypeScript (Frontend)
+- Strict TypeScript (no `any`)
+- Server Components by default
+- Client components only when needed
 
-## 🤖 Multi-Role Collaboration
+---
 
-### Team Structure
+## 🤖 Agent Role Activation
 
-```
-                    👤 User
-                       │
-            ┌──────────┼──────────┐
-            │          │          │
-       📋 PM     🏗️ Architect  🎨 Designer
-            │          │          │
-            └──────────┼──────────┘
-                       │
-       ┌───────────────┼───────────────┐
-       │               │               │
-  💻 Developer   📊 Accountant   🔗 Reconciler
-       │               │               │
-       └───────┬───────┴───────┬───────┘
-               │               │
-          🧪 Tester       📈 (AI Advisor)
-```
+**Skill files location**: `.claude/skills/`
+
+| Role | File | When to Use |
+|------|------|-------------|
+| 📋 PM | `pm.md` | Requirement analysis, task breakdown |
+| 🏗️ Architect | `architect.md` | System design, tech decisions |
+| 💻 Developer | `developer.md` | Code implementation |
+| 📊 Accountant | `accountant.md` | Double-entry rules, entry validation |
+| 🔗 Reconciler | `reconciler.md` | Matching algorithm tuning |
+| 🧪 Tester | `tester.md` | Test strategy, quality assurance |
 
 ### Usage
-
 ```bash
-# Start new feature
-@.claude/skills/pm.md I want to support parsing CMB bank statements
-
-# Design review
-@.claude/skills/architect.md @.claude/skills/accountant.md Please review this entry design
-
-# Reconciliation tuning
-@.claude/skills/reconciler.md Match accuracy has dropped, please analyze the cause
+@.claude/skills/accountant.md How should I record this cross-currency transaction?
+@.claude/skills/reconciler.md Match accuracy dropped, please analyze
 ```
 
-## 🛠️ Development Workflow
+---
 
-### Common Commands
-```bash
-moon run backend:dev      # Start backend
-moon run frontend:dev     # Start frontend
-moon run backend:test     # Run tests
-moon run backend:migrate  # Database migration
-moon run infra:docker:up  # Start Docker environment
-```
+## 📅 Current Phase
 
-### Adding New Statement Types
-1. Create parser in `services/extraction/`
-2. Configure Gemini prompt
-3. Add test cases
-4. Update `SUPPORTED_STATEMENT_TYPES`
+**Phase 0**: Infrastructure Setup (Moonrepo + Docker)
 
-## 📚 Documentation Index
+See [init.md](init.md) Section 7 for full phased delivery plan.
 
-| Document | Content |
-|----------|---------|
-| `init.md` | Complete project proposal |
-| `docs/ssot/db.schema.md` | Database table structure |
-| `docs/ssot/domain.accounting.md` | Double-entry model |
-| `docs/ssot/domain.reconciliation.md` | Reconciliation engine model |
-| `.claude/skills/*.md` | Agent role definitions |
+---
 
-## ⚙️ Configuration Parameters
+## 🔐 Security & Red Lines
 
-### Reconciliation Engine
-```yaml
-scoring:
-  weights:
-    amount: 0.40
-    date: 0.25
-    description: 0.20
-    business: 0.10
-    history: 0.05
-  thresholds:
-    auto_accept: 85
-    pending_review: 60
-  tolerances:
-    amount_absolute: 0.10  # 0.1 USD
-```
-
-### Market Data
-```yaml
-market_data:
-  sources:
-    - yfinance    # Primary source
-    - twelve_data # Backup source
-  sync_schedule: "0 8 * * *"  # Daily at 08:00
-  data_types:
-    - fx_rates    # Exchange rates
-    - stock_prices # Stock prices
-```
-
-### Backup Strategy
-```yaml
-backup:
-  frequency: weekly     # Weekly
-  retention_days: 90    # Keep 90 days
-  target: s3://backup/finance-report/
-```
+- **NEVER** commit sensitive files (`.env`, `*.pem`, credentials)
+- **NEVER** use float for monetary amounts
+- **NEVER** skip entry balance validation
+- **NEVER** post entries without accounting equation check
