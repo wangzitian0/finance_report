@@ -235,64 +235,215 @@ def test_concurrent_matching():
 ## ❓ Q&A (待确认问题)
 
 ### Q1: 匹配阈值是否可调
-> **问题**: 85/60 的阈值是固定的，还是用户可以调整？  
-> **选项**:
-> - A) 全局固定阈值
-> - B) 用户可在设置中调整
-> - C) 按账户类型设置不同阈值
->
-> **影响**: 影响配置管理和 UI 设计  
-> **建议**: 选择 A，先用固定阈值验证算法效果
+> **问题**: 85/60 的阈值是固定的，还是用户可以调整？
 
-**你的回答**: _________________
+**✅ 你的回答**: A - 全局固定阈值，等有真实数据后再考虑优化
+
+**决策**: 第一版使用固定阈值
+- `AUTO_ACCEPT_THRESHOLD = 85`
+- `REVIEW_QUEUE_THRESHOLD = 60`
+- 这些值配置在环境变量中（便于后续调整）
+- 使用 MVP 阶段真实匹配数据，分析准确率和用户反馈
+- v1.5+ 再考虑动态阈值或按账户类型配置
 
 ### Q2: 未匹配流水的处理流程
-> **问题**: 未匹配流水（得分 < 60）如何处理？  
-> **选项**:
-> - A) 仅标记，等待用户手动创建分录
-> - B) 自动创建草稿分录（用户确认）
-> - C) 提供 AI 建议的分录模板
->
-> **影响**: 影响用户工作量和自动化程度  
-> **建议**: 选择 C，AI 辅助但用户确认
+> **问题**: 未匹配流水（得分 < 60）如何处理？
 
-**你的回答**: _________________
+**✅ 你的回答**: C - AI 建议分录模板。并且这些规则是时间敏感的，可能在特定时期内生效。
+
+**决策**: AI 驱动的分录建议 + 时间感知的规则
+- **未匹配流水处理流程**:
+  1. 流水匹配得分 < 60 时，触发 `suggest_journal_entry()` 服务
+  2. 根据流水信息（金额、描述、日期、账户等）生成 AI 建议
+  3. AI 建议包含:
+     - 推荐账户组合（如 "消费时用 Expense + Liability"）
+     - 推荐金额拆分（如 "本金 2000 + 利息 50"）
+     - 推荐事件类型（salary, card_payment, transfer, fee 等）
+  4. 用户可一键接受建议，或修改后手动创建
+  
+- **时间感知的规则机制**:
+  - 建立 `ReconciliationRule` 表:
+    ```
+    id, user_id, rule_name, description, 
+    conditions (JSONB), actions (JSONB),
+    effective_from, effective_to, priority, is_enabled
+    ```
+  - 规则示例:
+    ```json
+    {
+      "name": "工资入账规则（仅 1-3 月）",
+      "conditions": {
+        "description_contains": ["SALARY", "EMPLOYER"],
+        "amount_range": [4000, 6000],
+        "date_in_months": [1, 2, 3]
+      },
+      "actions": {
+        "account_debit": "Bank Main",
+        "account_credit": "Income Salary",
+        "auto_match_boost": 20
+      },
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-03-31"
+    }
+    ```
+  - 对账时，加载有效期内的规则，增强 AI 建议的准确性
+  - 用户可自定义规则（UI 提供规则编辑器）
+  - 系统学习用户历史接受的建议，逐步改进建议质量
 
 ### Q3: 重复匹配检测
-> **问题**: 如果一笔流水已匹配，后续是否允许修改？  
-> **选项**:
-> - A) 不允许修改，需先取消原匹配
-> - B) 允许重新匹配（覆盖旧匹配）
-> - C) 保留历史，新匹配作为新版本
->
-> **影响**: 影响数据模型和审计日志  
-> **建议**: 选择 A，保证数据一致性
+> **问题**: 一笔流水已匹配后，是否允许修改或重新匹配？
 
-**你的回答**: _________________
+**✅ 你的回答**: C + 高级架构 - 用两层数据模型：
+- 原始层（Account Event）：保留完整历史，不可修改
+- 分析层（Ontology Event）：支持多版本映射，1:N 和 N:1 关系
+
+**决策**: 双层事件模型 - 不可变原始层 + 可变分析层
+
+**数据模型**:
+```
+BankStatementTransaction (原始层)
+├─ id (UUID)
+├─ statement_id
+├─ txn_date, amount, direction, description
+├─ created_at (IMMUTABLE)
+└─ status: pending/matched/unmatched
+
+ReconciliationMatch v1 (分析层，多版本)
+├─ id (UUID)
+├─ bank_txn_id (FK)
+├─ journal_entry_ids[] (支持多个)
+├─ match_score
+├─ version (int)
+├─ created_at
+├─ superseded_by_id (指向下一版本)
+└─ status: active/superseded/rejected
+
+JournalEntry (原始层)
+├─ id (UUID)
+├─ entry_date, memo
+├─ created_at (IMMUTABLE)
+└─ matched_by_id[] (指向当前活跃的 ReconciliationMatch)
+```
+
+**匹配流程**（支持版本演化）:
+1. 新匹配创建 `ReconciliationMatch v1`
+2. 用户修改匹配时：
+   - 创建新版本 `ReconciliationMatch v2`（不是覆盖 v1）
+   - v1.superseded_by_id = v2.id
+   - v1.status = superseded
+3. 用户将一笔流水拆分为多笔分录时：
+   - 原 `ReconciliationMatch v1` 作废（多对一 → 一对多）
+   - 创建多条新 `ReconciliationMatch` 记录，每条关联不同分录
+4. 用户合并多笔流水到一笔分录时：
+   - 多条原 ReconciliationMatch 标记为 superseded
+   - 创建新版本关联所有流水
+
+**查询时的规则**:
+- 前端显示当前活跃匹配：status='active' 且 superseded_by_id IS NULL
+- 报表计算时仅计入活跃匹配
+- 审计查询时可看完整版本历史
+
+**好处**:
+- ✅ 原始数据永不丢失（金融合规）
+- ✅ 支持任意 N:M 匹配关系
+- ✅ 完整的修改审计轨迹
+- ✅ 支持规则演化（同一流水在不同时期有不同分类）
 
 ### Q4: 批量操作的安全限制
-> **问题**: 批量确认是否需要额外验证？  
-> **选项**:
-> - A) 无限制，一键确认所有
-> - B) 单次最多 100 笔
-> - C) 仅允许批量确认高分项（≥ 80）
->
-> **影响**: 影响误操作风险  
-> **建议**: 选择 C，平衡效率和安全
+> **问题**: 批量确认是否需要额外验证？
 
-**你的回答**: _________________
+**✅ 你的回答**: C - 仅允许批量确认高分项（≥ 80），低分项需逐个确认
+
+**决策**: 分层批量操作策略
+- **高分快速通道** (score ≥ 80):
+  - 支持一键批量确认所有高分项
+  - 可按日期范围、金额范围筛选后批量操作
+  - UI 显示待确认总数和总金额
+- **低分逐个确认** (60 ≤ score < 80):
+  - 必须逐个审核，不支持批量操作
+  - 前端列表仅允许单个确认/拒绝
+  - 强制用户看到每笔交易的详情
+- **批量操作确认对话**:
+  - 弹窗显示：待批量确认数量、总金额、日期范围
+  - 显示示例（前 5 笔）
+  - 用户必须勾选 "我已审查上述信息" 才能确认
+- **操作审计**:
+  - 每个批量操作记录操作者、时间、确认数量
+  - 支持批量撤销（仅在 24 小时内可撤销批量确认）
 
 ### Q5: 历史模式学习
-> **问题**: 是否根据用户历史匹配行为调整算法？  
-> **选项**:
-> - A) 不学习，使用固定规则
-> - B) 简单规则学习（如常见商户→账户映射）
-> - C) ML 模型持续学习
->
-> **影响**: 影响算法复杂度和开发周期  
-> **建议**: 第一版选择 B，后续迭代选择 C
+> **问题**: 是否根据用户历史匹配行为调整算法？
 
-**你的回答**: _________________
+**✅ 你的回答**: B + embedding - 简单规则学习，用 embedding 做相似度匹配
+
+**决策**: Embedding 驱动的智能匹配 (简单高效)
+
+**实现方案**:
+- **Embedding 层** (使用开源模型，如 sentence-transformers):
+  - 对每条 BankStatementTransaction 的描述生成 embedding
+  - 对每条 JournalEntry 的 memo 生成 embedding
+  - 计算两者的余弦相似度，作为"描述相似度"评分的增强
+  
+- **商户模式学习** (简单规则):
+  - 维护 `MerchantPattern` 表:
+    ```
+    merchant_name, canonical_merchant,
+    preferred_account_id, confidence,
+    last_matched_at, match_count
+    ```
+  - 每次用户确认匹配时，更新模式:
+    ```
+    IF MERCHANT 已存在:
+      UPDATE match_count, confidence
+    ELSE:
+      INSERT 新商户模式
+    ```
+  - 下次遇到同商户流水时，直接跳过低分候选，优先推荐历史账户
+  
+- **时间模式识别** (订阅类交易):
+  - 识别固定周期交易（如每月同一天、金额固定）
+  - 给予加分（如 +10 分）
+  - 示例：每月 25 日的 500 SGD 租赁费
+  
+- **Integration**:
+  ```
+  score = 40% amount_match 
+        + 25% date_match 
+        + 20% embedding_similarity  // NEW
+        + 10% business_logic 
+        + 5% pattern_bonus        // 商户模式 + 时间模式
+  ```
+
+**数据表**:
+```sql
+-- 商户模式学习
+CREATE TABLE merchant_patterns (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    merchant_name VARCHAR(255),
+    canonical_merchant VARCHAR(255),
+    preferred_account_id UUID,
+    confidence DECIMAL(3,2),  -- 0-1
+    match_count INT,
+    last_matched_at TIMESTAMP
+);
+
+-- Embedding 缓存
+CREATE TABLE transaction_embeddings (
+    id UUID PRIMARY KEY,
+    source_type ENUM ('bank_txn', 'journal_entry'),
+    source_id UUID,
+    embedding VECTOR(384),  -- pgvector extension
+    created_at TIMESTAMP
+);
+```
+
+**好处**:
+- ✅ 简单，无需复杂 ML 框架
+- ✅ 解决大部分模式识别问题（商户识别、类似交易）
+- ✅ 可逐步优化（先用固定 embedding，后续可微调）
+- ✅ 支持多语言（embedding 模型通常多语言）
+- ✅ 性能好（向量相似度计算快）
 
 ---
 

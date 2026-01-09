@@ -211,60 +211,123 @@ def test_gemini_retry_on_timeout():
 
 ## ❓ Q&A (待确认问题)
 
-### Q1: 支持的银行优先级
-> **问题**: 第一版需要支持哪些银行的对账单？  
-> **选项**:
-> - A) 仅 DBS/POSB
-> - B) DBS + OCBC + 信用卡
-> - C) 所有新加坡主流银行
->
-> **影响**: 影响 Prompt 模板开发工作量  
-> **建议**: 选择 B，覆盖 80% 使用场景
+### Q5: 支持的银行优先级
+> **问题**: 第一版需要支持哪些银行的对账单？
 
-**你的回答**: _________________
+**✅ 你的回答**: DBS + 招商银行 + Maybank + Wise，还需支持券商、保险等各种机构。采用通用结构 + 灵活扩展字段的设计。
 
-### Q2: Gemini API 成本控制
-> **问题**: 如何控制 Gemini API 调用成本？  
-> **选项**:
-> - A) 无限制（个人使用量小）
-> - B) 每日调用上限
-> - C) 每份对账单解析后缓存 30 天
->
-> **影响**: 影响 API 调用逻辑和用户体验  
-> **建议**: 选择 C，缓存解析结果
+**决策**: 采用高度可扩展的对账单模型
+- **核心字段**（所有对账单统一）:
+  - `period_start`, `period_end`, `opening_balance`, `closing_balance`
+  - `transactions[]` 包含标准化字段: `txn_date`, `amount`, `direction`, `description`
+- **扩展字段**（JSONB）:
+  - `bank_specific_data`: 银行特有字段（如参考号、交易码等）
+  - `institution_type`: 标记机构类型（bank, brokerage, insurance, wallet 等）
+  - `custom_fields`: 用户可添加的自定义字段
+- **Prompt 模板**按机构类型分组:
+  - `templates/dbs.yaml`
+  - `templates/ocbc.yaml`
+  - `templates/citic.yaml`
+  - `templates/brokerage_generic.yaml`
+  - `templates/insurance_generic.yaml`
+  - `templates/fintech_generic.yaml`（Wise, Revolut 等）
+- **机构库维护**:
+  - 前端提供机构/账户类型选择器
+  - 用户可为新机构配置 Prompt 模板
+  - 社区贡献模板库
 
-**你的回答**: _________________
+### Q6: Gemini API 成本控制
+> **问题**: 如何控制 Gemini API 调用成本？
 
-### Q3: 解析失败的处理方式
-> **问题**: 解析失败时用户可以做什么？  
-> **选项**:
-> - A) 仅提示失败，用户手动录入
-> - B) 显示部分解析结果，用户可编辑补充
-> - C) 支持重试 + 人工编辑
->
-> **影响**: 影响前端交互设计  
-> **建议**: 选择 C，提供最大灵活性
+**✅ 你的回答**: 使用 OpenRouter，每天 $2 限制已在 API 层面，应用层无需额外限制
 
-**你的回答**: _________________
+**决策**: 应用层依赖 OpenRouter 的官方限制
+- 调用 Gemini 3 Flash 通过 OpenRouter（非直接 Google API）
+- OpenRouter 有每日配额管理，超限自动返回 429 错误
+- 应用层无需实现调用限制，但需优雅处理 API 配额耗尽情况
+- 当 OpenRouter 返回配额不足时，降级到本地规则解析或提示用户
+- 环境变量: `OPENROUTER_API_KEY`, `OPENROUTER_DAILY_LIMIT_USD=2`
 
-### Q4: 对账单账户关联
-> **问题**: 上传对账单时如何关联到具体账户？  
-> **选项**:
-> - A) 用户手动选择账户
-> - B) 根据对账单内容自动匹配（账号后 4 位）
-> - C) 先解析，再让用户确认关联
->
-> **影响**: 影响上传流程设计  
-> **建议**: 选择 C，AI 建议 + 用户确认
+### Q7: 解析失败的处理方式
+> **问题**: 解析失败时用户可以做什么？
 
-**你的回答**: _________________
+**✅ 你的回答**: C - 支持重试 + 人工编辑。重试时优先升级到更强的模型。
 
-### Q5: 历史对账单导入
-> **问题**: 是否需要支持导入历史对账单（如 2024 年全年）？  
-> **影响**: 影响批量处理和性能设计  
-> **建议**: 第一版支持单份上传，批量导入作为 P2
+**决策**: 分层降级策略，提升解析成功率
+- **第 1 层**: Gemini 3 Flash（快速、便宜）
+- **第 2 层**: 重试时升级到 Gemini 2.0 或更强模型（通过 OpenRouter 可用）
+- **第 3 层**: 显示部分解析结果，允许用户编辑补充
+- **第 4 层**: 手动录入（完整表单）
+- 流程:
+  ```
+  Upload PDF
+  ├─ Try Gemini 3 Flash
+  │  ├─ ✅ Success → Show results
+  │  └─ ❌ Fail → Offer "Retry with stronger model"
+  │     ├─ Try Gemini 2.0 / GPT-4
+  │     ├─ ✅ Success → Show results
+  │     └─ ❌ Fail → Show partial results + Edit form
+  └─ User can always manually add/edit transactions
+  ```
+- 环境变量: `PRIMARY_MODEL=gemini-3-flash`, `FALLBACK_MODELS=["gemini-2.0", "gpt-4-turbo"]`
+- UI 展示重试进度和当前使用的模型
 
-**你的回答**: _________________
+### Q8: 对账单账户关联
+> **问题**: 上传对账单时如何关联到具体账户？
+
+**✅ 你的回答**: C - 先解析再确认，AI 建议关联账户，用户确认
+
+**决策**: 两步流程 - 解析 + 确认关联
+- 上传时用户可选择账户（可选），或留空让 AI 推荐
+- 解析后，提取对账单中的账户信息（银行名、账号后 4 位、币种等）
+- 基于提取信息，在系统中查找匹配的 Account
+  - 精确匹配: 账号后 4 位 + 币种完全一致
+  - 模糊匹配: 银行名 + 币种相同的账户
+- 前端确认页面显示:
+  - 解析出的账户信息（银行、账号尾号、开户人等）
+  - 系统推荐的账户（带匹配信度标记）
+  - 用户可选择推荐账户或手动选择
+  - "创建新账户"入口（如推荐账户不存在）
+
+### Q9: 历史对账单导入
+> **问题**: 是否需要支持批量导入历史对账单？
+
+**✅ 你的回答**: C - 支持批量上传 + 异步队列处理。每个上传对应一个独立的 ETL 任务。
+
+**决策**: 异步 ETL 任务队列架构
+- **上传阶段**:
+  - 支持多文件同时拖拽（或 zip）上传
+  - 每个文件立即创建一条 `StatementProcessingTask` 记录
+  - 返回任务 ID 列表和任务队列链接给用户
+- **任务结构**:
+  ```python
+  class StatementProcessingTask:
+      id: UUID
+      file_name: str
+      file_size: int
+      upload_at: datetime
+      status: Enum  # pending/processing/completed/failed
+      progress: int  # 0-100
+      error_message: Optional[str]
+      extracted_data: Optional[dict]
+      account_id: Optional[UUID]
+  ```
+- **处理流程**（独立任务）:
+  1. 上传文件到临时存储
+  2. 异步工作进程拉取任务（status=pending）
+  3. 调用 Gemini 解析（记录进度）
+  4. 验证余额（期初+流水≈期末）
+  5. 存储 BankStatementTransaction
+  6. 更新任务状态为 completed/failed
+- **队列实现**:
+  - 使用 Redis queue 或 Celery（取决于部署环境）
+  - 支持任务优先级（单个文件优先级最高）
+  - 任务重试策略（失败自动重试 3 次）
+- **UI**:
+  - 上传后跳转到"任务队列"页面
+  - 显示每个任务的进度条、状态、错误信息
+  - 支持取消待处理任务
+  - 完成后自动刷新对账单列表
 
 ---
 
