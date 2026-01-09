@@ -1,6 +1,6 @@
 # EPIC-001: Infrastructure & Authentication
 
-> **Status**: 🟢 Complete  
+> **Status**: 🟢 Complete (Deferred items tracked below)  
 > **Phase**: 0  
 > **Duration**: 2 weeks  
 > **Dependencies**: None  
@@ -117,8 +117,8 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 ## Issues & Gaps
 
-- [ ] Status is marked "Complete" while the checklist still has deferred items (infra/moon.yml, pre-commit hooks, Zustand), which makes Phase 0 exit criteria ambiguous.
-- [ ] Phase 0 in `init.md` references `infra:docker:up`; without infra/moon.yml tasks, the Moon workflow is incomplete for local docker.
+- [x] Status is marked "Complete" while the checklist still has deferred items (infra/moon.yml, pre-commit hooks, Zustand), which makes Phase 0 exit criteria ambiguous.
+- [x] Phase 0 in `init.md` references `infra:docker:up`; without infra/moon.yml tasks, the Moon workflow is incomplete for local docker.
 
 ---
 
