@@ -1,19 +1,19 @@
 # EPIC-003: Smart Statement Parsing
 
-> **Status**: ⏳ Pending 
-> **Phase**: 2 
-> **Duration**: 4 weeks 
-> **Dependencies**: EPIC-002 
+> **Status**: ⏳ Pending  
+> **Phase**: 2  
+> **Duration**: 4 weeks  
+> **Dependencies**: EPIC-002  
 
 ---
 
 ## 🎯 Objective
 
-use Gemini 3 Flash Vision parsebank/ for , generatejournal entry. 
+Use Gemini 3 Flash Vision to parse bank/brokerage statements, automatically extract transaction details and generate candidate journal entries.
 
-**process**:
+**Core Flow**:
 ```
-Upload → Gemini Vision → JSON → Validation → BankStatementTransaction → JournalEntry
+Upload → Gemini Vision → JSON → Validation → BankStatementTransaction → Candidate JournalEntry
 ```
 
 ---
@@ -22,12 +22,12 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 | Role | Focus | Review Opinion |
 |------|--------|----------|
-| 🏗️ **Architect** | design | AI only parse, not , excessively validate excessively incorrect |
-| 💻 **Developer** | API | Gemini 3 Flash Call, containretry, downgrade, |
-| 📊 **Accountant** | complete | + transaction ≈ , validate not excessively then reject |
-| 🔗 **Reconciler** | Dependencies | parseRequired, matchuse |
-| 🧪 **Tester** | parseaccurate | bank, coverage oftest, ≥ 95% |
-| 📋 **PM** | use body | upload, parse, incorrectnoticegood |
+| 🏗️ **Architect** | Decoupled Design | AI only handles parsing, does not write directly to ledger, errors filtered through validation layer |
+| 💻 **Developer** | API Integration | Gemini 3 Flash call wrapper with retry, fallback, and cost control |
+| 📊 **Accountant** | Data Integrity | Opening + Transactions ≈ Closing, reject if validation fails |
+| 🔗 **Reconciler** | Downstream Dependencies | Parsing results must be structured for matching algorithms |
+| 🧪 **Tester** | Parsing Accuracy | Multi-bank, multi-format coverage testing, target ≥ 95% |
+| 📋 **PM** | User Experience | Drag-and-drop upload, parsing progress, user-friendly error messages |
 
 ---
 
@@ -35,103 +35,103 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ### Data Model (Backend)
 
-- [ ] `BankStatement` model - for header (account_id, period, opening/closing_balance)
-- [ ] `BankStatementTransaction` model - (txn_date, amount, direction, description)
-- [ ] Alembic migration
+- [ ] `BankStatement` model - Statement header (account_id, period, opening/closing_balance)
+- [ ] `BankStatementTransaction` model - Transaction details (txn_date, amount, direction, description)
+- [ ] Alembic migration script
 - [ ] Pydantic Schema
 
-### Gemini (Backend)
+### Gemini Integration (Backend)
 
-- [ ] `services/extraction.py` - documentparseservice
- - [ ] `parse_pdf()` - PDF parse (Vision API)
- - [ ] `parse_csv()` - CSV parse ( then + AI )
- - [ ] `parse_xlsx()` - Excel parse
-- [ ] Prompt 
- - [ ] DBS/POSB for 
- - [ ] OCBC for 
- - [ ] use use 
-- [ ] parse
- ```python
- class ParsedStatement:
- bank_name: str
- account_number: str # 4
- period_start: date
- period_end: date
- opening_balance: Decimal
- closing_balance: Decimal
- transactions: list[ParsedTransaction]
- ```
+- [ ] `services/extraction.py` - Document parsing service
+  - [ ] `parse_pdf()` - PDF parsing (Vision API)
+  - [ ] `parse_csv()` - CSV parsing (rules + AI assistance)
+  - [ ] `parse_xlsx()` - Excel parsing
+- [ ] Prompt template management
+  - [ ] DBS/POSB statement template
+  - [ ] OCBC statement template
+  - [ ] Credit card statement generic template
+- [ ] Structured parsing results
+  ```python
+  class ParsedStatement:
+      bank_name: str
+      account_number: str  # Last 4 digits
+      period_start: date
+      period_end: date
+      opening_balance: Decimal
+      closing_balance: Decimal
+      transactions: list[ParsedTransaction]
+  ```
 
-### validate (Backend)
+### Validation Layer (Backend)
 
-- [ ] `services/validation.py` - validateservice
- - [ ] `validate_balance()` - + transaction ≈ (tolerance 0.1 USD)
- - [ ] `validate_completeness()` - requiredfieldcheck
- - [ ] `detect_duplicates()` - import
-- [ ] validatefailureprocess
- - [ ] as/for " need "
- - [ ] failureRationale
- - [ ] notification use 
+- [ ] `services/validation.py` - Validation service
+  - [ ] `validate_balance()` - Opening + Transactions ≈ Closing (tolerance 0.1 USD)
+  - [ ] `validate_completeness()` - Required field validation
+  - [ ] `detect_duplicates()` - Duplicate import detection
+- [ ] Validation failure handling
+  - [ ] Mark as "Requires Manual Review"
+  - [ ] Log failure reason
+  - [ ] Notify user
 
-### API endpoint (Backend)
+### API Endpoints (Backend)
 
-- [ ] `POST /api/statements/upload` - upload
-- [ ] `GET /api/statements` - for table
-- [ ] `GET /api/statements/{id}` - for (contain)
-- [ ] `POST /api/statements/{id}/approve` - confirmation for 
-- [ ] `POST /api/statements/{id}/reject` - reject for 
-- [ ] `GET /api/statements/{id}/transactions` - table
+- [ ] `POST /api/statements/upload` - File upload
+- [ ] `GET /api/statements` - Statement list
+- [ ] `GET /api/statements/{id}` - Statement details (with transactions)
+- [ ] `POST /api/statements/{id}/approve` - Approve statement
+- [ ] `POST /api/statements/{id}/reject` - Reject statement
+- [ ] `GET /api/statements/{id}/transactions` - Transaction list
 
-### Frontend (Frontend)
+### Frontend Interface (Frontend)
 
-- [ ] `/upload` - uploadpage
- - [ ] uploadcomponent
- - [ ] class/validate
- - [ ] upload
- - [ ] parseStatus
-- [ ] `/statements` - for 
- - [ ] for table (Statustag)
- - [ ] for (table)
- - [ ] parse
- - [ ] confirmation/reject
-- [ ] incorrectprocess
- - [ ] parsefailurenotice
- - [ ] validatefailure
- - [ ] retry
+- [ ] `/upload` - Upload page
+  - [ ] Drag-and-drop upload component
+  - [ ] File type/size validation
+  - [ ] Upload progress bar
+  - [ ] Parsing status polling
+- [ ] `/statements` - Statement management
+  - [ ] Statement list (status badges)
+  - [ ] Statement details (transaction table)
+  - [ ] Parsing result preview
+  - [ ] Approve/Reject actions
+- [ ] Error handling
+  - [ ] Parsing failure notification
+  - [ ] Validation failure details
+  - [ ] Retry entry point
 
 ---
 
-## 📏 good not good standard
+## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
 
 | Standard | Verification | Weight |
 |------|----------|------|
-| **parsesuccess ≥ 95%** | 10 for test | 🔴 critical |
-| **balancevalidate 100% ** | +transaction≈check | 🔴 critical |
-| **parseincorrect not ** | validatefailureincorrect | 🔴 critical |
-| support PDF (DBS, OCBC) | banktest | Required |
-| support CSV use | standard CSV test | Required |
-| limitation 10MB | uploadvalidate | Required |
-| parsetime < 30s | can test | Required |
+| **Parsing success rate ≥ 95%** | Test with 10 real statements | 🔴 Critical |
+| **Balance validation 100% enforced** | Opening+Transactions≈Closing check | 🔴 Critical |
+| **Parsing errors not persisted** | Validation failure returns error | 🔴 Critical |
+| Support PDF format (DBS, OCBC) | Bank sample testing | Required |
+| Support generic CSV format | Standard CSV testing | Required |
+| File size limit 10MB | Upload validation | Required |
+| Parsing time < 30s | Performance testing | Required |
 
 ### 🌟 Nice to Have
 
 | Standard | Verification | Status |
 |------|----------|------|
-| support XLSX | Excel test | ⏳ |
-| parse can edit | Frontendtableedit | ⏳ |
-| upload | queueprocess | ⏳ |
-| parsecache | not Call API | ⏳ |
-| Gemini | Token usestatistics | ⏳ |
+| Support XLSX format | Excel sample testing | ⏳ |
+| Editable parsing results | Frontend table editing | ⏳ |
+| Batch upload | Multi-file queue processing | ⏳ |
+| Parsing cache | Avoid duplicate API calls for same file | ⏳ |
+| Gemini cost reporting | Token usage statistics | ⏳ |
 
 ### 🚫 Not Acceptable Signals
 
-- parsesuccess < 90%
-- balancevalidate be (passive) excessively 
-- parseincorrect
-- Gemini API timeout
-- use no/none incorrectRationale
+- Parsing success rate < 90%
+- Balance validation skipped
+- Parsing errors persisted to ledger
+- Frequent Gemini API timeouts
+- Users unable to understand error messages
 
 ---
 
@@ -140,49 +140,49 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 ### Unit tests (Required)
 
 ```python
-# balancevalidate
+# Balance validation
 def test_balance_validation_passes():
- """ 1000 + transaction 500 - 300 = 1200"""
+    """Opening 1000 + Transactions 500 - 300 = Closing 1200"""
 
 def test_balance_validation_fails():
- """ 1000 + transaction 500 ≠ 1600"""
+    """Opening 1000 + Transactions 500 ≠ Closing 1600"""
 
-# parse
+# Parsing results
 def test_parse_dbs_pdf():
- """DBS reconciliationparse, fieldcomplete"""
+    """DBS statement parsing with complete fields"""
 
 def test_parse_invalid_pdf():
- """reconciliation PDF parsefailure"""
+    """Non-statement PDF should return parsing failure"""
 ```
 
 ### Integration tests (Required)
 
 ```python
 def test_upload_and_parse_flow():
- """completeupload→parse→verification→process"""
+    """Complete upload→parse→validate→persist flow"""
 
 def test_duplicate_upload_detection():
- """uploadnotice"""
+    """Duplicate file upload should trigger warning"""
 
 def test_gemini_retry_on_timeout():
- """Gemini timeoutretry"""
+    """Gemini timeout should trigger auto-retry"""
 ```
 
-### coverage of (Required)
+### Sample Coverage (Required)
 
-| bank | | | accurate |
+| Bank | Format | Sample Count | Expected Accuracy |
 |------|------|--------|------------|
 | DBS/POSB | PDF | 3 | ≥ 95% |
 | OCBC | PDF | 2 | ≥ 95% |
-| use | PDF | 3 | ≥ 90% |
-| use | CSV | 2 | ≥ 98% |
+| Credit Card | PDF | 3 | ≥ 90% |
+| Generic | CSV | 2 | ≥ 98% |
 
 ---
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - BankStatement/BankStatementTransaction table
-- [extraction.md](../ssot/extraction.md) - parse then and Prompt design
+- [schema.md](../ssot/schema.md) - BankStatement/BankStatementTransaction tables
+- [extraction.md](../ssot/extraction.md) - Parsing rules and Prompt design
 
 ---
 
@@ -194,8 +194,8 @@ def test_gemini_retry_on_timeout():
 - [ ] `apps/backend/src/routers/statements.py`
 - [ ] `apps/frontend/app/upload/page.tsx`
 - [ ] `apps/frontend/app/statements/page.tsx`
-- [ ] update `docs/ssot/extraction.md` (Prompt )
-- [ ] test `tests/fixtures/statements/`
+- [ ] Update `docs/ssot/extraction.md` (Prompt templates)
+- [ ] Test sample set `tests/fixtures/statements/`
 
 ---
 
@@ -203,131 +203,131 @@ def test_gemini_retry_on_timeout():
 
 | Item | Priority | Planned Resolution |
 |------|--------|--------------|
-| PDF parsedowngrade | P2 | |
-| more banksupport (UOB, Citi) | P3 | |
-| OCR process () | P3 | |
+| Local PDF parsing fallback | P2 | Future iteration |
+| Additional bank support (UOB, Citi) | P3 | Future iteration |
+| OCR preprocessing (scanned docs) | P3 | Future iteration |
 
 ---
 
 ## ❓ Q&A (Clarification Required)
 
-### Q5: support bankPriority
-> **Question**: need need to support which bank for ? 
+### Q5: Bank Priority Support
+> **Question**: Which bank statements should be supported in the first version?
 
-**✅ Your Answer**: DBS + bank + Maybank + Wise, still/also need support, etc. each. use use + extensionfield design. 
+**✅ Your Answer**: DBS + China Merchants Bank + Maybank + Wise, also need support for brokerages, insurance and various institutions. Adopt generic structure + flexible extension field design.
 
-**Decision**: use high can extension for model
-- **field** ( have/has for ):
- - `period_start`, `period_end`, `opening_balance`, `closing_balance`
- - `transactions[]` containstandardfield: `txn_date`, `amount`, `direction`, `description`
-- **extensionfield** (JSONB):
- - `bank_specific_data`: bank have/has field (such as , etc.)
- - `institution_type`: class (bank, brokerage, insurance, wallet etc.)
- - `custom_fields`: use can customfield
-- **Prompt **classminutes:
- - `templates/dbs.yaml`
- - `templates/ocbc.yaml`
- - `templates/citic.yaml`
- - `templates/brokerage_generic.yaml`
- - `templates/insurance_generic.yaml`
- - `templates/fintech_generic.yaml` (Wise, Revolut etc.)
-- ****:
- - Frontend/accountclass
- - use can as/for configuration Prompt 
- - 
+**Decision**: Adopt highly extensible statement model
+- **Core fields** (unified for all statements):
+  - `period_start`, `period_end`, `opening_balance`, `closing_balance`
+  - `transactions[]` with standardized fields: `txn_date`, `amount`, `direction`, `description`
+- **Extension fields** (JSONB):
+  - `bank_specific_data`: Bank-specific fields (e.g., reference number, transaction code)
+  - `institution_type`: Institution type marker (bank, brokerage, insurance, wallet, etc.)
+  - `custom_fields`: User-defined custom fields
+- **Prompt templates** grouped by institution type:
+  - `templates/dbs.yaml`
+  - `templates/ocbc.yaml`
+  - `templates/citic.yaml`
+  - `templates/brokerage_generic.yaml`
+  - `templates/insurance_generic.yaml`
+  - `templates/fintech_generic.yaml` (Wise, Revolut, etc.)
+- **Institution library maintenance**:
+  - Frontend provides institution/account type selector
+  - Users can configure prompt templates for new institutions
+  - Community-contributed template library
 
-### Q6: Gemini API 
-> **Question**: such as Gemini API Call? 
+### Q6: Gemini API Cost Control
+> **Question**: How to control Gemini API call costs?
 
-**✅ Your Answer**: use OpenRouter, eachdays $2 limitation already in/at API , should use no/none need limitation
+**✅ Your Answer**: Use OpenRouter, $2 daily limit is enforced at API level, no additional application-layer limits needed
 
-**Decision**: should use Dependencies OpenRouter limitation
-- Call Gemini 3 Flash excessively OpenRouter (non- Google API)
-- OpenRouter have/has each, 429 incorrect
-- should use no/none need implementationCalllimitation, but need goodprocess API 
-- OpenRouter not , downgrade to then parseornotice use 
-- variable: `OPENROUTER_API_KEY`, `OPENROUTER_DAILY_LIMIT_USD=2`
+**Decision**: Application layer relies on OpenRouter official limits
+- Call Gemini 3 Flash through OpenRouter (not direct Google API)
+- OpenRouter has daily quota management, automatically returns 429 error when exceeded
+- Application layer does not need to implement call limits, but must gracefully handle API quota exhaustion
+- When OpenRouter returns quota exhaustion, fallback to local rule-based parsing or notify user
+- Environment variables: `OPENROUTER_API_KEY`, `OPENROUTER_DAILY_LIMIT_USD=2`
 
-### Q7: parsefailure process
-> **Question**: parsefailure use can with what? 
+### Q7: Parsing Failure Handling
+> **Question**: What can users do when parsing fails?
 
-**✅ Your Answer**: C - supportretry + edit. retrypriorityupgrade to more model. 
+**✅ Your Answer**: C - Support retry + manual editing. Prioritize upgrading to stronger model on retry.
 
-**Decision**: minutesdowngradestrategy, parsesuccess
-- ** 1 **: Gemini 3 Flash (fast, )
-- ** 2 **: retryupgrade to Gemini 2.0 or more model ( excessively OpenRouter can use)
-- ** 3 **: partparse, allow use edit
-- ** 4 **: (completeform)
-- process:
- ```
- Upload PDF
- ├─ Try Gemini 3 Flash
- │ ├─ ✅ Success → Show results
- │ └─ ❌ Fail → Offer "Retry with stronger model"
- │ ├─ Try Gemini 2.0 / GPT-4
- │ ├─ ✅ Success → Show results
- │ └─ ❌ Fail → Show partial results + Edit form
- └─ User can always manually add/edit transactions
- ```
-- variable: `PRIMARY_MODEL=gemini-3-flash`, `FALLBACK_MODELS=["gemini-2.0", "gpt-4-turbo"]`
-- UI retryanduse model
+**Decision**: Layered fallback strategy to improve parsing success rate
+- **Layer 1**: Gemini 3 Flash (fast, cheap)
+- **Layer 2**: Upgrade to Gemini 2.0 or stronger model on retry (available through OpenRouter)
+- **Layer 3**: Show partial parsing results, allow user to edit and supplement
+- **Layer 4**: Manual entry (complete form)
+- Flow:
+  ```
+  Upload PDF
+  ├─ Try Gemini 3 Flash
+  │  ├─ ✅ Success → Show results
+  │  └─ ❌ Fail → Offer "Retry with stronger model"
+  │     ├─ Try Gemini 2.0 / GPT-4
+  │     ├─ ✅ Success → Show results
+  │     └─ ❌ Fail → Show partial results + Edit form
+  └─ User can always manually add/edit transactions
+  ```
+- Environment variables: `PRIMARY_MODEL=gemini-3-flash`, `FALLBACK_MODELS=["gemini-2.0", "gpt-4-turbo"]`
+- UI displays retry progress and current model in use
 
-### Q8: for account
-> **Question**: upload for such as to concreteaccount? 
+### Q8: Statement-Account Linking
+> **Question**: How to link statement to specific account on upload?
 
-**✅ Your Answer**: C - parse again confirmation, AI Recommendedaccount, use confirmation
+**✅ Your Answer**: C - Parse first then confirm, AI recommends account linking, user confirms
 
-**Decision**: process - parse + confirmation
-- upload use optionalaccount (optional), or let AI recommendation
-- parse, for in account (bank, 4 , etc.)
-- in/at , in/at in match Account
- - precisematch: 4 + Complete
- - ambiguousmatch: bank + account
-- Frontendconfirmationpage:
- - parse account (bank, , etc.)
- - recommendation account (match)
- - use optionalrecommendationaccountor
- - "createaccount" (such as recommendationaccount not in/at)
+**Decision**: Two-step flow - Parse + Confirm linking
+- User can optionally select account on upload, or leave blank for AI recommendation
+- After parsing, extract account information from statement (bank name, last 4 digits of account, currency, etc.)
+- Based on extracted info, find matching Account in system
+  - Exact match: Last 4 digits + currency completely match
+  - Fuzzy match: Bank name + currency match
+- Frontend confirmation page displays:
+  - Extracted account information (bank, account suffix, account holder, etc.)
+  - System-recommended account (with confidence score)
+  - User can select recommended account or manually choose
+  - "Create New Account" entry point (if recommended account doesn't exist)
 
-### Q9: for import
-> **Question**: is no need need to supportimport for ? 
+### Q9: Historical Statement Import
+> **Question**: Do we need to support batch import of historical statements?
 
-**✅ Your Answer**: C - supportupload + asyncqueueprocess. eachupload for should ETL . 
+**✅ Your Answer**: C - Support batch upload + async queue processing. Each upload corresponds to an independent ETL task.
 
-**Decision**: async ETL queuearchitecture
-- **uploadphase**:
- - support (or zip)upload
- - eachthat iscreate `StatementProcessingTask` 
- - ID tableandqueue give use 
-- ****:
- ```python
- class StatementProcessingTask:
- id: UUID
- file_name: str
- file_size: int
- upload_at: datetime
- status: Enum # pending/processing/completed/failed
- progress: int # 0-100
- error_message: Optional[str]
- extracted_data: Optional[dict]
- account_id: Optional[UUID]
- ```
-- **processprocess** ():
- 1. upload to temporary
- 2. asyncprocess (status=pending)
- 3. Call Gemini parse ()
- 4. validatebalance (+transaction≈)
- 5. BankStatementTransaction
- 6. updateStatus as/for completed/failed
-- **queueimplementation**:
- - use Redis queue or Celery ( in/at )
- - supportPriority (Priorityhighest)
- - retrystrategy (failureretry 3 )
+**Decision**: Async ETL task queue architecture
+- **Upload phase**:
+  - Support multi-file drag-and-drop (or zip) upload
+  - Each file immediately creates a `StatementProcessingTask` record
+  - Return task ID list and task queue link to user
+- **Task structure**:
+  ```python
+  class StatementProcessingTask:
+      id: UUID
+      file_name: str
+      file_size: int
+      upload_at: datetime
+      status: Enum  # pending/processing/completed/failed
+      progress: int  # 0-100 percentage
+      error_message: Optional[str]
+      extracted_data: Optional[dict]
+      account_id: Optional[UUID]
+  ```
+- **Processing flow** (independent tasks):
+  1. Upload file to temporary storage
+  2. Async worker process pulls task (status=pending)
+  3. Call Gemini for parsing (record progress)
+  4. Validate balance (opening+transactions≈closing)
+  5. Store BankStatementTransaction
+  6. Update task status to completed/failed
+- **Queue implementation**:
+  - Use Redis queue or Celery (depending on deployment environment)
+  - Support task priority (single file has highest priority)
+  - Task retry strategy (auto-retry 3 times on failure)
 - **UI**:
- - upload to "queue"page
- - each , Status, incorrect
- - supportprocess
- - complete for table
+  - Redirect to "Task Queue" page after upload
+  - Display progress bar, status, error messages for each task
+  - Support canceling pending tasks
+  - Auto-refresh statement list when completed
 
 ---
 

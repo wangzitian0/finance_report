@@ -1,7 +1,7 @@
 # Finance Report AI Agent Behavioral Guidelines
 
 > **Prohibition**: AI may NOT modify this file without explicit authorization.
-> **English**: All code, PR, reports shall be English
+> **English**: All code, PRs, commits, and reports must be in English
 
 ## 🧭 Wiki Entry Map (Level 0/1)
 

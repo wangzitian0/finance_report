@@ -1,5 +1,12 @@
 # Finance Report
 
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192.svg?logo=postgresql)](https://www.postgresql.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
+[![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Gemini%203%20Flash-4285F4.svg?logo=google)](https://ai.google.dev/)
+[![Coffee](https://img.shields.io/badge/Powered%20by-Coffee%20☕-brown.svg)](https://www.buymeacoffee.com/)
+[![Made in Singapore](https://img.shields.io/badge/Made%20in-🇸🇬%20Singapore-red.svg)](https://github.com/wangzitian0/finance_report)
 [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
 
 Personal financial management system with double-entry bookkeeping.
