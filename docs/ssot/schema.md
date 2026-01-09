@@ -1,6 +1,6 @@
 # Database Schema SSOT
 
-> **SSOT Key**: `db.schema`
+> **SSOT Key**: `schema`
 > **Core Definition**: PostgreSQL core table structures and relationships.
 
 ---
@@ -202,4 +202,4 @@ CREATE INDEX idx_recon_match_status ON reconciliation_matches(status);
 ## Used by
 
 - [AGENTS.md](../../AGENTS.md)
-- [domain.accounting.md](./domain.accounting.md)
+- [accounting.md](./accounting.md)

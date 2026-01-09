@@ -10,7 +10,7 @@
 1. **Global Project Overview** → [README.md](README.md)
 2. **Project Goals & Specification** → [init.md](init.md)
 3. **Technical Truth / SSOT** → [docs/ssot/README.md](docs/ssot/README.md)
-4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md) (TODO)
+4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md)
 
 **Supplementary Entries**
 - **Agent Skills** → [.claude/skills/README.md](.claude/skills/README.md)
@@ -26,7 +26,7 @@
 - Need to understand business logic → [init.md](init.md)
 - Need to write code → [.github/copilot-instructions.md](.github/copilot-instructions.md) + skill files
 - Need data model reference → [docs/ssot/](docs/ssot/)
-- Need to track current work → [docs/project/](docs/project/) (TODO)
+- Need to track current work → [docs/project/](docs/project/)
 
 ---
 
@@ -57,7 +57,7 @@ Assets = Liabilities + Equity + (Income - Expenses)
 AI must use this cascade structure before processing tasks:
 
 ### 1. Situation (Context Assessment)
-- **Anchor Project**: Bind to a project in `docs/project/` (TODO: create structure)
+- **Anchor Project**: Bind to a project in `docs/project/`
 - **Current State**: Describe system status and problem impact
 - **Truth Check**: Read relevant topics in `docs/ssot/`, identify gap between current state and ideal
 

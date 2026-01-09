@@ -1,6 +1,6 @@
 # Reconciliation Engine Domain Model SSOT
 
-> **SSOT Key**: `domain.reconciliation`
+> **SSOT Key**: `reconciliation`
 > **Core Definition**: Bank reconciliation matching algorithm, confidence scoring, and state machine.
 
 ---
@@ -179,5 +179,5 @@ def calculate_match_score(
 
 ## Used by
 
-- [db.schema.md](./db.schema.md)
-- [domain.accounting.md](./domain.accounting.md)
+- [schema.md](./schema.md)
+- [accounting.md](./accounting.md)

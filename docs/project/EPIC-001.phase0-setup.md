@@ -40,8 +40,8 @@ From [init.md Section 7](../../init.md):
 
 ## SSOT References
 
-- [db.schema.md](../ssot/db.schema.md) - Database structure
-- [domain.accounting.md](../ssot/domain.accounting.md) - Accounting model
+- [schema.md](../ssot/schema.md) - Database structure
+- [accounting.md](../ssot/accounting.md) - Accounting model
 
 ## Completion Criteria
 

@@ -1,6 +1,6 @@
 # Double-Entry Bookkeeping Domain Model SSOT
 
-> **SSOT Key**: `domain.accounting`
+> **SSOT Key**: `accounting`
 > **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
 
 ---
@@ -150,5 +150,5 @@ def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:
 
 ## Used by
 
-- [db.schema.md](./db.schema.md)
-- [domain.reconciliation.md](./domain.reconciliation.md)
+- [schema.md](./schema.md)
+- [reconciliation.md](./reconciliation.md)
