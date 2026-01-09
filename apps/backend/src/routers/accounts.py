@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,9 +52,13 @@ async def create_account(
 async def list_accounts(
     account_type: AccountType | None = None,
     is_active: bool | None = None,
+    include_balance: bool = Query(False, description="Include balance (slower)"),
     db: AsyncSession = Depends(get_db),
 ) -> AccountListResponse:
-    """List all accounts with optional filters."""
+    """List all accounts with optional filters.
+
+    Set include_balance=true to calculate balances (may be slower with many accounts).
+    """
     query = select(Account).where(Account.user_id == MOCK_USER_ID)
 
     if account_type:
@@ -67,12 +71,12 @@ async def list_accounts(
     result = await db.execute(query)
     accounts = result.scalars().all()
 
-    # Calculate balances
+    # Calculate balances only if requested
     items = []
     for account in accounts:
-        balance = await calculate_account_balance(db, account.id, MOCK_USER_ID)
         response = AccountResponse.model_validate(account)
-        response.balance = balance
+        if include_balance:
+            response.balance = await calculate_account_balance(db, account.id, MOCK_USER_ID)
         items.append(response)
 
     return AccountListResponse(items=items, total=len(items))

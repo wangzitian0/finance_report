@@ -58,7 +58,7 @@ class Account(Base):
 
     # Relationships
     journal_lines: Mapped[list[JournalLine]] = relationship(
-        "JournalLine", back_populates="account", lazy="selectin"
+        "JournalLine", back_populates="account"
     )
 
     def __repr__(self) -> str:

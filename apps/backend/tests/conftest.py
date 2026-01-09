@@ -40,7 +40,11 @@ async def db_engine():
 
 @pytest_asyncio.fixture(scope="function")
 async def db(db_engine):
-    """Create a test database session with auto-commit."""
+    """Create a test database session.
+
+    Note: The db_engine fixture handles table cleanup by dropping all tables
+    after each test. The rollback here handles any uncommitted changes.
+    """
     async_session = async_sessionmaker(
         db_engine,
         class_=AsyncSession,
@@ -49,7 +53,7 @@ async def db(db_engine):
 
     async with async_session() as session:
         yield session
-        # Clean up test data after each test
+        # Rollback any uncommitted changes (committed data cleaned by db_engine)
         await session.rollback()
 
 

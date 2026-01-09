@@ -4,7 +4,7 @@ from datetime import date as date_type
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -75,11 +75,7 @@ async def list_journal_entries(
     db: AsyncSession = Depends(get_db),
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
-    query = (
-        select(JournalEntry)
-        .where(JournalEntry.user_id == MOCK_USER_ID)
-        .options(selectinload(JournalEntry.lines))
-    )
+    query = select(JournalEntry).where(JournalEntry.user_id == MOCK_USER_ID)
 
     if status_filter:
         query = query.where(JournalEntry.status == status_filter)
@@ -88,15 +84,18 @@ async def list_journal_entries(
     if end_date:
         query = query.where(JournalEntry.entry_date <= end_date)
 
-    query = query.order_by(JournalEntry.entry_date.desc(), JournalEntry.created_at.desc())
+    # Get total count efficiently without loading data
+    count_query = select(func.count()).select_from(query.subquery())
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
 
-    # Get total count
-    count_result = await db.execute(query)
-    total = len(count_result.scalars().all())
-
-    # Apply pagination
-    offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
+    # Apply pagination and eager load lines
+    query = (
+        query.options(selectinload(JournalEntry.lines))
+        .order_by(JournalEntry.entry_date.desc(), JournalEntry.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
 
     result = await db.execute(query)
     entries = result.scalars().all()
