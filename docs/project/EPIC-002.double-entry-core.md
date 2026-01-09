@@ -36,9 +36,9 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ### Data Model (Backend) ✅
 
-- [x] `Account` model - Five account types (Asset/Liability/Equity/Income/Expense)
-- [x] `JournalEntry` model - Entry header (date, memo, status, source_type)
-- [x] `JournalLine` model - Entry line (account_id, direction, amount, currency)
+- [x] `Account` model - Five account types (Asset/Liability/Equity/Income/Expense), plus `code`, `parent_id`, `is_active`
+- [x] `JournalEntry` model - Entry header (date, memo, status, source_type/source_id, created_at, updated_at)
+- [x] `JournalLine` model - Entry line (account_id, direction, amount, currency, fx_rate, event_type, tags)
 - [x] Database initialization (SQLAlchemy metadata)
 - [x] Pydantic Schema (request/response)
 
@@ -62,6 +62,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
   - [x] `calculate_account_balance()` - Account balance calculation
   - [x] `verify_accounting_equation()` - Accounting equation verification
   - [x] `void_journal_entry()` - Reversal entry generation
+- [x] FX rate handling - Require `fx_rate` when entry currency != base currency (manual input or market_data lookup)
 - [x] Database constraints - CHECK constraints ensure amount > 0
 - [x] Transaction handling - Journal entry creation atomic
 
@@ -95,6 +96,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | **Accounting equation 100% satisfied** | `verify_accounting_equation()` test | 🔴 Critical |
 | **All posted entries balanced** | SQL query verification + Unit tests | 🔴 Critical |
 | **No float for monetary amounts** | Code review + grep check | 🔴 Critical |
+| **Multi-currency entry support** | `fx_rate` required on non-base currency lines | 🔴 Critical |
 | Auto-validate balance when creating entry | Unbalanced returns 400 error | Must Have |
 | Correct debit/credit direction by account type | Reference accountant.md rules | Must Have |
 | Posted entries cannot be edited | Can only void and recreate | Must Have |
@@ -105,7 +107,6 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | Standard | Verification | Status |
 |------|----------|------|
 | Unit test coverage > 90% | coverage report | ⏳ |
-| Multi-currency entry support | fx_rate field correctly used | ⏳ |
 | Account codes support (1xxx-5xxx) | code field implementation | ⏳ |
 | Journal entry templates | One-click common entries | ⏳ |
 | Real-time balance validation in frontend | Display debit/credit difference on input | ⏳ |
@@ -234,8 +235,8 @@ def test_many_lines_entry():
 
 ## Issues & Gaps
 
-- [ ] Data model checklist omits SSOT fields for `Account` and `JournalLine` (e.g., `code`, `parent_id`, `is_active`, `fx_rate`, `event_type`, `tags`, `updated_at`), which risks schema drift from `docs/ssot/schema.md`.
-- [ ] Multi-currency is required in v1, but FX rate sourcing lives in `docs/ssot/market_data.md` / EPIC-005; EPIC-002 does not declare a dependency or interim FX strategy.
+- [x] Data model checklist now matches SSOT fields for `Account`, `JournalEntry`, and `JournalLine` to avoid schema drift.
+- [x] Multi-currency clarified: EPIC-002 requires `fx_rate` on non-base currency lines with manual input or market_data lookup; EPIC-005 extends automation.
 
 ---
 
@@ -263,6 +264,7 @@ def test_many_lines_entry():
 - Account model supports multi-currency configuration
 - JournalLine records original currency amount and exchange rate for each line
 - User can set personal base currency (default SGD)
+- When entry currency != base currency, `fx_rate` is required; API can accept manual input or query `services/market_data.py` (automation extended in EPIC-005)
 - Reports convert based on user's base currency
 - Historical exchange rate records (for retrospective calculations)
 
