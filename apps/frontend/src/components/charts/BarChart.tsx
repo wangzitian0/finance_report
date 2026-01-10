@@ -7,18 +7,23 @@ interface BarItem {
 interface BarChartProps {
   items: BarItem[];
   height?: number;
+  ariaLabel?: string;
 }
 
 const DEFAULT_HEIGHT = 220;
 
-export function BarChart({ items, height = DEFAULT_HEIGHT }: BarChartProps) {
+export function BarChart({
+  items,
+  height = DEFAULT_HEIGHT,
+  ariaLabel = "Income and expense comparison chart",
+}: BarChartProps) {
   const maxValue = Math.max(
     ...items.flatMap((item) => [item.income, item.expense]),
     1
   );
 
   return (
-    <div className="w-full" style={{ height }}>
+    <div className="w-full" style={{ height }} role="img" aria-label={ariaLabel}>
       <div className="flex h-full items-end gap-4">
         {items.map((item) => {
           const incomeHeight = `${(item.income / maxValue) * 100}%`;

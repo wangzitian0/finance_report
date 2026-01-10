@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { formatDateInput } from "@/lib/date";
 import { BarChart } from "@/components/charts/BarChart";
 import { PieChart } from "@/components/charts/PieChart";
 import { TrendChart } from "@/components/charts/TrendChart";
@@ -123,9 +124,9 @@ export default function DashboardPage() {
   const today = useMemo(() => new Date(), []);
   const incomeStart = useMemo(() => {
     const start = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-    return start.toISOString().slice(0, 10);
+    return formatDateInput(start);
   }, [today]);
-  const incomeEnd = useMemo(() => today.toISOString().slice(0, 10), [today]);
+  const incomeEnd = useMemo(() => formatDateInput(today), [today]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -331,7 +332,7 @@ export default function DashboardPage() {
               </h2>
               <div className="mt-4">
                 {assetSegments.length ? (
-                  <PieChart segments={assetSegments} />
+                  <PieChart segments={assetSegments} centerLabel="Assets" />
                 ) : (
                   <p className="text-sm text-slate-500">No assets to chart yet.</p>
                 )}
@@ -349,7 +350,10 @@ export default function DashboardPage() {
               </h2>
               <div className="mt-6">
                 {incomeBars.length ? (
-                  <BarChart items={incomeBars} />
+                  <BarChart
+                    items={incomeBars}
+                    ariaLabel="Monthly income and expense comparison"
+                  />
                 ) : (
                   <p className="text-sm text-slate-500">No income data available.</p>
                 )}

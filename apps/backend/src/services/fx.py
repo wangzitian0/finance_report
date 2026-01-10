@@ -152,7 +152,7 @@ async def convert_amount(
     else:
         rate = await get_exchange_rate(db, source, target, rate_date)
 
-    return (amount * rate).quantize(Decimal("0.000001"))
+    return amount * rate
 
 
 async def convert_to_base(

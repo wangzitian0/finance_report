@@ -7,11 +7,16 @@ interface PieSegment {
 interface PieChartProps {
   segments: PieSegment[];
   size?: number;
+  centerLabel?: string;
 }
 
 const DEFAULT_SIZE = 180;
 
-export function PieChart({ segments, size = DEFAULT_SIZE }: PieChartProps) {
+export function PieChart({
+  segments,
+  size = DEFAULT_SIZE,
+  centerLabel = "Assets",
+}: PieChartProps) {
   const filtered = segments.filter((segment) => segment.value > 0);
   const total = filtered.reduce((sum, segment) => sum + segment.value, 0);
   const radius = 60;
@@ -51,7 +56,7 @@ export function PieChart({ segments, size = DEFAULT_SIZE }: PieChartProps) {
           dominantBaseline="middle"
           className="fill-slate-700 text-xs font-semibold"
         >
-          Assets
+          {centerLabel}
         </text>
       </svg>
       <div className="grid w-full grid-cols-2 gap-2 text-xs text-slate-600">

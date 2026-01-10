@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_URL, apiFetch } from "@/lib/api";
 import { BarChart } from "@/components/charts/BarChart";
+import { formatDateInput } from "@/lib/date";
 
 interface ReportLine {
   account_id: string;
@@ -52,9 +53,9 @@ export default function IncomeStatementPage() {
     const date = new Date();
     date.setMonth(date.getMonth() - 11);
     date.setDate(1);
-    return date.toISOString().slice(0, 10);
+    return formatDateInput(date);
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -204,7 +205,10 @@ export default function IncomeStatementPage() {
               <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">Income vs Expense</h2>
               <div className="mt-6">
                 {barItems.length ? (
-                  <BarChart items={barItems} />
+                  <BarChart
+                    items={barItems}
+                    ariaLabel="Monthly income and expense comparison"
+                  />
                 ) : (
                   <p className="text-sm text-slate-500">No trend data yet.</p>
                 )}

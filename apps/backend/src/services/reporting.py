@@ -140,7 +140,7 @@ async def generate_balance_sheet(
 
     result = await db.execute(stmt)
 
-    for line, account, entry in result.all():
+    for line, account, _entry in result.all():
         try:
             converted = await convert_amount(
                 db,
@@ -420,7 +420,7 @@ async def get_category_breakdown(
     )
     result = await db.execute(stmt)
 
-    for line, account, _entry in result.all():
+    for line, account, _ in result.all():
         try:
             converted = await convert_amount(
                 db,
@@ -457,12 +457,12 @@ async def get_category_breakdown(
 
 
 async def generate_cash_flow(
-    _db: AsyncSession,
-    _user_id: UUID,
+    db: AsyncSession,
+    user_id: UUID,
     *,
-    _start_date: date,
-    _end_date: date,
-    _currency: str | None = None,
+    start_date: date,
+    end_date: date,
+    currency: str | None = None,
 ) -> dict[str, object]:
     """Cash flow statement generation is planned for phase 2."""
     raise ReportError("Cash flow statement is not implemented yet.")

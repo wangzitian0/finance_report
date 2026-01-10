@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.database import get_db
 from src.models import AccountType
 from src.schemas import (
@@ -38,6 +39,13 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
+def get_report_user_id() -> UUID:
+    """Return mock user ID in debug mode; require auth otherwise."""
+    if settings.debug:
+        return MOCK_USER_ID
+    raise HTTPException(status_code=501, detail="Reporting requires authentication.")
+
+
 class ExportFormat(str, Enum):
     """Supported export formats."""
 
@@ -56,12 +64,13 @@ async def balance_sheet(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_report_user_id),
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     try:
         report = await generate_balance_sheet(
             db,
-            MOCK_USER_ID,
+            user_id,
             as_of_date=as_of_date or date.today(),
             currency=currency,
         )
@@ -76,12 +85,13 @@ async def income_statement(
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_report_user_id),
 ) -> IncomeStatementResponse:
     """Get income statement for a period."""
     try:
         report = await generate_income_statement(
             db,
-            MOCK_USER_ID,
+            user_id,
             start_date=start_date,
             end_date=end_date,
             currency=currency,
@@ -97,12 +107,13 @@ async def cash_flow(
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_report_user_id),
 ) -> dict[str, object]:
     """Cash flow statement (planned for phase 2)."""
     try:
         return await generate_cash_flow(
             db,
-            MOCK_USER_ID,
+            user_id,
             start_date=start_date,
             end_date=end_date,
             currency=currency,
@@ -117,12 +128,13 @@ async def account_trend(
     period: TrendPeriod = Query(default=TrendPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_report_user_id),
 ) -> AccountTrendResponse:
     """Get account trend data."""
     try:
         report = await get_account_trend(
             db,
-            MOCK_USER_ID,
+            user_id,
             account_id=account_id,
             period=period.value,
             currency=currency,
@@ -138,6 +150,7 @@ async def category_breakdown(
     period: BreakdownPeriod = Query(default=BreakdownPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_report_user_id),
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
     account_type = (
@@ -148,7 +161,7 @@ async def category_breakdown(
     try:
         report = await get_category_breakdown(
             db,
-            MOCK_USER_ID,
+            user_id,
             breakdown_type=account_type,
             period=period.value,
             currency=currency,
@@ -167,6 +180,7 @@ async def export_report(
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_report_user_id),
 ) -> StreamingResponse:
     """Export reports in CSV format."""
     if format != ExportFormat.CSV:
@@ -178,7 +192,7 @@ async def export_report(
     if report_type == ReportType.BALANCE_SHEET:
         report = await generate_balance_sheet(
             db,
-            MOCK_USER_ID,
+            user_id,
             as_of_date=as_of_date or date.today(),
             currency=currency,
         )
@@ -204,7 +218,7 @@ async def export_report(
             )
         report = await generate_income_statement(
             db,
-            MOCK_USER_ID,
+            user_id,
             start_date=start_date,
             end_date=end_date,
             currency=currency,

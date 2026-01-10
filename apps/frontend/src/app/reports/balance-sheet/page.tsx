@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_URL, apiFetch } from "@/lib/api";
+import { formatDateInput } from "@/lib/date";
 
 interface ReportLine {
   account_id: string;
@@ -63,7 +64,7 @@ const buildTree = (lines: ReportLine[]): AccountNode[] => {
 
 export default function BalanceSheetPage() {
   const [report, setReport] = useState<BalanceSheetResponse | null>(null);
-  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [asOfDate, setAsOfDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
