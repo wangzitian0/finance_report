@@ -1,5 +1,6 @@
 """Review queue management for reconciliation."""
 
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
@@ -92,6 +93,7 @@ async def reject_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
     await db.commit()
     return match
 
+logger = logging.getLogger(__name__)
 
 async def batch_accept(
     db: AsyncSession,
@@ -99,7 +101,12 @@ async def batch_accept(
     *,
     min_score: int = 80,
 ) -> list[ReconciliationMatch]:
-    """Batch accept high-score matches."""
+    """Batch accept high-score matches.
+
+    Note: Per EPIC-004 Q4 design, only matches with score >= min_score are accepted.
+    Lower-scoring matches are intentionally skipped to require individual review.
+    Skipped matches are logged for transparency.
+    """
     if not match_ids:
         return []
     result = await db.execute(
@@ -109,6 +116,13 @@ async def batch_accept(
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
     )
     matches = result.scalars().all()
+    matched_ids = {str(m.id) for m in matches}
+    skipped_ids = set(match_ids) - matched_ids
+    if skipped_ids:
+        logger.info(
+            "batch_accept: %d of %d matches skipped (score < %d or not pending): %s",
+            len(skipped_ids), len(match_ids), min_score, list(skipped_ids)
+        )
     accepted: list[ReconciliationMatch] = []
     for match in matches:
         match.status = ReconciliationStatus.ACCEPTED

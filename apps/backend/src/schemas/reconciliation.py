@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.extraction import BankStatementTransactionStatusEnum
 
@@ -23,6 +23,8 @@ class ReconciliationStatusEnum(str, Enum):
 class BankTransactionSummary(BaseModel):
     """Summary of a bank transaction for reconciliation."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     statement_id: UUID
     txn_date: date
@@ -31,9 +33,6 @@ class BankTransactionSummary(BaseModel):
     direction: str
     reference: str | None
     status: BankStatementTransactionStatusEnum
-
-    class Config:
-        from_attributes = True
 
 
 class JournalEntrySummary(BaseModel):
@@ -49,6 +48,8 @@ class JournalEntrySummary(BaseModel):
 class ReconciliationMatchResponse(BaseModel):
     """Match response with transaction and entry details."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     bank_txn_id: UUID
     journal_entry_ids: list[str]
@@ -61,9 +62,6 @@ class ReconciliationMatchResponse(BaseModel):
     updated_at: datetime
     transaction: BankTransactionSummary | None = None
     entries: list[JournalEntrySummary] = Field(default_factory=list)
-
-    class Config:
-        from_attributes = True
 
 
 class ReconciliationMatchListResponse(BaseModel):

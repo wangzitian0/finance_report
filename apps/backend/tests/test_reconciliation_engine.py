@@ -684,7 +684,9 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
     assert "LARGE_AMOUNT" in anomaly_types
     assert "FREQUENCY_SPIKE" in anomaly_types
 
-    weekend_date = date(2024, 3, 9)  # Saturday
+    # 2024-03-09 is Saturday. Fixed date chosen to ensure stable weekend detection
+    # across all timezones (no date arithmetic that could shift days).
+    weekend_date = date(2024, 3, 9)
     txn_weekend = AccountEvent(
         statement_id=statement.id,
         txn_date=weekend_date,
