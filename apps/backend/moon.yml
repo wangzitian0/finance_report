@@ -37,7 +37,7 @@ tasks:
       - 'install'
 
   test:
-    command: 'uv run pytest'
+    command: 'bash ../../scripts/test_backend.sh'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'

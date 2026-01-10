@@ -16,6 +16,8 @@ from src.models.statement import (
     BankStatementTransactionStatus,
     ConfidenceLevel,
 )
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.models.user import User
 
 __all__ = [
     "Account",
@@ -31,4 +33,7 @@ __all__ = [
     "JournalEntryStatus",
     "JournalLine",
     "PingState",
+    "ReconciliationMatch",
+    "ReconciliationStatus",
+    "User",
 ]

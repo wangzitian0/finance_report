@@ -45,6 +45,8 @@ async def init_db() -> None:
         JournalEntry,
         JournalLine,
         PingState,
+        ReconciliationMatch,
+        User,
     )
 
     async with engine.begin() as conn:
