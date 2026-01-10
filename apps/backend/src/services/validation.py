@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from src.models.statement import BankStatementStatus
@@ -94,7 +94,7 @@ def compute_confidence_score(
         date.fromisoformat(extracted.get("period_end", ""))
         Decimal(str(extracted.get("opening_balance", "0")))
         Decimal(str(extracted.get("closing_balance", "0")))
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, InvalidOperation):
         format_score = 0
     score += format_score
 

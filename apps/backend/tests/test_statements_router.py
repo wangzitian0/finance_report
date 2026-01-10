@@ -24,7 +24,6 @@ def make_upload_file(name: str, content: bytes) -> UploadFile:
     return UploadFile(
         filename=name,
         file=BytesIO(content),
-        content_type="application/pdf",
     )
 
 
