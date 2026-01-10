@@ -1,121 +1,109 @@
-'use client'
-
-import { useState, useEffect, useCallback } from 'react'
-
-interface PingState {
-  state: 'ping' | 'pong'
-  toggle_count: number
-  updated_at: string | null
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import Link from 'next/link'
 
 export default function Home() {
-  const [pingState, setPingState] = useState<PingState | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [toggling, setToggling] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchState = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/ping`)
-      if (!res.ok) throw new Error('Failed to fetch state')
-      const data = await res.json()
-      setPingState(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }, []) // API_URL is a module-level constant, no need in deps
-
-  const toggleState = async () => {
-    setToggling(true)
-    try {
-      const res = await fetch(`${API_URL}/ping/toggle`, { method: 'POST' })
-      if (!res.ok) throw new Error('Failed to toggle state')
-      const data = await res.json()
-      setPingState(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setToggling(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchState()
-  }, [fetchState])
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-8">
-      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 shadow-2xl border border-white/20 max-w-md w-full">
-        <h1 className="text-4xl font-bold text-white text-center mb-2">
-          Finance Report
-        </h1>
-        <p className="text-gray-300 text-center mb-8">
-          Ping-Pong Demo
-        </p>
-
-        {loading ? (
-          <div className="flex justify-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-center">
-            <p className="text-red-300">{error}</p>
-            <button
-              onClick={fetchState}
-              className="mt-4 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-white transition-all"
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <div className="text-center">
-            <div
-              className={`text-8xl font-black mb-6 transition-all duration-500 ${pingState?.state === 'ping'
-                  ? 'text-cyan-400 animate-pulse'
-                  : 'text-pink-400 animate-bounce'
-                }`}
-            >
-              {pingState?.state?.toUpperCase()}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header */}
+      <header className="border-b border-slate-700/50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-lg">₿</span>
             </div>
-
-            <button
-              onClick={toggleState}
-              disabled={toggling}
-              className={`
-                w-full py-4 px-8 rounded-2xl text-xl font-bold
-                transition-all duration-300 transform
-                ${toggling
-                  ? 'bg-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-400 hover:to-pink-400 hover:scale-105 active:scale-95'
-                }
-                text-white shadow-lg
-              `}
-            >
-              {toggling ? 'Toggling...' : 'Toggle State'}
-            </button>
-
-            <div className="mt-8 text-gray-400 text-sm space-y-1">
-              <p>Toggle count: <span className="text-white font-mono">{pingState?.toggle_count}</span></p>
-              {pingState?.updated_at && (
-                <p>Last toggled: <span className="text-white font-mono">
-                  {new Date(pingState.updated_at).toLocaleTimeString()}
-                </span></p>
-              )}
-            </div>
+            <span className="text-white font-semibold text-xl">Finance Report</span>
           </div>
-        )}
-
-        <div className="mt-8 pt-6 border-t border-white/10 text-center text-gray-500 text-xs">
-          <p>Backend: FastAPI + PostgreSQL</p>
-          <p>Frontend: Next.js + TailwindCSS</p>
+          <nav className="flex items-center gap-6">
+            <Link href="/ping-pong" className="text-slate-400 hover:text-white transition-colors text-sm">
+              Ping-Pong Demo
+            </Link>
+            <a 
+              href="/api/docs" 
+              className="text-slate-400 hover:text-white transition-colors text-sm"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              API Docs
+            </a>
+          </nav>
         </div>
-      </div>
+      </header>
+
+      {/* Hero Section */}
+      <main className="max-w-7xl mx-auto px-6 py-20">
+        <div className="text-center mb-16">
+          <h1 className="text-5xl font-bold text-white mb-6">
+            Personal Finance Management
+          </h1>
+          <p className="text-xl text-slate-400 max-w-2xl mx-auto">
+            Double-entry bookkeeping with AI-powered document parsing and bank reconciliation.
+          </p>
+        </div>
+
+        {/* Feature Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mb-16">
+          <FeatureCard
+            icon="📊"
+            title="Double-Entry Bookkeeping"
+            description="Proper accounting with journal entries that always balance. Track assets, liabilities, equity, income, and expenses."
+          />
+          <FeatureCard
+            icon="🏦"
+            title="Bank Reconciliation"
+            description="Import bank statements and match transactions automatically with confidence scoring."
+          />
+          <FeatureCard
+            icon="🤖"
+            title="AI Document Parsing"
+            description="Upload receipts and invoices. Gemini AI extracts transaction details automatically."
+          />
+        </div>
+
+        {/* Coming Soon */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8 text-center">
+          <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-2 rounded-full text-sm font-medium mb-4">
+            <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
+            Under Development
+          </div>
+          <h2 className="text-2xl font-semibold text-white mb-3">
+            Full Application Coming Soon
+          </h2>
+          <p className="text-slate-400 max-w-lg mx-auto">
+            The core accounting engine is being built. Check back soon for the complete personal finance management experience.
+          </p>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-700/50 mt-20">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-between text-sm text-slate-500">
+            <p>Built with FastAPI + Next.js</p>
+            <div className="flex items-center gap-4">
+              <Link href="/ping-pong" className="hover:text-slate-300 transition-colors">
+                Demo
+              </Link>
+              <a
+                href="/api/docs"
+                className="hover:text-slate-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                API
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+function FeatureCard({ icon, title, description }: { icon: string; title: string; description: string }) {
+  return (
+    <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6 hover:bg-slate-800/50 transition-colors">
+      <div className="text-4xl mb-4" role="img" aria-label={title}>{icon}</div>
+      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+      <p className="text-slate-400 text-sm">{description}</p>
     </div>
   )
 }
