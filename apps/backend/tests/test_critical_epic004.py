@@ -8,14 +8,12 @@ These tests cover the Critical and High priority gaps identified in the test aud
 - #15 Cross-month matching enhanced
 """
 
-import asyncio
 import time
 from datetime import date, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -29,8 +27,6 @@ from src.models import (
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
-    ReconciliationMatch,
-    ReconciliationStatus,
     Statement,
     User,
 )
@@ -42,7 +38,7 @@ from src.services.reconciliation import (
 from src.services.review_queue import DEFAULT_USER_ID
 
 
-def _make_statement(*, owner_id: str | None = None, base_date: date) -> Statement:
+def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> Statement:
     """Create a test statement."""
     user_id = owner_id if owner_id else DEFAULT_USER_ID
     return Statement(
@@ -133,7 +129,7 @@ class TestMatchingAccuracy:
                 ),
             ])
             
-            statement = _make_statement(owner_id=None, base_date=entry_date)
+            statement = _make_statement(owner_id=user_id, base_date=entry_date)
             db.add(statement)
             await db.flush()
             
@@ -214,7 +210,7 @@ class TestMatchingAccuracy:
         ])
 
         # Transaction from December - Completely unrelated
-        statement = _make_statement(owner_id=None, base_date=date(2023, 12, 20))
+        statement = _make_statement(owner_id=user_id, base_date=date(2023, 12, 20))
         db.add(statement)
         await db.flush()
 
@@ -287,7 +283,7 @@ class TestMatchingAccuracy:
         ])
 
         # Transaction: Same salary, slightly different description
-        statement = _make_statement(owner_id=None, base_date=date(2024, 1, 25))
+        statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 25))
         db.add(statement)
         await db.flush()
 
@@ -341,7 +337,7 @@ class TestBatchPerformance:
         db.add_all([user, bank, expense])
         await db.flush()
 
-        statement = _make_statement(owner_id=None, base_date=date(2024, 1, 1))
+        statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
         db.add(statement)
         await db.flush()
 
@@ -433,7 +429,7 @@ class TestConcurrentMatching:
         # Create 3 separate statements
         statements = []
         for i in range(3):
-            stmt = _make_statement(owner_id=None, base_date=date(2024, 1, i + 1))
+            stmt = _make_statement(owner_id=user_id, base_date=date(2024, 1, i + 1))
             db.add(stmt)
             statements.append(stmt)
         
@@ -524,7 +520,7 @@ class TestCrossMonthMatching:
         ])
 
         # Transaction dated Jan 31 (one day before)
-        statement = _make_statement(owner_id=None, base_date=date(2024, 1, 31))
+        statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 31))
         db.add(statement)
         await db.flush()
 
@@ -600,7 +596,7 @@ class TestCrossMonthMatching:
 
         # Transaction dated Friday (2024-01-12, 3 days before)
         friday = date(2024, 1, 12)
-        statement = _make_statement(owner_id=None, base_date=friday)
+        statement = _make_statement(owner_id=user_id, base_date=friday)
         db.add(statement)
         await db.flush()
 

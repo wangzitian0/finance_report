@@ -8,7 +8,6 @@ These tests cover the Critical and High priority gaps identified in the test aud
 - #12 Gemini retry on timeout
 """
 
-import asyncio
 import json
 from datetime import date
 from decimal import Decimal
@@ -17,12 +16,11 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 
 from src.models.statement import BankStatementStatus
 from src.services.extraction import ExtractionError, ExtractionService
 from src.services.validation import (
-    compute_confidence_score,
     route_by_threshold,
     validate_balance,
     validate_completeness,
@@ -339,10 +337,6 @@ class TestParsingTimeout:
         HIGH #11: Extraction timeout should raise ExtractionError.
         """
         service.api_key = "test-key"
-        
-        async def slow_response(*args, **kwargs):
-            await asyncio.sleep(35)  # Simulate > 30s timeout
-            return {}
         
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
