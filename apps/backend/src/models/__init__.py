@@ -8,6 +8,7 @@ from src.models.journal import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.market_data import FxRate
 from src.models.ping_state import PingState
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
@@ -37,6 +38,7 @@ __all__ = [
     "BankTransactionStatus",  # Alias for BankStatementTransactionStatus
     "ConfidenceLevel",
     "Direction",
+    "FxRate",
     "JournalEntry",
     "JournalEntrySourceType",
     "JournalEntryStatus",

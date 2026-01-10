@@ -55,6 +55,11 @@ Once the backend is running, visit:
 | `/api/journal-entries/{id}/void` | POST | Void posted entry |
 | `/api/statements/upload` | POST | Upload and parse statement |
 | `/api/statements/pending-review` | GET | List statements needing review |
+| `/api/reports/balance-sheet` | GET | Balance sheet report |
+| `/api/reports/income-statement` | GET | Income statement report |
+| `/api/reports/trend` | GET | Account trend data |
+| `/api/reports/breakdown` | GET | Income/expense category breakdown |
+| `/api/reports/export` | GET | Export reports (CSV) |
 
 ## Reconciliation
 
@@ -72,6 +77,10 @@ Frontend pages:
 
 - `/reconciliation` - Reconciliation workbench
 - `/reconciliation/unmatched` - Unmatched triage
+- `/dashboard` - Financial overview dashboard
+- `/reports/balance-sheet` - Balance sheet report
+- `/reports/income-statement` - Income statement report
+- `/reports/cash-flow` - Cash flow (phase 2 placeholder)
 
 ## Project Structure
 

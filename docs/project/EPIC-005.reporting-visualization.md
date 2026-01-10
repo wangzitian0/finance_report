@@ -1,6 +1,6 @@
 # EPIC-005: Financial Reports & Visualization
 
-> **Status**: ⏳ Pending  
+> **Status**: 🟡 In Progress  
 > **Phase**: 4  
 > **Duration**: 3 weeks  
 > **Dependencies**: EPIC-002 (can be parallel with EPIC-003/004)  
@@ -36,74 +36,74 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 ### Report Calculation (Backend)
 
-- [ ] `services/reporting.py` - Report generation service
-  - [ ] `generate_balance_sheet()` - Balance sheet
+- [x] `services/reporting.py` - Report generation service
+  - [x] `generate_balance_sheet()` - Balance sheet
     - Aggregate balances by account type
     - Verify Assets = Liabilities + Equity
-  - [ ] `generate_income_statement()` - Income statement
+  - [x] `generate_income_statement()` - Income statement
     - Income/expense details
     - Monthly/quarterly/annual comparison
   - [ ] `generate_cash_flow()` - Cash flow statement (P2)
     - Classify operating/investing/financing activities
-  - [ ] `get_account_trend()` - Account trend data
-  - [ ] `get_category_breakdown()` - Category breakdown
+  - [x] `get_account_trend()` - Account trend data
+  - [x] `get_category_breakdown()` - Category breakdown
 
 ### Multi-Currency Handling (Backend)
 
-- [ ] `services/fx.py` - Exchange rate service
-  - [ ] `get_exchange_rate()` - Get exchange rate
-  - [ ] `convert_to_base()` - Convert to base currency
-  - [ ] Exchange rate caching (daily update)
-- [ ] Report currency configuration
-  - [ ] Base currency setting (default SGD)
-  - [ ] Unified report conversion
+- [x] `services/fx.py` - Exchange rate service
+  - [x] `get_exchange_rate()` - Get exchange rate
+  - [x] `convert_to_base()` - Convert to base currency
+  - [x] Exchange rate caching (daily update)
+- [x] Report currency configuration
+  - [x] Base currency setting (default SGD)
+  - [x] Unified report conversion
 
 ### API Endpoints (Backend)
 
-- [ ] `GET /api/reports/balance-sheet` - Balance sheet
+- [x] `GET /api/reports/balance-sheet` - Balance sheet
   - Parameters: `as_of_date`, `currency`
-- [ ] `GET /api/reports/income-statement` - Income statement
+- [x] `GET /api/reports/income-statement` - Income statement
   - Parameters: `start_date`, `end_date`, `currency`
 - [ ] `GET /api/reports/cash-flow` - Cash flow statement (P2)
-- [ ] `GET /api/reports/trend` - Trend data
+- [x] `GET /api/reports/trend` - Trend data
   - Parameters: `account_id`, `period` (daily/weekly/monthly)
-- [ ] `GET /api/reports/breakdown` - Category breakdown
+- [x] `GET /api/reports/breakdown` - Category breakdown
   - Parameters: `type` (income/expense), `period`
-- [ ] `GET /api/reports/export` - Export Excel/CSV
+- [x] `GET /api/reports/export` - Export Excel/CSV
 
 ### Dashboard (Frontend)
 
-- [ ] `/dashboard` - Home dashboard
-  - [ ] Asset overview cards (total assets, total liabilities, net assets)
-  - [ ] Asset trend line chart (last 12 months)
-  - [ ] Income/expense comparison bar chart (monthly)
-  - [ ] Account distribution pie chart (by type)
-  - [ ] Recent transactions list
-  - [ ] Unmatched alerts
+- [x] `/dashboard` - Home dashboard
+  - [x] Asset overview cards (total assets, total liabilities, net assets)
+  - [x] Asset trend line chart (last 12 months)
+  - [x] Income/expense comparison bar chart (monthly)
+  - [x] Account distribution pie chart (by type)
+  - [x] Recent transactions list
+  - [x] Unmatched alerts
 
 ### Report Pages (Frontend)
 
-- [ ] `/reports/balance-sheet` - Balance sheet
-  - [ ] Three-column layout (Assets | Liabilities | Equity)
-  - [ ] Account hierarchy expand/collapse
-  - [ ] Date picker
-  - [ ] Export button
-- [ ] `/reports/income-statement` - Income statement
-  - [ ] Income/expense category details
-  - [ ] Year-over-year/month-over-month comparison
-  - [ ] Time range selection
+- [x] `/reports/balance-sheet` - Balance sheet
+  - [x] Three-column layout (Assets | Liabilities | Equity)
+  - [x] Account hierarchy expand/collapse
+  - [x] Date picker
+  - [x] Export button
+- [x] `/reports/income-statement` - Income statement
+  - [x] Income/expense category details
+  - [x] Year-over-year/month-over-month comparison
+  - [x] Time range selection
 - [ ] `/reports/cash-flow` - Cash flow statement (P2)
 - [ ] Filters and interactions
-  - [ ] Date range
+  - [x] Date range
   - [ ] Account type
-  - [ ] Currency switching
+  - [x] Currency switching
   - [ ] Tag filtering
 
 ### Chart Components (Frontend)
 
-- [ ] `components/charts/TrendChart.tsx` - Trend chart
-- [ ] `components/charts/PieChart.tsx` - Pie chart
-- [ ] `components/charts/BarChart.tsx` - Bar chart
+- [x] `components/charts/TrendChart.tsx` - Trend chart
+- [x] `components/charts/PieChart.tsx` - Pie chart
+- [x] `components/charts/BarChart.tsx` - Bar chart
 - [ ] `components/charts/SankeyChart.tsx` - Income/expense flow chart (P2)
 
 ---
@@ -192,12 +192,12 @@ def test_report_generation_performance():
 
 ## 🔗 Deliverables
 
-- [ ] `apps/backend/src/services/reporting.py`
-- [ ] `apps/backend/src/services/fx.py`
-- [ ] `apps/backend/src/routers/reports.py`
-- [ ] `apps/frontend/app/dashboard/page.tsx`
-- [ ] `apps/frontend/app/reports/balance-sheet/page.tsx`
-- [ ] `apps/frontend/app/reports/income-statement/page.tsx`
+- [x] `apps/backend/src/services/reporting.py`
+- [x] `apps/backend/src/services/fx.py`
+- [x] `apps/backend/src/routers/reports.py`
+- [x] `apps/frontend/src/app/dashboard/page.tsx`
+- [x] `apps/frontend/src/app/reports/balance-sheet/page.tsx`
+- [x] `apps/frontend/src/app/reports/income-statement/page.tsx`
 - [ ] `apps/frontend/components/charts/`
 - [ ] Update `docs/ssot/reporting.md`
 

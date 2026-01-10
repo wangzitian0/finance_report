@@ -10,7 +10,8 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Report Logic** | `apps/backend/src/services/reporting.py` | Report generation |
-| **Report Templates** | `apps/frontend/components/reports/` | UI components |
+| **Report Templates** | `apps/frontend/src/app/reports/` | Report pages and layouts |
+| **Visual Components** | `apps/frontend/src/components/charts/` | Chart components |
 
 ---
 
@@ -113,7 +114,7 @@ Shows cash movements by category.
 ## 3. Multi-Currency Consolidation
 
 ### Base Currency
-Reports are generated in a single base currency (user configurable, default: USD).
+Reports are generated in a single base currency (user configurable, default: SGD).
 
 ### FX Rate Application
 - Use **period-end rate** for balance sheet items
