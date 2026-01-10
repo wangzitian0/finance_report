@@ -34,6 +34,7 @@ class JournalLineResponse(JournalLineBase):
     id: UUID
     journal_entry_id: UUID
     created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
 

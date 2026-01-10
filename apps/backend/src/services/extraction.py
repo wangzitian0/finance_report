@@ -1,4 +1,4 @@
-"""Document extraction service using OpenRouter + Gemini Flash."""
+"""Document extraction service using OpenRouter + Gemini 3 Flash Vision."""
 
 import base64
 import hashlib
@@ -8,12 +8,19 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import httpx
 
 from src.config import settings
-from src.models import AccountEvent, ConfidenceLevel, Statement, StatementStatus
+from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
 from src.prompts import get_parsing_prompt
+from src.services.validation import (
+    compute_confidence_score,
+    route_by_threshold,
+    validate_balance,
+    validate_completeness,
+)
 
 
 class ExtractionError(Exception):
@@ -27,8 +34,9 @@ class ExtractionService:
 
     def __init__(self) -> None:
         self.api_key = settings.openrouter_api_key
-        self.model = settings.openrouter_model
         self.base_url = settings.openrouter_base_url
+        self.primary_model = settings.primary_model
+        self.fallback_models = settings.fallback_models
 
     def _safe_date(self, value: str | None) -> date:
         """Safely parse date from string."""
@@ -50,8 +58,12 @@ class ExtractionService:
         self,
         file_path: Path,
         institution: str,
+        user_id: UUID,
         file_type: str = "pdf",
-    ) -> tuple[Statement, list[AccountEvent]]:
+        account_id: UUID | None = None,
+        file_content: bytes | None = None,
+        file_hash: str | None = None,
+    ) -> tuple[BankStatement, list[BankStatementTransaction]]:
         """
         Parse a financial statement document.
 
@@ -61,11 +73,13 @@ class ExtractionService:
             file_type: Type of file (pdf, csv, image)
 
         Returns:
-            Tuple of (Statement, list of AccountEvents)
+            Tuple of (BankStatement, list of BankStatementTransactions)
         """
         # Read file content
-        file_content = file_path.read_bytes()
-        file_hash = hashlib.sha256(file_content).hexdigest()
+        if file_content is None:
+            file_content = file_path.read_bytes()
+        if file_hash is None:
+            file_hash = hashlib.sha256(file_content).hexdigest()
 
         # Call Gemini for extraction
         if file_type in ("pdf", "image", "png", "jpg", "jpeg"):
@@ -77,24 +91,33 @@ class ExtractionService:
 
         # Validate extracted data
         validation = self._validate_balance(extracted)
+        missing_fields = validate_completeness(extracted)
 
         # Compute confidence score
-        confidence_score = self._compute_confidence(extracted, validation)
+        confidence_score = compute_confidence_score(
+            extracted, validation, missing_fields
+        )
+        if not validation["balance_valid"]:
+            confidence_score = min(confidence_score, 59)
 
-        # Determine status based on confidence
-        if confidence_score >= 85:
-            status = StatementStatus.PARSED
-        elif confidence_score >= 60:
-            status = StatementStatus.PARSED  # But needs review
-        else:
-            status = StatementStatus.UPLOADED  # Needs manual entry
+        # Determine status based on confidence and validation
+        status = route_by_threshold(confidence_score, validation["balance_valid"])
 
-        # Create Statement object
-        statement = Statement(
+        validation_notes = []
+        if not validation["balance_valid"] and validation.get("notes"):
+            validation_notes.append(validation["notes"])
+        if missing_fields:
+            validation_notes.append(f"Missing fields: {', '.join(missing_fields)}")
+        validation_error = "; ".join(validation_notes) if validation_notes else None
+
+        # Create BankStatement object
+        statement = BankStatement(
             file_path=str(file_path),
             file_hash=file_hash,
             original_filename=file_path.name,
             institution=institution,
+            user_id=user_id,
+            account_id=account_id,
             account_last4=extracted.get("account_last4"),
             currency=extracted.get("currency", "SGD"),
             period_start=self._safe_date(extracted.get("period_start")),
@@ -104,11 +127,11 @@ class ExtractionService:
             status=status,
             confidence_score=confidence_score,
             balance_validated=validation["balance_valid"],
-            validation_error=validation.get("notes") if not validation["balance_valid"] else None,
+            validation_error=validation_error,
         )
 
-        # Create AccountEvent objects
-        events = []
+        # Create BankStatementTransaction objects
+        transactions: list[BankStatementTransaction] = []
         for txn in extracted.get("transactions", []):
             # Skip transactions with missing required fields
             if not txn.get("date") or txn.get("amount") is None:
@@ -129,8 +152,7 @@ class ExtractionService:
                 continue  # Skip invalid date formats
 
             event_confidence = self._compute_event_confidence(txn)
-            event = AccountEvent(
-                statement_id=statement.id,
+            transaction = BankStatementTransaction(
                 txn_date=parsed_date,
                 description=txn.get("description", "Unknown"),
                 amount=Decimal(str(txn["amount"])),
@@ -139,10 +161,11 @@ class ExtractionService:
                 confidence=event_confidence,
                 confidence_reason=txn.get("confidence_reason"),
                 raw_text=txn.get("raw_text"),
+                statement=statement,
             )
-            events.append(event)
+            transactions.append(transaction)
 
-        return statement, events
+        return statement, transactions
 
     async def extract_financial_data(
         self,
@@ -188,42 +211,57 @@ class ExtractionService:
             }
         ]
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://finance-report.local",
-                    "X-Title": "Finance Report",
-                },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "response_format": {"type": "json_object"},
-                },
-            )
+        models = [self.primary_model] + list(self.fallback_models or [])
+        last_error: ExtractionError | None = None
 
-            if response.status_code != 200:
-                raise ExtractionError(
-                    f"OpenRouter API error: {response.status_code} - {response.text}"
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            for model in models:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://finance-report.local",
+                        "X-Title": "Finance Report",
+                    },
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "response_format": {"type": "json_object"},
+                    },
                 )
 
-            result = response.json()
-            if return_raw:
-                return result
+                if response.status_code != 200:
+                    error = ExtractionError(
+                        f"OpenRouter API error: {response.status_code} - {response.text}"
+                    )
+                    if response.status_code == 429:
+                        raise error
+                    last_error = error
+                    continue
 
-            content = result["choices"][0]["message"]["content"]
+                result = response.json()
+                if return_raw:
+                    return result
 
-            # Parse JSON from response
-            try:
-                return json.loads(content)
-            except json.JSONDecodeError as e:
-                # Try to extract JSON from markdown code blocks
-                json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-                if json_match:
-                    return json.loads(json_match.group(1))
-                raise ExtractionError(f"Failed to parse JSON response: {e}")
+                content = result["choices"][0]["message"]["content"]
+
+                # Parse JSON from response
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError as e:
+                    # Try to extract JSON from markdown code blocks
+                    json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
+                    if json_match:
+                        return json.loads(json_match.group(1))
+                    last_error = ExtractionError(
+                        f"Failed to parse JSON response: {e}"
+                    )
+                    continue
+
+        if last_error:
+            raise last_error
+        raise ExtractionError("OpenRouter API error: no models available")
 
     async def _parse_csv(self, file_path: Path, institution: str) -> dict[str, Any]:
         """Parse CSV files directly (for structured data like Moomoo exports)."""
@@ -295,40 +333,7 @@ class ExtractionService:
 
     def _validate_balance(self, extracted: dict[str, Any]) -> dict[str, Any]:
         """Validate that opening + transactions ≈ closing."""
-        try:
-            opening = Decimal(str(extracted.get("opening_balance") or "0"))
-            closing = Decimal(str(extracted.get("closing_balance") or "0"))
-
-            net = Decimal("0")
-            for txn in extracted.get("transactions", []):
-                amount = Decimal(str(txn["amount"]))
-                if txn["direction"] == "IN":
-                    net += amount
-                else:
-                    net -= amount
-
-            expected_closing = opening + net
-            diff = abs(closing - expected_closing)
-
-            balance_valid = diff <= Decimal("0.01")
-
-            return {
-                "balance_valid": balance_valid,
-                "expected_closing": str(expected_closing),
-                "actual_closing": str(closing),
-                "difference": str(diff),
-                "notes": None
-                if balance_valid
-                else f"Balance mismatch: expected {expected_closing}, got {closing}",
-            }
-        except (ValueError, KeyError) as e:
-            return {
-                "balance_valid": False,
-                "expected_closing": "0",
-                "actual_closing": "0",
-                "difference": "0",
-                "notes": f"Validation error: {e}",
-            }
+        return validate_balance(extracted)
 
     def _compute_confidence(self, extracted: dict[str, Any], validation: dict[str, Any]) -> int:
         """
@@ -340,56 +345,8 @@ class ExtractionService:
         - Format consistency: 20%
         - Transaction count reasonableness: 10%
         """
-        score = 0
-
-        # Balance validation (40%)
-        if validation["balance_valid"]:
-            score += 40
-        else:
-            # Partial credit for small differences
-            try:
-                diff = Decimal(validation.get("difference", "0"))
-                if diff <= Decimal("1.00"):
-                    score += 30
-                elif diff <= Decimal("10.00"):
-                    score += 20
-            except (ValueError, TypeError):
-                # If the difference value is invalid, we don't award partial balance
-                # credit but continue computing confidence based on other factors.
-                pass
-
-        # Field completeness (30%)
-        required_fields = [
-            "institution",
-            "period_start",
-            "period_end",
-            "opening_balance",
-            "closing_balance",
-        ]
-        present = sum(1 for f in required_fields if extracted.get(f))
-        score += int((present / len(required_fields)) * 30)
-
-        # Format consistency (20%)
-        format_score = 20
-        try:
-            # Check date formats
-            date.fromisoformat(extracted.get("period_start", ""))
-            date.fromisoformat(extracted.get("period_end", ""))
-            # Check amount formats
-            Decimal(str(extracted.get("opening_balance", "0")))
-            Decimal(str(extracted.get("closing_balance", "0")))
-        except (ValueError, TypeError):
-            format_score = 0
-        score += format_score
-
-        # Transaction count (10%)
-        txn_count = len(extracted.get("transactions", []))
-        if 1 <= txn_count <= 500:
-            score += 10
-        elif txn_count > 500:
-            score += 5  # Suspicious if too many
-
-        return min(100, score)
+        missing_fields = validate_completeness(extracted)
+        return compute_confidence_score(extracted, validation, missing_fields)
 
     def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevel:
         """Compute confidence level for a single event."""

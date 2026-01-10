@@ -3,10 +3,11 @@ import json
 from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 
-from src.schemas.extraction import StatementStatusEnum
+from src.models.statement import BankStatementStatus
 from src.services.extraction import ExtractionError, ExtractionService
 
 
@@ -48,7 +49,9 @@ class TestExtractionServiceFlow:
         ) as mock_extract:
             mock_extract.return_value = mock_data
             
-            stmt, events = await service.parse_document(pdf_file, "DBS")
+            stmt, events = await service.parse_document(
+                pdf_file, "DBS", user_id=UUID("00000000-0000-0000-0000-000000000001")
+            )
             
             # Verify results
             assert stmt.institution == "DBS"
@@ -74,9 +77,14 @@ class TestExtractionServiceFlow:
         with patch.object(service, "_parse_csv", new_callable=AsyncMock) as mock_csv:
             mock_csv.return_value = mock_data
             
-            stmt, events = await service.parse_document(csv_file, "DBS", file_type="csv")
+            stmt, events = await service.parse_document(
+                csv_file,
+                "DBS",
+                user_id=UUID("00000000-0000-0000-0000-000000000001"),
+                file_type="csv",
+            )
             
-            assert stmt.status == StatementStatusEnum.PARSED # High confidence as it validates
+            assert stmt.status == BankStatementStatus.PARSED  # High confidence as it validates
             assert len(events) == 0
 
     @pytest.mark.asyncio
@@ -86,7 +94,12 @@ class TestExtractionServiceFlow:
         txt_file.write_bytes(b"text")
         
         with pytest.raises(ExtractionError, match="Unsupported file type"):
-            await service.parse_document(txt_file, "DBS", file_type="txt")
+            await service.parse_document(
+                txt_file,
+                "DBS",
+                user_id=UUID("00000000-0000-0000-0000-000000000001"),
+                file_type="txt",
+            )
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_success_json(self, service, tmp_path):

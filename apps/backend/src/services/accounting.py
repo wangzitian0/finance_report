@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -28,6 +29,20 @@ class ValidationError(AccountingError):
     """Validation error for accounting operations."""
 
     pass
+
+
+def validate_fx_rates(lines: list[JournalLine]) -> None:
+    """
+    Validate FX rate requirements for multi-currency lines.
+
+    Requires fx_rate when line currency differs from base currency.
+    """
+    base_currency = settings.base_currency.upper()
+    for line in lines:
+        if line.currency.upper() != base_currency and line.fx_rate is None:
+            raise ValidationError(
+                f"fx_rate required for currency {line.currency} (base {base_currency})"
+            )
 
 
 def validate_journal_balance(lines: list[JournalLine]) -> None:
@@ -205,6 +220,7 @@ async def post_journal_entry(
 
     # Validate balance
     validate_journal_balance(entry.lines)
+    validate_fx_rates(entry.lines)
 
     # Validate all accounts are active
     for line in entry.lines:

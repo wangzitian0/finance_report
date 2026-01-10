@@ -356,7 +356,7 @@ financial-manager/
 - `backend:migrate` – Alembic 升级  
 - `frontend:dev` – Next.js dev  
 - `frontend:build` – Next.js 构建  
-- `infra:docker:up` – 启动本地 docker-compose（Postgres + Redis + app）  
+- `infra:docker:up` – Start local docker-compose (Postgres + Redis + app)  
 
 Moonrepo 会根据源代码改动自动决定需要执行哪些任务，减少不必要的 CI 开销。[3]
 

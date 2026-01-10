@@ -55,7 +55,7 @@ class TestBalanceValidation:
             ],
         }
         result = self.service._validate_balance(extracted)
-        # Should pass with 0.01 tolerance
+        # Should pass with 0.10 tolerance
         assert result["balance_valid"] is True
 
 

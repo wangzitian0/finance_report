@@ -3,11 +3,12 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
-class StatementStatusEnum(str, Enum):
+class BankStatementStatusEnum(str, Enum):
     """Statement processing status."""
 
     UPLOADED = "uploaded"
@@ -15,6 +16,14 @@ class StatementStatusEnum(str, Enum):
     PARSED = "parsed"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class BankStatementTransactionStatusEnum(str, Enum):
+    """Reconciliation status for a transaction."""
+
+    PENDING = "pending"
+    MATCHED = "matched"
+    UNMATCHED = "unmatched"
 
 
 class ConfidenceLevelEnum(str, Enum):
@@ -28,22 +37,22 @@ class ConfidenceLevelEnum(str, Enum):
 # --- Request Schemas ---
 
 
-class StatementUploadRequest(BaseModel):
+class BankStatementUploadRequest(BaseModel):
     """Request to upload and parse a statement."""
 
-    institution: str = Field(..., description="Bank/broker name (e.g., DBS, Moomoo)")
+    institution: str = Field(..., description="Bank/broker name (e.g., DBS, Wise)")
     file_type: str = Field(..., description="File type: pdf, csv, image")
+    account_id: UUID | None = Field(None, description="Optional account link")
 
 
-class ReviewDecision(BaseModel):
-    """Human review decision for a statement or event."""
+class StatementDecisionRequest(BaseModel):
+    """Review decision payload for approve/reject."""
 
-    approved: bool
     notes: str | None = None
 
 
-class EventUpdateRequest(BaseModel):
-    """Request to manually correct an event."""
+class TransactionUpdateRequest(BaseModel):
+    """Request to manually correct a transaction."""
 
     txn_date: date | None = None
     description: str | None = None
@@ -55,28 +64,32 @@ class EventUpdateRequest(BaseModel):
 # --- Response Schemas ---
 
 
-class AccountEventResponse(BaseModel):
+class BankStatementTransactionResponse(BaseModel):
     """Single transaction extracted from statement."""
 
-    id: str
+    id: UUID
+    statement_id: UUID
     txn_date: date
     description: str
     amount: Decimal
     direction: str
     reference: str | None
+    status: BankStatementTransactionStatusEnum
     confidence: ConfidenceLevelEnum
     confidence_reason: str | None
     raw_text: str | None
     created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
-class StatementResponse(BaseModel):
-    """Parsed statement with events."""
+class BankStatementResponse(BaseModel):
+    """Parsed statement with transactions."""
 
-    id: str
+    id: UUID
+    user_id: UUID
+    account_id: UUID | None
     file_path: str
     original_filename: str
     institution: str
@@ -86,22 +99,28 @@ class StatementResponse(BaseModel):
     period_end: date
     opening_balance: Decimal
     closing_balance: Decimal
-    status: StatementStatusEnum
+    status: BankStatementStatusEnum
     confidence_score: int
     balance_validated: bool
     validation_error: str | None
     created_at: datetime
     updated_at: datetime
-    events: list[AccountEventResponse] = []
+    transactions: list[BankStatementTransactionResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
-class StatementListResponse(BaseModel):
+class BankStatementListResponse(BaseModel):
     """List of statements for review queue."""
 
-    items: list[StatementResponse]
+    items: list[BankStatementResponse]
+    total: int
+
+
+class BankStatementTransactionListResponse(BaseModel):
+    """List of statement transactions."""
+
+    items: list[BankStatementTransactionResponse]
     total: int
 
 
@@ -115,7 +134,7 @@ class ParsedStatementPreview(BaseModel):
     period_end: date
     opening_balance: Decimal
     closing_balance: Decimal
-    events_count: int
+    transactions_count: int
     confidence_score: int
     balance_validated: bool
     validation_error: str | None

@@ -53,7 +53,7 @@ async def test_ping_toggle(client: AsyncClient) -> None:
 @skip_client_tests
 async def test_get_statement_not_found(client: AsyncClient) -> None:
     """Test getting a non-existent statement."""
-    response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
+    response = await client.get("/api/statements/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -61,7 +61,7 @@ async def test_get_statement_not_found(client: AsyncClient) -> None:
 @skip_client_tests
 async def test_get_pending_review_empty(client: AsyncClient) -> None:
     """Test getting pending review list when empty."""
-    response = await client.get("/statements/pending-review")
+    response = await client.get("/api/statements/pending-review")
     assert response.status_code == 200
     data = response.json()
     assert data["items"] == []
@@ -72,8 +72,8 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
 async def test_approve_statement_not_found(client: AsyncClient) -> None:
     """Test approving a non-existent statement."""
     response = await client.post(
-        "/statements/00000000-0000-0000-0000-000000000000/approve",
-        json={"approved": True}
+        "/api/statements/00000000-0000-0000-0000-000000000000/approve",
+        json={"notes": "ok"}
     )
     assert response.status_code == 404
 
@@ -82,7 +82,7 @@ async def test_approve_statement_not_found(client: AsyncClient) -> None:
 async def test_upload_no_file(client: AsyncClient) -> None:
     """Test upload endpoint without file."""
     response = await client.post(
-        "/statements/upload",
+        "/api/statements/upload",
         data={"institution": "DBS"}
     )
     # Should fail validation - no file
@@ -123,16 +123,14 @@ class TestSchemas:
 
     def test_review_decision_approved(self):
         """Test ReviewDecision with approved."""
-        from src.schemas.extraction import ReviewDecision
-        decision = ReviewDecision(approved=True)
-        assert decision.approved is True
+        from src.schemas.extraction import StatementDecisionRequest
+        decision = StatementDecisionRequest()
         assert decision.notes is None
 
     def test_review_decision_rejected_with_notes(self):
         """Test ReviewDecision rejected with notes."""
-        from src.schemas.extraction import ReviewDecision
-        decision = ReviewDecision(approved=False, notes="Incorrect amount")
-        assert decision.approved is False
+        from src.schemas.extraction import StatementDecisionRequest
+        decision = StatementDecisionRequest(notes="Incorrect amount")
         assert decision.notes == "Incorrect amount"
 
     def test_confidence_level_enum(self):
@@ -144,17 +142,17 @@ class TestSchemas:
 
     def test_statement_status_enum(self):
         """Test StatementStatusEnum values."""
-        from src.schemas.extraction import StatementStatusEnum
-        assert StatementStatusEnum.UPLOADED.value == "uploaded"
-        assert StatementStatusEnum.PARSED.value == "parsed"
-        assert StatementStatusEnum.APPROVED.value == "approved"
+        from src.schemas.extraction import BankStatementStatusEnum
+        assert BankStatementStatusEnum.UPLOADED.value == "uploaded"
+        assert BankStatementStatusEnum.PARSED.value == "parsed"
+        assert BankStatementStatusEnum.APPROVED.value == "approved"
 
     def test_event_update_request(self):
         """Test EventUpdateRequest partial update."""
         from decimal import Decimal
 
-        from src.schemas.extraction import EventUpdateRequest
-        update = EventUpdateRequest(amount=Decimal("100.00"))
+        from src.schemas.extraction import TransactionUpdateRequest
+        update = TransactionUpdateRequest(amount=Decimal("100.00"))
         assert update.amount == Decimal("100.00")
         assert update.description is None
 
@@ -180,19 +178,19 @@ class TestModels:
 
     def test_statement_model_table_name(self):
         """Test Statement model has correct table name."""
-        from src.models.statement import Statement
-        assert Statement.__tablename__ == "statements"
+        from src.models.statement import BankStatement
+        assert BankStatement.__tablename__ == "bank_statements"
 
     def test_account_event_model_table_name(self):
         """Test AccountEvent model has correct table name."""
-        from src.models.statement import AccountEvent
-        assert AccountEvent.__tablename__ == "account_events"
+        from src.models.statement import BankStatementTransaction
+        assert BankStatementTransaction.__tablename__ == "bank_statement_transactions"
 
     def test_statement_status_enum(self):
         """Test StatementStatus enum values."""
-        from src.models.statement import StatementStatus
-        assert StatementStatus.UPLOADED.value == "uploaded"
-        assert StatementStatus.PARSED.value == "parsed"
+        from src.models.statement import BankStatementStatus
+        assert BankStatementStatus.UPLOADED.value == "uploaded"
+        assert BankStatementStatus.PARSED.value == "parsed"
 
     def test_confidence_level_enum(self):
         """Test ConfidenceLevel enum values."""
@@ -202,13 +200,13 @@ class TestModels:
 
     def test_statement_relationship(self):
         """Test Statement has events relationship."""
-        from src.models.statement import Statement
-        assert hasattr(Statement, "events")
+        from src.models.statement import BankStatement
+        assert hasattr(BankStatement, "transactions")
 
     def test_account_event_relationship(self):
         """Test AccountEvent has statement relationship."""
-        from src.models.statement import AccountEvent
-        assert hasattr(AccountEvent, "statement")
+        from src.models.statement import BankStatementTransaction
+        assert hasattr(BankStatementTransaction, "statement")
 
 
 class TestConfig:
@@ -218,7 +216,7 @@ class TestConfig:
         """Test Settings has reasonable defaults."""
         from src.config import Settings
         settings = Settings()
-        assert settings.openrouter_model == "google/gemini-2.5-flash-lite"
+        assert settings.primary_model == "google/gemini-3-flash"
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):
@@ -226,4 +224,3 @@ class TestConfig:
         from src.config import Settings
         settings = Settings()
         assert "postgresql" in settings.database_url or "sqlite" in settings.database_url
-

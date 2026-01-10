@@ -9,12 +9,21 @@ from src.models.journal import (
     JournalLine,
 )
 from src.models.ping_state import PingState
-from src.models.statement import AccountEvent, ConfidenceLevel, Statement, StatementStatus
+from src.models.statement import (
+    BankStatement,
+    BankStatementStatus,
+    BankStatementTransaction,
+    BankStatementTransactionStatus,
+    ConfidenceLevel,
+)
 
 __all__ = [
     "Account",
     "AccountType",
-    "AccountEvent",
+    "BankStatement",
+    "BankStatementStatus",
+    "BankStatementTransaction",
+    "BankStatementTransactionStatus",
     "ConfidenceLevel",
     "Direction",
     "JournalEntry",
@@ -22,6 +31,4 @@ __all__ = [
     "JournalEntryStatus",
     "JournalLine",
     "PingState",
-    "Statement",
-    "StatementStatus",
 ]

@@ -4,14 +4,14 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using Gemini Flash 2.0 via OpenRouter, outputting structured transaction data with confidence scoring.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using Gemini 3 Flash Vision via OpenRouter (with fallback models), outputting structured transaction data with confidence scoring.
 
 ## Data Flow
 
 ```mermaid
 flowchart TB
     A[Upload PDF/Image/CSV] --> B{File Type}
-    B -->|PDF/Image| C[Gemini Flash 2.0]
+    B -->|PDF/Image| C[Gemini 3 Flash Vision]
     B -->|CSV| D[Structured Parser]
     C --> E[Extract JSON]
     D --> E
@@ -25,7 +25,7 @@ flowchart TB
 
 ## Data Models
 
-### Statement
+### BankStatement
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -33,36 +33,41 @@ flowchart TB
 | `file_path` | str | S3 key |
 | `file_hash` | str | SHA256 for dedup |
 | `original_filename` | str | User-provided name |
-| `institution` | str | Bank/broker (DBS, Moomoo, CMB) |
+| `institution` | str | Bank/broker/fintech (DBS, CMB, Wise) |
 | `account_last4` | str | Last 4 digits |
 | `currency` | str | ISO currency code |
+| `user_id` | UUID | Owner user |
+| `account_id` | UUID | Linked account (nullable until confirmed) |
 | `period_start` | date | Statement start |
 | `period_end` | date | Statement end |
 | `opening_balance` | Decimal | Beginning balance |
 | `closing_balance` | Decimal | Ending balance |
-| `status` | enum | UPLOADED, PARSING, PARSED, APPROVED, REJECTED |
+| `status` | enum | uploaded, parsing, parsed, approved, rejected |
 | `confidence_score` | int | 0-100 |
 | `balance_validated` | bool | Opening + txns ≈ closing |
+| `validation_error` | str | Optional validation failure details |
 
-### AccountEvent
+### BankStatementTransaction
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | UUID | Primary key |
-| `statement_id` | UUID | FK to Statement |
+| `statement_id` | UUID | FK to BankStatement |
 | `txn_date` | date | Transaction date |
 | `description` | str | Merchant/purpose |
 | `amount` | Decimal | Absolute value |
 | `direction` | str | IN or OUT |
 | `reference` | str | Optional reference |
+| `status` | enum | pending, matched, unmatched |
 | `confidence` | enum | HIGH, MEDIUM, LOW |
+| `confidence_reason` | str | Optional confidence rationale |
 | `raw_text` | str | Original OCR text |
 
 ## Confidence Scoring
 
 | Factor | Weight | Criteria |
 |--------|--------|----------|
-| Balance Check | 40% | opening + Σtxn ≈ closing (±0.01) |
+| Balance Check | 40% | opening + Σtxn ≈ closing (±0.1) |
 | Field Completeness | 30% | Required fields present |
 | Format Consistency | 20% | Valid date/amount formats |
 | Transaction Count | 10% | Reasonable (1-500) |
@@ -76,29 +81,37 @@ flowchart TB
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/statements/upload` | Upload and parse document |
-| GET | `/statements/{id}` | Get statement with events |
-| GET | `/statements/pending-review` | List items needing review |
-| POST | `/statements/{id}/approve` | Approve/reject statement |
+| POST | `/api/statements/upload` | Upload and parse document |
+| GET | `/api/statements` | Statement list |
+| GET | `/api/statements/{id}` | Get statement with transactions |
+| GET | `/api/statements/{id}/transactions` | Transaction list |
+| GET | `/api/statements/pending-review` | List items needing review |
+| POST | `/api/statements/{id}/approve` | Approve statement |
+| POST | `/api/statements/{id}/reject` | Reject statement |
 
 ## Supported Institutions
 
-| Institution | Format | Notes |
-|-------------|--------|-------|
-| DBS | PDF | Singapore bank, GIRO/PayNow |
-| MariBank | PDF | Digital bank, PayNow merchants |
-| GXS | PDF | Digital bank, daily interest |
-| Moomoo | PDF/CSV | Brokerage, SGD/USD/HKD |
-| Futu (富途) | PDF | HK brokerage |
-| CMB (招商银行) | PDF | Chinese, 中文 |
-| IBKR | PDF | Activity statements |
+| Institution | Format | Tier | Notes |
+|-------------|--------|------|-------|
+| DBS/POSB | PDF | v1 | Singapore bank, GIRO/PayNow |
+| CMB (招商银行) | PDF | v1 | Chinese statements |
+| Maybank | PDF | v1 | Malaysia bank |
+| Wise | PDF/CSV | v1 | Fintech wallet |
+| Brokerage (generic) | PDF/CSV | v1 | Covers Moomoo/IBKR style |
+| Insurance (generic) | PDF | v1 | Policy statements |
+| OCBC | PDF | Extended | Singapore bank |
+| MariBank | PDF | Extended | Digital bank |
+| GXS | PDF | Extended | Digital bank |
+| Futu (富途) | PDF | Extended | HK brokerage |
 
 ## Configuration
 
 Required environment variables:
 ```bash
 OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=google/gemini-2.5-flash-lite
+PRIMARY_MODEL=google/gemini-3-flash
+FALLBACK_MODELS=google/gemini-2.0,openai/gpt-4-turbo
+OPENROUTER_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
 S3_SECRET_KEY=minio123
@@ -112,6 +125,7 @@ S3_BUCKET=statements
 | `src/models/statement.py` | SQLAlchemy models |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/services/extraction.py` | Core extraction logic |
+| `src/services/validation.py` | Validation and confidence scoring |
 | `src/prompts/statement.py` | Gemini prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |
 | `scripts/generate_fixtures.py` | Parse docs with caching |

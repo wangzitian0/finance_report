@@ -53,6 +53,8 @@ Once the backend is running, visit:
 | `/api/journal-entries` | GET/POST | List/create entries |
 | `/api/journal-entries/{id}/post` | POST | Post draft entry |
 | `/api/journal-entries/{id}/void` | POST | Void posted entry |
+| `/api/statements/upload` | POST | Upload and parse statement |
+| `/api/statements/pending-review` | GET | List statements needing review |
 
 ## Project Structure
 
@@ -80,6 +82,7 @@ finance_report/
 | Command | Description |
 |---------|-------------|
 | `podman compose -f docker-compose.ci.yml up -d` | Start Postgres + Redis + MinIO |
+| `moon run infra:docker:up` | Start local docker-compose services |
 | `moon run backend:dev` | Start backend |
 | `moon run frontend:dev` | Start frontend |
 | `moon run backend:test` | Run backend tests |
