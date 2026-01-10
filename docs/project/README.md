@@ -12,6 +12,7 @@
 | [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | ⏳ Pending | 3 | 5 weeks |
 | [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | ⏳ Pending | 4 | 3 weeks |
 | [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | ⏳ Pending | 4 | 2 weeks |
+| [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | 🟡 In Progress | 0 | 1 week |
 
 **Total Duration**: 17-20 weeks
 
@@ -21,10 +22,13 @@
 EPIC-001 ──→ EPIC-002 ──→ EPIC-003 ──→ EPIC-004
                 │
                 └──→ EPIC-005 ──→ EPIC-006
+
+EPIC-007 (Deployment) ──→ Deploy EPIC 1-3 features
 ```
 
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
-**Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004
+**Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
+**Infrastructure Path**: EPIC-007 deploys completed features to production
 
 ## Project File Convention
 
