@@ -48,7 +48,7 @@ class Account(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -60,15 +60,11 @@ class Account(Base):
     )
 
     # Relationships
-    journal_lines: Mapped[list[JournalLine]] = relationship(
-        "JournalLine", back_populates="account"
-    )
+    journal_lines: Mapped[list[JournalLine]] = relationship("JournalLine", back_populates="account")
     parent: Mapped[Account | None] = relationship(
         "Account", remote_side="Account.id", back_populates="children"
     )
-    children: Mapped[list[Account]] = relationship(
-        "Account", back_populates="parent"
-    )
+    children: Mapped[list[Account]] = relationship("Account", back_populates="parent")
 
     def __repr__(self) -> str:
         return f"<Account {self.name} ({self.type.value})>"

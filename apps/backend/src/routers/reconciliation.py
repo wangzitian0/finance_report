@@ -49,9 +49,7 @@ router = APIRouter(prefix="/api/reconciliation", tags=["reconciliation"])
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
-    return sum(
-        line.amount for line in entry.lines if line.direction == Direction.DEBIT
-    )
+    return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
 
 
 def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
@@ -69,9 +67,7 @@ async def _build_match_response(
     match: ReconciliationMatch,
 ) -> ReconciliationMatchResponse:
     transaction_result = await db.execute(
-        select(BankStatementTransaction).where(
-            BankStatementTransaction.id == match.bank_txn_id
-        )
+        select(BankStatementTransaction).where(BankStatementTransaction.id == match.bank_txn_id)
     )
     transaction = transaction_result.scalar_one_or_none()
     entries: list[JournalEntrySummary] = []
@@ -141,9 +137,7 @@ async def list_matches(
 ) -> ReconciliationMatchListResponse:
     query = select(ReconciliationMatch).options(selectinload(ReconciliationMatch.transaction))
     if status:
-        query = query.where(
-            ReconciliationMatch.status == ReconciliationStatus(status.value)
-        )
+        query = query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
     query = query.order_by(ReconciliationMatch.created_at.desc()).limit(limit).offset(offset)
 
     result = await db.execute(query)

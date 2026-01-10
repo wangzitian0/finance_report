@@ -58,12 +58,8 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
     if len(lines) < 2:
         raise ValidationError("Journal entry must have at least 2 lines")
 
-    total_debit = sum(
-        line.amount for line in lines if line.direction == Direction.DEBIT
-    )
-    total_credit = sum(
-        line.amount for line in lines if line.direction == Direction.CREDIT
-    )
+    total_debit = sum(line.amount for line in lines if line.direction == Direction.DEBIT)
+    total_credit = sum(line.amount for line in lines if line.direction == Direction.CREDIT)
 
     if abs(total_debit - total_credit) > Decimal("0.01"):
         raise ValidationError(
@@ -71,9 +67,7 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
         )
 
 
-async def calculate_account_balance(
-    db: AsyncSession, account_id: UUID, user_id: UUID
-) -> Decimal:
+async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id: UUID) -> Decimal:
     """
     Calculate the current balance of an account.
 
@@ -106,32 +100,24 @@ async def calculate_account_balance(
         .join(JournalEntry)
         .where(JournalLine.account_id == account_id)
         .where(JournalLine.direction == Direction.DEBIT)
-        .where(
-            JournalEntry.status.in_(
-                [JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]
-            )
-        )
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
     )
-    
+
     credit_query = (
         select(func.coalesce(func.sum(JournalLine.amount), Decimal("0")))
         .select_from(JournalLine)
         .join(JournalEntry)
         .where(JournalLine.account_id == account_id)
         .where(JournalLine.direction == Direction.CREDIT)
-        .where(
-            JournalEntry.status.in_(
-                [JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]
-            )
-        )
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
     )
 
     debit_result = await db.execute(debit_query)
     credit_result = await db.execute(credit_query)
-    
+
     total_debit = debit_result.scalar() or Decimal("0")
     total_credit = credit_result.scalar() or Decimal("0")
-    
+
     # Net balance = debit - credit
     net_balance = total_debit - total_credit
 
@@ -185,9 +171,7 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     return abs(left_side - right_side) < Decimal("0.1")
 
 
-async def post_journal_entry(
-    db: AsyncSession, entry_id: UUID, user_id: UUID
-) -> JournalEntry:
+async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) -> JournalEntry:
     """
     Post a journal entry from draft to posted status.
 
@@ -203,9 +187,7 @@ async def post_journal_entry(
         ValidationError: If entry cannot be posted
     """
     # Get entry with lines
-    result = await db.execute(
-        select(JournalEntry).where(JournalEntry.id == entry_id)
-    )
+    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
     entry = result.scalar_one_or_none()
 
     if not entry:
@@ -256,9 +238,7 @@ async def void_journal_entry(
         ValidationError: If entry cannot be voided
     """
     # Get original entry
-    result = await db.execute(
-        select(JournalEntry).where(JournalEntry.id == entry_id)
-    )
+    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
     entry = result.scalar_one_or_none()
 
     if not entry:

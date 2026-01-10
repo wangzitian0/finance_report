@@ -72,10 +72,8 @@ class JournalEntry(Base):
         Enum(JournalEntryStatus), nullable=False, default=JournalEntryStatus.DRAFT, index=True
     )
     void_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    void_reversal_entry_id: Mapped[UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
-    
+    void_reversal_entry_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -104,9 +102,7 @@ class JournalLine(Base):
     """
 
     __tablename__ = "journal_lines"
-    __table_args__ = (
-        CheckConstraint("amount > 0", name="positive_amount"),
-    )
+    __table_args__ = (CheckConstraint("amount > 0", name="positive_amount"),)
 
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     journal_entry_id: Mapped[UUID] = mapped_column(
@@ -133,12 +129,8 @@ class JournalLine(Base):
     )
 
     # Relationships
-    journal_entry: Mapped[JournalEntry] = relationship(
-        "JournalEntry", back_populates="lines"
-    )
-    account: Mapped[Account] = relationship(
-        "Account", back_populates="journal_lines"
-    )
+    journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
+    account: Mapped[Account] = relationship("Account", back_populates="journal_lines")
 
     def __repr__(self) -> str:
         return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"

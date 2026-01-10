@@ -90,9 +90,7 @@ async def get_account(
 ) -> AccountResponse:
     """Get account details with current balance."""
     result = await db.execute(
-        select(Account)
-        .where(Account.id == account_id)
-        .where(Account.user_id == MOCK_USER_ID)
+        select(Account).where(Account.id == account_id).where(Account.user_id == MOCK_USER_ID)
     )
     account = result.scalar_one_or_none()
 
@@ -117,9 +115,7 @@ async def update_account(
 ) -> AccountResponse:
     """Update account details."""
     result = await db.execute(
-        select(Account)
-        .where(Account.id == account_id)
-        .where(Account.user_id == MOCK_USER_ID)
+        select(Account).where(Account.id == account_id).where(Account.user_id == MOCK_USER_ID)
     )
     account = result.scalar_one_or_none()
 

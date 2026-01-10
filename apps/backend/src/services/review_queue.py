@@ -63,9 +63,7 @@ async def accept_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
 
     if match.journal_entry_ids:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        result = await db.execute(
-            select(JournalEntry).where(JournalEntry.id.in_(entry_ids))
-        )
+        result = await db.execute(select(JournalEntry).where(JournalEntry.id.in_(entry_ids)))
         for entry in result.scalars():
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
@@ -93,7 +91,9 @@ async def reject_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
     await db.commit()
     return match
 
+
 logger = logging.getLogger(__name__)
+
 
 async def batch_accept(
     db: AsyncSession,
@@ -121,16 +121,17 @@ async def batch_accept(
     if skipped_ids:
         logger.info(
             "batch_accept: %d of %d matches skipped (score < %d or not pending): %s",
-            len(skipped_ids), len(match_ids), min_score, list(skipped_ids)
+            len(skipped_ids),
+            len(match_ids),
+            min_score,
+            list(skipped_ids),
         )
     accepted: list[ReconciliationMatch] = []
     for match in matches:
         match.status = ReconciliationStatus.ACCEPTED
         accepted.append(match)
         result_txn = await db.execute(
-            select(BankStatementTransaction).where(
-                BankStatementTransaction.id == match.bank_txn_id
-            )
+            select(BankStatementTransaction).where(BankStatementTransaction.id == match.bank_txn_id)
         )
         txn = result_txn.scalar_one_or_none()
         if txn:

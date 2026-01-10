@@ -48,11 +48,7 @@ async def detect_anomalies(
     merchant_token = normalize_text(txn.description).split()[:1]
     if merchant_token:
         token = merchant_token[0]
-        safe_token = (
-            token.replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_")
-        )
+        safe_token = token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{safe_token}%"
         daily_count_result = await db.execute(
             select(func.count(BankStatementTransaction.id))

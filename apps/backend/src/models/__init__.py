@@ -9,6 +9,7 @@ from src.models.journal import (
     JournalLine,
 )
 from src.models.ping_state import PingState
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
     BankStatement,
     BankStatementStatus,
@@ -16,7 +17,6 @@ from src.models.statement import (
     BankStatementTransactionStatus,
     ConfidenceLevel,
 )
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.user import User
 
 # Alias for SSOT compatibility (account_events table / statements table naming)

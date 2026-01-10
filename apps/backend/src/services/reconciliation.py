@@ -53,14 +53,14 @@ class MatchCandidate:
 
     journal_entry_ids: list[str]
     score: int
+    # Score components are 0-100 percentages, not monetary values.
+    # Float is acceptable per AGENTS.md which requires Decimal only for money.
     breakdown: dict[str, float]
 
 
 def entry_total_amount(entry: JournalEntry) -> Decimal:
     """Return total debit amount for matching."""
-    return sum(
-        line.amount for line in entry.lines if line.direction == Direction.DEBIT
-    )
+    return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
 
 
 def is_entry_balanced(entry: JournalEntry) -> bool:
@@ -246,11 +246,7 @@ async def score_pattern(
     if not merchant_key:
         return 0.0
     token = merchant_key[0]
-    safe_token = (
-        token.replace("\\", "\\\\")
-        .replace("%", "\\%")
-        .replace("_", "\\_")
-    )
+    safe_token = token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{safe_token}%"
 
     result = await db.execute(
@@ -259,9 +255,11 @@ async def score_pattern(
             ReconciliationMatch,
             ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
         )
-        .where(ReconciliationMatch.status.in_(
-            [ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]
-        ))
+        .where(
+            ReconciliationMatch.status.in_(
+                [ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]
+            )
+        )
         .where(BankStatementTransaction.description.ilike(pattern, escape="\\"))
         .order_by(BankStatementTransaction.txn_date.desc())
         .limit(10)
@@ -330,9 +328,7 @@ async def calculate_match_score(
     date_score = max(score_date(transaction.txn_date, d, config) for d in entry_dates)
     description_score = score_description(transaction.description, entry_memo)
     business_score = (
-        min(score_business_logic(transaction, entry) for entry in entries)
-        if entries
-        else 0.0
+        min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
     )
     history_score = await score_pattern(db, transaction, config)
 
@@ -404,9 +400,7 @@ async def execute_matching(
         BankStatementTransaction.status == BankStatementTransactionStatus.PENDING
     )
     if statement_id:
-        statement_uuid = (
-            UUID(statement_id) if isinstance(statement_id, str) else statement_id
-        )
+        statement_uuid = UUID(statement_id) if isinstance(statement_id, str) else statement_id
         query = query.where(BankStatementTransaction.statement_id == statement_uuid)
     if limit:
         query = query.limit(limit)
