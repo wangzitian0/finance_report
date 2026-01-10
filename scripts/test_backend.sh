@@ -4,9 +4,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 compose_file="${COMPOSE_FILE:-docker-compose.ci.yml}"
-tmp_dir="${TMPDIR:-/tmp}"
-lock_dir="${tmp_dir}/finance_report_db.lock"
-state_file="${tmp_dir}/finance_report_db.state"
+# Use per-user cache directory to avoid security issues with world-writable /tmp
+state_dir="${XDG_CACHE_HOME:-$HOME/.cache}/finance_report"
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+lock_dir="${state_dir}/db.lock"
+state_file="${state_dir}/db.state"
 
 compose_cmd=()
 runtime_cmd=()
@@ -70,10 +73,16 @@ container_id=$2
 EOF
 }
 
+# Parse state file as data (not sourcing) to prevent code injection
+read_state() {
+  refcount="$(grep '^refcount=' "$state_file" 2>/dev/null | cut -d= -f2 || echo 0)"
+  container_id="$(grep '^container_id=' "$state_file" 2>/dev/null | cut -d= -f2 || echo '')"
+}
+
 cleanup() {
   acquire_lock
   if [ -f "$state_file" ]; then
-    . "$state_file"
+    read_state
     refcount="${refcount:-0}"
     container_id="${container_id:-}"
     if [ "$refcount" -gt 0 ]; then
@@ -100,7 +109,7 @@ if ! is_db_running; then
   container_id="$(get_db_container_id || true)"
   write_state 1 "$container_id"
 elif [ -f "$state_file" ]; then
-  . "$state_file"
+  read_state
   refcount="${refcount:-0}"
   container_id="${container_id:-}"
   refcount=$((refcount + 1))

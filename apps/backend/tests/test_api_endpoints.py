@@ -185,9 +185,10 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
 async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession) -> None:
     session = db
     statement_run = Statement(
-        user_id=None,
+        user_id=MOCK_USER_ID,
         account_id=None,
         file_path="statements/run.pdf",
+        file_hash="hash_run",
         original_filename="run.pdf",
         institution="Test Bank",
         account_last4="1234",
@@ -198,9 +199,10 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession) -
         closing_balance=Decimal("0.00"),
     )
     statement_review = Statement(
-        user_id=None,
+        user_id=MOCK_USER_ID,
         account_id=None,
         file_path="statements/review.pdf",
+        file_hash="hash_review",
         original_filename="review.pdf",
         institution="Test Bank",
         account_last4="5678",

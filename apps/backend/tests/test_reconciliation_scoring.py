@@ -259,9 +259,10 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
     assert await score_pattern(db, txn_no_history, DEFAULT_CONFIG) == 0.0
 
     statement = Statement(
-        user_id=None,
+        user_id=uuid4(),  # Using a valid UUID for NOT NULL constraint
         account_id=None,
         file_path="statements/history.pdf",
+        file_hash="hash_history",
         original_filename="history.pdf",
         institution="Test Bank",
         account_last4="7890",

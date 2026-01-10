@@ -44,10 +44,13 @@ from src.services.review_queue import (
 )
 
 
-def _make_statement(*, owner_id: str | None, base_date: date) -> Statement:
+def _make_statement(*, owner_id: str | None = None, base_date: date) -> Statement:
+    # Use DEFAULT_USER_ID if owner_id not provided (for NOT NULL constraint)
+    user_id = owner_id if owner_id else DEFAULT_USER_ID
     return Statement(
-        user_id=owner_id,
+        user_id=user_id,
         file_path="statements/test.pdf",
+        file_hash="test_hash_" + str(base_date),  # Required NOT NULL field
         original_filename="test.pdf",
         institution="Test Bank",
         account_last4="1234",
@@ -458,9 +461,10 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
 ) -> None:
     """Inflow transactions use statement currency and income account."""
     statement = Statement(
-        user_id=None,
+        user_id=DEFAULT_USER_ID,
         account_id=None,
         file_path="statements/inflow.pdf",
+        file_hash="hash_inflow",
         original_filename="inflow.pdf",
         institution="Test Bank",
         account_last4="2222",

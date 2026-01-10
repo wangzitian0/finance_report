@@ -198,8 +198,29 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
 
+    # Indexes for performance-critical query paths (per docs/ssot/schema.md)
+    op.create_index("ix_accounts_user_id", "accounts", ["user_id"])
+    op.create_index("ix_statements_user_id", "statements", ["user_id"])
+    op.create_index("ix_statements_status", "statements", ["status"])
+    op.create_index("ix_account_events_txn_date", "account_events", ["txn_date"])
+    op.create_index("ix_account_events_status", "account_events", ["status"])
+    op.create_index("ix_journal_entries_user_id", "journal_entries", ["user_id"])
+    op.create_index("ix_journal_entries_entry_date", "journal_entries", ["entry_date"])
+    op.create_index("ix_journal_entries_status", "journal_entries", ["status"])
+    op.create_index("ix_reconciliation_matches_status", "reconciliation_matches", ["status"])
+
 
 def downgrade() -> None:
+    # Drop indexes before dropping tables
+    op.drop_index("ix_reconciliation_matches_status", table_name="reconciliation_matches")
+    op.drop_index("ix_journal_entries_status", table_name="journal_entries")
+    op.drop_index("ix_journal_entries_entry_date", table_name="journal_entries")
+    op.drop_index("ix_journal_entries_user_id", table_name="journal_entries")
+    op.drop_index("ix_account_events_status", table_name="account_events")
+    op.drop_index("ix_account_events_txn_date", table_name="account_events")
+    op.drop_index("ix_statements_status", table_name="statements")
+    op.drop_index("ix_statements_user_id", table_name="statements")
+    op.drop_index("ix_accounts_user_id", table_name="accounts")
     op.drop_table("ping_state")
     op.drop_table("reconciliation_matches")
     op.drop_table("journal_lines")
