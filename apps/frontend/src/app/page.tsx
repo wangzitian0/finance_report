@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+import { API_URL } from '@/lib/api'
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -17,7 +19,7 @@ export default function Home() {
               Ping-Pong Demo
             </Link>
             <a 
-              href="/api/docs" 
+              href={`${API_URL}/docs`}
               className="text-slate-400 hover:text-white transition-colors text-sm"
               target="_blank"
               rel="noopener noreferrer"
@@ -83,7 +85,7 @@ export default function Home() {
                 Demo
               </Link>
               <a
-                href="/api/docs"
+                href={`${API_URL}/docs`}
                 className="hover:text-slate-300 transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"
