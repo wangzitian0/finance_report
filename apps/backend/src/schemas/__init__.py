@@ -41,6 +41,15 @@ from src.schemas.reconciliation import (
     ReconciliationStatusEnum,
     UnmatchedTransactionsResponse,
 )
+from src.schemas.reporting import (
+    AccountTrendResponse,
+    BalanceSheetResponse,
+    BreakdownPeriod,
+    BreakdownType,
+    CategoryBreakdownResponse,
+    IncomeStatementResponse,
+    TrendPeriod,
+)
 
 __all__ = [
     "AccountCreate",
@@ -76,4 +85,11 @@ __all__ = [
     "ReconciliationStatsResponse",
     "UnmatchedTransactionsResponse",
     "AnomalyResponse",
+    "AccountTrendResponse",
+    "BalanceSheetResponse",
+    "BreakdownPeriod",
+    "BreakdownType",
+    "CategoryBreakdownResponse",
+    "IncomeStatementResponse",
+    "TrendPeriod",
 ]
