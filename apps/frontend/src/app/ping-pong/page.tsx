@@ -10,7 +10,7 @@ interface PingState {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function Home() {
+export default function PingPongPage() {
   const [pingState, setPingState] = useState<PingState | null>(null)
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)

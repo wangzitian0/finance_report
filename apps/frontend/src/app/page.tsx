@@ -82,7 +82,12 @@ export default function Home() {
               <Link href="/ping-pong" className="hover:text-slate-300 transition-colors">
                 Demo
               </Link>
-              <a href="/api/docs" className="hover:text-slate-300 transition-colors">
+              <a
+                href="/api/docs"
+                className="hover:text-slate-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 API
               </a>
             </div>
@@ -96,7 +101,7 @@ export default function Home() {
 function FeatureCard({ icon, title, description }: { icon: string; title: string; description: string }) {
   return (
     <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6 hover:bg-slate-800/50 transition-colors">
-      <div className="text-4xl mb-4">{icon}</div>
+      <div className="text-4xl mb-4" role="img" aria-label={title}>{icon}</div>
       <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
       <p className="text-slate-400 text-sm">{description}</p>
     </div>
