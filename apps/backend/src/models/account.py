@@ -63,10 +63,10 @@ class Account(Base):
     journal_lines: Mapped[list[JournalLine]] = relationship(
         "JournalLine", back_populates="account"
     )
-    parent: Mapped["Account" | None] = relationship(
+    parent: Mapped[Account | None] = relationship(
         "Account", remote_side="Account.id", back_populates="children"
     )
-    children: Mapped[list["Account"]] = relationship(
+    children: Mapped[list[Account]] = relationship(
         "Account", back_populates="parent"
     )
 

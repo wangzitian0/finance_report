@@ -13,6 +13,7 @@ from src.models import (
     AccountType,
     Direction,
     JournalEntry,
+    JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
 )
