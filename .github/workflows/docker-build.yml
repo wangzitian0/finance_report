@@ -90,9 +90,21 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Dokploy deployment
+      - name: Stop existing containers
         run: |
-          echo "Triggering Dokploy compose deployment..."
+          echo "Stopping containers to force image pull..."
+          # Stop the compose application to ensure clean state
+          curl -s -X POST "https://cloud.zitian.party/api/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"composeId": "${{ secrets.DOKPLOY_COMPOSE_ID }}"}'
+          
+          echo "Waiting 10 seconds for containers to stop..."
+          sleep 10
+
+      - name: Trigger Dokploy deployment with image pull
+        run: |
+          echo "Triggering Dokploy compose deployment (will pull latest images)..."
           response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
@@ -102,7 +114,7 @@ jobs:
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n-1)
           
-          echo "Response: $body"
+          echo "Deploy response: $body"
           echo "HTTP Code: $http_code"
           
           if [ "$http_code" != "200" ] && [ "$http_code" != "201" ] && [ "$http_code" != "204" ]; then
