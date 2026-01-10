@@ -235,8 +235,8 @@ class TestMatchingAccuracy:
         score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
         
         # Unrelated transaction should score LOW (< 60 = unmatched)
-        assert score_result.weighted_score < 60, (
-            f"Unrelated transaction should score < 60, got {score_result.weighted_score}"
+        assert score_result.score < 60, (
+            f"Unrelated transaction should score < 60, got {score_result.score}"
         )
 
     @pytest.mark.asyncio
@@ -307,8 +307,8 @@ class TestMatchingAccuracy:
         await db.refresh(entry, ["lines"])
         score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
         
-        assert score_result.weighted_score >= 60, (
-            f"Similar transaction should score >= 60, got {score_result.weighted_score}"
+        assert score_result.score >= 60, (
+            f"Similar transaction should score >= 60, got {score_result.score}"
         )
 
 
@@ -546,8 +546,8 @@ class TestCrossMonthMatching:
         
         # Date penalty should be small (1 day difference)
         # Amount and description are exact, so should score well
-        assert score_result.weighted_score >= 70, (
-            f"Cross-month (1 day diff) match should score >= 70, got {score_result.weighted_score}"
+        assert score_result.score >= 70, (
+            f"Cross-month (1 day diff) match should score >= 70, got {score_result.score}"
         )
 
     @pytest.mark.asyncio
@@ -621,6 +621,6 @@ class TestCrossMonthMatching:
         score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
         
         # 3-day gap has some penalty, but amount match + similar description should compensate
-        assert score_result.weighted_score >= 65, (
-            f"Weekend gap (3 days) match should score >= 65, got {score_result.weighted_score}"
+        assert score_result.score >= 65, (
+            f"Weekend gap (3 days) match should score >= 65, got {score_result.score}"
         )
