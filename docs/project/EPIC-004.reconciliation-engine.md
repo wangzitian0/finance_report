@@ -1,6 +1,6 @@
 # EPIC-004: Reconciliation Engine & Matching
 
-> **Status**: ⏳ Pending  
+> **Status**: ✅ Completed  
 > **Phase**: 3  
 > **Duration**: 5 weeks  
 > **Dependencies**: EPIC-003  
@@ -10,6 +10,8 @@
 ## 🎯 Objective
 
 Automatically match bank transactions with journal entries, implementing intelligent reconciliation and review queue, achieving ≥95% automatic matching accuracy.
+
+**Implementation note**: Bank transactions are stored as `AccountEvent` (statement extraction).
 
 **Core Rules**:
 ```
@@ -37,78 +39,78 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### Data Model (Backend)
 
-- [ ] `ReconciliationMatch` model
+- [x] `ReconciliationMatch` model
   - `bank_txn_id` - Bank transaction ID
   - `journal_entry_ids` - Associated journal entry IDs (supports multiple)
   - `match_score` - Composite score (0-100)
   - `score_breakdown` - Individual dimension scores (JSONB)
-  - `status` - Status (auto_accepted/pending_review/accepted/rejected)
-- [ ] Alembic migration script
-- [ ] Status update trigger (updates JournalEntry and BankStatementTransaction status)
+  - `status` - Status (auto_accepted/pending_review/accepted/rejected/superseded)
+- [x] Alembic migration script
+- [x] Status update trigger (updates JournalEntry and AccountEvent status)
 
 ### Matching Algorithm (Backend)
 
-- [ ] `services/reconciliation.py` - Reconciliation engine
-  - [ ] `calculate_match_score()` - Composite scoring
-  - [ ] `find_candidates()` - Find candidate journal entries
-  - [ ] `execute_matching()` - Batch matching execution
-  - [ ] `auto_accept()` - Auto-accept logic
-- [ ] Scoring dimension implementation
-  - [ ] `score_amount()` - Amount matching (40%)
-  - [ ] `score_date()` - Date proximity (25%)
-  - [ ] `score_description()` - Description similarity (20%)
-  - [ ] `score_business_logic()` - Business logic validation (10%)
-  - [ ] `score_pattern()` - Historical pattern (5%)
-- [ ] Special scenario handling
-  - [ ] One-to-many matching (1 bank txn → multiple journal entries)
-  - [ ] Many-to-one matching (multiple bank txns → 1 journal entry)
-  - [ ] Cross-period matching (month-end/month-start)
-  - [ ] Fee splitting
+- [x] `services/reconciliation.py` - Reconciliation engine
+  - [x] `calculate_match_score()` - Composite scoring
+  - [x] `find_candidates()` - Find candidate journal entries
+  - [x] `execute_matching()` - Batch matching execution
+  - [x] `auto_accept()` - Auto-accept logic
+- [x] Scoring dimension implementation
+  - [x] `score_amount()` - Amount matching (40%)
+  - [x] `score_date()` - Date proximity (25%)
+  - [x] `score_description()` - Description similarity (20%)
+  - [x] `score_business_logic()` - Business logic validation (10%)
+  - [x] `score_pattern()` - Historical pattern (5%)
+- [x] Special scenario handling
+  - [x] One-to-many matching (1 bank txn → multiple journal entries)
+  - [x] Many-to-one matching (multiple bank txns → 1 journal entry)
+  - [x] Cross-period matching (month-end/month-start)
+  - [x] Fee splitting
 
 ### Review Queue (Backend)
 
-- [ ] `services/review_queue.py` - Review queue management
-  - [ ] `get_pending_items()` - Get pending items (pagination, sorting)
-  - [ ] `accept_match()` - Accept match
-  - [ ] `reject_match()` - Reject match
-  - [ ] `batch_accept()` - Batch accept
-  - [ ] `create_entry_from_txn()` - Create journal entry from transaction
+- [x] `services/review_queue.py` - Review queue management
+  - [x] `get_pending_items()` - Get pending items (pagination, sorting)
+  - [x] `accept_match()` - Accept match
+  - [x] `reject_match()` - Reject match
+  - [x] `batch_accept()` - Batch accept
+  - [x] `create_entry_from_txn()` - Create journal entry from transaction
 
 ### Anomaly Detection (Backend)
 
-- [ ] `services/anomaly.py` - Anomaly detection
-  - [ ] Amount anomaly (> 10x monthly average)
-  - [ ] Frequency anomaly (same merchant > 5 transactions/day)
-  - [ ] Time anomaly (large amounts during non-business hours)
-  - [ ] New merchant flagging
+- [x] `services/anomaly.py` - Anomaly detection
+  - [x] Amount anomaly (> 10x monthly average)
+  - [x] Frequency anomaly (same merchant > 5 transactions/day)
+  - [x] Time anomaly (large amounts during non-business hours)
+  - [x] New merchant flagging
 
 ### API Endpoints (Backend)
 
-- [ ] `POST /api/reconciliation/run` - Execute reconciliation matching
-- [ ] `GET /api/reconciliation/matches` - Match results list
-- [ ] `GET /api/reconciliation/pending` - Pending review queue
-- [ ] `POST /api/reconciliation/matches/{id}/accept` - Accept match
-- [ ] `POST /api/reconciliation/matches/{id}/reject` - Reject match
-- [ ] `POST /api/reconciliation/batch-accept` - Batch accept
-- [ ] `GET /api/reconciliation/stats` - Reconciliation statistics
-- [ ] `GET /api/reconciliation/unmatched` - Unmatched transactions
+- [x] `POST /api/reconciliation/run` - Execute reconciliation matching
+- [x] `GET /api/reconciliation/matches` - Match results list
+- [x] `GET /api/reconciliation/pending` - Pending review queue
+- [x] `POST /api/reconciliation/matches/{id}/accept` - Accept match
+- [x] `POST /api/reconciliation/matches/{id}/reject` - Reject match
+- [x] `POST /api/reconciliation/batch-accept` - Batch accept
+- [x] `GET /api/reconciliation/stats` - Reconciliation statistics
+- [x] `GET /api/reconciliation/unmatched` - Unmatched transactions
 
 ### Frontend UI (Frontend)
 
-- [ ] `/reconciliation` - Reconciliation workbench
-  - [ ] Reconciliation overview (match rate, unmatched count)
-  - [ ] Pending review list (sorting, filtering)
-  - [ ] Match details (score breakdown, candidate entries)
-  - [ ] Accept/reject operations
-  - [ ] Batch operation toolbar
-- [ ] `/reconciliation/unmatched` - Unmatched handling
-  - [ ] Unmatched transaction list
-  - [ ] Manual journal entry creation
-  - [ ] Ignore/flag functionality
-- [ ] Visualization
-  - [ ] Reconciliation progress bar
-  - [ ] Match score distribution chart
-  - [ ] Anomalous transaction highlighting
+- [x] `/reconciliation` - Reconciliation workbench
+  - [x] Reconciliation overview (match rate, unmatched count)
+  - [x] Pending review list (sorting, filtering)
+  - [x] Match details (score breakdown, candidate entries)
+  - [x] Accept/reject operations
+  - [x] Batch operation toolbar
+- [x] `/reconciliation/unmatched` - Unmatched handling
+  - [x] Unmatched transaction list
+  - [x] Manual journal entry creation
+  - [x] Ignore/flag functionality
+- [x] Visualization
+  - [x] Reconciliation progress bar
+  - [x] Match score distribution chart
+  - [x] Anomalous transaction highlighting
 
 ---
 
@@ -211,14 +213,15 @@ def test_concurrent_matching():
 
 ## 🔗 Deliverables
 
-- [ ] `apps/backend/src/models/reconciliation.py`
-- [ ] `apps/backend/src/services/reconciliation.py`
-- [ ] `apps/backend/src/services/review_queue.py`
-- [ ] `apps/backend/src/services/anomaly.py`
-- [ ] `apps/backend/src/routers/reconciliation.py`
-- [ ] `apps/frontend/app/reconciliation/page.tsx`
-- [ ] Update `docs/ssot/reconciliation.md` (algorithm documentation)
-- [ ] Reconciliation accuracy report
+- [x] `apps/backend/src/models/reconciliation.py`
+- [x] `apps/backend/src/services/reconciliation.py`
+- [x] `apps/backend/src/services/review_queue.py`
+- [x] `apps/backend/src/services/anomaly.py`
+- [x] `apps/backend/src/routers/reconciliation.py`
+- [x] `apps/frontend/app/reconciliation/page.tsx`
+- [x] `apps/backend/config/reconciliation.yaml`
+- [x] Update `docs/ssot/reconciliation.md` (algorithm documentation)
+- [x] Reconciliation accuracy report
 
 ---
 
@@ -234,9 +237,7 @@ def test_concurrent_matching():
 
 ## Issues & Gaps
 
-- [ ] SSOT defines scoring weights/thresholds in `config/reconciliation.yaml`, but EPIC-004 does not include this config deliverable, so weights may become hardcoded.
-- [ ] EPIC-004 introduces new tables and dependencies (ReconciliationRule, MerchantPattern, transaction_embeddings, pgvector) that are not defined in `docs/ssot/schema.md`; SSOT must be updated before implementation.
-- [ ] Dual-layer versioned `ReconciliationMatch` (version/superseded) is not reflected in SSOT schema or ER model; schema alignment is required.
+No open issues for EPIC-004 delivery. Future enhancements are tracked in Technical Debt.
 
 ---
 

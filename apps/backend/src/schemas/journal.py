@@ -56,12 +56,8 @@ class JournalEntryCreate(JournalEntryBase):
     @model_validator(mode="after")
     def validate_balanced(self) -> "JournalEntryCreate":
         """Validate that debits equal credits."""
-        total_debit = sum(
-            line.amount for line in self.lines if line.direction == Direction.DEBIT
-        )
-        total_credit = sum(
-            line.amount for line in self.lines if line.direction == Direction.CREDIT
-        )
+        total_debit = sum(line.amount for line in self.lines if line.direction == Direction.DEBIT)
+        total_credit = sum(line.amount for line in self.lines if line.direction == Direction.CREDIT)
 
         if abs(total_debit - total_credit) > Decimal("0.01"):
             raise ValueError(

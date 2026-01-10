@@ -105,7 +105,7 @@ class BankStatementResponse(BaseModel):
     validation_error: str | None
     created_at: datetime
     updated_at: datetime
-    transactions: list[BankStatementTransactionResponse] = []
+    transactions: list[BankStatementTransactionResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

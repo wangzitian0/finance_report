@@ -3,18 +3,64 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8f4ed;
+  --foreground: #121a16;
+  --ink: #0f1f17;
+  --paper: #f8f4ed;
+  --accent: #0f766e;
+  --accent-warm: #d97706;
+  --font-sans: var(--font-space-grotesk);
+  --font-serif: var(--font-fraunces);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0d1311;
+    --foreground: #e6e2d7;
+    --ink: #e6e2d7;
+    --paper: #0d1311;
+    --accent: #2dd4bf;
+    --accent-warm: #f59e0b;
   }
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sweep {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.7s ease-out both;
+}
+
+.animate-sweep {
+  background-size: 200% 200%;
+  animation: sweep 8s ease-in-out infinite alternate;
 }

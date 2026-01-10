@@ -11,6 +11,7 @@ from src.services.accounting import (
     void_journal_entry,
 )
 from src.services.extraction import ExtractionError, ExtractionService
+from src.services.reconciliation import execute_matching, load_reconciliation_config
 
 __all__ = [
     "AccountingError",
@@ -23,4 +24,6 @@ __all__ = [
     "validate_journal_balance",
     "verify_accounting_equation",
     "void_journal_entry",
+    "execute_matching",
+    "load_reconciliation_config",
 ]

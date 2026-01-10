@@ -1,0 +1,16 @@
+scoring:
+  weights:
+    amount: 0.40
+    date: 0.25
+    description: 0.20
+    business: 0.10
+    history: 0.05
+
+  thresholds:
+    auto_accept: 85
+    pending_review: 60
+
+  tolerances:
+    amount_percent: 0.005
+    amount_absolute: 0.10
+    date_days: 7

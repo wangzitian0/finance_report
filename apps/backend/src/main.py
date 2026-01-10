@@ -13,6 +13,7 @@ from src.config import settings
 from src.database import get_db, init_db
 from src.models import PingState
 from src.routers import accounts, journal, statements
+from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 
 
@@ -43,6 +44,7 @@ app.add_middleware(
 app.include_router(accounts.router)
 app.include_router(journal.router)
 app.include_router(statements.router)
+app.include_router(reconciliation_router)
 
 
 # --- Health & Demo Endpoints ---

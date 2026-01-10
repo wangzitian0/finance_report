@@ -94,9 +94,7 @@ class ExtractionService:
         missing_fields = validate_completeness(extracted)
 
         # Compute confidence score
-        confidence_score = compute_confidence_score(
-            extracted, validation, missing_fields
-        )
+        confidence_score = compute_confidence_score(extracted, validation, missing_fields)
         if not validation["balance_valid"]:
             confidence_score = min(confidence_score, 59)
 
@@ -254,9 +252,7 @@ class ExtractionService:
                     json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
                     if json_match:
                         return json.loads(json_match.group(1))
-                    last_error = ExtractionError(
-                        f"Failed to parse JSON response: {e}"
-                    )
+                    last_error = ExtractionError(f"Failed to parse JSON response: {e}")
                     continue
 
         if last_error:

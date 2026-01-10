@@ -43,6 +43,7 @@ flowchart LR
     JE --> JL2[JournalLine<br/>Credit: Income 1000]
 ```
 
+
 ---
 
 ## 3. Design Constraints (Dos & Don'ts)

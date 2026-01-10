@@ -30,6 +30,8 @@ flowchart TB
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | UUID | Primary key |
+| `user_id` | UUID | Owner user (nullable in MVP) |
+| `account_id` | UUID | Linked account (nullable in MVP) |
 | `file_path` | str | S3 key |
 | `file_hash` | str | SHA256 for dedup |
 | `original_filename` | str | User-provided name |
@@ -58,10 +60,11 @@ flowchart TB
 | `amount` | Decimal | Absolute value |
 | `direction` | str | IN or OUT |
 | `reference` | str | Optional reference |
-| `status` | enum | pending, matched, unmatched |
-| `confidence` | enum | HIGH, MEDIUM, LOW |
-| `confidence_reason` | str | Optional confidence rationale |
+| `status` | enum | pending / matched / unmatched |
+| `confidence` | enum | high / medium / low |
+| `confidence_reason` | str | Confidence reasoning |
 | `raw_text` | str | Original OCR text |
+| `updated_at` | datetime | Update time |
 
 ## Confidence Scoring
 

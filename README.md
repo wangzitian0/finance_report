@@ -56,6 +56,23 @@ Once the backend is running, visit:
 | `/api/statements/upload` | POST | Upload and parse statement |
 | `/api/statements/pending-review` | GET | List statements needing review |
 
+## Reconciliation
+
+Backend endpoints:
+
+- `POST /api/reconciliation/run` - Run matching
+- `GET /api/reconciliation/pending` - Review queue
+- `POST /api/reconciliation/matches/{id}/accept` - Accept match
+- `POST /api/reconciliation/matches/{id}/reject` - Reject match
+- `POST /api/reconciliation/batch-accept` - Batch accept (≥ 80)
+- `GET /api/reconciliation/stats` - Reconciliation stats
+- `GET /api/reconciliation/unmatched` - Unmatched transactions
+
+Frontend pages:
+
+- `/reconciliation` - Reconciliation workbench
+- `/reconciliation/unmatched` - Unmatched triage
+
 ## Project Structure
 
 ```
@@ -68,7 +85,7 @@ finance_report/
 │   │   │   ├── schemas/    # Pydantic validation
 │   │   │   ├── services/   # Accounting logic
 │   │   │   └── routers/    # API endpoints
-│   │   └── tests/      # 70%+ coverage
+│   │   └── tests/      # 75%+ coverage
 │   └── frontend/       # Next.js 14
 ├── docs/
 │   ├── ssot/           # Single Source of Truth
@@ -103,7 +120,7 @@ uv run pytest --cov=src --cov-report=term-missing
 uv run pytest tests/test_accounting.py -v
 ```
 
-**Current Coverage**: 73%+ (target: 70%)
+**Current Coverage**: 76%+ (target: 75%)
 
 ## Documentation
 

@@ -165,9 +165,7 @@ async def void_entry(
 ) -> JournalEntryResponse:
     """Void a posted journal entry by creating a reversal entry."""
     try:
-        reversal_entry = await void_journal_entry(
-            db, entry_id, void_request.reason, MOCK_USER_ID
-        )
+        reversal_entry = await void_journal_entry(db, entry_id, void_request.reason, MOCK_USER_ID)
         return JournalEntryResponse.model_validate(reversal_entry)
     except ValidationError as e:
         raise HTTPException(

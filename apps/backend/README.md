@@ -15,6 +15,14 @@ uv run uvicorn src.main:app --reload
 moon run backend:dev
 ```
 
+## Tests (with DB auto-cleanup)
+
+Use the workspace script to start Postgres via compose and clean up when tests finish:
+
+```bash
+moon run backend:test
+```
+
 ## API Endpoints
 
 | Method | Path | Description |
@@ -22,6 +30,14 @@ moon run backend:dev
 | GET | `/health` | Health check |
 | GET | `/ping` | Get current ping/pong state |
 | POST | `/ping/toggle` | Toggle between ping and pong |
+| POST | `/statements/upload` | Upload and parse statement |
+| GET | `/statements/{id}` | Statement details |
+| GET | `/statements/pending-review` | Statements pending review |
+| POST | `/statements/{id}/approve` | Approve/reject statement |
+| POST | `/api/reconciliation/run` | Run reconciliation matching |
+| GET | `/api/reconciliation/pending` | Pending review queue |
+| GET | `/api/reconciliation/stats` | Reconciliation stats |
+| GET | `/api/reconciliation/unmatched` | Unmatched transactions |
 
 ## Environment Variables
 

@@ -117,9 +117,7 @@ async def list_statements(
     statements = result.scalars().all()
 
     total_result = await db.execute(
-        select(func.count())
-        .select_from(BankStatement)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        select(func.count()).select_from(BankStatement).where(BankStatement.user_id == MOCK_USER_ID)
     )
     total = total_result.scalar() or 0
 
@@ -198,10 +196,7 @@ async def list_statement_transactions(
     if not statement:
         raise HTTPException(404, "Statement not found")
 
-    items = [
-        BankStatementTransactionResponse.model_validate(t)
-        for t in statement.transactions
-    ]
+    items = [BankStatementTransactionResponse.model_validate(t) for t in statement.transactions]
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
