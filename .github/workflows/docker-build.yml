@@ -1,4 +1,4 @@
-name: Build and Push Docker Images
+name: Build, Deploy and Smoke Test
 
 on:
   push:
@@ -12,6 +12,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  DEPLOY_URL: https://report.zitian.party
 
 jobs:
   build-backend:
@@ -83,3 +84,101 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_API_URL=https://report.zitian.party/api
+
+  deploy:
+    name: Deploy to Production
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dokploy deployment
+        run: |
+          echo "Triggering Dokploy compose deployment..."
+          response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"composeId": "${{ secrets.DOKPLOY_COMPOSE_ID }}"}' \
+            -w "\n%{http_code}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "Response: $body"
+          echo "HTTP Code: $http_code"
+          
+          if [ "$http_code" != "200" ] && [ "$http_code" != "201" ] && [ "$http_code" != "204" ]; then
+            echo "Deployment trigger failed with HTTP $http_code"
+            exit 1
+          fi
+          
+          echo "Deployment triggered successfully"
+
+      - name: Wait for deployment to complete
+        run: |
+          echo "Waiting 90 seconds for containers to pull and restart..."
+          sleep 90
+
+  smoke-test:
+    name: Smoke Tests
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test homepage
+        run: |
+          status=$(curl -sf -o /dev/null -w "%{http_code}" "${{ env.DEPLOY_URL }}/")
+          if [ "$status" != "200" ]; then
+            echo "Homepage failed: HTTP $status"
+            exit 1
+          fi
+          echo "✓ Homepage OK"
+
+      - name: Test API health
+        run: |
+          response=$(curl -sf "${{ env.DEPLOY_URL }}/api/health")
+          echo "Health response: $response"
+          echo "✓ API Health OK"
+
+      - name: Test API docs
+        run: |
+          status=$(curl -sf -o /dev/null -w "%{http_code}" "${{ env.DEPLOY_URL }}/api/docs")
+          if [ "$status" != "200" ]; then
+            echo "API docs failed: HTTP $status"
+            exit 1
+          fi
+          echo "✓ API Docs OK"
+
+      - name: Test ping-pong page
+        run: |
+          status=$(curl -sf -o /dev/null -w "%{http_code}" "${{ env.DEPLOY_URL }}/ping-pong")
+          if [ "$status" != "200" ]; then
+            echo "Ping-pong page failed: HTTP $status"
+            exit 1
+          fi
+          echo "✓ Ping-Pong Page OK"
+
+      - name: Test reconciliation page
+        run: |
+          status=$(curl -sf -o /dev/null -w "%{http_code}" "${{ env.DEPLOY_URL }}/reconciliation")
+          if [ "$status" != "200" ]; then
+            echo "Reconciliation page failed: HTTP $status"
+            exit 1
+          fi
+          echo "✓ Reconciliation Page OK"
+
+      - name: Test API accounts endpoint
+        run: |
+          response=$(curl -sf "${{ env.DEPLOY_URL }}/api/api/accounts")
+          echo "Accounts response: $response"
+          echo "✓ Accounts API OK"
+
+      - name: Test API ping endpoint
+        run: |
+          response=$(curl -sf "${{ env.DEPLOY_URL }}/api/ping")
+          echo "Ping response: $response"
+          echo "✓ Ping API OK"
+
+      - name: Summary
+        run: |
+          echo "=========================================="
+          echo "All smoke tests passed!"
+          echo "Deployment URL: ${{ env.DEPLOY_URL }}"
+          echo "=========================================="
