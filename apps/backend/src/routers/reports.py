@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
 import csv
+from datetime import date
 from enum import Enum
 from io import StringIO
 from uuid import UUID

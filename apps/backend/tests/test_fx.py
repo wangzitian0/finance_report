@@ -7,7 +7,14 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import FxRate
+from src.services import fx as fx_service
 from src.services.fx import convert_amount, get_average_rate, get_exchange_rate
+
+
+@pytest.fixture(autouse=True)
+def clear_fx_cache() -> None:
+    """Clear FX cache to avoid cross-test contamination."""
+    fx_service._cache._store.clear()
 
 
 @pytest.mark.asyncio
