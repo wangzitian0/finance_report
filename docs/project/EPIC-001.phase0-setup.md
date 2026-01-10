@@ -32,7 +32,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 - [x] Create `moon.yml` workspace configuration
 - [x] Configure `apps/backend/moon.yml` tasks
 - [x] Configure `apps/frontend/moon.yml` tasks
-- [ ] Configure `infra/moon.yml` tasks (deferred)
+- [x] Configure `infra/moon.yml` tasks
 
 ### Backend Skeleton
 - [x] FastAPI project structure (`apps/backend/src/`)
@@ -111,7 +111,6 @@ Set up a runnable Monorepo development environment, complete user authentication
 |------|--------|--------------|
 | pre-commit hooks | P2 | During EPIC-002 |
 | GitHub Actions CI | P1 | Before EPIC-002 completion |
-| infra/moon.yml | P3 | Deployment phase |
 
 ---
 
@@ -119,6 +118,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 - [x] Status is marked "Complete" while the checklist still has deferred items (infra/moon.yml, pre-commit hooks, Zustand), which makes Phase 0 exit criteria ambiguous.
 - [x] Phase 0 in `init.md` references `infra:docker:up`; without infra/moon.yml tasks, the Moon workflow is incomplete for local docker.
+- [x] Ping demo API/Frontend field mismatch (`updated_at` vs `last_toggled`) fixed for consistency.
 
 ---
 

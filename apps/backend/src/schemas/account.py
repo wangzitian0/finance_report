@@ -17,6 +17,7 @@ class AccountBase(BaseModel):
     code: Annotated[str | None, Field(None, max_length=50)]
     type: AccountType
     currency: Annotated[str, Field(min_length=3, max_length=3)] = "SGD"
+    parent_id: UUID | None = None
     description: Annotated[str | None, Field(None, max_length=500)] = None
 
 
@@ -32,6 +33,7 @@ class AccountUpdate(BaseModel):
     name: Annotated[str | None, Field(None, min_length=1, max_length=255)] = None
     code: Annotated[str | None, Field(None, max_length=50)] = None
     description: Annotated[str | None, Field(None, max_length=500)] = None
+    parent_id: UUID | None = None
     is_active: bool | None = None
 
 

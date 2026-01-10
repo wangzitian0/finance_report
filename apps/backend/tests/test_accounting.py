@@ -11,6 +11,7 @@ from src.models import (
 )
 from src.services.accounting import (
     ValidationError,
+    validate_fx_rates,
     validate_journal_balance,
 )
 
@@ -93,3 +94,22 @@ async def test_decimal_precision():
     
     assert total == Decimal("150.75")
     assert str(total) == "150.75"
+
+
+@pytest.mark.asyncio
+async def test_fx_rate_required_for_non_base_currency():
+    """Non-base currency lines require fx_rate."""
+    lines = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="USD",
+            fx_rate=None,
+        ),
+    ]
+
+    with pytest.raises(ValidationError, match="fx_rate required"):
+        validate_fx_rates(lines)

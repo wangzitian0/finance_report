@@ -44,6 +44,8 @@ erDiagram
         string name
         enum type "ASSET|LIABILITY|EQUITY|INCOME|EXPENSE"
         string currency
+        string code
+        uuid parent_id FK
         boolean is_active
     }
     
@@ -68,6 +70,8 @@ erDiagram
         decimal fx_rate
         string event_type
         jsonb tags
+        timestamp created_at
+        timestamp updated_at
     }
     
     BankStatement {
@@ -86,6 +90,9 @@ erDiagram
         string original_filename
         int confidence_score
         boolean balance_validated
+        string validation_error
+        timestamp created_at
+        timestamp updated_at
         enum status "uploaded|parsing|parsed|approved|rejected"
     }
     
@@ -99,7 +106,10 @@ erDiagram
         string reference
         enum status "pending|matched|unmatched"
         enum confidence "HIGH|MEDIUM|LOW"
+        string confidence_reason
         string raw_text
+        timestamp created_at
+        timestamp updated_at
     }
     
     ReconciliationMatch {
@@ -139,6 +149,9 @@ Chart of accounts table, five types.
 | code | VARCHAR(10) | | Account code (e.g., 1110) |
 | parent_id | UUID | FK → Accounts | Parent account |
 | is_active | BOOLEAN | DEFAULT true | Is active |
+| description | VARCHAR(500) | | Optional account description |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
 ### JournalEntries
 Journal entry header table.
@@ -169,6 +182,8 @@ Journal entry line table.
 | fx_rate | DECIMAL(12,6) | | Exchange rate |
 | event_type | VARCHAR(50) | | Event type |
 | tags | JSONB | | Tags |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
 **Constraints**:
 - Each JournalEntry must have at least 2 JournalLines
@@ -196,6 +211,9 @@ Statement header table for imported statements.
 | original_filename | TEXT | | User-provided name |
 | confidence_score | INT | | 0-100 |
 | balance_validated | BOOLEAN | DEFAULT false | Opening + txns ≈ closing |
+| validation_error | TEXT | | Validation failure details |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 | status | ENUM | NOT NULL | uploaded/parsing/parsed/approved/rejected |
 
 **Constraints**:
@@ -215,7 +233,10 @@ Statement transaction table.
 | reference | VARCHAR(100) | | Optional reference |
 | status | ENUM | NOT NULL | pending/matched/unmatched |
 | confidence | ENUM | | HIGH/MEDIUM/LOW |
+| confidence_reason | TEXT | | Optional confidence rationale |
 | raw_text | TEXT | | Original OCR text |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
 ---
 

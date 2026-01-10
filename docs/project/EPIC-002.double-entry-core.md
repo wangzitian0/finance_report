@@ -237,6 +237,7 @@ def test_many_lines_entry():
 
 - [x] Data model checklist now matches SSOT fields for `Account`, `JournalEntry`, and `JournalLine` to avoid schema drift.
 - [x] Multi-currency clarified: EPIC-002 requires `fx_rate` on non-base currency lines with manual input or market_data lookup; EPIC-005 extends automation.
+- [x] JournalLine audit fields aligned with SSOT (added `updated_at`, removed duplicate `updated_at` on JournalEntry).
 
 ---
 

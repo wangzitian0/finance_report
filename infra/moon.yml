@@ -1,0 +1,17 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+type: application
+language: bash
+
+tasks:
+  docker:up:
+    command: 'docker compose up -d'
+    local: true
+
+  docker:down:
+    command: 'docker compose down'
+    local: true
+
+  docker:logs:
+    command: 'docker compose logs -f'
+    local: true

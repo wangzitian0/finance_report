@@ -45,6 +45,7 @@ flowchart TB
 | `status` | enum | uploaded, parsing, parsed, approved, rejected |
 | `confidence_score` | int | 0-100 |
 | `balance_validated` | bool | Opening + txns ≈ closing |
+| `validation_error` | str | Optional validation failure details |
 
 ### BankStatementTransaction
 
@@ -59,6 +60,7 @@ flowchart TB
 | `reference` | str | Optional reference |
 | `status` | enum | pending, matched, unmatched |
 | `confidence` | enum | HIGH, MEDIUM, LOW |
+| `confidence_reason` | str | Optional confidence rationale |
 | `raw_text` | str | Original OCR text |
 
 ## Confidence Scoring
@@ -82,6 +84,7 @@ flowchart TB
 | POST | `/api/statements/upload` | Upload and parse document |
 | GET | `/api/statements` | Statement list |
 | GET | `/api/statements/{id}` | Get statement with transactions |
+| GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List items needing review |
 | POST | `/api/statements/{id}/approve` | Approve statement |
 | POST | `/api/statements/{id}/reject` | Reject statement |
@@ -122,6 +125,7 @@ S3_BUCKET=statements
 | `src/models/statement.py` | SQLAlchemy models |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/services/extraction.py` | Core extraction logic |
+| `src/services/validation.py` | Validation and confidence scoring |
 | `src/prompts/statement.py` | Gemini prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |
 | `scripts/generate_fixtures.py` | Parse docs with caching |

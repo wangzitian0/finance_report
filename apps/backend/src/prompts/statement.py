@@ -40,7 +40,7 @@ Important Rules:
 
 VALIDATION_PROMPT = """Verify the extracted data:
 
-1. Balance check: opening_balance + sum(IN) - sum(OUT) ≈ closing_balance (tolerance: 0.01)
+1. Balance check: opening_balance + sum(IN) - sum(OUT) ≈ closing_balance (tolerance: 0.10)
 2. Date check: All transaction dates should be within period_start and period_end
 3. Completeness: No missing required fields
 
@@ -90,6 +90,28 @@ China Merchants Bank (招商银行) statement:
 - 账户余额 = Running balance
 - Look for 工资/Salary, 转账/Transfer keywords
 - May have many transactions (50-200+), include ALL of them
+""",
+    "Maybank": """
+Maybank statement:
+- PDF format with transaction table
+- Look for \"Balance B/F\" and \"Balance C/F\"
+- Amounts may include commas, remove them
+""",
+    "Wise": """
+Wise statement/export:
+- Multi-currency transactions
+- Direction indicated by +/- or \"in\"/\"out\" labels
+- Use the transaction currency when available
+""",
+    "Brokerage": """
+Generic brokerage statement:
+- Activity or transaction summary tables
+- Common columns: Date, Type, Amount, Currency, Description
+""",
+    "Insurance": """
+Insurance statement:
+- Premium payments and policy charges
+- Statement period and policy number in header
 """,
     "IBKR": """
 Interactive Brokers statement:

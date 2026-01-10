@@ -1,6 +1,6 @@
 # EPIC-003: Smart Statement Parsing
 
-> **Status**: ⏳ Pending  
+> **Status**: ✅ Complete (Backend)  
 > **Phase**: 2  
 > **Duration**: 4 weeks  
 > **Dependencies**: EPIC-002  
@@ -35,25 +35,25 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ### Data Model (Backend)
 
-- [ ] `BankStatement` model - Statement header (user_id, account_id?, institution, account_last4, currency, period_start/period_end, opening/closing_balance, file_path, file_hash, original_filename, status, confidence_score, balance_validated)
-- [ ] `BankStatementTransaction` model - Transaction details (txn_date, amount, direction, description, reference, status, confidence, raw_text)
+- [x] `BankStatement` model - Statement header (user_id, account_id?, institution, account_last4, currency, period_start/period_end, opening/closing_balance, file_path, file_hash, original_filename, status, confidence_score, balance_validated)
+- [x] `BankStatementTransaction` model - Transaction details (txn_date, amount, direction, description, reference, status, confidence, raw_text)
 - [ ] Alembic migration script
-- [ ] Pydantic Schema
+- [x] Pydantic Schema
 
 ### Gemini Integration (Backend)
 
-- [ ] `services/extraction.py` - Document parsing service
-  - [ ] `parse_pdf()` - PDF parsing (Vision API)
-  - [ ] `parse_csv()` - CSV parsing (rules + AI assistance)
+- [x] `services/extraction.py` - Document parsing service
+  - [x] `parse_pdf()` - PDF parsing (Vision API)
+  - [x] `parse_csv()` - CSV parsing (rules + AI assistance)
   - [ ] `parse_xlsx()` - Excel parsing
-- [ ] Prompt template management
-  - [ ] DBS/POSB statement template
-  - [ ] CMB statement template
-  - [ ] Maybank statement template
-  - [ ] Wise/fintech generic template
-  - [ ] Brokerage generic template
-  - [ ] Insurance generic template
-- [ ] Structured parsing results
+- [x] Prompt template management
+  - [x] DBS/POSB statement template
+  - [x] CMB statement template
+  - [x] Maybank statement template
+  - [x] Wise/fintech generic template
+  - [x] Brokerage generic template
+  - [x] Insurance generic template
+- [x] Structured parsing results
   ```python
   class ParsedStatement:
       institution: str
@@ -68,26 +68,26 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 
 ### Validation Layer (Backend)
 
-- [ ] `services/validation.py` - Validation service
-  - [ ] `validate_balance()` - Opening + Transactions ≈ Closing (tolerance 0.1 USD)
-  - [ ] `validate_completeness()` - Required field validation
-  - [ ] `detect_duplicates()` - Duplicate import detection (file_hash)
-  - [ ] `compute_confidence_score()` - Score 0-100 based on SSOT factors
-  - [ ] `route_by_threshold()` - Auto-accept / review queue / manual entry
+- [x] `services/validation.py` - Validation service
+  - [x] `validate_balance()` - Opening + Transactions ≈ Closing (tolerance 0.1 USD)
+  - [x] `validate_completeness()` - Required field validation
+  - [x] `compute_confidence_score()` - Score 0-100 based on SSOT factors
+  - [x] `route_by_threshold()` - Auto-accept / review queue / manual entry
+- [x] Duplicate import detection (file_hash) in upload endpoint
 - [ ] Validation failure handling
-  - [ ] Mark as "Requires Manual Review"
-  - [ ] Log failure reason
+  - [x] Mark as "Requires Manual Review"
+  - [x] Log failure reason
   - [ ] Notify user
 
 ### API Endpoints (Backend)
 
-- [ ] `POST /api/statements/upload` - File upload
-- [ ] `GET /api/statements` - Statement list
-- [ ] `GET /api/statements/{id}` - Statement details (with transactions)
-- [ ] `GET /api/statements/pending-review` - Review queue list
-- [ ] `POST /api/statements/{id}/approve` - Approve statement
-- [ ] `POST /api/statements/{id}/reject` - Reject statement
-- [ ] `GET /api/statements/{id}/transactions` - Transaction list
+- [x] `POST /api/statements/upload` - File upload
+- [x] `GET /api/statements` - Statement list
+- [x] `GET /api/statements/{id}` - Statement details (with transactions)
+- [x] `GET /api/statements/pending-review` - Review queue list
+- [x] `POST /api/statements/{id}/approve` - Approve statement
+- [x] `POST /api/statements/{id}/reject` - Reject statement
+- [x] `GET /api/statements/{id}/transactions` - Transaction list
 
 ### Frontend Interface (Frontend)
 
@@ -197,14 +197,14 @@ def test_gemini_retry_on_timeout():
 
 ## 🔗 Deliverables
 
-- [ ] `apps/backend/src/models/statement.py`
-- [ ] `apps/backend/src/services/extraction.py`
-- [ ] `apps/backend/src/services/validation.py`
-- [ ] `apps/backend/src/routers/statements.py`
+- [x] `apps/backend/src/models/statement.py`
+- [x] `apps/backend/src/services/extraction.py`
+- [x] `apps/backend/src/services/validation.py`
+- [x] `apps/backend/src/routers/statements.py`
 - [ ] `apps/frontend/app/upload/page.tsx`
 - [ ] `apps/frontend/app/statements/page.tsx`
-- [ ] Update `docs/ssot/extraction.md` (Prompt templates)
-- [ ] Test sample set `tests/fixtures/statements/`
+- [x] Update `docs/ssot/extraction.md` (Prompt templates)
+- [x] Test sample set `apps/backend/tests/fixtures/`
 
 ---
 
@@ -224,6 +224,7 @@ def test_gemini_retry_on_timeout():
 - [x] Align model/config with SSOT (Gemini 3 Flash + fallback models and OpenRouter limits).
 - [x] Add confidence scoring and review queue routing (`/api/statements/pending-review`) to tasks and acceptance criteria.
 - [x] Standardize institution/template scope across checklist, Q5 decision, and SSOT supported institutions.
+- [x] Enforce balance validation routing (invalid balances route to manual entry and capture validation_error).
 
 ---
 

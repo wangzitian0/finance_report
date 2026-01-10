@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 interface PingState {
   state: 'ping' | 'pong'
   toggle_count: number
-  last_toggled: string | null
+  updated_at: string | null
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -102,9 +102,9 @@ export default function Home() {
 
             <div className="mt-8 text-gray-400 text-sm space-y-1">
               <p>Toggle count: <span className="text-white font-mono">{pingState?.toggle_count}</span></p>
-              {pingState?.last_toggled && (
+              {pingState?.updated_at && (
                 <p>Last toggled: <span className="text-white font-mono">
-                  {new Date(pingState.last_toggled).toLocaleTimeString()}
+                  {new Date(pingState.updated_at).toLocaleTimeString()}
                 </span></p>
               )}
             </div>

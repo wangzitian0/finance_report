@@ -19,6 +19,7 @@ from src.schemas import (
 from src.services import (
     ValidationError,
     post_journal_entry,
+    validate_fx_rates,
     void_journal_entry,
 )
 
@@ -46,6 +47,7 @@ async def create_journal_entry(
     await db.flush()
 
     # Create journal lines
+    lines: list[JournalLine] = []
     for line_data in entry_data.lines:
         line = JournalLine(
             journal_entry_id=entry.id,
@@ -57,6 +59,17 @@ async def create_journal_entry(
             event_type=line_data.event_type,
             tags=line_data.tags,
         )
+        lines.append(line)
+
+    try:
+        validate_fx_rates(lines)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    for line in lines:
         db.add(line)
 
     await db.commit()

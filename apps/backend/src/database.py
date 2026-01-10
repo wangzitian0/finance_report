@@ -40,11 +40,11 @@ async def init_db() -> None:
     """Initialize database tables."""
     from src.models import (  # noqa: F401
         Account,
-        AccountEvent,
+        BankStatement,
+        BankStatementTransaction,
         JournalEntry,
         JournalLine,
         PingState,
-        Statement,
     )
 
     async with engine.begin() as conn:

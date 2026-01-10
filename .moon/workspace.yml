@@ -16,6 +16,7 @@ node:
 # Project discovery
 projects:
   - 'apps/*'
+  - 'infra'
 
 # Task runner settings
 runner:
