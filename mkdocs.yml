@@ -1,0 +1,97 @@
+site_name: Finance Report
+site_description: Personal financial management system with double-entry bookkeeping
+site_url: https://docs.report.zitian.party
+repo_url: https://github.com/wangzitian0/finance_report
+repo_name: wangzitian0/finance_report
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+  language: en
+
+plugins:
+  - search
+  - tags
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - User Guide:
+      - Getting Started: user-guide/getting-started.md
+      - Account Management: user-guide/accounts.md
+      - Journal Entries: user-guide/journal-entries.md
+      - Bank Reconciliation: user-guide/reconciliation.md
+      - Reports & Dashboards: user-guide/reports.md
+  - API Reference:
+      - Overview: reference/api-overview.md
+      - Accounts: reference/api-accounts.md
+      - Journal Entries: reference/api-journal.md
+      - Reconciliation: reference/api-reconciliation.md
+  - Technical Docs:
+      - Architecture: ssot/README.md
+      - Accounting Model: ssot/accounting.md
+      - Reconciliation Engine: ssot/reconciliation.md
+      - Statement Extraction: ssot/extraction.md
+      - Reporting: ssot/reporting.md
+      - Database Schema: ssot/schema.md
+  - Development:
+      - Project Overview: project/README.md
+      - Design Decisions: project/DECISIONS.md
+      - EPICs:
+          - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md
+          - "EPIC-002: Double-Entry": project/EPIC-002.double-entry-core.md
+          - "EPIC-003: Statement Parsing": project/EPIC-003.statement-parsing.md
+          - "EPIC-004: Reconciliation": project/EPIC-004.reconciliation-engine.md
+          - "EPIC-005: Reporting": project/EPIC-005.reporting-visualization.md
+          - "EPIC-006: AI Advisor": project/EPIC-006.ai-advisor.md
+          - "EPIC-007: Deployment": project/EPIC-007.deployment.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/wangzitian0/finance_report
+  generator: false
