@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import enum
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
@@ -12,9 +11,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
-
-if TYPE_CHECKING:
-    from src.models.user import User
 
 
 class ChatSessionStatus(str, enum.Enum):

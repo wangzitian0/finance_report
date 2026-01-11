@@ -7,10 +7,10 @@ import hashlib
 import json
 import re
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import AsyncIterator
 from uuid import UUID
 
 import httpx
@@ -561,7 +561,12 @@ class AIAdvisorService:
                 yield chunk
                 await asyncio.sleep(0.01)
 
-        return ChatStream(session_id=session_id, stream=generator(), model_name=model_name, cached=True)
+        return ChatStream(
+            session_id=session_id,
+            stream=generator(),
+            model_name=model_name,
+            cached=True,
+        )
 
     async def _stream_openrouter(
         self, messages: list[dict[str, str]]
