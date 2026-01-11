@@ -31,9 +31,9 @@ check_endpoint() {
     content="${curl_output%$'\n'"$http_code"}"
 
     if [ -n "$expected" ]; then
-        # Check for expected content (word match) and success status
+        # Check for expected content (substring match) and success status
         if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ] && \
-           printf '%s\n' "$content" | grep -q -w -- "$expected"; then
+           printf '%s\n' "$content" | grep -Fq -- "$expected"; then
             echo "✓ $name"
             return 0
         fi

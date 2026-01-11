@@ -7,7 +7,7 @@ node:
   packageManager: npm
 
   # npm settings
-  npm:
-    version: '10.2.0'
+  npm: {}
+    # version: '10.2.0'  # Use default from Node version
 
 # Python is managed externally via uv, not through moon toolchain

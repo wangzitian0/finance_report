@@ -129,7 +129,7 @@ Trigger: PR or push to main
 Steps:  install → lint → test
 DB:     GitHub services (ephemeral)
 Smoke:  ❌ Not run (unit tests only)
-Note:   Uses raw uv/npm commands (moon not configured for CI yet)
+Note:   Uses moon tasks for install/lint/build (uv/npm invoked via moon)
 ```
 
 ### docker-build.yml (on push to main)
@@ -161,8 +161,8 @@ Smoke:  ✅ After deploy completes
 moon run backend:test
 
 # Test smoke tests
-moon run backend:dev &
-# moon run frontend:dev &  (optional)
+nohup moon run backend:dev > /dev/null 2>&1 &
+# nohup moon run frontend:dev > /dev/null 2>&1 &  (optional)
 sleep 10
 export BASE_URL="http://localhost:8000"  # Test backend directly
 moon run :smoke
