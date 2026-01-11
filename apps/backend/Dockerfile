@@ -28,6 +28,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code
 COPY src ./src
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
+COPY scripts ./scripts
 
 # Expose port
 EXPOSE 8000
