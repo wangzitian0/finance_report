@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import AccountType
 from src.schemas import (
@@ -35,16 +35,6 @@ from src.services.reporting import (
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
-# Mock user_id for now (will be replaced with auth)
-MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
-
-def get_report_user_id() -> UUID:
-    """Return mock user ID in debug mode; require auth otherwise."""
-    if settings.debug:
-        return MOCK_USER_ID
-    raise HTTPException(status_code=501, detail="Reporting requires authentication.")
-
 
 class ExportFormat(str, Enum):
     """Supported export formats."""
@@ -64,7 +54,7 @@ async def balance_sheet(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_report_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     try:
@@ -85,7 +75,7 @@ async def income_statement(
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_report_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> IncomeStatementResponse:
     """Get income statement for a period."""
     try:
@@ -107,7 +97,7 @@ async def cash_flow(
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_report_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict[str, object]:
     """Cash flow statement (planned for phase 2)."""
     try:
@@ -128,7 +118,7 @@ async def account_trend(
     period: TrendPeriod = Query(default=TrendPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_report_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> AccountTrendResponse:
     """Get account trend data."""
     try:
@@ -150,7 +140,7 @@ async def category_breakdown(
     period: BreakdownPeriod = Query(default=BreakdownPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_report_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
     account_type = (
@@ -180,7 +170,7 @@ async def export_report(
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_report_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> StreamingResponse:
     """Export reports in CSV format."""
     if format != ExportFormat.CSV:

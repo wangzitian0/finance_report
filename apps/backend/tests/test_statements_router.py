@@ -10,11 +10,7 @@ from io import BytesIO
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from src.models.statement import (
-    BankStatement,
-    BankStatementStatus,
-    BankStatementTransaction,
-)
+from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers import statements as statements_router
 from src.schemas import StatementDecisionRequest
 
@@ -27,10 +23,10 @@ def make_upload_file(name: str, content: bytes) -> UploadFile:
     )
 
 
-def build_statement(file_hash: str, confidence_score: int) -> BankStatement:
+def build_statement(user_id, file_hash: str, confidence_score: int) -> BankStatement:
     """Build a BankStatement model for tests."""
     return BankStatement(
-        user_id=statements_router.MOCK_USER_ID,
+        user_id=user_id,
         account_id=None,
         file_path="tmp",
         file_hash=file_hash,
@@ -49,7 +45,7 @@ def build_statement(file_hash: str, confidence_score: int) -> BankStatement:
 
 
 @pytest.mark.asyncio
-async def test_upload_statement_duplicate(db, monkeypatch):
+async def test_upload_statement_duplicate(db, monkeypatch, test_user):
     """Uploading the same file twice should trigger duplicate detection."""
     content = b"duplicate-statement"
     file_hash = hashlib.sha256(content).hexdigest()
@@ -64,7 +60,7 @@ async def test_upload_statement_duplicate(db, monkeypatch):
         file_content=None,
         file_hash=None,
     ):
-        statement = build_statement(file_hash or "", confidence_score=90)
+        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         return statement, []
 
     monkeypatch.setattr(
@@ -79,6 +75,7 @@ async def test_upload_statement_duplicate(db, monkeypatch):
         institution="DBS",
         account_id=None,
         db=db,
+        user_id=test_user.id,
     )
     await upload_file.close()
 
@@ -89,6 +86,7 @@ async def test_upload_statement_duplicate(db, monkeypatch):
             institution="DBS",
             account_id=None,
             db=db,
+            user_id=test_user.id,
         )
     await upload_file_dup.close()
 
@@ -96,7 +94,7 @@ async def test_upload_statement_duplicate(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_and_transactions_flow(db, monkeypatch):
+async def test_list_and_transactions_flow(db, monkeypatch, test_user):
     """Upload then list statements and transactions."""
     content = b"statement-flow"
     file_hash = hashlib.sha256(content).hexdigest()
@@ -111,7 +109,7 @@ async def test_list_and_transactions_flow(db, monkeypatch):
         file_content=None,
         file_hash=None,
     ):
-        statement = build_statement(file_hash or "", confidence_score=90)
+        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         transaction = BankStatementTransaction(
             txn_date=date(2025, 1, 2),
             description="Salary",
@@ -132,25 +130,28 @@ async def test_list_and_transactions_flow(db, monkeypatch):
         institution="DBS",
         account_id=None,
         db=db,
+        user_id=test_user.id,
     )
     await upload_file.close()
 
-    listed = await statements_router.list_statements(db=db)
+    listed = await statements_router.list_statements(db=db, user_id=test_user.id)
     assert listed.total == 1
     assert listed.items[0].id == created.id
 
-    fetched = await statements_router.get_statement(statement_id=created.id, db=db)
+    fetched = await statements_router.get_statement(
+        statement_id=created.id, db=db, user_id=test_user.id
+    )
     assert fetched.id == created.id
 
     txns = await statements_router.list_statement_transactions(
-        statement_id=created.id, db=db
+        statement_id=created.id, db=db, user_id=test_user.id
     )
     assert txns.total == 1
     assert txns.items[0].description == "Salary"
 
 
 @pytest.mark.asyncio
-async def test_pending_review_and_decisions(db, monkeypatch):
+async def test_pending_review_and_decisions(db, monkeypatch, test_user):
     """Review queue filters by confidence and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
@@ -166,7 +167,7 @@ async def test_pending_review_and_decisions(db, monkeypatch):
         file_hash=None,
     ):
         score = scores.pop(0)
-        statement = build_statement(file_hash or "", confidence_score=score)
+        statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
         return statement, []
 
     monkeypatch.setattr(
@@ -183,11 +184,12 @@ async def test_pending_review_and_decisions(db, monkeypatch):
             institution="DBS",
             account_id=None,
             db=db,
+            user_id=test_user.id,
         )
         await upload_file.close()
         created_ids.append(created.id)
 
-    pending = await statements_router.list_pending_review(db=db)
+    pending = await statements_router.list_pending_review(db=db, user_id=test_user.id)
     assert pending.total == 1
     assert pending.items[0].confidence_score == 70
 
@@ -195,6 +197,7 @@ async def test_pending_review_and_decisions(db, monkeypatch):
         statement_id=created_ids[0],
         decision=StatementDecisionRequest(notes="Looks good"),
         db=db,
+        user_id=test_user.id,
     )
     assert approved.status == BankStatementStatus.APPROVED
     assert approved.validation_error == "Looks good"
@@ -203,13 +206,14 @@ async def test_pending_review_and_decisions(db, monkeypatch):
         statement_id=created_ids[1],
         decision=StatementDecisionRequest(notes="Reject this"),
         db=db,
+        user_id=test_user.id,
     )
     assert rejected.status == BankStatementStatus.REJECTED
     assert rejected.validation_error == "Reject this"
 
 
 @pytest.mark.asyncio
-async def test_get_statement_not_found(db):
+async def test_get_statement_not_found(db, test_user):
     """Missing statement returns 404."""
     with pytest.raises(HTTPException) as exc:
         await statements_router.get_statement(
@@ -217,5 +221,6 @@ async def test_get_statement_not_found(db):
                 "00000000-0000-0000-0000-000000000000"
             ),
             db=db,
+            user_id=test_user.id,
         )
     assert exc.value.status_code == 404

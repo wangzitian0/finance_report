@@ -50,6 +50,11 @@ moon run :lint              # Lint all
 ```
 See [development.md](docs/ssot/development.md) for detailed workflows.
 
+## API Auth (MVP)
+
+User-scoped endpoints require an `X-User-Id` header (UUID). See
+[authentication.md](docs/ssot/authentication.md) for details.
+
 ## 📚 Documentation
 
 | Resource | Description |

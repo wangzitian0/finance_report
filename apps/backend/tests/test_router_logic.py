@@ -30,27 +30,30 @@ from src.schemas.journal import (
 )
 
 
-async def test_account_router_direct(db: AsyncSession) -> None:
+async def test_account_router_direct(db: AsyncSession, test_user) -> None:
+    user_id = test_user.id
     created = await create_account(
         AccountCreate(name="Cash", type=AccountType.ASSET, currency="SGD"),
         db,
+        user_id=user_id,
     )
     assert created.balance is not None
 
-    listed = await list_accounts(include_balance=False, db=db)
+    listed = await list_accounts(include_balance=False, db=db, user_id=user_id)
     assert listed.total >= 1
 
-    listed_with_balance = await list_accounts(include_balance=True, db=db)
+    listed_with_balance = await list_accounts(include_balance=True, db=db, user_id=user_id)
     assert listed_with_balance.items[0].balance is not None
 
     filtered = await list_accounts(
         account_type=AccountType.ASSET,
         is_active=True,
         db=db,
+        user_id=user_id,
     )
     assert filtered.total >= 1
 
-    fetched = await get_account(created.id, db)
+    fetched = await get_account(created.id, db, user_id=user_id)
     assert fetched.id == created.id
 
     updated = await update_account(
@@ -62,18 +65,20 @@ async def test_account_router_direct(db: AsyncSession) -> None:
             is_active=False,
         ),
         db,
+        user_id=user_id,
     )
     assert updated.name == "Cash Updated"
     assert updated.is_active is False
 
     with pytest.raises(HTTPException):
-        await get_account(uuid4(), db)
+        await get_account(uuid4(), db, user_id=user_id)
 
     with pytest.raises(HTTPException):
-        await update_account(uuid4(), AccountUpdate(name="Missing"), db)
+        await update_account(uuid4(), AccountUpdate(name="Missing"), db, user_id=user_id)
 
 
-async def test_journal_router_direct(db: AsyncSession) -> None:
+async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
+    user_id = test_user.id
     bank = Account(
         user_id=uuid4(),
         name="Bank",
@@ -109,7 +114,7 @@ async def test_journal_router_direct(db: AsyncSession) -> None:
             ),
         ],
     )
-    created = await create_journal_entry(entry_data, db)
+    created = await create_journal_entry(entry_data, db, user_id=user_id)
     assert created.status == JournalEntryStatus.DRAFT
 
     older_entry_data = JournalEntryCreate(
@@ -130,7 +135,7 @@ async def test_journal_router_direct(db: AsyncSession) -> None:
             ),
         ],
     )
-    older = await create_journal_entry(older_entry_data, db)
+    older = await create_journal_entry(older_entry_data, db, user_id=user_id)
 
     listed = await list_journal_entries(
         status_filter=JournalEntryStatus.DRAFT,
@@ -138,6 +143,7 @@ async def test_journal_router_direct(db: AsyncSession) -> None:
         page=1,
         page_size=50,
         db=db,
+        user_id=user_id,
     )
     assert any(item.id == created.id for item in listed.items)
     assert all(item.entry_date >= date.today() for item in listed.items)
@@ -147,27 +153,29 @@ async def test_journal_router_direct(db: AsyncSession) -> None:
         page=1,
         page_size=50,
         db=db,
+        user_id=user_id,
     )
     assert any(item.id == older.id for item in older_list.items)
 
-    fetched = await get_journal_entry(created.id, db)
+    fetched = await get_journal_entry(created.id, db, user_id=user_id)
     assert fetched.id == created.id
 
     with pytest.raises(HTTPException):
-        await get_journal_entry(uuid4(), db)
+        await get_journal_entry(uuid4(), db, user_id=user_id)
 
-    posted = await post_entry(created.id, db)
+    posted = await post_entry(created.id, db, user_id=user_id)
     assert posted.status == JournalEntryStatus.POSTED
 
     voided = await void_entry(
         created.id,
         VoidJournalEntryRequest(reason="Test void"),
         db,
+        user_id=user_id,
     )
     assert voided.status == JournalEntryStatus.POSTED
 
     with pytest.raises(HTTPException):
-        await post_entry(uuid4(), db)
+        await post_entry(uuid4(), db, user_id=user_id)
 
     with pytest.raises(HTTPException):
-        await void_entry(uuid4(), VoidJournalEntryRequest(reason="Missing"), db)
+        await void_entry(uuid4(), VoidJournalEntryRequest(reason="Missing"), db, user_id=user_id)

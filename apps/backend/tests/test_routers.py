@@ -16,7 +16,6 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.routers.accounts import MOCK_USER_ID
 from src.services.accounting import (
     ValidationError,
     calculate_account_balance,
@@ -28,13 +27,15 @@ from src.services.accounting import (
 class TestAccountBalanceErrors:
     """Test error handling in account balance calculation."""
 
-    async def test_calculate_balance_account_not_found(self, db: AsyncSession):
+    async def test_calculate_balance_account_not_found(
+        self, db: AsyncSession, test_user
+    ):
         """Test error when account doesn't exist."""
         non_existent_id = uuid4()
         with pytest.raises(ValidationError, match="not found"):
-            await calculate_account_balance(db, non_existent_id, MOCK_USER_ID)
+            await calculate_account_balance(db, non_existent_id, test_user.id)
 
-    async def test_calculate_balance_wrong_user(self, db: AsyncSession):
+    async def test_calculate_balance_wrong_user(self, db: AsyncSession, test_user):
         """Test error when account belongs to different user."""
         # Create account for a different user
         other_user_id = uuid4()
@@ -48,21 +49,21 @@ class TestAccountBalanceErrors:
         await db.commit()
         await db.refresh(account)
 
-        # Try to access with MOCK_USER_ID
+        # Try to access with a different user ID
         with pytest.raises(ValidationError, match="does not belong"):
-            await calculate_account_balance(db, account.id, MOCK_USER_ID)
+            await calculate_account_balance(db, account.id, test_user.id)
 
 
 class TestPostJournalEntryErrors:
     """Test error handling in posting journal entries."""
 
-    async def test_post_entry_not_found(self, db: AsyncSession):
+    async def test_post_entry_not_found(self, db: AsyncSession, test_user):
         """Test error when journal entry doesn't exist."""
         non_existent_id = uuid4()
         with pytest.raises(ValidationError, match="not found"):
-            await post_journal_entry(db, non_existent_id, MOCK_USER_ID)
+            await post_journal_entry(db, non_existent_id, test_user.id)
 
-    async def test_post_entry_wrong_user(self, db: AsyncSession):
+    async def test_post_entry_wrong_user(self, db: AsyncSession, test_user):
         """Test error when entry belongs to different user."""
         other_user_id = uuid4()
         entry = JournalEntry(
@@ -77,20 +78,20 @@ class TestPostJournalEntryErrors:
         await db.refresh(entry)
 
         with pytest.raises(ValidationError, match="does not belong"):
-            await post_journal_entry(db, entry.id, MOCK_USER_ID)
+            await post_journal_entry(db, entry.id, test_user.id)
 
-    async def test_post_entry_inactive_account(self, db: AsyncSession):
+    async def test_post_entry_inactive_account(self, db: AsyncSession, test_user):
         """Test error when posting with inactive account."""
         # Create inactive account
         inactive_account = Account(
-            user_id=MOCK_USER_ID,
+            user_id=test_user.id,
             name="Inactive Account",
             type=AccountType.ASSET,
             currency="SGD",
             is_active=False,
         )
         active_account = Account(
-            user_id=MOCK_USER_ID,
+            user_id=test_user.id,
             name="Active Account",
             type=AccountType.EXPENSE,
             currency="SGD",
@@ -103,7 +104,7 @@ class TestPostJournalEntryErrors:
 
         # Create entry with inactive account
         entry = JournalEntry(
-            user_id=MOCK_USER_ID,
+            user_id=test_user.id,
             entry_date=date.today(),
             memo="Test inactive",
             source_type=JournalEntrySourceType.MANUAL,
@@ -132,19 +133,19 @@ class TestPostJournalEntryErrors:
         await db.refresh(entry)
 
         with pytest.raises(ValidationError, match="not active"):
-            await post_journal_entry(db, entry.id, MOCK_USER_ID)
+            await post_journal_entry(db, entry.id, test_user.id)
 
 
 class TestVoidJournalEntryErrors:
     """Test error handling in voiding journal entries."""
 
-    async def test_void_entry_not_found(self, db: AsyncSession):
+    async def test_void_entry_not_found(self, db: AsyncSession, test_user):
         """Test error when journal entry doesn't exist."""
         non_existent_id = uuid4()
         with pytest.raises(ValidationError, match="not found"):
-            await void_journal_entry(db, non_existent_id, "Test reason", MOCK_USER_ID)
+            await void_journal_entry(db, non_existent_id, "Test reason", test_user.id)
 
-    async def test_void_entry_wrong_user(self, db: AsyncSession):
+    async def test_void_entry_wrong_user(self, db: AsyncSession, test_user):
         """Test error when entry belongs to different user."""
         other_user_id = uuid4()
         entry = JournalEntry(
@@ -159,14 +160,12 @@ class TestVoidJournalEntryErrors:
         await db.refresh(entry)
 
         with pytest.raises(ValidationError, match="does not belong"):
-            await void_journal_entry(db, entry.id, "Test reason", MOCK_USER_ID)
+            await void_journal_entry(db, entry.id, "Test reason", test_user.id)
 
-    async def test_void_draft_entry_fails(self, db: AsyncSession):
+    async def test_void_draft_entry_fails(self, db: AsyncSession, test_user):
         """Test that voiding draft entry fails."""
-        from src.routers.accounts import MOCK_USER_ID as router_mock_id
-
         entry = JournalEntry(
-            user_id=router_mock_id,
+            user_id=test_user.id,
             entry_date=date.today(),
             memo="Draft entry for void test",
             source_type=JournalEntrySourceType.MANUAL,
@@ -178,7 +177,7 @@ class TestVoidJournalEntryErrors:
 
         # Note: void_journal_entry(db, entry_id, reason, user_id)
         with pytest.raises(ValidationError, match="only void posted"):
-            await void_journal_entry(db, entry.id, "Test reason", router_mock_id)
+            await void_journal_entry(db, entry.id, "Test reason", test_user.id)
 
 
 class TestModelRepr:

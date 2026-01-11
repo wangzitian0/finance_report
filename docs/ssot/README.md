@@ -10,6 +10,7 @@ All documents are at the same level, organized by domain:
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
 | [development.md](./development.md) | `development` | **Moon commands, DB lifecycle, CI environments** |
+| [authentication.md](./authentication.md) | `authentication` | API user identity resolution and auth constraints |
 | [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rules, accounting equation |
 | [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching algorithm, confidence scoring |
@@ -23,6 +24,7 @@ All documents are at the same level, organized by domain:
 ```mermaid
 flowchart TD
     development[development.md] --> schema[schema.md]
+    schema --> authentication[authentication.md]
     schema --> accounting[accounting.md]
     schema --> reconciliation[reconciliation.md]
     schema --> extraction[extraction.md]

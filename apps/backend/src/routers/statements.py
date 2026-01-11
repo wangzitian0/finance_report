@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
@@ -23,9 +24,6 @@ from src.services import ExtractionError, ExtractionService
 
 router = APIRouter(prefix="/api/statements", tags=["statements"])
 
-# Mock user_id for now (will be replaced with auth)
-MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
@@ -35,6 +33,7 @@ async def upload_statement(
     institution: str = Form(...),
     account_id: UUID | None = Form(None),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """
     Upload and parse a financial statement.
@@ -57,7 +56,7 @@ async def upload_statement(
     file_hash = hashlib.sha256(content).hexdigest()
     duplicate = await db.execute(
         select(BankStatement.id)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .where(BankStatement.file_hash == file_hash)
     )
     if duplicate.scalar_one_or_none():
@@ -71,14 +70,14 @@ async def upload_statement(
 
         service = ExtractionService()
         statement, transactions = await service.parse_document(
-            file_path=tmp_path,
-            institution=institution,
-            user_id=MOCK_USER_ID,
-            file_type=extension,
-            account_id=account_id,
-            file_content=content,
-            file_hash=file_hash,
-        )
+                file_path=tmp_path,
+                institution=institution,
+                user_id=user_id,
+                file_type=extension,
+                account_id=account_id,
+                file_content=content,
+                file_hash=file_hash,
+            )
 
         statement.original_filename = filename
         statement.file_path = f"statements/{statement.id}/{filename}"
@@ -106,18 +105,19 @@ async def upload_statement(
 @router.get("", response_model=BankStatementListResponse)
 async def list_statements(
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementListResponse:
     """List all statements for the current user."""
     result = await db.execute(
         select(BankStatement)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
         .order_by(BankStatement.created_at.desc())
     )
     statements = result.scalars().all()
 
     total_result = await db.execute(
-        select(func.count()).select_from(BankStatement).where(BankStatement.user_id == MOCK_USER_ID)
+        select(func.count()).select_from(BankStatement).where(BankStatement.user_id == user_id)
     )
     total = total_result.scalar() or 0
 
@@ -130,11 +130,12 @@ async def list_statements(
 @router.get("/pending-review", response_model=BankStatementListResponse)
 async def list_pending_review(
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementListResponse:
     """List statements pending human review (confidence 60-84)."""
     result = await db.execute(
         select(BankStatement)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
         .where(BankStatement.confidence_score >= 60)
         .where(BankStatement.confidence_score < 85)
@@ -146,7 +147,7 @@ async def list_pending_review(
     total_result = await db.execute(
         select(func.count())
         .select_from(BankStatement)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
         .where(BankStatement.confidence_score >= 60)
         .where(BankStatement.confidence_score < 85)
@@ -163,12 +164,13 @@ async def list_pending_review(
 async def get_statement(
     statement_id: UUID,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """Get a statement with all its transactions."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one_or_none()
@@ -183,12 +185,13 @@ async def get_statement(
 async def list_statement_transactions(
     statement_id: UUID,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementTransactionListResponse:
     """List transactions for a statement."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one_or_none()
@@ -205,12 +208,13 @@ async def approve_statement(
     statement_id: UUID,
     decision: StatementDecisionRequest,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """Approve a statement after human review."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one_or_none()
@@ -233,12 +237,13 @@ async def reject_statement(
     statement_id: UUID,
     decision: StatementDecisionRequest,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """Reject a statement after human review."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == MOCK_USER_ID)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one_or_none()

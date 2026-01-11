@@ -19,20 +19,20 @@ def upgrade() -> None:
         "EXPENSE",
         name="account_type_enum",
     )
-    statement_status_enum = sa.Enum(
+    bank_statement_status_enum = sa.Enum(
         "uploaded",
         "parsing",
         "parsed",
         "approved",
         "rejected",
-        name="statement_status_enum",
+        name="bank_statement_status_enum",
     )
     confidence_enum = sa.Enum("high", "medium", "low", name="confidence_level_enum")
-    bank_status_enum = sa.Enum(
+    bank_statement_transaction_status_enum = sa.Enum(
         "pending",
         "matched",
         "unmatched",
-        name="bank_transaction_status_enum",
+        name="bank_statement_transaction_status_enum",
     )
     journal_entry_status_enum = sa.Enum(
         "draft",
@@ -88,7 +88,7 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "statements",
+        "bank_statements",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True),
@@ -102,7 +102,7 @@ def upgrade() -> None:
         sa.Column("period_end", sa.Date(), nullable=False),
         sa.Column("opening_balance", sa.Numeric(18, 2), nullable=False),
         sa.Column("closing_balance", sa.Numeric(18, 2), nullable=False),
-        sa.Column("status", statement_status_enum, nullable=False),
+        sa.Column("status", bank_statement_status_enum, nullable=False),
         sa.Column("confidence_score", sa.Integer(), nullable=False),
         sa.Column("balance_validated", sa.Boolean(), nullable=False),
         sa.Column("validation_error", sa.Text(), nullable=True),
@@ -110,10 +110,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"]),
+        sa.UniqueConstraint("user_id", "file_hash", name="uq_bank_statements_user_file_hash"),
     )
 
     op.create_table(
-        "account_events",
+        "bank_statement_transactions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("statement_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("txn_date", sa.Date(), nullable=False),
@@ -121,13 +122,15 @@ def upgrade() -> None:
         sa.Column("amount", sa.Numeric(18, 2), nullable=False),
         sa.Column("direction", sa.String(length=3), nullable=False),
         sa.Column("reference", sa.String(length=100), nullable=True),
-        sa.Column("status", bank_status_enum, nullable=False),
+        sa.Column("status", bank_statement_transaction_status_enum, nullable=False),
         sa.Column("confidence", confidence_enum, nullable=False),
         sa.Column("confidence_reason", sa.Text(), nullable=True),
         sa.Column("raw_text", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["statement_id"], ["statements.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["statement_id"], ["bank_statements.id"], ondelete="CASCADE"
+        ),
     )
 
     op.create_table(
@@ -185,7 +188,9 @@ def upgrade() -> None:
         sa.Column("superseded_by_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["bank_txn_id"], ["account_events.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["bank_txn_id"], ["bank_statement_transactions.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["superseded_by_id"], ["reconciliation_matches.id"]),
     )
 
@@ -200,10 +205,18 @@ def upgrade() -> None:
 
     # Indexes for performance-critical query paths (per docs/ssot/schema.md)
     op.create_index("ix_accounts_user_id", "accounts", ["user_id"])
-    op.create_index("ix_statements_user_id", "statements", ["user_id"])
-    op.create_index("ix_statements_status", "statements", ["status"])
-    op.create_index("ix_account_events_txn_date", "account_events", ["txn_date"])
-    op.create_index("ix_account_events_status", "account_events", ["status"])
+    op.create_index("ix_bank_statements_user_id", "bank_statements", ["user_id"])
+    op.create_index("ix_bank_statements_status", "bank_statements", ["status"])
+    op.create_index(
+        "ix_bank_statement_transactions_txn_date",
+        "bank_statement_transactions",
+        ["txn_date"],
+    )
+    op.create_index(
+        "ix_bank_statement_transactions_status",
+        "bank_statement_transactions",
+        ["status"],
+    )
     op.create_index("ix_journal_entries_user_id", "journal_entries", ["user_id"])
     op.create_index("ix_journal_entries_entry_date", "journal_entries", ["entry_date"])
     op.create_index("ix_journal_entries_status", "journal_entries", ["status"])
@@ -216,17 +229,22 @@ def downgrade() -> None:
     op.drop_index("ix_journal_entries_status", table_name="journal_entries")
     op.drop_index("ix_journal_entries_entry_date", table_name="journal_entries")
     op.drop_index("ix_journal_entries_user_id", table_name="journal_entries")
-    op.drop_index("ix_account_events_status", table_name="account_events")
-    op.drop_index("ix_account_events_txn_date", table_name="account_events")
-    op.drop_index("ix_statements_status", table_name="statements")
-    op.drop_index("ix_statements_user_id", table_name="statements")
+    op.drop_index(
+        "ix_bank_statement_transactions_status", table_name="bank_statement_transactions"
+    )
+    op.drop_index(
+        "ix_bank_statement_transactions_txn_date",
+        table_name="bank_statement_transactions",
+    )
+    op.drop_index("ix_bank_statements_status", table_name="bank_statements")
+    op.drop_index("ix_bank_statements_user_id", table_name="bank_statements")
     op.drop_index("ix_accounts_user_id", table_name="accounts")
     op.drop_table("ping_state")
     op.drop_table("reconciliation_matches")
     op.drop_table("journal_lines")
     op.drop_table("journal_entries")
-    op.drop_table("account_events")
-    op.drop_table("statements")
+    op.drop_table("bank_statement_transactions")
+    op.drop_table("bank_statements")
     op.drop_table("accounts")
     op.drop_table("users")
 
@@ -234,7 +252,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS journal_line_direction_enum")
     op.execute("DROP TYPE IF EXISTS journal_source_type_enum")
     op.execute("DROP TYPE IF EXISTS journal_entry_status_enum")
-    op.execute("DROP TYPE IF EXISTS bank_transaction_status_enum")
+    op.execute("DROP TYPE IF EXISTS bank_statement_transaction_status_enum")
     op.execute("DROP TYPE IF EXISTS confidence_level_enum")
-    op.execute("DROP TYPE IF EXISTS statement_status_enum")
+    op.execute("DROP TYPE IF EXISTS bank_statement_status_enum")
     op.execute("DROP TYPE IF EXISTS account_type_enum")

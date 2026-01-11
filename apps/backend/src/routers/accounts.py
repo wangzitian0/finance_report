@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import Account, AccountType
 from src.schemas import (
@@ -18,18 +19,16 @@ from src.services import calculate_account_balance
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
-# Mock user_id for now (will be replaced with auth)
-MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account(
     account_data: AccountCreate,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Create a new account."""
     account = Account(
-        user_id=MOCK_USER_ID,
+        user_id=user_id,
         name=account_data.name,
         code=account_data.code,
         type=account_data.type,
@@ -42,7 +41,7 @@ async def create_account(
     await db.refresh(account)
 
     # Calculate balance
-    balance = await calculate_account_balance(db, account.id, MOCK_USER_ID)
+    balance = await calculate_account_balance(db, account.id, user_id)
 
     response = AccountResponse.model_validate(account)
     response.balance = balance
@@ -55,12 +54,13 @@ async def list_accounts(
     is_active: bool | None = None,
     include_balance: bool = Query(False, description="Include balance (slower)"),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> AccountListResponse:
     """List all accounts with optional filters.
 
     Set include_balance=true to calculate balances (may be slower with many accounts).
     """
-    query = select(Account).where(Account.user_id == MOCK_USER_ID)
+    query = select(Account).where(Account.user_id == user_id)
 
     if account_type:
         query = query.where(Account.type == account_type)
@@ -77,7 +77,7 @@ async def list_accounts(
     for account in accounts:
         response = AccountResponse.model_validate(account)
         if include_balance:
-            response.balance = await calculate_account_balance(db, account.id, MOCK_USER_ID)
+            response.balance = await calculate_account_balance(db, account.id, user_id)
         items.append(response)
 
     return AccountListResponse(items=items, total=len(items))
@@ -87,10 +87,11 @@ async def list_accounts(
 async def get_account(
     account_id: UUID,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Get account details with current balance."""
     result = await db.execute(
-        select(Account).where(Account.id == account_id).where(Account.user_id == MOCK_USER_ID)
+        select(Account).where(Account.id == account_id).where(Account.user_id == user_id)
     )
     account = result.scalar_one_or_none()
 
@@ -100,7 +101,7 @@ async def get_account(
             detail=f"Account {account_id} not found",
         )
 
-    balance = await calculate_account_balance(db, account.id, MOCK_USER_ID)
+    balance = await calculate_account_balance(db, account.id, user_id)
 
     response = AccountResponse.model_validate(account)
     response.balance = balance
@@ -112,10 +113,11 @@ async def update_account(
     account_id: UUID,
     account_data: AccountUpdate,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Update account details."""
     result = await db.execute(
-        select(Account).where(Account.id == account_id).where(Account.user_id == MOCK_USER_ID)
+        select(Account).where(Account.id == account_id).where(Account.user_id == user_id)
     )
     account = result.scalar_one_or_none()
 
@@ -140,7 +142,7 @@ async def update_account(
     await db.commit()
     await db.refresh(account)
 
-    balance = await calculate_account_balance(db, account.id, MOCK_USER_ID)
+    balance = await calculate_account_balance(db, account.id, user_id)
 
     response = AccountResponse.model_validate(account)
     response.balance = balance
