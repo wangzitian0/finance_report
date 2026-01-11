@@ -74,7 +74,7 @@ class TestExtractionServiceFlow:
             "transactions": []
         }
         
-        with patch.object(service, "_parse_csv", new_callable=AsyncMock) as mock_csv:
+        with patch.object(service, "_parse_csv_content", new_callable=AsyncMock) as mock_csv:
             mock_csv.return_value = mock_data
             
             stmt, events = await service.parse_document(

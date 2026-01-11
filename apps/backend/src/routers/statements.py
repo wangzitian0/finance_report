@@ -92,6 +92,7 @@ async def upload_statement(
             file_content=content,
             file_hash=file_hash,
             file_url=file_url,
+            original_filename=filename,
         )
 
         statement.id = statement_id

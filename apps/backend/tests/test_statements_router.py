@@ -23,15 +23,26 @@ from src.schemas import StatementDecisionRequest
 class DummyStorage:
     """Storage stub for statement upload tests."""
 
-    def upload_bytes(self, *, key, content, content_type=None):  # noqa: ANN001
+    def upload_bytes(
+        self,
+        *,
+        key: str,
+        content: bytes,
+        content_type: str | None = None,
+    ) -> None:
         return None
 
-    def generate_presigned_url(self, *, key, expires_in=None):  # noqa: ANN001
+    def generate_presigned_url(
+        self,
+        *,
+        key: str,
+        expires_in: int | None = None,
+    ) -> str:
         return f"https://example.com/{key}"
 
 
 @pytest.fixture
-def storage_stub(monkeypatch):
+def storage_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
 
 
@@ -80,6 +91,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub):
         file_content=None,
         file_hash=None,
         file_url=None,
+        original_filename=None,
     ):
         statement = build_statement(file_hash or "", confidence_score=90)
         return statement, []
@@ -175,6 +187,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub):
         file_content=None,
         file_hash=None,
         file_url=None,
+        original_filename=None,
     ):
         statement = build_statement(file_hash or "", confidence_score=90)
         transaction = BankStatementTransaction(
@@ -230,6 +243,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub):
         file_content=None,
         file_hash=None,
         file_url=None,
+        original_filename=None,
     ):
         score = scores.pop(0)
         statement = build_statement(file_hash or "", confidence_score=score)
