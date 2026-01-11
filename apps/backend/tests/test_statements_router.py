@@ -6,6 +6,7 @@ import hashlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException, UploadFile
@@ -109,6 +110,53 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub):
     await upload_file_dup.close()
 
     assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_upload_storage_failure(db, monkeypatch):
+    """Storage failure should return 503."""
+    content = b"content"
+
+    # Mock StorageService to raise StorageError
+    mock_storage = MagicMock()
+    mock_storage.upload_bytes.side_effect = statements_router.StorageError("S3 Down")
+    
+    # We need to mock the class constructor to return our mock instance
+    mock_storage_cls = MagicMock(return_value=mock_storage)
+    monkeypatch.setattr(statements_router, "StorageService", mock_storage_cls)
+
+    upload_file = make_upload_file("statement.pdf", content)
+    
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            db=db,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 503
+    assert "S3 Down" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_invalid_extension(db):
+    """Invalid file extension should return 400."""
+    content = b"content"
+    upload_file = make_upload_file("statement.exe", content)
+    
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            db=db,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 400
+    assert "Unsupported file type" in exc.value.detail
 
 
 @pytest.mark.asyncio
