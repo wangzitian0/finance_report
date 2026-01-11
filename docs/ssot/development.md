@@ -43,11 +43,13 @@ moon run :build             # Build all
 
 | # | Scenario | Command | Smoke Test Timing |
 |---|----------|---------|-------------------|
-| 1 | **Dev Start** | `moon run backend:dev` | Manual: `moon run :smoke` after servers up |
+| 1 | **Dev Start** | `moon run backend:dev` + `moon run frontend:dev` | Manual: once both servers up, run `moon run :smoke` (see note below) |
 | 2 | **Local Test** | `moon run backend:test` | N/A (unit tests, not smoke) |
 | 3 | **Remote CI** | `moon run backend:test` | N/A (unit tests only in CI) |
 | 4 | **Staging Deploy** | (manual) | After deploy: `BASE_URL=https://staging.xxx bash scripts/smoke_test.sh` |
 | 5 | **Prod Deploy** | Push to main | **After deploy**: docker-build.yml runs `smoke_test.sh` automatically |
+
+> **Note:** The `:smoke` task defaults to `http://localhost:3000`. In local development, either ensure the frontend proxy is configured or set `BASE_URL` (e.g., `BASE_URL=http://localhost:8000` for backend only) before running `moon run :smoke`.
 
 ### Smoke Test Timing Detail
 
@@ -158,10 +160,11 @@ Smoke:  ✅ After deploy completes
 # Verify moon commands work
 moon run backend:test
 
-# Verify smoke tests
+# Test smoke tests
 moon run backend:dev &
-moon run frontend:dev &
+# moon run frontend:dev &  (optional)
 sleep 10
+export BASE_URL="http://localhost:8000"  # Test backend directly
 moon run :smoke
 
 # Check no orphan containers after tests

@@ -11,13 +11,11 @@ tasks:
       - 'backend:install'
       - 'frontend:install'
 
-  # Development servers (parallel)
+  # Development servers
+  # Note: Run these in separate terminals as they block indefinitely
   dev:
-    command: 'echo "Starting development servers..."'
+    command: 'echo "Run \"moon run backend:dev\" and \"moon run frontend:dev\" in separate terminals"'
     local: true
-    deps:
-      - 'backend:dev'
-      - 'frontend:dev'
 
   # Lint all projects
   lint:

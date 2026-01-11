@@ -19,19 +19,47 @@ check_endpoint() {
     local url="$2"
     local expected="${3:-}"
     
+    local curl_output
+    local curl_exit=0
+    local http_code=""
+    local content=""
+
+    # Run curl once, capture both body and HTTP status code
+    # The last line of output will be the HTTP status code, preceding lines are the body.
+    curl_output="$(curl -sS -w $'\n%{http_code}' "$url" 2>&1)" || curl_exit=$?
+    http_code="${curl_output##*$'\n'}"
+    content="${curl_output%$'\n'"$http_code"}"
+
     if [ -n "$expected" ]; then
-        if curl -sf "$url" 2>/dev/null | grep -q "$expected"; then
+        # Check for expected content (word match) and success status
+        if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ] && \
+           printf '%s\n' "$content" | grep -q -w -- "$expected"; then
             echo "✓ $name"
             return 0
         fi
     else
-        if curl -sf -o /dev/null "$url" 2>/dev/null; then
+        # Treat 2xx and 3xx as success when curl itself succeeded
+        if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
             echo "✓ $name"
             return 0
         fi
     fi
     
     echo "✗ $name (failed)"
+    echo "  URL: $url"
+    if [ -n "$http_code" ]; then
+        echo "  HTTP status: $http_code"
+    fi
+    if [ "$curl_exit" -ne 0 ]; then
+        echo "  curl exit code: $curl_exit"
+    fi
+    if [ -n "$expected" ]; then
+        echo "  Expected to find: $expected"
+    fi
+    if [ -n "$content" ]; then
+        echo "  Response snippet (first 5 lines):"
+        printf '%s\n' "$content" | head -n 5
+    fi
     return 1
 }
 
