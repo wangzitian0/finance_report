@@ -184,7 +184,9 @@ class TestInvalidParseNotPersisted:
         bad_file.write_bytes(b"not a valid pdf")
         
         # Mock the API to return unparseable data
-        with patch.object(service, "extract_financial_data", new_callable=AsyncMock) as mock_extract:
+        with patch.object(
+            service, "extract_financial_data", new_callable=AsyncMock
+        ) as mock_extract:
             mock_extract.side_effect = ExtractionError("Failed to parse document")
             
             from uuid import uuid4
@@ -217,7 +219,9 @@ class TestInvalidParseNotPersisted:
             ]  # Only +100, but gap is 1000
         }
         
-        with patch.object(service, "extract_financial_data", new_callable=AsyncMock) as mock_extract:
+        with patch.object(
+            service, "extract_financial_data", new_callable=AsyncMock
+        ) as mock_extract:
             mock_extract.return_value = mock_data
             
             from uuid import uuid4
@@ -247,7 +251,10 @@ class TestInvalidParseNotPersisted:
         
         result = validate_balance(extracted)
         assert result["balance_valid"] is False
-        assert "mismatch" in result.get("notes", "").lower() or Decimal(result["difference"]) > Decimal("0.1")
+        assert (
+            "mismatch" in result.get("notes", "").lower()
+            or Decimal(result["difference"]) > Decimal("0.1")
+        )
 
 
 # =============================================================================

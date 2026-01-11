@@ -113,7 +113,9 @@ async def run_reconciliation(
     # Verify statement belongs to user if provided
     if payload.statement_id:
         stmt_result = await db.execute(
-            select(BankStatement.id).where(BankStatement.id == payload.statement_id).where(BankStatement.user_id == user_id)
+            select(BankStatement.id)
+            .where(BankStatement.id == payload.statement_id)
+            .where(BankStatement.user_id == user_id)
         )
         if not stmt_result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Statement not found")

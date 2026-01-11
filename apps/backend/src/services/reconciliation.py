@@ -569,7 +569,9 @@ async def execute_matching(
             if best_match.journal_entry_ids:
                 entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]
                 result = await db.execute(
-                    select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
+                    select(JournalEntry)
+                    .where(JournalEntry.id.in_(entry_ids))
+                    .where(JournalEntry.user_id == user_id)
                 )
                 for entry in result.scalars():
                     if entry.status != JournalEntryStatus.VOID:
