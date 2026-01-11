@@ -80,6 +80,10 @@ read_state() {
 }
 
 cleanup() {
+  # Kill only direct child processes of THIS script (safe for multi-window)
+  # This catches pytest and any subprocesses it spawned
+  pkill -P $$ 2>/dev/null || true
+  
   acquire_lock
   if [ -f "$state_file" ]; then
     read_state
@@ -94,6 +98,8 @@ cleanup() {
         "${runtime_cmd[@]}" rm -f "$container_id" >/dev/null 2>&1 || true
       fi
       rm -f "$state_file"
+      # NOTE: We do NOT pkill playwright globally - it may belong to other test sessions
+      # pytest handles its own playwright cleanup; if orphaned, user can manually clean
     else
       write_state "$refcount" "$container_id"
     fi
