@@ -100,8 +100,12 @@ jobs:
           echo "Updating compose file with SHA-tagged images..."
           cd repo/finance_report/finance_report/10.app
           
-          # Replace environment variable references with SHA tags
-          sed -i "s|\${IMAGE_TAG:-latest}|sha-${{ github.sha }}|g" compose.yaml
+          # Use short SHA (first 7 chars) to match Docker metadata action default
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "Using short SHA: sha-$SHORT_SHA"
+          
+          # Replace environment variable references with short SHA tags
+          sed -i "s|\${IMAGE_TAG:-latest}|sha-$SHORT_SHA|g" compose.yaml
           
           echo "Updated compose.yaml image lines:"
           cat compose.yaml | grep "image:"
