@@ -80,13 +80,13 @@ async def test_account_router_direct(db: AsyncSession, test_user) -> None:
 async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     bank = Account(
-        user_id=uuid4(),
+        user_id=user_id,
         name="Bank",
         type=AccountType.ASSET,
         currency="SGD",
     )
     revenue = Account(
-        user_id=uuid4(),
+        user_id=user_id,
         name="Revenue",
         type=AccountType.INCOME,
         currency="SGD",
