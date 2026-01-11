@@ -29,9 +29,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install moon
-        uses: moonrepo/setup-toolchain@v0
-      
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -41,15 +38,18 @@ jobs:
         run: uv python install 3.12
       
       - name: Install dependencies
-        run: moon run backend:install
+        working-directory: apps/backend
+        run: uv sync
       
       - name: Lint
-        run: moon run backend:lint
+        working-directory: apps/backend
+        run: uv run ruff check src/
       
       - name: Test with coverage
+        working-directory: apps/backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test
-        run: moon run backend:test -- --cov=src --cov-report=lcov --cov-report=term-missing
+        run: uv run pytest -v --cov=src --cov-report=lcov --cov-report=term-missing
       
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
@@ -65,9 +65,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install moon
-        uses: moonrepo/setup-toolchain@v0
-      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -76,13 +73,21 @@ jobs:
           cache-dependency-path: apps/frontend/package-lock.json
       
       - name: Install dependencies
-        run: moon run frontend:install
+        working-directory: apps/frontend
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       
       - name: Lint
-        run: moon run frontend:lint
+        working-directory: apps/frontend
+        run: npm run lint
       
       - name: Build
-        run: moon run frontend:build
+        working-directory: apps/frontend
+        run: npm run build
 
   finish:
     needs: backend

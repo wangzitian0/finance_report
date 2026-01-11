@@ -29,10 +29,10 @@ cd finance_report
 # Start database
 podman compose -f docker-compose.ci.yml up -d postgres
 
-# Backend
+# Backend (Terminal 1)
 cd apps/backend && uv sync && uv run uvicorn src.main:app --reload
 
-# Frontend (new terminal)
+# Frontend (Terminal 2, from project root)
 cd apps/frontend && npm install && npm run dev
 ```
 

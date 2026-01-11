@@ -127,6 +127,7 @@ Trigger: PR or push to main
 Steps:  install → lint → test
 DB:     GitHub services (ephemeral)
 Smoke:  ❌ Not run (unit tests only)
+Note:   Uses raw uv/npm commands (moon not configured for CI yet)
 ```
 
 ### docker-build.yml (on push to main)
