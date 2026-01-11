@@ -32,6 +32,9 @@ COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
 COPY scripts ./scripts
 
+# Set execute permissions on scripts
+RUN chmod +x scripts/*.sh
+
 # Expose port
 EXPOSE 8000
 
