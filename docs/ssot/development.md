@@ -1,7 +1,7 @@
 # Development Environment SSOT
 
 > **SSOT Key**: `development`
-> **Source of Truth** for local development, testing, and CI environments.
+> **Source of Truth** for local development, testing, CI, and deployment.
 
 ## Source Files
 
@@ -9,35 +9,54 @@
 |------|---------|
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
-| `scripts/test_backend.sh` | **Database lifecycle** (reference count, auto-cleanup) |
-| `docker-compose.ci.yml` | Development/CI service containers |
+| `scripts/test_backend.sh` | Database lifecycle (reference counting) |
+| `scripts/smoke_test.sh` | Unified smoke tests (local + CI) |
+| `docker-compose.ci.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
+| `.github/workflows/docker-build.yml` | Build, Deploy, Smoke Test |
 
 ---
 
 ## Moon Commands (Primary Interface)
 
-All development commands should go through `moon run`:
+All development commands go through `moon run`:
 
 ```bash
-# Install dependencies
-moon run :setup                 # All projects
-moon run backend:install        # Backend only
-moon run frontend:install       # Frontend only
+# Setup
+moon run :setup             # Install all dependencies
 
-# Development servers
-moon run backend:dev            # FastAPI on :8000
-moon run frontend:dev           # Next.js on :3000
+# Development
+moon run backend:dev        # FastAPI on :8000
+moon run frontend:dev       # Next.js on :3000
 
 # Testing
-moon run :test                  # All tests
-moon run backend:test           # Backend tests (auto-starts DB)
-moon run frontend:test          # Frontend tests
+moon run :test              # All tests (auto-manages DB)
+moon run backend:test       # Backend tests only
+moon run frontend:test      # Frontend tests only
+moon run :smoke             # Smoke tests (needs running server)
 
-# Code quality
-moon run :lint                  # Lint all
-moon run backend:format         # Format Python
+# Code Quality
+moon run :lint              # Lint all
+moon run backend:lint       # Lint Python
+moon run frontend:lint      # Lint TypeScript
+moon run backend:format     # Format Python
+
+# Build
+moon run :build             # Build all
+moon run frontend:build     # Build frontend
 ```
+
+---
+
+## Five Scenarios
+
+| Scenario | Command | Database | Details |
+|----------|---------|----------|---------|
+| **1. Dev Start** | `moon run backend:dev` | docker-compose.ci.yml | Persistent container |
+| **2. Local Test** | `moon run backend:test` | Reference counting | scripts/test_backend.sh |
+| **3. Remote CI** | `moon run backend:test` | GitHub services | Ephemeral |
+| **4. Staging** | (manual) | Dokploy | TODO |
+| **5. Prod Deploy** | Push to main | Dokploy | Auto via docker-build.yml |
 
 ---
 
@@ -45,88 +64,89 @@ moon run backend:format         # Format Python
 
 ### Design: Reference Counting
 
+Multiple test runners share one container:
+
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Terminal 1  │     │  Terminal 2  │     │  Terminal 3  │
-│ moon test    │     │ moon test    │     │ moon test    │
-└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
-       │                    │                    │
-       │  refcount=1        │                    │
-       ├───────────────────►│  refcount=2        │
-       │                    ├───────────────────►│  refcount=3
-       │                    │                    │
-       │                    │ exit               │
-       │                    │  refcount=2        │
-       │ exit               │                    │
-       │  refcount=1        │                    │
-       │                    │                    │ exit
-       │                    │                    │  refcount=0
-       │                    │                    │  ▶ Container stopped
+Terminal 1: moon run backend:test  → refcount=1 (start container)
+Terminal 2: moon run backend:test  → refcount=2
+Terminal 2 exits                   → refcount=1
+Terminal 1 exits                   → refcount=0 (stop container)
 ```
 
 ### Key Features
 
-1. **Auto-detect runtime**: podman compose → podman-compose → docker compose → docker-compose
-2. **Lock file**: `~/.cache/finance_report/db.lock` prevents race conditions
-3. **State file**: `~/.cache/finance_report/db.state` tracks refcount and container ID
-4. **Auto-cleanup**: Last test runner stops the container
-
-### Why Not Manual Start/Stop?
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| ~~Manual `docker compose up/down`~~ | Simple | Forgot to stop = hot laptop |
-| ~~Per-test ephemeral container~~ | No conflicts | Slow cold starts |
-| **Reference counting** ✓ | Shared DB, auto-cleanup | Slightly complex script |
+1. **Auto-detect runtime**: podman compose / docker compose
+2. **Lock file**: `~/.cache/finance_report/db.lock`
+3. **Auto-cleanup**: Last runner stops container
 
 ---
 
-## Environment Configurations
+## Smoke Tests (scripts/smoke_test.sh)
 
-### Local Development
+Shared script for local and CI:
+
 ```bash
-# Uses docker-compose.ci.yml services
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report
+# Local (after starting servers)
+moon run :smoke
+
+# Or with custom URL
+BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
 ```
 
-### Local Testing (via moon run backend:test)
-```bash
-# Managed by scripts/test_backend.sh
-TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test
-```
+### Endpoints Tested
 
-### GitHub CI
+- Homepage (`/`)
+- API Health (`/api/health`)
+- API Docs (`/api/docs`)
+- Ping-Pong Page (`/ping-pong`)
+- Reconciliation Page (`/reconciliation`)
+- Ping API (`/api/ping`)
+
+---
+
+## CI Workflows
+
+### ci.yml (PR/Push)
+
 ```yaml
-# Uses GitHub Actions services
-services:
-  postgres:
-    image: postgres:15
-    env:
-      POSTGRES_DB: finance_report_test
+# Uses moon for consistency with local
+- moon run backend:install
+- moon run backend:lint
+- moon run backend:test
 ```
+
+### docker-build.yml (Deploy)
+
+1. Build images → GHCR
+2. Deploy to Dokploy
+3. Run `scripts/smoke_test.sh` against production
+
+---
+
+## Environment Variables
+
+| Scenario | DATABASE_URL |
+|----------|--------------|
+| Local Dev | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report` |
+| Local Test | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test` |
+| CI | Same as Local Test (GitHub services) |
+| Prod | External PostgreSQL (Dokploy env) |
 
 ---
 
 ## Verification
 
-### Check DB Script Works
 ```bash
-# Start two terminals, run tests in each
-# Terminal 1:
+# Test moon commands work
+moon run backend:install
 moon run backend:test
 
-# Terminal 2 (while 1 is running):
-moon run backend:test
+# Test smoke tests
+moon run backend:dev &
+moon run frontend:dev &
+sleep 10
+moon run :smoke
 
-# Both should share same container
-podman ps | grep finance_report_db
-
-# After both exit, container should be gone
-podman ps | grep finance_report_db  # No output
-```
-
-### Check Moon Tasks
-```bash
-moon query tasks --affected
-moon run backend:test --log debug
+# Check no orphan containers
+podman ps | grep finance_report
 ```
