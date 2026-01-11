@@ -362,3 +362,68 @@ CREATE UNIQUE INDEX idx_bank_statements_user_file_hash
 
 - [AGENTS.md](../../AGENTS.md)
 - [accounting.md](./accounting.md)
+
+---
+
+## 6. API Layer (Users)
+
+Users API endpoints for user management.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/users` | Create new user |
+| GET | `/api/users?limit=50&offset=0` | List users with pagination |
+| GET | `/api/users/{user_id}` | Get user by ID |
+| PUT | `/api/users/{user_id}` | Update user |
+
+### Query Parameters
+
+**List Users Pagination**
+| Parameter | Type | Default | Range | Description |
+|-----------|------|---------|-------|-------------|
+| limit | int | 50 | 1-100 | Max items to return |
+| offset | int | 0 | >=0 | Number of items to skip |
+
+### Request/Response Schemas
+
+**UserCreate**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**UserResponse**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "created_at": "2026-01-12T00:00:00Z",
+  "updated_at": "2026-01-12T00:00:00Z"
+}
+```
+
+**UserListResponse (paginated)**
+```json
+{
+  "items": [...],
+  "total": 100
+}
+```
+
+### Security Considerations
+
+- **User Enumeration Prevention**: Error messages are generic ("Invalid registration data") to prevent email enumeration
+- **Email Validation**: Uses `EmailStr` for format validation
+- **Password Storage**: Passwords are hashed with bcrypt before storage
+
+### Implementation
+
+| Dimension | Location |
+|-----------|----------|
+| Router | `apps/backend/src/routers/users.py` |
+| Schemas | `apps/backend/src/schemas/user.py` |
+| Model | `apps/backend/src/models/user.py` |
