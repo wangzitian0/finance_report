@@ -90,21 +90,48 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      
+      - name: Update compose file with SHA tags
+        run: |
+          echo "Updating compose file with SHA-tagged images..."
+          cd repo/finance_report/finance_report/10.app
+          
+          # Replace latest tags with SHA tags
+          sed -i "s|ghcr.io/wangzitian0/finance_report-backend:latest|ghcr.io/wangzitian0/finance_report-backend:sha-${{ github.sha }}|g" compose.yaml
+          sed -i "s|ghcr.io/wangzitian0/finance_report-frontend:latest|ghcr.io/wangzitian0/finance_report-frontend:sha-${{ github.sha }}|g" compose.yaml
+          
+          echo "Updated compose.yaml:"
+          cat compose.yaml | grep "image:"
+
+      - name: Upload updated compose to Dokploy
+        run: |
+          cd repo/finance_report/finance_report/10.app
+          COMPOSE_CONTENT=$(cat compose.yaml | jq -Rs .)
+          
+          echo "Uploading compose file to Dokploy..."
+          curl -s -X POST "https://cloud.zitian.party/api/compose.update" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "{\"composeId\": \"${{ secrets.DOKPLOY_COMPOSE_ID }}\", \"composeFile\": $COMPOSE_CONTENT, \"sourceType\": \"raw\"}"
+
       - name: Stop existing containers
         run: |
-          echo "Stopping containers to force image pull..."
-          # Stop the compose application to ensure clean state
+          echo "Stopping containers..."
           curl -s -X POST "https://cloud.zitian.party/api/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d '{"composeId": "${{ secrets.DOKPLOY_COMPOSE_ID }}"}'
           
-          echo "Waiting 10 seconds for containers to stop..."
-          sleep 10
+          echo "Waiting 15 seconds for containers to stop..."
+          sleep 15
 
-      - name: Trigger Dokploy deployment with image pull
+      - name: Deploy with new images
         run: |
-          echo "Triggering Dokploy compose deployment (will pull latest images)..."
+          echo "Deploying with SHA-tagged images (sha-${{ github.sha }})..."
           response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
@@ -118,7 +145,7 @@ jobs:
           echo "HTTP Code: $http_code"
           
           if [ "$http_code" != "200" ] && [ "$http_code" != "201" ] && [ "$http_code" != "204" ]; then
-            echo "Deployment trigger failed with HTTP $http_code"
+            echo "Deployment failed with HTTP $http_code"
             exit 1
           fi
           
