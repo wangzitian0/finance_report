@@ -23,19 +23,20 @@ from src.models import (
 )
 from src.services.accounting import ValidationError, validate_journal_balance
 
-# NOTE: This UUID identifies the default/system user for reconciliation flows.
-DEFAULT_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
 
 async def get_pending_items(
     db: AsyncSession,
     *,
+    user_id: UUID,
     limit: int = 50,
     offset: int = 0,
 ) -> list[ReconciliationMatch]:
     """Return pending review reconciliation matches."""
     result = await db.execute(
         select(ReconciliationMatch)
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
         .order_by(ReconciliationMatch.match_score.desc())
         .limit(limit)
@@ -45,11 +46,19 @@ async def get_pending_items(
     return result.scalars().all()
 
 
-async def accept_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
+async def accept_match(
+    db: AsyncSession,
+    match_id: str,
+    *,
+    user_id: UUID,
+) -> ReconciliationMatch:
     """Accept a pending reconciliation match."""
     result = await db.execute(
         select(ReconciliationMatch)
+        .join(BankStatementTransaction)
+        .join(BankStatement)
         .where(ReconciliationMatch.id == match_id)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(ReconciliationMatch.transaction))
     )
     match = result.scalar_one_or_none()
@@ -63,7 +72,11 @@ async def accept_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
 
     if match.journal_entry_ids:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        result = await db.execute(select(JournalEntry).where(JournalEntry.id.in_(entry_ids)))
+        result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id.in_(entry_ids))
+            .where(JournalEntry.user_id == user_id)
+        )
         for entry in result.scalars():
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
@@ -72,11 +85,19 @@ async def accept_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
     return match
 
 
-async def reject_match(db: AsyncSession, match_id: str) -> ReconciliationMatch:
+async def reject_match(
+    db: AsyncSession,
+    match_id: str,
+    *,
+    user_id: UUID,
+) -> ReconciliationMatch:
     """Reject a pending reconciliation match."""
     result = await db.execute(
         select(ReconciliationMatch)
+        .join(BankStatementTransaction)
+        .join(BankStatement)
         .where(ReconciliationMatch.id == match_id)
+        .where(BankStatement.user_id == user_id)
         .options(selectinload(ReconciliationMatch.transaction))
     )
     match = result.scalar_one_or_none()
@@ -99,6 +120,7 @@ async def batch_accept(
     db: AsyncSession,
     match_ids: list[str],
     *,
+    user_id: UUID,
     min_score: int = 80,
 ) -> list[ReconciliationMatch]:
     """Batch accept high-score matches.
@@ -111,7 +133,10 @@ async def batch_accept(
         return []
     result = await db.execute(
         select(ReconciliationMatch)
+        .join(BankStatementTransaction)
+        .join(BankStatement)
         .where(ReconciliationMatch.id.in_(match_ids))
+        .where(BankStatement.user_id == user_id)
         .where(ReconciliationMatch.match_score >= min_score)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
     )
@@ -140,7 +165,9 @@ async def batch_accept(
         if match.journal_entry_ids:
             entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
             result_entries = await db.execute(
-                select(JournalEntry).where(JournalEntry.id.in_(entry_ids))
+                select(JournalEntry)
+                .where(JournalEntry.id.in_(entry_ids))
+                .where(JournalEntry.user_id == user_id)
             )
             for entry in result_entries.scalars():
                 if entry.status != JournalEntryStatus.VOID:
@@ -156,7 +183,7 @@ async def get_or_create_account(
     name: str,
     account_type: AccountType,
     currency: str,
-    user_id: UUID = DEFAULT_USER_ID,
+    user_id: UUID,
 ) -> Account:
     """Fetch or create a default account."""
     result = await db.execute(
@@ -186,9 +213,18 @@ async def create_entry_from_txn(
     db: AsyncSession,
     txn: BankStatementTransaction,
     *,
-    user_id: UUID = DEFAULT_USER_ID,
+    user_id: UUID,
 ) -> JournalEntry:
     """Create a draft journal entry from a bank transaction."""
+    # Validate transaction belongs to user
+    stmt_check = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == txn.statement_id)
+        .where(BankStatement.user_id == user_id)
+    )
+    if not stmt_check.scalar_one_or_none():
+        raise ValueError("Transaction does not belong to user")
+
     currency = "SGD"
     if txn.statement_id:
         statement_result = await db.execute(
@@ -234,6 +270,7 @@ async def create_entry_from_txn(
         source_id=txn.id,
         status=JournalEntryStatus.DRAFT,
     )
+
     entry.lines.append(
         JournalLine(
             account_id=debit_account.id,

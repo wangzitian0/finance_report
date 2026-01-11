@@ -3,11 +3,12 @@
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import BankStatementTransaction
+from src.models import BankStatement, BankStatementTransaction
 from src.services.reconciliation import normalize_text
 
 
@@ -23,6 +24,8 @@ class AnomalyResult:
 async def detect_anomalies(
     db: AsyncSession,
     txn: BankStatementTransaction,
+    *,
+    user_id: UUID,
 ) -> list[AnomalyResult]:
     """Detect anomalies for a transaction."""
     anomalies: list[AnomalyResult] = []
@@ -30,6 +33,8 @@ async def detect_anomalies(
 
     avg_result = await db.execute(
         select(func.avg(BankStatementTransaction.amount))
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
         .where(BankStatementTransaction.txn_date >= lookback_start)
         .where(BankStatementTransaction.direction == txn.direction)
     )
@@ -52,6 +57,8 @@ async def detect_anomalies(
         pattern = f"%{safe_token}%"
         daily_count_result = await db.execute(
             select(func.count(BankStatementTransaction.id))
+            .join(BankStatement)
+            .where(BankStatement.user_id == user_id)
             .where(BankStatementTransaction.txn_date == txn.txn_date)
             .where(BankStatementTransaction.description.ilike(pattern, escape="\\"))
         )
@@ -68,6 +75,8 @@ async def detect_anomalies(
         history_start = txn.txn_date - timedelta(days=90)
         history_result = await db.execute(
             select(func.count(BankStatementTransaction.id))
+            .join(BankStatement)
+            .where(BankStatement.user_id == user_id)
             .where(BankStatementTransaction.txn_date >= history_start)
             .where(BankStatementTransaction.description.ilike(pattern, escape="\\"))
         )

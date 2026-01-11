@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models import (
     AccountType,
+    BankStatement,
     BankStatementTransaction,
     BankStatementTransactionStatus,
     Direction,
@@ -240,6 +241,7 @@ async def score_pattern(
     db: AsyncSession,
     transaction: BankStatementTransaction,
     config: ReconciliationConfig,
+    user_id: UUID,
 ) -> float:
     """Score based on historical matching patterns."""
     merchant_key = normalize_text(transaction.description).split()[:1]
@@ -251,10 +253,12 @@ async def score_pattern(
 
     result = await db.execute(
         select(BankStatementTransaction)
+        .join(BankStatement)
         .join(
             ReconciliationMatch,
             ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
         )
+        .where(BankStatement.user_id == user_id)
         .where(
             ReconciliationMatch.status.in_(
                 [ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]
@@ -313,6 +317,7 @@ async def calculate_match_score(
     transaction: BankStatementTransaction,
     entries: list[JournalEntry],
     config: ReconciliationConfig,
+    user_id: UUID,
     is_multi: bool = False,
     is_many_to_one: bool = False,
     amount_override: Decimal | None = None,
@@ -330,7 +335,7 @@ async def calculate_match_score(
     business_score = (
         min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
     )
-    history_score = await score_pattern(db, transaction, config)
+    history_score = await score_pattern(db, transaction, config, user_id=user_id)
 
     scores = {
         "amount": amount_score,
@@ -373,6 +378,7 @@ async def find_candidates(
     db: AsyncSession,
     txn_date: date,
     config: ReconciliationConfig,
+    user_id: UUID,
 ) -> list[JournalEntry]:
     """Find journal entry candidates near a transaction date."""
     date_start = txn_date - timedelta(days=config.date_days)
@@ -380,6 +386,7 @@ async def find_candidates(
 
     result = await db.execute(
         select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.entry_date.between(date_start, date_end))
         .where(JournalEntry.status != JournalEntryStatus.VOID)
         .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
@@ -390,15 +397,17 @@ async def find_candidates(
 async def execute_matching(
     db: AsyncSession,
     *,
+    user_id: UUID,
     statement_id: UUID | str | None = None,
     limit: int | None = None,
 ) -> list[ReconciliationMatch]:
     """Execute reconciliation matching for pending transactions."""
     config = load_reconciliation_config()
 
-    query = select(BankStatementTransaction).where(
+    query = select(BankStatementTransaction).join(BankStatement).where(
         BankStatementTransaction.status == BankStatementTransactionStatus.PENDING
-    )
+    ).where(BankStatement.user_id == user_id)
+
     if statement_id:
         statement_uuid = UUID(statement_id) if isinstance(statement_id, str) else statement_id
         query = query.where(BankStatementTransaction.statement_id == statement_uuid)
@@ -414,7 +423,7 @@ async def execute_matching(
     for group in groups:
         group_total = sum((txn.amount for txn in group), Decimal("0.00"))
         group_date = max(txn.txn_date for txn in group)
-        candidates = await find_candidates(db, group_date, config)
+        candidates = await find_candidates(db, group_date, config, user_id=user_id)
         if not candidates:
             continue
         candidates = prune_candidates(
@@ -433,6 +442,7 @@ async def execute_matching(
                 group[0],
                 [entry],
                 config,
+                user_id=user_id,
                 is_multi=True,
                 is_many_to_one=True,
                 amount_override=group_total,
@@ -471,7 +481,7 @@ async def execute_matching(
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
-        candidates = await find_candidates(db, txn.txn_date, config)
+        candidates = await find_candidates(db, txn.txn_date, config, user_id=user_id)
         if not candidates:
             txn.status = BankStatementTransactionStatus.UNMATCHED
             continue
@@ -485,7 +495,7 @@ async def execute_matching(
         for entry in candidates:
             if not is_entry_balanced(entry):
                 continue
-            candidate = await calculate_match_score(db, txn, [entry], config)
+            candidate = await calculate_match_score(db, txn, [entry], config, user_id=user_id)
             if best_match is None or candidate.score > best_match.score:
                 best_match = candidate
 
@@ -501,6 +511,7 @@ async def execute_matching(
                 txn,
                 [entry_a, entry_b],
                 config,
+                user_id=user_id,
                 is_multi=True,
             )
             candidate.breakdown["multi_entry"] = 1
@@ -527,6 +538,7 @@ async def execute_matching(
                 txn,
                 [entry_a, entry_b, entry_c],
                 config,
+                user_id=user_id,
                 is_multi=True,
             )
             candidate.breakdown["multi_entry"] = 2
@@ -557,7 +569,7 @@ async def execute_matching(
             if best_match.journal_entry_ids:
                 entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]
                 result = await db.execute(
-                    select(JournalEntry).where(JournalEntry.id.in_(entry_ids))
+                    select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
                 )
                 for entry in result.scalars():
                     if entry.status != JournalEntryStatus.VOID:

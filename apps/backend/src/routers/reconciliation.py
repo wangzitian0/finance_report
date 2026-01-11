@@ -8,8 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import (
+    BankStatement,
     BankStatementTransaction,
     BankStatementTransactionStatus,
     Direction,
@@ -65,9 +67,13 @@ def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
 async def _build_match_response(
     db: AsyncSession,
     match: ReconciliationMatch,
+    user_id: UUID,
 ) -> ReconciliationMatchResponse:
     transaction_result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.id == match.bank_txn_id)
+        select(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatementTransaction.id == match.bank_txn_id)
+        .where(BankStatement.user_id == user_id)
     )
     transaction = transaction_result.scalar_one_or_none()
     entries: list[JournalEntrySummary] = []
@@ -76,6 +82,7 @@ async def _build_match_response(
         result = await db.execute(
             select(JournalEntry)
             .where(JournalEntry.id.in_(entry_ids))
+            .where(JournalEntry.user_id == user_id)
             .options(selectinload(JournalEntry.lines))
         )
         for entry in result.scalars():
@@ -101,18 +108,29 @@ async def _build_match_response(
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationRunResponse:
+    # Verify statement belongs to user if provided
+    if payload.statement_id:
+        stmt_result = await db.execute(
+            select(BankStatement.id).where(BankStatement.id == payload.statement_id).where(BankStatement.user_id == user_id)
+        )
+        if not stmt_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Statement not found")
+
     matches = await execute_matching(
         db,
         statement_id=payload.statement_id,
         limit=payload.limit,
+        user_id=user_id,
     )
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
 
-    unmatched_query = select(func.count(BankStatementTransaction.id)).where(
+    unmatched_query = select(func.count(BankStatementTransaction.id)).join(BankStatement).where(
         BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED
-    )
+    ).where(BankStatement.user_id == user_id)
+    
     if payload.statement_id:
         unmatched_query = unmatched_query.where(
             BankStatementTransaction.statement_id == payload.statement_id
@@ -134,17 +152,29 @@ async def list_matches(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchListResponse:
-    query = select(ReconciliationMatch).options(selectinload(ReconciliationMatch.transaction))
+    query = (
+        select(ReconciliationMatch)
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(ReconciliationMatch.transaction))
+    )
     if status:
         query = query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
     query = query.order_by(ReconciliationMatch.created_at.desc()).limit(limit).offset(offset)
 
     result = await db.execute(query)
     matches = result.scalars().all()
-    items = [await _build_match_response(db, match) for match in matches]
+    items = [await _build_match_response(db, match, user_id) for match in matches]
 
-    total_query = select(func.count(ReconciliationMatch.id))
+    total_query = (
+        select(func.count(ReconciliationMatch.id))
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
+    )
     if status:
         total_query = total_query.where(
             ReconciliationMatch.status == ReconciliationStatus(status.value)
@@ -160,9 +190,10 @@ async def pending_review_queue(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchListResponse:
-    matches = await get_pending_items(db, limit=limit, offset=offset)
-    items = [await _build_match_response(db, match) for match in matches]
+    matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
+    items = [await _build_match_response(db, match, user_id) for match in matches]
     return ReconciliationMatchListResponse(items=items, total=len(items))
 
 
@@ -170,60 +201,76 @@ async def pending_review_queue(
 async def accept_match(
     match_id: str,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchResponse:
     try:
-        match = await accept_match_service(db, match_id)
+        match = await accept_match_service(db, match_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     await db.refresh(match)
-    return await _build_match_response(db, match)
+    return await _build_match_response(db, match, user_id)
 
 
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
 async def reject_match(
     match_id: str,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchResponse:
     try:
-        match = await reject_match_service(db, match_id)
+        match = await reject_match_service(db, match_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     await db.refresh(match)
-    return await _build_match_response(db, match)
+    return await _build_match_response(db, match, user_id)
 
 
 @router.post("/batch-accept", response_model=ReconciliationMatchListResponse)
 async def batch_accept(
     payload: BatchAcceptRequest,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchListResponse:
-    matches = await batch_accept_service(db, payload.match_ids)
-    items = [await _build_match_response(db, match) for match in matches]
+    matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
+    items = [await _build_match_response(db, match, user_id) for match in matches]
     return ReconciliationMatchListResponse(items=items, total=len(items))
 
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)
-async def reconciliation_stats(db: AsyncSession = Depends(get_db)) -> ReconciliationStatsResponse:
-    total_result = await db.execute(select(func.count(BankStatementTransaction.id)))
+async def reconciliation_stats(
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+) -> ReconciliationStatsResponse:
+    total_result = await db.execute(
+        select(func.count(BankStatementTransaction.id))
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
+    )
     matched_result = await db.execute(
-        select(func.count(BankStatementTransaction.id)).where(
-            BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED
-        )
+        select(func.count(BankStatementTransaction.id))
+        .join(BankStatement)
+        .where(BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED)
+        .where(BankStatement.user_id == user_id)
     )
     unmatched_result = await db.execute(
-        select(func.count(BankStatementTransaction.id)).where(
-            BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED
-        )
+        select(func.count(BankStatementTransaction.id))
+        .join(BankStatement)
+        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+        .where(BankStatement.user_id == user_id)
     )
     pending_result = await db.execute(
-        select(func.count(ReconciliationMatch.id)).where(
-            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW
-        )
+        select(func.count(ReconciliationMatch.id))
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .where(BankStatement.user_id == user_id)
     )
     auto_result = await db.execute(
-        select(func.count(ReconciliationMatch.id)).where(
-            ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED
-        )
+        select(func.count(ReconciliationMatch.id))
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED)
+        .where(BankStatement.user_id == user_id)
     )
 
     total = total_result.scalar_one()
@@ -232,7 +279,12 @@ async def reconciliation_stats(db: AsyncSession = Depends(get_db)) -> Reconcilia
     pending = pending_result.scalar_one()
     auto = auto_result.scalar_one()
 
-    score_result = await db.execute(select(ReconciliationMatch.match_score))
+    score_result = await db.execute(
+        select(ReconciliationMatch.match_score)
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
+    )
     scores = [row[0] for row in score_result.all()]
     buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}
     for score in scores:
@@ -263,10 +315,13 @@ async def list_unmatched(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> UnmatchedTransactionsResponse:
     result = await db.execute(
         select(BankStatementTransaction)
+        .join(BankStatement)
         .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+        .where(BankStatement.user_id == user_id)
         .order_by(BankStatementTransaction.txn_date.desc())
         .limit(limit)
         .offset(offset)
@@ -274,9 +329,10 @@ async def list_unmatched(
     items = result.scalars().all()
 
     total_result = await db.execute(
-        select(func.count(BankStatementTransaction.id)).where(
-            BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED
-        )
+        select(func.count(BankStatementTransaction.id))
+        .join(BankStatement)
+        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+        .where(BankStatement.user_id == user_id)
     )
     total = total_result.scalar_one()
 
@@ -287,14 +343,18 @@ async def list_unmatched(
 async def create_entry(
     txn_id: str,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> JournalEntrySummary:
     result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.id == txn_id)
+        select(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatementTransaction.id == txn_id)
+        .where(BankStatement.user_id == user_id)
     )
     txn = result.scalar_one_or_none()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    entry = await create_entry_from_txn(db, txn)
+    entry = await create_entry_from_txn(db, txn, user_id=user_id)
     return _build_entry_summary(entry)
 
 
@@ -302,12 +362,16 @@ async def create_entry(
 async def list_anomalies(
     txn_id: str,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> list[AnomalyResponse]:
     result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.id == txn_id)
+        select(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatementTransaction.id == txn_id)
+        .where(BankStatement.user_id == user_id)
     )
     txn = result.scalar_one_or_none()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    anomalies = await detect_anomalies(db, txn)
+    anomalies = await detect_anomalies(db, txn, user_id=user_id)
     return [AnomalyResponse(**anomaly.__dict__) for anomaly in anomalies]
