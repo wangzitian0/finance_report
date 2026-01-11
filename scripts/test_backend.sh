@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="${COMPOSE_FILE:-docker-compose.ci.yml}"
+compose_file="${COMPOSE_FILE:-$repo_root/docker-compose.ci.yml}"
 # Use per-user cache directory to avoid security issues with world-writable /tmp
 state_dir="${XDG_CACHE_HOME:-$HOME/.cache}/finance_report"
 mkdir -p "$state_dir"
