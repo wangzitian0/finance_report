@@ -18,7 +18,7 @@ tasks:
       - 'node_modules'
 
   dev:
-    command: 'npm run dev'
+    command: 'bash ../../scripts/dev_frontend.sh'
     local: true
     deps:
       - 'install'

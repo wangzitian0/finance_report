@@ -18,7 +18,7 @@ tasks:
       - '.venv'
 
   dev:
-    command: 'uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000'
+    command: 'bash ../../scripts/dev_backend.sh'
     local: true
     deps:
       - 'install'

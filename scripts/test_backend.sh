@@ -80,6 +80,9 @@ read_state() {
 }
 
 cleanup() {
+  # Kill any orphan test processes started by this script
+  pkill -P $$ 2>/dev/null || true
+  
   acquire_lock
   if [ -f "$state_file" ]; then
     read_state
@@ -94,6 +97,9 @@ cleanup() {
         "${runtime_cmd[@]}" rm -f "$container_id" >/dev/null 2>&1 || true
       fi
       rm -f "$state_file"
+      
+      # Clean up any orphan playwright processes
+      pkill -f "playwright.*run-driver" 2>/dev/null || true
     else
       write_state "$refcount" "$container_id"
     fi

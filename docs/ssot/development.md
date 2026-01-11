@@ -95,6 +95,52 @@ Terminal 1 exits                   → refcount=0 (stop container)
 
 ---
 
+## Resource Lifecycle Management
+
+All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test lifecycle** (start/end).
+
+### Dev Server Lifecycle (`scripts/dev_*.sh`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ User runs: moon run backend:dev                                 │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+│ │ Start   │ -> │ Server  │ -> │ Ctrl+C  │                      │
+│ │ DB      │    │ Runs    │    │ Cleanup │                      │
+│ └─────────┘    └─────────┘    └─────────┘                      │
+│                                    │                            │
+│                              Stops: uvicorn, DB container       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Resources managed by dev scripts:**
+| Script | Resources Started | Cleaned up on Ctrl+C |
+|--------|-------------------|---------------------|
+| `dev_backend.sh` | uvicorn, dev DB | ✓ Both |
+| `dev_frontend.sh` | Next.js | ✓ Yes + orphan port 3000 |
+
+### Test Lifecycle (`scripts/test_backend.sh`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ User runs: moon run backend:test                                │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
+│ │ Start   │ -> │ Create  │ -> │ pytest  │ -> │ Cleanup │      │
+│ │ DB      │    │ test DB │    │ runs    │    │ (trap)  │      │
+│ └─────────┘    └─────────┘    └─────────┘    └─────────┘      │
+│                                                   │             │
+│                          Stops: DB (if refcount=0), playwright  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Resources managed by test script:**
+| Resource | Start | Stop |
+|----------|-------|------|
+| Test DB container | Before tests | After last test runner exits |
+| Playwright driver | By pytest | Cleanup on test end |
+| Child processes | By pytest | `pkill -P $$` on exit |
+
+
 ## Smoke Tests (scripts/smoke_test.sh)
 
 ### Usage
