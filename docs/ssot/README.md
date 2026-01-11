@@ -15,6 +15,7 @@ All documents are at the same level, organized by domain:
 | [extraction.md](./extraction.md) | `extraction` | Gemini Vision parsing, validation pipeline |
 | [reporting.md](./reporting.md) | `reporting` | Financial reports, multi-currency consolidation |
 | [market_data.md](./market_data.md) | `market_data` | FX rates, stock prices, sync schedule |
+| [ai_advisor.md](./ai_advisor.md) | `ai_advisor` | AI advisor prompt policy, context scope, and safety controls |
 
 ## Document Dependency Graph
 
@@ -24,11 +25,14 @@ flowchart TD
     schema --> reconciliation[reconciliation.md]
     schema --> extraction[extraction.md]
     schema --> market_data[market_data.md]
+    schema --> ai_advisor[ai_advisor.md]
     
     extraction --> reconciliation
     accounting --> reconciliation
     accounting --> reporting[reporting.md]
     market_data --> reporting
+    reporting --> ai_advisor
+    reconciliation --> ai_advisor
 ```
 
 ## Design Principles

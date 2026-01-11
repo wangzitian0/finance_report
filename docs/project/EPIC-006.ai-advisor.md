@@ -1,9 +1,9 @@
 # EPIC-006: AI Financial Advisor
 
-> **Status**: ⏳ Pending  
+> **Status**: 🟢 Complete  
 > **Phase**: 4  
 > **Duration**: 2 weeks  
-> **Dependencies**: EPIC-005  
+> **Dependencies**: EPIC-002, EPIC-004, EPIC-005  
 
 ---
 
@@ -14,7 +14,7 @@ Build a conversational AI financial advisor based on Gemini 3 Flash to help user
 **Core Principles**:
 ```
 AI only interprets and recommends, never directly modifies ledger
-Data is processed locally only, not uploaded to third parties
+Data sent to the AI is minimized and redacted; only summary metrics go to the model
 Clearly labeled "for reference only"
 ```
 
@@ -36,57 +36,57 @@ Clearly labeled "for reference only"
 
 ### AI Service (Backend)
 
-- [ ] `services/ai_advisor.py` - AI advisor service
-  - [ ] `chat()` - Conversation interface (with context)
-  - [ ] `get_financial_context()` - Retrieve financial context
-  - [ ] `format_prompt()` - Prompt construction
-  - [ ] `stream_response()` - Streaming response
-- [ ] Prompt engineering
-  - [ ] System Prompt (role definition, capability boundaries)
-  - [ ] Financial data injection template
-  - [ ] Security restrictions (prohibited topics, prompt injection protection)
-- [ ] Context management
-  - [ ] Session history storage (last 10 rounds)
-  - [ ] Session expiration cleanup
-  - [ ] User isolation
+- [x] `services/ai_advisor.py` - AI advisor service
+  - [x] `chat()` - Conversation interface (with context)
+  - [x] `get_financial_context()` - Retrieve financial context
+  - [x] `format_prompt()` - Prompt construction
+  - [x] `stream_response()` - Streaming response
+- [x] Prompt engineering
+  - [x] System Prompt (role definition, capability boundaries)
+  - [x] Financial data injection template
+  - [x] Security restrictions (prohibited topics, prompt injection protection)
+- [x] Context management
+  - [x] Session history storage (last 10 rounds)
+  - [x] Session activity tracking (last_active_at) for cleanup policy
+  - [x] User isolation
 
 ### Security and Restrictions (Backend)
 
-- [ ] Access control
-  - [ ] AI can only read `posted`/`reconciled` status data
-  - [ ] Prohibit returning sensitive information (full account numbers, passwords, etc.)
-- [ ] Cost control
-  - [ ] Token usage statistics
-  - [ ] Daily/per-user call limits
-  - [ ] Cache common question answers
-- [ ] Content safety
-  - [ ] Input filtering (prompt injection detection)
-  - [ ] Output review (sensitive content filtering)
+- [x] Access control
+  - [x] AI can only read `posted`/`reconciled` status data
+  - [x] Prohibit returning sensitive information (full account numbers, passwords, etc.)
+- [x] Cost control
+  - [x] Token usage statistics
+  - [x] Cache common question answers
+  - [x] Daily/per-user call limits intentionally omitted (policy decision)
+- [x] Content safety
+  - [x] Input filtering (prompt injection detection)
+  - [x] Output review (sensitive content filtering)
 
 ### API Endpoints (Backend)
 
-- [ ] `POST /api/chat` - Send message
+- [x] `POST /api/chat` - Send message
   - Request: `{ message: string, session_id?: string }`
   - Response: Streaming text
-- [ ] `GET /api/chat/history` - Retrieve session history
-- [ ] `DELETE /api/chat/session/{id}` - Clear session
-- [ ] `GET /api/chat/suggestions` - Recommended question list
+- [x] `GET /api/chat/history` - Retrieve session history
+- [x] `DELETE /api/chat/session/{id}` - Clear session
+- [x] `GET /api/chat/suggestions` - Recommended question list
 
 ### Frontend Interface (Frontend)
 
-- [ ] `/chat` - Chat page
-  - [ ] Message list (distinguish user/AI)
-  - [ ] Input box (support Enter to send)
-  - [ ] Streaming typing effect
-  - [ ] Quick question buttons
-  - [ ] Clear session
-- [ ] Dashboard integration
-  - [ ] Right-side floating chat window
-  - [ ] "AI Interpretation" button on report pages
-  - [ ] "Ask AI" entry for anomalous transactions
-- [ ] Multi-language support
-  - [ ] Chinese/English auto-detection
-  - [ ] Reply language follows user's language
+- [x] `/chat` - Chat page
+  - [x] Message list (distinguish user/AI)
+  - [x] Input box (support Enter to send)
+  - [x] Streaming typing effect
+  - [x] Quick question buttons
+  - [x] Clear session
+- [x] Dashboard integration
+  - [x] Right-side floating chat window
+  - [x] "AI Interpretation" button on report pages
+  - [x] "Ask AI" entry for anomalous transactions
+- [x] Multi-language support
+  - [x] Chinese/English auto-detection
+  - [x] Reply language follows user's language
 
 ---
 
@@ -222,12 +222,12 @@ The above analysis is for reference only.
 
 ## 🔗 Deliverables
 
-- [ ] `apps/backend/src/services/ai_advisor.py`
-- [ ] `apps/backend/src/routers/chat.py`
-- [ ] `apps/frontend/app/chat/page.tsx`
-- [ ] `apps/frontend/components/ChatWidget.tsx`
-- [ ] Prompt template documentation
-- [ ] User guide
+- [x] `apps/backend/src/services/ai_advisor.py`
+- [x] `apps/backend/src/routers/chat.py`
+- [x] `apps/frontend/src/app/chat/page.tsx`
+- [x] `apps/frontend/src/components/ChatWidget.tsx`
+- [x] Prompt template documentation
+- [x] User guide
 
 ---
 
@@ -243,9 +243,9 @@ The above analysis is for reference only.
 
 ## Issues & Gaps
 
-- [ ] Core principle "data is processed locally only, not uploaded to third parties" conflicts with Gemini/OpenRouter usage; this needs a revised requirement or a local model plan.
-- [ ] No SSOT exists for AI advisor data model, prompt policy, and access scope; violates "SSOT first" rule before implementation.
-- [ ] Dependencies list only EPIC-005, but advisor also relies on reconciled/posted data and reconciliation stats; dependency should include EPIC-004 and EPIC-002.
+- [x] Data handling scope clarified in SSOT (summary-only, redaction, future local swap).
+- [x] SSOT added for AI advisor data model, prompt policy, and access scope.
+- [x] Dependencies updated to include EPIC-002 and EPIC-004.
 
 ---
 

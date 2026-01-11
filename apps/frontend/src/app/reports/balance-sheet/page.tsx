@@ -108,6 +108,14 @@ export default function BalanceSheetPage() {
   const equityTree = useMemo(() => (report ? buildTree(report.equity) : []), [report]);
 
   const exportUrl = `${API_URL}/api/reports/export?report_type=balance-sheet&format=csv&as_of_date=${asOfDate}&currency=${currency}`;
+  const aiPrompt = useMemo(
+    () =>
+      encodeURIComponent(
+        `Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks or notable shifts.`
+      ),
+    [asOfDate, currency]
+  );
+  const aiLink = `/chat?prompt=${aiPrompt}`;
 
   const toggle = (id: string) => {
     setExpanded((prev) => {
@@ -195,6 +203,12 @@ export default function BalanceSheetPage() {
               <p className="text-sm text-[#334136]">Assets = Liabilities + Equity</p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <Link
+                href={aiLink}
+                className="rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-sm text-amber-700"
+              >
+                AI Interpretation
+              </Link>
               <Link
                 href="/dashboard"
                 className="rounded-full border border-emerald-200 bg-white/80 px-4 py-2 text-sm text-emerald-800"

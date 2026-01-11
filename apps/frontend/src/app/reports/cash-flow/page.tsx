@@ -20,12 +20,20 @@ export default function CashFlowPage() {
                 Operating, investing, and financing flows will appear here once activity is tagged.
               </p>
             </div>
-            <Link
-              href="/dashboard"
-              className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700"
-            >
-              Back to Dashboard
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/chat?prompt=Explain%20my%20cash%20flow%20status%20and%20what%20to%20watch%20for."
+                className="rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-sm text-amber-700"
+              >
+                AI Interpretation
+              </Link>
+              <Link
+                href="/dashboard"
+                className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
           </header>
 
           <div className="mt-10">

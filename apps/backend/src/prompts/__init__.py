@@ -6,10 +6,12 @@ from src.prompts.statement import (
     VALIDATION_PROMPT,
     get_parsing_prompt,
 )
+from src.prompts.ai_advisor import get_ai_advisor_prompt
 
 __all__ = [
     "SYSTEM_PROMPT",
     "VALIDATION_PROMPT",
     "INSTITUTION_HINTS",
+    "get_ai_advisor_prompt",
     "get_parsing_prompt",
 ]

@@ -89,6 +89,14 @@ export default function IncomeStatementPage() {
   }, [report]);
 
   const exportUrl = `${API_URL}/api/reports/export?report_type=income-statement&format=csv&start_date=${startDate}&end_date=${endDate}&currency=${currency}`;
+  const aiPrompt = useMemo(
+    () =>
+      encodeURIComponent(
+        `Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends and risks.`
+      ),
+    [currency, endDate, startDate]
+  );
+  const aiLink = `/chat?prompt=${aiPrompt}`;
 
   if (loading) {
     return (
@@ -128,6 +136,12 @@ export default function IncomeStatementPage() {
               <p className="text-sm text-[#334136]">Net Income = Income - Expenses</p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <Link
+                href={aiLink}
+                className="rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-sm text-amber-800"
+              >
+                AI Interpretation
+              </Link>
               <Link
                 href="/dashboard"
                 className="rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-sm text-amber-800"

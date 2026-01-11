@@ -181,6 +181,7 @@ Future versions will use:
 | **Reconciliation** | `/api/reconciliation` | [Bank matching](api-reconciliation.md) |
 | **Statements** | `/api/statements` | Statement upload & parsing |
 | **Reports** | `/api/reports` | Financial reports |
+| **AI Advisor** | `/api/chat` | Conversational financial advisor |
 
 ### Health Check
 

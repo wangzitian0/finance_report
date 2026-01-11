@@ -66,17 +66,20 @@ nav:
       - Journal Entries: user-guide/journal-entries.md
       - Bank Reconciliation: user-guide/reconciliation.md
       - Reports & Dashboards: user-guide/reports.md
+      - AI Advisor: user-guide/ai-advisor.md
   - API Reference:
       - Overview: reference/api-overview.md
       - Accounts: reference/api-accounts.md
       - Journal Entries: reference/api-journal.md
       - Reconciliation: reference/api-reconciliation.md
+      - AI Advisor: reference/api-chat.md
   - Technical Docs:
       - Architecture: ssot/README.md
       - Accounting Model: ssot/accounting.md
       - Reconciliation Engine: ssot/reconciliation.md
       - Statement Extraction: ssot/extraction.md
       - Reporting: ssot/reporting.md
+      - AI Advisor: ssot/ai_advisor.md
       - Database Schema: ssot/schema.md
   - Development:
       - Project Overview: project/README.md

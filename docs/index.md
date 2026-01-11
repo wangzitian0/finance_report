@@ -36,6 +36,14 @@ Personal financial management system with double-entry bookkeeping and bank reco
 
     [:octicons-arrow-right-24: Reconcile](user-guide/reconciliation.md)
 
+-   :material-comment-processing:{ .lg .middle } __AI Advisor__
+
+    ---
+
+    Ask finance questions and get report insights
+
+    [:octicons-arrow-right-24: View guide](user-guide/ai-advisor.md)
+
 </div>
 
 ## Live Demo
@@ -52,7 +60,7 @@ Visit [report.zitian.party](https://report.zitian.party) to try the application.
 | **AI-Powered Parsing** | Gemini 3 Flash extracts transactions from statements | ✅ Available |
 | **Smart Reconciliation** | Multi-dimensional matching with confidence scoring | ✅ Available |
 | **Financial Reports** | Balance sheet, income statement, cash flow | 🚧 Coming Soon |
-| **AI Financial Advisor** | Personalized insights and recommendations | 🚧 Coming Soon |
+| **AI Financial Advisor** | Personalized insights and recommendations | ✅ Available |
 
 ## Architecture
 
