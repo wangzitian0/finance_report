@@ -57,6 +57,12 @@ from src.schemas.reporting import (
     IncomeStatementResponse,
     TrendPeriod,
 )
+from src.schemas.user import (
+    UserCreate,
+    UserListResponse,
+    UserResponse,
+    UserUpdate,
+)
 
 __all__ = [
     "AccountCreate",
@@ -104,4 +110,8 @@ __all__ = [
     "CategoryBreakdownResponse",
     "IncomeStatementResponse",
     "TrendPeriod",
+    "UserCreate",
+    "UserListResponse",
+    "UserResponse",
+    "UserUpdate",
 ]

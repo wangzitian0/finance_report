@@ -362,3 +362,46 @@ CREATE UNIQUE INDEX idx_bank_statements_user_file_hash
 
 - [AGENTS.md](../../AGENTS.md)
 - [accounting.md](./accounting.md)
+
+---
+
+## 6. API Layer (Users)
+
+Users API endpoints for user management.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/users` | Create new user |
+| GET | `/api/users` | List all users |
+| GET | `/api/users/{user_id}` | Get user by ID |
+| PUT | `/api/users/{user_id}` | Update user |
+
+### Request/Response Schemas
+
+**UserCreate**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**UserResponse**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "created_at": "2026-01-12T00:00:00Z",
+  "updated_at": "2026-01-12T00:00:00Z"
+}
+```
+
+### Implementation
+
+| Dimension | Location |
+|-----------|----------|
+| Router | `apps/backend/src/routers/users.py` |
+| Schemas | `apps/backend/src/schemas/user.py` |
+| Model | `apps/backend/src/models/user.py` |
