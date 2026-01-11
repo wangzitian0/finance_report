@@ -1,144 +1,71 @@
 # Finance Report
 
+[![Documentation](https://img.shields.io/badge/docs-docs.report.zitian.party-blue.svg?logo=readthedocs)](https://docs.report.zitian.party)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192.svg?logo=postgresql)](https://www.postgresql.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
-[![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Gemini%203%20Flash-4285F4.svg?logo=google)](https://ai.google.dev/)
-[![Coffee](https://img.shields.io/badge/Powered%20by-Coffee%20☕-brown.svg)](https://www.buymeacoffee.com/)
-[![Made in Singapore](https://img.shields.io/badge/Made%20in-🇸🇬%20Singapore-red.svg)](https://github.com/wangzitian0/finance_report)
 [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
+[![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%202.0%20Flash-4285F4.svg?logo=google)](https://ai.google.dev/)
 
-Personal financial management system with double-entry bookkeeping.
+> **📖 Full Documentation**: [docs.report.zitian.party](https://docs.report.zitian.party)
 
-## Quick Start
+Personal financial management system featuring **double-entry bookkeeping**, **AI-powered statement parsing**, and **intelligent bank reconciliation**.
+
+## ✨ Features
+
+- **Double-Entry Bookkeeping** — Proper accounting with enforced balance validation
+- **AI Statement Parsing** — Upload bank PDFs, auto-extract transactions via Gemini
+- **Smart Reconciliation** — Fuzzy matching engine with 85%+ auto-accept accuracy
+- **Financial Reports** — Balance sheet, income statement, trend analysis
+- **Multi-Currency** — SGD base with FX rate support
+
+## 🚀 Quick Start
 
 ```bash
-# 1. Start database (use podman on macOS, docker on Linux)
-podman machine start  # macOS only
+# Clone and setup
+git clone https://github.com/wangzitian0/finance_report.git
+cd finance_report
+
+# Start database
 podman compose -f docker-compose.ci.yml up -d postgres
 
-# Or with docker:
-# docker compose -f docker-compose.ci.yml up -d postgres
+# Backend (Terminal 1)
+cd apps/backend && uv sync && uv run uvicorn src.main:app --reload
 
-# 2. Copy environment file
-cp .env.example .env
-
-# 3. Install backend deps & start
-cd apps/backend
-uv sync
-uv run uvicorn src.main:app --reload
-
-# 4. Install frontend deps & start (open new terminal)
-# Note: Navigate from project root
-cd ../../apps/frontend
-npm install
-npm run dev
+# Frontend (Terminal 2, from project root)
+cd apps/frontend && npm install && npm run dev
 ```
 
-Open http://localhost:3000 to see the ping-pong demo.
+Open [http://localhost:3000](http://localhost:3000)
 
-## API Documentation
+## 🛠️ Development
 
-Once the backend is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### Key Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/accounts` | GET/POST | List/create accounts |
-| `/api/accounts/{id}` | GET/PUT | Get/update account |
-| `/api/journal-entries` | GET/POST | List/create entries |
-| `/api/journal-entries/{id}/post` | POST | Post draft entry |
-| `/api/journal-entries/{id}/void` | POST | Void posted entry |
-| `/api/statements/upload` | POST | Upload and parse statement |
-| `/api/statements/pending-review` | GET | List statements needing review |
-| `/api/reports/balance-sheet` | GET | Balance sheet report |
-| `/api/reports/income-statement` | GET | Income statement report |
-| `/api/reports/trend` | GET | Account trend data |
-| `/api/reports/breakdown` | GET | Income/expense category breakdown |
-| `/api/reports/export` | GET | Export reports (CSV) |
-| `/api/chat` | POST | AI advisor chat (streaming) |
-| `/api/chat/history` | GET | Chat session history |
-| `/api/chat/session/{id}` | DELETE | Clear chat session |
-| `/api/chat/suggestions` | GET | Suggested questions |
-
-## Reconciliation
-
-Backend endpoints:
-
-- `POST /api/reconciliation/run` - Run matching
-- `GET /api/reconciliation/pending` - Review queue
-- `POST /api/reconciliation/matches/{id}/accept` - Accept match
-- `POST /api/reconciliation/matches/{id}/reject` - Reject match
-- `POST /api/reconciliation/batch-accept` - Batch accept (≥ 80)
-- `GET /api/reconciliation/stats` - Reconciliation stats
-- `GET /api/reconciliation/unmatched` - Unmatched transactions
-
-Frontend pages:
-
-- `/reconciliation` - Reconciliation workbench
-- `/reconciliation/unmatched` - Unmatched triage
-- `/dashboard` - Financial overview dashboard
-- `/reports/balance-sheet` - Balance sheet report
-- `/reports/income-statement` - Income statement report
-- `/reports/cash-flow` - Cash flow (phase 2 placeholder)
-- `/chat` - AI advisor chat
-
-## Project Structure
-
-```
-finance_report/
-├── .moon/              # Moonrepo config
-├── apps/
-│   ├── backend/        # FastAPI + SQLAlchemy
-│   │   ├── src/
-│   │   │   ├── models/     # Account, JournalEntry, JournalLine
-│   │   │   ├── schemas/    # Pydantic validation
-│   │   │   ├── services/   # Accounting logic
-│   │   │   └── routers/    # API endpoints
-│   │   └── tests/      # 75%+ coverage
-│   └── frontend/       # Next.js 14
-├── docs/
-│   ├── ssot/           # Single Source of Truth
-│   └── project/        # EPIC tracking
-├── docker-compose.ci.yml  # Local dev services
-└── AGENTS.md           # AI agent guidelines
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `podman compose -f docker-compose.ci.yml up -d` | Start Postgres + Redis + MinIO |
-| `moon run infra:docker:up` | Start local docker-compose services |
-| `moon run backend:dev` | Start backend |
-| `moon run frontend:dev` | Start frontend |
-| `moon run backend:test` | Run backend tests |
-| `moon run frontend:build` | Build frontend |
-
-## Testing
+This project uses [Moonrepo](https://moonrepo.dev/) for task orchestration:
 
 ```bash
-cd apps/backend
+moon run backend:dev        # Start backend
+moon run frontend:dev       # Start frontend
+moon run backend:test       # Run tests (auto-manages DB)
+moon run :lint              # Lint all
+```
+See [development.md](docs/ssot/development.md) for detailed workflows.
 
-# Run all tests
-uv run pytest -v
+## 📚 Documentation
 
-# Run with coverage
-uv run pytest --cov=src --cov-report=term-missing
+| Resource | Description |
+|----------|-------------|
+| [📖 Docs Site](https://docs.report.zitian.party) | User guide & API reference |
+| [AGENTS.md](./AGENTS.md) | AI agent guidelines |
+| [docs/ssot/](./docs/ssot/) | Technical SSOT |
 
-# Run specific test file
-uv run pytest tests/test_accounting.py -v
+## 🏗️ Architecture
+
+```
+apps/
+├── backend/     # FastAPI + SQLAlchemy + PostgreSQL
+└── frontend/    # Next.js 14 + TypeScript
 ```
 
-**Current Coverage**: 76%+ (target: 75%)
+## 📄 License
 
-## Documentation
-
-- [AGENTS.md](./AGENTS.md) - Development guidelines
-- [init.md](./init.md) - Project specification
-- [docs/ssot/](./docs/ssot/) - Technical truth
-- [docs/project/](./docs/project/) - EPIC tracking
+MIT

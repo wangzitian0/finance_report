@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="${COMPOSE_FILE:-docker-compose.ci.yml}"
+compose_file="${COMPOSE_FILE:-$repo_root/docker-compose.ci.yml}"
 # Use per-user cache directory to avoid security issues with world-writable /tmp
 state_dir="${XDG_CACHE_HOME:-$HOME/.cache}/finance_report"
 mkdir -p "$state_dir"
@@ -123,16 +123,16 @@ if ! "${compose_cmd[@]}" -f "$compose_file" exec -T postgres true >/dev/null 2>&
 fi
 
 for _ in {1..30}; do
-  if "${compose_cmd[@]}" -f "$compose_file" exec "${exec_tty_flag[@]}" postgres pg_isready -U postgres \
+  if "${compose_cmd[@]}" -f "$compose_file" exec ${exec_tty_flag[@]+"${exec_tty_flag[@]}"} postgres pg_isready -U postgres \
     >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-if ! "${compose_cmd[@]}" -f "$compose_file" exec "${exec_tty_flag[@]}" postgres psql -U postgres -tc \
+if ! "${compose_cmd[@]}" -f "$compose_file" exec ${exec_tty_flag[@]+"${exec_tty_flag[@]}"} postgres psql -U postgres -tc \
   "SELECT 1 FROM pg_database WHERE datname='finance_report_test'" | grep -q 1; then
-  "${compose_cmd[@]}" -f "$compose_file" exec "${exec_tty_flag[@]}" postgres psql -U postgres -c \
+  "${compose_cmd[@]}" -f "$compose_file" exec ${exec_tty_flag[@]+"${exec_tty_flag[@]}"} postgres psql -U postgres -c \
     "CREATE DATABASE finance_report_test;"
 fi
 

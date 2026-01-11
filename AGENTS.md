@@ -25,6 +25,7 @@
 
 **Routing Rules (where to go when)**
 - Need to understand business logic → [init.md](init.md)
+- **Need environment setup / moon commands** → [docs/ssot/development.md](docs/ssot/development.md)
 - Need to write code → [.github/copilot-instructions.md](.github/copilot-instructions.md) + skill files
 - Need data model reference → [docs/ssot/](docs/ssot/)
 - Need to track current work → [docs/project/](docs/project/)
@@ -109,6 +110,7 @@ AI must use this cascade structure before processing tasks:
 ```
 docs/
 ├── ssot/                 # Technical Truth (Flat Ontology)
+│   ├── development.md    # Moon commands, DB lifecycle, CI
 │   ├── schema.md         # Database layer
 │   ├── accounting.md     # Accounting domain
 │   ├── reconciliation.md # Reconciliation domain

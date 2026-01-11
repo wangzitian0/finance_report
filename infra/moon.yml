@@ -4,14 +4,14 @@ type: application
 language: bash
 
 tasks:
-  docker:up:
+  docker-up:
     command: 'docker compose up -d'
     local: true
 
-  docker:down:
+  docker-down:
     command: 'docker compose down'
     local: true
 
-  docker:logs:
+  docker-logs:
     command: 'docker compose logs -f'
     local: true

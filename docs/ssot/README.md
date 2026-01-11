@@ -9,6 +9,7 @@ All documents are at the same level, organized by domain:
 
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
+| [development.md](./development.md) | `development` | **Moon commands, DB lifecycle, CI environments** |
 | [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rules, accounting equation |
 | [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching algorithm, confidence scoring |
@@ -21,7 +22,8 @@ All documents are at the same level, organized by domain:
 
 ```mermaid
 flowchart TD
-    schema[schema.md] --> accounting[accounting.md]
+    development[development.md] --> schema[schema.md]
+    schema --> accounting[accounting.md]
     schema --> reconciliation[reconciliation.md]
     schema --> extraction[extraction.md]
     schema --> market_data[market_data.md]

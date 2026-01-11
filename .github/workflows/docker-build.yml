@@ -1,4 +1,4 @@
-name: Build and Update Infrastructure
+name: Build, Deploy and Smoke Test
 
 on:
   push:
@@ -85,58 +85,87 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://report.zitian.party/api
 
-  update-infra:
-    name: Update Infrastructure Config
+  deploy:
+    name: Deploy to Production
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout finance_report repo
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          path: finance_report
-      
-      - name: Checkout infra2 repo
-        uses: actions/checkout@v4
-        with:
-          repository: wangzitian0/infra2
-          path: infra2
-          token: ${{ secrets.INFRA2_PAT }}
+          submodules: true
       
       - name: Update compose file with SHA tags
         run: |
-          cd infra2/finance_report/finance_report/10.app
+          echo "Updating compose file with SHA-tagged images..."
+          cd repo/finance_report/finance_report/10.app
           
           # Use short SHA (first 7 chars) to match Docker metadata action default
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "Updating to sha-$SHORT_SHA"
+          echo "Using short SHA: sha-$SHORT_SHA"
           
-          # Replace IMAGE_TAG environment variable with specific SHA
+          # Replace environment variable references with short SHA tags
           sed -i "s|\${IMAGE_TAG:-latest}|sha-$SHORT_SHA|g" compose.yaml
           
           echo "Updated compose.yaml image lines:"
-          grep "image:" compose.yaml
-      
-      - name: Create Pull Request to infra2
-        uses: peter-evans/create-pull-request@v5
-        with:
-          path: infra2
-          token: ${{ secrets.INFRA2_PAT }}
-          commit-message: "chore: update finance_report images to sha-${{ github.sha }}"
-          branch: auto/finance-report-sha-${{ github.sha }}
-          title: "Deploy finance_report sha-${{ github.sha }}"
-          body: |
-            ## Auto-generated deployment PR
-            
-            Updates finance_report backend and frontend images to:
-            - `ghcr.io/wangzitian0/finance_report-backend:sha-${{ github.sha }}`
-            - `ghcr.io/wangzitian0/finance_report-frontend:sha-${{ github.sha }}`
-            
-            Triggered by: ${{ github.event.head_commit.message }}
-            Finance Report commit: ${{ github.sha }}
-            
-            ## Changes
-            - Updated `finance_report/finance_report/10.app/compose.yaml`
-            
-            **Merge this PR to trigger IaC sync and deploy to production.**
-          labels: auto-deploy,finance-report
-          team-reviewers: wangzitian0
+          cat compose.yaml | grep "image:"
+
+      - name: Upload updated compose to Dokploy
+        run: |
+          cd repo/finance_report/finance_report/10.app
+          COMPOSE_CONTENT=$(cat compose.yaml | jq -Rs .)
+          
+          echo "Uploading compose file to Dokploy..."
+          curl -s -X POST "https://cloud.zitian.party/api/compose.update" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "{\"composeId\": \"${{ secrets.DOKPLOY_COMPOSE_ID }}\", \"composeFile\": $COMPOSE_CONTENT, \"sourceType\": \"raw\"}"
+
+      - name: Stop existing containers
+        run: |
+          echo "Stopping containers..."
+          curl -s -X POST "https://cloud.zitian.party/api/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"composeId": "${{ secrets.DOKPLOY_COMPOSE_ID }}"}'
+          
+          echo "Waiting 15 seconds for containers to stop..."
+          sleep 15
+
+      - name: Deploy with new images
+        run: |
+          echo "Deploying with SHA-tagged images (sha-${{ github.sha }})..."
+          response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"composeId": "${{ secrets.DOKPLOY_COMPOSE_ID }}"}' \
+            -w "\n%{http_code}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "Deploy response: $body"
+          echo "HTTP Code: $http_code"
+          
+          if [ "$http_code" != "200" ] && [ "$http_code" != "201" ] && [ "$http_code" != "204" ]; then
+            echo "Deployment failed with HTTP $http_code"
+            exit 1
+          fi
+          
+          echo "Deployment triggered successfully"
+
+      - name: Wait for deployment to complete
+        run: |
+          echo "Waiting 90 seconds for containers to pull and restart..."
+          sleep 90
+
+  smoke-test:
+    name: Smoke Tests
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Run smoke tests
+        run: bash scripts/smoke_test.sh ${{ env.DEPLOY_URL }}

@@ -4,24 +4,42 @@ $schema: 'https://moonrepo.dev/schemas/project.json'
 type: root
 
 tasks:
+  # Install all dependencies
   setup:
-    command: 'echo "Setting up workspace..."'
+    command: 'echo "Dependencies installed"'
     deps:
       - 'backend:install'
       - 'frontend:install'
 
+  # Development servers
+  # Note: Run these in separate terminals as they block indefinitely
   dev:
-    command: 'echo "Use moon run backend:dev or moon run frontend:dev"'
+    command: 'echo "Run \"moon run backend:dev\" and \"moon run frontend:dev\" in separate terminals"'
     local: true
 
+  # Lint all projects
   lint:
-    command: 'echo "Linting all projects..."'
+    command: 'echo "Linting complete"'
     deps:
       - 'backend:lint'
       - 'frontend:lint'
 
+  # Test all projects
   test:
-    command: 'echo "Testing all projects..."'
+    command: 'echo "All tests complete"'
     deps:
       - 'backend:test'
       - 'frontend:test'
+
+  # Build all projects
+  build:
+    command: 'echo "Build complete"'
+    deps:
+      - 'frontend:build'
+
+  # Smoke tests (local or remote)
+  smoke:
+    command: 'bash scripts/smoke_test.sh ${BASE_URL:-http://localhost:3000}'
+    local: true
+    options:
+      runInCI: false
