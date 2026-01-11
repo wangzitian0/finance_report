@@ -169,6 +169,10 @@ async def test_upload_invalid_extension(db, test_user):
 
     assert exc.value.status_code == 400
     assert "Unsupported file type" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_user):
     """Upload then list statements and transactions."""
     content = b"statement-flow"
     file_hash = hashlib.sha256(content).hexdigest()
