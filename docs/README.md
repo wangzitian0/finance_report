@@ -35,7 +35,7 @@
 - [ ] **[Tester] Test Gaps**: Smoke tests cover only GET requests; Reconciliation complex scenarios (one-to-many) are untested.
 - [ ] **[Architect] Infra Scripts**: Missing `migrate.sh`, `backup.sh`, `restore.sh` and deployment artifacts defined in init.
 - [ ] **[Lead] AI Arch**: `ai_advisor` re-implements Session logic (redundant); Pattern-based Regex protection is fragile.
-- [ ] **[PM] i18n**: Backend supports bi-lingual (En/Zh) responses, but Frontend lacks i18n infrastructure.
+- [ ] **[PM] i18n**: Backend supports bilingual (En/Zh) responses, but Frontend lacks i18n infrastructure.
 
 ## P3: Low (Docs, Minor Polish)
 
