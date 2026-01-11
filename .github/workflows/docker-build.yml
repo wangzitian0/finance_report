@@ -113,13 +113,33 @@ jobs:
       - name: Upload updated compose to Dokploy
         run: |
           cd repo/finance_report/finance_report/10.app
-          COMPOSE_CONTENT=$(cat compose.yaml | jq -Rs .)
+          # Debug: check file content stats
+          ls -l compose.yaml
+          
+          # Create JSON payload safely using jq
+          jq -n \
+            --arg id "${{ secrets.DOKPLOY_COMPOSE_ID }}" \
+            --rawfile content compose.yaml \
+            --arg type "raw" \
+            '{composeId: $id, composeFile: $content, sourceType: $type}' > payload.json
           
           echo "Uploading compose file to Dokploy..."
-          curl -s -X POST "https://cloud.zitian.party/api/compose.update" \
+          response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"${{ secrets.DOKPLOY_COMPOSE_ID }}\", \"composeFile\": $COMPOSE_CONTENT, \"sourceType\": \"raw\"}"
+            -d @payload.json \
+            -w "\n%{http_code}")
+            
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "Update response: $body"
+          echo "HTTP Code: $http_code"
+          
+          if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+            echo "Compose update failed"
+            exit 1
+          fi
 
       - name: Stop existing containers
         run: |
