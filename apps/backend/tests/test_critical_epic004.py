@@ -35,12 +35,11 @@ from src.services.reconciliation import (
     calculate_match_score,
     execute_matching,
 )
-from src.services.review_queue import DEFAULT_USER_ID
 
 
 def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> Statement:
     """Create a test statement."""
-    user_id = owner_id if owner_id else DEFAULT_USER_ID
+    user_id = owner_id if owner_id else uuid4()
     return Statement(
         user_id=user_id,
         file_path="statements/test.pdf",
@@ -150,7 +149,7 @@ class TestMatchingAccuracy:
         # Execute matching for each statement
         high_score_count = 0
         for entry_id, txn, statement_id in correct_matches:
-            matches = await execute_matching(db, statement_id=statement_id)
+            matches = await execute_matching(db, statement_id=statement_id, user_id=user_id)
             if matches:
                 for match in matches:
                     if match.match_score >= 85:
@@ -228,7 +227,9 @@ class TestMatchingAccuracy:
 
         # Calculate match score
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
+        score_result = await calculate_match_score(
+            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
+        )
         
         # Unrelated transaction should score LOW (< 60 = unmatched)
         assert score_result.score < 60, (
@@ -301,7 +302,9 @@ class TestMatchingAccuracy:
 
         # Should find the match (score >= 60 for review queue)
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
+        score_result = await calculate_match_score(
+            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
+        )
         
         assert score_result.score >= 60, (
             f"Similar transaction should score >= 60, got {score_result.score}"
@@ -390,7 +393,7 @@ class TestBatchPerformance:
 
         # Measure execution time
         start_time = time.perf_counter()
-        matches = await execute_matching(db, statement_id=statement.id)
+        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
         elapsed = time.perf_counter() - start_time
 
         # 100 transactions should complete in < 5 seconds
@@ -456,7 +459,7 @@ class TestConcurrentMatching:
         # Here we test the algorithm doesn't corrupt shared state
         results = []
         for stmt in statements:
-            matches = await execute_matching(db, statement_id=stmt.id)
+            matches = await execute_matching(db, statement_id=stmt.id, user_id=user_id)
             results.append((stmt.id, matches))
 
         # All should complete without error
@@ -538,7 +541,9 @@ class TestCrossMonthMatching:
 
         # Should still find a reasonable match despite 1-day difference
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
+        score_result = await calculate_match_score(
+            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
+        )
         
         # Date penalty should be small (1 day difference)
         # Amount and description are exact, so should score well
@@ -614,7 +619,9 @@ class TestCrossMonthMatching:
 
         # Should still match despite 3-day weekend gap
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG)
+        score_result = await calculate_match_score(
+            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
+        )
         
         # 3-day gap has some penalty, but amount match + similar description should compensate
         assert score_result.score >= 65, (

@@ -16,6 +16,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
 | [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, and building documentation |
+| [authentication.md](./authentication.md) | `authentication` | API user identity resolution and auth constraints |
 | [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes, and migrations |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rules, accounting equation, and transaction validation |
 
@@ -35,17 +36,19 @@ For new developers joining the project:
 
 1. **[development.md](./development.md)** — Setup your environment and understand the build/test workflow
 2. **[schema.md](./schema.md)** — Understand the database structure
-3. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
-4. **[extraction.md](./extraction.md)** — See how bank statements are parsed
-5. **[reconciliation.md](./reconciliation.md)** — Understand the matching engine
-6. **[reporting.md](./reporting.md)** — Learn how reports are generated
-7. **[ai_advisor.md](./ai_advisor.md)** — Understand the AI advisor implementation
+3. **[authentication.md](./authentication.md)** — Learn how auth works
+4. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
+5. **[extraction.md](./extraction.md)** — See how bank statements are parsed
+6. **[reconciliation.md](./reconciliation.md)** — Understand the matching engine
+7. **[reporting.md](./reporting.md)** — Learn how reports are generated
+8. **[ai_advisor.md](./ai_advisor.md)** — Understand the AI advisor implementation
 
 ## 📊 Document Dependency Graph
 
 ```mermaid
 flowchart TD
     development[development.md<br/>Development Setup] --> schema[schema.md<br/>Database Schema]
+    schema --> authentication[authentication.md<br/>Authentication]
     schema --> accounting[accounting.md<br/>Accounting Rules]
     schema --> extraction[extraction.md<br/>Statement Parsing]
     schema --> reconciliation[reconciliation.md<br/>Reconciliation Engine]

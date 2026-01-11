@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import pytest
 from sqlalchemy import select
@@ -35,7 +35,6 @@ from src.services.reconciliation import (
     normalize_text,
 )
 from src.services.review_queue import (
-    DEFAULT_USER_ID,
     accept_match,
     batch_accept,
     create_entry_from_txn,
@@ -44,9 +43,9 @@ from src.services.review_queue import (
 )
 
 
-def _make_statement(*, owner_id: str | None = None, base_date: date) -> Statement:
-    # Use DEFAULT_USER_ID if owner_id not provided (for NOT NULL constraint)
-    user_id = owner_id if owner_id else DEFAULT_USER_ID
+def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> Statement:
+    # Use uuid4 if owner_id not provided (for NOT NULL constraint)
+    user_id = owner_id if owner_id else uuid4()
     return Statement(
         user_id=user_id,
         file_path="statements/test.pdf",
@@ -120,7 +119,7 @@ async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession) -> No
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
-    statement = _make_statement(owner_id=None, base_date=date(2024, 1, 15))
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 15))
 
     db.add_all([user, bank, income, entry, statement])
     await db.flush()
@@ -151,7 +150,7 @@ async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession) -> No
     db.add_all([line_debit, line_credit, txn])
     await db.commit()
 
-    matches = await execute_matching(db)
+    matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 1
     match = matches[0]
     assert match.status == ReconciliationStatus.AUTO_ACCEPTED
@@ -186,7 +185,7 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
-    statement = _make_statement(owner_id=None, base_date=date(2024, 2, 10))
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 2, 10))
 
     db.add_all([user, bank, holding, entry, statement])
     await db.flush()
@@ -226,7 +225,7 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -
     db.add_all([line_debit, line_credit, txn_pending, txn_unmatched])
     await db.commit()
 
-    matches = await execute_matching(db, statement_id=statement.id)
+    matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
     assert len(matches) == 1
     assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
 
@@ -259,7 +258,7 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
-    statement = _make_statement(owner_id=None, base_date=date(2024, 4, 1))
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 4, 1))
 
     db.add_all([user, bank, expense, entry, statement])
     await db.flush()
@@ -304,7 +303,7 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
     db.add_all([txn_a, txn_b])
     await db.commit()
 
-    matches = await execute_matching(db, statement_id=statement.id)
+    matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
     assert len(matches) == 2
     assert all(match.status == ReconciliationStatus.AUTO_ACCEPTED for match in matches)
 
@@ -332,7 +331,7 @@ async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> No
         type=AccountType.EXPENSE,
         currency="SGD",
     )
-    statement = _make_statement(owner_id=None, base_date=date(2024, 4, 5))
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 4, 5))
 
     entry_a = JournalEntry(
         user_id=user_id,
@@ -418,7 +417,7 @@ async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> No
     db.add(txn)
     await db.commit()
 
-    matches = await execute_matching(db, statement_id=statement.id)
+    matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
     assert len(matches) == 1
     match = matches[0]
     assert match.status == ReconciliationStatus.AUTO_ACCEPTED
@@ -431,27 +430,28 @@ async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> No
 async def test_review_queue_error_paths(db: AsyncSession) -> None:
     """Review queue helpers raise on missing matches and handle empty batch."""
     with pytest.raises(ValueError, match="Match not found"):
-        await accept_match(db, str(uuid4()))
+        await accept_match(db, str(uuid4()), user_id=uuid4())
     with pytest.raises(ValueError, match="Match not found"):
-        await reject_match(db, str(uuid4()))
-    assert await batch_accept(db, []) == []
+        await reject_match(db, str(uuid4()), user_id=uuid4())
+    assert await batch_accept(db, [], user_id=uuid4()) == []
 
 
 async def test_get_or_create_account_reuses_existing(db: AsyncSession) -> None:
     """get_or_create_account returns existing records."""
+    user_id = uuid4()
     account = await get_or_create_account(
         db,
         name="Bank - Main",
         account_type=AccountType.ASSET,
         currency="SGD",
-        user_id=DEFAULT_USER_ID,
+        user_id=user_id,
     )
     account_again = await get_or_create_account(
         db,
         name="Bank - Main",
         account_type=AccountType.ASSET,
         currency="SGD",
-        user_id=DEFAULT_USER_ID,
+        user_id=user_id,
     )
     assert account_again.id == account.id
 
@@ -460,8 +460,9 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     db: AsyncSession,
 ) -> None:
     """Inflow transactions use statement currency and income account."""
+    user_id = uuid4()
     statement = Statement(
-        user_id=DEFAULT_USER_ID,
+        user_id=user_id,
         account_id=None,
         file_path="statements/inflow.pdf",
         file_hash="hash_inflow",
@@ -489,7 +490,7 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     db.add(txn)
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=DEFAULT_USER_ID)
+    entry = await create_entry_from_txn(db, txn, user_id=user_id)
     assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
     assert all(line.currency == "USD" for line in entry.lines)
 
@@ -502,12 +503,13 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
 
 async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None:
     """Review queue operations update match and transaction status."""
+    user_id = uuid4()
     user = User(
-        id=DEFAULT_USER_ID,
+        id=user_id,
         email="default@example.com",
         hashed_password="hashed",
     )
-    statement = _make_statement(owner_id=None, base_date=date(2024, 3, 1))
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 1))
     db.add_all([user, statement])
     await db.flush()
 
@@ -541,7 +543,7 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     db.add_all([txn_accept, txn_reject, txn_batch])
     await db.commit()
 
-    entry_accept = await create_entry_from_txn(db, txn_accept, user_id=DEFAULT_USER_ID)
+    entry_accept = await create_entry_from_txn(db, txn_accept, user_id=user_id)
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.id == entry_accept.id)
@@ -551,21 +553,21 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     validate_journal_balance(entry_accept.lines)
 
     accounts_result = await db.execute(
-        select(Account).where(Account.user_id == DEFAULT_USER_ID)
+        select(Account).where(Account.user_id == user_id)
     )
     accounts = {account.name: account for account in accounts_result.scalars().all()}
     bank = accounts["Bank - Main"]
     expense = accounts["Expense - Uncategorized"]
 
     entry_reject = JournalEntry(
-        user_id=DEFAULT_USER_ID,
+        user_id=user_id,
         entry_date=date(2024, 3, 1),
         memo="Reject entry",
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
     entry_batch = JournalEntry(
-        user_id=DEFAULT_USER_ID,
+        user_id=user_id,
         entry_date=date(2024, 3, 1),
         memo="Batch entry",
         source_type=JournalEntrySourceType.MANUAL,
@@ -630,9 +632,9 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     db.add_all([match_accept, match_reject, match_batch])
     await db.commit()
 
-    accepted = await accept_match(db, str(match_accept.id))
-    rejected = await reject_match(db, str(match_reject.id))
-    batch = await batch_accept(db, [str(match_batch.id)])
+    accepted = await accept_match(db, str(match_accept.id), user_id=user_id)
+    rejected = await reject_match(db, str(match_reject.id), user_id=user_id)
+    batch = await batch_accept(db, [str(match_batch.id)], user_id=user_id)
 
     assert accepted.status == ReconciliationStatus.ACCEPTED
     assert rejected.status == ReconciliationStatus.REJECTED
@@ -651,7 +653,8 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
 
 async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> None:
     """Anomaly detection flags large, frequent, and new merchants."""
-    statement = _make_statement(owner_id=None, base_date=date(2024, 3, 4))
+    user_id = uuid4()
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 4))
     db.add(statement)
     await db.flush()
 
@@ -679,7 +682,7 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
         status=BankTransactionStatus.PENDING,
         confidence=ConfidenceLevel.HIGH,
     )
-    anomalies_large = await detect_anomalies(db, txn_large)
+    anomalies_large = await detect_anomalies(db, txn_large, user_id=user_id)
     anomaly_types = {item.anomaly_type for item in anomalies_large}
     assert "LARGE_AMOUNT" in anomaly_types
     assert "FREQUENCY_SPIKE" in anomaly_types
@@ -696,7 +699,7 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
         status=BankTransactionStatus.PENDING,
         confidence=ConfidenceLevel.HIGH,
     )
-    anomalies_weekend = await detect_anomalies(db, txn_weekend)
+    anomalies_weekend = await detect_anomalies(db, txn_weekend, user_id=user_id)
     weekend_types = {item.anomaly_type for item in anomalies_weekend}
     assert "NEW_MERCHANT" in weekend_types
     assert "WEEKEND_LARGE" in weekend_types

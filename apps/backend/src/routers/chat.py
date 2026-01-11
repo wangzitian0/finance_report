@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import ChatMessage, ChatSession, ChatSessionStatus
 from src.schemas.chat import (
@@ -24,19 +25,12 @@ from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_lan
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
-
-def get_chat_user_id() -> UUID:
-    """Return mock user ID until authentication is implemented."""
-    return MOCK_USER_ID
-
 
 @router.post("", response_class=StreamingResponse)
 async def chat_message(
     payload: ChatRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_chat_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
@@ -69,7 +63,7 @@ async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_chat_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ChatHistoryResponse:
     """Retrieve chat session history."""
     sessions: list[ChatSessionResponse] = []
@@ -163,7 +157,7 @@ async def chat_history(
 async def delete_session(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_chat_user_id),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> None:
     """Soft-delete a chat session."""
     result = await db.execute(

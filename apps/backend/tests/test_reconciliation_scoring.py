@@ -245,7 +245,7 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
         status=BankTransactionStatus.PENDING,
         confidence=ConfidenceLevel.MEDIUM,
     )
-    assert await score_pattern(db, txn_empty, DEFAULT_CONFIG) == 0.0
+    assert await score_pattern(db, txn_empty, DEFAULT_CONFIG, user_id=uuid4()) == 0.0
 
     txn_no_history = AccountEvent(
         statement_id=uuid4(),
@@ -256,7 +256,7 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
         status=BankTransactionStatus.PENDING,
         confidence=ConfidenceLevel.MEDIUM,
     )
-    assert await score_pattern(db, txn_no_history, DEFAULT_CONFIG) == 0.0
+    assert await score_pattern(db, txn_no_history, DEFAULT_CONFIG, user_id=uuid4()) == 0.0
 
     statement = Statement(
         user_id=uuid4(),  # Using a valid UUID for NOT NULL constraint
@@ -316,29 +316,30 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
         confidence=ConfidenceLevel.HIGH,
     )
 
-    assert await score_pattern(db, txn_match, DEFAULT_CONFIG) == 80.0
-    assert await score_pattern(db, txn_miss, DEFAULT_CONFIG) == 40.0
+    assert await score_pattern(db, txn_match, DEFAULT_CONFIG, user_id=statement.user_id) == 80.0
+    assert await score_pattern(db, txn_miss, DEFAULT_CONFIG, user_id=statement.user_id) == 40.0
 
 
 @pytest.mark.asyncio
 async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None:
+    user_id = uuid4()
     bank = Account(
         id=uuid4(),
-        user_id=uuid4(),
+        user_id=user_id,
         name="Bank",
         type=AccountType.ASSET,
         currency="SGD",
     )
     expense = Account(
         id=uuid4(),
-        user_id=uuid4(),
+        user_id=user_id,
         name="Expense",
         type=AccountType.EXPENSE,
         currency="SGD",
     )
     entry = JournalEntry(
         id=uuid4(),
-        user_id=uuid4(),
+        user_id=user_id,
         entry_date=date.today(),
         memo="Batch payment",
         source_type=JournalEntrySourceType.MANUAL,
@@ -361,8 +362,25 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
     )
     credit_line.account = bank
     entry.lines.extend([debit_line, credit_line])
+    
+    # We need a statement to link the txn to a user_id for the history check query
+    statement = Statement(
+        user_id=user_id,
+        file_path="dummy",
+        file_hash="dummy",
+        original_filename="dummy.pdf",
+        institution="Dummy",
+        currency="SGD",
+        period_start=date.today(),
+        period_end=date.today(),
+        opening_balance=Decimal("0"),
+        closing_balance=Decimal("0"),
+    )
+    db.add(statement)
+    await db.flush()
+
     txn = AccountEvent(
-        statement_id=uuid4(),
+        statement_id=statement.id,
         txn_date=date.today(),
         description="Batch payment",
         amount=Decimal("100.00"),
@@ -375,6 +393,7 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
         txn,
         [entry],
         DEFAULT_CONFIG,
+        user_id=user_id,
         is_multi=True,
         is_many_to_one=True,
         amount_override=Decimal("100.00"),

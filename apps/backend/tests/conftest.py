@@ -1,6 +1,7 @@
 """Test fixtures and configuration."""
 
 import os
+from uuid import uuid4
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -59,7 +60,22 @@ async def db(db_engine):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_engine):
+async def test_user(db: AsyncSession):
+    """Create a test user for authenticated requests."""
+    from src.models import User
+
+    user = User(
+        email=f"test-{uuid4()}@example.com",
+        hashed_password="hashed",
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(db_engine, test_user):
     """Create async test client with database initialized."""
     # Override the database URL for the app
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
@@ -81,7 +97,11 @@ async def client(db_engine):
     app.dependency_overrides[get_db] = override_get_db
     try:
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Id": str(test_user.id)},
+        ) as client:
             yield client
     finally:
         app.dependency_overrides.clear()

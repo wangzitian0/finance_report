@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import JournalEntry, JournalEntryStatus, JournalLine
 from src.schemas import (
@@ -25,19 +26,17 @@ from src.services import (
 
 router = APIRouter(prefix="/api/journal-entries", tags=["journal-entries"])
 
-# Mock user_id for now (will be replaced with auth)
-MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
 
 @router.post("", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_journal_entry(
     entry_data: JournalEntryCreate,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> JournalEntryResponse:
     """Create a new journal entry in draft status."""
     # Create entry header
     entry = JournalEntry(
-        user_id=MOCK_USER_ID,
+        user_id=user_id,
         entry_date=entry_data.entry_date,
         memo=entry_data.memo,
         source_type=entry_data.source_type,
@@ -86,9 +85,10 @@ async def list_journal_entries(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
-    query = select(JournalEntry).where(JournalEntry.user_id == MOCK_USER_ID)
+    query = select(JournalEntry).where(JournalEntry.user_id == user_id)
 
     if status_filter:
         query = query.where(JournalEntry.status == status_filter)
@@ -121,12 +121,13 @@ async def list_journal_entries(
 async def get_journal_entry(
     entry_id: UUID,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> JournalEntryResponse:
     """Get journal entry details."""
     result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.id == entry_id)
-        .where(JournalEntry.user_id == MOCK_USER_ID)
+        .where(JournalEntry.user_id == user_id)
         .options(selectinload(JournalEntry.lines))
     )
     entry = result.scalar_one_or_none()
@@ -144,10 +145,11 @@ async def get_journal_entry(
 async def post_entry(
     entry_id: UUID,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> JournalEntryResponse:
     """Post a journal entry (draft → posted)."""
     try:
-        entry = await post_journal_entry(db, entry_id, MOCK_USER_ID)
+        entry = await post_journal_entry(db, entry_id, user_id)
         await db.refresh(entry, ["lines"])
         return JournalEntryResponse.model_validate(entry)
     except ValidationError as e:
@@ -162,10 +164,11 @@ async def void_entry(
     entry_id: UUID,
     void_request: VoidJournalEntryRequest,
     db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> JournalEntryResponse:
     """Void a posted journal entry by creating a reversal entry."""
     try:
-        reversal_entry = await void_journal_entry(db, entry_id, void_request.reason, MOCK_USER_ID)
+        reversal_entry = await void_journal_entry(db, entry_id, void_request.reason, user_id)
         return JournalEntryResponse.model_validate(reversal_entry)
     except ValidationError as e:
         raise HTTPException(

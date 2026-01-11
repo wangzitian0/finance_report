@@ -25,7 +25,6 @@ from src.models import (
     ReconciliationStatus,
     Statement,
 )
-from src.routers.accounts import MOCK_USER_ID
 
 
 async def _create_account(client: AsyncClient, name: str, account_type: str) -> dict:
@@ -182,10 +181,12 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession) -> None:
+async def test_reconciliation_endpoints(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
     session = db
     statement_run = Statement(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         account_id=None,
         file_path="statements/run.pdf",
         file_hash="hash_run",
@@ -199,7 +200,7 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession) -
         closing_balance=Decimal("0.00"),
     )
     statement_review = Statement(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         account_id=None,
         file_path="statements/review.pdf",
         file_hash="hash_review",
@@ -213,19 +214,19 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession) -
         closing_balance=Decimal("0.00"),
     )
     bank_account = Account(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         name="Bank - Main",
         type=AccountType.ASSET,
         currency="SGD",
     )
     income_account = Account(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         name="Income - Salary",
         type=AccountType.INCOME,
         currency="SGD",
     )
     expense_account = Account(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         name="Expense - Misc",
         type=AccountType.EXPENSE,
         currency="SGD",
@@ -242,28 +243,28 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession) -
     await session.flush()
 
     entry_run = JournalEntry(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         entry_date=date.today(),
         memo="Salary Payment",
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
     entry_accept = JournalEntry(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         entry_date=date.today(),
         memo="Coffee",
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
     entry_reject = JournalEntry(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         entry_date=date.today(),
         memo="Snacks",
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
     entry_batch = JournalEntry(
-        user_id=MOCK_USER_ID,
+        user_id=test_user.id,
         entry_date=date.today(),
         memo="Lunch",
         source_type=JournalEntrySourceType.MANUAL,

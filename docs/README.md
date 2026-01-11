@@ -14,8 +14,8 @@
 
 ## P0: Critical (Blockers, Data Loss, Security)
 
-- [ ] **[Architect] Hard-coded Auth**: `MOCK_USER_ID` is used across core APIs, bypassing real auth and multi-user isolation. (`accounts.py:21`)
-- [ ] **[Architect] Schema Mismatch**: Alembic creates `statements` tables, but ORM uses `bank_statements`. Migrations are broken.
+- [x] **[Architect] Hard-coded Auth**: `MOCK_USER_ID` is used across core APIs, bypassing real auth and multi-user isolation. (`accounts.py:21`)
+- [x] **[Architect] Schema Mismatch**: Alembic creates `statements` tables, but ORM uses `bank_statements`. Migrations are broken.
 - [ ] **[Developer] Data Loss**: Uploaded files are assigned a `file_path` but the temp file is deleted immediately, leaving dangling references.
 - [ ] **[Lead] API Payload Limit**: PDF extraction sends the entire file as a Base64 JSON string, risking timeouts and Gateway 413 errors.
 - [ ] **[Developer] Nullability Mismatch**: Database columns (`user_id`, `file_hash`) differ in nullability between Migration (`0001`) and ORM Models.
@@ -24,6 +24,7 @@
 
 - [ ] **[PM] Missing Core UIs**: Accounts Grid, Manual Journal Entry, Statement Upload, and Approval Queue UIs are missing or placeholders.
 - [ ] **[PM] Auth Status Overstated**: EPIC-001 documentation claims auth is complete, but no Auth Router exists in the backend.
+- [ ] **[Architect] FastAPI Users Integration**: Backend needs FastAPI Users wired in so `X-User-Id` flows can be replaced with proper authentication (see [docs/ssot/authentication.md](docs/ssot/authentication.md)).
 - [ ] **[Dev] Cash Flow Missing**: Backend logic for Cash Flow Report is unimplemented (Phase 4), and UI is a placeholder.
 - [ ] **[Architect] Storage Gap**: SSOT requires S3/MinIO, but code relies on ephemeral local paths (incompatible with containerized prod).
 - [ ] **[Reconciler] Logic Error**: Draft entries are currently included in reconciliation candidates; they must be excluded.
@@ -57,5 +58,5 @@
 ## Open Decisions
 
 1. **Auto-Approval**: Should >=85 score auto-approve to `APPROVED` status, or pause at `PARSED`?
-2. **Naming**: Align Migrations to current ORM (`bank_statements`) or revert ORM to legacy names?
+2. **Naming**: Align migrations to current ORM (`bank_statements`). (Resolved)
 3. **Storage**: Formalize S3/MinIO immediately (Phase 1) or update SSOT to allow Local Storage?

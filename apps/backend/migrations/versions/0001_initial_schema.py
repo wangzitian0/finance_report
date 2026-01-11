@@ -19,20 +19,20 @@ def upgrade() -> None:
         "EXPENSE",
         name="account_type_enum",
     )
-    statement_status_enum = sa.Enum(
+    bank_statement_status_enum = sa.Enum(
         "uploaded",
         "parsing",
         "parsed",
         "approved",
         "rejected",
-        name="statement_status_enum",
+        name="bank_statement_status_enum",
     )
     confidence_enum = sa.Enum("high", "medium", "low", name="confidence_level_enum")
-    bank_status_enum = sa.Enum(
+    bank_statement_transaction_status_enum = sa.Enum(
         "pending",
         "matched",
         "unmatched",
-        name="bank_transaction_status_enum",
+        name="bank_statement_transaction_status_enum",
     )
     journal_entry_status_enum = sa.Enum(
         "draft",
@@ -102,7 +102,7 @@ def upgrade() -> None:
         sa.Column("period_end", sa.Date(), nullable=False),
         sa.Column("opening_balance", sa.Numeric(18, 2), nullable=False),
         sa.Column("closing_balance", sa.Numeric(18, 2), nullable=False),
-        sa.Column("status", statement_status_enum, nullable=False),
+        sa.Column("status", bank_statement_status_enum, nullable=False),
         sa.Column("confidence_score", sa.Integer(), nullable=False),
         sa.Column("balance_validated", sa.Boolean(), nullable=False),
         sa.Column("validation_error", sa.Text(), nullable=True),
@@ -122,7 +122,7 @@ def upgrade() -> None:
         sa.Column("amount", sa.Numeric(18, 2), nullable=False),
         sa.Column("direction", sa.String(length=3), nullable=False),
         sa.Column("reference", sa.String(length=100), nullable=True),
-        sa.Column("status", bank_status_enum, nullable=False),
+        sa.Column("status", bank_statement_transaction_status_enum, nullable=False),
         sa.Column("confidence", confidence_enum, nullable=False),
         sa.Column("confidence_reason", sa.Text(), nullable=True),
         sa.Column("raw_text", sa.Text(), nullable=True),
@@ -235,7 +235,7 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS journal_line_direction_enum")
     op.execute("DROP TYPE IF EXISTS journal_source_type_enum")
     op.execute("DROP TYPE IF EXISTS journal_entry_status_enum")
-    op.execute("DROP TYPE IF EXISTS bank_transaction_status_enum")
+    op.execute("DROP TYPE IF EXISTS bank_statement_transaction_status_enum")
     op.execute("DROP TYPE IF EXISTS confidence_level_enum")
-    op.execute("DROP TYPE IF EXISTS statement_status_enum")
+    op.execute("DROP TYPE IF EXISTS bank_statement_status_enum")
     op.execute("DROP TYPE IF EXISTS account_type_enum")
