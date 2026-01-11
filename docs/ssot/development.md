@@ -39,6 +39,37 @@ moon run :build             # Build all
 
 ---
 
+## Documentation
+
+The project uses [MkDocs](https://www.mkdocs.org/) with Material theme for documentation.
+
+### Build & Serve Docs
+
+```bash
+# Install dependencies
+pip install -r docs/requirements.txt
+
+# Serve docs locally with live reload
+mkdocs serve
+# → Open http://127.0.0.1:8000
+
+# Build static site
+mkdocs build
+# → Output: site/ directory
+```
+
+### Documentation Structure
+
+| Path | Content |
+|------|---------|
+| `docs/` | Source markdown files |
+| `mkdocs.yml` | MkDocs configuration |
+| `site/` | Generated static site (gitignored) |
+
+The live documentation is hosted at [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/).
+
+---
+
 ## Five Scenarios
 
 | # | Scenario | Command | Smoke Test Timing |
