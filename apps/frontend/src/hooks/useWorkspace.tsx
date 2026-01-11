@@ -24,6 +24,9 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 const STORAGE_KEY = "finance-workspace-tabs";
 
 function generateId(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
     return Math.random().toString(36).substring(2, 9);
 }
 
@@ -47,8 +50,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                     setActiveTabId(parsed.activeTabId || parsed.tabs[0]?.id);
                 }
             }
-        } catch {
-            // Ignore storage errors
+        } catch (error) {
+            if (process.env.NODE_ENV === "development") {
+                // eslint-disable-next-line no-console
+                console.error("Failed to load workspace tabs:", error);
+            }
         }
         setIsHydrated(true);
     }, []);
@@ -57,8 +63,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         if (!isHydrated) return;
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }));
-        } catch {
-            // Ignore storage errors
+        } catch (error) {
+            if (process.env.NODE_ENV === "development") {
+                // eslint-disable-next-line no-console
+                console.error("Failed to save workspace tabs:", error);
+            }
         }
     }, [tabs, activeTabId, isHydrated]);
 
@@ -100,7 +109,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         setIsCollapsed((prev) => !prev);
     }, []);
 
-    const contextValue: WorkspaceContextValue = {
+    const contextValue = React.useMemo<WorkspaceContextValue>(() => ({
         tabs,
         activeTabId,
         addTab,
@@ -108,7 +117,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         setActiveTab,
         isCollapsed,
         toggleSidebar,
-    };
+    }), [tabs, activeTabId, addTab, removeTab, setActiveTab, isCollapsed, toggleSidebar]);
 
     return React.createElement(
         WorkspaceContext.Provider,

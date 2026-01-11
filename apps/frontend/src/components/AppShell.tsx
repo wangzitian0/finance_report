@@ -13,7 +13,7 @@ function AppShellContent({ children }: AppShellProps) {
     const { isCollapsed } = useWorkspace();
 
     return (
-        <div className="min-h-screen bg-[#0f1419]">
+        <div className="min-h-screen">
             <Sidebar />
 
             {/* Main Content Area */}
@@ -25,7 +25,7 @@ function AppShellContent({ children }: AppShellProps) {
             >
                 <WorkspaceTabs />
 
-                <main className="min-h-[calc(100vh-3rem)]">
+                <main className="min-h-[calc(100vh-4rem)]">
                     {children}
                 </main>
             </div>

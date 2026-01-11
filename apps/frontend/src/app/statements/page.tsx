@@ -16,6 +16,7 @@ export default function StatementsPage() {
                 </div>
 
                 {/* Upload Area */}
+                {/* TODO: Replace with actual file input/dropzone implementation */}
                 <div className="rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/20 p-12 text-center mb-8 opacity-60 cursor-not-allowed">
                     <div className="flex flex-col items-center">
                         <div className="w-16 h-16 rounded-2xl bg-slate-700/50 flex items-center justify-center mb-4">

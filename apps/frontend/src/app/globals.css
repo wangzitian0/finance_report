@@ -11,11 +11,6 @@
   --accent-warm: #d97706;
   --font-sans: var(--font-space-grotesk);
   --font-serif: var(--font-fraunces);
-
-  /* Sidebar layout */
-  --sidebar-width: 256px;
-  --sidebar-collapsed-width: 64px;
-  --tab-bar-height: 48px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,25 +34,6 @@ h1,
 h2,
 h3 {
   font-family: var(--font-serif);
-}
-
-/* Scrollbar styling for sidebar and tabs */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
 }
 
 @keyframes rise {

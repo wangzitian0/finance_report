@@ -35,7 +35,20 @@ function getRouteInfo(pathname: string): { label: string; icon: string } {
         }
         segments.pop();
     }
-    return { label: "Page", icon: "📄" };
+    
+    // Fallback: derive a human-readable label from the pathname
+    if (process.env.NODE_ENV === "development") {
+        // Help identify missing routeInfo mappings during development
+        // eslint-disable-next-line no-console
+        console.warn(`WorkspaceTabs: missing routeInfo entry for path "${pathname}"`);
+    }
+    const derivedSegments = pathname.split("/").filter(Boolean);
+    const lastSegment = derivedSegments[derivedSegments.length - 1];
+    const rawLabel = lastSegment ?? "Page";
+    const label = rawLabel
+        .replace(/[-_]+/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    return { label, icon: "📄" };
 }
 
 export function WorkspaceTabs() {
@@ -106,10 +119,9 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
             <Link
                 href={tab.href}
                 className="flex items-center gap-2"
-                onClick={(e) => e.stopPropagation()}
             >
                 {tab.icon && (
-                    <span className="text-sm" role="img" aria-hidden>
+                    <span className="text-sm" role="img" aria-hidden="true">
                         {tab.icon}
                     </span>
                 )}

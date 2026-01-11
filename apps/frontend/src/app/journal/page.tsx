@@ -15,6 +15,7 @@ export default function JournalPage() {
                     </div>
                     <button
                         disabled
+                        aria-disabled="true"
                         className="px-5 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 font-medium
                        opacity-50 cursor-not-allowed flex items-center gap-2"
                     >

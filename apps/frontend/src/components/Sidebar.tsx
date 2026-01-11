@@ -22,11 +22,7 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
     const pathname = usePathname();
-    const { isCollapsed, toggleSidebar, addTab } = useWorkspace();
-
-    const handleNavClick = (item: NavItem) => {
-        addTab({ label: item.label, href: item.href, icon: item.icon });
-    };
+    const { isCollapsed, toggleSidebar } = useWorkspace();
 
     return (
         <aside
@@ -79,7 +75,6 @@ export function Sidebar() {
                         <Link
                             key={item.href}
                             href={item.href}
-                            onClick={() => handleNavClick(item)}
                             className={`
                 flex items-center gap-3 px-3 py-2.5 rounded-xl
                 transition-all duration-200

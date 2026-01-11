@@ -1,6 +1,14 @@
 import Link from "next/link";
 
-const reports = [
+const reports: {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    href: string;
+    available: boolean;
+    color: "emerald" | "amber" | "cyan";
+}[] = [
     {
         id: "balance-sheet",
         title: "Balance Sheet",
@@ -88,29 +96,29 @@ interface ReportCardProps {
         icon: string;
         href: string;
         available: boolean;
-        color: string;
+        color: "emerald" | "amber" | "cyan";
     };
 }
 
+const colorClasses = {
+    emerald: "border-emerald-500/30 hover:border-emerald-500/50 hover:shadow-emerald-500/5",
+    amber: "border-amber-500/30 hover:border-amber-500/50 hover:shadow-amber-500/5",
+    cyan: "border-cyan-500/30 hover:border-cyan-500/50 hover:shadow-cyan-500/5",
+};
+
+const accentClasses = {
+    emerald: "text-emerald-400",
+    amber: "text-amber-400",
+    cyan: "text-cyan-400",
+};
+
 function ReportCard({ report }: ReportCardProps) {
-    const colorClasses = {
-        emerald: "border-emerald-500/30 hover:border-emerald-500/50 hover:shadow-emerald-500/5",
-        amber: "border-amber-500/30 hover:border-amber-500/50 hover:shadow-amber-500/5",
-        cyan: "border-cyan-500/30 hover:border-cyan-500/50 hover:shadow-cyan-500/5",
-    };
-
-    const accentClasses = {
-        emerald: "text-emerald-400",
-        amber: "text-amber-400",
-        cyan: "text-cyan-400",
-    };
-
     const content = (
         <div
             className={`
         rounded-2xl border bg-slate-800/30 p-6
         transition-all duration-300 hover:shadow-xl
-        ${colorClasses[report.color as keyof typeof colorClasses]}
+        ${colorClasses[report.color]}
         ${!report.available ? "opacity-60" : ""}
       `}
         >
@@ -124,7 +132,7 @@ function ReportCard({ report }: ReportCardProps) {
                     </span>
                 )}
             </div>
-            <h3 className={`text-xl font-semibold mb-2 ${accentClasses[report.color as keyof typeof accentClasses]}`}>
+            <h3 className={`text-xl font-semibold mb-2 ${accentClasses[report.color]}`}>
                 {report.title}
             </h3>
             <p className="text-slate-400 text-sm">{report.description}</p>

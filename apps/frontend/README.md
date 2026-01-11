@@ -25,7 +25,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc):
 
 - **AppShell** - Root layout wrapper with sidebar + workspace tabs
-- **Sidebar** - Collapsible left navigation (256px, shrinks to 64px)
+- **Sidebar** - Collapsible left navigation (256px expanded, 64px collapsed)
 - **WorkspaceTabs** - Top tab bar tracking open pages (persisted to localStorage)
 
 ## Key Pages
