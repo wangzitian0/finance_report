@@ -97,67 +97,24 @@ jobs:
         with:
           submodules: true
       
-      - name: Update compose file with SHA tags
+      - name: Trigger Dokploy Deployment
         run: |
-          echo "Updating compose file with SHA-tagged images..."
-          cd repo/finance_report/finance_report/10.app
-          
-          # Use short SHA (first 7 chars) to match Docker metadata action default
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "Using short SHA: sha-$SHORT_SHA"
-          
-          # Replace environment variable references with short SHA tags
-          sed -i "s|\${IMAGE_TAG:-latest}|sha-$SHORT_SHA|g" compose.yaml
-          
-          echo "Updated compose.yaml image lines:"
-          cat compose.yaml | grep "image:"
-
-      - name: Upload updated compose to Dokploy
-        run: |
-          cd repo/finance_report/finance_report/10.app
-          
-          echo "=== DEBUG: File System Information ==="
-          pwd
-          ls -la
-          echo "=== DEBUG: Compose Content (First 500 bytes) ==="
-          head -c 500 compose.yaml
-          echo ""
-          echo "==========================================="
-          
-          # Create JSON payload safely using jq
-          jq -n \
-            --arg id "${{ secrets.DOKPLOY_COMPOSE_ID }}" \
-            --rawfile content compose.yaml \
-            --arg type "raw" \
-            '{composeId: $id, composeFile: $content, sourceType: $type}' > payload.json
-          
-          echo "=== DEBUG: Payload Information ==="
-          ls -l payload.json
-          # Check valid JSON structure (and ensure content is not empty)
-          if [ ! -s payload.json ]; then
-            echo "ERROR: payload.json is empty!"
-            exit 1
-          fi
-          
-          # Inspect payload (MASKING POTENTIAL SECRETS IF ANY, BUT COMPOSE USUALLY SAFE HERE)
-          # We only print size to be safe
-          echo "Payload size: $(stat -c%s payload.json) bytes"
-          
-          echo "Uploading compose file to Dokploy..."
-          response=$(curl -v -s -X POST "https://cloud.zitian.party/api/compose.update" \
+          echo "Triggering deployment for Git-based configuration..."
+          # Dokploy in Git mode will pull 'latest' compose from infra2 and 'latest' image from registry
+          response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d @payload.json \
+            -d "{\"composeId\": \"${{ secrets.DOKPLOY_COMPOSE_ID }}\"}" \
             -w "\n%{http_code}")
             
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n-1)
           
-          echo "Update response: $body"
+          echo "Deploy response: $body"
           echo "HTTP Code: $http_code"
           
           if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
-            echo "Compose update failed"
+            echo "Deployment trigger failed"
             exit 1
           fi
 
