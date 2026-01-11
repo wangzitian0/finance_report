@@ -1,8 +1,13 @@
 site_name: Finance Report
 site_description: Personal financial management system with double-entry bookkeeping
-site_url: https://docs.report.zitian.party
+site_url: https://wangzitian0.github.io/finance_report/
 repo_url: https://github.com/wangzitian0/finance_report
 repo_name: wangzitian0/finance_report
+
+# Build output directory (default: site/)
+# Run 'mkdocs build' to generate static site
+# Run 'mkdocs serve' for live reload during development
+site_dir: site
 
 theme:
   name: material
@@ -81,8 +86,10 @@ nav:
       - Reporting: ssot/reporting.md
       - AI Advisor: ssot/ai_advisor.md
       - Database Schema: ssot/schema.md
+      - Development Guide: ssot/development.md
   - Development:
       - Project Overview: project/README.md
+      - Code Audit Report: README.md
       - Design Decisions: project/DECISIONS.md
       - EPICs:
           - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md

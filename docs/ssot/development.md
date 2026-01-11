@@ -39,6 +39,37 @@ moon run :build             # Build all
 
 ---
 
+## Documentation
+
+The project uses [MkDocs](https://www.mkdocs.org/) with Material theme for documentation.
+
+### Build & Serve Docs
+
+```bash
+# Install dependencies
+pip install -r docs/requirements.txt
+
+# Serve docs locally with live reload
+mkdocs serve
+# → Open http://127.0.0.1:8000
+
+# Build static site
+mkdocs build
+# → Output: site/ directory
+```
+
+### Documentation Structure
+
+| Path | Content |
+|------|---------|
+| `docs/` | Source markdown files |
+| `mkdocs.yml` | MkDocs configuration |
+| `site/` | Generated static site (gitignored) |
+
+The live documentation is hosted at [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/).
+
+---
+
 ## Five Scenarios
 
 | # | Scenario | Command | Smoke Test Timing |
@@ -94,6 +125,55 @@ Terminal 1 exits                   → refcount=0 (stop container)
 3. **Auto-cleanup**: Last runner stops container
 
 ---
+
+## Resource Lifecycle Management
+
+All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test lifecycle** (start/end).
+
+### Dev Server Lifecycle (`scripts/dev_*.py`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ User runs: moon run backend:dev                                 │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+│ │ Start   │ -> │ Server  │ -> │ Ctrl+C  │                      │
+│ │ DB      │    │ Runs    │    │ Cleanup │                      │
+│ └─────────┘    └─────────┘    └─────────┘                      │
+│                                    │                            │
+│                              Stops: OUR uvicorn, OUR DB only    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key safety feature**: Scripts track processes by PID, only kill what THEY started.
+Safe for multi-window development - won't kill other sessions' processes.
+
+**Resources managed by dev scripts:**
+| Script | Resources Started | Cleaned up on Ctrl+C |
+|--------|-------------------|---------------------|
+| `dev_backend.py` | uvicorn (PID tracked), dev DB (container ID tracked) | ✓ Only ours |
+| `dev_frontend.py` | Next.js (PID tracked) | ✓ Only ours |
+
+### Test Lifecycle (`scripts/test_backend.sh`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ User runs: moon run backend:test                                │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
+│ │ Start   │ -> │ Create  │ -> │ pytest  │ -> │ Cleanup │      │
+│ │ DB      │    │ test DB │    │ runs    │    │ (trap)  │      │
+│ └─────────┘    └─────────┘    └─────────┘    └─────────┘      │
+│                                                   │             │
+│                          Stops: DB (if refcount=0), playwright  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Resources managed by test script:**
+| Resource | Start | Stop |
+|----------|-------|------|
+| Test DB container | Before tests | After last test runner exits |
+| Playwright driver | By pytest | Cleanup on test end |
+| Child processes | By pytest | `pkill -P $$` on exit |
+
 
 ## Smoke Tests (scripts/smoke_test.sh)
 

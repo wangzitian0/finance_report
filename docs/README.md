@@ -1,7 +1,16 @@
 # Unified Code Audit & Roadmap (Jan 2026)
 
+> **Current System Status** — Comprehensive audit identifying critical issues, priorities, and next steps.
+
 **Auditors**: Architecture, Product, Security, Dev, QA, Reconciler  
-**Anchor**: `docs/project/EPIC-005.reporting-visualization.md`
+**Anchor Document**: [`docs/project/EPIC-005.reporting-visualization.md`](project/EPIC-005.reporting-visualization.md)
+
+## 🧭 Navigation
+
+- **[Project Overview](project/README.md)** — EPIC tracking and roadmap
+- **[Technical Docs](ssot/README.md)** — Single Source of Truth (SSOT)
+- **[Development Guide](ssot/development.md)** — Setup and development workflow
+- **[Back to Documentation Home](index.md)** — Main documentation index
 
 ## P0: Critical (Blockers, Data Loss, Security)
 

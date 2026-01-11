@@ -20,10 +20,31 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to load Space Grotesk and Fraunces.
 
+## Architecture
+
+The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc):
+
+- **AppShell** - Root layout wrapper with sidebar + workspace tabs
+- **Sidebar** - Collapsible left navigation (256px expanded, 64px collapsed)
+- **WorkspaceTabs** - Top tab bar tracking open pages (persisted to localStorage)
+
 ## Key Pages
 
-- `/reconciliation` - Reconciliation workbench UI
-- `/reconciliation/unmatched` - Unmatched transaction triage
+| Route | Description |
+|-------|-------------|
+| `/` | Redirects to `/dashboard` |
+| `/dashboard` | Financial dashboard with charts |
+| `/accounts` | Chart of accounts (placeholder) |
+| `/journal` | Journal entries (placeholder) |
+| `/statements` | Bank statement upload (placeholder) |
+| `/reports` | Reports index with Balance Sheet, Income Statement |
+| `/reports/balance-sheet` | Balance sheet report |
+| `/reports/income-statement` | Income statement report |
+| `/reports/cash-flow` | Cash flow statement (placeholder) |
+| `/reconciliation` | Reconciliation workbench UI |
+| `/reconciliation/unmatched` | Unmatched transaction triage |
+| `/chat` | AI Advisor chat interface |
+| `/ping-pong` | API connectivity demo |
 
 ## Learn More
 

@@ -1,6 +1,9 @@
 tmp/
 .env
 
+# MkDocs build output
+site/
+
 # Misc
 .DS_Store
 .vscode/

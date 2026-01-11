@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minio123"
     s3_bucket: str = "statements"
     s3_region: str = "us-east-1"
+    s3_presign_expiry_seconds: int = 900
 
     @field_validator("fallback_models", mode="before")
     @classmethod

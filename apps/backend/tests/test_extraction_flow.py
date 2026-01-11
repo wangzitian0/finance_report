@@ -50,7 +50,10 @@ class TestExtractionServiceFlow:
             mock_extract.return_value = mock_data
             
             stmt, events = await service.parse_document(
-                pdf_file, "DBS", user_id=UUID("00000000-0000-0000-0000-000000000001")
+                pdf_file,
+                "DBS",
+                user_id=UUID("00000000-0000-0000-0000-000000000001"),
+                file_content=pdf_file.read_bytes(),
             )
             
             # Verify results
@@ -74,7 +77,7 @@ class TestExtractionServiceFlow:
             "transactions": []
         }
         
-        with patch.object(service, "_parse_csv", new_callable=AsyncMock) as mock_csv:
+        with patch.object(service, "_parse_csv_content", new_callable=AsyncMock) as mock_csv:
             mock_csv.return_value = mock_data
             
             stmt, events = await service.parse_document(
@@ -82,6 +85,7 @@ class TestExtractionServiceFlow:
                 "DBS",
                 user_id=UUID("00000000-0000-0000-0000-000000000001"),
                 file_type="csv",
+                file_content=csv_file.read_bytes(),
             )
             
             assert stmt.status == BankStatementStatus.PARSED  # High confidence as it validates
@@ -99,6 +103,7 @@ class TestExtractionServiceFlow:
                 "DBS",
                 user_id=UUID("00000000-0000-0000-0000-000000000001"),
                 file_type="txt",
+                file_content=txt_file.read_bytes(),
             )
 
     @pytest.mark.asyncio
