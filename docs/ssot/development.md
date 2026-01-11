@@ -66,7 +66,7 @@ mkdocs build
 | `mkdocs.yml` | MkDocs configuration |
 | `site/` | Generated static site (gitignored) |
 
-The live documentation is hosted at [docs.report.zitian.party](https://docs.report.zitian.party).
+The live documentation is hosted at [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/).
 
 ---
 

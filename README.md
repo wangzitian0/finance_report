@@ -2,13 +2,13 @@
 
 <div align="center">
 
-### 📚 **[View Full Documentation →](https://docs.report.zitian.party)**
+### 📚 **[View Full Documentation →](https://wangzitian0.github.io/finance_report/)**
 
 *Complete user guides, API reference, and technical documentation*
 
 ---
 
-[![Documentation](https://img.shields.io/badge/docs-docs.report.zitian.party-blue.svg?logo=readthedocs)](https://docs.report.zitian.party)
+[![Documentation](https://img.shields.io/badge/docs-wangzitian0.github.io%2Ffinance__report-blue.svg?logo=readthedocs)](https://wangzitian0.github.io/finance_report/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192.svg?logo=postgresql)](https://www.postgresql.org/)
@@ -62,11 +62,11 @@ See [development.md](docs/ssot/development.md) for detailed workflows.
 
 | Resource | Description |
 |----------|-------------|
-| [📖 **Documentation Site**](https://docs.report.zitian.party) | **Complete documentation** — User guides, API reference, and technical docs |
+| [📖 **Documentation Site**](https://wangzitian0.github.io/finance_report/) | **Complete documentation** — User guides, API reference, and technical docs |
 | [AGENTS.md](./AGENTS.md) | AI agent guidelines |
 | [docs/ssot/](./docs/ssot/) | Technical SSOT (Single Source of Truth) |
 
-> 💡 **Documentation is automatically deployed** to [docs.report.zitian.party](https://docs.report.zitian.party) via GitHub Pages on every push to `main`.
+> 💡 **Documentation is automatically deployed** to [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/) via GitHub Pages on every push to `main`.
 
 ### Build Documentation Locally
 
