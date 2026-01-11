@@ -11,7 +11,7 @@
 | [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | 🟢 Complete (Backend) | 2 | 4 weeks |
 | [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | 🟢 Complete | 3 | 5 weeks |
 | [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | 🟡 In Progress | 4 | 3 weeks |
-| [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | ⏳ Pending | 4 | 2 weeks |
+| [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | 🟢 Complete | 4 | 2 weeks |
 | [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | 🟡 In Progress | 0 | 1 week |
 
 **Total Duration**: 17-20 weeks
@@ -22,6 +22,9 @@
 EPIC-001 ──→ EPIC-002 ──→ EPIC-003 ──→ EPIC-004
                 │
                 └──→ EPIC-005 ──→ EPIC-006
+
+EPIC-002 ──→ EPIC-006
+EPIC-004 ──→ EPIC-006
 
 EPIC-007 (Deployment) ──→ Deploy EPIC 1-3 features
 ```

@@ -60,6 +60,10 @@ Once the backend is running, visit:
 | `/api/reports/trend` | GET | Account trend data |
 | `/api/reports/breakdown` | GET | Income/expense category breakdown |
 | `/api/reports/export` | GET | Export reports (CSV) |
+| `/api/chat` | POST | AI advisor chat (streaming) |
+| `/api/chat/history` | GET | Chat session history |
+| `/api/chat/session/{id}` | DELETE | Clear chat session |
+| `/api/chat/suggestions` | GET | Suggested questions |
 
 ## Reconciliation
 
@@ -81,6 +85,7 @@ Frontend pages:
 - `/reports/balance-sheet` - Balance sheet report
 - `/reports/income-statement` - Income statement report
 - `/reports/cash-flow` - Cash flow (phase 2 placeholder)
+- `/chat` - AI advisor chat
 
 ## Project Structure
 

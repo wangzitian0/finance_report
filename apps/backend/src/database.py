@@ -42,6 +42,8 @@ async def init_db() -> None:
         Account,
         BankStatement,
         BankStatementTransaction,
+        ChatMessage,
+        ChatSession,
         FxRate,
         JournalEntry,
         JournalLine,

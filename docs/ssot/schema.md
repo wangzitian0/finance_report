@@ -23,12 +23,14 @@
 erDiagram
     User ||--o{ Account : owns
     User ||--o{ JournalEntry : creates
+    User ||--o{ ChatSession : owns
 
     Account ||--o{ JournalLine : contains
     Account }o--|| AccountType : has
 
     JournalEntry ||--|{ JournalLine : has
     JournalEntry ||--o{ ReconciliationMatch : matched_by
+    ChatSession ||--o{ ChatMessage : contains
 
     BankStatement ||--|{ BankStatementTransaction : contains
     BankStatementTransaction ||--o{ ReconciliationMatch : matched_to
@@ -133,6 +135,27 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
+
+    ChatSession {
+        uuid id PK
+        uuid user_id FK
+        string title
+        enum status "active|deleted"
+        timestamp created_at
+        timestamp updated_at
+        timestamp last_active_at
+    }
+
+    ChatMessage {
+        uuid id PK
+        uuid session_id FK
+        enum role "user|assistant|system"
+        text content
+        int tokens_in
+        int tokens_out
+        string model_name
+        timestamp created_at
+    }
 ```
 
 ---
@@ -198,8 +221,33 @@ Journal entry line table.
 | fx_rate | DECIMAL(12,6) | | Exchange rate |
 | event_type | VARCHAR(100) | | Event type |
 | tags | JSONB | | Tags |
+
+### ChatSessions
+Chat session header table.
+
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| title | VARCHAR(200) | | Optional session title |
+| status | ENUM | NOT NULL | active/deleted |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
+| last_active_at | TIMESTAMP | | Last message activity |
+
+### ChatMessages
+Individual chat messages.
+
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| session_id | UUID | FK -> ChatSessions, NOT NULL | Parent session |
+| role | ENUM | NOT NULL | user/assistant/system |
+| content | TEXT | NOT NULL | Message content |
+| tokens_in | INTEGER | | Estimated prompt tokens |
+| tokens_out | INTEGER | | Estimated completion tokens |
+| model_name | VARCHAR(100) | | Model identifier |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
 
 ### BankStatements
 Statement header table for imported statements.

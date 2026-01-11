@@ -6,6 +6,13 @@ from src.schemas.account import (
     AccountResponse,
     AccountUpdate,
 )
+from src.schemas.chat import (
+    ChatHistoryResponse,
+    ChatMessageResponse,
+    ChatRequest,
+    ChatSessionResponse,
+    ChatSuggestionsResponse,
+)
 from src.schemas.extraction import (
     BankStatementListResponse,
     BankStatementResponse,
@@ -56,6 +63,11 @@ __all__ = [
     "AccountListResponse",
     "AccountResponse",
     "AccountUpdate",
+    "ChatHistoryResponse",
+    "ChatMessageResponse",
+    "ChatRequest",
+    "ChatSessionResponse",
+    "ChatSuggestionsResponse",
     "BankStatementListResponse",
     "BankStatementResponse",
     "BankStatementStatusEnum",

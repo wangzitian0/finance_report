@@ -1,6 +1,7 @@
 """SQLAlchemy models package."""
 
 from src.models.account import Account, AccountType
+from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.journal import (
     Direction,
     JournalEntry,
@@ -31,6 +32,10 @@ __all__ = [
     "AccountEvent",  # Alias for BankStatementTransaction
     "AccountEventStatus",  # Alias for BankStatementTransactionStatus
     "AccountType",
+    "ChatMessage",
+    "ChatMessageRole",
+    "ChatSession",
+    "ChatSessionStatus",
     "BankStatement",
     "BankStatementStatus",
     "BankStatementTransaction",

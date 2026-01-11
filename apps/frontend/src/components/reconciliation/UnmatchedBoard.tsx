@@ -105,6 +105,15 @@ export default function UnmatchedBoard() {
     };
   }, [flagged.size, items.length]);
 
+  const aiPrompt = useMemo(() => {
+    if (!selected) return null;
+    const directionLabel = selected.direction === "IN" ? "inflow" : "outflow";
+    return encodeURIComponent(
+      `Help me interpret this transaction: ${selected.description} on ${selected.txn_date}, ` +
+        `amount ${selected.amount} (${directionLabel}). Why might it be unmatched?`
+    );
+  }, [selected]);
+
   return (
     <div className="min-h-screen bg-[#f7f3ea] text-[#171f1b]">
       <div className="relative overflow-hidden">
@@ -221,6 +230,14 @@ export default function UnmatchedBoard() {
                     >
                       {creating === selected.id ? "Creating..." : "Create Entry"}
                     </button>
+                    {aiPrompt ? (
+                      <Link
+                        href={`/chat?prompt=${aiPrompt}`}
+                        className="rounded-full border border-emerald-200 px-6 py-2 text-sm text-emerald-700 transition hover:bg-emerald-50"
+                      >
+                        Ask AI
+                      </Link>
+                    ) : null}
                     <button
                       onClick={() => toggleFlag(selected.id)}
                       className="rounded-full border border-amber-200 px-6 py-2 text-sm text-amber-700 transition hover:bg-amber-50"

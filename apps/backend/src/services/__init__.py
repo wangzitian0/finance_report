@@ -10,6 +10,7 @@ from src.services.accounting import (
     verify_accounting_equation,
     void_journal_entry,
 )
+from src.services.ai_advisor import AIAdvisorError, AIAdvisorService
 from src.services.extraction import ExtractionError, ExtractionService
 from src.services.fx import (
     FxRateError,
@@ -30,6 +31,8 @@ from src.services.reporting import (
 
 __all__ = [
     "AccountingError",
+    "AIAdvisorError",
+    "AIAdvisorService",
     "ExtractionError",
     "ExtractionService",
     "ValidationError",
