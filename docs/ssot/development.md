@@ -99,7 +99,7 @@ Terminal 1 exits                   → refcount=0 (stop container)
 
 All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test lifecycle** (start/end).
 
-### Dev Server Lifecycle (`scripts/dev_*.sh`)
+### Dev Server Lifecycle (`scripts/dev_*.py`)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -109,15 +109,18 @@ All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test li
 │ │ DB      │    │ Runs    │    │ Cleanup │                      │
 │ └─────────┘    └─────────┘    └─────────┘                      │
 │                                    │                            │
-│                              Stops: uvicorn, DB container       │
+│                              Stops: OUR uvicorn, OUR DB only    │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Key safety feature**: Scripts track processes by PID, only kill what THEY started.
+Safe for multi-window development - won't kill other sessions' processes.
 
 **Resources managed by dev scripts:**
 | Script | Resources Started | Cleaned up on Ctrl+C |
 |--------|-------------------|---------------------|
-| `dev_backend.sh` | uvicorn, dev DB | ✓ Both |
-| `dev_frontend.sh` | Next.js | ✓ Yes + orphan port 3000 |
+| `dev_backend.py` | uvicorn (PID tracked), dev DB (container ID tracked) | ✓ Only ours |
+| `dev_frontend.py` | Next.js (PID tracked) | ✓ Only ours |
 
 ### Test Lifecycle (`scripts/test_backend.sh`)
 
