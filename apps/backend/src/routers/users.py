@@ -2,9 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -13,12 +13,19 @@ from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
+MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
     """Hash a password."""
     return pwd_context.hash(password)
+
+
+def get_current_user_id() -> UUID:
+    """Return mock user ID until authentication is implemented."""
+    return MOCK_USER_ID
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -33,7 +40,7 @@ async def create_user(
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail="Invalid registration data",
         )
 
     user = User(
@@ -49,15 +56,22 @@ async def create_user(
 
 @router.get("", response_model=UserListResponse)
 async def list_users(
+    limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     db: AsyncSession = Depends(get_db),
 ) -> UserListResponse:
-    """List all users."""
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    """List all users with pagination."""
+    count_result = await db.execute(select(func.count(User.id)))
+    total = count_result.scalar_one()
+
+    result = await db.execute(
+        select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
+    )
     users = result.scalars().all()
 
     return UserListResponse(
         items=[UserResponse.model_validate(user) for user in users],
-        total=len(users),
+        total=total,
     )
 
 
@@ -73,7 +87,7 @@ async def get_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found",
+            detail="User not found",
         )
 
     return UserResponse.model_validate(user)
@@ -92,7 +106,7 @@ async def update_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_id} not found",
+            detail="User not found",
         )
 
     if user_data.email is not None:
@@ -103,7 +117,7 @@ async def update_user(
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already in use",
+                detail="Invalid update data",
             )
         user.email = user_data.email
 

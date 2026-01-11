@@ -23,7 +23,7 @@ async def test_create_user_success(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_create_user_duplicate_email(client: AsyncClient) -> None:
-    """Test that creating a user with existing email fails."""
+    """Test that creating a user with existing email fails with generic message."""
     payload = {
         "email": "duplicate@example.com",
         "password": "securepassword123",
@@ -32,10 +32,10 @@ async def test_create_user_duplicate_email(client: AsyncClient) -> None:
     response = await client.post("/api/users", json=payload)
     assert response.status_code == 201
 
-    # Second user with same email fails
+    # Second user with same email fails with generic message
     response = await client.post("/api/users", json=payload)
     assert response.status_code == 400
-    assert "already registered" in response.json()["detail"]
+    assert "Invalid registration data" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -44,6 +44,17 @@ async def test_create_user_invalid_password(client: AsyncClient) -> None:
     payload = {
         "email": "test@example.com",
         "password": "short",  # Less than 8 characters
+    }
+    response = await client.post("/api/users", json=payload)
+    assert response.status_code == 422  # Validation error
+
+
+@pytest.mark.asyncio
+async def test_create_user_invalid_email(client: AsyncClient) -> None:
+    """Test that creating user with invalid email format fails validation."""
+    payload = {
+        "email": "not-an-email",
+        "password": "securepassword123",
     }
     response = await client.post("/api/users", json=payload)
     assert response.status_code == 422  # Validation error
@@ -78,6 +89,32 @@ async def test_list_users_with_data(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_users_pagination(client: AsyncClient) -> None:
+    """Test pagination parameters work correctly."""
+    # Create 5 users
+    for i in range(5):
+        payload = {
+            "email": f"pageuser{i}@example.com",
+            "password": "securepassword123",
+        }
+        await client.post("/api/users", json=payload)
+
+    # Get first page
+    response = await client.get("/api/users?limit=2&offset=0")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["total"] == 5
+
+    # Get second page
+    response = await client.get("/api/users?limit=2&offset=2")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["total"] == 5
+
+
+@pytest.mark.asyncio
 async def test_get_user_by_id(client: AsyncClient) -> None:
     """Test getting a user by their ID."""
     # Create user
@@ -98,13 +135,13 @@ async def test_get_user_by_id(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_get_user_not_found(client: AsyncClient) -> None:
-    """Test getting a non-existent user returns 404."""
+    """Test getting a non-existent user returns generic 404 message."""
     import uuid
 
     fake_id = str(uuid.uuid4())
     response = await client.get(f"/api/users/{fake_id}")
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"]
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -129,7 +166,7 @@ async def test_update_user_email(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_update_user_duplicate_email(client: AsyncClient) -> None:
-    """Test that updating to an existing email fails."""
+    """Test that updating to an existing email fails with generic message."""
     # Create two users
     payload1 = {
         "email": "user1@test.com",
@@ -143,11 +180,11 @@ async def test_update_user_duplicate_email(client: AsyncClient) -> None:
     user2_response = await client.post("/api/users", json=payload2)
     user2_id = user2_response.json()["id"]
 
-    # Try to update user2 with user1's email
+    # Try to update user2 with user1's email - should get generic error
     update_payload = {"email": "user1@test.com"}
     response = await client.put(f"/api/users/{user2_id}", json=update_payload)
     assert response.status_code == 400
-    assert "already in use" in response.json()["detail"]
+    assert "Invalid update data" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -175,3 +212,22 @@ async def test_password_is_hashed(client: AsyncClient) -> None:
     assert data["email"] == "hash@example.com"
     assert "password" not in data
     assert "hashed_password" not in data  # Response schema doesn't expose it
+
+
+@pytest.mark.asyncio
+async def test_user_response_timezone_aware(client: AsyncClient) -> None:
+    """Test that response timestamps are timezone-aware."""
+    payload = {
+        "email": "timezone@example.com",
+        "password": "securepassword123",
+    }
+    response = await client.post("/api/users", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    # Check created_at is timezone-aware (contains Z or +00:00)
+    assert (
+        "Z" in data["created_at"]
+        or "+00:00" in data["created_at"]
+        or "T00:00:00+00:00" in data["created_at"]
+    )

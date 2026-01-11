@@ -1,16 +1,16 @@
 """Pydantic schemas for users."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
     """Base user schema."""
 
-    email: Annotated[str, Field(max_length=255)]
+    email: EmailStr
 
 
 class UserCreate(UserBase):
@@ -22,7 +22,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """Schema for updating a user."""
 
-    email: Annotated[str | None, Field(None, max_length=255)] = None
+    email: EmailStr | None = None
 
 
 class UserResponse(UserBase):
@@ -32,7 +32,15 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def ensure_timezone_aware(cls, v: datetime) -> datetime:
+        """Ensure datetime fields are timezone-aware."""
+        if v.tzinfo is None:
+            return v.replace(tzinfo=UTC)
+        return v
 
 
 class UserListResponse(BaseModel):
