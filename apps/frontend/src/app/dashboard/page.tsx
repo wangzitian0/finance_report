@@ -226,13 +226,53 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#f8f4ed] flex flex-col items-center justify-center text-slate-600 gap-4">
-        <p>{error}</p>
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f5f0e6_0%,#f7efe1_45%,#ecf1f0_100%)] flex flex-col items-center justify-center gap-8 p-8">
+        <div className="text-center max-w-lg">
+          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+            Getting Started
+          </div>
+          <h1 className="text-3xl font-semibold text-slate-800 mb-3">
+            Welcome to Finance Report
+          </h1>
+          <p className="text-slate-600 mb-2">
+            Your personal finance management system with double-entry bookkeeping.
+          </p>
+          <p className="text-sm text-slate-500">{error}</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3 max-w-2xl w-full">
+          <Link
+            href="/accounts"
+            className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/80 border border-emerald-200 hover:border-emerald-400 hover:shadow-lg transition-all text-center"
+          >
+            <span className="text-3xl">🏦</span>
+            <span className="font-medium text-slate-800">Set up Accounts</span>
+            <span className="text-xs text-slate-500">Chart of accounts</span>
+          </Link>
+          <Link
+            href="/statements"
+            className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/80 border border-amber-200 hover:border-amber-400 hover:shadow-lg transition-all text-center"
+          >
+            <span className="text-3xl">📄</span>
+            <span className="font-medium text-slate-800">Upload Statement</span>
+            <span className="text-xs text-slate-500">Import bank data</span>
+          </Link>
+          <Link
+            href="/journal"
+            className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/80 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all text-center"
+          >
+            <span className="text-3xl">📝</span>
+            <span className="font-medium text-slate-800">Journal Entries</span>
+            <span className="text-xs text-slate-500">Manual bookkeeping</span>
+          </Link>
+        </div>
+
         <button
           onClick={fetchData}
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+          className="rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
         >
-          Retry
+          Retry Connection
         </button>
       </div>
     );
@@ -439,9 +479,9 @@ export default function DashboardPage() {
                       <span className="text-sm font-semibold">
                         {balanceSheet
                           ? formatCurrency(
-                              balanceSheet.currency,
-                              toNumber(txn.amount)
-                            )
+                            balanceSheet.currency,
+                            toNumber(txn.amount)
+                          )
                           : txn.amount}
                       </span>
                     </div>
