@@ -255,10 +255,10 @@ Statement header table for imported statements.
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
 | id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users | Owner user |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
 | account_id | UUID | FK -> Accounts | Linked account (nullable until confirmed) |
 | file_path | VARCHAR(500) | NOT NULL | Storage path |
-| file_hash | VARCHAR(64) | | SHA256 for dedup |
+| file_hash | VARCHAR(64) | NOT NULL | SHA256 for dedup |
 | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
 | institution | VARCHAR(100) | NOT NULL | Bank/broker name |
 | account_last4 | VARCHAR(4) | | Last 4 digits |

@@ -90,10 +90,10 @@ def upgrade() -> None:
     op.create_table(
         "statements",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("file_path", sa.String(length=500), nullable=False),
-        sa.Column("file_hash", sa.String(length=64), nullable=True),
+        sa.Column("file_hash", sa.String(length=64), nullable=False),
         sa.Column("original_filename", sa.String(length=255), nullable=False),
         sa.Column("institution", sa.String(length=100), nullable=False),
         sa.Column("account_last4", sa.String(length=4), nullable=True),

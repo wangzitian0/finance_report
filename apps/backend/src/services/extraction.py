@@ -56,13 +56,14 @@ class ExtractionService:
 
     async def parse_document(
         self,
-        file_path: Path,
+        file_path: Path | None,
         institution: str,
         user_id: UUID,
         file_type: str = "pdf",
         account_id: UUID | None = None,
         file_content: bytes | None = None,
         file_hash: str | None = None,
+        file_url: str | None = None,
     ) -> tuple[BankStatement, list[BankStatementTransaction]]:
         """
         Parse a financial statement document.
@@ -77,15 +78,25 @@ class ExtractionService:
         """
         # Read file content
         if file_content is None:
+            if not file_path:
+                raise ExtractionError("File content or file path required")
             file_content = file_path.read_bytes()
         if file_hash is None:
             file_hash = hashlib.sha256(file_content).hexdigest()
 
         # Call Gemini for extraction
         if file_type in ("pdf", "image", "png", "jpg", "jpeg"):
-            extracted = await self.extract_financial_data(file_content, institution, file_type)
+            extracted = await self.extract_financial_data(
+                file_content,
+                institution,
+                file_type,
+                file_url=file_url,
+            )
         elif file_type == "csv":
-            extracted = await self._parse_csv(file_path, institution)
+            if file_path and file_path.exists():
+                extracted = await self._parse_csv(file_path, institution)
+            else:
+                extracted = await self._parse_csv_content(file_content, institution)
         else:
             raise ExtractionError(f"Unsupported file type: {file_type}")
 
@@ -110,9 +121,9 @@ class ExtractionService:
 
         # Create BankStatement object
         statement = BankStatement(
-            file_path=str(file_path),
+            file_path=str(file_path) if file_path else "unknown",
             file_hash=file_hash,
-            original_filename=file_path.name,
+            original_filename=file_path.name if file_path else "unknown",
             institution=institution,
             user_id=user_id,
             account_id=account_id,
@@ -167,17 +178,18 @@ class ExtractionService:
 
     async def extract_financial_data(
         self,
-        file_content: bytes,
+        file_content: bytes | None,
         institution: str,
         file_type: str,
         return_raw: bool = False,
+        file_url: str | None = None,
     ) -> dict[str, Any]:
         """Call Gemini Vision API via OpenRouter."""
         if not self.api_key:
             raise ExtractionError("OpenRouter API key not configured")
 
-        # Encode file as base64
-        b64_content = base64.b64encode(file_content).decode("utf-8")
+        if file_content is None and not file_url:
+            raise ExtractionError("File content or URL required for extraction")
 
         # Determine MIME type
         mime_types = {
@@ -189,6 +201,20 @@ class ExtractionService:
         }
         mime_type = mime_types.get(file_type, "application/pdf")
 
+        if file_url:
+            media_payload = {
+                "type": "image_url",
+                "image_url": {"url": file_url},
+            }
+        else:
+            b64_content = base64.b64encode(file_content).decode("utf-8")
+            media_payload = {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{b64_content}",
+                },
+            }
+
         # Build request
         prompt = get_parsing_prompt(institution)
         messages = [
@@ -199,12 +225,7 @@ class ExtractionService:
                         "type": "text",
                         "text": prompt,
                     },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{b64_content}",
-                        },
-                    },
+                    media_payload,
                 ],
             }
         ]
@@ -268,6 +289,25 @@ class ExtractionService:
             reader = csv.DictReader(f)
             rows = list(reader)
 
+        return self._parse_csv_rows(rows, institution, dt)
+
+    async def _parse_csv_content(self, file_content: bytes, institution: str) -> dict[str, Any]:
+        """Parse CSV content directly from bytes."""
+        import csv
+        from datetime import datetime as dt
+        from io import StringIO
+
+        content = file_content.decode("utf-8-sig")
+        reader = csv.DictReader(StringIO(content))
+        rows = list(reader)
+        return self._parse_csv_rows(rows, institution, dt)
+
+    def _parse_csv_rows(
+        self,
+        rows: list[dict[str, str | None]],
+        institution: str,
+        dt: type,
+    ) -> dict[str, Any]:
         if not rows:
             raise ExtractionError("Empty CSV file")
 

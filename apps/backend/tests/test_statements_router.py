@@ -19,6 +19,21 @@ from src.routers import statements as statements_router
 from src.schemas import StatementDecisionRequest
 
 
+class DummyStorage:
+    """Storage stub for statement upload tests."""
+
+    def upload_bytes(self, *, key, content, content_type=None):  # noqa: ANN001
+        return None
+
+    def generate_presigned_url(self, *, key, expires_in=None):  # noqa: ANN001
+        return f"https://example.com/{key}"
+
+
+@pytest.fixture
+def storage_stub(monkeypatch):
+    monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
+
+
 def make_upload_file(name: str, content: bytes) -> UploadFile:
     """Create an UploadFile for testing."""
     return UploadFile(
@@ -49,7 +64,7 @@ def build_statement(file_hash: str, confidence_score: int) -> BankStatement:
 
 
 @pytest.mark.asyncio
-async def test_upload_statement_duplicate(db, monkeypatch):
+async def test_upload_statement_duplicate(db, monkeypatch, storage_stub):
     """Uploading the same file twice should trigger duplicate detection."""
     content = b"duplicate-statement"
     file_hash = hashlib.sha256(content).hexdigest()
@@ -63,6 +78,7 @@ async def test_upload_statement_duplicate(db, monkeypatch):
         account_id=None,
         file_content=None,
         file_hash=None,
+        file_url=None,
     ):
         statement = build_statement(file_hash or "", confidence_score=90)
         return statement, []
@@ -96,7 +112,7 @@ async def test_upload_statement_duplicate(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_and_transactions_flow(db, monkeypatch):
+async def test_list_and_transactions_flow(db, monkeypatch, storage_stub):
     """Upload then list statements and transactions."""
     content = b"statement-flow"
     file_hash = hashlib.sha256(content).hexdigest()
@@ -110,6 +126,7 @@ async def test_list_and_transactions_flow(db, monkeypatch):
         account_id=None,
         file_content=None,
         file_hash=None,
+        file_url=None,
     ):
         statement = build_statement(file_hash or "", confidence_score=90)
         transaction = BankStatementTransaction(
@@ -150,7 +167,7 @@ async def test_list_and_transactions_flow(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_pending_review_and_decisions(db, monkeypatch):
+async def test_pending_review_and_decisions(db, monkeypatch, storage_stub):
     """Review queue filters by confidence and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
@@ -164,6 +181,7 @@ async def test_pending_review_and_decisions(db, monkeypatch):
         account_id=None,
         file_content=None,
         file_hash=None,
+        file_url=None,
     ):
         score = scores.pop(0)
         statement = build_statement(file_hash or "", confidence_score=score)

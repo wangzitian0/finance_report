@@ -26,8 +26,8 @@ Personal financial management system featuring **double-entry bookkeeping**, **A
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-# Start database
-podman compose -f docker-compose.ci.yml up -d postgres
+# Start database + object storage (required for statement uploads)
+podman compose -f docker-compose.ci.yml up -d postgres minio
 
 # Backend (Terminal 1)
 cd apps/backend && uv sync && uv run uvicorn src.main:app --reload

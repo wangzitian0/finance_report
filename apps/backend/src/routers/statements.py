@@ -1,11 +1,12 @@
 """Statement extraction API router."""
 
 import hashlib
+import mimetypes
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -19,7 +20,7 @@ from src.schemas import (
     BankStatementTransactionResponse,
     StatementDecisionRequest,
 )
-from src.services import ExtractionError, ExtractionService
+from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 
 router = APIRouter(prefix="/api/statements", tags=["statements"])
 
@@ -41,7 +42,7 @@ async def upload_statement(
 
     Supported file types: PDF, CSV, PNG, JPG
     """
-    filename = file.filename or "unknown"
+    filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 
     if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
@@ -63,25 +64,39 @@ async def upload_statement(
     if duplicate.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
 
-    tmp_path = None
     try:
-        with NamedTemporaryFile(delete=False, suffix=f".{extension}") as tmp:
-            tmp.write(content)
-            tmp_path = Path(tmp.name)
+        statement_id = uuid4()
+        storage_key = f"statements/{statement_id}/{filename}"
+        content_type = (
+            file.content_type
+            or mimetypes.guess_type(filename)[0]
+            or "application/octet-stream"
+        )
+
+        storage = StorageService()
+        await run_in_threadpool(
+            storage.upload_bytes,
+            key=storage_key,
+            content=content,
+            content_type=content_type,
+        )
+        file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key)
 
         service = ExtractionService()
         statement, transactions = await service.parse_document(
-            file_path=tmp_path,
+            file_path=Path(filename),
             institution=institution,
             user_id=MOCK_USER_ID,
             file_type=extension,
             account_id=account_id,
             file_content=content,
             file_hash=file_hash,
+            file_url=file_url,
         )
 
+        statement.id = statement_id
         statement.original_filename = filename
-        statement.file_path = f"statements/{statement.id}/{filename}"
+        statement.file_path = storage_key
         statement.transactions = transactions
 
         db.add(statement)
@@ -98,9 +113,8 @@ async def upload_statement(
 
     except ExtractionError as e:
         raise HTTPException(422, str(e))
-    finally:
-        if tmp_path:
-            tmp_path.unlink(missing_ok=True)
+    except StorageError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
 
 
 @router.get("", response_model=BankStatementListResponse)
