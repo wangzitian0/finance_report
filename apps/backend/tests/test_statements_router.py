@@ -6,6 +6,7 @@ import hashlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException, UploadFile
@@ -17,6 +18,32 @@ from src.models.statement import (
 )
 from src.routers import statements as statements_router
 from src.schemas import StatementDecisionRequest
+
+
+class DummyStorage:
+    """Storage stub for statement upload tests."""
+
+    def upload_bytes(
+        self,
+        *,
+        key: str,
+        content: bytes,
+        content_type: str | None = None,
+    ) -> None:
+        return None
+
+    def generate_presigned_url(
+        self,
+        *,
+        key: str,
+        expires_in: int | None = None,
+    ) -> str:
+        return f"https://example.com/{key}"
+
+
+@pytest.fixture
+def storage_stub(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -49,7 +76,7 @@ def build_statement(file_hash: str, confidence_score: int) -> BankStatement:
 
 
 @pytest.mark.asyncio
-async def test_upload_statement_duplicate(db, monkeypatch):
+async def test_upload_statement_duplicate(db, monkeypatch, storage_stub):
     """Uploading the same file twice should trigger duplicate detection."""
     content = b"duplicate-statement"
     file_hash = hashlib.sha256(content).hexdigest()
@@ -63,6 +90,8 @@ async def test_upload_statement_duplicate(db, monkeypatch):
         account_id=None,
         file_content=None,
         file_hash=None,
+        file_url=None,
+        original_filename=None,
     ):
         statement = build_statement(file_hash or "", confidence_score=90)
         return statement, []
@@ -96,7 +125,54 @@ async def test_upload_statement_duplicate(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_list_and_transactions_flow(db, monkeypatch):
+async def test_upload_storage_failure(db, monkeypatch):
+    """Storage failure should return 503."""
+    content = b"content"
+
+    # Mock StorageService to raise StorageError
+    mock_storage = MagicMock()
+    mock_storage.upload_bytes.side_effect = statements_router.StorageError("S3 Down")
+    
+    # We need to mock the class constructor to return our mock instance
+    mock_storage_cls = MagicMock(return_value=mock_storage)
+    monkeypatch.setattr(statements_router, "StorageService", mock_storage_cls)
+
+    upload_file = make_upload_file("statement.pdf", content)
+    
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            db=db,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 503
+    assert "S3 Down" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_invalid_extension(db):
+    """Invalid file extension should return 400."""
+    content = b"content"
+    upload_file = make_upload_file("statement.exe", content)
+    
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            db=db,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 400
+    assert "Unsupported file type" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_list_and_transactions_flow(db, monkeypatch, storage_stub):
     """Upload then list statements and transactions."""
     content = b"statement-flow"
     file_hash = hashlib.sha256(content).hexdigest()
@@ -110,6 +186,8 @@ async def test_list_and_transactions_flow(db, monkeypatch):
         account_id=None,
         file_content=None,
         file_hash=None,
+        file_url=None,
+        original_filename=None,
     ):
         statement = build_statement(file_hash or "", confidence_score=90)
         transaction = BankStatementTransaction(
@@ -150,7 +228,7 @@ async def test_list_and_transactions_flow(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_pending_review_and_decisions(db, monkeypatch):
+async def test_pending_review_and_decisions(db, monkeypatch, storage_stub):
     """Review queue filters by confidence and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
@@ -164,6 +242,8 @@ async def test_pending_review_and_decisions(db, monkeypatch):
         account_id=None,
         file_content=None,
         file_hash=None,
+        file_url=None,
+        original_filename=None,
     ):
         score = scores.pop(0)
         statement = build_statement(file_hash or "", confidence_score=score)

@@ -88,12 +88,12 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "statements",
+        "bank_statements",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("file_path", sa.String(length=500), nullable=False),
-        sa.Column("file_hash", sa.String(length=64), nullable=True),
+        sa.Column("file_hash", sa.String(length=64), nullable=False),
         sa.Column("original_filename", sa.String(length=255), nullable=False),
         sa.Column("institution", sa.String(length=100), nullable=False),
         sa.Column("account_last4", sa.String(length=4), nullable=True),
@@ -110,10 +110,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"]),
+        sa.UniqueConstraint("user_id", "file_hash", name="uq_bank_statements_user_file_hash"),
     )
 
     op.create_table(
-        "account_events",
+        "bank_statement_transactions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("statement_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("txn_date", sa.Date(), nullable=False),
@@ -127,7 +128,7 @@ def upgrade() -> None:
         sa.Column("raw_text", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["statement_id"], ["statements.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["statement_id"], ["bank_statements.id"], ondelete="CASCADE"),
     )
 
     op.create_table(
@@ -185,7 +186,7 @@ def upgrade() -> None:
         sa.Column("superseded_by_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["bank_txn_id"], ["account_events.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["bank_txn_id"], ["bank_statement_transactions.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["superseded_by_id"], ["reconciliation_matches.id"]),
     )
 
@@ -200,10 +201,10 @@ def upgrade() -> None:
 
     # Indexes for performance-critical query paths (per docs/ssot/schema.md)
     op.create_index("ix_accounts_user_id", "accounts", ["user_id"])
-    op.create_index("ix_statements_user_id", "statements", ["user_id"])
-    op.create_index("ix_statements_status", "statements", ["status"])
-    op.create_index("ix_account_events_txn_date", "account_events", ["txn_date"])
-    op.create_index("ix_account_events_status", "account_events", ["status"])
+    op.create_index("ix_bank_statements_user_id", "bank_statements", ["user_id"])
+    op.create_index("ix_bank_statements_status", "bank_statements", ["status"])
+    op.create_index("ix_bank_statement_transactions_txn_date", "bank_statement_transactions", ["txn_date"])
+    op.create_index("ix_bank_statement_transactions_status", "bank_statement_transactions", ["status"])
     op.create_index("ix_journal_entries_user_id", "journal_entries", ["user_id"])
     op.create_index("ix_journal_entries_entry_date", "journal_entries", ["entry_date"])
     op.create_index("ix_journal_entries_status", "journal_entries", ["status"])
@@ -216,17 +217,17 @@ def downgrade() -> None:
     op.drop_index("ix_journal_entries_status", table_name="journal_entries")
     op.drop_index("ix_journal_entries_entry_date", table_name="journal_entries")
     op.drop_index("ix_journal_entries_user_id", table_name="journal_entries")
-    op.drop_index("ix_account_events_status", table_name="account_events")
-    op.drop_index("ix_account_events_txn_date", table_name="account_events")
-    op.drop_index("ix_statements_status", table_name="statements")
-    op.drop_index("ix_statements_user_id", table_name="statements")
+    op.drop_index("ix_bank_statement_transactions_status", table_name="bank_statement_transactions")
+    op.drop_index("ix_bank_statement_transactions_txn_date", table_name="bank_statement_transactions")
+    op.drop_index("ix_bank_statements_status", table_name="bank_statements")
+    op.drop_index("ix_bank_statements_user_id", table_name="bank_statements")
     op.drop_index("ix_accounts_user_id", table_name="accounts")
     op.drop_table("ping_state")
     op.drop_table("reconciliation_matches")
     op.drop_table("journal_lines")
     op.drop_table("journal_entries")
-    op.drop_table("account_events")
-    op.drop_table("statements")
+    op.drop_table("bank_statement_transactions")
+    op.drop_table("bank_statements")
     op.drop_table("accounts")
     op.drop_table("users")
 

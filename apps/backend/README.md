@@ -50,4 +50,10 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 PRIMARY_MODEL=google/gemini-3-flash
 FALLBACK_MODELS=google/gemini-2.0,openai/gpt-4-turbo
 OPENROUTER_DAILY_LIMIT_USD=2
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY=minio
+S3_SECRET_KEY=minio123
+S3_BUCKET=statements
+S3_REGION=us-east-1
+S3_PRESIGN_EXPIRY_SECONDS=900
 ```

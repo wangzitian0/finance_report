@@ -193,6 +193,7 @@ class TestInvalidParseNotPersisted:
                     bad_file,
                     "DBS",
                     user_id=uuid4(),
+                    file_content=bad_file.read_bytes(),
                 )
 
     @pytest.mark.asyncio
@@ -224,6 +225,7 @@ class TestInvalidParseNotPersisted:
                 pdf_file,
                 "DBS",
                 user_id=uuid4(),
+                file_content=pdf_file.read_bytes(),
             )
             
             # Should not be auto-accepted due to balance mismatch

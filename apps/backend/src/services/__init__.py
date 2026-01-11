@@ -28,6 +28,7 @@ from src.services.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
+from src.services.storage import StorageError, StorageService
 
 __all__ = [
     "AccountingError",
@@ -55,4 +56,6 @@ __all__ = [
     "generate_income_statement",
     "get_account_trend",
     "get_category_breakdown",
+    "StorageError",
+    "StorageService",
 ]

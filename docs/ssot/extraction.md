@@ -4,14 +4,15 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using Gemini 3 Flash Vision via OpenRouter (with fallback models), outputting structured transaction data with confidence scoring.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using Gemini 3 Flash Vision via OpenRouter (with fallback models), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to Gemini via presigned URLs to avoid large Base64 payloads.
 
 ## Data Flow
 
 ```mermaid
 flowchart TB
-    A[Upload PDF/Image/CSV] --> B{File Type}
-    B -->|PDF/Image| C[Gemini 3 Flash Vision]
+    A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
+    S --> B{File Type}
+    B -->|PDF/Image| C[Gemini 3 Flash Vision (presigned URL)]
     B -->|CSV| D[Structured Parser]
     C --> E[Extract JSON]
     D --> E
@@ -30,16 +31,14 @@ flowchart TB
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | UUID | Primary key |
-| `user_id` | UUID | Owner user (nullable in MVP) |
+| `user_id` | UUID | Owner user |
 | `account_id` | UUID | Linked account (nullable in MVP) |
-| `file_path` | str | S3 key |
+| `file_path` | str | Object storage key (S3/MinIO) |
 | `file_hash` | str | SHA256 for dedup |
 | `original_filename` | str | User-provided name |
 | `institution` | str | Bank/broker/fintech (DBS, CMB, Wise) |
 | `account_last4` | str | Last 4 digits |
 | `currency` | str | ISO currency code |
-| `user_id` | UUID | Owner user |
-| `account_id` | UUID | Linked account (nullable until confirmed) |
 | `period_start` | date | Statement start |
 | `period_end` | date | Statement end |
 | `opening_balance` | Decimal | Beginning balance |
@@ -119,6 +118,8 @@ S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
 S3_SECRET_KEY=minio123
 S3_BUCKET=statements
+S3_REGION=us-east-1
+S3_PRESIGN_EXPIRY_SECONDS=900
 ```
 
 ## Files
@@ -129,6 +130,7 @@ S3_BUCKET=statements
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/services/extraction.py` | Core extraction logic |
 | `src/services/validation.py` | Validation and confidence scoring |
+| `src/services/storage.py` | Object storage uploads + presigned URLs |
 | `src/prompts/statement.py` | Gemini prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |
 | `scripts/generate_fixtures.py` | Parse docs with caching |
