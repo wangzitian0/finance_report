@@ -110,6 +110,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"]),
+        sa.UniqueConstraint("user_id", "file_hash", name="uq_bank_statements_user_file_hash"),
     )
 
     op.create_table(
