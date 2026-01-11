@@ -139,48 +139,39 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  useEffect(() => {
-    if (initialPromptHandled) return;
-    if (!initialPrompt || loadingHistory) return;
-    if (messages.length > 0) {
-      setInput(initialPrompt);
-      setInitialPromptHandled(true);
-      return;
-    }
-    setInitialPromptHandled(true);
-    void sendMessage(initialPrompt);
-  }, [initialPrompt, initialPromptHandled, loadingHistory, messages.length]);
-
-  const updateMessage = (id: string, content: string, streaming?: boolean) => {
+  const updateMessage = useCallback((id: string, content: string, streaming?: boolean) => {
     setMessages((prev) =>
       prev.map((item) => (item.id === id ? { ...item, content, streaming } : item))
     );
-  };
+  }, []);
 
-  const handleStream = async (response: Response, assistantId: string) => {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      updateMessage(assistantId, "No response stream available.");
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let aggregated = "";
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value) {
-        aggregated += decoder.decode(value, { stream: true });
-        updateMessage(assistantId, aggregated, true);
+  const handleStream = useCallback(
+    async (response: Response, assistantId: string) => {
+      const reader = response.body?.getReader();
+      if (!reader) {
+        updateMessage(assistantId, "No response stream available.");
+        return;
       }
-    }
 
-    aggregated += decoder.decode();
-    updateMessage(assistantId, aggregated, false);
-  };
+      const decoder = new TextDecoder();
+      let aggregated = "";
 
-  const sendMessage = async (text?: string) => {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          aggregated += decoder.decode(value, { stream: true });
+          updateMessage(assistantId, aggregated, true);
+        }
+      }
+
+      aggregated += decoder.decode();
+      updateMessage(assistantId, aggregated, false);
+    },
+    [updateMessage]
+  );
+
+  const sendMessage = useCallback(async (text?: string) => {
     const messageText = (text ?? input).trim();
     if (!messageText || isStreaming) return;
 
@@ -243,7 +234,19 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
       updateMessage(assistantId, formatErrorMessage(err), false);
       setIsStreaming(false);
     }
-  };
+  }, [handleStream, input, isStreaming, sessionId, updateMessage]);
+
+  useEffect(() => {
+    if (initialPromptHandled) return;
+    if (!initialPrompt || loadingHistory) return;
+    if (messages.length > 0) {
+      setInput(initialPrompt);
+      setInitialPromptHandled(true);
+      return;
+    }
+    setInitialPromptHandled(true);
+    void sendMessage(initialPrompt);
+  }, [initialPrompt, initialPromptHandled, loadingHistory, messages.length, sendMessage]);
 
   const clearSession = async () => {
     if (!sessionId) {

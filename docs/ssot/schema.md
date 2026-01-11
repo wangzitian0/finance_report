@@ -248,8 +248,6 @@ Individual chat messages.
 | tokens_out | INTEGER | | Estimated completion tokens |
 | model_name | VARCHAR(100) | | Model identifier |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
 
 ### BankStatements
 Statement header table for imported statements.

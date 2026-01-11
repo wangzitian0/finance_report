@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.models import (
     AccountType,
+    BankStatement,
     BankStatementTransaction,
     BankStatementTransactionStatus,
     ChatMessage,
@@ -383,21 +384,31 @@ class AIAdvisorService:
         except ReportError:
             top_expenses = "N/A"
 
-        total_result = await db.execute(select(func.count(BankStatementTransaction.id)))
+        txn_base = (
+            select(func.count(BankStatementTransaction.id))
+            .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+            .where(BankStatement.user_id == user_id)
+        )
+        total_result = await db.execute(txn_base)
         matched_result = await db.execute(
-            select(func.count(BankStatementTransaction.id)).where(
+            txn_base.where(
                 BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED
             )
         )
         unmatched_result = await db.execute(
-            select(func.count(BankStatementTransaction.id)).where(
+            txn_base.where(
                 BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED
             )
         )
         pending_result = await db.execute(
-            select(func.count(ReconciliationMatch.id)).where(
-                ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW
+            select(func.count(ReconciliationMatch.id))
+            .join(
+                BankStatementTransaction,
+                ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
             )
+            .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+            .where(BankStatement.user_id == user_id)
+            .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
         )
 
         total = total_result.scalar_one()
