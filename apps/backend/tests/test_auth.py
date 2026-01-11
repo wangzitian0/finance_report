@@ -3,10 +3,6 @@
 import pytest
 from uuid import uuid4
 from httpx import AsyncClient, ASGITransport
-from fastapi import FastAPI, Depends
-from src.auth import get_current_user_id
-from src.models import User
-from sqlalchemy.ext.asyncio import AsyncSession
 
 @pytest.mark.asyncio
 async def test_auth_missing_header(db_engine):

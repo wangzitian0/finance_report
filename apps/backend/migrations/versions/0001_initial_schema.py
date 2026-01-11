@@ -128,13 +128,7 @@ def upgrade() -> None:
         sa.Column("raw_text", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-<<<<<<< HEAD
-        sa.ForeignKeyConstraint(
-            ["statement_id"], ["bank_statements.id"], ondelete="CASCADE"
-        ),
-=======
         sa.ForeignKeyConstraint(["statement_id"], ["bank_statements.id"], ondelete="CASCADE"),
->>>>>>> origin/main
     )
 
     op.create_table(
@@ -192,13 +186,7 @@ def upgrade() -> None:
         sa.Column("superseded_by_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-<<<<<<< HEAD
-        sa.ForeignKeyConstraint(
-            ["bank_txn_id"], ["bank_statement_transactions.id"], ondelete="CASCADE"
-        ),
-=======
         sa.ForeignKeyConstraint(["bank_txn_id"], ["bank_statement_transactions.id"], ondelete="CASCADE"),
->>>>>>> origin/main
         sa.ForeignKeyConstraint(["superseded_by_id"], ["reconciliation_matches.id"]),
     )
 
@@ -215,21 +203,8 @@ def upgrade() -> None:
     op.create_index("ix_accounts_user_id", "accounts", ["user_id"])
     op.create_index("ix_bank_statements_user_id", "bank_statements", ["user_id"])
     op.create_index("ix_bank_statements_status", "bank_statements", ["status"])
-<<<<<<< HEAD
-    op.create_index(
-        "ix_bank_statement_transactions_txn_date",
-        "bank_statement_transactions",
-        ["txn_date"],
-    )
-    op.create_index(
-        "ix_bank_statement_transactions_status",
-        "bank_statement_transactions",
-        ["status"],
-    )
-=======
     op.create_index("ix_bank_statement_transactions_txn_date", "bank_statement_transactions", ["txn_date"])
     op.create_index("ix_bank_statement_transactions_status", "bank_statement_transactions", ["status"])
->>>>>>> origin/main
     op.create_index("ix_journal_entries_user_id", "journal_entries", ["user_id"])
     op.create_index("ix_journal_entries_entry_date", "journal_entries", ["entry_date"])
     op.create_index("ix_journal_entries_status", "journal_entries", ["status"])
@@ -242,18 +217,8 @@ def downgrade() -> None:
     op.drop_index("ix_journal_entries_status", table_name="journal_entries")
     op.drop_index("ix_journal_entries_entry_date", table_name="journal_entries")
     op.drop_index("ix_journal_entries_user_id", table_name="journal_entries")
-<<<<<<< HEAD
-    op.drop_index(
-        "ix_bank_statement_transactions_status", table_name="bank_statement_transactions"
-    )
-    op.drop_index(
-        "ix_bank_statement_transactions_txn_date",
-        table_name="bank_statement_transactions",
-    )
-=======
     op.drop_index("ix_bank_statement_transactions_status", table_name="bank_statement_transactions")
     op.drop_index("ix_bank_statement_transactions_txn_date", table_name="bank_statement_transactions")
->>>>>>> origin/main
     op.drop_index("ix_bank_statements_status", table_name="bank_statements")
     op.drop_index("ix_bank_statements_user_id", table_name="bank_statements")
     op.drop_index("ix_accounts_user_id", table_name="accounts")

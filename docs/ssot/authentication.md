@@ -25,19 +25,20 @@
 - Valid user ID -> request proceeds
 
 **Scope**:
-- Accounts, journal entries, statements, reports, and chat endpoints.
-- **Known Gap**: Reconciliation endpoints are currently **not** authenticated and are explicitly out of scope for this initial MVP bridge.
+- Accounts, journal entries, statements, reports, reconciliation, and chat endpoints.
+- Reconciliation endpoints **must** be authenticated and user-scoped via `get_current_user_id`. Unauthenticated access to reconciliation data is **prohibited**, including in MVP and test environments.
 
 ---
 
 ## 3. Security Considerations
 
-> **Warning**: The `X-User-Id` header is currently trusted without cryptographic verification. This is a temporary architectural bridge to enable multi-tenant data structures before a full OIDC/JWT implementation.
+> **Warning**: The `X-User-Id` header is currently trusted without cryptographic verification. This allows any client to impersonate any user by sending a valid UUID.
 
 ### Risk Mitigation
-- This model is strictly for MVP development and internal testing.
-- **Spoofing**: Any client can impersonate any user if they know their UUID.
-- **Production Requirement**: Must be replaced by a secure token (JWT) or a trusted upstream gateway header (e.g., from an API Gateway that handles auth).
+- **Private Access Only**: This API must NOT be exposed to the public internet without a trusted upstream gateway (e.g., Kong, Nginx) that handles auth and sanitizes this header.
+- **Production Requirement**: Before production release, this mechanism MUST be replaced by:
+  1. **OIDC/JWT Tokens**: Validated by the backend.
+  2. **Trusted Gateway**: Where the gateway authenticates the user and injects the `X-User-Id` header (stripping any client-provided value).
 
 ---
 
@@ -54,7 +55,7 @@
 
 ---
 
-## 4. Playbook
+## 5. Playbook
 
 ### Local Development
 1. Create a user record in the database.
@@ -65,7 +66,7 @@
 
 ---
 
-## 5. Verification (The Proof)
+## 6. Verification (The Proof)
 
 ```bash
 curl -H "X-User-Id: <uuid>" http://localhost:8000/api/accounts
