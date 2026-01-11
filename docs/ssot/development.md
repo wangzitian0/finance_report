@@ -10,7 +10,7 @@
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
 | `scripts/test_backend.sh` | Database lifecycle (reference counting) |
-| `scripts/smoke_test.sh` | Unified smoke tests (local + CI) |
+| `scripts/smoke_test.sh` | Unified smoke tests |
 | `docker-compose.ci.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
 | `.github/workflows/docker-build.yml` | Build, Deploy, Smoke Test |
@@ -19,52 +19,64 @@
 
 ## Moon Commands (Primary Interface)
 
-All development commands go through `moon run`:
-
 ```bash
-# Setup
-moon run :setup             # Install all dependencies
-
 # Development
 moon run backend:dev        # FastAPI on :8000
 moon run frontend:dev       # Next.js on :3000
 
 # Testing
-moon run :test              # All tests (auto-manages DB)
-moon run backend:test       # Backend tests only
-moon run frontend:test      # Frontend tests only
-moon run :smoke             # Smoke tests (needs running server)
+moon run :test              # All tests
+moon run backend:test       # Backend tests (auto-manages DB)
+moon run :smoke             # Smoke tests
 
 # Code Quality
 moon run :lint              # Lint all
-moon run backend:lint       # Lint Python
-moon run frontend:lint      # Lint TypeScript
 moon run backend:format     # Format Python
 
 # Build
 moon run :build             # Build all
-moon run frontend:build     # Build frontend
 ```
 
 ---
 
 ## Five Scenarios
 
-| Scenario | Command | Database | Details |
-|----------|---------|----------|---------|
-| **1. Dev Start** | `moon run backend:dev` | docker-compose.ci.yml | Persistent container |
-| **2. Local Test** | `moon run backend:test` | Reference counting | scripts/test_backend.sh |
-| **3. Remote CI** | `moon run backend:test` | GitHub services | Ephemeral |
-| **4. Staging** | (manual) | Dokploy | TODO |
-| **5. Prod Deploy** | Push to main | Dokploy | Auto via docker-build.yml |
+| # | Scenario | Command | Smoke Test Timing |
+|---|----------|---------|-------------------|
+| 1 | **Dev Start** | `moon run backend:dev` | Manual: `moon run :smoke` after servers up |
+| 2 | **Local Test** | `moon run backend:test` | N/A (unit tests, not smoke) |
+| 3 | **Remote CI** | `moon run backend:test` | N/A (unit tests only in CI) |
+| 4 | **Staging Deploy** | (manual) | After deploy: `BASE_URL=https://staging.xxx bash scripts/smoke_test.sh` |
+| 5 | **Prod Deploy** | Push to main | **After deploy**: docker-build.yml runs `smoke_test.sh` automatically |
+
+### Smoke Test Timing Detail
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Scenario 1: Dev Start                                           │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+│ │ DB up   │ -> │ Servers │ -> │ Smoke   │                      │
+│ │ (manual)│    │ (moon)  │    │ (manual)│                      │
+│ └─────────┘    └─────────┘    └─────────┘                      │
+├─────────────────────────────────────────────────────────────────┤
+│ Scenario 2-3: Local/Remote Test                                 │
+│ ┌─────────┐    ┌─────────┐                                     │
+│ │ DB auto │ -> │ pytest  │  (no smoke, unit tests only)        │
+│ └─────────┘    └─────────┘                                     │
+├─────────────────────────────────────────────────────────────────┤
+│ Scenario 5: Prod Deploy (GitHub Actions)                        │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
+│ │ Build   │ -> │ Push to │ -> │ Deploy  │ -> │ Smoke   │      │
+│ │ images  │    │ GHCR    │    │ Dokploy │    │ (auto)  │      │
+│ └─────────┘    └─────────┘    └─────────┘    └─────────┘      │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Database Lifecycle (scripts/test_backend.sh)
+## Database Lifecycle
 
-### Design: Reference Counting
-
-Multiple test runners share one container:
+### Reference Counting (scripts/test_backend.sh)
 
 ```
 Terminal 1: moon run backend:test  → refcount=1 (start container)
@@ -83,43 +95,48 @@ Terminal 1 exits                   → refcount=0 (stop container)
 
 ## Smoke Tests (scripts/smoke_test.sh)
 
-Shared script for local and CI:
+### Usage
 
 ```bash
 # Local (after starting servers)
 moon run :smoke
 
-# Or with custom URL
+# Against staging/prod
 BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
 ```
 
 ### Endpoints Tested
 
-- Homepage (`/`)
-- API Health (`/api/health`)
-- API Docs (`/api/docs`)
-- Ping-Pong Page (`/ping-pong`)
-- Reconciliation Page (`/reconciliation`)
-- Ping API (`/api/ping`)
+| Endpoint | Check |
+|----------|-------|
+| `/` | Homepage loads |
+| `/api/health` | Returns "healthy" |
+| `/api/docs` | Swagger UI loads |
+| `/ping-pong` | Demo page loads |
+| `/reconciliation` | Workbench loads |
+| `/api/ping` | Ping API responds |
 
 ---
 
 ## CI Workflows
 
-### ci.yml (PR/Push)
+### ci.yml (on PR/push)
 
-```yaml
-# Uses moon for consistency with local
-- moon run backend:install
-- moon run backend:lint
-- moon run backend:test
+```
+Trigger: PR or push to main
+Steps:  install → lint → test
+DB:     GitHub services (ephemeral)
+Smoke:  ❌ Not run (unit tests only)
 ```
 
-### docker-build.yml (Deploy)
+### docker-build.yml (on push to main)
 
-1. Build images → GHCR
-2. Deploy to Dokploy
-3. Run `scripts/smoke_test.sh` against production
+```
+Trigger: Push to main (apps/** changed)
+Steps:  build → push → deploy → smoke
+DB:     Production (Dokploy)
+Smoke:  ✅ After deploy completes
+```
 
 ---
 
@@ -129,7 +146,7 @@ BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
 |----------|--------------|
 | Local Dev | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report` |
 | Local Test | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test` |
-| CI | Same as Local Test (GitHub services) |
+| CI | Same as Local Test (GitHub services on :5432) |
 | Prod | External PostgreSQL (Dokploy env) |
 
 ---
@@ -137,16 +154,15 @@ BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
 ## Verification
 
 ```bash
-# Test moon commands work
-moon run backend:install
+# Verify moon commands work
 moon run backend:test
 
-# Test smoke tests
+# Verify smoke tests
 moon run backend:dev &
 moon run frontend:dev &
 sleep 10
 moon run :smoke
 
-# Check no orphan containers
+# Check no orphan containers after tests
 podman ps | grep finance_report
 ```
