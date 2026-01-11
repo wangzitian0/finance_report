@@ -13,7 +13,7 @@ from src.models import User
 
 
 async def get_current_user_id(
-    x_user_id: UUID | None = Header(default=None, alias="X-User-Id"),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
     db: AsyncSession = Depends(get_db),
 ) -> UUID:
     """Resolve the current user ID from request headers.
@@ -26,11 +26,19 @@ async def get_current_user_id(
             detail="Missing X-User-Id header",
         )
 
-    result = await db.execute(select(User.id).where(User.id == x_user_id))
+    try:
+        user_uuid = UUID(x_user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid X-User-Id format",
+        )
+
+    result = await db.execute(select(User.id).where(User.id == user_uuid))
     if result.scalar_one_or_none() is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user",
         )
 
-    return x_user_id
+    return user_uuid

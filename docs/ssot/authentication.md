@@ -26,10 +26,22 @@
 
 **Scope**:
 - Accounts, journal entries, statements, reports, and chat endpoints.
+- **Known Gap**: Reconciliation endpoints are currently **not** authenticated and are explicitly out of scope for this initial MVP bridge.
 
 ---
 
-## 3. Design Constraints
+## 3. Security Considerations
+
+> **Warning**: The `X-User-Id` header is currently trusted without cryptographic verification. This is a temporary architectural bridge to enable multi-tenant data structures before a full OIDC/JWT implementation.
+
+### Risk Mitigation
+- This model is strictly for MVP development and internal testing.
+- **Spoofing**: Any client can impersonate any user if they know their UUID.
+- **Production Requirement**: Must be replaced by a secure token (JWT) or a trusted upstream gateway header (e.g., from an API Gateway that handles auth).
+
+---
+
+## 4. Design Constraints
 
 ### Required
 - **No hard-coded user IDs** in routers or services.

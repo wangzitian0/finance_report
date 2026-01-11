@@ -70,14 +70,14 @@ async def upload_statement(
 
         service = ExtractionService()
         statement, transactions = await service.parse_document(
-                file_path=tmp_path,
-                institution=institution,
-                user_id=user_id,
-                file_type=extension,
-                account_id=account_id,
-                file_content=content,
-                file_hash=file_hash,
-            )
+            file_path=tmp_path,
+            institution=institution,
+            user_id=user_id,
+            file_type=extension,
+            account_id=account_id,
+            file_content=content,
+            file_hash=file_hash,
+        )
 
         statement.original_filename = filename
         statement.file_path = f"statements/{statement.id}/{filename}"
