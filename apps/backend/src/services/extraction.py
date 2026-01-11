@@ -83,11 +83,10 @@ class ExtractionService:
         Returns:
             Tuple of (BankStatement, list of BankStatementTransactions)
         """
-        # Read file content
+        # Use file_content directly. In the current architecture,
+        # files are always uploaded to storage first, and content is passed here.
         if file_content is None:
-            if not file_path:
-                raise ExtractionError("File content or file path required")
-            file_content = file_path.read_bytes()
+            raise ExtractionError("File content is required")
         if file_hash is None:
             file_hash = hashlib.sha256(file_content).hexdigest()
 
@@ -104,9 +103,7 @@ class ExtractionService:
                 file_url=file_url,
             )
         elif file_type == "csv":
-            # CSV files are parsed from in-memory content. In the current architecture,
-            # files are uploaded to external storage and `file_path` is not a local
-            # filesystem path, so we always use `_parse_csv_content` here.
+            # CSV files are parsed from in-memory content.
             extracted = await self._parse_csv_content(file_content, institution)
         else:
             raise ExtractionError(f"Unsupported file type: {file_type}")
@@ -292,16 +289,6 @@ class ExtractionService:
         if last_error:
             raise last_error
         raise ExtractionError("OpenRouter API error: no models available")
-
-    async def _parse_csv(self, file_path: Path, institution: str) -> dict[str, Any]:
-        """Parse CSV files directly (for structured data like Moomoo exports)."""
-        import csv
-
-        with open(file_path, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-
-        return self._parse_csv_rows(rows, institution, datetime)
 
     async def _parse_csv_content(self, file_content: bytes, institution: str) -> dict[str, Any]:
         """Parse CSV content directly from bytes."""
