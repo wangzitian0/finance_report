@@ -100,11 +100,10 @@ jobs:
           echo "Updating compose file with SHA-tagged images..."
           cd repo/finance_report/finance_report/10.app
           
-          # Replace latest tags with SHA tags
-          sed -i "s|ghcr.io/wangzitian0/finance_report-backend:latest|ghcr.io/wangzitian0/finance_report-backend:sha-${{ github.sha }}|g" compose.yaml
-          sed -i "s|ghcr.io/wangzitian0/finance_report-frontend:latest|ghcr.io/wangzitian0/finance_report-frontend:sha-${{ github.sha }}|g" compose.yaml
+          # Replace environment variable references with SHA tags
+          sed -i "s|\${IMAGE_TAG:-latest}|sha-${{ github.sha }}|g" compose.yaml
           
-          echo "Updated compose.yaml:"
+          echo "Updated compose.yaml image lines:"
           cat compose.yaml | grep "image:"
 
       - name: Upload updated compose to Dokploy
