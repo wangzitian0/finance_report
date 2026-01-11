@@ -58,6 +58,23 @@ See [development.md](docs/ssot/development.md) for detailed workflows.
 | [AGENTS.md](./AGENTS.md) | AI agent guidelines |
 | [docs/ssot/](./docs/ssot/) | Technical SSOT |
 
+### Build Documentation Locally
+
+The project uses [MkDocs](https://www.mkdocs.org/) with Material theme for documentation:
+
+```bash
+# Install dependencies
+pip install -r docs/requirements.txt
+
+# Serve docs locally with live reload (http://127.0.0.1:8000)
+mkdocs serve
+
+# Build static site (output: site/)
+mkdocs build
+```
+
+The generated documentation is output to the `site/` directory.
+
 ## 🏗️ Architecture
 
 ```
