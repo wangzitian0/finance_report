@@ -1,5 +1,13 @@
 # Finance Report
 
+<div align="center">
+
+### 📚 **[View Full Documentation →](https://docs.report.zitian.party)**
+
+*Complete user guides, API reference, and technical documentation*
+
+---
+
 [![Documentation](https://img.shields.io/badge/docs-docs.report.zitian.party-blue.svg?logo=readthedocs)](https://docs.report.zitian.party)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
@@ -7,7 +15,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
 [![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%202.0%20Flash-4285F4.svg?logo=google)](https://ai.google.dev/)
 
-> **📖 Full Documentation**: [docs.report.zitian.party](https://docs.report.zitian.party)
+</div>
 
 Personal financial management system featuring **double-entry bookkeeping**, **AI-powered statement parsing**, and **intelligent bank reconciliation**.
 
@@ -54,9 +62,11 @@ See [development.md](docs/ssot/development.md) for detailed workflows.
 
 | Resource | Description |
 |----------|-------------|
-| [📖 Docs Site](https://docs.report.zitian.party) | User guide & API reference |
+| [📖 **Documentation Site**](https://docs.report.zitian.party) | **Complete documentation** — User guides, API reference, and technical docs |
 | [AGENTS.md](./AGENTS.md) | AI agent guidelines |
-| [docs/ssot/](./docs/ssot/) | Technical SSOT |
+| [docs/ssot/](./docs/ssot/) | Technical SSOT (Single Source of Truth) |
+
+> 💡 **Documentation is automatically deployed** to [docs.report.zitian.party](https://docs.report.zitian.party) via GitHub Pages on every push to `main`.
 
 ### Build Documentation Locally
 
