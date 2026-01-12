@@ -17,6 +17,21 @@ export default function StatementUploader({
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const validateAndSetFile = useCallback((f: File) => {
+        const validExtensions = ["pdf", "csv", "png", "jpg", "jpeg"];
+        const ext = f.name.split(".").pop()?.toLowerCase() || "";
+        if (!validExtensions.includes(ext)) {
+            setError(`Invalid file type: .${ext}. Allowed: PDF, CSV, PNG, JPG`);
+            return;
+        }
+        if (f.size > 10 * 1024 * 1024) {
+            setError("File exceeds 10MB limit");
+            return;
+        }
+        setFile(f);
+        setError(null);
+    }, []);
+
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -32,27 +47,12 @@ export default function StatementUploader({
         setIsDragging(false);
         const droppedFile = e.dataTransfer.files[0];
         if (droppedFile) validateAndSetFile(droppedFile);
-    }, []);
+    }, [validateAndSetFile]);
 
     const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) validateAndSetFile(selectedFile);
-    }, []);
-
-    const validateAndSetFile = useCallback((f: File) => {
-        const validExtensions = ["pdf", "csv", "png", "jpg", "jpeg"];
-        const ext = f.name.split(".").pop()?.toLowerCase() || "";
-        if (!validExtensions.includes(ext)) {
-            setError(`Invalid file type: .${ext}. Allowed: PDF, CSV, PNG, JPG`);
-            return;
-        }
-        if (f.size > 10 * 1024 * 1024) {
-            setError("File exceeds 10MB limit");
-            return;
-        }
-        setFile(f);
-        setError(null);
-    }, []);
+    }, [validateAndSetFile]);
 
     const handleUpload = async () => {
         if (!file || !institution.trim()) {

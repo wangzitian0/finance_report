@@ -4,23 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { apiFetch } from "@/lib/api";
-
-interface Account {
-    id: string;
-    name: string;
-    code?: string;
-    type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
-    currency: string;
-    description?: string;
-    parent_id?: string | null;
-    is_active: boolean;
-    balance?: number;
-}
-
-interface AccountListResponse {
-    items: Account[];
-    total: number;
-}
+import { Account, AccountListResponse } from "@/lib/types";
 
 const ACCOUNT_TYPES = ["All", "ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
 

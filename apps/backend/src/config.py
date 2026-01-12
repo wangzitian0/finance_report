@@ -1,6 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,8 +32,8 @@ class Settings(BaseSettings):
 
     # S3 / MinIO storage
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "minio"
-    s3_secret_key: str = "minio123"
+    s3_access_key: str = Field(validation_alias="S3_ACCESS_KEY")
+    s3_secret_key: str = Field(validation_alias="S3_SECRET_KEY")
     s3_bucket: str = "statements"
     s3_region: str = "us-east-1"
     s3_presign_expiry_seconds: int = 900

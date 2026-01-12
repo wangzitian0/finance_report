@@ -8,95 +8,14 @@ import { formatDateInput } from "@/lib/date";
 import { BarChart } from "@/components/charts/BarChart";
 import { PieChart } from "@/components/charts/PieChart";
 import { TrendChart } from "@/components/charts/TrendChart";
-
-interface ReportLine {
-  account_id: string;
-  name: string;
-  type: string;
-  parent_id?: string | null;
-  amount: number | string;
-}
-
-interface BalanceSheetResponse {
-  as_of_date: string;
-  currency: string;
-  assets: ReportLine[];
-  liabilities: ReportLine[];
-  equity: ReportLine[];
-  total_assets: number | string;
-  total_liabilities: number | string;
-  total_equity: number | string;
-  equation_delta: number | string;
-  is_balanced: boolean;
-}
-
-interface IncomeStatementTrend {
-  period_start: string;
-  period_end: string;
-  total_income: number | string;
-  total_expenses: number | string;
-  net_income: number | string;
-}
-
-interface IncomeStatementResponse {
-  start_date: string;
-  end_date: string;
-  currency: string;
-  income: ReportLine[];
-  expenses: ReportLine[];
-  total_income: number | string;
-  total_expenses: number | string;
-  net_income: number | string;
-  trends: IncomeStatementTrend[];
-}
-
-interface TrendPoint {
-  period_start: string;
-  period_end: string;
-  amount: number | string;
-}
-
-interface TrendResponse {
-  account_id: string;
-  currency: string;
-  period: string;
-  points: TrendPoint[];
-}
-
-interface ReconciliationStatsResponse {
-  total_transactions: number;
-  matched_transactions: number;
-  unmatched_transactions: number;
-  pending_review: number;
-  auto_accepted: number;
-  match_rate: number;
-}
-
-interface BankTransactionSummary {
-  id: string;
-  txn_date: string;
-  description: string;
-  amount: number | string;
-  direction: "IN" | "OUT";
-  reference?: string | null;
-}
-
-interface UnmatchedTransactionsResponse {
-  items: BankTransactionSummary[];
-  total: number;
-}
-
-interface JournalEntrySummary {
-  id: string;
-  entry_date: string;
-  memo?: string | null;
-  status: string;
-}
-
-interface JournalEntryListResponse {
-  items: JournalEntrySummary[];
-  total: number;
-}
+import {
+  BalanceSheetResponse,
+  IncomeStatementResponse,
+  JournalEntryListResponse,
+  ReconciliationStatsResponse,
+  TrendResponse,
+  UnmatchedTransactionsResponse
+} from "@/lib/types";
 
 const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
 const formatCurrency = (currency: string, value: number) =>

@@ -3,14 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-
-interface Account {
-    id: string;
-    name: string;
-    code?: string;
-    type: string;
-    currency: string;
-}
+import { Account } from "@/lib/types";
 
 interface JournalLineInput {
     account_id: string;

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.database import get_db, init_db
 from src.models import PingState
-from src.routers import accounts, chat, journal, reports, statements, users
+from src.routers import accounts, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 
@@ -37,10 +37,11 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-User-Id"],
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(chat.router)
 app.include_router(journal.router)

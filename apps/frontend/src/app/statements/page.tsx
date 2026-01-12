@@ -4,38 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
 import { apiFetch } from "@/lib/api";
-
-interface BankStatementTransaction {
-    id: string;
-    txn_date: string;
-    description: string;
-    amount: number;
-    direction: "IN" | "OUT";
-    status: string;
-    confidence: string;
-}
-
-interface BankStatement {
-    id: string;
-    institution: string;
-    original_filename: string;
-    currency: string;
-    period_start: string;
-    period_end: string;
-    opening_balance: number;
-    closing_balance: number;
-    status: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
-    confidence_score: number;
-    balance_validated: boolean;
-    validation_error?: string | null;
-    created_at: string;
-    transactions: BankStatementTransaction[];
-}
-
-interface BankStatementListResponse {
-    items: BankStatement[];
-    total: number;
-}
+import { BankStatement, BankStatementListResponse } from "@/lib/types";
 
 export default function StatementsPage() {
     const [statements, setStatements] = useState<BankStatement[]>([]);

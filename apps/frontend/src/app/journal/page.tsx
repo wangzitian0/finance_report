@@ -4,29 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import { apiFetch } from "@/lib/api";
-
-interface JournalLine {
-    id: string;
-    account_id: string;
-    direction: "DEBIT" | "CREDIT";
-    amount: number;
-    currency: string;
-}
-
-interface JournalEntry {
-    id: string;
-    entry_date: string;
-    memo: string;
-    source_type: string;
-    status: "draft" | "posted" | "reconciled" | "void";
-    lines: JournalLine[];
-    created_at: string;
-}
-
-interface JournalEntryListResponse {
-    items: JournalEntry[];
-    total: number;
-}
+import { JournalEntry, JournalEntryListResponse, JournalLine } from "@/lib/types";
 
 const STATUS_FILTERS = ["All", "draft", "posted", "reconciled", "void"] as const;
 

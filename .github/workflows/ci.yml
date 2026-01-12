@@ -49,6 +49,8 @@ jobs:
       - name: Test with coverage
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test
+          S3_ACCESS_KEY: minio
+          S3_SECRET_KEY: minio123
         run: |
           cd apps/backend
           uv run pytest -v --cov=src --cov-report=lcov --cov-report=term-missing
