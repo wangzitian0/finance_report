@@ -42,7 +42,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - internal
+      - dokploy-network
 
   redis:
     image: redis:7-alpine
@@ -58,7 +58,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - internal
+      - dokploy-network
 
   minio:
     image: minio/minio
@@ -79,7 +79,7 @@ services:
       timeout: 20s
       retries: 3
     networks:
-      - internal
+      - dokploy-network
 
   # Create MinIO bucket on startup
   minio-init:
@@ -95,7 +95,7 @@ services:
       exit 0;
       "
     networks:
-      - internal
+      - dokploy-network
 
   backend:
     build:
@@ -128,7 +128,6 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - internal
       - dokploy-network
     labels:
       - "traefik.enable=${TRAEFIK_ENABLE:-false}"
@@ -160,7 +159,6 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - internal
       - dokploy-network
     labels:
       - "traefik.enable=${TRAEFIK_ENABLE:-false}"
@@ -177,8 +175,7 @@ volumes:
   minio_data:
 
 networks:
-  internal:
-    driver: bridge
   dokploy-network:
+    name: dokploy-network
     external: true
 
