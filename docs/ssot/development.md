@@ -212,14 +212,111 @@ Smoke:  ❌ Not run (unit tests only)
 Note:   Uses moon tasks for install/lint/build (uv/npm invoked via moon)
 ```
 
-### docker-build.yml (on push to main)
+### docker-build.yml (Build and Deploy)
 
 ```
-Trigger: Push to main (apps/** changed)
-Steps:  build → push → deploy → smoke
-DB:     Production (Dokploy)
-Smoke:  ✅ After deploy completes
+Triggers:
+  - Push to main (apps/** changed) → Build + Deploy Production + Smoke
+  - Manual dispatch → Build + Optional deploy to staging/production
+
+Environments:
+  - Production: report.zitian.party (auto on main push)
+  - Staging: report-staging.zitian.party (manual trigger only)
+
+Required Secrets:
+  - DOKPLOY_API_KEY: API key for Dokploy
+  - DOKPLOY_COMPOSE_ID: Production compose ID
+  - DOKPLOY_STAGING_COMPOSE_ID: Staging compose ID
 ```
+
+---
+
+## Deployment Architecture
+
+### Environment Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Development Flow                                                 │
+│                                                                  │
+│   Local Dev        PR/Branch           Staging         Prod     │
+│   ┌─────────┐      ┌─────────┐      ┌─────────┐    ┌─────────┐ │
+│   │ docker  │  →   │ CI test │  →   │ Manual  │ →  │ Auto on │ │
+│   │ compose │      │ build   │      │ deploy  │    │ main    │ │
+│   │ integra │      │ images  │      │ verify  │    │ merge   │ │
+│   └─────────┘      └─────────┘      └─────────┘    └─────────┘ │
+│                                                                  │
+│   docker-compose   GitHub Actions    workflow_      push to     │
+│   .integration.yml                   dispatch       main        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Local Integration Testing
+
+Before pushing changes that affect deployment (Dockerfile, migrations, entrypoint):
+
+```bash
+# Build and run full stack locally
+docker compose -f docker-compose.integration.yml up --build
+
+# In another terminal, run smoke tests
+BASE_URL=http://localhost:8000 bash scripts/smoke_test.sh
+
+# Cleanup
+docker compose -f docker-compose.integration.yml down -v
+```
+
+This validates:
+- Dockerfile builds correctly
+- Alembic migrations run on startup
+- Backend healthcheck passes
+- Frontend connects to backend
+
+### Staging Deployment (Manual)
+
+```bash
+# Via GitHub Actions UI:
+# 1. Go to Actions → "Build and Deploy"
+# 2. Click "Run workflow"
+# 3. Select deploy_target: "staging"
+# 4. Run workflow
+
+# Or via gh CLI:
+gh workflow run docker-build.yml -f deploy_target=staging
+```
+
+### Production Deployment (Automatic)
+
+Production deploys automatically when:
+1. Push to `main` branch
+2. Changes in `apps/backend/**` or `apps/frontend/**`
+
+The workflow:
+1. Builds images with SHA tag
+2. Updates Dokploy IMAGE_TAG env var
+3. Triggers compose redeploy
+4. Runs smoke tests
+
+### Database Migrations
+
+Migrations run automatically on container startup via the entrypoint:
+
+```yaml
+# In infra2 compose.yaml
+entrypoint:
+  - sh
+  - -c
+  - |
+    cd /app && export PYTHONPATH=/app
+    # Wait for secrets...
+    alembic upgrade head  # ← Runs migrations
+    exec uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
+
+**Important**: Before deploying schema changes:
+1. Test migration locally with `docker-compose.integration.yml`
+2. Ensure migration is backward-compatible (for rollback)
+3. Consider: existing data, indexes, constraints
 
 ---
 
@@ -229,8 +326,10 @@ Smoke:  ✅ After deploy completes
 |----------|--------------|
 | Local Dev | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report` |
 | Local Test | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test` |
+| Local Integration | `postgresql+asyncpg://postgres:postgres@postgres:5432/finance_report` |
 | CI | Same as Local Test (GitHub services on :5432) |
-| Prod | External PostgreSQL (Dokploy env) |
+| Staging | External PostgreSQL (Dokploy staging env) |
+| Prod | External PostgreSQL (Dokploy prod env) |
 
 ---
 
@@ -240,12 +339,17 @@ Smoke:  ✅ After deploy completes
 # Verify moon commands work
 moon run backend:test
 
-# Test smoke tests
+# Test smoke tests locally
 nohup moon run backend:dev > /dev/null 2>&1 &
-# nohup moon run frontend:dev > /dev/null 2>&1 &  (optional)
 sleep 10
-export BASE_URL="http://localhost:8000"  # Test backend directly
+export BASE_URL="http://localhost:8000"
 moon run :smoke
+
+# Test full integration (migrations, etc.)
+docker compose -f docker-compose.integration.yml up --build -d
+sleep 30
+BASE_URL=http://localhost:8000 bash scripts/smoke_test.sh
+docker compose -f docker-compose.integration.yml down -v
 
 # Check no orphan containers after tests
 podman ps | grep finance_report
