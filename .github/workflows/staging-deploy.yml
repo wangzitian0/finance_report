@@ -91,19 +91,17 @@ jobs:
             exit 1
           fi
           
-          # Mask any sensitive values without echoing raw env
-          if [ -n "$current_env" ]; then
-            printf '%s\n' "$current_env" | while IFS= read -r line; do
-              case "$line" in
-                VAULT_*=*|*TOKEN=*|*SECRET=*|*KEY=*|*PASSWORD=*)
-                  value=${line#*=}
-                  if [ -n "$value" ]; then
-                    echo "::add-mask::$value"
-                  fi
-                  ;;
-              esac
-            done
-          fi
+          # Mask any sensitive values (use process substitution to avoid subshell)
+          while IFS= read -r line; do
+            case "$line" in
+              VAULT_*=*|[A-Z_]*TOKEN=*|[A-Z_]*SECRET=*|[A-Z_]*KEY=*|[A-Z_]*PASSWORD=*)
+                value=${line#*=}
+                if [ -n "$value" ]; then
+                  echo "::add-mask::$value"
+                fi
+                ;;
+            esac
+          done <<< "$current_env"
           
           # Update IMAGE_TAG
           if echo "$current_env" | grep -q '^IMAGE_TAG='; then
