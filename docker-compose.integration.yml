@@ -1,0 +1,107 @@
+# Docker Compose for Local Integration Testing
+#
+# This file tests the complete deployment flow locally, including:
+# - Database migrations via Alembic
+# - Backend with production-like entrypoint
+# - Frontend with backend dependency
+#
+# Usage:
+#   # Build and run
+#   docker compose -f docker-compose.integration.yml up --build
+#
+#   # Run smoke tests against local
+#   BASE_URL=http://localhost:8000 bash scripts/smoke_test.sh
+#
+#   # Cleanup
+#   docker compose -f docker-compose.integration.yml down -v
+#
+# This validates the same flow that runs in production before pushing to main.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: integration_postgres
+    # WARNING: These credentials are for local testing only. Never use in production!
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: finance_report
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: integration_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/finance_report
+      REDIS_URL: ""
+      S3_ENDPOINT: ""
+      S3_ACCESS_KEY: ""
+      S3_SECRET_KEY: ""
+      S3_BUCKET: statements
+      OPENROUTER_API_KEY: ""
+      DEBUG: "true"
+      PYTHONPATH: /app
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cd /app
+        export PYTHONPATH=/app
+        
+        echo "Running database migrations..."
+        max_retries=30
+        retry_interval=2
+        attempt=1
+        
+        until alembic upgrade head; do
+          if [ "$attempt" -ge "$max_retries" ]; then
+            echo "ERROR: Migrations failed after $attempt attempts"
+            exit 1
+          fi
+          echo "WARNING: Migration attempt $attempt/$max_retries failed. Retrying..."
+          attempt=$((attempt + 1))
+          sleep $retry_interval
+        done
+        
+        echo "Migrations completed. Starting application..."
+        exec uvicorn src.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      start_period: 60s
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: integration_frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      start_period: 30s
+      interval: 10s
+      retries: 5
+      timeout: 5s

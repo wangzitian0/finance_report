@@ -1,0 +1,134 @@
+# Staging Deployment Workflow
+#
+# Triggers: Push to main branch
+# Actions: Build images → Deploy to staging → Smoke test
+#
+# Staging tracks the latest main branch commit.
+# Data is persisted between deployments.
+
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - '.github/workflows/staging-deploy.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  DOKPLOY_API_URL: https://cloud.zitian.party/api
+  STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
+  DEPLOY_WAIT_SECONDS: 120
+
+jobs:
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "image_tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.vars.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.vars.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://report-staging.zitian.party/api
+
+  deploy:
+    name: Deploy to Staging
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://report-staging.zitian.party
+    steps:
+      - name: Update IMAGE_TAG and deploy
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          echo "Deploying $IMAGE_TAG to staging..."
+          
+          # Get current env and update IMAGE_TAG
+          current_env=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" | jq -r '.env')
+          
+          # Update IMAGE_TAG
+          if echo "$current_env" | grep -q '^IMAGE_TAG='; then
+            new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
+          else
+            new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
+          fi
+          
+          # Update environment
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')"
+          
+          # Stop and redeploy
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" || true
+          
+          sleep 15
+          
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')"
+          
+          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
+          sleep ${{ env.DEPLOY_WAIT_SECONDS }}
+
+  smoke-test:
+    name: Smoke Test
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run smoke tests
+        run: |
+          if [ -f scripts/smoke_test.sh ]; then
+            bash scripts/smoke_test.sh https://report-staging.zitian.party
+          else
+            echo "Checking health endpoint..."
+            curl -sf https://report-staging.zitian.party/api/health || exit 1
+            echo "Health check passed"
+          fi
