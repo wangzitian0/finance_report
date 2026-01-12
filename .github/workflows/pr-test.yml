@@ -28,15 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       compose_name: pr-${{ github.event.pull_request.number }}
-      domain_hash: ${{ steps.vars.outputs.domain_hash }}
       pr_number: ${{ github.event.pull_request.number }}
     steps:
-      - name: Generate variables
-        id: vars
-        run: |
-          # Domain hash: first 6 chars of sha256(pr_number)
-          hash=$(echo -n "${{ github.event.pull_request.number }}" | sha256sum | cut -c1-6)
-          echo "domain_hash=$hash" >> $GITHUB_OUTPUT
+      - name: Log PR info
+        run: echo "Setting up for PR #${{ github.event.pull_request.number }}"
 
   deploy:
     name: Deploy Test Environment
@@ -48,7 +43,7 @@ jobs:
       pull-requests: write
     environment:
       name: pr-${{ github.event.pull_request.number }}
-      url: https://report-${{ needs.setup.outputs.domain_hash }}.${{ env.INTERNAL_DOMAIN }}
+      url: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -117,11 +112,11 @@ jobs:
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
           
           # Set environment variables for Dokploy
-          env_vars="ENV_SUFFIX=-${{ needs.setup.outputs.compose_name }}
-          ENV_DOMAIN_SUFFIX=-${{ needs.setup.outputs.domain_hash }}
+          env_vars="ENV_SUFFIX=-pr-${{ needs.setup.outputs.pr_number }}
+          ENV_DOMAIN_SUFFIX=-pr-${{ needs.setup.outputs.pr_number }}
           INTERNAL_DOMAIN=${{ env.INTERNAL_DOMAIN }}
           TRAEFIK_ENABLE=true
-          NEXT_PUBLIC_API_URL=https://report-${{ needs.setup.outputs.domain_hash }}.${{ env.INTERNAL_DOMAIN }}/api
+          NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}/api
           DEBUG=true"
           
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
@@ -157,7 +152,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const url = `https://report-${{ needs.setup.outputs.domain_hash }}.${{ env.INTERNAL_DOMAIN }}`;
+            const url = `https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}`;
             const body = `## 🧪 Test Environment Deployed
             
             | Service | URL |
