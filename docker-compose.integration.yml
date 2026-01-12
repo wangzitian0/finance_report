@@ -21,6 +21,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: integration_postgres
+    # WARNING: These credentials are for local testing only. Never use in production!
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

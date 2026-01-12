@@ -113,10 +113,8 @@ jobs:
         include:
           - environment: production
             compose_id_secret: DOKPLOY_COMPOSE_ID
-            condition: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production')
           - environment: staging
             compose_id_secret: DOKPLOY_STAGING_COMPOSE_ID
-            condition: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'staging'
       fail-fast: false
     environment: ${{ matrix.environment }}
     steps:
@@ -124,13 +122,13 @@ jobs:
         id: should_run
         run: |
           if [ "${{ matrix.environment }}" = "production" ]; then
-            if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.inputs.deploy_target }}" = "production" ]; then
+            if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.deploy_target }}" = "production" ]; }; then
               echo "run=true" >> $GITHUB_OUTPUT
             else
               echo "run=false" >> $GITHUB_OUTPUT
             fi
           elif [ "${{ matrix.environment }}" = "staging" ]; then
-            if [ "${{ github.event.inputs.deploy_target }}" = "staging" ]; then
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.deploy_target }}" = "staging" ]; then
               echo "run=true" >> $GITHUB_OUTPUT
             else
               echo "run=false" >> $GITHUB_OUTPUT
@@ -184,7 +182,7 @@ jobs:
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
           
-          sleep 10
+          sleep 20
           
           # Deploy new version
           curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
@@ -213,13 +211,13 @@ jobs:
         id: should_run
         run: |
           if [ "${{ matrix.environment }}" = "production" ]; then
-            if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.inputs.deploy_target }}" = "production" ]; then
+            if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.deploy_target }}" = "production" ]; }; then
               echo "run=true" >> $GITHUB_OUTPUT
             else
               echo "run=false" >> $GITHUB_OUTPUT
             fi
           elif [ "${{ matrix.environment }}" = "staging" ]; then
-            if [ "${{ github.event.inputs.deploy_target }}" = "staging" ]; then
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.deploy_target }}" = "staging" ]; then
               echo "run=true" >> $GITHUB_OUTPUT
             else
               echo "run=false" >> $GITHUB_OUTPUT
