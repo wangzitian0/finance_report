@@ -447,6 +447,19 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     assert report["start_date"] == date(2025, 1, 1)
     assert report["end_date"] == date(2025, 1, 31)
 
+    operating: list[dict] = report["operating"]
+    investing: list[dict] = report["investing"]
+    financing: list[dict] = report["financing"]
+
+    operating_names = [item["subcategory"] for item in operating]
+    investing_names = [item["subcategory"] for item in investing]
+    financing_names = [item["subcategory"] for item in financing]
+
+    assert income.name in operating_names, "Income account should be in operating activities"
+    assert expense.name in operating_names, "Expense account should be in operating activities"
+    assert equity.name in financing_names, "Equity account should be in financing activities"
+    assert cash.name in investing_names, "Cash (asset) account should be in investing activities"
+
     summary: dict = report["summary"]
     assert "operating_activities" in summary
     assert "investing_activities" in summary

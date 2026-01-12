@@ -17,7 +17,12 @@ interface SankeyChartProps {
   height?: number;
 }
 
-const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
+const toNumber = (value: number | string): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 export function SankeyChart({
   operating = [],
@@ -31,17 +36,31 @@ export function SankeyChart({
     const links: { source: string; target: string; value: number }[] = [];
 
     const addCategory = (items: SankeyItem[], color: string, prefix: string) => {
-      const filtered = items.filter((i) => toNumber(i.amount) > 0);
-      if (filtered.length === 0) return;
+      const inflowItems = items.filter((i) => toNumber(i.amount) > 0);
+      const outflowItems = items.filter((i) => toNumber(i.amount) < 0);
+      
+      if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
       nodes.push({ name: prefix, itemStyle: { color } });
+      nodes.push({ name: `${prefix}-Inflows`, itemStyle: { color: "#22c55e" } });
+      nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: "#ef4444" } });
 
-      filtered.forEach((item) => {
+      inflowItems.forEach((item) => {
         const amount = toNumber(item.amount);
         nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "#64748b" } });
         links.push({
-          source: prefix,
+          source: `${prefix}-Inflows`,
           target: `${prefix}-${item.subcategory}`,
+          value: amount,
+        });
+      });
+
+      outflowItems.forEach((item) => {
+        const amount = toNumber(Math.abs(item.amount));
+        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "#64748b" } });
+        links.push({
+          source: `${prefix}-${item.subcategory}`,
+          target: `${prefix}-Outflows`,
           value: amount,
         });
       });

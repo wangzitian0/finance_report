@@ -128,10 +128,10 @@ export default function BalanceSheetPage() {
       <div className="flex flex-col gap-2 mb-6">
         <span className="text-xs text-muted uppercase">Quick filters</span>
         <div className="flex flex-wrap gap-2">
-          <Link href="/reports/balance-sheet" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
-          <Link href="/reports/balance-sheet#assets" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
-          <Link href="/reports/balance-sheet#liabilities" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
-          <Link href="/reports/balance-sheet#equity" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#assets`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#liabilities`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#equity`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
         </div>
       </div>
 

@@ -233,38 +233,53 @@ async def generate_income_statement(
     )
     result = await db.execute(stmt)
 
+    entries_by_id: dict[UUID, list[tuple[JournalLine, Account, JournalEntry]]] = {}
     for line, account, entry in result.all():
-        if tags:
-            if not line.tags:
-                continue
-            line_tags = set(k.lower() for k in line.tags.keys())
-            if not any(t.lower() in line_tags for t in tags):
-                continue
+        if entry.id not in entries_by_id:
+            entries_by_id[entry.id] = []
+        entries_by_id[entry.id].append((line, account, entry))
 
-        try:
-            converted = await convert_amount(
-                db,
-                amount=line.amount,
-                currency=line.currency,
-                target_currency=target_currency,
-                rate_date=end_date,
-                average_start=start_date,
-                average_end=end_date,
+    entries_to_include: set[UUID] = set()
+    if tags:
+        for entry_id, lines_and_accounts in entries_by_id.items():
+            for line, account, entry in lines_and_accounts:
+                if line.tags:
+                    line_tags = set(k.lower() for k in line.tags.keys())
+                    if any(t.lower() in line_tags for t in tags):
+                        entries_to_include.add(entry_id)
+                        break
+    else:
+        entries_to_include = set(entries_by_id.keys())
+
+    for entry_id, lines_and_accounts in entries_by_id.items():
+        if entry_id not in entries_to_include:
+            continue
+
+        for line, account, entry in lines_and_accounts:
+            try:
+                converted = await convert_amount(
+                    db,
+                    amount=line.amount,
+                    currency=line.currency,
+                    target_currency=target_currency,
+                    rate_date=end_date,
+                    average_start=start_date,
+                    average_end=end_date,
+                )
+            except FxRateError as exc:
+                raise ReportError(str(exc)) from exc
+
+            signed = _signed_amount(account.type, line.direction, converted)
+            balances[account.id] += signed
+
+            period_key = _month_start(entry.entry_date)
+            bucket = period_totals.setdefault(
+                period_key, {"income": Decimal("0"), "expense": Decimal("0")}
             )
-        except FxRateError as exc:
-            raise ReportError(str(exc)) from exc
-
-        signed = _signed_amount(account.type, line.direction, converted)
-        balances[account.id] += signed
-
-        period_key = _month_start(entry.entry_date)
-        bucket = period_totals.setdefault(
-            period_key, {"income": Decimal("0"), "expense": Decimal("0")}
-        )
-        if account.type == AccountType.INCOME:
-            bucket["income"] += signed
-        else:
-            bucket["expense"] += signed
+            if account.type == AccountType.INCOME:
+                bucket["income"] += signed
+            else:
+                bucket["expense"] += signed
 
     def build_lines(filter_type: AccountType) -> list[dict[str, object]]:
         items = [account for account in accounts if account.type == filter_type]
