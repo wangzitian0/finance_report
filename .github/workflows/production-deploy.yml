@@ -90,9 +90,28 @@ jobs:
         run: |
           echo "Deploying $IMAGE_TAG to production..."
           
-          # Get current env and update IMAGE_TAG
-          current_env=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.PRODUCTION_COMPOSE_ID }}" | jq -r '.env')
+          # Get current env (suppress output to avoid leaking secrets)
+          env_response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.PRODUCTION_COMPOSE_ID }}" 2>/dev/null)
+          
+          if [ $? -ne 0 ] || [ -z "$env_response" ]; then
+            echo "ERROR: Failed to fetch current environment from API"
+            exit 1
+          fi
+          
+          current_env=$(echo "$env_response" | jq -r '.env // empty')
+          
+          # Mask any sensitive values (use process substitution to avoid subshell)
+          while IFS= read -r line; do
+            case "$line" in
+              VAULT_*=*|[A-Z_]*TOKEN=*|[A-Z_]*SECRET=*|[A-Z_]*KEY=*|[A-Z_]*PASSWORD=*)
+                value=${line#*=}
+                if [ -n "$value" ]; then
+                  echo "::add-mask::$value"
+                fi
+                ;;
+            esac
+          done <<< "$current_env"
           
           # Update IMAGE_TAG
           if echo "$current_env" | grep -q '^IMAGE_TAG='; then
@@ -101,24 +120,33 @@ jobs:
             new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
           fi
           
-          # Update environment
-          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          # Update environment (check exit code, suppress output)
+          if ! curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')"
+            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" > /dev/null; then
+            echo "ERROR: Failed to update environment"
+            exit 1
+          fi
           
-          # Stop and redeploy
-          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          echo "Environment updated"
+          
+          # Stop (errors are expected if already stopped, suppress output to avoid secrets)
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" '{composeId: $id}')" || true
+            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null || true
           
           sleep 15
           
-          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          # Deploy (check exit code)
+          if ! curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" '{composeId: $id}')"
+            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null; then
+            echo "ERROR: Failed to trigger deployment"
+            exit 1
+          fi
           
           echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
           sleep ${{ env.DEPLOY_WAIT_SECONDS }}
