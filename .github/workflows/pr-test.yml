@@ -31,7 +31,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
     steps:
       - name: Log PR info
-        run: echo "Setting up for PR #${{ github.event.pull_request.number }}"
+        run: echo "Setting up for PR ${{ github.event.pull_request.number }}"
 
   deploy:
     name: Deploy Test Environment
