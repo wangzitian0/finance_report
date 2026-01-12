@@ -90,56 +90,39 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-      
-      - name: Update compose file with SHA tags
+      - name: Update IMAGE_TAG in Dokploy
         run: |
-          echo "Updating compose file with SHA-tagged images..."
-          cd repo/finance_report/finance_report/10.app
-          
-          # Use short SHA (first 7 chars) to match Docker metadata action default
+          # Use short SHA (first 7 chars) to match Docker metadata action
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "Using short SHA: sha-$SHORT_SHA"
+          echo "Updating Dokploy IMAGE_TAG to sha-$SHORT_SHA"
           
-          # Replace environment variable references with short SHA tags
-          sed -i "s|\${IMAGE_TAG:-latest}|sha-$SHORT_SHA|g" compose.yaml
+          # Get current env vars and update IMAGE_TAG
+          current_env=$(curl -s -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "https://cloud.zitian.party/api/compose.one?composeId=${{ secrets.DOKPLOY_COMPOSE_ID }}" \
+            | jq -r '.env')
           
-          echo "Updated compose.yaml image lines:"
-          cat compose.yaml | grep "image:"
-
-      - name: Upload updated compose to Dokploy
-        run: |
-          cd repo/finance_report/finance_report/10.app
-          # Debug: check file content stats
-          ls -l compose.yaml
+          # Replace IMAGE_TAG value or append if not exists
+          if echo "$current_env" | grep -q "^IMAGE_TAG="; then
+            new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=sha-$SHORT_SHA/")
+          else
+            new_env="${current_env}\nIMAGE_TAG=sha-$SHORT_SHA"
+          fi
           
-          # Create JSON payload safely using jq
-          jq -n \
-            --arg id "${{ secrets.DOKPLOY_COMPOSE_ID }}" \
-            --rawfile content compose.yaml \
-            --arg type "raw" \
-            '{composeId: $id, composeFile: $content, sourceType: $type}' > payload.json
-          
-          echo "Uploading compose file to Dokploy..."
+          # Update Dokploy with new env
           response=$(curl -s -X POST "https://cloud.zitian.party/api/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d @payload.json \
+            -d "$(jq -n --arg id "${{ secrets.DOKPLOY_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" \
             -w "\n%{http_code}")
-            
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
           
-          echo "Update response: $body"
-          echo "HTTP Code: $http_code"
+          http_code=$(echo "$response" | tail -n1)
+          echo "Update response code: $http_code"
           
           if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
-            echo "Compose update failed"
+            echo "Failed to update IMAGE_TAG"
             exit 1
           fi
+          echo "IMAGE_TAG updated to sha-$SHORT_SHA"
 
       - name: Stop existing containers
         run: |
