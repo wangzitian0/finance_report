@@ -98,18 +98,10 @@ interface JournalEntryListResponse {
   total: number;
 }
 
-const toNumber = (value: number | string) =>
-  typeof value === "string" ? Number(value) : value;
-
+const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
 const formatCurrency = (currency: string, value: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatMonthLabel = (value: string) =>
-  new Date(value).toLocaleDateString("en-US", { month: "short" });
+  new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
 export default function DashboardPage() {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(null);
@@ -122,26 +114,19 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   const today = useMemo(() => new Date(), []);
-  const incomeStart = useMemo(() => {
-    const start = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-    return formatDateInput(start);
-  }, [today]);
+  const incomeStart = useMemo(() => formatDateInput(new Date(today.getFullYear(), today.getMonth() - 11, 1)), [today]);
   const incomeEnd = useMemo(() => formatDateInput(today), [today]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [balanceData, incomeData, statsData, unmatchedData, journalData] =
-        await Promise.all([
-          apiFetch<BalanceSheetResponse>("/api/reports/balance-sheet"),
-          apiFetch<IncomeStatementResponse>(
-            `/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`
-          ),
-          apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
-          apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
-          apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
-        ]);
-
+      const [balanceData, incomeData, statsData, unmatchedData, journalData] = await Promise.all([
+        apiFetch<BalanceSheetResponse>("/api/reports/balance-sheet"),
+        apiFetch<IncomeStatementResponse>(`/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`),
+        apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
+        apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
+        apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
+      ]);
       setBalanceSheet(balanceData);
       setIncomeStatement(incomeData);
       setStats(statsData);
@@ -157,347 +142,180 @@ export default function DashboardPage() {
 
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet) return;
-    const sortedAssets = [...balanceSheet.assets].sort(
-      (a, b) => toNumber(b.amount) - toNumber(a.amount)
-    );
+    const sortedAssets = [...balanceSheet.assets].sort((a, b) => toNumber(b.amount) - toNumber(a.amount));
     const target = sortedAssets[0];
     if (!target) return;
     try {
-      const trendData = await apiFetch<TrendResponse>(
-        `/api/reports/trend?account_id=${target.account_id}&period=monthly`
-      );
+      const trendData = await apiFetch<TrendResponse>(`/api/reports/trend?account_id=${target.account_id}&period=monthly`);
       setTrend(trendData);
     } catch {
       setTrend(null);
     }
   }, [balanceSheet]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchTrend(); }, [fetchTrend]);
 
-  useEffect(() => {
-    fetchTrend();
-  }, [fetchTrend]);
-
-  const netAssets = useMemo(() => {
-    if (!balanceSheet) return 0;
-    return toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities);
-  }, [balanceSheet]);
-
-  const trendPoints = useMemo(() => {
-    if (!trend) return [];
-    return trend.points.map((point) => ({
-      label: formatMonthLabel(point.period_start),
-      value: toNumber(point.amount),
-    }));
-  }, [trend]);
-
-  const incomeBars = useMemo(() => {
-    if (!incomeStatement) return [];
-    return incomeStatement.trends.slice(-6).map((trendItem) => ({
-      label: formatMonthLabel(trendItem.period_start),
-      income: toNumber(trendItem.total_income),
-      expense: toNumber(trendItem.total_expenses),
-    }));
-  }, [incomeStatement]);
-
+  const netAssets = useMemo(() => balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0, [balanceSheet]);
+  const trendPoints = useMemo(() => trend ? trend.points.map((p) => ({ label: formatMonthLabel(p.period_start), value: toNumber(p.amount) })) : [], [trend]);
+  const incomeBars = useMemo(() => incomeStatement ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {
     if (!balanceSheet) return [];
-    const palette = ["#0f766e", "#14b8a6", "#f59e0b", "#f97316", "#e11d48"];
-    return balanceSheet.assets
-      .filter((asset) => toNumber(asset.amount) > 0)
-      .sort((a, b) => toNumber(b.amount) - toNumber(a.amount))
-      .slice(0, 5)
-      .map((asset, index) => ({
-        label: asset.name,
-        value: toNumber(asset.amount),
-        color: palette[index % palette.length],
-      }));
+    const palette = ["#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe"];
+    return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: palette[i % palette.length] }));
   }, [balanceSheet]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f4ed] flex items-center justify-center text-slate-600">
-        Loading dashboard…
+      <div className="p-6 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center text-muted">
+          <div className="inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
+          <p className="text-sm">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f5f0e6_0%,#f7efe1_45%,#ecf1f0_100%)] flex flex-col items-center justify-center gap-8 p-8">
-        <div className="text-center max-w-lg">
-          <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-            Getting Started
+      <div className="p-6">
+        <div className="card p-8 text-center max-w-lg mx-auto">
+          <h1 className="text-xl font-semibold mb-2">Welcome to Finance Report</h1>
+          <p className="text-muted mb-4 text-sm">{error}</p>
+          <div className="grid gap-3 sm:grid-cols-3 mb-6">
+            <Link href="/accounts" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
+              <span className="text-2xl block mb-1">🏦</span>
+              <span className="text-sm font-medium">Accounts</span>
+            </Link>
+            <Link href="/statements" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
+              <span className="text-2xl block mb-1">📄</span>
+              <span className="text-sm font-medium">Statements</span>
+            </Link>
+            <Link href="/journal" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
+              <span className="text-2xl block mb-1">📝</span>
+              <span className="text-sm font-medium">Journal</span>
+            </Link>
           </div>
-          <h1 className="text-3xl font-semibold text-slate-800 mb-3">
-            Welcome to Finance Report
-          </h1>
-          <p className="text-slate-600 mb-2">
-            Your personal finance management system with double-entry bookkeeping.
-          </p>
-          <p className="text-sm text-slate-500">{error}</p>
+          <button onClick={fetchData} className="btn-secondary">Retry Connection</button>
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-3 max-w-2xl w-full">
-          <Link
-            href="/accounts"
-            className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/80 border border-emerald-200 hover:border-emerald-400 hover:shadow-lg transition-all text-center"
-          >
-            <span className="text-3xl">🏦</span>
-            <span className="font-medium text-slate-800">Set up Accounts</span>
-            <span className="text-xs text-slate-500">Chart of accounts</span>
-          </Link>
-          <Link
-            href="/statements"
-            className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/80 border border-amber-200 hover:border-amber-400 hover:shadow-lg transition-all text-center"
-          >
-            <span className="text-3xl">📄</span>
-            <span className="font-medium text-slate-800">Upload Statement</span>
-            <span className="text-xs text-slate-500">Import bank data</span>
-          </Link>
-          <Link
-            href="/journal"
-            className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/80 border border-blue-200 hover:border-blue-400 hover:shadow-lg transition-all text-center"
-          >
-            <span className="text-3xl">📝</span>
-            <span className="font-medium text-slate-800">Journal Entries</span>
-            <span className="text-xs text-slate-500">Manual bookkeeping</span>
-          </Link>
-        </div>
-
-        <button
-          onClick={fetchData}
-          className="rounded-full border border-slate-300 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-        >
-          Retry Connection
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f5f0e6_0%,#f7efe1_45%,#ecf1f0_100%)] text-[#13201b]">
-      <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -top-24 right-[-4rem] h-64 w-64 rounded-full bg-[#ffe1b2] blur-3xl opacity-80"></div>
-        <div className="pointer-events-none absolute bottom-[-6rem] left-[-4rem] h-72 w-72 rounded-full bg-[#baf3e6] blur-3xl opacity-60"></div>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#0f1f17_0.6px,transparent_0.6px)] opacity-10 [background-size:14px_14px]"></div>
+    <div className="p-6">
+      {/* Header */}
+      <div className="page-header flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-description">Track net assets, cash momentum, and reconciliation risk</p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/reports/balance-sheet" className="btn-secondary text-sm">Balance Sheet</Link>
+          <Link href="/reports/income-statement" className="btn-secondary text-sm">Income Statement</Link>
+        </div>
+      </div>
 
-        <div className="relative z-10 mx-auto max-w-7xl px-6 py-10">
-          <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-3 animate-rise">
-              <p className="text-xs uppercase tracking-[0.4em] text-emerald-700">
-                Financial Control Tower
-              </p>
-              <h1 className="text-4xl sm:text-5xl font-semibold text-[#0f1f17]">
-                Dashboard
-              </h1>
-              <p className="max-w-xl text-base text-[#334136]">
-                Track net assets, cash momentum, and reconciliation risk in one snapshot.
-              </p>
-            </div>
-            <nav className="flex flex-wrap gap-3 text-sm">
-              <Link
-                href="/reports/balance-sheet"
-                className="rounded-full border border-emerald-200 bg-white/80 px-4 py-2 text-emerald-800 shadow-sm"
-              >
-                Balance Sheet
-              </Link>
-              <Link
-                href="/reports/income-statement"
-                className="rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-amber-800 shadow-sm"
-              >
-                Income Statement
-              </Link>
-            </nav>
-          </header>
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Total Assets</p>
+          <p className="text-2xl font-semibold text-[var(--success)] mt-1">
+            {balanceSheet ? formatCurrency(balanceSheet.currency, toNumber(balanceSheet.total_assets)) : "—"}
+          </p>
+          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Total Liabilities</p>
+          <p className="text-2xl font-semibold text-[var(--error)] mt-1">
+            {balanceSheet ? formatCurrency(balanceSheet.currency, toNumber(balanceSheet.total_liabilities)) : "—"}
+          </p>
+          <p className="text-xs text-muted mt-1">Obligations</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Net Assets</p>
+          <p className="text-2xl font-semibold mt-1">
+            {balanceSheet ? formatCurrency(balanceSheet.currency, netAssets) : "—"}
+          </p>
+          <p className="text-xs text-muted mt-1">{balanceSheet?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</p>
+        </div>
+      </div>
 
-          <section className="mt-10 grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Total Assets</p>
-              <p className="mt-3 text-3xl font-semibold text-emerald-700">
-                {balanceSheet
-                  ? formatCurrency(balanceSheet.currency, toNumber(balanceSheet.total_assets))
-                  : "—"}
-              </p>
-              <p className="mt-2 text-xs text-slate-500">As of {balanceSheet?.as_of_date}</p>
-            </div>
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Total Liabilities</p>
-              <p className="mt-3 text-3xl font-semibold text-rose-500">
-                {balanceSheet
-                  ? formatCurrency(balanceSheet.currency, toNumber(balanceSheet.total_liabilities))
-                  : "—"}
-              </p>
-              <p className="mt-2 text-xs text-slate-500">Obligations in view</p>
-            </div>
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Net Assets</p>
-              <p className="mt-3 text-3xl font-semibold text-slate-800">
-                {balanceSheet ? formatCurrency(balanceSheet.currency, netAssets) : "—"}
-              </p>
-              <p className="mt-2 text-xs text-slate-500">
-                {balanceSheet?.is_balanced ? "Equation verified" : "Equation drift"}
-              </p>
-            </div>
-          </section>
+      {/* Charts Row */}
+      <div className="grid gap-4 lg:grid-cols-2 mb-6">
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Asset Trend</p>
+          <h3 className="font-semibold mt-1 mb-4">{trend ? "Last 12 months" : "No trend data"}</h3>
+          {trendPoints.length ? <TrendChart points={trendPoints} /> : <p className="text-sm text-muted">Add activity to unlock trends.</p>}
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Asset Mix</p>
+          <h3 className="font-semibold mt-1 mb-4">Distribution</h3>
+          {assetSegments.length ? <PieChart segments={assetSegments} centerLabel="Assets" /> : <p className="text-sm text-muted">No assets to chart yet.</p>}
+        </div>
+      </div>
 
-          <section className="mt-10 grid gap-6 lg:grid-cols-[1.3fr,0.9fr]">
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                    Asset Trend
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">
-                    {trend ? "Last 12 months" : "No trend data"}
-                  </h2>
-                </div>
-                <span className="text-xs text-slate-500">Primary asset account</span>
+      {/* Income/Expense + Reconciliation */}
+      <div className="grid gap-4 lg:grid-cols-2 mb-6">
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Income vs Expense</p>
+          <h3 className="font-semibold mt-1 mb-4">Monthly comparison</h3>
+          {incomeBars.length ? (
+            <>
+              <BarChart items={incomeBars} ariaLabel="Monthly income and expense comparison" />
+              <div className="mt-3 flex gap-4 text-xs text-muted">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--success)]" />Income</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--error)]" />Expense</span>
               </div>
-              <div className="mt-6">
-                {trendPoints.length ? (
-                  <TrendChart points={trendPoints} />
-                ) : (
-                  <p className="text-sm text-slate-500">Add activity to unlock trends.</p>
-                )}
-              </div>
+            </>
+          ) : <p className="text-sm text-muted">No income data available.</p>}
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Reconciliation</p>
+          <h3 className="font-semibold mt-1 mb-4">Risk radar</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between p-3 rounded-md bg-[var(--success-muted)] text-sm">
+              <span>Auto accepted</span><span className="font-semibold">{stats?.auto_accepted ?? 0}</span>
             </div>
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Asset Mix</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">
-                Distribution snapshot
-              </h2>
-              <div className="mt-4">
-                {assetSegments.length ? (
-                  <PieChart segments={assetSegments} centerLabel="Assets" />
-                ) : (
-                  <p className="text-sm text-slate-500">No assets to chart yet.</p>
-                )}
-              </div>
+            <div className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
+              <span>Pending review</span><span className="font-semibold">{stats?.pending_review ?? 0}</span>
             </div>
-          </section>
+            <div className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm">
+              <span>Unmatched</span><span className="font-semibold">{stats?.unmatched_transactions ?? 0}</span>
+            </div>
+            <Link href="/reconciliation" className="text-sm text-[var(--accent)] hover:underline inline-flex items-center gap-1">
+              Review queue →
+            </Link>
+          </div>
+        </div>
+      </div>
 
-          <section className="mt-10 grid gap-6 lg:grid-cols-[1.2fr,1fr]">
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                Income vs Expense
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">
-                Monthly comparison
-              </h2>
-              <div className="mt-6">
-                {incomeBars.length ? (
-                  <BarChart
-                    items={incomeBars}
-                    ariaLabel="Monthly income and expense comparison"
-                  />
-                ) : (
-                  <p className="text-sm text-slate-500">No income data available.</p>
-                )}
+      {/* Recent Activity */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide mb-3">Recent Entries</p>
+          <div className="space-y-2">
+            {recentEntries?.items?.length ? recentEntries.items.map((e) => (
+              <div key={e.id} className="flex justify-between p-3 rounded-md bg-[var(--background-muted)] text-sm">
+                <div><p className="font-medium">{e.memo || "Journal entry"}</p><p className="text-xs text-muted">{e.entry_date}</p></div>
+                <span className="badge badge-muted">{e.status}</span>
               </div>
-              <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
-                <span className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
-                  Income
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-rose-400"></span>
-                  Expense
-                </span>
+            )) : <p className="text-sm text-muted">No recent journal entries.</p>}
+          </div>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide mb-3">Unmatched Alerts</p>
+          <div className="space-y-2">
+            {unmatched?.items?.length ? unmatched.items.map((t) => (
+              <div key={t.id} className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
+                <div><p className="font-medium">{t.description}</p><p className="text-xs text-muted">{t.txn_date}</p></div>
+                <span className="font-semibold">{balanceSheet ? formatCurrency(balanceSheet.currency, toNumber(t.amount)) : t.amount}</span>
               </div>
-            </div>
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Reconciliation</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">Risk radar</h2>
-              <div className="mt-4 space-y-4">
-                <div className="flex items-center justify-between rounded-2xl bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
-                  <span>Auto accepted</span>
-                  <span className="font-semibold">{stats?.auto_accepted ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
-                  <span>Pending review</span>
-                  <span className="font-semibold">{stats?.pending_review ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl bg-rose-50/70 px-4 py-3 text-sm text-rose-700">
-                  <span>Unmatched</span>
-                  <span className="font-semibold">{stats?.unmatched_transactions ?? 0}</span>
-                </div>
-                <Link
-                  href="/reconciliation"
-                  className="inline-flex items-center gap-2 text-sm text-emerald-700"
-                >
-                  Review reconciliation queue →
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-10 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Recent entries</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">Latest activity</h2>
-              <div className="mt-4 space-y-3">
-                {recentEntries?.items?.length ? (
-                  recentEntries.items.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-start justify-between rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium text-slate-800">
-                          {entry.memo || "Journal entry"}
-                        </p>
-                        <p className="text-xs text-slate-500">{entry.entry_date}</p>
-                      </div>
-                      <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                        {entry.status}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">No recent journal entries.</p>
-                )}
-              </div>
-            </div>
-            <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Unmatched alerts</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#101a16]">Needs attention</h2>
-              <div className="mt-4 space-y-3">
-                {unmatched?.items?.length ? (
-                  unmatched.items.map((txn) => (
-                    <div
-                      key={txn.id}
-                      className="flex items-start justify-between rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-sm text-amber-900"
-                    >
-                      <div>
-                        <p className="font-medium">{txn.description}</p>
-                        <p className="text-xs text-amber-700">{txn.txn_date}</p>
-                      </div>
-                      <span className="text-sm font-semibold">
-                        {balanceSheet
-                          ? formatCurrency(
-                            balanceSheet.currency,
-                            toNumber(txn.amount)
-                          )
-                          : txn.amount}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">No unmatched transactions.</p>
-                )}
-                <Link
-                  href="/reconciliation/unmatched"
-                  className="inline-flex items-center gap-2 text-sm text-amber-700"
-                >
-                  Review unmatched transactions →
-                </Link>
-              </div>
-            </div>
-          </section>
+            )) : <p className="text-sm text-muted">No unmatched transactions.</p>}
+            <Link href="/reconciliation/unmatched" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">
+              Review unmatched →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

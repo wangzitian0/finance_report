@@ -9,27 +9,23 @@ export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  if (pathname === "/chat") {
-    return null;
-  }
+  if (pathname === "/chat") return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="group flex items-center gap-3 rounded-full bg-[#0f766e] px-5 py-3 text-sm font-semibold text-white shadow-xl shadow-emerald-200/60 transition hover:translate-y-[-2px]"
+        className="flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-[var(--accent-hover)]"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-lg">
-          AI
-        </span>
-        <span className="uppercase tracking-[0.3em] text-xs">Ask AI</span>
+        <span className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center text-xs">AI</span>
+        <span className="uppercase tracking-wide text-xs">Ask AI</span>
       </button>
 
-      {open ? (
-        <div className="mt-4 w-[360px] rounded-[32px] border border-white/40 bg-[#f7f2e6]/95 p-4 shadow-2xl shadow-emerald-200/40 backdrop-blur">
+      {open && (
+        <div className="mt-3 w-[340px] card p-4">
           <ChatPanel variant="widget" onClose={() => setOpen(false)} />
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

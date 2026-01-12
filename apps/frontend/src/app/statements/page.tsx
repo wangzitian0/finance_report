@@ -1,79 +1,155 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+import StatementUploader from "@/components/statements/StatementUploader";
+import { apiFetch } from "@/lib/api";
+
+interface BankStatementTransaction {
+    id: string;
+    txn_date: string;
+    description: string;
+    amount: number;
+    direction: "IN" | "OUT";
+    status: string;
+    confidence: string;
+}
+
+interface BankStatement {
+    id: string;
+    institution: string;
+    original_filename: string;
+    currency: string;
+    period_start: string;
+    period_end: string;
+    opening_balance: number;
+    closing_balance: number;
+    status: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
+    confidence_score: number;
+    balance_validated: boolean;
+    validation_error?: string | null;
+    created_at: string;
+    transactions: BankStatementTransaction[];
+}
+
+interface BankStatementListResponse {
+    items: BankStatement[];
+    total: number;
+}
+
 export default function StatementsPage() {
+    const [statements, setStatements] = useState<BankStatement[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchStatements = useCallback(async () => {
+        try {
+            const data = await apiFetch<BankStatementListResponse>("/api/statements");
+            setStatements(data.items);
+            setError(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to load statements");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchStatements();
+    }, [fetchStatements]);
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
-            <div className="max-w-6xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-emerald-500 mb-2">
-                            Import & Parse
-                        </p>
-                        <h1 className="text-4xl font-semibold text-white">Bank Statements</h1>
-                        <p className="mt-2 text-slate-400">
-                            Upload bank statements for AI-powered parsing and reconciliation.
-                        </p>
-                    </div>
+        <div className="p-6">
+            {/* Header */}
+            <div className="page-header">
+                <h1 className="page-title">Bank Statements</h1>
+                <p className="page-description">
+                    Upload bank statements for AI-powered parsing and reconciliation.
+                </p>
+            </div>
+
+            {/* Upload Section */}
+            <div className="mb-6">
+                <StatementUploader
+                    onUploadComplete={fetchStatements}
+                    onError={setError}
+                />
+            </div>
+
+            {/* Error Display */}
+            {error && (
+                <div className="mb-4 alert-error">
+                    {error}
+                </div>
+            )}
+
+            {/* Statements List */}
+            <div className="card">
+                <div className="card-header flex items-center justify-between">
+                    <h3 className="text-sm font-medium">Uploaded Statements</h3>
+                    <span className="text-xs text-muted">{statements.length} total</span>
                 </div>
 
-                {/* Upload Area */}
-                {/* TODO: Replace with actual file input/dropzone implementation */}
-                <div className="rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/20 p-12 text-center mb-8 opacity-60 cursor-not-allowed">
-                    <div className="flex flex-col items-center">
-                        <div className="w-16 h-16 rounded-2xl bg-slate-700/50 flex items-center justify-center mb-4">
-                            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                        </div>
-                        <p className="text-white font-medium mb-1">Drop files here to upload</p>
-                        <p className="text-sm text-slate-500">PDF, CSV, or XLSX (max 10MB)</p>
+                {loading ? (
+                    <div className="p-8 text-center text-muted">
+                        <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
+                        <p className="text-sm">Loading statements...</p>
                     </div>
-                </div>
-
-                {/* Coming Soon Card */}
-                <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-12 text-center">
-                    <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-2 rounded-full text-sm font-medium mb-6">
-                        <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                        Under Development
+                ) : statements.length === 0 ? (
+                    <div className="p-8 text-center text-muted">
+                        <p className="text-sm">No statements uploaded yet</p>
                     </div>
+                ) : (
+                    <div className="divide-y divide-[var(--border)]">
+                        {statements.map((statement) => (
+                            <div key={statement.id} className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-medium truncate">{statement.original_filename}</span>
+                                            <span className={`badge ${statement.status === "approved" ? "badge-success" :
+                                                statement.status === "rejected" ? "badge-error" :
+                                                    statement.status === "parsed" ? "badge-warning" :
+                                                        "badge-muted"
+                                                }`}>
+                                                {statement.status}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs text-muted">
+                                            <span>{statement.institution}</span>
+                                            <span>•</span>
+                                            <span>{statement.period_start} → {statement.period_end}</span>
+                                            <span>•</span>
+                                            <span>{statement.currency}</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                        <div className="text-lg font-semibold text-[var(--accent)]">
+                                            {statement.confidence_score}%
+                                        </div>
+                                        <div className="text-xs text-muted">{statement.transactions.length} txns</div>
+                                    </div>
+                                </div>
 
-                    <h2 className="text-2xl font-semibold text-white mb-4">
-                        Statement Upload Coming Soon
-                    </h2>
-
-                    <p className="text-slate-400 max-w-lg mx-auto mb-8">
-                        Upload bank statements in PDF or CSV format. Our AI will automatically
-                        extract transactions and prepare them for reconciliation.
-                    </p>
-
-                    <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto text-left">
-                        <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/30">
-                            <span className="text-2xl mb-2 block">🤖</span>
-                            <h3 className="text-sm font-medium text-white">AI Extraction</h3>
-                            <p className="text-xs text-slate-500 mt-1">Gemini-powered parsing</p>
-                        </div>
-                        <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/30">
-                            <span className="text-2xl mb-2 block">📊</span>
-                            <h3 className="text-sm font-medium text-white">Multi-Format</h3>
-                            <p className="text-xs text-slate-500 mt-1">PDF, CSV, XLSX</p>
-                        </div>
-                        <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/30">
-                            <span className="text-2xl mb-2 block">✓</span>
-                            <h3 className="text-sm font-medium text-white">Validation</h3>
-                            <p className="text-xs text-slate-500 mt-1">Balance verification</p>
-                        </div>
+                                <div className="mt-3 flex items-center gap-6 text-xs">
+                                    <div>
+                                        <span className="text-muted">Opening:</span>{" "}
+                                        <span>{statement.currency} {statement.opening_balance.toLocaleString()}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted">Closing:</span>{" "}
+                                        <span>{statement.currency} {statement.closing_balance.toLocaleString()}</span>
+                                    </div>
+                                    {statement.balance_validated ? (
+                                        <span className="badge badge-success">✓ Verified</span>
+                                    ) : (
+                                        <span className="badge badge-warning">Needs Review</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                </div>
-
-                {/* Recent Uploads Table (placeholder) */}
-                <div className="mt-8 rounded-2xl border border-slate-700/50 bg-slate-800/30 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-700/50">
-                        <h3 className="text-lg font-medium text-white">Recent Uploads</h3>
-                    </div>
-                    <div className="p-8 text-center text-slate-500">
-                        No statements uploaded yet
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );

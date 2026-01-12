@@ -28,26 +28,26 @@ export function Sidebar() {
         <aside
             className={`
         fixed left-0 top-0 z-40 h-screen
-        bg-[#0f1419] border-r border-slate-800
+        bg-[var(--background-card)] border-r border-[var(--border)]
         transition-all duration-300 ease-in-out
-        ${isCollapsed ? "w-16" : "w-64"}
+        ${isCollapsed ? "w-16" : "w-56"}
       `}
         >
             {/* Logo & Collapse Toggle */}
-            <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800">
-                <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-white font-bold text-sm">₿</span>
+            <div className="flex items-center justify-between h-14 px-3 border-b border-[var(--border)]">
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                    <div className="w-8 h-8 bg-[var(--accent)] rounded-md flex items-center justify-center flex-shrink-0">
+                        <span className="text-white font-bold text-sm">$</span>
                     </div>
                     {!isCollapsed && (
-                        <span className="text-white font-semibold text-lg whitespace-nowrap">
+                        <span className="font-semibold text-sm whitespace-nowrap">
                             Finance
                         </span>
                     )}
                 </div>
                 <button
                     onClick={toggleSidebar}
-                    className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                    className="p-1.5 rounded-md hover:bg-[var(--background-muted)] text-muted transition-colors"
                     aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >
                     <svg
@@ -56,63 +56,53 @@ export function Sidebar() {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                     >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                        />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                     </svg>
                 </button>
             </div>
 
             {/* Navigation */}
-            <nav className="p-3 space-y-1">
+            <nav className="p-2 space-y-0.5">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
                             className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-xl
-                transition-all duration-200
+                flex items-center gap-2.5 px-2.5 py-2 rounded-md
+                transition-colors text-sm
                 ${isActive
-                                    ? "bg-emerald-500/10 text-emerald-400 shadow-lg shadow-emerald-500/5"
-                                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                                    ? "bg-[var(--accent-muted)] text-[var(--accent)]"
+                                    : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
                                 }
                 ${isCollapsed ? "justify-center" : ""}
               `}
                             title={isCollapsed ? item.label : undefined}
                         >
-                            <span className="text-lg flex-shrink-0" role="img" aria-label={item.label}>
+                            <span className="text-base flex-shrink-0" role="img" aria-label={item.label}>
                                 {item.icon}
                             </span>
-                            {!isCollapsed && (
-                                <span className="font-medium text-sm">{item.label}</span>
-                            )}
+                            {!isCollapsed && <span className="font-medium">{item.label}</span>}
                         </Link>
                     );
                 })}
             </nav>
 
             {/* Bottom Section */}
-            <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-slate-800">
+            <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-[var(--border)]">
                 <Link
                     href="/ping-pong"
                     className={`
-            flex items-center gap-3 px-3 py-2.5 rounded-xl
-            text-slate-500 hover:bg-slate-800 hover:text-slate-300
-            transition-all duration-200
+            flex items-center gap-2.5 px-2.5 py-2 rounded-md
+            text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]
+            transition-colors text-sm
             ${isCollapsed ? "justify-center" : ""}
           `}
                     title={isCollapsed ? "Ping-Pong Demo" : undefined}
                 >
-                    <span className="text-lg flex-shrink-0">🏓</span>
-                    {!isCollapsed && (
-                        <span className="font-medium text-sm">Ping-Pong</span>
-                    )}
+                    <span className="text-base flex-shrink-0">🏓</span>
+                    {!isCollapsed && <span className="font-medium">Ping-Pong</span>}
                 </Link>
             </div>
         </aside>
