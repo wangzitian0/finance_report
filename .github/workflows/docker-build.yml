@@ -38,6 +38,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
+  DEPLOY_WAIT_SECONDS: 90
 
 jobs:
   build:
@@ -48,13 +49,21 @@ jobs:
       packages: write
     outputs:
       image_tag: ${{ steps.vars.outputs.image_tag }}
+      deploy_target: ${{ steps.vars.outputs.deploy_target }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set image tag
+      - name: Set variables
         id: vars
-        run: echo "image_tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+        run: |
+          echo "image_tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          # Determine deploy target for conditional frontend build
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy_target=${{ github.event.inputs.deploy_target }}" >> $GITHUB_OUTPUT
+          else
+            echo "deploy_target=production" >> $GITHUB_OUTPUT
+          fi
 
       - name: Log in to Container registry
         uses: docker/login-action@v3
@@ -72,6 +81,15 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.vars.outputs.image_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
 
+      - name: Determine API URL
+        id: api_url
+        run: |
+          if [ "${{ steps.vars.outputs.deploy_target }}" = "staging" ]; then
+            echo "url=https://report-staging.zitian.party/api" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://report.zitian.party/api" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
@@ -81,149 +99,137 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.vars.outputs.image_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=https://report.zitian.party/api
+            NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
 
-  deploy-production:
-    name: Deploy to Production
+  deploy:
+    name: Deploy to ${{ matrix.environment }}
     needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target != 'none')
     runs-on: ubuntu-latest
-    environment: production
+    strategy:
+      matrix:
+        include:
+          - environment: production
+            compose_id_secret: DOKPLOY_COMPOSE_ID
+            condition: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production')
+          - environment: staging
+            compose_id_secret: DOKPLOY_STAGING_COMPOSE_ID
+            condition: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'staging'
+      fail-fast: false
+    environment: ${{ matrix.environment }}
     steps:
+      - name: Check if deployment should run
+        id: should_run
+        run: |
+          if [ "${{ matrix.environment }}" = "production" ]; then
+            if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.inputs.deploy_target }}" = "production" ]; then
+              echo "run=true" >> $GITHUB_OUTPUT
+            else
+              echo "run=false" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ matrix.environment }}" = "staging" ]; then
+            if [ "${{ github.event.inputs.deploy_target }}" = "staging" ]; then
+              echo "run=true" >> $GITHUB_OUTPUT
+            else
+              echo "run=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Deploy to Dokploy
+        if: steps.should_run.outputs.run == 'true'
         env:
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
+          COMPOSE_ID: ${{ matrix.environment == 'production' && secrets.DOKPLOY_COMPOSE_ID || secrets.DOKPLOY_STAGING_COMPOSE_ID }}
         run: |
-          echo "Deploying $IMAGE_TAG to production..."
+          echo "Deploying $IMAGE_TAG to ${{ matrix.environment }}..."
+          
+          # Validate IMAGE_TAG is set
+          if [ -z "${IMAGE_TAG:-}" ]; then
+            echo "ERROR: IMAGE_TAG is not set. Aborting deployment."
+            exit 1
+          fi
           
           # Get current env and update IMAGE_TAG
-          current_env=$(curl -s -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+          current_env=$(curl -f -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" | jq -r '.env')
           
-          new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
+          # Handle IMAGE_TAG - replace if exists, append if not
+          if echo "$current_env" | grep -q '^IMAGE_TAG='; then
+            new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
+          else
+            if [ -n "$current_env" ]; then
+              new_env="${current_env}"$'\n'"IMAGE_TAG=$IMAGE_TAG"
+            else
+              new_env="IMAGE_TAG=$IMAGE_TAG"
+            fi
+          fi
           
-          # Update and deploy
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          # Verify IMAGE_TAG was set correctly
+          if ! echo "$new_env" | grep -q "^IMAGE_TAG=$IMAGE_TAG"; then
+            echo "ERROR: Failed to set IMAGE_TAG in environment. Aborting deployment."
+            exit 1
+          fi
+          
+          # Update environment
+          curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$(jq -n --arg id "$COMPOSE_ID" --arg env "$new_env" '{composeId: $id, env: $env}')"
           
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          # Stop current deployment
+          curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
           
           sleep 10
           
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          # Deploy new version
+          curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
           
-          echo "Deployment triggered. Waiting for containers..."
-          sleep 90
-
-  deploy-staging:
-    name: Deploy to Staging
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'staging'
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Deploy to Dokploy Staging
-        env:
-          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          COMPOSE_ID: ${{ secrets.DOKPLOY_STAGING_COMPOSE_ID }}
-        run: |
-          echo "Deploying $IMAGE_TAG to staging..."
-          
-          # Get current env and update IMAGE_TAG
-          current_env=$(curl -s -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" | jq -r '.env')
-          
-          new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
-          
-          # Update and deploy
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "$COMPOSE_ID" --arg env "$new_env" '{composeId: $id, env: $env}')"
-          
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}"
-          
-          sleep 10
-          
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}"
-          
-          echo "Staging deployment triggered."
-          sleep 90
-
-  deploy-manual-production:
-    name: Deploy to Production (Manual)
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Deploy to Dokploy
-        env:
-          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
-        run: |
-          echo "Deploying $IMAGE_TAG to production (manual)..."
-          
-          current_env=$(curl -s -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" | jq -r '.env')
-          
-          new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
-          
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "$COMPOSE_ID" --arg env "$new_env" '{composeId: $id, env: $env}')"
-          
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}"
-          
-          sleep 10
-          
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}"
-          
-          echo "Deployment triggered."
-          sleep 90
+          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s for containers..."
+          sleep "${DEPLOY_WAIT_SECONDS}"
 
   smoke-test:
-    name: Smoke Tests
-    needs: [build, deploy-production]
-    if: always() && needs.deploy-production.result == 'success'
+    name: Smoke Tests (${{ matrix.environment }})
+    needs: [build, deploy]
+    if: always() && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - environment: production
+            url: https://report.zitian.party
+          - environment: staging
+            url: https://report-staging.zitian.party
+      fail-fast: false
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Run smoke tests
-        run: bash scripts/smoke_test.sh https://report.zitian.party
+      - name: Check if smoke test should run
+        id: should_run
+        run: |
+          if [ "${{ matrix.environment }}" = "production" ]; then
+            if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.inputs.deploy_target }}" = "production" ]; then
+              echo "run=true" >> $GITHUB_OUTPUT
+            else
+              echo "run=false" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ matrix.environment }}" = "staging" ]; then
+            if [ "${{ github.event.inputs.deploy_target }}" = "staging" ]; then
+              echo "run=true" >> $GITHUB_OUTPUT
+            else
+              echo "run=false" >> $GITHUB_OUTPUT
+            fi
+          fi
 
-  smoke-test-staging:
-    name: Smoke Tests (Staging)
-    needs: [build, deploy-staging]
-    if: always() && needs.deploy-staging.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
       - name: Checkout repository
+        if: steps.should_run.outputs.run == 'true'
         uses: actions/checkout@v4
         
       - name: Run smoke tests
-        run: bash scripts/smoke_test.sh https://report-staging.zitian.party
+        if: steps.should_run.outputs.run == 'true'
+        run: bash scripts/smoke_test.sh ${{ matrix.url }}

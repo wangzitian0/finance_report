@@ -243,11 +243,11 @@ Required Secrets:
 │   ┌─────────┐      ┌─────────┐      ┌─────────┐    ┌─────────┐ │
 │   │ docker  │  →   │ CI test │  →   │ Manual  │ →  │ Auto on │ │
 │   │ compose │      │ build   │      │ deploy  │    │ main    │ │
-│   │ integra │      │ images  │      │ verify  │    │ merge   │ │
+│   │ integrat│      │ images  │      │ verify  │    │ merge   │ │
 │   └─────────┘      └─────────┘      └─────────┘    └─────────┘ │
 │                                                                  │
-│   docker-compose   GitHub Actions    workflow_      push to     │
-│   .integration.yml                   dispatch       main        │
+│   docker-compose   GitHub Actions    workflow      push to      │
+│   .integration.yml                   _dispatch     main         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
