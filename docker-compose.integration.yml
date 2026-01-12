@@ -65,13 +65,13 @@ services:
         attempt=1
         
         until alembic upgrade head; do
-          if [ "$$attempt" -ge "$$max_retries" ]; then
-            echo "ERROR: Migrations failed after $$attempt attempts"
+          if [ "$attempt" -ge "$max_retries" ]; then
+            echo "ERROR: Migrations failed after $attempt attempts"
             exit 1
           fi
-          echo "WARNING: Migration attempt $$attempt/$$max_retries failed. Retrying..."
-          attempt=$$((attempt + 1))
-          sleep $$retry_interval
+          echo "WARNING: Migration attempt $attempt/$max_retries failed. Retrying..."
+          attempt=$((attempt + 1))
+          sleep $retry_interval
         done
         
         echo "Migrations completed. Starting application..."

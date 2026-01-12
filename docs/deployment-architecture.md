@@ -128,7 +128,7 @@ Push 到 GHCR (tag: v1.2.3)
 | 文件 | 用途 | 环境 |
 |------|------|------|
 | **`docker-compose.yml`** | 统一的 dev/CI/PR compose | local / GitHub CI / PR test |
-| **`docker-compose.integration.yml`** | （待确认用途） | ? |
+| **`docker-compose.integration.yml`** | 本地集成测试（含 migrations） | local |
 | **`infra2/.../compose.yaml`** | Staging & Production 模板 | staging / production |
 
 ### Workflow 文件

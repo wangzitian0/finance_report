@@ -123,7 +123,7 @@ services:
       DEBUG: ${DEBUG:-false}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      start_period: 180s
+      start_period: ${BACKEND_HEALTHCHECK_START_PERIOD:-60s}
       interval: 30s
       timeout: 10s
       retries: 5

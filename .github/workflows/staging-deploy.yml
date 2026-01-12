@@ -103,14 +103,14 @@ jobs:
           curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d '{"composeId": "${{ env.STAGING_COMPOSE_ID }}"}' || true
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" || true
           
           sleep 15
           
           curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d '{"composeId": "${{ env.STAGING_COMPOSE_ID }}"}'
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')"
           
           echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
           sleep ${{ env.DEPLOY_WAIT_SECONDS }}
