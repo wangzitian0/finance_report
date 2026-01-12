@@ -1,10 +1,9 @@
 """Finance Report Backend - FastAPI Application."""
 
+import traceback
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-import traceback
-
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware

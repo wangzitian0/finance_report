@@ -29,7 +29,11 @@ interface BalanceSheetResponse {
 
 interface AccountNode extends ReportLine { children: AccountNode[]; }
 
-const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
+const toNumber = (value: number | string): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const formatCurrency = (currency: string, value: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 
@@ -119,6 +123,16 @@ export default function BalanceSheetPage() {
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">As of date</span><input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="input w-auto" /></label>
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto"><option value="SGD">SGD</option><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
         <span className={`self-end badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span>
+      </div>
+
+      <div className="flex flex-col gap-2 mb-6">
+        <span className="text-xs text-muted uppercase">Quick filters</span>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#assets`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#liabilities`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#equity`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
