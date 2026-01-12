@@ -90,7 +90,7 @@ jobs:
           if echo "$current_env" | grep -q '^IMAGE_TAG='; then
             new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
           else
-            new_env="${current_env}"$'\n'"IMAGE_TAG=$IMAGE_TAG"
+            new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
           fi
           
           # Update environment

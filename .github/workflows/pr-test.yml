@@ -55,7 +55,7 @@ jobs:
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
           
-          compose_id=$(echo "$response" | jq -r '.compose[] | select(.name == "${{ needs.setup.outputs.compose_name }}") | .composeId' | head -1)
+          compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
@@ -212,7 +212,7 @@ jobs:
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
           
-          compose_id=$(echo "$response" | jq -r '.compose[] | select(.name == "${{ needs.setup.outputs.compose_name }}") | .composeId' | head -1)
+          compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
             echo "Found compose: $compose_id"
