@@ -43,6 +43,8 @@ services:
       retries: 5
     networks:
       - dokploy-network
+    ports:
+      - "5432:5432"
 
   redis:
     image: redis:7-alpine
@@ -57,6 +59,8 @@ services:
       retries: 5
     networks:
       - dokploy-network
+    ports:
+      - "6379:6379"
 
   minio:
     image: minio/minio
