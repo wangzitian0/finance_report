@@ -54,12 +54,18 @@ export interface JournalEntryListResponse {
 
 export interface BankStatementTransaction {
     id: string;
+    statement_id: string;
     txn_date: string;
     description: string;
     amount: number;
-    direction: "IN" | "OUT";
-    status: string;
-    confidence: string;
+    direction: string;
+    reference?: string | null;
+    status: "pending" | "matched" | "unmatched";
+    confidence: "high" | "medium" | "low";
+    confidence_reason?: string | null;
+    raw_text?: string | null;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface BankStatementTransactionSummary {
@@ -68,15 +74,19 @@ export interface BankStatementTransactionSummary {
     txn_date: string;
     description: string;
     amount: number;
-    direction: "IN" | "OUT";
+    direction: string;
     reference?: string | null;
     status: "pending" | "matched" | "unmatched";
 }
 
 export interface BankStatement {
     id: string;
-    institution: string;
+    user_id: string;
+    account_id?: string | null;
+    file_path: string;
     original_filename: string;
+    institution: string;
+    account_last4?: string | null;
     currency: string;
     period_start: string;
     period_end: string;
@@ -87,6 +97,7 @@ export interface BankStatement {
     balance_validated: boolean;
     validation_error?: string | null;
     created_at: string;
+    updated_at: string;
     transactions: BankStatementTransaction[];
 }
 

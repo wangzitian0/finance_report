@@ -115,6 +115,76 @@ async def upload_statement(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
 
 
+@router.post("/{statement_id}/retry", response_model=BankStatementResponse)
+async def retry_statement_parsing(
+    statement_id: UUID,
+    model: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+) -> BankStatementResponse:
+    """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
+    import os
+
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one_or_none()
+
+    if not statement:
+        raise HTTPException(404, "Statement not found")
+
+    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED):
+        raise HTTPException(400, "Can only retry parsing for parsed or rejected statements")
+
+    fallback_models = os.getenv("FALLBACK_MODELS", "google/gemini-2.0,openai/gpt-4-turbo").split(
+        ","
+    )
+    selected_model = model or fallback_models[0].strip()
+
+    try:
+        service = ExtractionService()
+        new_statement, new_transactions = await service.parse_document(
+            file_path=Path(statement.original_filename),
+            institution=statement.institution,
+            user_id=user_id,
+            file_type=statement.original_filename.rsplit(".", 1)[-1].lower()
+            if "." in statement.original_filename
+            else "pdf",
+            account_id=statement.account_id,
+            file_content=b"",
+            file_hash=statement.file_hash,
+            file_url="",
+            original_filename=statement.original_filename,
+            force_model=selected_model,
+        )
+
+        statement.transactions.clear()
+        for txn in new_transactions:
+            statement.transactions.append(txn)
+
+        statement.opening_balance = new_statement.opening_balance
+        statement.closing_balance = new_statement.closing_balance
+        statement.period_start = new_statement.period_start
+        statement.period_end = new_statement.period_end
+        statement.confidence_score = new_statement.confidence_score
+        statement.balance_validated = new_statement.balance_validated
+        statement.validation_error = new_statement.validation_error
+        statement.status = BankStatementStatus.PARSED
+
+        await db.commit()
+        await db.refresh(statement)
+
+        return BankStatementResponse.model_validate(statement)
+
+    except ExtractionError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Retry failed: {str(e)}")
+
+
 @router.get("", response_model=BankStatementListResponse)
 async def list_statements(
     db: AsyncSession = Depends(get_db),
