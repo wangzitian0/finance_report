@@ -40,9 +40,9 @@ Finance Report 采用**三层环境架构**，从本地开发到生产，清晰�
 - 启动 `docker-compose.yml` 用于集成测试
 - 输出 coverage report
 
-#### PR Test（待实现，`staging-deploy.yml` 的衍生）
+#### PR Test（`.github/workflows/pr-test.yml`）
 - PR 创建时自动启动完整环境
-- 域名：`report-{hash6}.zitian.party`
+- 域名：`report-pr-{number}.zitian.party`
 - PR close 时自动销毁
 
 **快速验证，无 Docker 镜像开销**
@@ -73,7 +73,7 @@ Finance Report 采用**三层环境架构**，从本地开发到生产，清晰�
 | **生命周期** | 长期（weeks/months） |
 | **用途** | E2E 测试、Smoke 测试、持续验证 |
 
-**Workflow：`.github/workflows/staging-deploy.yml`（待实现）**
+**Workflow：`.github/workflows/staging-deploy.yml`**
 ```
 main push
   ↓
@@ -104,7 +104,7 @@ Push 到 GHCR (tag: sha-xxx)
 | **生命周期** | 稳定 |
 | **部署策略** | Blue-green 或 rolling update |
 
-**Workflow：`.github/workflows/production-deploy.yml`（改进 docker-build.yml）**
+**Workflow：`.github/workflows/production-deploy.yml`**
 ```
 release tag (v1.2.3)
   ↓
@@ -136,9 +136,9 @@ Push 到 GHCR (tag: v1.2.3)
 | 文件 | 触发 | 用途 |
 |------|------|------|
 | **`ci.yml`** | PR open/update + main push | 代码验证 + 集成测试 |
-| **`staging-deploy.yml`** | main push | 构建镜像 + 部署 staging（待实现） |
-| **`production-deploy.yml`** | release tag | 构建镜像 + 部署 production（待改进） |
-| **`docker-build.yml`** | main push | 现有工作流（待退休） |
+| **`pr-test.yml`** | PR open/sync/close | PR 测试环境（自动创建/销毁） |
+| **`staging-deploy.yml`** | main push | 构建镜像 + 部署 staging |
+| **`production-deploy.yml`** | release tag | 构建镜像 + 部署 production |
 
 ### 配置文件
 
@@ -191,7 +191,7 @@ git push origin feat/add-dashboard
 # 5. 创建 PR
 # → GitHub CI 自动验证
 # → Dokploy 自动创建 PR test 环境
-# → 获得 report-hash.zitian.party 域名进行功能测试
+# → 获得 report-pr-{number}.zitian.party 域名进行功能测试
 
 # 6. Review 和修改，每次 push 自动更新 PR test 环境
 
@@ -276,21 +276,13 @@ git push origin v1.2.3
 
 ## 待完成事项
 
-### Code（编码）
-- [ ] 改进 `.github/workflows/ci.yml` - 完善集成测试
-- [ ] 新增 `.github/workflows/staging-deploy.yml` - main 自动部署
-- [ ] 改进 `.github/workflows/production-deploy.yml` - release tag 部署
-- [ ] 更新 README - 说明如何启动 docker-compose.yml
-
 ### Configuration（配置）
-- [ ] Vault 创建 `secret/data/finance_report/staging/app`
-- [ ] Vault 创建 `secret/data/finance_report/production/app`
-- [ ] GitHub Secrets 配置（6 个 secrets）
-- [ ] Dokploy environment 创建或确认 ID
+- [ ] 更新 README - 说明如何启动 docker-compose.yml
+- [ ] GitHub repo settings 中配置 environment protection rules（可选）
 
 ### Testing（测试）
-- [ ] 本地 `docker compose up -d` 验证
-- [ ] GitHub CI 验证
-- [ ] 创建 test PR 验证完整流程
-- [ ] Staging 部署验证
-- [ ] Production 部署验证
+- [x] 本地 `docker compose up -d` 验证
+- [x] GitHub CI 验证
+- [x] 创建 test PR 验证完整流程
+- [x] Staging 部署验证
+- [x] Production 部署验证
