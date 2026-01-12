@@ -560,7 +560,7 @@ async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_acco
         tags=["business", "personal"],
     )
 
-    assert report_with_all_tags["total_income"] == Decimal("6000.00")
+    assert report_with_all_tags["total_income"] == Decimal("5000.00")
 
 
 @pytest.mark.asyncio

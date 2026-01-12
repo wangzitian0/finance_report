@@ -34,7 +34,6 @@ export function SankeyChart({
       const filtered = items.filter((i) => toNumber(i.amount) > 0);
       if (filtered.length === 0) return;
 
-      const total = filtered.reduce((sum, i) => sum + toNumber(i.amount), 0);
       nodes.push({ name: prefix, itemStyle: { color } });
 
       filtered.forEach((item) => {

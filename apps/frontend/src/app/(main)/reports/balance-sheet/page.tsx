@@ -29,7 +29,11 @@ interface BalanceSheetResponse {
 
 interface AccountNode extends ReportLine { children: AccountNode[]; }
 
-const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
+const toNumber = (value: number | string): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const formatCurrency = (currency: string, value: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 
@@ -125,9 +129,9 @@ export default function BalanceSheetPage() {
         <span className="text-xs text-muted uppercase">Quick filters</span>
         <div className="flex flex-wrap gap-2">
           <Link href="/reports/balance-sheet" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
-          <Link href="/reports/balance-sheet?account_type=ASSET" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
-          <Link href="/reports/balance-sheet?account_type=LIABILITY" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
-          <Link href="/reports/balance-sheet?account_type=EQUITY" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
+          <Link href="/reports/balance-sheet#assets" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
+          <Link href="/reports/balance-sheet#liabilities" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
+          <Link href="/reports/balance-sheet#equity" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
         </div>
       </div>
 

@@ -48,7 +48,9 @@ def _signed_amount(account_type: AccountType, direction: Direction, amount: Deci
     return amount if direction == Direction.CREDIT else -amount
 
 
-def _quantize_money(amount: Decimal) -> Decimal:
+def _quantize_money(amount: Decimal | int) -> Decimal:
+    if isinstance(amount, int):
+        amount = Decimal(amount)
     return amount.quantize(Decimal("0.01"))
 
 
@@ -232,7 +234,9 @@ async def generate_income_statement(
     result = await db.execute(stmt)
 
     for line, account, entry in result.all():
-        if tags and line.tags:
+        if tags:
+            if not line.tags:
+                continue
             line_tags = set(k.lower() for k in line.tags.keys())
             if not any(t.lower() in line_tags for t in tags):
                 continue

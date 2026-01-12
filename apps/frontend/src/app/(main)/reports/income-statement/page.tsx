@@ -39,7 +39,11 @@ interface IncomeStatementResponse {
   };
 }
 
-const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
+const toNumber = (value: number | string): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const formatCurrency = (currency: string, value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
