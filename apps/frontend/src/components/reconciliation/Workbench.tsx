@@ -4,51 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-
-interface BankTransactionSummary {
-  id: string;
-  statement_id: string;
-  txn_date: string;
-  description: string;
-  amount: number;
-  direction: "IN" | "OUT";
-  reference?: string | null;
-  status: "pending" | "matched" | "unmatched";
-}
-
-interface JournalEntrySummary {
-  id: string;
-  entry_date: string;
-  memo?: string | null;
-  status: string;
-  total_amount: number;
-}
-
-interface ReconciliationMatchResponse {
-  id: string;
-  bank_txn_id: string;
-  journal_entry_ids: string[];
-  match_score: number;
-  score_breakdown: Record<string, number>;
-  status: "auto_accepted" | "pending_review" | "accepted" | "rejected" | "superseded";
-  transaction?: BankTransactionSummary | null;
-  entries: JournalEntrySummary[];
-}
-
-interface ReconciliationMatchListResponse {
-  items: ReconciliationMatchResponse[];
-  total: number;
-}
-
-interface ReconciliationStatsResponse {
-  total_transactions: number;
-  matched_transactions: number;
-  unmatched_transactions: number;
-  pending_review: number;
-  auto_accepted: number;
-  match_rate: number;
-  score_distribution: Record<string, number>;
-}
+import {
+  ReconciliationMatchListResponse,
+  ReconciliationMatchResponse,
+  ReconciliationStatsResponse
+} from "@/lib/types";
 
 interface AnomalyResponse {
   anomaly_type: string;

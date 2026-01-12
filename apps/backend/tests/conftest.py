@@ -105,3 +105,35 @@ async def client(db_engine, test_user):
             yield client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def public_client(db_engine):
+    """Create async test client without auth headers."""
+    # Override the database URL for the app
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+    async_session = async_sessionmaker(
+        db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def override_get_db():
+        async with async_session() as session:
+            yield session
+
+    # Import app after setting env var
+    from src.database import get_db
+    from src.main import app
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()

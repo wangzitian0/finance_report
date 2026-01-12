@@ -78,7 +78,7 @@ export default function UnmatchedBoard() {
     return encodeURIComponent(
       `Help me interpret this transaction: ${description} on ${txn_date}, amount ${amount} (${direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`,
     );
-  }, [selected?.description, selected?.txn_date, selected?.amount, selected?.direction]);
+  }, [selected]);
 
   return (
     <div className="p-6">

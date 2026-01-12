@@ -1,3 +1,5 @@
+import { getUserId } from "./auth";
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -5,12 +7,19 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const userId = getUserId();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (userId) {
+    (headers as Record<string, string>)["X-User-Id"] = userId;
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -40,14 +49,21 @@ export async function apiUpload<T>(
   formData: FormData,
   options: RequestInit = {}
 ): Promise<T> {
+  const userId = getUserId();
+  const headers: HeadersInit = {
+    // Do NOT set Content-Type for FormData - browser sets it with boundary
+    ...(options.headers || {}),
+  };
+
+  if (userId) {
+    (headers as Record<string, string>)["X-User-Id"] = userId;
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     body: formData,
     ...options,
-    headers: {
-      // Do NOT set Content-Type for FormData - browser sets it with boundary
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   if (!res.ok) {

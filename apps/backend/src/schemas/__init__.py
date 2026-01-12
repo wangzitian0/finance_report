@@ -6,6 +6,11 @@ from src.schemas.account import (
     AccountResponse,
     AccountUpdate,
 )
+from src.schemas.auth import (
+    AuthResponse,
+    LoginRequest,
+    RegisterRequest,
+)
 from src.schemas.chat import (
     ChatHistoryResponse,
     ChatMessageResponse,
@@ -114,4 +119,7 @@ __all__ = [
     "UserListResponse",
     "UserResponse",
     "UserUpdate",
+    "AuthResponse",
+    "LoginRequest",
+    "RegisterRequest",
 ]
