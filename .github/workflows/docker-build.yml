@@ -171,13 +171,13 @@ jobs:
           fi
           
           # Update environment
-          curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$(jq -n --arg id "$COMPOSE_ID" --arg env "$new_env" '{composeId: $id, env: $env}')"
           
           # Stop current deployment
-          curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
@@ -185,7 +185,7 @@ jobs:
           sleep 20
           
           # Deploy new version
-          curl -f --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
