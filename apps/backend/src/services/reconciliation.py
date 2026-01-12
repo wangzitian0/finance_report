@@ -404,9 +404,12 @@ async def execute_matching(
     """Execute reconciliation matching for pending transactions."""
     config = load_reconciliation_config()
 
-    query = select(BankStatementTransaction).join(BankStatement).where(
-        BankStatementTransaction.status == BankStatementTransactionStatus.PENDING
-    ).where(BankStatement.user_id == user_id)
+    query = (
+        select(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatementTransaction.status == BankStatementTransactionStatus.PENDING)
+        .where(BankStatement.user_id == user_id)
+    )
 
     if statement_id:
         statement_uuid = UUID(statement_id) if isinstance(statement_id, str) else statement_id

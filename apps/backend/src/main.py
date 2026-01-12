@@ -43,6 +43,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         content={"detail": str(exc)},
     )
 
+
 # CORS for frontend
 app.add_middleware(
     CORSMiddleware,

@@ -5,9 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 DISCLAIMER_EN = "The above analysis is for reference only."
-DISCLAIMER_ZH = (
-    "\u4ee5\u4e0a\u5206\u6790\u4ec5\u4f9b\u53c2\u8003\u3002"
-)
+DISCLAIMER_ZH = "\u4ee5\u4e0a\u5206\u6790\u4ec5\u4f9b\u53c2\u8003\u3002"
 
 
 def get_ai_advisor_prompt(context: Mapping[str, str], language: str) -> str:

@@ -172,7 +172,7 @@ src/models/journal.py           96%
 cd apps/backend
 
 # Start PostgreSQL first
-podman compose -f docker-compose.ci.yml up -d postgres
+podman compose -f docker-compose.yml up -d postgres
 
 # Create test database
 podman exec finance_report_db psql -U postgres -c "CREATE DATABASE finance_report_test;"

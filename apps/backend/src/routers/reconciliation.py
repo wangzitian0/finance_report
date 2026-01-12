@@ -129,10 +129,13 @@ async def run_reconciliation(
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
 
-    unmatched_query = select(func.count(BankStatementTransaction.id)).join(BankStatement).where(
-        BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED
-    ).where(BankStatement.user_id == user_id)
-    
+    unmatched_query = (
+        select(func.count(BankStatementTransaction.id))
+        .join(BankStatement)
+        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+        .where(BankStatement.user_id == user_id)
+    )
+
     if payload.statement_id:
         unmatched_query = unmatched_query.where(
             BankStatementTransaction.statement_id == payload.statement_id

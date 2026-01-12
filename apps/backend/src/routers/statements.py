@@ -67,9 +67,7 @@ async def upload_statement(
         statement_id = uuid4()
         storage_key = f"statements/{statement_id}/{filename}"
         content_type = (
-            file.content_type
-            or mimetypes.guess_type(filename)[0]
-            or "application/octet-stream"
+            file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         )
 
         storage = StorageService()
