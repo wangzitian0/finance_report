@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
-import { Fraunces, Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import ChatWidget from "@/components/ChatWidget";
 
-const spaceGrotesk = Space_Grotesk({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-space-grotesk",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased font-sans`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <AppShell>
           {children}
         </AppShell>
@@ -35,4 +30,3 @@ export default function RootLayout({
     </html>
   );
 }
-

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { useWorkspace, WorkspaceTab } from "@/hooks/useWorkspace";
 
-// Map of routes to their display info
 const routeInfo: Record<string, { label: string; icon: string }> = {
     "/dashboard": { label: "Dashboard", icon: "📊" },
     "/accounts": { label: "Accounts", icon: "🏦" },
@@ -22,32 +21,17 @@ const routeInfo: Record<string, { label: string; icon: string }> = {
 };
 
 function getRouteInfo(pathname: string): { label: string; icon: string } {
-    // Try exact match first
-    if (routeInfo[pathname]) {
-        return routeInfo[pathname];
-    }
-    // Try to find a parent route
+    if (routeInfo[pathname]) return routeInfo[pathname];
     const segments = pathname.split("/").filter(Boolean);
     while (segments.length > 0) {
         const parentPath = "/" + segments.join("/");
-        if (routeInfo[parentPath]) {
-            return routeInfo[parentPath];
-        }
+        if (routeInfo[parentPath]) return routeInfo[parentPath];
         segments.pop();
-    }
-    
-    // Fallback: derive a human-readable label from the pathname
-    if (process.env.NODE_ENV === "development") {
-        // Help identify missing routeInfo mappings during development
-        // eslint-disable-next-line no-console
-        console.warn(`WorkspaceTabs: missing routeInfo entry for path "${pathname}"`);
     }
     const derivedSegments = pathname.split("/").filter(Boolean);
     const lastSegment = derivedSegments[derivedSegments.length - 1];
     const rawLabel = lastSegment ?? "Page";
-    const label = rawLabel
-        .replace(/[-_]+/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+    const label = rawLabel.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     return { label, icon: "📄" };
 }
 
@@ -55,7 +39,6 @@ export function WorkspaceTabs() {
     const pathname = usePathname();
     const { tabs, activeTabId, addTab, removeTab, setActiveTab } = useWorkspace();
 
-    // Auto-add current route as tab if not already present
     useEffect(() => {
         if (pathname && pathname !== "/") {
             const info = getRouteInfo(pathname);
@@ -63,25 +46,22 @@ export function WorkspaceTabs() {
         }
     }, [pathname, addTab]);
 
-    // Sync active tab with current pathname
     useEffect(() => {
         const currentTab = tabs.find((t) => t.href === pathname);
-        if (currentTab && currentTab.id !== activeTabId) {
-            setActiveTab(currentTab.id);
-        }
+        if (currentTab && currentTab.id !== activeTabId) setActiveTab(currentTab.id);
     }, [pathname, tabs, activeTabId, setActiveTab]);
 
     if (tabs.length === 0) {
         return (
-            <div className="h-12 bg-[#1a2129] border-b border-slate-800 flex items-center px-4">
-                <span className="text-slate-500 text-sm">No tabs open</span>
+            <div className="h-10 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center px-3">
+                <span className="text-muted text-sm">No tabs open</span>
             </div>
         );
     }
 
     return (
-        <div className="h-12 bg-[#1a2129] border-b border-slate-800 flex items-center overflow-x-auto">
-            <div className="flex items-center gap-1 px-2">
+        <div className="h-10 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
+            <div className="flex items-center gap-0.5 px-2">
                 {tabs.map((tab) => (
                     <TabItem
                         key={tab.id}
@@ -107,41 +87,25 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
     return (
         <div
             className={`
-        group flex items-center gap-2 px-3 py-1.5 rounded-lg
-        transition-all duration-200 cursor-pointer select-none
+        group flex items-center gap-1.5 px-2.5 py-1 rounded-md
+        transition-colors cursor-pointer select-none text-sm
         ${isActive
-                    ? "bg-slate-700/50 text-white"
-                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                    ? "bg-[var(--accent-muted)] text-[var(--accent)]"
+                    : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
                 }
       `}
             onClick={onClick}
         >
-            <Link
-                href={tab.href}
-                className="flex items-center gap-2"
-            >
-                {tab.icon && (
-                    <span className="text-sm" role="img" aria-hidden="true">
-                        {tab.icon}
-                    </span>
-                )}
-                <span className="text-sm font-medium max-w-[120px] truncate">
-                    {tab.label}
-                </span>
+            <Link href={tab.href} className="flex items-center gap-1.5">
+                {tab.icon && <span className="text-sm">{tab.icon}</span>}
+                <span className="font-medium max-w-[100px] truncate">{tab.label}</span>
             </Link>
             <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onClose();
-                }}
-                className={`
-          p-0.5 rounded hover:bg-slate-600
-          transition-opacity duration-200
-          ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
-        `}
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                className={`p-0.5 rounded hover:bg-[var(--background-muted)] transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                 aria-label={`Close ${tab.label} tab`}
             >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>

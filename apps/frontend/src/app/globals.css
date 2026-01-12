@@ -2,44 +2,181 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dokploy-inspired Design System - Light/Dark Themes */
+
+/* Light theme (default) */
 :root {
-  --background: #f8f4ed;
-  --foreground: #121a16;
-  --ink: #0f1f17;
-  --paper: #f8f4ed;
-  --accent: #0f766e;
-  --accent-warm: #d97706;
-  --font-sans: var(--font-space-grotesk);
-  --font-serif: var(--font-fraunces);
+  --background: #fafafa;
+  --background-card: #ffffff;
+  --background-muted: #f4f4f5;
+  --foreground: #09090b;
+  --foreground-muted: #71717a;
+  --border: #e4e4e7;
+  --border-hover: #d4d4d8;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-muted: rgba(124, 58, 237, 0.1);
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.1);
+  --warning: #d97706;
+  --warning-muted: rgba(217, 119, 6, 0.1);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.1);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0d1311;
-    --foreground: #e6e2d7;
-    --ink: #e6e2d7;
-    --paper: #0d1311;
-    --accent: #2dd4bf;
-    --accent-warm: #f59e0b;
-  }
+/* Dark theme */
+.dark {
+  --background: #09090b;
+  --background-card: #18181b;
+  --background-muted: #27272a;
+  --foreground: #fafafa;
+  --foreground-muted: #a1a1aa;
+  --border: #27272a;
+  --border-hover: #3f3f46;
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-muted: rgba(139, 92, 246, 0.15);
+  --success: #22c55e;
+  --success-muted: rgba(34, 197, 94, 0.15);
+  --warning: #f59e0b;
+  --warning-muted: rgba(245, 158, 11, 0.15);
+  --error: #ef4444;
+  --error-muted: rgba(239, 68, 68, 0.15);
+  --info: #3b82f6;
+  --info-muted: rgba(59, 130, 246, 0.15);
+}
+
+* {
+  border-color: var(--border);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-sans);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1,
-h2,
-h3 {
-  font-family: var(--font-serif);
+/* Utility Classes - Dokploy Style */
+@layer components {
+  .card {
+    @apply bg-[var(--background-card)] border border-[var(--border)] rounded-lg shadow-sm;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-[var(--border)];
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 rounded-md bg-[var(--accent)] text-white font-medium hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 rounded-md border border-[var(--border)] text-[var(--foreground-muted)] hover:bg-[var(--background-muted)] hover:text-[var(--foreground)] transition-colors;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 rounded-md text-[var(--foreground-muted)] hover:bg-[var(--background-muted)] hover:text-[var(--foreground)] transition-colors;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 rounded-md bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium;
+  }
+
+  .badge-primary {
+    @apply bg-[var(--accent-muted)] text-[var(--accent)];
+  }
+
+  .badge-success {
+    @apply bg-[var(--success-muted)] text-[var(--success)];
+  }
+
+  .badge-warning {
+    @apply bg-[var(--warning-muted)] text-[var(--warning)];
+  }
+
+  .badge-error {
+    @apply bg-[var(--error-muted)] text-[var(--error)];
+  }
+
+  .badge-muted {
+    @apply bg-[var(--background-muted)] text-[var(--foreground-muted)];
+  }
+
+  .text-muted {
+    @apply text-[var(--foreground-muted)];
+  }
+
+  .page-header {
+    @apply mb-8;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold text-[var(--foreground)];
+  }
+
+  .page-description {
+    @apply mt-1 text-sm text-[var(--foreground-muted)];
+  }
+
+  /* Alert utility classes */
+  .alert {
+    @apply p-3 rounded-md text-sm border;
+  }
+
+  .alert-error {
+    @apply alert bg-[var(--error-muted)] text-[var(--error)];
+    border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  }
+
+  .alert-success {
+    @apply alert bg-[var(--success-muted)] text-[var(--success)];
+    border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  }
+
+  .alert-warning {
+    @apply alert bg-[var(--warning-muted)] text-[var(--warning)];
+    border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+  }
+
+  .alert-info {
+    @apply alert bg-[var(--info-muted)] text-[var(--info)];
+    border-color: color-mix(in srgb, var(--info) 30%, transparent);
+  }
+
+  /* Loading state */
+  .loading-center {
+    @apply p-6 flex items-center justify-center min-h-[40vh] text-muted;
+  }
+
+  /* Empty state */
+  .empty-state {
+    @apply p-8 rounded-md border border-dashed border-[var(--border)] text-center text-sm text-muted;
+  }
 }
 
-@keyframes rise {
+/* Animations */
+@keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
 
   to {
@@ -48,21 +185,10 @@ h3 {
   }
 }
 
-@keyframes sweep {
-  from {
-    background-position: 0% 50%;
-  }
-
-  to {
-    background-position: 100% 50%;
-  }
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
 }
 
-.animate-rise {
-  animation: rise 0.7s ease-out both;
-}
-
-.animate-sweep {
-  background-size: 200% 200%;
-  animation: sweep 8s ease-in-out infinite alternate;
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
 }
