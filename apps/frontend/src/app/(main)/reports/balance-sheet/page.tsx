@@ -121,6 +121,16 @@ export default function BalanceSheetPage() {
         <span className={`self-end badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span>
       </div>
 
+      <div className="flex flex-col gap-2 mb-6">
+        <span className="text-xs text-muted uppercase">Quick filters</span>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/reports/balance-sheet" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
+          <Link href="/reports/balance-sheet?account_type=ASSET" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
+          <Link href="/reports/balance-sheet?account_type=LIABILITY" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
+          <Link href="/reports/balance-sheet?account_type=EQUITY" className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5">
           <h2 className="font-semibold mb-3">Assets</h2>

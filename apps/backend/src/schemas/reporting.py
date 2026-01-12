@@ -115,3 +115,35 @@ class CategoryBreakdownResponse(BaseModel):
     period_start: date
     period_end: date
     items: list[CategoryBreakdownItem]
+
+
+class CashFlowItem(BaseModel):
+    """Cash flow item for operating, investing, financing activities."""
+
+    category: str
+    subcategory: str
+    amount: Decimal
+    description: str | None = None
+
+
+class CashFlowSummary(BaseModel):
+    """Cash flow summary totals."""
+
+    operating_activities: Decimal
+    investing_activities: Decimal
+    financing_activities: Decimal
+    net_cash_flow: Decimal
+    beginning_cash: Decimal
+    ending_cash: Decimal
+
+
+class CashFlowResponse(BaseModel):
+    """Cash flow statement response schema."""
+
+    start_date: date
+    end_date: date
+    currency: str = Field(min_length=3, max_length=3)
+    operating: list[CashFlowItem]
+    investing: list[CashFlowItem]
+    financing: list[CashFlowItem]
+    summary: CashFlowSummary

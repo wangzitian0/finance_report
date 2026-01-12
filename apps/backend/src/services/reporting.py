@@ -173,9 +173,7 @@ async def generate_balance_sheet(
     equity = build_lines(AccountType.EQUITY)
 
     total_assets = _quantize_money(sum((line["amount"] for line in assets), Decimal("0")))
-    total_liabilities = _quantize_money(
-        sum((line["amount"] for line in liabilities), Decimal("0"))
-    )
+    total_liabilities = _quantize_money(sum((line["amount"] for line in liabilities), Decimal("0")))
     total_equity = _quantize_money(sum((line["amount"] for line in equity), Decimal("0")))
 
     equation_delta = _quantize_money(total_assets - (total_liabilities + total_equity))
@@ -202,13 +200,20 @@ async def generate_income_statement(
     start_date: date,
     end_date: date,
     currency: str | None = None,
+    tags: list[str] | None = None,
+    account_type: AccountType | None = None,
 ) -> dict[str, object]:
     """Generate income statement report for a date range."""
     if start_date > end_date:
         raise ReportError("start_date must be before end_date")
 
     target_currency = _normalize_currency(currency)
-    account_types = (AccountType.INCOME, AccountType.EXPENSE)
+
+    if account_type:
+        account_types = (account_type,)
+    else:
+        account_types = (AccountType.INCOME, AccountType.EXPENSE)
+
     accounts = await _load_accounts(db, user_id, account_types)
     balances: dict[UUID, Decimal] = {account.id: Decimal("0") for account in accounts}
 
@@ -227,6 +232,11 @@ async def generate_income_statement(
     result = await db.execute(stmt)
 
     for line, account, entry in result.all():
+        if tags and line.tags:
+            line_tags = set(k.lower() for k in line.tags.keys())
+            if not any(t.lower() in line_tags for t in tags):
+                continue
+
         try:
             converted = await convert_amount(
                 db,
@@ -270,9 +280,7 @@ async def generate_income_statement(
     expense_lines = build_lines(AccountType.EXPENSE)
 
     total_income = _quantize_money(sum((line["amount"] for line in income_lines), Decimal("0")))
-    total_expenses = _quantize_money(
-        sum((line["amount"] for line in expense_lines), Decimal("0"))
-    )
+    total_expenses = _quantize_money(sum((line["amount"] for line in expense_lines), Decimal("0")))
     net_income = _quantize_money(total_income - total_expenses)
 
     trend_items: list[dict[str, object]] = []
@@ -300,6 +308,10 @@ async def generate_income_statement(
         "total_expenses": total_expenses,
         "net_income": net_income,
         "trends": trend_items,
+        "filters_applied": {
+            "tags": tags,
+            "account_type": account_type.value if account_type else None,
+        },
     }
 
 
@@ -464,5 +476,142 @@ async def generate_cash_flow(
     end_date: date,
     currency: str | None = None,
 ) -> dict[str, object]:
-    """Cash flow statement generation is planned for phase 2."""
-    raise ReportError("Cash flow statement is not implemented yet.")
+    """Generate cash flow statement for a date range.
+
+    Cash flow is classified into three activities:
+    - Operating: day-to-day business activities
+    - Investing: purchase and sale of assets
+    - Financing: changes in equity and borrowings
+    """
+    if start_date > end_date:
+        raise ReportError("start_date must be before end_date")
+
+    target_currency = _normalize_currency(currency)
+
+    stmt = select(Account).where(Account.user_id == user_id).where(Account.is_active.is_(True))
+    result = await db.execute(stmt)
+    all_accounts = list(result.scalars().all())
+
+    account_id_to_account = {a.id: a for a in all_accounts}
+
+    balances_before: dict[UUID, Decimal] = {}
+    balances_after: dict[UUID, Decimal] = {}
+
+    stmt_before = (
+        select(JournalLine, Account.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date < start_date)
+    )
+    result_before = await db.execute(stmt_before)
+    for line, acc_id in result_before.all():
+        if acc_id not in balances_before:
+            balances_before[acc_id] = Decimal("0")
+        try:
+            converted = await convert_amount(
+                db,
+                amount=line.amount,
+                currency=line.currency,
+                target_currency=target_currency,
+                rate_date=start_date,
+            )
+        except FxRateError as exc:
+            raise ReportError(str(exc)) from exc
+        account = account_id_to_account.get(acc_id)
+        if account:
+            balances_before[acc_id] += _signed_amount(account.type, line.direction, converted)
+
+    stmt_during = (
+        select(JournalLine, Account.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date >= start_date)
+        .where(JournalEntry.entry_date <= end_date)
+    )
+    result_during = await db.execute(stmt_during)
+    for line, acc_id in result_during.all():
+        if acc_id not in balances_after:
+            balances_after[acc_id] = Decimal("0")
+        try:
+            converted = await convert_amount(
+                db,
+                amount=line.amount,
+                currency=line.currency,
+                target_currency=target_currency,
+                rate_date=end_date,
+            )
+        except FxRateError as exc:
+            raise ReportError(str(exc)) from exc
+        account = account_id_to_account.get(acc_id)
+        if account:
+            balances_after[acc_id] += _signed_amount(account.type, line.direction, converted)
+
+    movements: dict[UUID, Decimal] = {}
+    for acc_id in account_id_to_account.keys():
+        before = balances_before.get(acc_id, Decimal("0"))
+        after = balances_after.get(acc_id, Decimal("0"))
+        movements[acc_id] = after - before
+
+    beginning_cash = Decimal("0")
+    ending_cash = Decimal("0")
+    for acc_id, account in account_id_to_account.items():
+        if account.type == AccountType.ASSET:
+            beginning_cash += balances_before.get(acc_id, Decimal("0"))
+            ending_cash += balances_after.get(acc_id, Decimal("0"))
+
+    operating_items: list[dict[str, object]] = []
+    investing_items: list[dict[str, object]] = []
+    financing_items: list[dict[str, object]] = []
+
+    for acc_id, movement in movements.items():
+        if movement == Decimal("0"):
+            continue
+        account = account_id_to_account[acc_id]
+        abs_movement = abs(movement)
+        item = {
+            "category": "",
+            "subcategory": account.name,
+            "amount": _quantize_money(abs_movement),
+            "description": f"{'Inflow' if movement > 0 else 'Outflow'} - {account.name}",
+        }
+        if account.type in (AccountType.INCOME, AccountType.EXPENSE):
+            item["category"] = "Operating"
+            operating_items.append(item)
+        elif account.type == AccountType.ASSET:
+            item["category"] = "Investing"
+            investing_items.append(item)
+        else:
+            item["category"] = "Financing"
+            financing_items.append(item)
+
+    operating_items.sort(key=lambda x: x["amount"], reverse=True)
+    investing_items.sort(key=lambda x: x["amount"], reverse=True)
+    financing_items.sort(key=lambda x: x["amount"], reverse=True)
+
+    operating_total = _quantize_money(sum(item["amount"] for item in operating_items))
+    investing_total = _quantize_money(sum(item["amount"] for item in investing_items))
+    financing_total = _quantize_money(sum(item["amount"] for item in financing_items))
+    net_cash_flow = _quantize_money(ending_cash - beginning_cash)
+
+    summary = {
+        "operating_activities": operating_total,
+        "investing_activities": investing_total,
+        "financing_activities": financing_total,
+        "net_cash_flow": net_cash_flow,
+        "beginning_cash": _quantize_money(beginning_cash),
+        "ending_cash": _quantize_money(ending_cash),
+    }
+
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "currency": target_currency,
+        "operating": operating_items,
+        "investing": investing_items,
+        "financing": financing_items,
+        "summary": summary,
+    }

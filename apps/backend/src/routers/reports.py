@@ -20,6 +20,7 @@ from src.schemas import (
     BalanceSheetResponse,
     BreakdownPeriod,
     BreakdownType,
+    CashFlowResponse,
     CategoryBreakdownResponse,
     IncomeStatementResponse,
     TrendPeriod,
@@ -74,10 +75,12 @@ async def income_statement(
     start_date: date = Query(...),
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
+    tags: list[str] | None = Query(default=None, alias="tags"),
+    account_type: AccountType | None = Query(default=None, alias="account_type"),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ) -> IncomeStatementResponse:
-    """Get income statement for a period."""
+    """Get income statement for a period with optional filtering."""
     try:
         report = await generate_income_statement(
             db,
@@ -85,31 +88,34 @@ async def income_statement(
             start_date=start_date,
             end_date=end_date,
             currency=currency,
+            tags=tags,
+            account_type=account_type,
         )
         return IncomeStatementResponse(**report)
     except ReportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/cash-flow")
+@router.get("/cash-flow", response_model=CashFlowResponse)
 async def cash_flow(
     start_date: date = Query(...),
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
-) -> dict[str, object]:
-    """Cash flow statement (planned for phase 2)."""
+) -> CashFlowResponse:
+    """Get cash flow statement for a period."""
     try:
-        return await generate_cash_flow(
+        report = await generate_cash_flow(
             db,
             user_id,
             start_date=start_date,
             end_date=end_date,
             currency=currency,
         )
+        return CashFlowResponse(**report)
     except ReportError as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/trend", response_model=AccountTrendResponse)
@@ -144,9 +150,7 @@ async def category_breakdown(
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
     account_type = (
-        AccountType.INCOME
-        if breakdown_type == BreakdownType.INCOME
-        else AccountType.EXPENSE
+        AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
     )
     try:
         report = await get_category_breakdown(
@@ -195,9 +199,7 @@ async def export_report(
             for line in lines:
                 writer.writerow([section, line["name"], line["amount"], report["currency"]])
         writer.writerow(["Total Assets", "", report["total_assets"], report["currency"]])
-        writer.writerow(
-            ["Total Liabilities", "", report["total_liabilities"], report["currency"]]
-        )
+        writer.writerow(["Total Liabilities", "", report["total_liabilities"], report["currency"]])
         writer.writerow(["Total Equity", "", report["total_equity"], report["currency"]])
         filename = f"balance-sheet-{report['as_of_date']}.csv"
     elif report_type == ReportType.INCOME_STATEMENT:
@@ -218,9 +220,7 @@ async def export_report(
             for line in lines:
                 writer.writerow([section, line["name"], line["amount"], report["currency"]])
         writer.writerow(["Total Income", "", report["total_income"], report["currency"]])
-        writer.writerow(
-            ["Total Expenses", "", report["total_expenses"], report["currency"]]
-        )
+        writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
         writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
         filename = f"income-statement-{start_date}-to-{end_date}.csv"
     else:

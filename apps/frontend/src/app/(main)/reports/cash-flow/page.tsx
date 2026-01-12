@@ -1,49 +1,168 @@
+"use client";
+
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
+import { API_URL, apiFetch } from "@/lib/api";
+import { formatDateInput } from "@/lib/date";
+
+interface CashFlowItem {
+  category: string;
+  subcategory: string;
+  amount: number | string;
+  description: string | null;
+}
+
+interface CashFlowSummary {
+  operating_activities: number | string;
+  investing_activities: number | string;
+  financing_activities: number | string;
+  net_cash_flow: number | string;
+  beginning_cash: number | string;
+  ending_cash: number | string;
+}
+
+interface CashFlowResponse {
+  start_date: string;
+  end_date: string;
+  currency: string;
+  operating: CashFlowItem[];
+  investing: CashFlowItem[];
+  financing: CashFlowItem[];
+  summary: CashFlowSummary;
+}
+
+const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
+const formatCurrency = (currency: string, value: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 
 export default function CashFlowPage() {
+  const [report, setReport] = useState<CashFlowResponse | null>(null);
+  const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return formatDateInput(d); });
+  const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
+  const [currency, setCurrency] = useState("SGD");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchReport = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<CashFlowResponse>(`/api/reports/cash-flow?start_date=${startDate}&end_date=${endDate}&currency=${currency}`);
+      setReport(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load cash flow statement.");
+    } finally { setLoading(false); }
+  }, [currency, endDate, startDate]);
+
+  useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  const summary = useMemo(() => report?.summary, [report]);
+  const exportUrl = `${API_URL}/api/reports/export?report_type=cash-flow&format=csv&start_date=${startDate}&end_date=${endDate}&currency=${currency}`;
+  const aiPrompt = useMemo(() => encodeURIComponent(`Analyze my cash flow from ${startDate} to ${endDate} in ${currency}. What are the main sources and uses of cash?`), [currency, endDate, startDate]);
+
+  const renderSection = (title: string, items: CashFlowItem[], colorClass: string) => (
+    <div className="card p-5">
+      <h3 className={`font-semibold mb-4 ${colorClass}`}>{title}</h3>
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex justify-between items-center p-2 rounded-md bg-[var(--background-muted)] text-sm">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{item.subcategory}</p>
+                {item.description && <p className="text-xs text-muted truncate">{item.description}</p>}
+              </div>
+              <span className="font-medium ml-2">{report ? formatCurrency(report.currency, toNumber(item.amount)) : "—"}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted">No items in this category.</p>
+      )}
+    </div>
+  );
+
+  if (loading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading cash flow...</span></div>;
+  if (error) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{error}</p><button onClick={fetchReport} className="btn-secondary">Retry</button></div></div>;
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f5f0e6_0%,#f7efe1_45%,#e7eceb_100%)] text-[#13201b]">
-      <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -top-16 right-[-3rem] h-56 w-56 rounded-full bg-[#ffe1b2] blur-3xl opacity-70"></div>
-        <div className="pointer-events-none absolute bottom-[-6rem] left-[-4rem] h-72 w-72 rounded-full bg-[#baf3e6] blur-3xl opacity-60"></div>
-
-        <div className="relative z-10 mx-auto max-w-5xl px-6 py-10">
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">
-                Planned for Phase 2
-              </p>
-              <h1 className="mt-2 text-4xl font-semibold text-[#0f1f17]">Cash Flow</h1>
-              <p className="mt-2 text-sm text-[#334136]">
-                Operating, investing, and financing flows will appear here once activity is tagged.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/chat?prompt=Explain%20my%20cash%20flow%20status%20and%20what%20to%20watch%20for."
-                className="rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-sm text-amber-700"
-              >
-                AI Interpretation
-              </Link>
-              <Link
-                href="/dashboard"
-                className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700"
-              >
-                Back to Dashboard
-              </Link>
-            </div>
-          </header>
-
-          <div className="mt-10">
-            <SankeyChart
-              title="Cash flow visualization"
-              description="We are preparing classification rules and FX normalization for cash flow reporting."
-            />
-          </div>
+    <div className="p-6">
+      <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div>
+          <h1 className="page-title">Cash Flow Statement</h1>
+          <p className="page-description">Operating, Investing, and Financing activities</p>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
+          <Link href="/dashboard" className="btn-secondary text-sm">Dashboard</Link>
+          <a href={exportUrl} className="btn-secondary text-sm">Export CSV</a>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-3 mb-6 text-sm">
+        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Start date</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input w-auto" /></label>
+        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">End date</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input w-auto" /></label>
+        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto"><option value="SGD">SGD</option><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
+      </div>
+
+      {summary && (
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
+          <div className="card p-5">
+            <p className="text-xs text-muted uppercase">Net Cash Flow</p>
+            <p className={`text-2xl font-semibold mt-1 ${toNumber(summary.net_cash_flow) >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+              {formatCurrency(report?.currency || "SGD", toNumber(summary.net_cash_flow))}
+            </p>
+          </div>
+          <div className="card p-5">
+            <p className="text-xs text-muted uppercase">Beginning Cash</p>
+            <p className="text-2xl font-semibold mt-1">{formatCurrency(report?.currency || "SGD", toNumber(summary.beginning_cash))}</p>
+          </div>
+          <div className="card p-5">
+            <p className="text-xs text-muted uppercase">Ending Cash</p>
+            <p className="text-2xl font-semibold mt-1">{formatCurrency(report?.currency || "SGD", toNumber(summary.ending_cash))}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-3 mb-6">
+        {renderSection("Operating Activities", report?.operating || [], "text-[var(--success)]")}
+        {renderSection("Investing Activities", report?.investing || [], "text-[var(--accent)]")}
+        {renderSection("Financing Activities", report?.financing || [], "text-[var(--warning)]")}
+      </div>
+
+      {summary && (
+        <div className="card p-5 mb-6">
+          <h3 className="font-semibold mb-4">Cash Flow Visualization</h3>
+          <SankeyChart
+            operating={report?.operating || []}
+            investing={report?.investing || []}
+            financing={report?.financing || []}
+            title=""
+            height={350}
+          />
+        </div>
+      )}
+
+      {summary && (
+        <div className="card p-5">
+          <h3 className="font-semibold mb-4">Summary</h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="p-4 rounded-md bg-[var(--success-muted)]">
+              <p className="text-xs text-muted uppercase">Operating</p>
+              <p className="text-xl font-semibold text-[var(--success)]">{formatCurrency(report?.currency || "SGD", toNumber(summary.operating_activities))}</p>
+            </div>
+            <div className="p-4 rounded-md bg-[var(--accent-muted)]">
+              <p className="text-xs text-muted uppercase">Investing</p>
+              <p className="text-xl font-semibold text-[var(--accent)]">{formatCurrency(report?.currency || "SGD", toNumber(summary.investing_activities))}</p>
+            </div>
+            <div className="p-4 rounded-md bg-[var(--warning-muted)]">
+              <p className="text-xs text-muted uppercase">Financing</p>
+              <p className="text-xl font-semibold text-[var(--warning)]">{formatCurrency(report?.currency || "SGD", toNumber(summary.financing_activities))}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
