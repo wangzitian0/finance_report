@@ -83,13 +83,16 @@ jobs:
           echo "Deploying $IMAGE_TAG to staging..."
           
           # Get current env (suppress output to avoid leaking secrets)
-          current_env=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" | jq -r '.env')
+          # Get current env (suppress output to avoid leaking secrets)
+          env_response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" 2>/dev/null)
           
-          if [ -z "$current_env" ]; then
-            echo "ERROR: Failed to get current environment"
+          if [ $? -ne 0 ] || [ -z "$env_response" ]; then
+            echo "ERROR: Failed to fetch current environment from API"
             exit 1
           fi
+          
+          current_env=$(echo "$env_response" | jq -r '.env // empty')
           
           # Mask any sensitive values (use process substitution to avoid subshell)
           while IFS= read -r line; do
@@ -121,11 +124,11 @@ jobs:
           
           echo "Environment updated"
           
-          # Stop (ignore errors) and redeploy
+          # Stop (errors are expected if already stopped, suppress output to avoid secrets)
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null 2>&1 || true
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null || true
           
           sleep 15
           
