@@ -7,31 +7,33 @@
 #   # Local development
 #   docker compose up -d
 #
-#   # GitHub CI / PR test (via Dokploy)
-#   docker compose up -d --pull=always
+#   # PR test via Dokploy (set ENV_SUFFIX and ENV_DOMAIN_SUFFIX)
+#   ENV_SUFFIX=-pr-38 ENV_DOMAIN_SUFFIX=-abc123 docker compose up -d
 #
-# Environment variables (optional):
-#   DATABASE_URL      - Override default postgres connection (default: postgresql+asyncpg://postgres:postgres@postgres:5432/finance_report)
-#   REDIS_URL         - Override redis connection (default: redis://redis:6379)
-#   S3_ENDPOINT       - S3 endpoint (default: http://minio:9000)
-#   S3_ACCESS_KEY     - S3 access key (default: minio)
-#   S3_SECRET_KEY     - S3 secret key (default: minio123)
-#   S3_BUCKET         - S3 bucket (default: statements)
+# Environment variables:
+#   ENV_SUFFIX        - Container name suffix for isolation (e.g., -pr-38)
+#   ENV_DOMAIN_SUFFIX - Domain suffix for Traefik routing (e.g., -abc123)
+#   INTERNAL_DOMAIN   - Base domain for Traefik (default: zitian.party)
+#   DATABASE_URL      - Override postgres connection
+#   REDIS_URL         - Override redis connection
+#   S3_ENDPOINT       - S3 endpoint
+#   S3_ACCESS_KEY     - S3 access key
+#   S3_SECRET_KEY     - S3 secret key
+#   S3_BUCKET         - S3 bucket
 #   OPENROUTER_API_KEY - API key for Gemini (optional)
 #   DEBUG             - Debug mode (default: false)
-#   NEXT_PUBLIC_API_URL - Frontend API URL (default: http://localhost:8000)
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: finance_report_db
+    container_name: finance_report_db${ENV_SUFFIX:-}
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: finance_report
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -39,13 +41,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
 
   redis:
     image: redis:7-alpine
-    container_name: finance_report_redis
+    container_name: finance_report_redis${ENV_SUFFIX:-}
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -53,14 +57,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
 
   minio:
     image: minio/minio
-    container_name: finance_report_minio
+    container_name: finance_report_minio${ENV_SUFFIX:-}
     restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
@@ -72,11 +78,13 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    networks:
+      - internal
 
   # Create MinIO bucket on startup
   minio-init:
     image: minio/mc
-    container_name: finance_report_minio_init
+    container_name: finance_report_minio_init${ENV_SUFFIX:-}
     depends_on:
       minio:
         condition: service_healthy
@@ -86,12 +94,14 @@ services:
       mc mb local/statements --ignore-existing;
       exit 0;
       "
+    networks:
+      - internal
 
   backend:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-    container_name: finance_report_backend
+    container_name: finance_report_backend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -101,7 +111,7 @@ services:
       minio-init:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/finance_report}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
@@ -113,26 +123,62 @@ services:
       DEBUG: ${DEBUG:-false}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      start_period: 180s
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+    networks:
+      - internal
+      - dokploy-network
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.rule=Host(`report${ENV_DOMAIN_SUFFIX:-}.${INTERNAL_DOMAIN:-zitian.party}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.entrypoints=websecure"
+      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.service=finance-report-api${ENV_SUFFIX:-}"
+      - "traefik.http.services.finance-report-api${ENV_SUFFIX:-}.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.finance-report-api-strip${ENV_SUFFIX:-}.stripprefix.prefixes=/api"
+      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.middlewares=finance-report-api-strip${ENV_SUFFIX:-}@docker"
 
   frontend:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
-    container_name: finance_report_frontend
+    container_name: finance_report_frontend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      start_period: 60s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - internal
+      - dokploy-network
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.rule=Host(`report${ENV_DOMAIN_SUFFIX:-}.${INTERNAL_DOMAIN:-zitian.party}`)"
+      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.entrypoints=websecure"
+      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.service=finance-report-web${ENV_SUFFIX:-}"
+      - "traefik.http.services.finance-report-web${ENV_SUFFIX:-}.loadbalancer.server.port=3000"
+      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.priority=1"
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+
+networks:
+  internal:
+    driver: bridge
+  dokploy-network:
+    external: true
 
