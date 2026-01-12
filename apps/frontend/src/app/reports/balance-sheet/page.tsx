@@ -84,7 +84,7 @@ export default function BalanceSheetPage() {
     const isExpanded = expanded.has(node.account_id);
     return (
       <div key={node.account_id}>
-        <div className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50" style={{ paddingLeft: `${depth * 16 + 12}px` }}>
+        <div className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50" style={{ paddingLeft: depth * 16 + 12 }}>
           <div className="flex items-center gap-2">
             {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}
             <span>{node.name}</span>

@@ -6,6 +6,8 @@ export type Theme = "light" | "dark";
 
 export function getTheme(): Theme {
     if (typeof window === "undefined") {
+        // SSR: Return light as default. ThemeToggle component handles hydration
+        // by waiting for mount before rendering the actual theme icon.
         return "light";
     }
     const stored = localStorage.getItem(THEME_KEY);

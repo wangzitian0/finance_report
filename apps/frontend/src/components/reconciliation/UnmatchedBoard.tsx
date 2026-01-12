@@ -72,7 +72,13 @@ export default function UnmatchedBoard() {
   };
 
   const summary = useMemo(() => ({ total: items.length, flagged: flagged.size }), [flagged.size, items.length]);
-  const aiPrompt = useMemo(() => selected ? encodeURIComponent(`Help me interpret this transaction: ${selected.description} on ${selected.txn_date}, amount ${selected.amount} (${selected.direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`) : null, [selected]);
+  const aiPrompt = useMemo(() => {
+    if (!selected) return null;
+    const { description, txn_date, amount, direction } = selected;
+    return encodeURIComponent(
+      `Help me interpret this transaction: ${description} on ${txn_date}, amount ${amount} (${direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`,
+    );
+  }, [selected?.description, selected?.txn_date, selected?.amount, selected?.direction]);
 
   return (
     <div className="p-6">
