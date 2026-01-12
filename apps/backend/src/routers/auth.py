@@ -10,7 +10,7 @@ from src.database import get_db
 from src.models import User
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def hash_password(password: str) -> str:

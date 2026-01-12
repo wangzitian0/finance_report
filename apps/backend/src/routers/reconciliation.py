@@ -47,7 +47,7 @@ from src.services.review_queue import (
     reject_match as reject_match_service,
 )
 
-router = APIRouter(prefix="/api/reconciliation", tags=["reconciliation"])
+router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:

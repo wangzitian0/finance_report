@@ -23,7 +23,7 @@ from src.schemas import (
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 
-router = APIRouter(prefix="/api/statements", tags=["statements"])
+router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 

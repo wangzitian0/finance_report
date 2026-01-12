@@ -34,7 +34,7 @@ from src.services.reporting import (
     get_category_breakdown,
 )
 
-router = APIRouter(prefix="/api/reports", tags=["reports"])
+router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 class ExportFormat(str, Enum):

@@ -136,6 +136,8 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     container_name: finance_report_frontend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
