@@ -64,10 +64,23 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
 
   const handleStream = useCallback(async (response: Response, assistantId: string) => {
     const reader = response.body?.getReader();
-    if (!reader) { updateMessage(assistantId, "No response stream available."); return; }
+    if (!reader) {
+      updateMessage(assistantId, "No response stream available.");
+      return;
+    }
     const decoder = new TextDecoder();
     let aggregated = "";
-    while (true) { const { value, done } = await reader.read(); if (done) break; if (value) { aggregated += decoder.decode(value, { stream: true }); updateMessage(assistantId, aggregated, true); } }
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value) {
+        const decodedChunk = decoder.decode(value, { stream: true });
+        aggregated += decodedChunk;
+        updateMessage(assistantId, aggregated, true);
+      }
+    }
     aggregated += decoder.decode();
     updateMessage(assistantId, aggregated, false);
   }, [updateMessage]);
@@ -83,13 +96,39 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     setIsStreaming(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: messageText, session_id: sessionId }) });
-      if (!res.ok) { const detailText = await res.text(); let detail = detailText || "AI service is unavailable."; try { const parsed = JSON.parse(detailText) as { detail?: string }; if (parsed.detail) detail = parsed.detail; } catch { } updateMessage(assistantId, detail, false); setError(detail); setIsStreaming(false); return; }
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: messageText, session_id: sessionId }),
+      });
+      if (!res.ok) {
+        const detailText = await res.text();
+        let detail = detailText || "AI service is unavailable.";
+        try {
+          const parsed = JSON.parse(detailText) as { detail?: string };
+          if (parsed.detail) {
+            detail = parsed.detail;
+          }
+        } catch {
+          // Ignore JSON parsing errors
+        }
+        updateMessage(assistantId, detail, false);
+        setError(detail);
+        setIsStreaming(false);
+        return;
+      }
       const newSessionId = res.headers.get("X-Session-Id") || sessionId;
-      if (newSessionId) { setSessionId(newSessionId); localStorage.setItem(SESSION_KEY, newSessionId); }
+      if (newSessionId) {
+        setSessionId(newSessionId);
+        localStorage.setItem(SESSION_KEY, newSessionId);
+      }
       await handleStream(res, assistantId);
       setIsStreaming(false);
-    } catch (err) { setError(formatErrorMessage(err)); updateMessage(assistantId, formatErrorMessage(err), false); setIsStreaming(false); }
+    } catch (err) {
+      setError(formatErrorMessage(err));
+      updateMessage(assistantId, formatErrorMessage(err), false);
+      setIsStreaming(false);
+    }
   }, [handleStream, input, isStreaming, sessionId, updateMessage]);
 
   useEffect(() => {

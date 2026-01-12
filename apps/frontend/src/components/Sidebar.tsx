@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface NavItem {
     icon: string;
@@ -45,20 +46,23 @@ export function Sidebar() {
                         </span>
                     )}
                 </div>
-                <button
-                    onClick={toggleSidebar}
-                    className="p-1.5 rounded-md hover:bg-[var(--background-muted)] text-muted transition-colors"
-                    aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                >
-                    <svg
-                        className={`w-4 h-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                <div className="flex items-center gap-1">
+                    {!isCollapsed && <ThemeToggle />}
+                    <button
+                        onClick={toggleSidebar}
+                        className="p-1.5 rounded-md hover:bg-[var(--background-muted)] text-muted transition-colors"
+                        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                     >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                    </svg>
-                </button>
+                        <svg
+                            className={`w-4 h-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             {/* Navigation */}

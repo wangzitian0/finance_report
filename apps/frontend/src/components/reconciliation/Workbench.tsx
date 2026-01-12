@@ -75,7 +75,16 @@ export default function ReconciliationWorkbench() {
       ]);
       setStats(statsData);
       setQueue(pendingData.items);
-      setSelected((current) => (current && pendingData.items.some((i) => i.id === current.id) ? current : pendingData.items[0] ?? null));
+      setSelected((current) => {
+        const hasCurrent = current != null && pendingData.items.some((i) => i.id === current.id);
+        if (hasCurrent) {
+          return current;
+        }
+        if (pendingData.items.length > 0) {
+          return pendingData.items[0];
+        }
+        return null;
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load reconciliation data.");
@@ -103,28 +112,49 @@ export default function ReconciliationWorkbench() {
 
   const runReconciliation = async () => {
     setRunning(true);
-    try { await apiFetch("/api/reconciliation/run", { method: "POST", body: JSON.stringify({}) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Failed to run reconciliation."); }
-    finally { setRunning(false); }
+    try {
+      await apiFetch("/api/reconciliation/run", { method: "POST", body: JSON.stringify({}) });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to run reconciliation.");
+    } finally {
+      setRunning(false);
+    }
   };
 
   const acceptMatch = async (matchId: string) => {
-    try { await apiFetch(`/api/reconciliation/matches/${matchId}/accept`, { method: "POST" }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Failed to accept match."); }
+    try {
+      await apiFetch(`/api/reconciliation/matches/${matchId}/accept`, { method: "POST" });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to accept match.");
+    }
   };
 
   const rejectMatch = async (matchId: string) => {
-    try { await apiFetch(`/api/reconciliation/matches/${matchId}/reject`, { method: "POST" }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Failed to reject match."); }
+    try {
+      await apiFetch(`/api/reconciliation/matches/${matchId}/reject`, { method: "POST" });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reject match.");
+    }
   };
 
   const batchAccept = async () => {
     const highScoreIds = queue.filter((m) => m.match_score >= 80).map((m) => m.id);
     if (!highScoreIds.length) return;
     setBatching(true);
-    try { await apiFetch("/api/reconciliation/batch-accept", { method: "POST", body: JSON.stringify({ match_ids: highScoreIds }) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Batch accept failed."); }
-    finally { setBatching(false); }
+    try {
+      await apiFetch("/api/reconciliation/batch-accept", {
+        method: "POST",
+        body: JSON.stringify({ match_ids: highScoreIds }),
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Batch accept failed.");
+    } finally {
+      setBatching(false);
+    }
   };
 
   const distribution = useMemo(() => stats ? Object.entries(stats.score_distribution) : [], [stats]);

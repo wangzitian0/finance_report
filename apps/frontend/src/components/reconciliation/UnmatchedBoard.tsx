@@ -52,8 +52,24 @@ export default function UnmatchedBoard() {
     } finally { setCreating(null); }
   };
 
-  const toggleFlag = (txnId: string) => setFlagged((prev) => { const next = new Set(prev); next.has(txnId) ? next.delete(txnId) : next.add(txnId); return next; });
-  const removeFromList = (txnId: string) => { setItems((prev) => prev.filter((i) => i.id !== txnId)); if (selected?.id === txnId) setSelected(null); };
+  const toggleFlag = (txnId: string) => {
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      if (next.has(txnId)) {
+        next.delete(txnId);
+      } else {
+        next.add(txnId);
+      }
+      return next;
+    });
+  };
+
+  const removeFromList = (txnId: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== txnId));
+    if (selected?.id === txnId) {
+      setSelected(null);
+    }
+  };
 
   const summary = useMemo(() => ({ total: items.length, flagged: flagged.size }), [flagged.size, items.length]);
   const aiPrompt = useMemo(() => selected ? encodeURIComponent(`Help me interpret this transaction: ${selected.description} on ${selected.txn_date}, amount ${selected.amount} (${selected.direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`) : null, [selected]);

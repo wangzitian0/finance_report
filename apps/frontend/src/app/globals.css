@@ -2,9 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dokploy-inspired Design System */
+/* Dokploy-inspired Design System - Light/Dark Themes */
+
+/* Light theme (default) */
 :root {
-  /* Dark theme (default) */
+  --background: #fafafa;
+  --background-card: #ffffff;
+  --background-muted: #f4f4f5;
+  --foreground: #09090b;
+  --foreground-muted: #71717a;
+  --border: #e4e4e7;
+  --border-hover: #d4d4d8;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-muted: rgba(124, 58, 237, 0.1);
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.1);
+  --warning: #d97706;
+  --warning-muted: rgba(217, 119, 6, 0.1);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.1);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.1);
+}
+
+/* Dark theme */
+.dark {
   --background: #09090b;
   --background-card: #18181b;
   --background-muted: #27272a;
@@ -12,9 +35,9 @@
   --foreground-muted: #a1a1aa;
   --border: #27272a;
   --border-hover: #3f3f46;
-  --accent: #7c3aed;
-  --accent-hover: #8b5cf6;
-  --accent-muted: rgba(124, 58, 237, 0.15);
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-muted: rgba(139, 92, 246, 0.15);
   --success: #22c55e;
   --success-muted: rgba(34, 197, 94, 0.15);
   --warning: #f59e0b;
@@ -40,7 +63,7 @@ body {
 /* Utility Classes - Dokploy Style */
 @layer components {
   .card {
-    @apply bg-[var(--background-card)] border border-[var(--border)] rounded-lg;
+    @apply bg-[var(--background-card)] border border-[var(--border)] rounded-lg shadow-sm;
   }
 
   .card-header {
