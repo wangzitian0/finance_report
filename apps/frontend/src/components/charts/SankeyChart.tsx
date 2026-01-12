@@ -56,7 +56,8 @@ export function SankeyChart({
       });
 
       outflowItems.forEach((item) => {
-        const amount = toNumber(Math.abs(item.amount));
+        const rawValue = toNumber(item.amount);
+        const amount = Math.abs(rawValue);
         nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "#64748b" } });
         links.push({
           source: `${prefix}-${item.subcategory}`,
