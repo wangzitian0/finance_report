@@ -1,0 +1,234 @@
+# PR Test Environment Workflow
+#
+# Triggers:
+#   - PR opened/synchronized: Build → Create compose → Deploy
+#   - PR closed: Stop → Delete compose
+#
+# Each PR gets an isolated environment with its own DB/Redis/MinIO.
+# Uses docker-compose.yml from this repo (not infra2).
+
+name: PR Test Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  DOKPLOY_API_URL: https://cloud.zitian.party/api
+  TEST_ENV_ID: -fzh5EGJN74I1AjNEpVUr
+  GITHUB_INTEGRATION_ID: 126refcRlCoWj6pmPXElU
+  INTERNAL_DOMAIN: zitian.party
+
+jobs:
+  setup:
+    name: Setup Variables
+    runs-on: ubuntu-latest
+    outputs:
+      compose_name: pr-${{ github.event.pull_request.number }}
+      domain_hash: ${{ steps.vars.outputs.domain_hash }}
+      pr_number: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Generate variables
+        id: vars
+        run: |
+          # Domain hash: first 6 chars of sha256(pr_number)
+          hash=$(echo -n "${{ github.event.pull_request.number }}" | sha256sum | cut -c1-6)
+          echo "domain_hash=$hash" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy Test Environment
+    if: github.event.action != 'closed'
+    needs: setup
+    runs-on: ubuntu-latest
+    environment:
+      name: pr-${{ github.event.pull_request.number }}
+      url: https://report-${{ needs.setup.outputs.domain_hash }}.${{ env.INTERNAL_DOMAIN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if compose exists
+        id: check
+        run: |
+          # Try to find existing compose
+          response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
+          
+          compose_id=$(echo "$response" | jq -r '.compose[] | select(.name == "${{ needs.setup.outputs.compose_name }}") | .composeId' | head -1)
+          
+          if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
+            echo "Found existing compose: $compose_id"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Compose does not exist"
+          fi
+
+      - name: Create compose
+        if: steps.check.outputs.exists != 'true'
+        id: create
+        run: |
+          # Create new compose
+          response=$(curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.create" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{
+              "name": "${{ needs.setup.outputs.compose_name }}",
+              "description": "PR #${{ needs.setup.outputs.pr_number }}: ${{ github.event.pull_request.title }}",
+              "environmentId": "${{ env.TEST_ENV_ID }}"
+            }')
+          
+          compose_id=$(echo "$response" | jq -r '.composeId')
+          echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
+          echo "Created compose: $compose_id"
+          
+          # Configure GitHub source
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{
+              "composeId": "'"$compose_id"'",
+              "sourceType": "github",
+              "repository": "finance_report",
+              "owner": "wangzitian0",
+              "branch": "${{ github.head_ref }}",
+              "composePath": "docker-compose.yml",
+              "githubId": "${{ env.GITHUB_INTEGRATION_ID }}"
+            }'
+
+      - name: Get compose ID
+        id: compose
+        run: |
+          if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
+            echo "id=${{ steps.check.outputs.compose_id }}" >> $GITHUB_OUTPUT
+          else
+            echo "id=${{ steps.create.outputs.compose_id }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy compose
+        run: |
+          COMPOSE_ID="${{ steps.compose.outputs.id }}"
+          echo "Deploying compose: $COMPOSE_ID"
+          
+          # Stop if running
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>/dev/null || true
+          
+          sleep 10
+          
+          # Deploy
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "{\"composeId\": \"$COMPOSE_ID\"}"
+          
+          echo "Deployment triggered. Waiting 90s for containers..."
+          sleep 90
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `https://report-${{ needs.setup.outputs.domain_hash }}.${{ env.INTERNAL_DOMAIN }}`;
+            const body = `## 🧪 Test Environment Deployed
+            
+            | Service | URL |
+            |---------|-----|
+            | Frontend | [${url}](${url}) |
+            | API Health | [${url}/api/health](${url}/api/health) |
+            
+            **Details:**
+            - Compose: \`${{ needs.setup.outputs.compose_name }}\`
+            - Branch: \`${{ github.head_ref }}\`
+            - Commit: \`${{ github.sha }}\`
+            
+            > ⏳ First deployment may take 3-5 minutes for build + SSL certificate.
+            
+            _This environment will be automatically cleaned up when the PR is closed._`;
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('🧪 Test Environment Deployed')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  cleanup:
+    name: Cleanup Test Environment
+    if: github.event.action == 'closed'
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find and remove compose
+        run: |
+          echo "Looking for compose: ${{ needs.setup.outputs.compose_name }}"
+          
+          # Get environment to find compose
+          response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
+          
+          compose_id=$(echo "$response" | jq -r '.compose[] | select(.name == "${{ needs.setup.outputs.compose_name }}") | .composeId' | head -1)
+          
+          if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
+            echo "Found compose: $compose_id"
+            
+            # Stop compose
+            curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+              -H "Content-Type: application/json" \
+              -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+              -d "{\"composeId\": \"$compose_id\"}" 2>/dev/null || true
+            
+            sleep 15
+            
+            # Delete compose
+            curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.delete" \
+              -H "Content-Type: application/json" \
+              -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+              -d "{\"composeId\": \"$compose_id\"}"
+            
+            echo "Compose deleted"
+          else
+            echo "Compose not found, nothing to cleanup"
+          fi
+
+      - name: Comment cleanup notice
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## 🧹 Test Environment Cleaned Up
+            
+            The test environment for this PR has been removed.
+            
+            - Compose: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

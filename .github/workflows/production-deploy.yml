@@ -1,0 +1,142 @@
+# Production Deployment Workflow
+#
+# Triggers: Release tag (v*.*.*)
+# Actions: Build images → Deploy to production → Smoke test
+#
+# Production uses semantic versioning for stability.
+
+name: Deploy Production
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to deploy (e.g., v1.2.3)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  DOKPLOY_API_URL: https://cloud.zitian.party/api
+  PRODUCTION_COMPOSE_ID: lNn9gVS1Zyw79Jzw5dlbu
+  DEPLOY_WAIT_SECONDS: 120
+
+jobs:
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "image_tag=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.vars.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.vars.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://report.zitian.party/api
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://report.zitian.party
+    steps:
+      - name: Update IMAGE_TAG and deploy
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          echo "Deploying $IMAGE_TAG to production..."
+          
+          # Get current env and update IMAGE_TAG
+          current_env=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.PRODUCTION_COMPOSE_ID }}" | jq -r '.env')
+          
+          # Update IMAGE_TAG
+          if echo "$current_env" | grep -q '^IMAGE_TAG='; then
+            new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
+          else
+            new_env="${current_env}"$'\n'"IMAGE_TAG=$IMAGE_TAG"
+          fi
+          
+          # Update environment
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')"
+          
+          # Stop and redeploy
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"composeId": "${{ env.PRODUCTION_COMPOSE_ID }}"}' || true
+          
+          sleep 15
+          
+          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d '{"composeId": "${{ env.PRODUCTION_COMPOSE_ID }}"}'
+          
+          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
+          sleep ${{ env.DEPLOY_WAIT_SECONDS }}
+
+  smoke-test:
+    name: Smoke Test
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run smoke tests
+        run: |
+          if [ -f scripts/smoke_test.sh ]; then
+            bash scripts/smoke_test.sh https://report.zitian.party
+          else
+            echo "Checking health endpoint..."
+            curl -sf https://report.zitian.party/api/health || exit 1
+            echo "Health check passed"
+          fi
