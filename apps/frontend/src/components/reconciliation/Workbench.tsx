@@ -93,7 +93,13 @@ export default function ReconciliationWorkbench() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => { selected?.transaction?.id ? fetchAnomalies(selected.transaction.id) : setAnomalies([]); }, [fetchAnomalies, selected]);
+  useEffect(() => {
+    if (selected?.transaction?.id) {
+      fetchAnomalies(selected.transaction.id);
+    } else {
+      setAnomalies([]);
+    }
+  }, [fetchAnomalies, selected]);
 
   const runReconciliation = async () => {
     setRunning(true);

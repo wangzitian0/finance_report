@@ -56,9 +56,8 @@ export default function JournalPage() {
         fetchEntries();
     }, [fetchEntries]);
 
-    const calculateTotals = (lines: JournalLine[]) => {
-        const debits = lines.filter((l) => l.direction === "DEBIT").reduce((sum, l) => sum + l.amount, 0);
-        return { debits };
+    const calculateDebits = (lines: JournalLine[]) => {
+        return lines.filter((l) => l.direction === "DEBIT").reduce((sum, l) => sum + l.amount, 0);
     };
 
     const handlePostEntry = async (entryId: string) => {
@@ -124,7 +123,7 @@ export default function JournalPage() {
                 <div className="card">
                     <div className="divide-y divide-[var(--border)]">
                         {entries.map((entry) => {
-                            const { debits } = calculateTotals(entry.lines);
+                            const debits = calculateDebits(entry.lines);
                             return (
                                 <div key={entry.id} className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors">
                                     <div className="flex items-start justify-between gap-4">

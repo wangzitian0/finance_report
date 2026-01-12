@@ -39,7 +39,7 @@ export default function StatementUploader({
         if (selectedFile) validateAndSetFile(selectedFile);
     }, []);
 
-    const validateAndSetFile = (f: File) => {
+    const validateAndSetFile = useCallback((f: File) => {
         const validExtensions = ["pdf", "csv", "png", "jpg", "jpeg"];
         const ext = f.name.split(".").pop()?.toLowerCase() || "";
         if (!validExtensions.includes(ext)) {
@@ -52,7 +52,7 @@ export default function StatementUploader({
         }
         setFile(f);
         setError(null);
-    };
+    }, []);
 
     const handleUpload = async () => {
         if (!file || !institution.trim()) {

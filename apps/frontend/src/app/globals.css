@@ -105,23 +105,27 @@ body {
 
   /* Alert utility classes */
   .alert {
-    @apply p-3 rounded-md text-sm;
+    @apply p-3 rounded-md text-sm border;
   }
 
   .alert-error {
-    @apply alert bg-[var(--error-muted)] border border-[var(--error)]/30 text-[var(--error)];
+    @apply alert bg-[var(--error-muted)] text-[var(--error)];
+    border-color: color-mix(in srgb, var(--error) 30%, transparent);
   }
 
   .alert-success {
-    @apply alert bg-[var(--success-muted)] border border-[var(--success)]/30 text-[var(--success)];
+    @apply alert bg-[var(--success-muted)] text-[var(--success)];
+    border-color: color-mix(in srgb, var(--success) 30%, transparent);
   }
 
   .alert-warning {
-    @apply alert bg-[var(--warning-muted)] border border-[var(--warning)]/30 text-[var(--warning)];
+    @apply alert bg-[var(--warning-muted)] text-[var(--warning)];
+    border-color: color-mix(in srgb, var(--warning) 30%, transparent);
   }
 
   .alert-info {
-    @apply alert bg-[var(--info-muted)] border border-[var(--info)]/30 text-[var(--info)];
+    @apply alert bg-[var(--info-muted)] text-[var(--info)];
+    border-color: color-mix(in srgb, var(--info) 30%, transparent);
   }
 
   /* Loading state */
