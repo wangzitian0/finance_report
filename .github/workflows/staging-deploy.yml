@@ -82,9 +82,17 @@ jobs:
         run: |
           echo "Deploying $IMAGE_TAG to staging..."
           
-          # Get current env and update IMAGE_TAG
+          # Get current env (suppress output to avoid leaking secrets)
           current_env=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" | jq -r '.env')
+          
+          # Mask any sensitive values that might be in env
+          echo "$current_env" | grep -E '^(VAULT_|.*TOKEN|.*SECRET|.*KEY|.*PASSWORD)' | while read line; do
+            value=$(echo "$line" | cut -d= -f2-)
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+          done
           
           # Update IMAGE_TAG
           if echo "$current_env" | grep -q '^IMAGE_TAG='; then
@@ -93,24 +101,26 @@ jobs:
             new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
           fi
           
-          # Update environment
-          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          # Update environment (suppress response which contains env vars)
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')"
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" > /dev/null
           
-          # Stop and redeploy
-          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          echo "Environment updated"
+          
+          # Stop and redeploy (suppress responses)
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" || true
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null 2>&1 || true
           
           sleep 15
           
-          curl --fail-with-body -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')"
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null
           
           echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
           sleep ${{ env.DEPLOY_WAIT_SECONDS }}
