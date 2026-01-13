@@ -1,9 +1,9 @@
 """Integration tests for Reports Router."""
 
-import pytest
 from datetime import date
-from uuid import uuid4
 from decimal import Decimal
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (

@@ -49,28 +49,28 @@ class TestFixtureValidation:
     def dbs_fixture(self):
         """Load DBS fixture data."""
         fixture_path = FIXTURES_DIR / "2025_parsed.json"
-        with open(fixture_path, "r") as f:
+        with open(fixture_path) as f:
             return json.load(f)
 
     @pytest.fixture
     def cmb_fixture(self):
         """Load CMB fixture data."""
         fixture_path = FIXTURES_DIR / "2024-2025_parsed.json"
-        with open(fixture_path, "r") as f:
+        with open(fixture_path) as f:
             return json.load(f)
 
     @pytest.fixture
     def maribank_fixture(self):
         """Load MariBank fixture data."""
         fixture_path = FIXTURES_DIR / "Apr2025_MariBank_e-Statement_parsed.json"
-        with open(fixture_path, "r") as f:
+        with open(fixture_path) as f:
             return json.load(f)
 
     @pytest.fixture
     def gxs_fixture(self):
         """Load GXS fixture data."""
         fixture_path = FIXTURES_DIR / "gxs-2506_parsed.json"
-        with open(fixture_path, "r") as f:
+        with open(fixture_path) as f:
             return json.load(f)
 
     def test_cmb_fixture_balance_validates(self, cmb_fixture):
@@ -155,7 +155,7 @@ class TestFixtureValidation:
         for filename in fixture_files:
             fixture_path = FIXTURES_DIR / filename
             if fixture_path.exists():
-                with open(fixture_path, "r") as f:
+                with open(fixture_path) as f:
                     data = json.load(f)
                     if data.get("success"):
                         score = data["statement"].get("confidence_score", 0)
@@ -292,7 +292,7 @@ class TestFileSizeLimit:
         
         # Mock the extraction to avoid actual API calls
         async def fake_parse(*args, **kwargs):
-            from src.models.statement import BankStatement, BankStatementTransaction
+            from src.models.statement import BankStatement
             stmt = BankStatement(
                 user_id=kwargs.get("user_id"),
                 file_path="test",

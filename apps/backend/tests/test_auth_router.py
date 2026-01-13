@@ -1,7 +1,6 @@
 """Integration tests for Auth Router."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User
