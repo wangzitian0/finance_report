@@ -1,8 +1,10 @@
 """Tests for authentication dependency."""
 
-import pytest
 from uuid import uuid4
-from httpx import AsyncClient, ASGITransport
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 
 @pytest.mark.asyncio
 async def test_auth_missing_header(db_engine):

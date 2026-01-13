@@ -32,11 +32,14 @@ class Settings(BaseSettings):
     # CORS origin regex - for dynamic subdomains (PR deployments)
     cors_origin_regex: str = r"https://.*\.zitian\.party"
 
-    # OpenRouter API (for Gemini Flash)
+    # OpenRouter API (for AI models)
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    primary_model: str = "google/gemini-3-flash"
-    fallback_models: list[str] = ["google/gemini-2.0", "openai/gpt-4-turbo"]
+    primary_model: str = "nvidia/nemotron-3-nano-30b-a3b:free"
+    fallback_models: list[str] = [
+        "xiaomi/mimo-v2-flash:free",
+        "openai/gpt-oss-120b:free",
+    ]
     openrouter_daily_limit_usd: int | None = None
 
     # S3 / MinIO storage

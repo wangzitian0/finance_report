@@ -2,12 +2,12 @@
 
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4, UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.models import (
     Account,

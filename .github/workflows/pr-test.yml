@@ -13,6 +13,19 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR Number'
+        required: true
+      action:
+        description: 'Action'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - cleanup
 
 env:
   REGISTRY: ghcr.io
@@ -27,15 +40,33 @@ jobs:
     name: Setup Variables
     runs-on: ubuntu-latest
     outputs:
-      compose_name: pr-${{ github.event.pull_request.number }}
-      pr_number: ${{ github.event.pull_request.number }}
+      compose_name: ${{ steps.info.outputs.compose_name }}
+      pr_number: ${{ steps.info.outputs.pr_number }}
+      action: ${{ steps.info.outputs.action }}
     steps:
-      - name: Log PR info
-        run: echo "Setting up for PR ${{ github.event.pull_request.number }}"
+      - name: Determine Params
+        id: info
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})"
+            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+            echo "compose_name=pr-${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+          else
+            echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})"
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "compose_name=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            
+            if [ "${{ github.event.action }}" == "closed" ]; then
+              echo "action=cleanup" >> $GITHUB_OUTPUT
+            else
+              echo "action=deploy" >> $GITHUB_OUTPUT
+            fi
+          fi
 
   deploy:
     name: Deploy Test Environment
-    if: github.event.action != 'closed'
+    if: needs.setup.outputs.action == 'deploy'
     needs: setup
     runs-on: ubuntu-latest
     permissions:
@@ -116,7 +147,6 @@ jobs:
           ENV_DOMAIN_SUFFIX=-pr-${{ needs.setup.outputs.pr_number }}
           INTERNAL_DOMAIN=${{ env.INTERNAL_DOMAIN }}
           TRAEFIK_ENABLE=true
-          NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}/api
           DEBUG=true"
           
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
@@ -197,7 +227,7 @@ jobs:
 
   cleanup:
     name: Cleanup Test Environment
-    if: github.event.action == 'closed'
+    if: needs.setup.outputs.action == 'cleanup'
     needs: setup
     runs-on: ubuntu-latest
     permissions:

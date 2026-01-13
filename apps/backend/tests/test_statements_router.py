@@ -75,6 +75,7 @@ def build_statement(user_id, file_hash: str, confidence_score: int) -> BankState
 async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_user):
     """Uploading the same file twice should trigger duplicate detection."""
     content = b"duplicate-statement"
+    content = b"duplicate-statement"
 
     async def fake_parse_document(
         self,
@@ -89,14 +90,113 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
         original_filename=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date(2025, 1, 15),
+        return statement, []
+
+    monkeypatch.setattr(
+        statements_router.ExtractionService,
+        "parse_document",
+        fake_parse_document,
+    )
+
+    upload_file = make_upload_file("statement.pdf", content)
+    await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        db=db,
+        user_id=test_user.id,
+    )
+    await upload_file.close()
+
+    upload_file_dup = make_upload_file("statement.pdf", content)
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file_dup,
+            institution="DBS",
+            account_id=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file_dup.close()
+
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_upload_storage_failure(db, monkeypatch, test_user):
+    """Storage failure should return 503."""
+    content = b"content"
+
+    # Mock StorageService to raise StorageError
+    mock_storage = MagicMock()
+    mock_storage.upload_bytes.side_effect = statements_router.StorageError("S3 Down")
+    
+    # We need to mock the class constructor to return our mock instance
+    mock_storage_cls = MagicMock(return_value=mock_storage)
+    monkeypatch.setattr(statements_router, "StorageService", mock_storage_cls)
+
+    upload_file = make_upload_file("statement.pdf", content)
+    
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 503
+    assert "S3 Down" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_invalid_extension(db, test_user):
+    """Invalid file extension should return 400."""
+    content = b"content"
+    upload_file = make_upload_file("statement.exe", content)
+    
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 400
+    assert "Unsupported file type" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_user):
+    """Upload then list statements and transactions."""
+    content = b"statement-flow"
+    hashlib.sha256(content).hexdigest()
+
+    async def fake_parse_document(
+        self,
+        file_path,
+        institution,
+        user_id,
+        file_type="pdf",
+        account_id=None,
+        file_content=None,
+        file_hash=None,
+        file_url=None,
+        original_filename=None,
+    ):
+        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
+        transaction = BankStatementTransaction(
+            txn_date=date(2025, 1, 2),
             description="Salary",
             amount=Decimal("5000.00"),
             direction="IN",
         )
-        return statement, [txn]
+        return statement, [transaction]
 
     monkeypatch.setattr(
         statements_router.ExtractionService,
@@ -401,14 +501,14 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
 
     await statements_router.retry_statement_parsing(
         statement_id=created.id,
-        model="google/gemini-2.0",
+        model="xiaomi/mimo-v2-flash:free",
         db=db,
         user_id=test_user.id,
     )
 
     mock_parse.assert_called_once()
     call_kwargs = mock_parse.call_args
-    assert call_kwargs.kwargs.get("force_model") == "google/gemini-2.0"
+    assert call_kwargs.kwargs.get("force_model") == "xiaomi/mimo-v2-flash:free"
 
     async def fake_retry(
         self,
@@ -434,7 +534,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
 
     retried = await statements_router.retry_statement_parsing(
         statement_id=created.id,
-        model="google/gemini-2.0",
+        model="xiaomi/mimo-v2-flash:free",
         db=db,
         user_id=test_user.id,
     )
@@ -512,7 +612,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=created.id,
-            model="google/gemini-2.0",
+            model="xiaomi/mimo-v2-flash:free",
             db=db,
             user_id=test_user.id,
         )
