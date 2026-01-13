@@ -10,7 +10,7 @@ from sqlalchemy import DECIMAL, Date, DateTime, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database import Base
+from ..core.database import Base
 
 
 class FxRate(Base):

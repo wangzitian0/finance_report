@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-from src.config import settings
+from .config import settings
 
 
 class Base(DeclarativeBase):
@@ -38,7 +38,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database tables."""
-    from src.models import (  # noqa: F401
+    from ..models import (  # noqa: F401
         Account,
         BankStatement,
         BankStatementTransaction,

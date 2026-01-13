@@ -12,7 +12,6 @@ from uuid import UUID
 
 import httpx
 
-from src.config import settings
 from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
 from src.prompts import get_parsing_prompt
 from src.services.validation import (
@@ -21,6 +20,8 @@ from src.services.validation import (
     validate_balance,
     validate_completeness,
 )
+
+from ..core.config import settings
 
 
 class ExtractionError(Exception):

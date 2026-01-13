@@ -12,8 +12,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
-from src.database import get_db
 from src.models import AccountType
 from src.schemas import (
     AccountTrendResponse,
@@ -33,6 +31,9 @@ from src.services.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
+
+from ..core.auth import get_current_user_id
+from ..core.database import get_db
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 

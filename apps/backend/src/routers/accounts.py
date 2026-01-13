@@ -6,8 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
-from src.database import get_db
 from src.models import Account, AccountType
 from src.schemas import (
     AccountCreate,
@@ -16,6 +14,9 @@ from src.schemas import (
     AccountUpdate,
 )
 from src.services import calculate_account_balance
+
+from ..core.auth import get_current_user_id
+from ..core.database import get_db
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 

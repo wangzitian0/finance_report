@@ -8,8 +8,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.auth import get_current_user_id
-from src.database import get_db
 from src.models import JournalEntry, JournalEntryStatus, JournalLine
 from src.schemas import (
     JournalEntryCreate,
@@ -23,6 +21,9 @@ from src.services import (
     validate_fx_rates,
     void_journal_entry,
 )
+
+from ..core.auth import get_current_user_id
+from ..core.database import get_db
 
 router = APIRouter(prefix="/api/journal-entries", tags=["journal-entries"])
 

@@ -10,7 +10,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -20,6 +19,8 @@ from src.models import (
     JournalLine,
 )
 from src.services.fx import FxRateError, convert_amount
+
+from ..core.config import settings
 
 _REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
 

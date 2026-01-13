@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.database import Base
+from ..core.database import Base
 
 
 class User(Base):

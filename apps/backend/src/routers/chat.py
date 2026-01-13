@@ -9,8 +9,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
-from src.database import get_db
 from src.models import ChatMessage, ChatSession, ChatSessionStatus
 from src.schemas.chat import (
     ChatHistoryResponse,
@@ -22,6 +20,9 @@ from src.schemas.chat import (
     ChatSuggestionsResponse,
 )
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
+
+from ..core.auth import get_current_user_id
+from ..core.database import get_db
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 

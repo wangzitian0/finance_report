@@ -9,8 +9,9 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
 from src.models import FxRate
+
+from ..core.config import settings
 
 
 class FxRateError(Exception):

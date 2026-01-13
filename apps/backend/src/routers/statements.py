@@ -11,8 +11,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.auth import get_current_user_id
-from src.database import get_db
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
     BankStatementListResponse,
@@ -22,6 +20,9 @@ from src.schemas import (
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
+
+from ..core.auth import get_current_user_id
+from ..core.database import get_db
 
 router = APIRouter(prefix="/api/statements", tags=["statements"])
 

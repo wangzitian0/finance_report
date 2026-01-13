@@ -8,8 +8,8 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import get_db
-from src.models import User
+from ..models import User
+from .database import get_db
 
 
 async def get_current_user_id(

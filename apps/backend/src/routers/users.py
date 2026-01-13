@@ -7,9 +7,10 @@ from passlib.context import CryptContext
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import get_db
 from src.models import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
+
+from ..core.database import get_db
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 

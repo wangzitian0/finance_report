@@ -10,7 +10,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database import Base
+from ..core.database import Base
 
 
 class ChatSessionStatus(str, enum.Enum):

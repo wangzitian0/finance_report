@@ -6,17 +6,16 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
-from src.database import get_db, init_db
-from src.models import PingState
-from src.routers import accounts, auth, chat, journal, reports, statements, users
-from src.routers.reconciliation import router as reconciliation_router
-from src.schemas import PingStateResponse
+from ..core.database import get_db, init_db
+from ..models import PingState
+from ..routers import accounts, auth, chat, journal, reports, statements, users
+from ..routers.reconciliation import router as reconciliation_router
+from ..schemas import PingStateResponse
+from .middleware import add_cors_middleware
 
 
 @asynccontextmanager
@@ -43,14 +42,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         content={"detail": str(exc)},
     )
 
+
 # CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "X-User-Id"],
-)
+add_cors_middleware(app)
 
 # Include routers
 app.include_router(auth.router)

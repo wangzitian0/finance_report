@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -17,6 +16,8 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+
+from ..core.config import settings
 
 
 class AccountingError(Exception):

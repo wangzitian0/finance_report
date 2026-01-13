@@ -17,7 +17,6 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
 from src.models import (
     AccountType,
     BankStatement,
@@ -37,6 +36,8 @@ from src.services.reporting import (
     generate_income_statement,
     get_category_breakdown,
 )
+
+from ..core.config import settings
 
 MAX_CONTEXT_MESSAGES = 20
 CACHE_TTL_SECONDS = 3600

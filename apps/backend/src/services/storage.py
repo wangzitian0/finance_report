@@ -8,7 +8,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from src.config import settings
+from ..core.config import settings
 
 
 class StorageError(Exception):
