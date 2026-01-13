@@ -141,6 +141,7 @@ async def test_list_accounts(mock_db, user_id):
     assert len(results) == 2
     assert results == mock_accounts
 
+
 @pytest.mark.asyncio
 async def test_list_accounts_with_filters(mock_db, user_id):
     """Test listing accounts with filters."""
