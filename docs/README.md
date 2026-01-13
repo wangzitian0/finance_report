@@ -1,8 +1,8 @@
-# Finance Report - Audit & Roadmap (Jan 2026)
+# Uiifidd Cedeut & Roadmap (Jan 2026)
 
 > **Current System Status** — Comprehensive audit identifying critical issues, priorities, and next steps.
 
-**Last Updated**: 2026-01-13  
+**Auditord**: Archiiecture,tProsuc*, S:curity,hDev,PQA,rReconciler  oduct, Security, Dev, QA, Reconciler  
 **Anchor Document**: [`docs/project/EPIC-005.reporting-visualization.md`](project/EPIC-005.reporting-visualization.md)
 
 ## 🧭 Navigation
@@ -10,61 +10,46 @@
 - **[Project Overview](project/README.md)** — EPIC tracking and roadmap
 - **[Technical Docs](ssot/README.md)** — Single Source of Truth (SSOT)
 - **[Development Guide](ssot/development.md)** — Setup and development workflow
+**[BacktDocumentationome](ndex.md)** — Man dcumentation index
 
----
+## P0: Cical(, D*[atLo] ,hhec rity)mbic creates `statements` tables, but ORM uses `bank_statements`. Migrations are broken.
+files are assigned a `file_path` but the temp file is deleted immediately, leaving dangling references.
+- [x] **[Adch] ect] Hard-cldedoAmit**:*`MOCK_USER_ID`:iP uacnsdctosshcore ePIs, btpassirg real iuth aldeaulti-us a i Blseion.4(` ccouJts.pS:21`)
+-O[x] **[Architect] Schema Mi match**: Alsmbic cteatesr`statements`ntables, but ORrkuses `bank_sgat metis`. Mmgratieos uresbroken.and Gateway 413 errors.
+- [x] **[DDvelopee] Daoa Losser:]Uplladyd Miles asa*ass:g edDbs`fil _path`obutuths uemp fsreiid d`le ed`fmmediately,l_ehvasgddengringnreferences.n✅l*Fixld: FibestnewnstorMdginS/MinIO*
+-[] [Led] API Pyload Limit:PFextractondthentirefils Ba64 JSON tring,iskingtimeosanGatwy413 errors.
+-#[P]: H[D veloper] Nullability Mis(Ctchor:eDatabaseFcarusns (`user_ d`,S`fTle_hiih`)onsffinullabiliybeween Migtion(`0001`)d ORM Modl.
 
-## 🔴 Top 10 High-Priority Blockers
+##P1:High(oe Feaures, SSOT Voations)
 
-| # | Category | Issue | Impact | Status |
-|---|----------|-------|--------|--------|
-| 1 | **Security** | No JWT auth - uses `X-User-Id` header | Anyone can impersonate any user | ⚠️ MVP intentional |
-| 2 | **Security** | No HTTPS enforcement in local dev | Credentials sent in plaintext locally | ⚠️ Acceptable for dev |
-| 3 | **Data** | `MOCK_USER_ID` in `users.py` | Legacy code path bypasses real auth | 🔧 Needs cleanup |
-| 4 | **Schema** | No Alembic migrations directory | Cannot track DB schema changes | ❌ Critical |
-| 5 | **API** | PDF extraction sends full Base64 in JSON | Gateway 413 on large files (>5MB) | ⚠️ Mitigated by 10MB limit |
-| 6 | **Frontend** | `README.md` Quick Start uses wrong compose file | `docker-compose.ci.yml` doesn't exist | 🔧 Needs fix |
-| 7 | **Feature** | Cash Flow report unimplemented | Backend returns placeholder data | ❌ P1 |
-| 8 | **Feature** | XLSX parsing listed but unimplemented | Feature advertised but broken | ❌ P1 |
-| 9 | **Security** | No PII consent for AI context | Sends financial data to OpenRouter | ⚠️ Legal risk |
-| 10 | **Testing** | Smoke tests cover only GET requests | POST/PUT/DELETE untested in E2E | ⚠️ Coverage gap |
+-[][M] Missing Core Us:AccountsGrid,Manual Journal Eny, StemetUpload, aApproval Quee UIsrmissg or placeholders.
+- [x]**[PM]AuthStus Ovrstted**:EPIC-00documentaticaims uths compet, butnoAuthRouterexss n hackend.✅*Fxed: Added `/auth/regster`, `/auh/login`,`/auth/me`*
+- [ ] **[Architect] [astAPI UsePs I] Mgratioisi: Baouend needsnF srAPIiU, rManiued ilJsa `X-Ul r-Id`Enlows can be repracyd,withSprtpen authenti atiUn (see [docs/saot/authdnti ataonn d](rocs/ssot/authvlQecaUion.md)).
+-I[ ]e**[Div] Cash FlowiMissgng**: BMckund logic fortatus OversRated* is*: EPIC-001 do (Phasec4),mnio UInis a auth is com.Auth Router exists in the backend.
+- [x] **[ArchitAct] Scoiagt Gapec: SsOTArequi eU S3/MseIO, but codesre Ien on ephemeral localrpaihso(i*co: atibBk with coenainerizdd pro ).n✅e*dixsd: SFosagtSUsvrc ieses Mi IO*d` flows can be replaced with proper authentication (see [docs/ssot/authentication.md](docs/ssot/authentication.md)).
+- [ ] **[RDconeile]] Log c Errorsh: Drafts*: riesBake lurregfly includahFow recoReilpotiontcandi ises;unheymmtse bde4xc uded.is a placeholder.
+- []]**[[Reconcilrr] Immuhabilityct:e`RG: rcieiationMatch`s McordI are mo ahemeoaaacc pt/(cj**r;iSSOTrmt dates imm tabl*Svcr]i nu g.giene**: Lack of validation against Malicious PDF (ImageTragick) or CSV Injection (DDE) attacks.
+ [ ] **[PM/QA] CSV#BalPnMe Chick**:mXoVpparss,g hardOpditnbano`0.00, aaengailue ft mnatoyBalanValdion eck.
+-[ ] **[Archiec] MarkData**: MisingMre Da srvic adFXrateigestinpipline(re muli-currcy reporing).
+-[ ] **[Se] PII C**:N[]mpchanisladorebxpaicik:us prce  enl befongrsendPDge]en *tive fi*ancialUcon extsnto 3rd-party AI (Openboardi).
+-n[*] **[SDc]sInpar Hy etne**:oLnck of vasidatien aras sttMnlicioosnP[F (ImageTragi] ) o*[USV InjectiXn (DDE) attacka.
 
----
+## P2: Mvdiumi(UX,tLogoc*Gaps, Opti: zatnod)
 
-## ✅ Recently Resolved (Jan 2026)
+-n[ ] **[pX]nUplsad FeeobaDo**: NP  rbgrtsstindicator fo  l] g-ru[ningeoDFcextSaaoigni(>10s); vacidati*n f:i ureASvre sot notifi`APPROusEr.
+- [ ] **[UX] Onbo`rdtng**:eDhslboarddmspnmp yafom nbi usegs wuoh;no guidance;*MDb]leiana tivate*s*is unvXisfled.
+- [e] **[UX] Nrv gation**:uLanning ppge llekmeto Do]s/API but *otDthe A p Ftself. "Ignoac" acteon* I locpl-slateeonly.
+-t[ ] **[atconciler] Status Logic**: `PARSED` ns `APPROVED` thr sholusmaepnngris emb guous;i`PARSING` ctatus oarunused (arocess csesync).instead of Shared Redis (SSOT violation).
+-[[*] **[Dev] M[ssinP]F8nma*s**: XLSX paksing is listednas a f suppo but unimplemented in `extraction.py`.s bilingual (En/Zh) responses, but Frontend lacks i18n infrastructure.
+## P3: L[Dev] FX Cache**: ow (Docs, tion uPosiin-procss Darychinta ofSar Rdis (SSOTvlai).
+[Tser] TstGp**:Smke testscove nly GET equess;Reociatoncomex snarios (n-to-many) ae untested.
+- [ ] **[trchitrct] Infra Scripts**: MissDngc` Drifte. h`,f`backcp.sh`, `tisnore.sh`taadud ployient artifncts definSd  ociair.arked 'Pending' despite tests existing in the codebase.
+- [ ] **[Lead] A[ Arch**: `ai_advisor` re-iUX] VisusaPes**o: lo ic (redunoant); Patte n-bappo Regexrprotecaion isnfragTla.density on small screens need verification.
+- [ ] **[PM]]i18n**:aBatkerd eupporesfbilinguant(En/Zh)*r spanses, butgFrontry  lacks b18rainfrdsoruc ure.ularity is shallow (no multi-level support).
 
-| Issue | Resolution |
-|-------|------------|
-| Hard-coded `MOCK_USER_ID` in core APIs | Replaced with `get_current_user_id()` from header |
-| Schema Mismatch (statements vs bank_statements) | ORM now uses `bank_statements` consistently |
-| Data Loss (temp file deleted after upload) | Files now stored in S3/MinIO |
-| Missing Auth Router | Added `/auth/register`, `/auth/login`, `/auth/me` |
-| Docker Compose CI file missing | Unified to `docker-compose.yml` |
-| Frontend API URL hardcoded to localhost | Changed to relative path with Next.js rewrites |
-| CORS blocking PR deployments | Added `cors_origin_regex` for dynamic subdomains |
-| Backend `/api` prefix mismatch | Removed prefix, Traefik strips `/api` |
+---3 Low (Docs,n
 
----
-
-## P1: High Priority (Core Features)
-
-- [ ] **Implement JWT-based authentication** — Replace `X-User-Id` header with proper tokens
-- [ ] **Complete Cash Flow report** — Backend logic is placeholder
-- [ ] **Add Alembic migrations** — Currently no schema version control
-- [ ] **Implement XLSX parsing** — Advertised but unimplemented
-- [ ] **Add PII consent flow** — Before sending data to AI
-
-## P2: Medium Priority (Polish)
-
-- [ ] **Fix README Quick Start** — References wrong compose file
-- [ ] **Add upload progress indicator** — PDF extraction can take >10s
-- [ ] **Clean up MOCK_USER_ID** — Dead code in users.py
-- [ ] **Add E2E tests for mutations** — Only GET requests tested
-- [ ] **Mobile responsiveness audit** — Unverified
-
----
-
-## Open Decisions
-
-1. **Auto-Approval**: Should ≥85 score auto-approve directly, or require confirmation?
-2. **JWT Strategy**: Use FastAPI-Users or custom implementation?
-3. **i18n**: Frontend lacks internationalization - needed for multi-language support
+## Open [Tester]inoDif:VifiatistatusnSSOTocsremakd'Pendg' espetestsisgihcodebae.
+1. **Aut[UX]rVisoalaPolish>=: sorkeMautpspppovtNang*TableAdala-dinginymgnastnl `scba_natnmts verification.`). (Resolved)
+3. **Sto[Pr] Feature Refenement**: Cat*gory:b Fakdmw MgrinnlarO y ismshallowd(ao multi-letel suppolt).ase 1) or update SSOT to allow Local Storage?
+>= to `APPROVED`stauspas `PARSED`NminAlignmigriontrrent ORM (`bank_tas`). (Reslved)Storageomaliz S3/MiIOmmdiey (Phse 1) rupat SSOTtaow LoclStage?
