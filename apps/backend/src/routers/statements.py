@@ -133,8 +133,9 @@ async def retry_statement_parsing(
 
     Args:
         statement_id: UUID of the statement to retry parsing for.
-        model: Optional AI model to use (e.g., "xiaomi/mimo-v2-flash:free", "openai/gpt-oss-120b:free").
-               If not provided, uses the first fallback model from settings.
+        model: Optional AI model to use (e.g., "xiaomi/mimo-v2-flash:free",
+               "openai/gpt-oss-120b:free"). If not provided, uses the first fallback model from
+               settings.
 
     Returns:
         Updated BankStatementResponse with new parsing results.
