@@ -143,7 +143,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    environment: # NEXT_PUBLIC_API_URL is set at build-time; runtime override not needed for same-origin
+    # NEXT_PUBLIC_API_URL is set at build-time; runtime override not needed for same-origin
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       start_period: 60s
