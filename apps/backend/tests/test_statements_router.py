@@ -6,7 +6,7 @@ import hashlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException, UploadFile
@@ -389,7 +389,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
     )
     assert rejected.status == BankStatementStatus.REJECTED
 
-    mock_parse = MagicMock()
+    mock_parse = AsyncMock()
     monkeypatch.setattr(
         statements_router.ExtractionService,
         "parse_document",
@@ -409,6 +409,22 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
     mock_parse.assert_called_once()
     call_kwargs = mock_parse.call_args
     assert call_kwargs.kwargs.get("force_model") == "google/gemini-2.0"
+
+    async def fake_retry(
+        self,
+        file_path,
+        institution,
+        user_id,
+        file_type="pdf",
+        account_id=None,
+        file_content=None,
+        file_hash=None,
+        file_url=None,
+        original_filename=None,
+        force_model=None,
+    ):
+        statement = build_statement(test_user.id, file_hash or "", confidence_score=95)
+        return statement, []
 
     monkeypatch.setattr(
         statements_router.ExtractionService,
