@@ -20,13 +20,15 @@ class Settings(BaseSettings):
     debug: bool = False
     base_currency: str = "SGD"
 
-    # CORS origins
+    # CORS origins - explicit list for known origins
     cors_origins: list[str] = [
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://127.0.0.1:3000",
-        "https://report-pr-41.zitian.party",
-        "https://*.zitian.party",
     ]
+
+    # CORS origin regex - for dynamic subdomains (PR deployments)
+    cors_origin_regex: str = r"https://.*\.zitian\.party"
 
     # OpenRouter API (for Gemini Flash)
     openrouter_api_key: str = ""
