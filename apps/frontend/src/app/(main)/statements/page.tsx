@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 import StatementUploader from "@/components/statements/StatementUploader";
 import { apiFetch } from "@/lib/api";
@@ -10,12 +11,16 @@ export default function StatementsPage() {
     const [statements, setStatements] = useState<BankStatement[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [polling, setPolling] = useState(false);
 
     const fetchStatements = useCallback(async () => {
         try {
             const data = await apiFetch<BankStatementListResponse>("/api/statements");
             setStatements(data.items);
             setError(null);
+
+            const hasParsing = data.items.some((s) => s.status === "parsing");
+            setPolling(hasParsing);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to load statements");
         } finally {
@@ -26,6 +31,15 @@ export default function StatementsPage() {
     useEffect(() => {
         fetchStatements();
     }, [fetchStatements]);
+
+    useEffect(() => {
+        if (!polling) return;
+
+        const interval = setInterval(fetchStatements, 3000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, [polling, fetchStatements]);
 
     return (
         <div className="p-6">
@@ -52,6 +66,14 @@ export default function StatementsPage() {
                 </div>
             )}
 
+            {/* Polling Indicator */}
+            {polling && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-[var(--accent)]">
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span>Updating...</span>
+                </div>
+            )}
+
             {/* Statements List */}
             <div className="card">
                 <div className="card-header flex items-center justify-between">
@@ -71,7 +93,11 @@ export default function StatementsPage() {
                 ) : (
                     <div className="divide-y divide-[var(--border)]">
                         {statements.map((statement) => (
-                            <div key={statement.id} className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors">
+                            <Link
+                                key={statement.id}
+                                href={`/statements/${statement.id}`}
+                                className="block px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                            >
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
@@ -115,7 +141,7 @@ export default function StatementsPage() {
                                         <span className="badge badge-warning">Needs Review</span>
                                     )}
                                 </div>
-                            </div>
+                            </Link>
                         ))}
                     </div>
                 )}

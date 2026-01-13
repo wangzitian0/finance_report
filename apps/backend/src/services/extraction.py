@@ -65,6 +65,7 @@ class ExtractionService:
         file_hash: str | None = None,
         file_url: str | None = None,
         original_filename: str | None = None,
+        force_model: str | None = None,
     ) -> tuple[BankStatement, list[BankStatementTransaction]]:
         """
         Parse a financial statement document.
@@ -79,6 +80,7 @@ class ExtractionService:
             file_hash: Precomputed SHA256 hash
             file_url: Presigned URL for extraction
             original_filename: User-provided filename
+            force_model: Override model selection (use specific model for retry)
 
         Returns:
             Tuple of (BankStatement, list of BankStatementTransactions)
@@ -101,6 +103,7 @@ class ExtractionService:
                 institution,
                 file_type,
                 file_url=file_url,
+                force_model=force_model,
             )
         elif file_type == "csv":
             # CSV files are parsed from in-memory content.
@@ -191,6 +194,7 @@ class ExtractionService:
         file_type: str,
         return_raw: bool = False,
         file_url: str | None = None,
+        force_model: str | None = None,
     ) -> dict[str, Any]:
         """Call Gemini Vision API via OpenRouter."""
         if not self.api_key:
@@ -240,7 +244,11 @@ class ExtractionService:
             }
         ]
 
-        models = [self.primary_model] + list(self.fallback_models or [])
+        models = (
+            [force_model]
+            if force_model
+            else [self.primary_model] + list(self.fallback_models or [])
+        )
         last_error: ExtractionError | None = None
 
         async with httpx.AsyncClient(timeout=120.0) as client:

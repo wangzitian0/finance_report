@@ -1,6 +1,7 @@
 """Statement extraction API router."""
 
 import hashlib
+import logging
 import mimetypes
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.auth import get_current_user_id
+from src.config import settings
 from src.database import get_db
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
@@ -22,6 +24,8 @@ from src.schemas import (
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -113,6 +117,106 @@ async def upload_statement(
         raise HTTPException(422, str(e))
     except StorageError as e:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
+
+
+@router.post("/{statement_id}/retry", response_model=BankStatementResponse)
+async def retry_statement_parsing(
+    statement_id: UUID,
+    model: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+) -> BankStatementResponse:
+    """Retry parsing with a different model (e.g., stronger model for better accuracy).
+
+    Allows re-parsing a statement that was previously parsed or rejected, using a specified
+    AI model for potentially better accuracy.
+
+    Args:
+        statement_id: UUID of the statement to retry parsing for.
+        model: Optional AI model to use (e.g., "google/gemini-2.0", "openai/gpt-4-turbo").
+               If not provided, uses the first fallback model from settings.
+
+    Returns:
+        Updated BankStatementResponse with new parsing results.
+
+    Raises:
+        400: If statement status is not parsed or rejected.
+        404: If statement not found.
+        422: If extraction fails.
+        503: If storage service is unavailable.
+
+    Note:
+        Existing transactions are replaced with new parsing results.
+    """
+
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one_or_none()
+
+    if not statement:
+        raise HTTPException(404, "Statement not found")
+
+    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED):
+        raise HTTPException(400, "Can only retry parsing for parsed or rejected statements")
+
+    if not settings.fallback_models:
+        raise HTTPException(500, "No fallback models are configured for statement parsing")
+
+    selected_model = model or settings.fallback_models[0]
+    allowed_models = {settings.primary_model} | set(settings.fallback_models)
+    if selected_model not in allowed_models:
+        raise HTTPException(400, f"Invalid model. Allowed: {', '.join(allowed_models)}")
+
+    try:
+        service = ExtractionService()
+        storage = StorageService()
+        file_url = storage.generate_presigned_url(key=statement.file_path)
+        new_statement, new_transactions = await service.parse_document(
+            file_path=Path(statement.original_filename),
+            institution=statement.institution,
+            user_id=user_id,
+            file_type=statement.original_filename.rsplit(".", 1)[-1].lower()
+            if "." in statement.original_filename
+            else "pdf",
+            account_id=statement.account_id,
+            file_content=None,
+            file_hash=statement.file_hash,
+            file_url=file_url,
+            original_filename=statement.original_filename,
+            force_model=selected_model,
+        )
+
+        for existing_tx in list(statement.transactions):
+            await db.delete(existing_tx)
+        await db.flush()
+
+        statement.transactions = list(new_transactions)
+
+        statement.opening_balance = new_statement.opening_balance
+        statement.closing_balance = new_statement.closing_balance
+        statement.period_start = new_statement.period_start
+        statement.period_end = new_statement.period_end
+        statement.confidence_score = new_statement.confidence_score
+        statement.balance_validated = new_statement.balance_validated
+        statement.validation_error = new_statement.validation_error
+        statement.status = BankStatementStatus.PARSED
+
+        await db.commit()
+        await db.refresh(statement)
+
+        return BankStatementResponse.model_validate(statement)
+
+    except StorageError:
+        raise HTTPException(503, "Storage service unavailable")
+    except ExtractionError as e:
+        raise HTTPException(422, str(e))
+    except Exception:
+        logger.exception("Unexpected error during statement retry")
+        raise HTTPException(500, "Retry failed due to an internal error")
 
 
 @router.get("", response_model=BankStatementListResponse)

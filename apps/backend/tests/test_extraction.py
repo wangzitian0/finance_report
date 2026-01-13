@@ -3,10 +3,11 @@
 import json
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
-from src.services.extraction import ExtractionService
+from src.services.extraction import ExtractionError, ExtractionService
 
 # Get fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -151,18 +152,18 @@ class TestFixtureData:
         """Test DBS fixture balances reconcile."""
         stmt = dbs_fixture["statement"]
         events = dbs_fixture["events"]
-        
+
         opening = Decimal(stmt["opening_balance"])
         closing = Decimal(stmt["closing_balance"])
-        
+
         net = sum(
             Decimal(e["amount"]) if e["direction"] == "IN" else -Decimal(e["amount"])
             for e in events
         )
-        
+
         expected_closing = opening + net
         diff = abs(closing - expected_closing)
-        
+
         # Allow some tolerance due to potential rounding
         assert diff < Decimal("1.00"), f"Balance mismatch: {diff}"
 
@@ -197,6 +198,7 @@ class TestPromptGeneration:
     def test_get_parsing_prompt_default(self):
         """Test default parsing prompt."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt()
         assert "financial statement parser" in prompt.lower()
         assert "JSON" in prompt
@@ -205,6 +207,7 @@ class TestPromptGeneration:
     def test_get_parsing_prompt_dbs(self):
         """Test DBS-specific prompt."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt("DBS")
         assert "DBS" in prompt
         assert "Singapore" in prompt or "GIRO" in prompt or "PayNow" in prompt
@@ -212,6 +215,7 @@ class TestPromptGeneration:
     def test_get_parsing_prompt_cmb(self):
         """Test CMB-specific prompt."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt("CMB")
         assert "CMB" in prompt or "招商" in prompt
         assert "Chinese" in prompt or "中文" in prompt
@@ -219,6 +223,7 @@ class TestPromptGeneration:
     def test_get_parsing_prompt_unknown_institution(self):
         """Test with unknown institution."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt("UnknownBank")
         # Should return base prompt without institution hints
         assert "financial statement parser" in prompt.lower()
@@ -226,18 +231,21 @@ class TestPromptGeneration:
     def test_get_parsing_prompt_futu(self):
         """Test Futu-specific prompt."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt("Futu")
         assert "Futu" in prompt or "富途" in prompt
 
     def test_get_parsing_prompt_gxs(self):
         """Test GXS-specific prompt."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt("GXS")
         assert "GXS" in prompt
 
     def test_get_parsing_prompt_maribank(self):
         """Test MariBank-specific prompt."""
         from src.prompts import get_parsing_prompt
+
         prompt = get_parsing_prompt("MariBank")
         assert "MariBank" in prompt
 
@@ -247,6 +255,7 @@ class TestExtractionServiceHelpers:
 
     def setup_method(self):
         from src.services.extraction import ExtractionService
+
         self.service = ExtractionService()
 
     def test_compute_event_confidence_complete(self):
@@ -302,12 +311,14 @@ class TestExtractionServiceHelpers:
     def test_safe_date_invalid_format(self):
         """Test _safe_date with invalid format."""
         import pytest
+
         with pytest.raises(ValueError, match="Invalid date format"):
             self.service._safe_date("invalid-date")
 
     def test_safe_date_empty(self):
         """Test _safe_date with empty input."""
         import pytest
+
         with pytest.raises(ValueError, match="Date is required"):
             self.service._safe_date(None)
 
@@ -315,18 +326,21 @@ class TestExtractionServiceHelpers:
         """Test _safe_decimal with valid input."""
         d = self.service._safe_decimal("100.50")
         from decimal import Decimal
+
         assert d == Decimal("100.50")
 
     def test_safe_decimal_invalid(self):
         """Test _safe_decimal with invalid input."""
         d = self.service._safe_decimal("abc")
         from decimal import Decimal
+
         assert d == Decimal("0.00")
 
     def test_safe_decimal_none(self):
         """Test _safe_decimal with None."""
         d = self.service._safe_decimal(None)
         from decimal import Decimal
+
         assert d == Decimal("0.00")
 
     def test_compute_confidence_missing_transactions(self):
@@ -341,3 +355,21 @@ class TestExtractionServiceHelpers:
         validation = {"balance_valid": True, "difference": "0.00"}
         score = self.service._compute_confidence(extracted, validation)
         assert 0 <= score <= 100
+
+    @pytest.mark.asyncio
+    async def test_parse_document_accepts_force_model(self):
+        """Test that parse_document accepts force_model parameter."""
+        service = ExtractionService()
+        with pytest.raises(ExtractionError, match="File content is required"):
+            await service.parse_document(
+                file_path=None,
+                institution="DBS",
+                user_id=uuid4(),
+                file_type="pdf",
+                account_id=None,
+                file_content=None,
+                file_hash=None,
+                file_url=None,
+                original_filename=None,
+                force_model="google/gemini-2.0",
+            )
