@@ -1,8 +1,8 @@
-# Uiifidd Cedeut & Roadmap (Jan 2026)
+# Unified Code Audit & Roadmap (Jan 2026)
 
 > **Current System Status** — Comprehensive audit identifying critical issues, priorities, and next steps.
 
-**Auditord**: Archiiecture,tProsuc*, S:curity,hDev,PQA,rReconciler  oduct, Security, Dev, QA, Reconciler  
+**Auditors**: Architecture, Product, Security, Dev, QA, Reconciler  
 **Anchor Document**: [`docs/project/EPIC-005.reporting-visualization.md`](project/EPIC-005.reporting-visualization.md)
 
 ## 🧭 Navigation
@@ -10,46 +10,53 @@
 - **[Project Overview](project/README.md)** — EPIC tracking and roadmap
 - **[Technical Docs](ssot/README.md)** — Single Source of Truth (SSOT)
 - **[Development Guide](ssot/development.md)** — Setup and development workflow
-**[BacktDocumentationome](ndex.md)** — Man dcumentation index
+- **[Back to Documentation Home](index.md)** — Main documentation index
 
-## P0: Cical(, D*[atLo] ,hhec rity)mbic creates `statements` tables, but ORM uses `bank_statements`. Migrations are broken.
-files are assigned a `file_path` but the temp file is deleted immediately, leaving dangling references.
-- [x] **[Adch] ect] Hard-cldedoAmit**:*`MOCK_USER_ID`:iP uacnsdctosshcore ePIs, btpassirg real iuth aldeaulti-us a i Blseion.4(` ccouJts.pS:21`)
--O[x] **[Architect] Schema Mi match**: Alsmbic cteatesr`statements`ntables, but ORrkuses `bank_sgat metis`. Mmgratieos uresbroken.and Gateway 413 errors.
-- [x] **[DDvelopee] Daoa Losser:]Uplladyd Miles asa*ass:g edDbs`fil _path`obutuths uemp fsreiid d`le ed`fmmediately,l_ehvasgddengringnreferences.n✅l*Fixld: FibestnewnstorMdginS/MinIO*
--[] [Led] API Pyload Limit:PFextractondthentirefils Ba64 JSON tring,iskingtimeosanGatwy413 errors.
--#[P]: H[D veloper] Nullability Mis(Ctchor:eDatabaseFcarusns (`user_ d`,S`fTle_hiih`)onsffinullabiliybeween Migtion(`0001`)d ORM Modl.
+## P0: Critical (Blockers, Data Loss, Security)
 
-##P1:High(oe Feaures, SSOT Voations)
+- [x] **[Architect] Hard-coded Auth**: `MOCK_USER_ID` is used across core APIs, bypassing real auth and multi-user isolation. (`accounts.py:21`)
+- [x] **[Architect] Schema Mismatch**: Alembic creates `statements` tables, but ORM uses `bank_statements`. Migrations are broken.
+- [x] **[Developer] Data Loss**: Uploaded files are assigned a `file_path` but the temp file is deleted immediately, leaving dangling references. ✅ *Fixed: Files now stored in S3/MinIO*
+- [ ] **[Lead] API Payload Limit**: PDF extraction sends the entire file as a Base64 JSON string, risking timeouts and Gateway 413 errors.
+- [ ] **[Developer] Nullability Mismatch**: Database columns (`user_id`, `file_hash`) differ in nullability between Migration (`0001`) and ORM Models.
 
--[][M] Missing Core Us:AccountsGrid,Manual Journal Eny, StemetUpload, aApproval Quee UIsrmissg or placeholders.
-- [x]**[PM]AuthStus Ovrstted**:EPIC-00documentaticaims uths compet, butnoAuthRouterexss n hackend.✅*Fxed: Added `/auth/regster`, `/auh/login`,`/auth/me`*
-- [ ] **[Architect] [astAPI UsePs I] Mgratioisi: Baouend needsnF srAPIiU, rManiued ilJsa `X-Ul r-Id`Enlows can be repracyd,withSprtpen authenti atiUn (see [docs/saot/authdnti ataonn d](rocs/ssot/authvlQecaUion.md)).
--I[ ]e**[Div] Cash FlowiMissgng**: BMckund logic fortatus OversRated* is*: EPIC-001 do (Phasec4),mnio UInis a auth is com.Auth Router exists in the backend.
-- [x] **[ArchitAct] Scoiagt Gapec: SsOTArequi eU S3/MseIO, but codesre Ien on ephemeral localrpaihso(i*co: atibBk with coenainerizdd pro ).n✅e*dixsd: SFosagtSUsvrc ieses Mi IO*d` flows can be replaced with proper authentication (see [docs/ssot/authentication.md](docs/ssot/authentication.md)).
-- [ ] **[RDconeile]] Log c Errorsh: Drafts*: riesBake lurregfly includahFow recoReilpotiontcandi ises;unheymmtse bde4xc uded.is a placeholder.
-- []]**[[Reconcilrr] Immuhabilityct:e`RG: rcieiationMatch`s McordI are mo ahemeoaaacc pt/(cj**r;iSSOTrmt dates imm tabl*Svcr]i nu g.giene**: Lack of validation against Malicious PDF (ImageTragick) or CSV Injection (DDE) attacks.
- [ ] **[PM/QA] CSV#BalPnMe Chick**:mXoVpparss,g hardOpditnbano`0.00, aaengailue ft mnatoyBalanValdion eck.
--[ ] **[Archiec] MarkData**: MisingMre Da srvic adFXrateigestinpipline(re muli-currcy reporing).
--[ ] **[Se] PII C**:N[]mpchanisladorebxpaicik:us prce  enl befongrsendPDge]en *tive fi*ancialUcon extsnto 3rd-party AI (Openboardi).
--n[*] **[SDc]sInpar Hy etne**:oLnck of vasidatien aras sttMnlicioosnP[F (ImageTragi] ) o*[USV InjectiXn (DDE) attacka.
+## P1: High (Core Features, SSOT Violations)
 
-## P2: Mvdiumi(UX,tLogoc*Gaps, Opti: zatnod)
+- [ ] **[PM] Missing Core UIs**: Accounts Grid, Manual Journal Entry, Statement Upload, and Approval Queue UIs are missing or placeholders.
+- [x] **[PM] Auth Status Overstated**: EPIC-001 documentation claims auth is complete, but no Auth Router exists in the backend. ✅ *Fixed: Added `/auth/register`, `/auth/login`, `/auth/me`*
+- [ ] **[Architect] FastAPI Users Integration**: Backend needs FastAPI Users wired in so `X-User-Id` flows can be replaced with proper authentication (see [docs/ssot/authentication.md](docs/ssot/authentication.md)).
+- [ ] **[Dev] Cash Flow Missing**: Backend logic for Cash Flow Report is unimplemented (Phase 4), and UI is a placeholder.
+- [x] **[Architect] Storage Gap**: SSOT requires S3/MinIO, but code relies on ephemeral local paths (incompatible with containerized prod). ✅ *Fixed: StorageService uses MinIO*
+- [ ] **[Reconciler] Logic Error**: Draft entries are currently included in reconciliation candidates; they must be excluded.
+- [ ] **[Reconciler] Immutability**: `ReconciliationMatch` records are mutated on accept/reject; SSOT mandates immutable versioning.
+- [ ] **[PM/QA] CSV Balance Check**: CSV parsing hardcodes balance to `0.00`, guaranteeing failure of the mandatory Balance Validation check.
+- [ ] **[Architect] Market Data**: Missing Market Data service and FX rate ingestion pipeline (breaks multi-currency reporting).
+- [ ] **[Sec] PII Consent**: No mechanism for explicit user consent before sending sensitive financial contexts to 3rd-party AI (OpenRouter).
+- [ ] **[Sec] Input Hygiene**: Lack of validation against Malicious PDF (ImageTragick) or CSV Injection (DDE) attacks.
 
--n[ ] **[pX]nUplsad FeeobaDo**: NP  rbgrtsstindicator fo  l] g-ru[ningeoDFcextSaaoigni(>10s); vacidati*n f:i ureASvre sot notifi`APPROusEr.
-- [ ] **[UX] Onbo`rdtng**:eDhslboarddmspnmp yafom nbi usegs wuoh;no guidance;*MDb]leiana tivate*s*is unvXisfled.
-- [e] **[UX] Nrv gation**:uLanning ppge llekmeto Do]s/API but *otDthe A p Ftself. "Ignoac" acteon* I locpl-slateeonly.
--t[ ] **[atconciler] Status Logic**: `PARSED` ns `APPROVED` thr sholusmaepnngris emb guous;i`PARSING` ctatus oarunused (arocess csesync).instead of Shared Redis (SSOT violation).
--[[*] **[Dev] M[ssinP]F8nma*s**: XLSX paksing is listednas a f suppo but unimplemented in `extraction.py`.s bilingual (En/Zh) responses, but Frontend lacks i18n infrastructure.
-## P3: L[Dev] FX Cache**: ow (Docs, tion uPosiin-procss Darychinta ofSar Rdis (SSOTvlai).
-[Tser] TstGp**:Smke testscove nly GET equess;Reociatoncomex snarios (n-to-many) ae untested.
-- [ ] **[trchitrct] Infra Scripts**: MissDngc` Drifte. h`,f`backcp.sh`, `tisnore.sh`taadud ployient artifncts definSd  ociair.arked 'Pending' despite tests existing in the codebase.
-- [ ] **[Lead] A[ Arch**: `ai_advisor` re-iUX] VisusaPes**o: lo ic (redunoant); Patte n-bappo Regexrprotecaion isnfragTla.density on small screens need verification.
-- [ ] **[PM]]i18n**:aBatkerd eupporesfbilinguant(En/Zh)*r spanses, butgFrontry  lacks b18rainfrdsoruc ure.ularity is shallow (no multi-level support).
+## P2: Medium (UX, Logic Gaps, Optimization)
 
----3 Low (Docs,n
+- [ ] **[UX] Upload Feedback**: No progress indicator for long-running PDF extraction (>10s); validation failures are not notified to user.
+- [ ] **[UX] Onboarding**: Dashboard is empty for new users with no guidance; Mobile adaptiveness is unverified.
+- [ ] **[UX] Navigation**: Landing page links to Docs/API but not the App itself. "Ignore" action is local-state only.
+- [ ] **[Reconciler] Status Logic**: `PARSED` vs `APPROVED` threshold mapping is ambiguous; `PARSING` status is unused (process is sync).
+- [ ] **[Dev] Missing Formats**: XLSX parsing is listed as a feature but unimplemented in `extraction.py`.
+- [ ] **[Dev] FX Cache**: Implementation uses in-process Dictionary cache instead of Shared Redis (SSOT violation).
+- [ ] **[Tester] Test Gaps**: Smoke tests cover only GET requests; Reconciliation complex scenarios (one-to-many) are untested.
+- [ ] **[Architect] Infra Scripts**: Missing `migrate.sh`, `backup.sh`, `restore.sh` and deployment artifacts defined in init.
+- [ ] **[Lead] AI Arch**: `ai_advisor` re-implements Session logic (redundant); Pattern-based Regex protection is fragile.
+- [ ] **[PM] i18n**: Backend supports bilingual (En/Zh) responses, but Frontend lacks i18n infrastructure.
 
-## Open [Tester]inoDif:VifiatistatusnSSOTocsremakd'Pendg' espetestsisgihcodebae.
-1. **Aut[UX]rVisoalaPolish>=: sorkeMautpspppovtNang*TableAdala-dinginymgnastnl `scba_natnmts verification.`). (Resolved)
-3. **Sto[Pr] Feature Refenement**: Cat*gory:b Fakdmw MgrinnlarO y ismshallowd(ao multi-letel suppolt).ase 1) or update SSOT to allow Local Storage?
->= to `APPROVED`stauspas `PARSED`NminAlignmigriontrrent ORM (`bank_tas`). (Reslved)Storageomaliz S3/MiIOmmdiey (Phse 1) rupat SSOTtaow LoclStage?
+## P3: Low (Docs, Minor Polish)
+
+- [ ] **[Tester] Doc Drift**: Verification statuses in SSOT docs are marked 'Pending' despite tests existing in the codebase.
+- [ ] **[UX] Visual Polish**: Dark Mode support and Table data-density on small screens need verification.
+- [ ] **[PM] Feature Refinement**: Category breakdown granularity is shallow (no multi-level support).
+
+---
+
+## Open Decisions
+
+1. **Auto-Approval**: Should >=85 score auto-approve to `APPROVED` status, or pause at `PARSED`?
+2. **Naming**: Align migrations to current ORM (`bank_statements`). (Resolved)
+3. **Storage**: Formalize S3/MinIO immediately (Phase 1) or update SSOT to allow Local Storage?
