@@ -36,15 +36,28 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "0.5.14"
+          enable-cache: false
       
       - name: Set up Python
         run: uv python install 3.12
-      
+
       - name: Install dependencies
-        run: moon run backend:install
+        run: |
+          cd apps/backend
+          uv sync
+          cd ../..
+          cd apps/frontend
+          npm install
+
+      - name: Verify backend dependencies
+        run: |
+          cd apps/backend
+          uv run python -c "import email_validator; import bcrypt; import passlib; print('All dependencies OK')"
       
       - name: Lint
-        run: moon run backend:lint
+        run: |
+          cd apps/backend
+          uv run ruff check src/
       
       - name: Test with coverage
         env:
@@ -73,13 +86,19 @@ jobs:
         uses: moonrepo/setup-toolchain@v0
       
       - name: Install dependencies
-        run: moon run frontend:install
+        run: |
+          cd apps/frontend
+          npm install
       
       - name: Lint
-        run: moon run frontend:lint
+        run: |
+          cd apps/frontend
+          npm run lint
       
       - name: Build
-        run: moon run frontend:build
+        run: |
+          cd apps/frontend
+          npm run build
 
   finish:
     needs: backend
