@@ -3,19 +3,18 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user_id
 from src.database import get_db
-from src.models import Account, AccountType
+from src.models import AccountType
 from src.schemas import (
     AccountCreate,
     AccountListResponse,
     AccountResponse,
     AccountUpdate,
 )
-from src.services import calculate_account_balance
+from src.services import AccountNotFoundError, account_service, calculate_account_balance
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -27,18 +26,7 @@ async def create_account(
     user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Create a new account."""
-    account = Account(
-        user_id=user_id,
-        name=account_data.name,
-        code=account_data.code,
-        type=account_data.type,
-        currency=account_data.currency,
-        parent_id=account_data.parent_id,
-        description=account_data.description,
-    )
-    db.add(account)
-    await db.commit()
-    await db.refresh(account)
+    account = await account_service.create_account(db, user_id, account_data)
 
     # Calculate balance
     balance = await calculate_account_balance(db, account.id, user_id)
@@ -60,17 +48,9 @@ async def list_accounts(
 
     Set include_balance=true to calculate balances (may be slower with many accounts).
     """
-    query = select(Account).where(Account.user_id == user_id)
-
-    if account_type:
-        query = query.where(Account.type == account_type)
-    if is_active is not None:
-        query = query.where(Account.is_active == is_active)
-
-    query = query.order_by(Account.type, Account.name)
-
-    result = await db.execute(query)
-    accounts = result.scalars().all()
+    accounts = await account_service.list_accounts(
+        db, user_id, account_type=account_type, is_active=is_active
+    )
 
     # Calculate balances only if requested
     items = []
@@ -90,15 +70,12 @@ async def get_account(
     user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Get account details with current balance."""
-    result = await db.execute(
-        select(Account).where(Account.id == account_id).where(Account.user_id == user_id)
-    )
-    account = result.scalar_one_or_none()
-
-    if not account:
+    try:
+        account = await account_service.get_account(db, user_id, account_id)
+    except AccountNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Account {account_id} not found",
+            detail=str(e),
         )
 
     balance = await calculate_account_balance(db, account.id, user_id)
@@ -116,31 +93,15 @@ async def update_account(
     user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Update account details."""
-    result = await db.execute(
-        select(Account).where(Account.id == account_id).where(Account.user_id == user_id)
-    )
-    account = result.scalar_one_or_none()
-
-    if not account:
+    try:
+        account = await account_service.update_account(
+            db, user_id, account_id, account_data
+        )
+    except AccountNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Account {account_id} not found",
+            detail=str(e),
         )
-
-    # Update fields if provided
-    if account_data.name is not None:
-        account.name = account_data.name
-    if account_data.code is not None:
-        account.code = account_data.code
-    if account_data.description is not None:
-        account.description = account_data.description
-    if account_data.parent_id is not None:
-        account.parent_id = account_data.parent_id
-    if account_data.is_active is not None:
-        account.is_active = account_data.is_active
-
-    await db.commit()
-    await db.refresh(account)
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
