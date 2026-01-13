@@ -274,7 +274,7 @@ class TestFileSizeLimit:
         large_content = b"x" * (11 * 1024 * 1024)  # 11MB
         
         response = await client.post(
-            "/api/statements/upload",
+            "/statements/upload",
             files={"file": ("large.pdf", BytesIO(large_content), "application/pdf")},
             data={"institution": "DBS"},
         )
@@ -319,7 +319,7 @@ class TestFileSizeLimit:
         )
 
         response = await client.post(
-            "/api/statements/upload",
+            "/statements/upload",
             files={"file": ("exact.pdf", BytesIO(exact_content), "application/pdf")},
             data={"institution": "DBS"},
         )

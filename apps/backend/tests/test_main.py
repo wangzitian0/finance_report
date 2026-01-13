@@ -53,7 +53,7 @@ async def test_ping_toggle(client: AsyncClient) -> None:
 @skip_client_tests
 async def test_get_statement_not_found(client: AsyncClient) -> None:
     """Test getting a non-existent statement."""
-    response = await client.get("/api/statements/00000000-0000-0000-0000-000000000000")
+    response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -61,7 +61,7 @@ async def test_get_statement_not_found(client: AsyncClient) -> None:
 @skip_client_tests
 async def test_get_pending_review_empty(client: AsyncClient) -> None:
     """Test getting pending review list when empty."""
-    response = await client.get("/api/statements/pending-review")
+    response = await client.get("/statements/pending-review")
     assert response.status_code == 200
     data = response.json()
     assert data["items"] == []
@@ -72,7 +72,7 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
 async def test_approve_statement_not_found(client: AsyncClient) -> None:
     """Test approving a non-existent statement."""
     response = await client.post(
-        "/api/statements/00000000-0000-0000-0000-000000000000/approve",
+        "/statements/00000000-0000-0000-0000-000000000000/approve",
         json={"notes": "ok"}
     )
     assert response.status_code == 404
@@ -82,7 +82,7 @@ async def test_approve_statement_not_found(client: AsyncClient) -> None:
 async def test_upload_no_file(client: AsyncClient) -> None:
     """Test upload endpoint without file."""
     response = await client.post(
-        "/api/statements/upload",
+        "/statements/upload",
         data={"institution": "DBS"}
     )
     # Should fail validation - no file

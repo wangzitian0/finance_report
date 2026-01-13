@@ -29,7 +29,7 @@ from src.models import (
 
 async def _create_account(client: AsyncClient, name: str, account_type: str) -> dict:
     payload = {"name": name, "type": account_type, "currency": "SGD"}
-    resp = await client.post("/api/accounts", json=payload)
+    resp = await client.post("/accounts", json=payload)
     assert resp.status_code == 201, resp.text
     return resp.json()
 
@@ -38,46 +38,46 @@ async def _create_account(client: AsyncClient, name: str, account_type: str) -> 
 async def test_accounts_endpoints(client: AsyncClient) -> None:
     account = await _create_account(client, "Cash", "ASSET")
 
-    basic_list_resp = await client.get("/api/accounts")
+    basic_list_resp = await client.get("/accounts")
     assert basic_list_resp.status_code == 200
     assert basic_list_resp.json()["total"] >= 1
 
-    list_resp = await client.get("/api/accounts", params={"include_balance": "true"})
+    list_resp = await client.get("/accounts", params={"include_balance": "true"})
     assert list_resp.status_code == 200
     list_data = list_resp.json()
     assert list_data["total"] >= 1
     assert list_data["items"][0]["balance"] is not None
 
-    filter_resp = await client.get("/api/accounts", params={"account_type": "ASSET"})
+    filter_resp = await client.get("/accounts", params={"account_type": "ASSET"})
     assert filter_resp.status_code == 200
 
-    get_resp = await client.get(f"/api/accounts/{account['id']}")
+    get_resp = await client.get(f"/accounts/{account['id']}")
     assert get_resp.status_code == 200
     assert get_resp.json()["id"] == account["id"]
 
     update_resp = await client.put(
-        f"/api/accounts/{account['id']}",
+        f"/accounts/{account['id']}",
         json={"name": "Cash Vault", "code": "1001", "description": "Updated"},
     )
     assert update_resp.status_code == 200
     assert update_resp.json()["name"] == "Cash Vault"
 
     deactivate_resp = await client.put(
-        f"/api/accounts/{account['id']}",
+        f"/accounts/{account['id']}",
         json={"is_active": False},
     )
     assert deactivate_resp.status_code == 200
     assert deactivate_resp.json()["is_active"] is False
 
-    inactive_resp = await client.get("/api/accounts", params={"is_active": "false"})
+    inactive_resp = await client.get("/accounts", params={"is_active": "false"})
     assert inactive_resp.status_code == 200
     assert inactive_resp.json()["total"] >= 1
 
-    missing_resp = await client.get(f"/api/accounts/{uuid4()}")
+    missing_resp = await client.get(f"/accounts/{uuid4()}")
     assert missing_resp.status_code == 404
 
     missing_update = await client.put(
-        f"/api/accounts/{uuid4()}",
+        f"/accounts/{uuid4()}",
         json={"name": "Missing"},
     )
     assert missing_update.status_code == 404
@@ -106,7 +106,7 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
             },
         ],
     }
-    create_resp = await client.post("/api/journal-entries", json=entry_payload)
+    create_resp = await client.post("/journal-entries", json=entry_payload)
     assert create_resp.status_code == 201
     entry = create_resp.json()
 
@@ -129,16 +129,16 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
             },
         ],
     }
-    older_resp = await client.post("/api/journal-entries", json=older_payload)
+    older_resp = await client.post("/journal-entries", json=older_payload)
     assert older_resp.status_code == 201
     older_entry = older_resp.json()
 
-    list_resp = await client.get("/api/journal-entries", params={"status_filter": "draft"})
+    list_resp = await client.get("/journal-entries", params={"status_filter": "draft"})
     assert list_resp.status_code == 200
     assert list_resp.json()["total"] >= 1
 
     start_date_resp = await client.get(
-        "/api/journal-entries",
+        "/journal-entries",
         params={"start_date": date.today().isoformat()},
     )
     assert start_date_resp.status_code == 200
@@ -146,35 +146,35 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
     assert older_entry["id"] not in start_ids
 
     end_date_resp = await client.get(
-        "/api/journal-entries",
+        "/journal-entries",
         params={"end_date": older_date.isoformat()},
     )
     assert end_date_resp.status_code == 200
     end_ids = {item["id"] for item in end_date_resp.json()["items"]}
     assert older_entry["id"] in end_ids
 
-    get_resp = await client.get(f"/api/journal-entries/{entry['id']}")
+    get_resp = await client.get(f"/journal-entries/{entry['id']}")
     assert get_resp.status_code == 200
 
-    missing_get = await client.get(f"/api/journal-entries/{uuid4()}")
+    missing_get = await client.get(f"/journal-entries/{uuid4()}")
     assert missing_get.status_code == 404
 
-    post_resp = await client.post(f"/api/journal-entries/{entry['id']}/post")
+    post_resp = await client.post(f"/journal-entries/{entry['id']}/post")
     assert post_resp.status_code == 200
     assert post_resp.json()["status"] == "posted"
 
     void_resp = await client.post(
-        f"/api/journal-entries/{entry['id']}/void",
+        f"/journal-entries/{entry['id']}/void",
         json={"reason": "Test void"},
     )
     assert void_resp.status_code == 200
     assert void_resp.json()["status"] == "posted"
 
-    missing_post = await client.post(f"/api/journal-entries/{uuid4()}/post")
+    missing_post = await client.post(f"/journal-entries/{uuid4()}/post")
     assert missing_post.status_code == 400
 
     missing_void = await client.post(
-        f"/api/journal-entries/{uuid4()}/void",
+        f"/journal-entries/{uuid4()}/void",
         json={"reason": "missing"},
     )
     assert missing_void.status_code == 400
@@ -423,57 +423,57 @@ async def test_reconciliation_endpoints(
     await session.commit()
 
     run_resp = await client.post(
-        "/api/reconciliation/run",
+        "/reconciliation/run",
         json={"statement_id": str(statement_run.id)},
     )
     assert run_resp.status_code == 200
     assert run_resp.json()["matches_created"] >= 0
 
-    pending_resp = await client.get("/api/reconciliation/pending")
+    pending_resp = await client.get("/reconciliation/pending")
     assert pending_resp.status_code == 200
 
     accept_resp = await client.post(
-        f"/api/reconciliation/matches/{match_accept.id}/accept"
+        f"/reconciliation/matches/{match_accept.id}/accept"
     )
     assert accept_resp.status_code == 200
     assert accept_resp.json()["status"] == "accepted"
 
     reject_resp = await client.post(
-        f"/api/reconciliation/matches/{match_reject.id}/reject"
+        f"/reconciliation/matches/{match_reject.id}/reject"
     )
     assert reject_resp.status_code == 200
     assert reject_resp.json()["status"] == "rejected"
 
     batch_resp = await client.post(
-        "/api/reconciliation/batch-accept",
+        "/reconciliation/batch-accept",
         json={"match_ids": [str(match_batch.id)]},
     )
     assert batch_resp.status_code == 200
     assert batch_resp.json()["total"] == 1
 
     matches_resp = await client.get(
-        "/api/reconciliation/matches",
+        "/reconciliation/matches",
         params={"status": "pending_review"},
     )
     assert matches_resp.status_code == 200
 
-    matches_all_resp = await client.get("/api/reconciliation/matches")
+    matches_all_resp = await client.get("/reconciliation/matches")
     assert matches_all_resp.status_code == 200
 
-    stats_resp = await client.get("/api/reconciliation/stats")
+    stats_resp = await client.get("/reconciliation/stats")
     assert stats_resp.status_code == 200
 
-    unmatched_resp = await client.get("/api/reconciliation/unmatched")
+    unmatched_resp = await client.get("/reconciliation/unmatched")
     assert unmatched_resp.status_code == 200
     assert unmatched_resp.json()["total"] >= 1
 
     create_entry_resp = await client.post(
-        f"/api/reconciliation/unmatched/{txn_unmatched.id}/create-entry"
+        f"/reconciliation/unmatched/{txn_unmatched.id}/create-entry"
     )
     assert create_entry_resp.status_code == 200
 
     anomalies_resp = await client.get(
-        f"/api/reconciliation/transactions/{txn_unmatched.id}/anomalies"
+        f"/reconciliation/transactions/{txn_unmatched.id}/anomalies"
     )
     assert anomalies_resp.status_code == 200
 
@@ -481,29 +481,29 @@ async def test_reconciliation_endpoints(
 @pytest.mark.asyncio
 async def test_reconciliation_error_paths(client: AsyncClient) -> None:
     missing_accept = await client.post(
-        f"/api/reconciliation/matches/{uuid4()}/accept"
+        f"/reconciliation/matches/{uuid4()}/accept"
     )
     assert missing_accept.status_code == 404
 
     missing_reject = await client.post(
-        f"/api/reconciliation/matches/{uuid4()}/reject"
+        f"/reconciliation/matches/{uuid4()}/reject"
     )
     assert missing_reject.status_code == 404
 
     missing_create_entry = await client.post(
-        f"/api/reconciliation/unmatched/{uuid4()}/create-entry"
+        f"/reconciliation/unmatched/{uuid4()}/create-entry"
     )
     assert missing_create_entry.status_code == 404
 
     missing_anomalies = await client.get(
-        f"/api/reconciliation/transactions/{uuid4()}/anomalies"
+        f"/reconciliation/transactions/{uuid4()}/anomalies"
     )
     assert missing_anomalies.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_reconciliation_stats_empty(client: AsyncClient) -> None:
-    resp = await client.get("/api/reconciliation/stats")
+    resp = await client.get("/reconciliation/stats")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_transactions"] == 0
@@ -512,5 +512,5 @@ async def test_reconciliation_stats_empty(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_reconciliation_run_defaults(client: AsyncClient) -> None:
-    resp = await client.post("/api/reconciliation/run", json={})
+    resp = await client.post("/reconciliation/run", json={})
     assert resp.status_code == 200
