@@ -18,7 +18,7 @@
 - [x] **[Architect] Schema Mismatch**: Alembic creates `statements` tables, but ORM uses `bank_statements`. Migrations are broken.
 - [x] **[Developer] Data Loss**: Uploaded files are assigned a `file_path` but the temp file is deleted immediately, leaving dangling references. ✅ *Fixed: Files now stored in S3/MinIO*
 - [ ] **[Lead] API Payload Limit**: PDF extraction sends the entire file as a Base64 JSON string, risking timeouts and Gateway 413 errors.
-- [ ] **[Developer] Nullability Mismatch**: Database columns (`user_id`, `file_hash`) differ in nullability between Migration (`0001`) and ORM Models.
+- [x] **[Developer] Nullability Mismatch**: Database columns (`user_id`, `file_hash`) differ in nullability between Migration (`0001`) and ORM Models. ✅ *Verified: Both migration and ORM use `nullable=False`*
 
 ## P1: High (Core Features, SSOT Violations)
 
