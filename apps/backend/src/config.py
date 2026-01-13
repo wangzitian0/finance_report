@@ -25,6 +25,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
+        # Explicit production origin(s) as fallback in addition to regex
+        "https://report.zitian.party",
     ]
 
     # CORS origin regex - for dynamic subdomains (PR deployments)

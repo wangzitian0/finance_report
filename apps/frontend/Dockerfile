@@ -12,7 +12,7 @@ RUN npm ci
 # Copy source files
 COPY . .
 
-# Build argument for API URL (empty = relative path, same-origin)
+# Build argument for API URL (empty = relative path, same-origin, proxied via next.config.mjs rewrites)
 ARG NEXT_PUBLIC_API_URL=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
