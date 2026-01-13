@@ -6,8 +6,6 @@ import mimetypes
 from pathlib import Path
 from uuid import UUID, uuid4
 
-logger = logging.getLogger(__name__)
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
@@ -26,6 +24,8 @@ from src.schemas import (
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -214,7 +214,7 @@ async def retry_statement_parsing(
         raise HTTPException(503, "Storage service unavailable")
     except ExtractionError as e:
         raise HTTPException(422, str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error during statement retry")
         raise HTTPException(500, "Retry failed due to an internal error")
 
