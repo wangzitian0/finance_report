@@ -16,12 +16,9 @@ from src.schemas import (
 )
 from src.services import (
     AccountNotFoundError,
+    account_service,
     calculate_account_balance,
 )
-from src.services import create_account as create_account_service
-from src.services import get_account as get_account_service
-from src.services import list_accounts as list_accounts_service
-from src.services import update_account as update_account_service
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -33,7 +30,7 @@ async def create_account(
     user_id: UUID = Depends(get_current_user_id),
 ) -> AccountResponse:
     """Create a new account."""
-    account = await create_account_service(db, user_id, account_data)
+    account = await account_service.create_account(db, user_id, account_data)
 
     # Calculate balance
     balance = await calculate_account_balance(db, account.id, user_id)
@@ -55,7 +52,7 @@ async def list_accounts(
 
     Set include_balance=true to calculate balances (may be slower with many accounts).
     """
-    accounts = await list_accounts_service(
+    accounts = await account_service.list_accounts(
         db, user_id, account_type=account_type, is_active=is_active
     )
 
@@ -78,7 +75,7 @@ async def get_account(
 ) -> AccountResponse:
     """Get account details with current balance."""
     try:
-        account = await get_account_service(db, user_id, account_id)
+        account = await account_service.get_account(db, user_id, account_id)
     except AccountNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -101,7 +98,7 @@ async def update_account(
 ) -> AccountResponse:
     """Update account details."""
     try:
-        account = await update_account_service(
+        account = await account_service.update_account(
             db, user_id, account_id, account_data
         )
     except AccountNotFoundError as e:
