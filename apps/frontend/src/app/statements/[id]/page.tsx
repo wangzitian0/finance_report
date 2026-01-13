@@ -137,6 +137,8 @@ export default function StatementDetailPage() {
                 </div>
             </div>
 
+            {error && <div className="alert-error mb-6">{error}</div>}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-4 gap-4 mb-6">
                 <div className="card p-4">
@@ -177,7 +179,7 @@ export default function StatementDetailPage() {
             )}
 
             {/* Actions */}
-            {statement.status === "parsed" && (
+            {(statement.status === "parsed" || statement.status === "rejected") && (
                 <div className="flex gap-3 mb-6">
                     <button
                         onClick={handleApprove}

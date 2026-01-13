@@ -3,10 +3,11 @@
 import json
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
-from src.services.extraction import ExtractionService
+from src.services.extraction import ExtractionError, ExtractionService
 
 # Get fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -358,9 +359,6 @@ class TestExtractionServiceHelpers:
     @pytest.mark.asyncio
     async def test_parse_document_accepts_force_model(self):
         """Test that parse_document accepts force_model parameter."""
-        from src.services.extraction import ExtractionError
-        from uuid import uuid4
-
         service = ExtractionService()
         with pytest.raises(ExtractionError, match="File content is required"):
             await service.parse_document(

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.auth import get_current_user_id
+from src.config import settings
 from src.database import get_db
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
@@ -122,8 +123,28 @@ async def retry_statement_parsing(
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
-    """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
-    import os
+    """Retry parsing with a different model (e.g., stronger model for better accuracy).
+
+    Allows re-parsing a statement that was previously parsed or rejected, using a specified
+    AI model for potentially better accuracy.
+
+    Args:
+        statement_id: UUID of the statement to retry parsing for.
+        model: Optional AI model to use (e.g., "google/gemini-2.0", "openai/gpt-4-turbo").
+               If not provided, uses the first fallback model from settings.
+
+    Returns:
+        Updated BankStatementResponse with new parsing results.
+
+    Raises:
+        400: If statement status is not parsed or rejected.
+        404: If statement not found.
+        422: If extraction fails.
+        503: If storage service is unavailable.
+
+    Note:
+        Existing transactions are replaced with new parsing results.
+    """
 
     result = await db.execute(
         select(BankStatement)
@@ -139,13 +160,16 @@ async def retry_statement_parsing(
     if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED):
         raise HTTPException(400, "Can only retry parsing for parsed or rejected statements")
 
-    fallback_models = os.getenv("FALLBACK_MODELS", "google/gemini-2.0,openai/gpt-4-turbo").split(
-        ","
-    )
-    selected_model = model or fallback_models[0].strip()
+    allowed_models = {settings.primary_model} | set(settings.fallback_models)
+    if model and model not in allowed_models:
+        raise HTTPException(400, f"Invalid model. Allowed: {', '.join(allowed_models)}")
+
+    selected_model = model or settings.fallback_models[0]
 
     try:
         service = ExtractionService()
+        storage = StorageService()
+        file_url = storage.generate_presigned_url(key=statement.file_path)
         new_statement, new_transactions = await service.parse_document(
             file_path=Path(statement.original_filename),
             institution=statement.institution,
@@ -154,16 +178,14 @@ async def retry_statement_parsing(
             if "." in statement.original_filename
             else "pdf",
             account_id=statement.account_id,
-            file_content=b"",
+            file_content=None,
             file_hash=statement.file_hash,
-            file_url="",
+            file_url=file_url,
             original_filename=statement.original_filename,
             force_model=selected_model,
         )
 
-        statement.transactions.clear()
-        for txn in new_transactions:
-            statement.transactions.append(txn)
+        statement.transactions = list(new_transactions)
 
         statement.opening_balance = new_statement.opening_balance
         statement.closing_balance = new_statement.closing_balance
@@ -179,10 +201,12 @@ async def retry_statement_parsing(
 
         return BankStatementResponse.model_validate(statement)
 
+    except StorageError:
+        raise HTTPException(503, "Storage service unavailable")
     except ExtractionError as e:
         raise HTTPException(422, str(e))
-    except Exception as e:
-        raise HTTPException(500, f"Retry failed: {str(e)}")
+    except Exception:
+        raise HTTPException(500, "Retry failed due to an internal error")
 
 
 @router.get("", response_model=BankStatementListResponse)
