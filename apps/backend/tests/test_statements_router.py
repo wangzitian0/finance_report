@@ -389,21 +389,26 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
     )
     assert rejected.status == BankStatementStatus.REJECTED
 
-    async def fake_retry(
-        self,
-        file_path,
-        institution,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
-        force_model="google/gemini-2.0",
-    ):
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=95)
-        return statement, []
+    mock_parse = MagicMock()
+    monkeypatch.setattr(
+        statements_router.ExtractionService,
+        "parse_document",
+        mock_parse,
+    )
+
+    mock_statement = build_statement(test_user.id, "", confidence_score=95)
+    mock_parse.return_value = (mock_statement, [])
+
+    await statements_router.retry_statement_parsing(
+        statement_id=created.id,
+        model="google/gemini-2.0",
+        db=db,
+        user_id=test_user.id,
+    )
+
+    mock_parse.assert_called_once()
+    call_kwargs = mock_parse.call_args
+    assert call_kwargs.kwargs.get("force_model") == "google/gemini-2.0"
 
     monkeypatch.setattr(
         statements_router.ExtractionService,

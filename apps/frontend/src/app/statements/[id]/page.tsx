@@ -161,9 +161,7 @@ export default function StatementDetailPage() {
                     <div className="text-xs text-muted mb-1">Validation</div>
                     <div className="flex items-center gap-2">
                         {statement.balance_validated ? (
-                            <>
-                                <span className="text-[var(--success)]">✓ Verified</span>
-                            </>
+                            <span className="text-[var(--success)]">✓ Verified</span>
                         ) : (
                             <span className="text-[var(--warning)]">Needs Review</span>
                         )}

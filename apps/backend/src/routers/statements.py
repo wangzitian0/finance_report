@@ -1,9 +1,12 @@
 """Statement extraction API router."""
 
 import hashlib
+import logging
 import mimetypes
 from pathlib import Path
 from uuid import UUID, uuid4
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
@@ -160,11 +163,13 @@ async def retry_statement_parsing(
     if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED):
         raise HTTPException(400, "Can only retry parsing for parsed or rejected statements")
 
-    allowed_models = {settings.primary_model} | set(settings.fallback_models)
-    if model and model not in allowed_models:
-        raise HTTPException(400, f"Invalid model. Allowed: {', '.join(allowed_models)}")
+    if not settings.fallback_models:
+        raise HTTPException(500, "No fallback models are configured for statement parsing")
 
     selected_model = model or settings.fallback_models[0]
+    allowed_models = {settings.primary_model} | set(settings.fallback_models)
+    if selected_model not in allowed_models:
+        raise HTTPException(400, f"Invalid model. Allowed: {', '.join(allowed_models)}")
 
     try:
         service = ExtractionService()
@@ -184,6 +189,10 @@ async def retry_statement_parsing(
             original_filename=statement.original_filename,
             force_model=selected_model,
         )
+
+        for existing_tx in list(statement.transactions):
+            await db.delete(existing_tx)
+        await db.flush()
 
         statement.transactions = list(new_transactions)
 
@@ -205,7 +214,8 @@ async def retry_statement_parsing(
         raise HTTPException(503, "Storage service unavailable")
     except ExtractionError as e:
         raise HTTPException(422, str(e))
-    except Exception:
+    except Exception as e:
+        logger.exception("Unexpected error during statement retry")
         raise HTTPException(500, "Retry failed due to an internal error")
 
 

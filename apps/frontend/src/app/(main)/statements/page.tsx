@@ -38,7 +38,6 @@ export default function StatementsPage() {
         const interval = setInterval(fetchStatements, 3000);
         return () => {
             clearInterval(interval);
-            setPolling(false);
         };
     }, [polling, fetchStatements]);
 
