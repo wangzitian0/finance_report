@@ -28,10 +28,14 @@ from src.services.ai_advisor import (
     AIAdvisorService,
     ResponseCache,
     StreamRedactor,
+    detect_language,
+    estimate_tokens,
     is_non_financial,
     is_prompt_injection,
     is_sensitive_request,
     is_write_request,
+    normalize_question,
+    redact_sensitive,
 )
 
 
@@ -40,6 +44,41 @@ def test_safety_filters() -> None:
     assert is_sensitive_request("My credit card number is 4111 1111 1111 1111")
     assert is_write_request("Create a journal entry for rent")
     assert is_non_financial("Tell me a joke about finance")
+
+
+def test_safety_filters_negative_cases() -> None:
+    assert not is_prompt_injection("What are my expenses?")
+    assert not is_sensitive_request("What is my account balance?")
+    assert not is_write_request("Show me my journal entries")
+    assert not is_non_financial("How much did I spend on food?")
+
+
+def test_detect_language() -> None:
+    assert detect_language("How much did I spend?") == "en"
+    assert detect_language("这个月花了多少钱") == "zh"
+    assert detect_language("支出是多少") == "zh"
+    assert detect_language("2024 expenses report") == "en"
+
+
+def test_normalize_question() -> None:
+    assert normalize_question("  What are my expenses?  ") == "what are my expenses"
+    assert normalize_question("What are my expenses?") == normalize_question(
+        "what are my expenses?"
+    )
+    assert normalize_question("test message") == "test message"
+    assert len(normalize_question("!!!")) > 0
+
+
+def test_estimate_tokens() -> None:
+    assert estimate_tokens("short") == 1
+    assert estimate_tokens("a" * 100) == 25
+    assert estimate_tokens("") == 1
+
+
+def test_redact_sensitive() -> None:
+    result = redact_sensitive("Card: 4111 1111 1111 1111")
+    assert "[REDACTED]" in result
+    assert "4111" not in result
 
 
 def test_stream_redactor_masks_sensitive_sequences() -> None:
@@ -61,6 +100,17 @@ def test_response_cache_ttl() -> None:
     cache = ResponseCache(ttl_seconds=60)
     cache.set("key", "value")
     assert cache.get("key") == "value"
+
+
+def test_response_cache_prune() -> None:
+    import time
+
+    cache = ResponseCache(ttl_seconds=0)
+    cache.set("key1", "value1")
+    cache.set("key2", "value2")
+    cache.prune()
+    assert cache.get("key1") is None
+    assert cache.get("key2") is None
 
 
 @pytest.mark.asyncio
