@@ -501,7 +501,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
 
     await statements_router.retry_statement_parsing(
         statement_id=created.id,
-            model="xiaomi/mimo-v2-flash:free",
+        model="xiaomi/mimo-v2-flash:free",
         db=db,
         user_id=test_user.id,
     )
@@ -612,7 +612,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=created.id,
-                model="xiaomi/mimo-v2-flash:free",
+            model="xiaomi/mimo-v2-flash:free",
             db=db,
             user_id=test_user.id,
         )

@@ -58,9 +58,9 @@ jobs:
             echo "compose_name=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
             
             if [ "${{ github.event.action }}" == "closed" ]; then
-               echo "action=cleanup" >> $GITHUB_OUTPUT
+              echo "action=cleanup" >> $GITHUB_OUTPUT
             else
-               echo "action=deploy" >> $GITHUB_OUTPUT
+              echo "action=deploy" >> $GITHUB_OUTPUT
             fi
           fi
 
