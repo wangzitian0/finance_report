@@ -143,6 +143,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    environment:
+      NODE_ENV: production
     # NEXT_PUBLIC_API_URL is set at build-time; runtime override not needed for same-origin
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
