@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="${COMPOSE_FILE:-$repo_root/docker-compose.ci.yml}"
+compose_file="${COMPOSE_FILE:-$repo_root/docker-compose.yml}"
 # Use per-user cache directory to avoid security issues with world-writable /tmp
 state_dir="${XDG_CACHE_HOME:-$HOME/.cache}/finance_report"
 mkdir -p "$state_dir"
@@ -143,6 +143,8 @@ if ! "${compose_cmd[@]}" -f "$compose_file" exec ${exec_tty_flag[@]+"${exec_tty_
 fi
 
 export TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test"
+export S3_ACCESS_KEY="minio"
+export S3_SECRET_KEY="minio123"
 
 cd "$repo_root/apps/backend"
 uv run pytest "$@"

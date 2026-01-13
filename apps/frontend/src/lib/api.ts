@@ -1,7 +1,7 @@
 import { getUserId } from "./auth";
 
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function apiFetch<T>(
   path: string,

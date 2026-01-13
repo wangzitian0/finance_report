@@ -23,7 +23,7 @@ from src.schemas.chat import (
 )
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_class=StreamingResponse)

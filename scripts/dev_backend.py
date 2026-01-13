@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
-COMPOSE_FILE = os.environ.get("COMPOSE_FILE", str(REPO_ROOT / "docker-compose.ci.yml"))
+COMPOSE_FILE = os.environ.get("COMPOSE_FILE", str(REPO_ROOT / "docker-compose.yml"))
 
 # Track resources started by THIS script
 _started_resources: dict = {
@@ -139,6 +139,8 @@ def main():
         "DATABASE_URL",
         "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report"
     )
+    os.environ.setdefault("S3_ACCESS_KEY", "minio")
+    os.environ.setdefault("S3_SECRET_KEY", "minio123")
 
     print("🚀 Starting FastAPI dev server on http://localhost:8000")
     print("   Press Ctrl+C to stop")

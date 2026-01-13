@@ -23,7 +23,7 @@ from src.schemas import (
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 
-router = APIRouter(prefix="/api/statements", tags=["statements"])
+router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -67,9 +67,7 @@ async def upload_statement(
         statement_id = uuid4()
         storage_key = f"statements/{statement_id}/{filename}"
         content_type = (
-            file.content_type
-            or mimetypes.guess_type(filename)[0]
-            or "application/octet-stream"
+            file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         )
 
         storage = StorageService()

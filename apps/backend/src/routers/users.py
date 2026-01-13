@@ -11,7 +11,7 @@ from src.database import get_db
 from src.models import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["users"])
 
 MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 

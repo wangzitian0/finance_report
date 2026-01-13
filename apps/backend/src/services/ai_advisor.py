@@ -111,9 +111,7 @@ REFUSAL_BY_REASON = {
     },
     "non_financial": {
         "en": "This assistant only answers finance-related questions.",
-        "zh": (
-            "\u8be5\u52a9\u624b\u4ec5\u56de\u7b54\u8d22\u52a1\u76f8\u5173\u95ee\u9898\u3002"
-        ),
+        "zh": ("\u8be5\u52a9\u624b\u4ec5\u56de\u7b54\u8d22\u52a1\u76f8\u5173\u95ee\u9898\u3002"),
     },
 }
 
@@ -250,7 +248,7 @@ class StreamRedactor:
         if len(combined) <= self._tail_size:
             self._buffer = combined
             return ""
-        safe_part = combined[:-self._tail_size]
+        safe_part = combined[: -self._tail_size]
         self._buffer = combined[-self._tail_size :]
         return redact_sensitive(safe_part)
 
@@ -553,9 +551,7 @@ class AIAdvisorService:
             model_name=model_used or self.primary_model,
         )
 
-    def _cached_stream(
-        self, session_id: UUID, response: str, model_name: str | None
-    ) -> ChatStream:
+    def _cached_stream(self, session_id: UUID, response: str, model_name: str | None) -> ChatStream:
         async def generator() -> AsyncIterator[str]:
             for chunk in self._chunk_text(response):
                 yield chunk
@@ -586,9 +582,7 @@ class AIAdvisorService:
         if last_error:
             raise last_error
 
-    async def _stream_model(
-        self, model: str, messages: list[dict[str, str]]
-    ) -> AsyncIterator[str]:
+    async def _stream_model(self, model: str, messages: list[dict[str, str]]) -> AsyncIterator[str]:
         payload = {
             "model": model,
             "stream": True,

@@ -16,7 +16,7 @@ async def test_register_success(public_client):
         "password": "password123",
         "name": "New User"
     }
-    response = await public_client.post("/api/auth/register", json=payload)
+    response = await public_client.post("/auth/register", json=payload)
     
     assert response.status_code == 201
     data = response.json()
@@ -40,7 +40,7 @@ async def test_register_duplicate_email(db: AsyncSession, public_client):
         "email": "existing@example.com",
         "password": "password123"
     }
-    response = await public_client.post("/api/auth/register", json=payload)
+    response = await public_client.post("/auth/register", json=payload)
     
     assert response.status_code == 400
     assert response.json()["detail"] == "Email already registered"
@@ -61,7 +61,7 @@ async def test_login_success(db: AsyncSession, public_client):
         "email": "loginuser@example.com",
         "password": password
     }
-    response = await public_client.post("/api/auth/login", json=payload)
+    response = await public_client.post("/auth/login", json=payload)
     
     assert response.status_code == 200
     data = response.json()
@@ -82,7 +82,7 @@ async def test_login_invalid_password(db: AsyncSession, public_client):
         "email": "wrongpass@example.com",
         "password": "wrongpassword"
     }
-    response = await public_client.post("/api/auth/login", json=payload)
+    response = await public_client.post("/auth/login", json=payload)
     
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
@@ -94,7 +94,7 @@ async def test_login_non_existent_user(public_client):
         "email": "ghost@example.com",
         "password": "password123"
     }
-    response = await public_client.post("/api/auth/login", json=payload)
+    response = await public_client.post("/auth/login", json=payload)
     
     assert response.status_code == 401
 
@@ -102,7 +102,7 @@ async def test_login_non_existent_user(public_client):
 async def test_get_me_success(client, test_user):
     """Test get current user endpoint."""
     # client fixture already includes X-User-Id for test_user
-    response = await client.get("/api/auth/me")
+    response = await client.get("/auth/me")
     
     assert response.status_code == 200
     data = response.json()

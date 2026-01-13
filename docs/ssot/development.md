@@ -5,13 +5,18 @@
 
 ## Source Files
 
+### Prerequisites
+- **Node.js**: v20+ (Managed by system, not moon)
+- **pnpm/npm**: Required for frontend dependencies
+- **Python**: v3.12+ (Managed by uv)
+
 | File | Purpose |
 |------|---------|
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
 | `scripts/test_backend.sh` | Database lifecycle (reference counting) |
 | `scripts/smoke_test.sh` | Unified smoke tests |
-| `docker-compose.ci.yml` | Development service containers |
+| `docker-compose.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
 | `.github/workflows/docker-build.yml` | Build, Deploy, Smoke Test |
 

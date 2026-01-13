@@ -38,7 +38,4 @@ class FxRate(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<FxRate {self.base_currency}/{self.quote_currency} {self.rate} "
-            f"{self.rate_date}>"
-        )
+        return f"<FxRate {self.base_currency}/{self.quote_currency} {self.rate} {self.rate_date}>"

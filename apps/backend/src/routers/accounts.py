@@ -17,7 +17,7 @@ from src.schemas import (
 )
 from src.services import calculate_account_balance
 
-router = APIRouter(prefix="/api/accounts", tags=["accounts"])
+router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)

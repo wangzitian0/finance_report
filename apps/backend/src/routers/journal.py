@@ -24,7 +24,7 @@ from src.services import (
     void_journal_entry,
 )
 
-router = APIRouter(prefix="/api/journal-entries", tags=["journal-entries"])
+router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
 
 
 @router.post("", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)

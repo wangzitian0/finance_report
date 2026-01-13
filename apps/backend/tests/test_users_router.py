@@ -18,7 +18,7 @@ async def test_create_user_success(client: AsyncClient) -> None:
         "email": "test@example.com",
         "password": "securepassword123",
     }
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == "test@example.com"
@@ -37,11 +37,11 @@ async def test_create_user_duplicate_email(client: AsyncClient) -> None:
         "password": "securepassword123",
     }
     # First user succeeds
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 201
 
     # Second user with same email fails with generic message
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 400
     assert "Invalid registration data" in response.json()["detail"]
 
@@ -54,7 +54,7 @@ async def test_create_user_invalid_password(client: AsyncClient) -> None:
         "email": "test@example.com",
         "password": "short",  # Less than 8 characters
     }
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 422  # Validation error
 
 
@@ -66,7 +66,7 @@ async def test_create_user_invalid_email(client: AsyncClient) -> None:
         "email": "not-an-email",
         "password": "securepassword123",
     }
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 422  # Validation error
 
 
@@ -74,7 +74,7 @@ async def test_create_user_invalid_email(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_list_users_empty(client: AsyncClient) -> None:
     """Test listing users when none exist."""
-    response = await client.get("/api/users")
+    response = await client.get("/users")
     assert response.status_code == 200
     data = response.json()
     assert data["items"] == []
@@ -91,9 +91,9 @@ async def test_list_users_with_data(client: AsyncClient) -> None:
             "email": f"user{i}@example.com",
             "password": "securepassword123",
         }
-        await client.post("/api/users", json=payload)
+        await client.post("/users", json=payload)
 
-    response = await client.get("/api/users")
+    response = await client.get("/users")
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 3
@@ -110,17 +110,17 @@ async def test_list_users_pagination(client: AsyncClient) -> None:
             "email": f"pageuser{i}@example.com",
             "password": "securepassword123",
         }
-        await client.post("/api/users", json=payload)
+        await client.post("/users", json=payload)
 
     # Get first page
-    response = await client.get("/api/users?limit=2&offset=0")
+    response = await client.get("/users?limit=2&offset=0")
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
     assert data["total"] == 5
 
     # Get second page
-    response = await client.get("/api/users?limit=2&offset=2")
+    response = await client.get("/users?limit=2&offset=2")
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
@@ -136,11 +136,11 @@ async def test_get_user_by_id(client: AsyncClient) -> None:
         "email": "getme@example.com",
         "password": "securepassword123",
     }
-    create_response = await client.post("/api/users", json=create_payload)
+    create_response = await client.post("/users", json=create_payload)
     user_id = create_response.json()["id"]
 
     # Get user
-    response = await client.get(f"/api/users/{user_id}")
+    response = await client.get(f"/users/{user_id}")
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == user_id
@@ -154,7 +154,7 @@ async def test_get_user_not_found(client: AsyncClient) -> None:
     import uuid
 
     fake_id = str(uuid.uuid4())
-    response = await client.get(f"/api/users/{fake_id}")
+    response = await client.get(f"/users/{fake_id}")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -168,12 +168,12 @@ async def test_update_user_email(client: AsyncClient) -> None:
         "email": "update@example.com",
         "password": "securepassword123",
     }
-    create_response = await client.post("/api/users", json=create_payload)
+    create_response = await client.post("/users", json=create_payload)
     user_id = create_response.json()["id"]
 
     # Update email
     update_payload = {"email": "updated@example.com"}
-    response = await client.put(f"/api/users/{user_id}", json=update_payload)
+    response = await client.put(f"/users/{user_id}", json=update_payload)
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "updated@example.com"
@@ -193,13 +193,13 @@ async def test_update_user_duplicate_email(client: AsyncClient) -> None:
         "email": "user2@test.com",
         "password": "securepassword123",
     }
-    await client.post("/api/users", json=payload1)
-    user2_response = await client.post("/api/users", json=payload2)
+    await client.post("/users", json=payload1)
+    user2_response = await client.post("/users", json=payload2)
     user2_id = user2_response.json()["id"]
 
     # Try to update user2 with user1's email - should get generic error
     update_payload = {"email": "user1@test.com"}
-    response = await client.put(f"/api/users/{user2_id}", json=update_payload)
+    response = await client.put(f"/users/{user2_id}", json=update_payload)
     assert response.status_code == 400
     assert "Invalid update data" in response.json()["detail"]
 
@@ -211,7 +211,7 @@ async def test_update_user_not_found(client: AsyncClient) -> None:
     import uuid
 
     fake_id = str(uuid.uuid4())
-    response = await client.put(f"/api/users/{fake_id}", json={"email": "new@example.com"})
+    response = await client.put(f"/users/{fake_id}", json={"email": "new@example.com"})
     assert response.status_code == 404
 
 
@@ -223,7 +223,7 @@ async def test_password_is_hashed(client: AsyncClient) -> None:
         "email": "hash@example.com",
         "password": "myplainpassword",
     }
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 201
 
     # Verify response doesn't contain plain password
@@ -241,7 +241,7 @@ async def test_user_response_timezone_aware(client: AsyncClient) -> None:
         "email": "timezone@example.com",
         "password": "securepassword123",
     }
-    response = await client.post("/api/users", json=payload)
+    response = await client.post("/users", json=payload)
     assert response.status_code == 201
     data = response.json()
 

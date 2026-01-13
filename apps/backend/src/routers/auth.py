@@ -10,7 +10,7 @@ from src.database import get_db
 from src.models import User
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def hash_password(password: str) -> str:
@@ -21,10 +21,7 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"), 
-        hashed_password.encode("utf-8")
-    )
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
