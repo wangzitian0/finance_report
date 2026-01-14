@@ -132,6 +132,7 @@ services:
       - "traefik.http.services.finance-report-api${ENV_SUFFIX:-}.loadbalancer.server.port=8000"
       - "traefik.http.middlewares.finance-report-api-strip${ENV_SUFFIX:-}.stripprefix.prefixes=/api"
       - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.middlewares=finance-report-api-strip${ENV_SUFFIX:-}@docker"
+      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.priority=10"
 
   frontend:
     build:
