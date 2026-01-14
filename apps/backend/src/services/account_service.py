@@ -12,13 +12,9 @@ from src.schemas.account import AccountCreate, AccountUpdate
 class AccountServiceError(Exception):
     """Base exception for account service errors."""
 
-    pass
-
 
 class AccountNotFoundError(AccountServiceError):
     """Account not found error."""
-
-    pass
 
 
 async def create_account(
