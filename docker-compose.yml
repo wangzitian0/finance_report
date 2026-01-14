@@ -175,4 +175,3 @@ networks:
     name: dokploy-network
     external: true
   internal:
-    name: finance_report_internal${ENV_SUFFIX:-}
