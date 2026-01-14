@@ -96,7 +96,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=https://report-staging.zitian.party/api
+            NEXT_PUBLIC_API_URL=/api
 
       - name: Deploy to Staging
         env:
