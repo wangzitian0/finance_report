@@ -147,7 +147,12 @@ jobs:
           ENV_DOMAIN_SUFFIX=-pr-${{ needs.setup.outputs.pr_number }}
           INTERNAL_DOMAIN=${{ env.INTERNAL_DOMAIN }}
           TRAEFIK_ENABLE=true
-          DEBUG=true"
+          NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}/api
+          DEBUG=true
+          POSTGRES_PORT=0
+          REDIS_PORT=0
+          MINIO_API_PORT=0
+          MINIO_CONSOLE_PORT=0"
           
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
