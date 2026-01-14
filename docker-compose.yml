@@ -43,8 +43,8 @@ services:
       retries: 5
     networks:
       - dokploy-network
-    ports:
-      - "5432:5432"
+    # ports: Moved to docker-compose.dev.yml for local development
+    #   - "5432:5432"
 
   redis:
     image: redis:7-alpine
@@ -59,8 +59,8 @@ services:
       retries: 5
     networks:
       - dokploy-network
-    ports:
-      - "6379:6379"
+    # ports: Moved to docker-compose.dev.yml
+    #   - "6379:6379"
 
   minio:
     image: minio/minio
@@ -72,6 +72,9 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    # ports: Moved to docker-compose.dev.yml (console 9001 not exposed by default in PR)
+    #   - "9000:9000"
+    #   - "9001:9001"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
