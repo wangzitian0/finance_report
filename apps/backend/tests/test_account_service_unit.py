@@ -160,3 +160,39 @@ async def test_list_accounts_with_filters(mock_db, user_id):
     
     assert len(results) == 1
     mock_db.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_account_clear_fields(mock_db, user_id):
+    """Test clearing nullable fields by setting them to None."""
+    account_id = uuid4()
+    mock_account = Account(
+        id=account_id, 
+        user_id=user_id, 
+        name="Old Name",
+        code="123",
+        description="Old Desc",
+        parent_id=uuid4()
+    )
+    
+    # Mock db.execute result
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_account
+    mock_db.execute.return_value = mock_result
+
+    # Explicitly set nullable fields to None
+    update_data = AccountUpdate(
+        name="New Name",
+        code=None,
+        description=None,
+        parent_id=None
+    )
+    
+    result = await account_service.update_account(mock_db, user_id, account_id, update_data)
+    
+    assert result.name == "New Name"
+    assert result.code is None
+    assert result.description is None
+    assert result.parent_id is None
+    
+    mock_db.commit.assert_called_once()

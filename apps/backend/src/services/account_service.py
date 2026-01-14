@@ -127,17 +127,12 @@ async def update_account(
     """
     account = await get_account(db, user_id, account_id)
 
-    # Update fields if provided
-    if account_data.name is not None:
-        account.name = account_data.name
-    if account_data.code is not None:
-        account.code = account_data.code
-    if account_data.description is not None:
-        account.description = account_data.description
-    if account_data.parent_id is not None:
-        account.parent_id = account_data.parent_id
-    if account_data.is_active is not None:
-        account.is_active = account_data.is_active
+    # Update fields if provided (including explicit None to clear nullable fields)
+    update_data = account_data.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        if hasattr(account, field):
+            setattr(account, field, value)
 
     await db.commit()
     await db.refresh(account)
