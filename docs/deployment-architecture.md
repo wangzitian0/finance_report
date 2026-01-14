@@ -59,14 +59,14 @@ Finance Report 采用**三层环境架构**，从本地开发到生产，清晰�
 
 #### Staging 环境
 
-**触发**：`main` 分支 push 时自动部署
+**触发**：`main` 分支 push 时自动部署（自动递增 Patch 版本）
 
 | 方面 | 说明 |
 |------|------|
 | **Compose** | `infra2/finance_report/finance_report/10.app/compose.yaml` |
 | **平台** | Dokploy（Projects > finance_report > staging） |
 | **域名** | `report-staging.zitian.party` |
-| **镜像 tag** | `sha-{commit_hash}` |
+| **镜像 tag** | 自动 Patch 版本（如 `v1.0.45`） |
 | **数据** | **持久化**（volumes 保留） |
 | **Vault** | `secret/data/finance_report/staging/app` |
 | **环境变量** | `ENV=staging` |
@@ -77,27 +77,27 @@ Finance Report 采用**三层环境架构**，从本地开发到生产，清晰�
 ```
 main push
   ↓
+计算下一个 Patch 版本 (v1.0.x -> v1.0.x+1)
+  ↓
 构建 backend/frontend 镜像
   ↓
-Push 到 GHCR (tag: sha-xxx)
+Push 到 GHCR (tag: v1.0.45)
   ↓
-调用 Dokploy API
+调用 Dokploy API 更新 Staging
   ↓
-更新 IMAGE_TAG 环境变量
-  ↓
-重启应用（DB 数据保留）
+更新 IMAGE_TAG=v1.0.45
 ```
 
 #### Production 环境
 
-**触发**：Release tag（语义化版本 `v1.2.3`）
+**触发**：人为选择版本（Manual Promote）或 Release Tag
 
 | 方面 | 说明 |
 |------|------|
 | **Compose** | `infra2/finance_report/finance_report/10.app/compose.yaml` |
 | **平台** | Dokploy（Projects > finance_report > production） |
 | **域名** | `report.zitian.party` |
-| **镜像 tag** | 语义化版本（`v1.2.3`） |
+| **镜像 tag** | 指定版本（如 `v1.0.45` 或 `v1.1.0`） |
 | **数据** | 关键业务数据 |
 | **Vault** | `secret/data/finance_report/production/app` |
 | **环境变量** | `ENV=production` |
@@ -106,18 +106,31 @@ Push 到 GHCR (tag: sha-xxx)
 
 **Workflow：`.github/workflows/production-deploy.yml`**
 ```
-release tag (v1.2.3)
+人工触发 / Release Tag
   ↓
-构建 backend/frontend 镜像
+指定目标版本 (e.g. v1.0.45 from Staging)
   ↓
-Push 到 GHCR (tag: v1.2.3)
+确认镜像存在
   ↓
-调用 Dokploy API
+调用 Dokploy API 更新 Production
   ↓
-部署到 production
-  ↓
-自动 smoke test
+更新 IMAGE_TAG=v1.0.45
 ```
+
+---
+
+## 6 层环境递进策略
+
+每个环境都比上一个更贴近线上真实状态，但反馈速度依次递减。
+
+| 环境 | 贴近线上度 | 反馈速度 | 核心差异 |
+|------|------------|----------|----------|
+| **1. Local Dev** | ⭐ | 🚀🚀🚀 | 无 Docker，Mock 数据，热重载 |
+| **2. Local Integration** | ⭐⭐ | 🚀🚀 | 本地 Docker，真实 DB，无网络延迟 |
+| **3. GitHub CI** | ⭐⭐⭐ | 🚀 | 临时环境，纯净状态，自动化测试 |
+| **4. PR Test** | ⭐⭐⭐⭐ | 🐢 | 独立云端环境，源码构建，预览功能 |
+| **5. Staging** | ⭐⭐⭐⭐⭐ | 🐢🐢 | 真实 Infra 配置，持久化数据，自动 Patch 版本 |
+| **6. Production** | ⭐⭐⭐⭐⭐⭐ | 🐢🐢🐢 | 真实流量，人为控制版本，稳定性优先 |
 
 ---
 
