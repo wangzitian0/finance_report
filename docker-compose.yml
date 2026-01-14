@@ -96,7 +96,6 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-    image: ghcr.io/${IMAGE_PREFIX:-wangzitian0/finance_report}-backend:${IMAGE_TAG:-latest}
     container_name: finance_report_backend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
@@ -140,7 +139,6 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-    image: ghcr.io/${IMAGE_PREFIX:-wangzitian0/finance_report}-frontend:${IMAGE_TAG:-latest}
     container_name: finance_report_frontend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
