@@ -91,7 +91,7 @@ services:
       minio:
         condition: service_healthy
     entrypoint: >
-      /bin/sh -c " mc alias set local http://finance_report_minio${ENV_SUFFIX:-}:9000 minio minio123; mc mb local/statements --ignore-existing; exit 0; "
+      /bin/sh -c " mc alias set local http://minio:9000 minio minio123; mc mb local/statements --ignore-existing; exit 0; "
     networks:
       - dokploy-network
 
@@ -126,7 +126,8 @@ services:
     networks:
       - dokploy-network
     labels:
-      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
       - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.rule=Host(`report${ENV_DOMAIN_SUFFIX:-}.${INTERNAL_DOMAIN:-zitian.party}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.entrypoints=websecure"
       - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.tls.certresolver=letsencrypt"
@@ -159,7 +160,8 @@ services:
     networks:
       - dokploy-network
     labels:
-      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
       - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.rule=Host(`report${ENV_DOMAIN_SUFFIX:-}.${INTERNAL_DOMAIN:-zitian.party}`)"
       - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.entrypoints=websecure"
       - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.tls.certresolver=letsencrypt"
