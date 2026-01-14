@@ -60,7 +60,7 @@ def start_database(compose_cmd: list[str]) -> str | None:
 
     # Get container ID
     result = subprocess.run(
-        [compose_cmd[0], "ps", "-a", "--filter", "name=finance_report_db", "--format", "{{.ID}}"],
+        [compose_cmd[0], "ps", "-a", "--filter", "name=finance-report-db", "--format", "{{.ID}}"],
         capture_output=True,
         text=True,
     )

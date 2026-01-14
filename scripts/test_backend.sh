@@ -32,12 +32,12 @@ else
 fi
 
 is_db_running() {
-  "${runtime_cmd[@]}" ps --filter "name=finance_report_db" --filter "status=running" --format "{{.Names}}" \
-    | grep -q "^finance_report_db$"
+  "${runtime_cmd[@]}" ps --filter "name=finance-report-db" --filter "status=running" --format "{{.Names}}" \
+    | grep -q "^finance-report-db$"
 }
 
 get_db_container_id() {
-  "${runtime_cmd[@]}" ps -a --filter "name=finance_report_db" --format "{{.ID}}" | head -n 1
+  "${runtime_cmd[@]}" ps -a --filter "name=finance-report-db" --format "{{.ID}}" | head -n 1
 }
 
 acquire_lock() {
@@ -53,7 +53,7 @@ acquire_lock() {
     fi
     attempts=$((attempts - 1))
     if [ "$attempts" -le 0 ]; then
-      echo "Unable to acquire lock for finance_report_db." >&2
+      echo "Unable to acquire lock for finance-report-db." >&2
       exit 1
     fi
     sleep 1

@@ -120,6 +120,10 @@ async def update_account(
 
     Raises:
         AccountNotFoundError: If account not found
+
+    Note:
+        Uses `exclude_unset=True` to allow partial updates. Nullable fields
+        can be cleared by explicitly setting them to `None` in the request.
     """
     account = await get_account(db, user_id, account_id)
 

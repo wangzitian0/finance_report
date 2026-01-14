@@ -40,7 +40,7 @@ async def test_create_account(mock_db, user_id):
     assert account.name == "Test Bank"
     assert account.user_id == user_id
     assert account.type == AccountType.ASSET
-    
+
     mock_db.add.assert_called_once()
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(account)
