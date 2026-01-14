@@ -1,10 +1,12 @@
 # Docker Compose for Development, CI, and PR Testing
 #
-# Unified compose file. All services in dokploy-network with unique hostnames.
+# This is the unified compose file for all non-production environments.
+# It includes all services needed: PostgreSQL, Redis, MinIO, Backend, Frontend.
 
 services:
   postgres:
     image: postgres:15-alpine
+    container_name: finance_report_db${ENV_SUFFIX:-}
     hostname: postgres${ENV_SUFFIX:-}
     restart: unless-stopped
     environment:
@@ -12,7 +14,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: finance_report
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data${ENV_SUFFIX:-}:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
@@ -20,13 +22,16 @@ services:
       retries: 5
     networks:
       - dokploy-network
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
 
   redis:
     image: redis:7-alpine
+    container_name: finance_report_redis${ENV_SUFFIX:-}
     hostname: redis${ENV_SUFFIX:-}
     restart: unless-stopped
     volumes:
-      - redis_data:/data
+      - redis_data${ENV_SUFFIX:-}:/data
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -34,9 +39,12 @@ services:
       retries: 5
     networks:
       - dokploy-network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
 
   minio:
     image: minio/minio
+    container_name: finance_report_minio${ENV_SUFFIX:-}
     hostname: minio${ENV_SUFFIX:-}
     restart: unless-stopped
     environment:
@@ -44,17 +52,22 @@ services:
       MINIO_ROOT_PASSWORD: minio123
     command: server /data --console-address ":9001"
     volumes:
-      - minio_data:/data
+      - minio_data${ENV_SUFFIX:-}:/data
     networks:
       - dokploy-network
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 20s
       retries: 3
 
+  # Create MinIO bucket on startup
   minio-init:
     image: minio/mc
+    container_name: finance_report_minio_init${ENV_SUFFIX:-}
     depends_on:
       minio:
         condition: service_healthy
@@ -67,7 +80,7 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-    hostname: backend${ENV_SUFFIX:-}
+    container_name: finance_report_backend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -87,7 +100,7 @@ services:
       DEBUG: ${DEBUG:-false}
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
-      start_period: 60s
+      start_period: ${BACKEND_HEALTHCHECK_START_PERIOD:-60s}
       interval: 30s
       timeout: 10s
       retries: 5
@@ -111,13 +124,14 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-    hostname: frontend${ENV_SUFFIX:-}
+    container_name: finance_report_frontend${ENV_SUFFIX:-}
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     environment:
       NODE_ENV: production
+    # NEXT_PUBLIC_API_URL is set at build-time; runtime override not needed for same-origin
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       start_period: 60s
@@ -137,9 +151,10 @@ services:
       - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.priority=1"
 
 volumes:
-  postgres_data:
-  redis_data:
-  minio_data:
+  postgres_data${ENV_SUFFIX:-}:
+  redis_data${ENV_SUFFIX:-}:
+  minio_data${ENV_SUFFIX:-}:
+
 
 networks:
   dokploy-network:
