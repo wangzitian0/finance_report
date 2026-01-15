@@ -1,5 +1,14 @@
 """Services package."""
 
+from src.services import account_service
+from src.services.account_service import (
+    AccountNotFoundError,
+    AccountServiceError,
+    create_account,
+    get_account,
+    list_accounts,
+    update_account,
+)
 from src.services.accounting import (
     AccountingError,
     ValidationError,
@@ -31,6 +40,13 @@ from src.services.reporting import (
 from src.services.storage import StorageError, StorageService
 
 __all__ = [
+    "account_service",
+    "AccountNotFoundError",
+    "AccountServiceError",
+    "create_account",
+    "get_account",
+    "list_accounts",
+    "update_account",
     "AccountingError",
     "AIAdvisorError",
     "AIAdvisorService",

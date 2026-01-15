@@ -92,7 +92,12 @@ AI must use this cascade structure before processing tasks:
 ### Accounting Integrity
 4. **Entries must balance**: Every JournalEntry must have balanced debits and credits.
 5. **Equation must hold**: At any point, the accounting equation must be satisfied.
-6. **Use Decimal for money**: NEVER use float for monetary calculations.
+
+### Delivery
+1. **Debug 优先使用 Dokploy API**: 部署问题排查时，优先使用 `curl` + Dokploy API 而非浏览器，环境变量见 `.env.example`
+2. **PR 必须在 test 环境可运行**: 交付 PR 前，确保在 `report-pr-XX.zitian.party` 上健康检查通过且功能正常
+3. **环境变量完整性**: 新增环境变量必须同步更新 `.env.example`，包含注释说明用途
+4. **共享网络隔离 (Critical)**: 在 Dokploy 共享网络中必须使用 unique 容器名（如 `finance-report-db-pr-47`）作为 hostname。严禁使用 `postgres` 或 `redis` 等通用别名，否则会发生跨 PR 路由冲突导致 404 或鉴权失败。
 
 ---
 

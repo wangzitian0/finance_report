@@ -82,8 +82,9 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 | 1 | **Dev Start** | `moon run backend:dev` + `moon run frontend:dev` | Manual: once both servers up, run `moon run :smoke` (see note below) |
 | 2 | **Local Test** | `moon run backend:test` | N/A (unit tests, not smoke) |
 | 3 | **Remote CI** | `moon run backend:test` | N/A (unit tests only in CI) |
-| 4 | **Staging Deploy** | (manual) | After deploy: `BASE_URL=https://staging.xxx bash scripts/smoke_test.sh` |
-| 5 | **Prod Deploy** | Push to main | **After deploy**: docker-build.yml runs `smoke_test.sh` automatically |
+| 4 | **PR Test** | Handled by Github PR Test workflow | **Auto**: Runs after Dokploy deployment to `report-pr-XX.zitian.party` |
+| 5 | **Staging Deploy** | (manual) | After deploy: `BASE_URL=https://staging.xxx bash scripts/smoke_test.sh` |
+| 6 | **Prod Deploy** | Push to main | **After deploy**: docker-build.yml runs `smoke_test.sh` automatically |
 
 > **Note:** The `:smoke` task defaults to `http://localhost:3000`. In local development, either ensure the frontend proxy is configured or set `BASE_URL` (e.g., `BASE_URL=http://localhost:8000` for backend only) before running `moon run :smoke`.
 
@@ -256,26 +257,19 @@ Required Secrets:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Local Integration Testing
+### Database Migrations Testing Strategy
 
-Before pushing changes that affect deployment (Dockerfile, migrations, entrypoint):
+Migrations are tested at multiple stages:
 
-```bash
-# Build and run full stack locally
-docker compose -f docker-compose.integration.yml up --build
+1. **Local Development**: Manual testing with `alembic upgrade head` before committing
+2. **GitHub CI**: pytest validates model definitions and constraints
+3. **Staging Deployment**: First automated test of migrations via entrypoint
+4. **Production Deployment**: Only after staging validation
 
-# In another terminal, run smoke tests
-BASE_URL=http://localhost:8000 bash scripts/smoke_test.sh
-
-# Cleanup
-docker compose -f docker-compose.integration.yml down -v
-```
-
-This validates:
-- Dockerfile builds correctly
-- Alembic migrations run on startup
-- Backend healthcheck passes
-- Frontend connects to backend
+Before deploying schema changes:
+- Test locally: `cd apps/backend && alembic upgrade head`
+- Ensure backward-compatible migrations (for rollback)
+- Consider: existing data, indexes, constraints
 
 ### Staging Deployment (Manual)
 
@@ -327,14 +321,13 @@ entrypoint:
 
 ## Environment Variables
 
-| Scenario | DATABASE_URL |
-|----------|--------------|
-| Local Dev | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report` |
-| Local Test | `postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test` |
-| Local Integration | `postgresql+asyncpg://postgres:postgres@postgres:5432/finance_report` |
-| CI | Same as Local Test (GitHub services on :5432) |
-| Staging | External PostgreSQL (Dokploy staging env) |
-| Prod | External PostgreSQL (Dokploy prod env) |
+| Scenario | DATABASE_URL | Hostname Strategy |
+|----------|--------------|-------------------|
+| Local Dev | `postgresql+asyncpg://...` | `localhost` or `postgres` |
+| Local Test | `postgresql+asyncpg://...` | `localhost:5432` |
+| PR Test | `postgresql+asyncpg://...` | **Unique**: `finance-report-db-pr-XX` |
+| CI | Same as Local Test | `localhost:5433` (services) |
+| Staging/Prod | External PostgreSQL | Dokploy Managed |
 
 ---
 
@@ -349,12 +342,6 @@ nohup moon run backend:dev > /dev/null 2>&1 &
 sleep 10
 export BASE_URL="http://localhost:8000"
 moon run :smoke
-
-# Test full integration (migrations, etc.)
-docker compose -f docker-compose.integration.yml up --build -d
-sleep 30
-BASE_URL=http://localhost:8000 bash scripts/smoke_test.sh
-docker compose -f docker-compose.integration.yml down -v
 
 # Check no orphan containers after tests
 podman ps | grep finance_report
