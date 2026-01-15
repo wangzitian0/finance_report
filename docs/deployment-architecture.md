@@ -141,8 +141,9 @@ Push 到 GHCR (tag: v1.0.45)
 | 文件 | 用途 | 环境 |
 |------|------|------|
 | **`docker-compose.yml`** | 统一的 dev/CI/PR compose | local / GitHub CI / PR test |
-| **`docker-compose.integration.yml`** | 本地集成测试（含 migrations） | local |
-| **`infra2/.../compose.yaml`** | Staging & Production 模板 | staging / production |
+| **`repo/finance_report/.../compose.yaml`** | Staging & Production 模板 | staging / production |
+
+> 项目只维护 2 个 compose 文件，通过环境变量控制行为差异
 
 ### Workflow 文件
 

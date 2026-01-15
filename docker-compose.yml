@@ -2,6 +2,29 @@
 #
 # This is the unified compose file for all non-production environments.
 # It includes all services needed: PostgreSQL, Redis, MinIO, Backend, Frontend.
+#
+# Usage:
+#   # Local development
+#   podman-compose up -d  # or docker compose up -d
+#
+#   # PR test via Dokploy (data persists during PR lifecycle)
+#   # Set TRAEFIK_ENABLE=true and ENV_SUFFIX for isolation
+#   # Volume cleaned only on PR close
+#
+# Environment variables:
+#   ENV_SUFFIX        - Container name suffix for isolation (e.g., -pr-38)
+#   ENV_DOMAIN_SUFFIX - Domain suffix for Traefik routing (e.g., -pr-38)
+#   INTERNAL_DOMAIN   - Base domain for Traefik (default: zitian.party)
+#   TRAEFIK_ENABLE    - Enable Traefik labels (default: false)
+#   EXPOSE_PORTS      - Expose ports to host (default: true, set to false for Dokploy)
+#   DATABASE_URL      - Override postgres connection
+#   REDIS_URL         - Override redis connection
+#   S3_ENDPOINT       - S3 endpoint
+#   S3_ACCESS_KEY     - S3 access key
+#   S3_SECRET_KEY     - S3 secret key
+#   S3_BUCKET         - S3 bucket
+#   OPENROUTER_API_KEY - API key for Gemini (optional)
+#   DEBUG             - Debug mode (default: false)
 
 services:
   postgres:
@@ -87,9 +110,10 @@ services:
       minio-init:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/finance_report}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      # Use explicit container name instead of generic 'postgres' to avoid collisions on shared Dokploy network
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@finance-report-db${ENV_SUFFIX:-}:5432/finance_report}
+      REDIS_URL: ${REDIS_URL:-redis://finance-report-redis${ENV_SUFFIX:-}:6379}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://finance-report-minio${ENV_SUFFIX:-}:9000}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minio}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minio123}
       S3_BUCKET: ${S3_BUCKET:-statements}
@@ -153,8 +177,10 @@ volumes:
   redis_data:
   minio_data:
 
+
 networks:
   dokploy-network:
     name: dokploy-network
     external: true
   internal:
+    name: finance-report-internal${ENV_SUFFIX:-}

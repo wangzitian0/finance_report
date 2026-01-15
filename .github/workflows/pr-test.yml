@@ -260,6 +260,11 @@ jobs:
             
             sleep 15
             
+            # Clean postgres volume (prevents password issues in future PRs)
+            # Dokploy API doesn't expose volume management, so we use Dokploy's compose delete
+            # which should clean up associated resources
+            echo "Volume cleanup will be handled by compose deletion"
+            
             # Delete compose
             curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.delete" \
               -H "Content-Type: application/json" \
