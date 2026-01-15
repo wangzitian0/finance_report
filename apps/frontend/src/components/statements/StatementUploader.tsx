@@ -145,7 +145,20 @@ export default function StatementUploader({
                     onChange={(e) => setInstitution(e.target.value)}
                     placeholder="e.g., DBS, OCBC, UOB, Chase"
                     className="input"
+                    list="banks-list"
                 />
+                <datalist id="banks-list">
+                    <option value="DBS" />
+                    <option value="OCBC" />
+                    <option value="UOB" />
+                    <option value="HSBC" />
+                    <option value="Citibank" />
+                    <option value="Standard Chartered" />
+                    <option value="Chase" />
+                    <option value="Bank of America" />
+                    <option value="Wells Fargo" />
+                    <option value="American Express" />
+                </datalist>
             </div>
 
             {/* Error Message */}

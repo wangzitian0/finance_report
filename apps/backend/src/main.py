@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import get_db, init_db
+from src.env_check import check_env_on_startup, print_loaded_config
 from src.models import PingState
 from src.routers import accounts, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
@@ -22,6 +23,10 @@ from src.schemas import PingStateResponse
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan - init DB on startup."""
+    # Environment variable check
+    check_env_on_startup()
+    print_loaded_config(settings)
+    
     await init_db()
     yield
 

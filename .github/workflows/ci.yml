@@ -54,6 +54,11 @@ jobs:
           cd apps/backend
           uv run python -c "import email_validator; import bcrypt; import passlib; print('All dependencies OK')"
       
+      - name: Check env keys consistency
+        run: |
+          echo "🔍 Checking secrets.ctmpl ↔ config.py consistency..."
+          python scripts/check_env_keys.py --diff
+      
       - name: Lint
         run: |
           cd apps/backend
@@ -62,8 +67,11 @@ jobs:
       - name: Test with coverage
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test
+          # Use default MinIO credentials to match docker-compose configuration
           S3_ACCESS_KEY: minio
-          S3_SECRET_KEY: minio123
+          S3_SECRET_KEY: minio_local_secret
+          S3_ENDPOINT: http://localhost:9000
+          S3_BUCKET: statements
         run: |
           cd apps/backend
           uv run pytest -v --cov=src --cov-report=lcov --cov-report=term-missing
