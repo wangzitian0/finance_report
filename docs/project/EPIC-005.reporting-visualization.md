@@ -43,7 +43,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
   - [x] `generate_income_statement()` - Income statement
     - Income/expense details
     - Monthly/quarterly/annual comparison
-  - [ ] `generate_cash_flow()` - Cash flow statement (P2)
+  - [ ] `generate_cash_flow()` - Cash flow statement (P2, deferred)
     - Classify operating/investing/financing activities
   - [x] `get_account_trend()` - Account trend data
   - [x] `get_category_breakdown()` - Category breakdown
@@ -92,19 +92,19 @@ Accounting Equation Verification: Reports must comply with accounting equation
   - [x] Income/expense category details
   - [x] Year-over-year/month-over-month comparison
   - [x] Time range selection
-- [ ] `/reports/cash-flow` - Cash flow statement (P2)
-- [ ] Filters and interactions
+- [ ] `/reports/cash-flow` - Cash flow statement (P2, deferred)
+- [x] Filters and interactions
   - [x] Date range
-  - [ ] Account type
+  - [x] Account type (income-statement page)
   - [x] Currency switching
-  - [ ] Tag filtering
+  - [x] Tag filtering (income-statement page)
 
 ### Chart Components (Frontend)
 
 - [x] `components/charts/TrendChart.tsx` - Trend chart
 - [x] `components/charts/PieChart.tsx` - Pie chart
 - [x] `components/charts/BarChart.tsx` - Bar chart
-- [ ] `components/charts/SankeyChart.tsx` - Income/expense flow chart (P2)
+- [x] `components/charts/SankeyChart.tsx` - Cash flow Sankey chart (ECharts)
 
 ---
 
@@ -198,8 +198,8 @@ def test_report_generation_performance():
 - [x] `apps/frontend/src/app/dashboard/page.tsx`
 - [x] `apps/frontend/src/app/reports/balance-sheet/page.tsx`
 - [x] `apps/frontend/src/app/reports/income-statement/page.tsx`
-- [ ] `apps/frontend/components/charts/`
-- [ ] Update `docs/ssot/reporting.md`
+- [x] `apps/frontend/src/components/charts/` (TrendChart, PieChart, BarChart, SankeyChart)
+- [x] Update `docs/ssot/reporting.md`
 
 ---
 
@@ -216,9 +216,9 @@ def test_report_generation_performance():
 
 ## Issues & Gaps
 
-- [ ] Base currency default conflicts with SSOT: EPIC-005 uses SGD, while `docs/ssot/reporting.md` specifies USD.
-- [ ] FX conversion rules conflict: EPIC-005 uses transaction-date `fx_rate` from JournalLine, while SSOT requires period-end rates for balance sheet and average rates for income statement, plus separate unrealized FX gain/loss.
-- [ ] FX data service ownership is unclear: EPIC-005 proposes `services/fx.py`, but SSOT market data uses `services/market_data.py` with yfinance + Twelve Data fallback.
+- [x] ~~Base currency default conflicts with SSOT~~ → Resolved: Both EPIC-005 and SSOT use SGD as default.
+- [ ] FX conversion rules conflict: EPIC-005 uses transaction-date `fx_rate` from JournalLine, while SSOT requires period-end rates for balance sheet and average rates for income statement, plus separate unrealized FX gain/loss. **(P2: To be addressed when FX gain/loss feature is implemented)**
+- [x] ~~FX data service ownership is unclear~~ → Resolved: `services/fx.py` handles application FX logic, `services/market_data.py` handles external data fetching.
 
 ---
 

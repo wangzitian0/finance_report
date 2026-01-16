@@ -148,9 +148,14 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 
 | Behavior | Test Method | Status |
 |----------|-------------|--------|
-| Balance sheet balances | `test_balance_sheet_equation` | ⏳ Pending |
-| Income statement period | `test_income_period_filter` | ⏳ Pending |
+| Balance sheet balances | `test_balance_sheet_equation` | ✅ Implemented |
+| Income statement period | `test_income_statement_calculation` | ✅ Implemented |
 | Multi-currency consolidation | `test_fx_consolidation` | ⏳ Pending |
+| Account trend | `test_account_trend_monthly` | ✅ Implemented |
+| Category breakdown | `test_category_breakdown_quarterly` | ✅ Implemented |
+| Cash flow statement | `test_cash_flow_statement` | ✅ Implemented |
+| Tag filtering | `test_income_statement_with_tags_filter` | ✅ Implemented |
+| Account type filtering | `test_income_statement_with_account_type_filter` | ✅ Implemented |
 
 ---
 
