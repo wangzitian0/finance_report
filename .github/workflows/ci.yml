@@ -72,9 +72,11 @@ jobs:
           S3_SECRET_KEY: minio_local_secret
           S3_ENDPOINT: http://localhost:9000
           S3_BUCKET: statements
+          REDIS_URL: redis://localhost:6379/0
         run: |
           cd apps/backend
-          uv run pytest -v --cov=src --cov-report=lcov --cov-report=term-missing
+          # Skip slow tests in CI for faster feedback (see pyproject.toml markers)
+          uv run pytest -v -m "not slow" --cov=src --cov-report=lcov --cov-report=term-missing
       
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2

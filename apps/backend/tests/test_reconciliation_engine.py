@@ -494,11 +494,8 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
     assert all(line.currency == "USD" for line in entry.lines)
 
-    result = await db.execute(
-        select(Account).where(Account.name == "Income - Uncategorized")
-    )
+    result = await db.execute(select(Account).where(Account.name == "Income - Uncategorized"))
     assert result.scalar_one_or_none() is not None
-
 
 
 async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None:
@@ -552,9 +549,7 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     entry_accept = entry_result.scalar_one()
     validate_journal_balance(entry_accept.lines)
 
-    accounts_result = await db.execute(
-        select(Account).where(Account.user_id == user_id)
-    )
+    accounts_result = await db.execute(select(Account).where(Account.user_id == user_id))
     accounts = {account.name: account for account in accounts_result.scalars().all()}
     bank = accounts["Bank - Main"]
     expense = accounts["Expense - Uncategorized"]
@@ -576,36 +571,38 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     db.add_all([entry_reject, entry_batch])
     await db.flush()
 
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry_reject.id,
-            account_id=expense.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("5.00"),
-            currency="SGD",
-        ),
-        JournalLine(
-            journal_entry_id=entry_reject.id,
-            account_id=bank.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("5.00"),
-            currency="SGD",
-        ),
-        JournalLine(
-            journal_entry_id=entry_batch.id,
-            account_id=expense.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("15.00"),
-            currency="SGD",
-        ),
-        JournalLine(
-            journal_entry_id=entry_batch.id,
-            account_id=bank.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("15.00"),
-            currency="SGD",
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry_reject.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_reject.id,
+                account_id=bank.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_batch.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("15.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_batch.id,
+                account_id=bank.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("15.00"),
+                currency="SGD",
+            ),
+        ]
+    )
     await db.commit()
 
     match_accept = ReconciliationMatch(

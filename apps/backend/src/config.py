@@ -12,10 +12,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
-    
+
     Required (from secrets.ctmpl):
         database_url, s3_endpoint, s3_access_key, s3_secret_key, s3_bucket
-        
+
     Optional (with defaults):
         All other fields
     """
@@ -31,13 +31,13 @@ class Settings(BaseSettings):
     # Development defaults provided for local convenience
     # Production values from Vault (secrets.ctmpl)
     # ================================================================
-    
+
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report"
-    
+
     # Redis (optional for local, required for staging/prod)
     redis_url: str | None = None
-    
+
     # S3 / MinIO storage
     s3_endpoint: str = "http://localhost:9000"
     s3_access_key: str = Field(default="minio", validation_alias="S3_ACCESS_KEY")
@@ -47,10 +47,10 @@ class Settings(BaseSettings):
     # ================================================================
     # OPTIONAL - have sensible defaults, rarely need override
     # ================================================================
-    
+
     # AI API (empty = AI features disabled)
     openrouter_api_key: str = ""
-    
+
     # App settings
     debug: bool = False
     base_currency: str = "SGD"

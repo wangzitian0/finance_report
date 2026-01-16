@@ -76,38 +76,37 @@ class TestFixtureValidation:
     def test_cmb_fixture_balance_validates(self, cmb_fixture):
         """
         CRITICAL #3: CMB fixture should pass balance validation.
-        
+
         This validates that our fixture represents correctly parsed data.
         Note: We rely on the fixture's balance_validated flag since the events
         list may be a sample rather than complete transaction history.
         """
         assert cmb_fixture["success"] is True
         statement = cmb_fixture["statement"]
-        
+
         # Verify structure
         assert statement["balance_validated"] is True
         assert statement["confidence_score"] >= 85  # Should be auto-accept
-        
+
         # Verify fixture has required fields
         assert "opening_balance" in statement
         assert "closing_balance" in statement
         assert "currency" in statement
         assert len(cmb_fixture["events"]) > 0
 
-
     def test_dbs_fixture_has_valid_structure(self, dbs_fixture):
         """
         CRITICAL #3: DBS fixture should have all required fields.
         """
         statement = dbs_fixture["statement"]
-        
+
         # Required fields
         assert "period_start" in statement
         assert "period_end" in statement
         assert "opening_balance" in statement
         assert "closing_balance" in statement
         assert "currency" in statement
-        
+
         # Events should have required fields
         assert len(dbs_fixture["events"]) > 0
         for event in dbs_fixture["events"]:
@@ -129,12 +128,9 @@ class TestFixtureValidation:
         """
         assert gxs_fixture["success"] is True
         events = gxs_fixture["events"]
-        
+
         # GXS typically has many small interest entries
-        interest_events = [
-            e for e in events
-            if "interest" in (e.get("description") or "").lower()
-        ]
+        interest_events = [e for e in events if "interest" in (e.get("description") or "").lower()]
         # Should have some interest events (daily interest is a pattern for GXS)
         # This validates the parsing captures this pattern
         assert len(interest_events) >= 0  # GXS may or may not have interest in sample
@@ -142,7 +138,7 @@ class TestFixtureValidation:
     def test_all_fixtures_have_high_confidence(self):
         """
         CRITICAL #3: All production fixtures should have confidence >= 85.
-        
+
         This ensures our parsing quality meets the acceptance criteria.
         """
         fixture_files = [
@@ -151,7 +147,7 @@ class TestFixtureValidation:
             "Apr2025_MariBank_e-Statement_parsed.json",
             "gxs-2506_parsed.json",
         ]
-        
+
         for filename in fixture_files:
             fixture_path = FIXTURES_DIR / filename
             if fixture_path.exists():
@@ -182,14 +178,15 @@ class TestInvalidParseNotPersisted:
         # Create an invalid file
         bad_file = tmp_path / "bad.pdf"
         bad_file.write_bytes(b"not a valid pdf")
-        
+
         # Mock the API to return unparseable data
         with patch.object(
             service, "extract_financial_data", new_callable=AsyncMock
         ) as mock_extract:
             mock_extract.side_effect = ExtractionError("Failed to parse document")
-            
+
             from uuid import uuid4
+
             with pytest.raises(ExtractionError, match="Failed to parse"):
                 await service.parse_document(
                     bad_file,
@@ -205,7 +202,7 @@ class TestInvalidParseNotPersisted:
         """
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"dummy")
-        
+
         # Return data that fails balance validation
         mock_data = {
             "institution": "DBS",
@@ -216,22 +213,23 @@ class TestInvalidParseNotPersisted:
             "closing_balance": "2000.00",  # Doesn't match!
             "transactions": [
                 {"date": "2025-01-15", "description": "Test", "amount": "100.00", "direction": "IN"}
-            ]  # Only +100, but gap is 1000
+            ],  # Only +100, but gap is 1000
         }
-        
+
         with patch.object(
             service, "extract_financial_data", new_callable=AsyncMock
         ) as mock_extract:
             mock_extract.return_value = mock_data
-            
+
             from uuid import uuid4
+
             stmt, events = await service.parse_document(
                 pdf_file,
                 "DBS",
                 user_id=uuid4(),
                 file_content=pdf_file.read_bytes(),
             )
-            
+
             # Should not be auto-accepted due to balance mismatch
             # The status should NOT be APPROVED/PARSED for auto-accept path
             # Low score should route to manual review
@@ -246,15 +244,14 @@ class TestInvalidParseNotPersisted:
             "closing_balance": "500.00",  # 400 gap
             "transactions": [
                 {"amount": "50.00", "direction": "IN"},  # Only +50
-            ]
+            ],
         }
-        
+
         result = validate_balance(extracted)
         assert result["balance_valid"] is False
-        assert (
-            "mismatch" in result.get("notes", "").lower()
-            or Decimal(result["difference"]) > Decimal("0.1")
-        )
+        assert "mismatch" in result.get("notes", "").lower() or Decimal(
+            result["difference"]
+        ) > Decimal("0.1")
 
 
 # =============================================================================
@@ -272,13 +269,13 @@ class TestFileSizeLimit:
         """
         # Create content larger than 10MB
         large_content = b"x" * (11 * 1024 * 1024)  # 11MB
-        
+
         response = await client.post(
             "/statements/upload",
             files={"file": ("large.pdf", BytesIO(large_content), "application/pdf")},
             data={"institution": "DBS"},
         )
-        
+
         assert response.status_code == 413
         assert "10MB" in response.json().get("detail", "")
 
@@ -289,10 +286,11 @@ class TestFileSizeLimit:
         """
         # Create content exactly 10MB
         exact_content = b"x" * (10 * 1024 * 1024)
-        
+
         # Mock the extraction to avoid actual API calls
         async def fake_parse(*args, **kwargs):
             from src.models.statement import BankStatement
+
             stmt = BankStatement(
                 user_id=kwargs.get("user_id"),
                 file_path="test",
@@ -312,6 +310,7 @@ class TestFileSizeLimit:
             return stmt, []
 
         from src.routers import statements as stmt_router
+
         monkeypatch.setattr(
             stmt_router.ExtractionService,
             "parse_document",
@@ -323,7 +322,7 @@ class TestFileSizeLimit:
             files={"file": ("exact.pdf", BytesIO(exact_content), "application/pdf")},
             data={"institution": "DBS"},
         )
-        
+
         # Should not be rejected for size (may fail for other reasons in mock)
         assert response.status_code != 413
 
@@ -346,15 +345,16 @@ class TestParsingTimeout:
         HIGH #11: Extraction timeout should raise ExtractionError.
         """
         service.api_key = "test-key"
-        
+
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             # Simulate timeout
             import httpx
+
             mock_instance.post.side_effect = httpx.TimeoutException("Connection timed out")
-            
+
             with pytest.raises((ExtractionError, httpx.TimeoutException)):
                 await service.extract_financial_data(b"content", "DBS", "pdf")
 
@@ -377,16 +377,16 @@ class TestGeminiRetry:
         HIGH #12: API error should include status code for debugging.
         """
         service.api_key = "test-key"
-        
+
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             response_mock = MagicMock()
             response_mock.status_code = 429  # Rate limited
             response_mock.text = "Rate limit exceeded"
             mock_instance.post.return_value = response_mock
-            
+
             with pytest.raises(ExtractionError, match="429"):
                 await service.extract_financial_data(b"content", "DBS", "pdf")
 
@@ -396,7 +396,7 @@ class TestGeminiRetry:
         HIGH #12: Missing API key should raise clear error.
         """
         service.api_key = None
-        
+
         with pytest.raises(ExtractionError, match="API key not configured"):
             await service.extract_financial_data(b"content", "DBS", "pdf")
 
@@ -440,7 +440,7 @@ class TestStatementCompleteness:
             "period_start": "2025-01-01",
             # Missing: period_end, opening_balance, closing_balance, transactions
         }
-        
+
         missing = validate_completeness(incomplete)
         assert "period_end" in missing
         assert "opening_balance" in missing
@@ -456,6 +456,6 @@ class TestStatementCompleteness:
             "closing_balance": "150.00",
             "transactions": [{"amount": "50.00", "direction": "IN"}],
         }
-        
+
         missing = validate_completeness(complete)
         assert len(missing) == 0

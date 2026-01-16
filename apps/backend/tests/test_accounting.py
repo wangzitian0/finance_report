@@ -37,7 +37,7 @@ async def test_balanced_entry_passes():
             currency="SGD",
         ),
     ]
-    
+
     validate_journal_balance(lines)  # Should not raise
 
 
@@ -62,7 +62,7 @@ async def test_unbalanced_entry_fails():
             currency="SGD",
         ),
     ]
-    
+
     with pytest.raises(ValidationError, match="not balanced"):
         validate_journal_balance(lines)
 
@@ -80,7 +80,7 @@ async def test_single_line_entry_fails():
             currency="SGD",
         ),
     ]
-    
+
     with pytest.raises(ValidationError, match="at least 2 lines"):
         validate_journal_balance(lines)
 
@@ -91,7 +91,7 @@ async def test_decimal_precision():
     amount1 = Decimal("100.50")
     amount2 = Decimal("50.25")
     total = amount1 + amount2
-    
+
     assert total == Decimal("150.75")
     assert str(total) == "150.75"
 

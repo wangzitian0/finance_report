@@ -184,6 +184,24 @@ jobs:
           echo "Deployment triggered. Waiting 90s for containers..."
           sleep 90
 
+      - name: Health Check
+        run: |
+          BASE_URL="https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}"
+          echo "Running health check on $BASE_URL..."
+          
+          for i in {1..10}; do
+            if curl -sf "$BASE_URL/api/health" > /dev/null; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i/10 failed, waiting 10s..."
+            sleep 10
+          done
+          
+          echo "::warning::Health check failed after 10 attempts"
+          # Don't fail the job - environment may still be usable for manual testing
+          exit 0
+
       - name: Comment on PR
         uses: actions/github-script@v7
         with:

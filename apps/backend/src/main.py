@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Environment variable check
     check_env_on_startup()
     print_loaded_config(settings)
-    
+
     await init_db()
     yield
 

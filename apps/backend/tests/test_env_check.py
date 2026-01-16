@@ -3,6 +3,7 @@
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 from src.env_check import (
     check_env_on_startup,
@@ -44,6 +45,29 @@ class TestPrintLoadedConfig:
         assert "Config loaded" in captured.out
         assert "SGD" in captured.out
 
+    def test_debug_mode_no_defaults_prints_none(self, capsys):
+        """Test that function prints '(none)' when all env vars are provided (no defaults)."""
+        # All safe_fields in env_check:
+        # 'debug', 'base_currency', 'primary_model', 's3_endpoint', 's3_bucket', 'cors_origin_regex'
+        env_vars = {
+            "DEBUG": "true",
+            "BASE_CURRENCY": "USD",
+            "PRIMARY_MODEL": "test",
+            "S3_ENDPOINT": "http://minio:9000",
+            "S3_BUCKET": "test",
+            "CORS_ORIGIN_REGEX": ".*",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            mock_settings = MagicMock()
+            mock_settings.debug = True
+            for k, v in env_vars.items():
+                setattr(mock_settings, k.lower(), v)
+
+            print_loaded_config(mock_settings)
+
+        captured = capsys.readouterr()
+        assert "(none)" in captured.out
+
 
 class TestCheckEnvOnStartup:
     """Tests for check_env_on_startup function."""
@@ -65,6 +89,7 @@ class TestCheckEnvOnStartup:
             "S3_ACCESS_KEY": "test",
             "S3_SECRET_KEY": "test",
             "S3_BUCKET": "test",
+            "REDIS_URL": "redis://localhost:6379/0",
         }
         with patch.dict(os.environ, env_vars, clear=False):
             check_env_on_startup()
@@ -82,8 +107,21 @@ class TestCheckEnvOnStartup:
             },
             clear=True,
         ):
-            
             check_env_on_startup()
+
+        captured = capsys.readouterr()
+        assert "Missing required variables" in captured.out
+
+    def test_production_strict_mode_exits(self, capsys):
+        """Test that sys.exit(1) is called when STRICT_ENV_CHECK is enabled and vars are missing."""
+        env_vars = {
+            "ENV": "production",
+            "STRICT_ENV_CHECK": "true",
+        }
+        with patch.dict(os.environ, env_vars, clear=True):
+            with pytest.raises(SystemExit) as exc:
+                check_env_on_startup()
+            assert exc.value.code == 1
 
         captured = capsys.readouterr()
         assert "Missing required variables" in captured.out

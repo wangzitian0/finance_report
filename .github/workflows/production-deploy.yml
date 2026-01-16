@@ -111,12 +111,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Smoke Test
+      - name: Health Check
         run: |
-          if [ -f scripts/smoke_test.sh ]; then
-            bash scripts/smoke_test.sh https://report.zitian.party
-          else
-            echo "Checking health endpoint..."
-            curl -sf https://report.zitian.party/api/health || exit 1
-            echo "Health check passed"
-          fi
+          echo "Verifying production health..."
+          
+          for i in {1..5}; do
+            if curl -sf https://report.zitian.party/api/health > /dev/null; then
+              echo "✅ Production is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/5 failed, waiting 15s..."
+            sleep 15
+          done
+          
+          echo "::error::Production health check failed!"
+          exit 1

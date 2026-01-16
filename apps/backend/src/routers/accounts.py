@@ -98,9 +98,7 @@ async def update_account(
 ) -> AccountResponse:
     """Update account details."""
     try:
-        account = await account_service.update_account(
-            db, user_id, account_id, account_data
-        )
+        account = await account_service.update_account(db, user_id, account_id, account_data)
     except AccountNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

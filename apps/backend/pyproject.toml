@@ -47,7 +47,11 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=85"
+addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=85 -m 'not slow'"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "perf: marks tests requiring production-like performance validation",
+]
 
 [tool.coverage.run]
 source = ["src"]

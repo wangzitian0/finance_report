@@ -1,8 +1,9 @@
 """Tests for chat router endpoints."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
+
+import pytest
 
 from src.services.ai_advisor import AIAdvisorError
 
@@ -61,9 +62,9 @@ async def test_detect_language_english() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_error_api_key_unavailable() -> None:
-    from src.routers.chat import chat_message
     from fastapi import HTTPException
-    from src.services.ai_advisor import AIAdvisorError
+
+    from src.routers.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -88,9 +89,9 @@ async def test_chat_error_api_key_unavailable() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_error_session_not_found() -> None:
-    from src.routers.chat import chat_message
     from fastapi import HTTPException
-    from src.services.ai_advisor import AIAdvisorError
+
+    from src.routers.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -112,9 +113,9 @@ async def test_chat_error_session_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_error_bad_request() -> None:
-    from src.routers.chat import chat_message
     from fastapi import HTTPException
-    from src.services.ai_advisor import AIAdvisorError
+
+    from src.routers.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -137,7 +138,6 @@ async def test_chat_error_bad_request() -> None:
 @pytest.mark.asyncio
 async def test_chat_with_model_name_header() -> None:
     from src.routers.chat import chat_message
-    from src.services.ai_advisor import ChatStream
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -167,7 +167,6 @@ async def test_chat_with_model_name_header() -> None:
 @pytest.mark.asyncio
 async def test_chat_without_model_name_header() -> None:
     from src.routers.chat import chat_message
-    from src.services.ai_advisor import ChatStream
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -195,9 +194,9 @@ async def test_chat_without_model_name_header() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_session_not_found() -> None:
-    from src.routers.chat import delete_session
-    from src.database import get_db
     from fastapi import HTTPException
+
+    from src.routers.chat import delete_session
 
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(
@@ -214,9 +213,10 @@ async def test_delete_session_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_session_success() -> None:
-    from src.routers.chat import delete_session
-    from src.models import ChatSession, ChatSessionStatus
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.models import ChatSession, ChatSessionStatus
+    from src.routers.chat import delete_session
 
     mock_session = MagicMock(spec=ChatSession)
     mock_db = MagicMock(spec=AsyncSession)
@@ -234,9 +234,8 @@ async def test_delete_session_success() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_history_with_session_id() -> None:
+    from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
-    from src.models import ChatSession, ChatSessionStatus, ChatMessage, ChatMessageRole
-    from datetime import UTC
 
     mock_session = MagicMock(spec=ChatSession)
     mock_session.id = uuid4()
@@ -287,8 +286,9 @@ async def test_chat_history_empty() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_history_session_not_found() -> None:
-    from src.routers.chat import chat_history
     from fastapi import HTTPException
+
+    from src.routers.chat import chat_history
 
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(
