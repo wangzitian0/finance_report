@@ -6,20 +6,19 @@ Environment Variable Strategy:
 - Optional fields have sensible defaults, rarely need override
 """
 
-from typing import Annotated
+from functools import cached_property
 
-from pydantic import BeforeValidator, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def parse_comma_separated(value: str | list[str]) -> list[str]:
+def parse_comma_list(value: str | list[str] | None, default: list[str]) -> list[str]:
     """Parse comma-separated string into list."""
-    if isinstance(value, str):
-        return [item.strip() for item in value.split(",") if item.strip()]
-    return value
-
-
-CommaSeparatedList = Annotated[list[str], BeforeValidator(parse_comma_separated)]
+    if value is None:
+        return default
+    if isinstance(value, list):
+        return value
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 class Settings(BaseSettings):
@@ -67,14 +66,9 @@ class Settings(BaseSettings):
     debug: bool = False
     base_currency: str = "SGD"
 
-    # CORS origins - explicit list for known origins
-    # Supports comma-separated string from env: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
-    cors_origins: CommaSeparatedList = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "https://report.zitian.party",
-    ]
+    # CORS origins - stored as string, parsed via property
+    # Env format: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
+    cors_origins_str: str | None = Field(default=None, validation_alias="CORS_ORIGINS")
 
     # CORS origin regex - for dynamic subdomains (PR deployments)
     cors_origin_regex: str = r"https://.*\.zitian\.party"
@@ -82,15 +76,36 @@ class Settings(BaseSettings):
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     primary_model: str = "google/gemini-2.0-flash-exp:free"
-    fallback_models: CommaSeparatedList = [
-        "google/gemini-flash-1.5-8b:free",
-        "mistralai/pixtral-12b:free",
-    ]
+    fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
     openrouter_daily_limit_usd: int | None = 2
 
     # S3 optional settings
     s3_region: str = "us-east-1"
     s3_presign_expiry_seconds: int = 900
+
+    @cached_property
+    def cors_origins(self) -> list[str]:
+        """Parse CORS origins from env string or use defaults."""
+        return parse_comma_list(
+            self.cors_origins_str,
+            [
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3000",
+                "https://report.zitian.party",
+            ],
+        )
+
+    @cached_property
+    def fallback_models(self) -> list[str]:
+        """Parse fallback models from env string or use defaults."""
+        return parse_comma_list(
+            self.fallback_models_str,
+            [
+                "google/gemini-flash-1.5-8b:free",
+                "mistralai/pixtral-12b:free",
+            ],
+        )
 
 
 settings = Settings()
