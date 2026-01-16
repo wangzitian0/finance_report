@@ -184,7 +184,30 @@ jobs:
           echo "Deployment triggered. Waiting 90s for containers..."
           sleep 90
 
+      - name: Validate Compose Status
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          COMPOSE_ID="${{ steps.compose.outputs.id }}"
+          echo "Checking compose status for $COMPOSE_ID..."
+          
+          status=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" \
+            | jq -r '.composeStatus // "unknown"')
+          
+          echo "Compose status: $status"
+          
+          if [ "$status" = "error" ]; then
+            echo "::error::Compose deployment failed with status: $status"
+            exit 1
+          elif [ "$status" = "done" ] || [ "$status" = "running" ]; then
+            echo "✅ Compose status is healthy: $status"
+          else
+            echo "::warning::Unexpected compose status: $status"
+          fi
+
       - name: Health Check
+        id: health_check
         run: |
           BASE_URL="https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}"
           echo "Running health check on $BASE_URL..."
@@ -192,15 +215,16 @@ jobs:
           for i in {1..10}; do
             if curl -sf "$BASE_URL/api/health" > /dev/null; then
               echo "✅ Health check passed!"
+              echo "healthy=true" >> $GITHUB_OUTPUT
               exit 0
             fi
             echo "Attempt $i/10 failed, waiting 10s..."
             sleep 10
           done
           
-          echo "::warning::Health check failed after 10 attempts"
-          # Don't fail the job - environment may still be usable for manual testing
-          exit 0
+          echo "::error::Health check failed after 10 attempts"
+          echo "healthy=false" >> $GITHUB_OUTPUT
+          exit 1
 
       - name: Comment on PR
         uses: actions/github-script@v7
