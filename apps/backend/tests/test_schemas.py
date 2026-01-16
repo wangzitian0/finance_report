@@ -120,7 +120,7 @@ class TestJournalEntrySchemas:
         """Test balanced journal entry creation."""
         account1 = uuid4()
         account2 = uuid4()
-        
+
         entry = JournalEntryCreate(
             entry_date=date.today(),
             memo="Test entry",
@@ -145,7 +145,7 @@ class TestJournalEntrySchemas:
         """Test that unbalanced entries are rejected."""
         account1 = uuid4()
         account2 = uuid4()
-        
+
         with pytest.raises(ValidationError) as exc_info:
             JournalEntryCreate(
                 entry_date=date.today(),
@@ -196,7 +196,7 @@ class TestJournalEntrySchemas:
         """Test that entries within tolerance (0.01) are accepted."""
         account1 = uuid4()
         account2 = uuid4()
-        
+
         # Difference of 0.01 should be accepted (exactly at tolerance)
         entry = JournalEntryCreate(
             entry_date=date.today(),

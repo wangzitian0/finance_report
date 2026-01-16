@@ -181,9 +181,7 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_endpoints(
-    client: AsyncClient, db: AsyncSession, test_user
-) -> None:
+async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, test_user) -> None:
     session = db
     statement_run = Statement(
         user_id=test_user.id,
@@ -432,15 +430,11 @@ async def test_reconciliation_endpoints(
     pending_resp = await client.get("/reconciliation/pending")
     assert pending_resp.status_code == 200
 
-    accept_resp = await client.post(
-        f"/reconciliation/matches/{match_accept.id}/accept"
-    )
+    accept_resp = await client.post(f"/reconciliation/matches/{match_accept.id}/accept")
     assert accept_resp.status_code == 200
     assert accept_resp.json()["status"] == "accepted"
 
-    reject_resp = await client.post(
-        f"/reconciliation/matches/{match_reject.id}/reject"
-    )
+    reject_resp = await client.post(f"/reconciliation/matches/{match_reject.id}/reject")
     assert reject_resp.status_code == 200
     assert reject_resp.json()["status"] == "rejected"
 
@@ -472,32 +466,22 @@ async def test_reconciliation_endpoints(
     )
     assert create_entry_resp.status_code == 200
 
-    anomalies_resp = await client.get(
-        f"/reconciliation/transactions/{txn_unmatched.id}/anomalies"
-    )
+    anomalies_resp = await client.get(f"/reconciliation/transactions/{txn_unmatched.id}/anomalies")
     assert anomalies_resp.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_reconciliation_error_paths(client: AsyncClient) -> None:
-    missing_accept = await client.post(
-        f"/reconciliation/matches/{uuid4()}/accept"
-    )
+    missing_accept = await client.post(f"/reconciliation/matches/{uuid4()}/accept")
     assert missing_accept.status_code == 404
 
-    missing_reject = await client.post(
-        f"/reconciliation/matches/{uuid4()}/reject"
-    )
+    missing_reject = await client.post(f"/reconciliation/matches/{uuid4()}/reject")
     assert missing_reject.status_code == 404
 
-    missing_create_entry = await client.post(
-        f"/reconciliation/unmatched/{uuid4()}/create-entry"
-    )
+    missing_create_entry = await client.post(f"/reconciliation/unmatched/{uuid4()}/create-entry")
     assert missing_create_entry.status_code == 404
 
-    missing_anomalies = await client.get(
-        f"/reconciliation/transactions/{uuid4()}/anomalies"
-    )
+    missing_anomalies = await client.get(f"/reconciliation/transactions/{uuid4()}/anomalies")
     assert missing_anomalies.status_code == 404
 
 

@@ -41,19 +41,10 @@ moon run backend:test
 
 ## Environment Variables
 
-Create `.env` file:
+See [.env.example](../../.env.example) for the complete list of environment variables and their documentation.
+
+To start local development:
 ```bash
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report
-DEBUG=true
-BASE_CURRENCY=SGD
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-PRIMARY_MODEL=nvidia/nemotron-3-nano-30b-a3b:free
-FALLBACK_MODELS=xiaomi/mimo-v2-flash:free,openai/gpt-oss-120b:free
-OPENROUTER_DAILY_LIMIT_USD=2
-S3_ENDPOINT=http://localhost:9000
-S3_ACCESS_KEY=minio
-S3_SECRET_KEY=minio123
-S3_BUCKET=statements
-S3_REGION=us-east-1
-S3_PRESIGN_EXPIRY_SECONDS=900
+cp ../../.env.example .env
+# Edit .env and fill in required values (see comments in file)
 ```

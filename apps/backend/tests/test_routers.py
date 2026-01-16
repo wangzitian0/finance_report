@@ -27,9 +27,7 @@ from src.services.accounting import (
 class TestAccountBalanceErrors:
     """Test error handling in account balance calculation."""
 
-    async def test_calculate_balance_account_not_found(
-        self, db: AsyncSession, test_user
-    ):
+    async def test_calculate_balance_account_not_found(self, db: AsyncSession, test_user):
         """Test error when account doesn't exist."""
         non_existent_id = uuid4()
         with pytest.raises(ValidationError, match="not found"):

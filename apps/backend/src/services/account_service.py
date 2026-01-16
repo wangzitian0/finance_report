@@ -17,9 +17,7 @@ class AccountNotFoundError(AccountServiceError):
     """Account not found error."""
 
 
-async def create_account(
-    db: AsyncSession, user_id: UUID, account_data: AccountCreate
-) -> Account:
+async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountCreate) -> Account:
     """
     Create a new account.
 

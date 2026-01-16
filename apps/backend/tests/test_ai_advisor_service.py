@@ -103,8 +103,6 @@ def test_response_cache_ttl() -> None:
 
 
 def test_response_cache_prune() -> None:
-    import time
-
     cache = ResponseCache(ttl_seconds=0)
     cache.set("key1", "value1")
     cache.set("key2", "value2")

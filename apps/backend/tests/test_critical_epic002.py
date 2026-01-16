@@ -2,7 +2,7 @@
 
 These tests cover the Critical and High priority gaps identified in the test audit:
 - #1 Accounting equation violation detection
-- #2 Posted entry modification rejection  
+- #2 Posted entry modification rejection
 - #7 API response time performance (benchmark marker)
 - #8 Amount boundary tests (max/min)
 - #9 Multi-line complex entry tests
@@ -131,8 +131,8 @@ async def test_accounting_equation_violation_detected(
 ):
     """
     CRITICAL #1: Verify that accounting equation violations are detected.
-    
-    This test intentionally creates an imbalanced state by directly 
+
+    This test intentionally creates an imbalanced state by directly
     manipulating the database (bypassing validation) to verify that
     verify_accounting_equation() correctly returns False.
     """
@@ -148,20 +148,24 @@ async def test_accounting_equation_violation_detected(
     await db.flush()
 
     # Create balanced lines: Bank DEBIT 5000, Salary CREDIT 5000
-    db.add(JournalLine(
-        journal_entry_id=entry.id,
-        account_id=asset_account.id,
-        direction=Direction.DEBIT,
-        amount=Decimal("5000.00"),
-        currency="SGD",
-    ))
-    db.add(JournalLine(
-        journal_entry_id=entry.id,
-        account_id=income_account.id,
-        direction=Direction.CREDIT,
-        amount=Decimal("5000.00"),
-        currency="SGD",
-    ))
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=asset_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("5000.00"),
+            currency="SGD",
+        )
+    )
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=income_account.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("5000.00"),
+            currency="SGD",
+        )
+    )
     await db.commit()
 
     # First verify equation holds with balanced data
@@ -179,13 +183,15 @@ async def test_accounting_equation_violation_detected(
     await db.flush()
 
     # Only add DEBIT line without matching CREDIT - this creates imbalance
-    db.add(JournalLine(
-        journal_entry_id=bad_entry.id,
-        account_id=asset_account.id,
-        direction=Direction.DEBIT,
-        amount=Decimal("1000.00"),
-        currency="SGD",
-    ))
+    db.add(
+        JournalLine(
+            journal_entry_id=bad_entry.id,
+            account_id=asset_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("1000.00"),
+            currency="SGD",
+        )
+    )
     await db.commit()
 
     # Now the equation should NOT hold
@@ -206,7 +212,7 @@ async def test_accounting_equation_holds_with_all_account_types(
 ):
     """
     Verify the accounting equation holds when using all 5 account types.
-    
+
     Creates a realistic scenario:
     1. Initial capital contribution (Asset + Equity)
     2. Income (Asset + Income)
@@ -235,20 +241,24 @@ async def test_accounting_equation_holds_with_all_account_types(
         db.add(entry)
         await db.flush()
 
-        db.add(JournalLine(
-            journal_entry_id=entry.id,
-            account_id=debit_acc,
-            direction=debit_dir,
-            amount=Decimal(amount),
-            currency="SGD",
-        ))
-        db.add(JournalLine(
-            journal_entry_id=entry.id,
-            account_id=credit_acc,
-            direction=credit_dir,
-            amount=Decimal(amount),
-            currency="SGD",
-        ))
+        db.add(
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=debit_acc,
+                direction=debit_dir,
+                amount=Decimal(amount),
+                currency="SGD",
+            )
+        )
+        db.add(
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=credit_acc,
+                direction=credit_dir,
+                amount=Decimal(amount),
+                currency="SGD",
+            )
+        )
         await db.commit()
 
     # Verify equation holds
@@ -288,7 +298,7 @@ async def test_posted_entry_cannot_be_reposted(
 ):
     """
     CRITICAL #2: Posted entries cannot be posted again.
-    
+
     Attempting to post an already-posted entry should fail.
     """
     # Create and post an entry
@@ -302,20 +312,24 @@ async def test_posted_entry_cannot_be_reposted(
     db.add(entry)
     await db.flush()
 
-    db.add(JournalLine(
-        journal_entry_id=entry.id,
-        account_id=asset_account.id,
-        direction=Direction.DEBIT,
-        amount=Decimal("100.00"),
-        currency="SGD",
-    ))
-    db.add(JournalLine(
-        journal_entry_id=entry.id,
-        account_id=income_account.id,
-        direction=Direction.CREDIT,
-        amount=Decimal("100.00"),
-        currency="SGD",
-    ))
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=asset_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=income_account.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
     await db.commit()
 
     # Post the entry
@@ -332,7 +346,7 @@ async def test_posted_entry_status_immutable_via_direct_update(
 ):
     """
     CRITICAL #2: Posted entries should only be voided, not modified.
-    
+
     This test verifies the business logic: posted entries are immutable.
     The only way to "modify" is through void + recreate flow.
     """
@@ -347,20 +361,24 @@ async def test_posted_entry_status_immutable_via_direct_update(
     db.add(entry)
     await db.flush()
 
-    db.add(JournalLine(
-        journal_entry_id=entry.id,
-        account_id=asset_account.id,
-        direction=Direction.DEBIT,
-        amount=Decimal("100.00"),
-        currency="SGD",
-    ))
-    db.add(JournalLine(
-        journal_entry_id=entry.id,
-        account_id=income_account.id,
-        direction=Direction.CREDIT,
-        amount=Decimal("100.00"),
-        currency="SGD",
-    ))
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=asset_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=income_account.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
     await db.commit()
 
     posted_entry = await post_journal_entry(db, entry.id, test_user_id)
@@ -380,11 +398,11 @@ async def test_posted_entry_status_immutable_via_direct_update(
 async def test_max_amount_boundary():
     """
     HIGH #8: Maximum amount boundary test (999,999,999.99).
-    
+
     Verify that the maximum reasonable amount is handled correctly.
     """
     max_amount = Decimal("999999999.99")
-    
+
     lines = [
         JournalLine(
             id=uuid4(),
@@ -403,7 +421,7 @@ async def test_max_amount_boundary():
             currency="SGD",
         ),
     ]
-    
+
     # Should not raise - max amount is valid when balanced
     validate_journal_balance(lines)
 
@@ -412,11 +430,11 @@ async def test_max_amount_boundary():
 async def test_min_amount_boundary():
     """
     HIGH #8: Minimum amount boundary test (0.01).
-    
+
     Verify that the minimum positive amount is handled correctly.
     """
     min_amount = Decimal("0.01")
-    
+
     lines = [
         JournalLine(
             id=uuid4(),
@@ -435,7 +453,7 @@ async def test_min_amount_boundary():
             currency="SGD",
         ),
     ]
-    
+
     # Should not raise - min amount is valid when balanced
     validate_journal_balance(lines)
 
@@ -444,7 +462,7 @@ async def test_min_amount_boundary():
 async def test_amount_precision_loss_detection():
     """
     HIGH #8: Verify that amount near tolerance boundary is correctly handled.
-    
+
     Test that amounts differing by exactly 0.01 are considered balanced
     while amounts differing by 0.02 are rejected.
     """
@@ -498,12 +516,10 @@ async def test_amount_precision_loss_detection():
 
 
 @pytest.mark.asyncio
-async def test_many_lines_complex_salary_correct(
-    db: AsyncSession, test_user_id
-):
+async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id):
     """
     HIGH #9: Multi-line complex entry (salary breakdown) - CORRECT version.
-    
+
     Salary entry with 6 lines that actually balances:
     DEBIT (Assets/Expenses): Bank 3800 + CPF 1000 + Tax 500 + Health 200 = 5500
     CREDIT (Income): Salary 5000 + Bonus 500 = 5500
@@ -517,7 +533,7 @@ async def test_many_lines_complex_salary_correct(
         ("Salary Income", AccountType.INCOME),
         ("Bonus Income", AccountType.INCOME),
     ]
-    
+
     accounts = []
     for name, acc_type in accounts_config:
         acc = Account(
@@ -547,11 +563,11 @@ async def test_many_lines_complex_salary_correct(
     # This represents: receiving salary where employer records gross
     # Bank gets net, but we also record employer contributions as expenses
     # Actually for personal finance, let's do a simpler balanced entry:
-    # 
+    #
     # Gross: 5500 (salary 5000 + bonus 500)
     # Net to bank: 3800
     # CPF (employer side deducted): treated as expense here
-    # 
+    #
     # Simpler model - from employee perspective:
     # DEBIT Bank (Asset): 3800 (net received)
     # DEBIT CPF Special Account (Asset): 1000 (goes to CPF)
@@ -559,31 +575,33 @@ async def test_many_lines_complex_salary_correct(
     # DEBIT Health Insurance (Expense): 200 (employee pays)
     # CREDIT Salary Income: 5000
     # CREDIT Bonus Income: 500
-    
+
     lines_data = [
-        (bank.id, Direction.DEBIT, "3300.00"),      # Net to bank (5500 - 1000 - 500 - 200 - 500)
-        (cpf.id, Direction.DEBIT, "1000.00"),       # CPF contribution
-        (tax.id, Direction.DEBIT, "500.00"),        # Tax withheld
-        (health.id, Direction.DEBIT, "200.00"),     # Health
-        (salary.id, Direction.CREDIT, "4500.00"),   # Base salary
-        (bonus.id, Direction.CREDIT, "500.00"),     # Bonus
+        (bank.id, Direction.DEBIT, "3300.00"),  # Net to bank (5500 - 1000 - 500 - 200 - 500)
+        (cpf.id, Direction.DEBIT, "1000.00"),  # CPF contribution
+        (tax.id, Direction.DEBIT, "500.00"),  # Tax withheld
+        (health.id, Direction.DEBIT, "200.00"),  # Health
+        (salary.id, Direction.CREDIT, "4500.00"),  # Base salary
+        (bonus.id, Direction.CREDIT, "500.00"),  # Bonus
     ]
-    
+
     # Verify balance before adding: DEBIT = 3300+1000+500+200 = 5000, CREDIT = 4500+500 = 5000 ✓
 
     for acc_id, direction, amount in lines_data:
-        db.add(JournalLine(
-            journal_entry_id=entry.id,
-            account_id=acc_id,
-            direction=direction,
-            amount=Decimal(amount),
-            currency="SGD",
-        ))
+        db.add(
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=acc_id,
+                direction=direction,
+                amount=Decimal(amount),
+                currency="SGD",
+            )
+        )
     await db.commit()
 
     # Post should succeed
     posted = await post_journal_entry(db, entry.id, test_user_id)
     assert posted.status == JournalEntryStatus.POSTED
-    
+
     # Verify equation still holds
     assert await verify_accounting_equation(db, test_user_id) is True

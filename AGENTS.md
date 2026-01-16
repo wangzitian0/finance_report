@@ -94,10 +94,25 @@ AI must use this cascade structure before processing tasks:
 5. **Equation must hold**: At any point, the accounting equation must be satisfied.
 
 ### Delivery
-1. **Debug 优先使用 Dokploy API**: 部署问题排查时，优先使用 `curl` + Dokploy API 而非浏览器，环境变量见 `.env.example`
-2. **PR 必须在 test 环境可运行**: 交付 PR 前，确保在 `report-pr-XX.zitian.party` 上健康检查通过且功能正常
-3. **环境变量完整性**: 新增环境变量必须同步更新 `.env.example`，包含注释说明用途
-4. **共享网络隔离 (Critical)**: 在 Dokploy 共享网络中必须使用 unique 容器名（如 `finance-report-db-pr-47`）作为 hostname。严禁使用 `postgres` 或 `redis` 等通用别名，否则会发生跨 PR 路由冲突导致 404 或鉴权失败。
+1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars.
+2. **PR must work in test environment**: Before delivering PR, ensure health check passes on `report-pr-XX.zitian.party`.
+3. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
+
+### Environment Variable Management
+4. **Three-layer SSOT**:
+   - `secrets.ctmpl` → Staging/Prod required keys (Vault)
+   - `.env.example` → Complete variable documentation
+   - `config.py` → Type definitions + defaults
+5. **Variable classification**:
+   - **Required** (secrets.ctmpl): DATABASE_URL, S3_*
+    - **Optional** (config.py defaults): DEBUG, BASE_CURRENCY, PRIMARY_MODEL (Gemini Vision), OPENROUTER_API_KEY (AI features), REDIS_URL (Prod/Staging only)
+   - **Infrastructure** (direnv managed): DOKPLOY_*, VAULT_*, VPS_*
+6. **Consistency check**: CI runs `scripts/check_env_keys.py` to validate secrets.ctmpl ↔ config.py
+7. **Adding new variables**:
+   1. Add to `secrets.ctmpl` (if required for production)
+   2. Add to `config.py` (with type and default)
+   3. Update `.env.example` (with classification comment)
+   4. Run `python scripts/check_env_keys.py` to verify
 
 ---
 

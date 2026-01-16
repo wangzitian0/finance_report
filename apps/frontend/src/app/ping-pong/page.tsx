@@ -8,7 +8,7 @@ interface PingState {
   updated_at: string | null;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_URL } from "@/lib/api";
 
 export default function PingPongPage() {
   const [pingState, setPingState] = useState<PingState | null>(null);
@@ -18,7 +18,7 @@ export default function PingPongPage() {
 
   const fetchState = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/ping`);
+      const res = await fetch(`${API_URL}/api/ping`);
       if (!res.ok) throw new Error("Failed to fetch state");
       setPingState(await res.json());
       setError(null);
@@ -32,7 +32,7 @@ export default function PingPongPage() {
   const toggleState = async () => {
     setToggling(true);
     try {
-      const res = await fetch(`${API_URL}/ping/toggle`, { method: "POST" });
+      const res = await fetch(`${API_URL}/api/ping/toggle`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to toggle state");
       setPingState(await res.json());
       setError(null);

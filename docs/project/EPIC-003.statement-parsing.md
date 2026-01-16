@@ -9,12 +9,7 @@
 
 ## 🎯 Objective
 
-Use Gemini 3 Flash Vision to parse bank/brokerage statements, automatically extract transaction details and generate candidate journal entries.
-
-**Core Flow**:
-```
-Upload → Gemini Vision → JSON → Validation → BankStatementTransaction → Candidate JournalEntry
-```
+Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTransaction → Candidate JournalEntry
 
 ---
 
@@ -43,7 +38,7 @@ Upload → Gemini Vision → JSON → Validation → BankStatementTransaction �
 ### Gemini Integration (Backend)
 
 - [x] `services/extraction.py` - Document parsing service
-  - [x] `parse_pdf()` - PDF parsing (Vision API)
+  - [x] `parse_pdf()` - PDF parsing (OpenRouter Free Models)
   - [x] `parse_csv()` - CSV parsing (rules + AI assistance)
   - [ ] `parse_xlsx()` - Excel parsing
 - [x] Prompt template management
@@ -172,8 +167,8 @@ def test_upload_and_parse_flow():
 def test_duplicate_upload_detection():
     """Duplicate file upload should trigger warning"""
 
-def test_gemini_retry_on_timeout():
-    """Gemini timeout should trigger auto-retry"""
+def test_free_model_retry_on_timeout():
+    """AI retry should trigger on failure"""
 ```
 
 ### Sample Coverage (Required)
@@ -288,7 +283,7 @@ def test_gemini_retry_on_timeout():
   │     └─ ❌ Fail → Show partial results + Edit form
   └─ User can always manually add/edit transactions
   ```
-- Environment variables: `PRIMARY_MODEL=google/gemini-3-flash`, `FALLBACK_MODELS=google/gemini-2.0,openai/gpt-4-turbo`
+- Environment variables: `PRIMARY_MODEL=nvidia/llama-3.1-nemotron-70b-instruct:free`, `FALLBACK_MODELS=xiaomi/mimo-v2-flash:free,openai/gpt-oss-120b:free`
 - UI displays retry progress and current model in use
 
 ### Q8: Statement-Account Linking
