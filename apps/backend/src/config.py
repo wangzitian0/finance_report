@@ -6,8 +6,20 @@ Environment Variable Strategy:
 - Optional fields have sensible defaults, rarely need override
 """
 
-from pydantic import Field, field_validator
+from typing import Annotated
+
+from pydantic import BeforeValidator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def parse_comma_separated(value: str | list[str]) -> list[str]:
+    """Parse comma-separated string into list."""
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return value
+
+
+CommaSeparatedList = Annotated[list[str], BeforeValidator(parse_comma_separated)]
 
 
 class Settings(BaseSettings):
@@ -56,7 +68,8 @@ class Settings(BaseSettings):
     base_currency: str = "SGD"
 
     # CORS origins - explicit list for known origins
-    cors_origins: list[str] = [
+    # Supports comma-separated string from env: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
+    cors_origins: CommaSeparatedList = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
@@ -69,7 +82,7 @@ class Settings(BaseSettings):
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     primary_model: str = "google/gemini-2.0-flash-exp:free"
-    fallback_models: list[str] = [
+    fallback_models: CommaSeparatedList = [
         "google/gemini-flash-1.5-8b:free",
         "mistralai/pixtral-12b:free",
     ]
@@ -78,13 +91,6 @@ class Settings(BaseSettings):
     # S3 optional settings
     s3_region: str = "us-east-1"
     s3_presign_expiry_seconds: int = 900
-
-    @field_validator("fallback_models", "cors_origins", mode="before")
-    @classmethod
-    def parse_list_env(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
-        return value
 
 
 settings = Settings()
