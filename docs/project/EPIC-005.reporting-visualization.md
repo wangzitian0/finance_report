@@ -43,7 +43,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
   - [x] `generate_income_statement()` - Income statement
     - Income/expense details
     - Monthly/quarterly/annual comparison
-  - [ ] `generate_cash_flow()` - Cash flow statement (P2, deferred)
+  - [x] `generate_cash_flow()` - Cash flow statement
     - Classify operating/investing/financing activities
   - [x] `get_account_trend()` - Account trend data
   - [x] `get_category_breakdown()` - Category breakdown
@@ -64,7 +64,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
   - Parameters: `as_of_date`, `currency`
 - [x] `GET /api/reports/income-statement` - Income statement
   - Parameters: `start_date`, `end_date`, `currency`
-- [ ] `GET /api/reports/cash-flow` - Cash flow statement (P2)
+- [x] `GET /api/reports/cash-flow` - Cash flow statement
 - [x] `GET /api/reports/trend` - Trend data
   - Parameters: `account_id`, `period` (daily/weekly/monthly)
 - [x] `GET /api/reports/breakdown` - Category breakdown
@@ -92,7 +92,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
   - [x] Income/expense category details
   - [x] Year-over-year/month-over-month comparison
   - [x] Time range selection
-- [ ] `/reports/cash-flow` - Cash flow statement (P2, deferred)
+- [x] `/reports/cash-flow` - Cash flow statement
 - [x] Filters and interactions
   - [x] Date range
   - [x] Account type (income-statement page)
@@ -207,7 +207,8 @@ def test_report_generation_performance():
 
 | Item | Priority | Planned Resolution |
 |------|--------|--------------|
-| Cash flow statement | P2 | v1.5 |
+| ~~Cash flow statement~~ | ~~P2~~ | ✅ Completed |
+| **Unrealized FX Gain/Loss** | P2 | v1.5 - Track FX gains/losses separately per SSOT requirements |
 | Report materialized views | P2 | Performance optimization phase |
 | Budget management | P3 | v2.0 |
 | Custom reports | P3 | v2.0 |
