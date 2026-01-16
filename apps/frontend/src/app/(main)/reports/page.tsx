@@ -3,7 +3,7 @@ import Link from "next/link";
 const reports = [
     { id: "balance-sheet", title: "Balance Sheet", description: "Assets, liabilities, and equity at a point in time", icon: "📊", href: "/reports/balance-sheet", available: true },
     { id: "income-statement", title: "Income Statement", description: "Revenue and expenses over a period", icon: "📈", href: "/reports/income-statement", available: true },
-    { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: "💰", href: "/reports/cash-flow", available: false },
+    { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: "💰", href: "/reports/cash-flow", available: true },
 ];
 
 export default function ReportsPage() {
