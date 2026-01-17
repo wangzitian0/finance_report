@@ -377,3 +377,33 @@ async def reject_statement(
     await db.refresh(statement)
 
     return BankStatementResponse.model_validate(statement)
+
+
+@router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_statement(
+    statement_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Delete a statement."""
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+    )
+    statement = result.scalar_one_or_none()
+
+    if not statement:
+        raise HTTPException(404, "Statement not found")
+
+    # Delete from storage
+    if statement.file_path:
+        storage = StorageService()
+        try:
+            await run_in_threadpool(storage.delete_object, key=statement.file_path)
+        except Exception as e:
+            logger.warning(f"Failed to delete file from storage: {e}")
+            # Proceed to delete from DB to avoid zombie record
+
+    await db.delete(statement)
+    await db.commit()

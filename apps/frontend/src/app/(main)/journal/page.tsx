@@ -47,6 +47,16 @@ export default function JournalPage() {
         }
     };
 
+    const handleDeleteEntry = async (entryId: string) => {
+        if (!window.confirm("Are you sure you want to delete this draft?")) return;
+        try {
+            await apiFetch(`/api/journal-entries/${entryId}`, { method: "DELETE" });
+            fetchEntries();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to delete entry");
+        }
+    };
+
     return (
         <div className="p-6">
             {/* Header */}
@@ -130,9 +140,20 @@ export default function JournalPage() {
                                                 <div className="text-xs text-muted">Total</div>
                                             </div>
                                             {entry.status === "draft" && (
-                                                <button onClick={() => handlePostEntry(entry.id)} className="badge badge-success cursor-pointer hover:opacity-80">
-                                                    Post
-                                                </button>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => handleDeleteEntry(entry.id)} 
+                                                        className="badge badge-error cursor-pointer hover:opacity-80"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handlePostEntry(entry.id)} 
+                                                        className="badge badge-success cursor-pointer hover:opacity-80"
+                                                    >
+                                                        Post
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

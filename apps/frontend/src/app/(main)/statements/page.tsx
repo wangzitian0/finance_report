@@ -41,6 +41,19 @@ export default function StatementsPage() {
         };
     }, [polling, fetchStatements]);
 
+    const handleDeleteStatement = async (e: React.MouseEvent, id: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to delete this statement?")) return;
+        
+        try {
+            await apiFetch(`/api/statements/${id}`, { method: "DELETE" });
+            fetchStatements();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to delete statement");
+        }
+    };
+
     return (
         <div className="p-6">
             {/* Header */}
@@ -118,11 +131,22 @@ export default function StatementsPage() {
                                             <span>{statement.currency}</span>
                                         </div>
                                     </div>
-                                    <div className="text-right flex-shrink-0">
-                                        <div className="text-lg font-semibold text-[var(--accent)]">
-                                            {statement.confidence_score}%
+                                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
+                                        <button
+                                            onClick={(e) => handleDeleteStatement(e, statement.id)}
+                                            className="text-muted hover:text-[var(--error)] p-1 transition-colors"
+                                            title="Delete Statement"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                        <div>
+                                            <div className="text-lg font-semibold text-[var(--accent)]">
+                                                {statement.confidence_score}%
+                                            </div>
+                                            <div className="text-xs text-muted">{statement.transactions.length} txns</div>
                                         </div>
-                                        <div className="text-xs text-muted">{statement.transactions.length} txns</div>
                                     </div>
                                 </div>
 
