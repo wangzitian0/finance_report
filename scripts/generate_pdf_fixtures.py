@@ -13,30 +13,26 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-# Add repo/ to sys.path if running from root to ensure potential future imports
-repo_root = Path(__file__).parent.parent
-sys.path.insert(0, str(repo_root / "repo"))
-
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 except ImportError:
-    print("❌ reportlab not installed. Please run 'cd repo && uv sync' or 'pip install reportlab'.")
+    print("❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'.")
     sys.exit(1)
 
 def generate_transactions(start_date: datetime, count: int = 10):
     """Generate a list of synthetic transactions."""
     descriptions = [
-        ("GRAB RIDE", -15.00, -30.00),
-        ("STARBUCKS COFFEE", -5.00, -10.00),
+        ("GRAB RIDE", -15, -30),
+        ("STARBUCKS COFFEE", -5, -10),
         ("NETFLIX SUBSCRIPTION", -15.90, -15.90),
-        ("SALARY", 3000.00, 5000.00),
-        ("NTUC FAIRPRICE", -50.00, -150.00),
+        ("SALARY", 3000, 5000),
+        ("NTUC FAIRPRICE", -50, -150),
         ("SPOTIFY", -9.90, -9.90),
-        ("RESTAURANT PAYMENT", -40.00, -120.00),
-        ("TRANSFER FROM FRIEND", 10.00, 50.00),
+        ("RESTAURANT PAYMENT", -40, -120),
+        ("TRANSFER FROM FRIEND", 10, 50),
     ]
     
     txns = []
@@ -49,10 +45,16 @@ def generate_transactions(start_date: datetime, count: int = 10):
         
         desc, min_amt, max_amt = random.choice(descriptions)
         
+        # Generate random amount as Decimal
         if min_amt == max_amt:
             amount = Decimal(str(min_amt))
         else:
-            amount = Decimal(str(round(random.uniform(min_amt, max_amt), 2)))
+            # Random decimal between min and max (inclusive-ish)
+            # Convert to cents, rand int, convert back
+            min_cents = int(min_amt * 100)
+            max_cents = int(max_amt * 100)
+            cents = random.randint(min_cents, max_cents)
+            amount = Decimal(cents) / Decimal(100)
             
         balance += amount
         
