@@ -1,9 +1,5 @@
 """Tests for rate limiting functionality."""
 
-import time
-
-import pytest
-
 from src.rate_limit import RateLimitConfig, RateLimiter
 
 

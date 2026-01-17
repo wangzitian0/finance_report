@@ -1,31 +1,43 @@
 """Authentication API router."""
 
+import os
+
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user_id
 from src.database import get_db
 from src.models import User
-from src.rate_limit import auth_rate_limiter, register_rate_limiter
+from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# SECURITY: Only trust X-Forwarded-For from known proxies
+# Set TRUST_PROXY=true when behind a trusted reverse proxy (nginx, cloudflare, etc.)
+TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() in ("true", "1", "yes")
+
 
 def _get_client_ip(request: Request) -> str:
-    """Extract client IP from request, considering proxies."""
-    # Check X-Forwarded-For header (set by reverse proxy)
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # Take the first IP (original client)
-        return forwarded.split(",")[0].strip()
+    """Extract client IP from request, considering proxies.
+
+    NOTE: X-Forwarded-For is only trusted when TRUST_PROXY=true to prevent
+    IP spoofing attacks that could bypass rate limiting.
+    """
+    if TRUST_PROXY:
+        # Check X-Forwarded-For header (set by reverse proxy)
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            # Take the first IP (original client)
+            return forwarded.split(",")[0].strip()
     # Fall back to direct connection
     return request.client.host if request.client else "unknown"
 
 
-def _check_rate_limit(request: Request, limiter, error_msg: str) -> None:
+def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) -> None:
     """Check rate limit and raise HTTPException if exceeded."""
     client_ip = _get_client_ip(request)
     allowed, retry_after = limiter.is_allowed(client_ip)
@@ -62,10 +74,8 @@ async def register(
         "Too many registration attempts. Please try again later.",
     )
 
-    # SECURITY: Use SELECT FOR UPDATE to prevent race condition on duplicate email
-    result = await db.execute(
-        select(User).where(User.email == data.email).with_for_update(skip_locked=True)
-    )
+    # Check if email already exists
+    result = await db.execute(select(User).where(User.email == data.email))
     existing = result.scalar_one_or_none()
 
     if existing:
@@ -82,14 +92,17 @@ async def register(
     db.add(user)
     try:
         await db.commit()
-    except Exception:
-        # Handle potential race condition where another request created the user
+    except IntegrityError:
+        # Handle race condition: another request created user with same email
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
     await db.refresh(user)
+
+    # Reset registration rate limit on success
+    register_rate_limiter.reset(_get_client_ip(request))
 
     return AuthResponse(
         id=user.id,

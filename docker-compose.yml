@@ -45,9 +45,7 @@ services:
     networks:
       - internal
     # SECURITY: Only expose ports for local development, not in production/Dokploy
-    # Set EXPOSE_PORTS=false to disable port exposure
-    ports:
-      - "${EXPOSE_PORTS:+${POSTGRES_PORT:-5432}:}${EXPOSE_PORTS:+5432}"
+    # Set EXPOSE_PORTS=true to enable port exposure (default: no exposure)
 
   redis:
     image: redis:7-alpine
@@ -63,8 +61,6 @@ services:
     networks:
       - internal
     # SECURITY: Only expose ports for local development, not in production/Dokploy
-    ports:
-      - "${EXPOSE_PORTS:+${REDIS_PORT:-6379}:}${EXPOSE_PORTS:+6379}"
 
   minio:
     image: minio/minio

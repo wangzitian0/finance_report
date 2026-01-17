@@ -4,10 +4,8 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
-from starlette.testclient import TestClient as StarletteTestClient
 
 from src.models import User
 from src.rate_limit import RateLimitConfig, RateLimiter
@@ -96,11 +94,31 @@ async def test_register_duplicate_email_fails(db: AsyncSession) -> None:
         await register(mock_request, payload, db)
 
 
-def test_get_client_ip_with_x_forwarded_for() -> None:
-    """X-Forwarded-For header should be used when present."""
+def test_get_client_ip_with_x_forwarded_for_trusted(monkeypatch) -> None:
+    """X-Forwarded-For header should be used when TRUST_PROXY=true."""
+    monkeypatch.setenv("TRUST_PROXY", "true")
+    # Reload module to pick up env change
+    import importlib
+
+    import src.routers.auth as auth_module
+
+    importlib.reload(auth_module)
+
     request = _mock_request(client_ip="10.0.0.1", x_forwarded_for="203.0.113.50, 198.51.100.1")
-    ip = _get_client_ip(request)
+    ip = auth_module._get_client_ip(request)
     assert ip == "203.0.113.50"
+
+    # Reset to default
+    monkeypatch.delenv("TRUST_PROXY", raising=False)
+    importlib.reload(auth_module)
+
+
+def test_get_client_ip_ignores_x_forwarded_for_untrusted() -> None:
+    """X-Forwarded-For header should be ignored when TRUST_PROXY is not set."""
+    # Default TRUST_PROXY is false, so X-Forwarded-For should be ignored
+    request = _mock_request(client_ip="192.168.1.99", x_forwarded_for="203.0.113.50")
+    ip = _get_client_ip(request)
+    assert ip == "192.168.1.99"
 
 
 def test_get_client_ip_without_x_forwarded_for() -> None:

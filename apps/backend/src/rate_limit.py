@@ -2,6 +2,18 @@
 
 SECURITY: Protects against brute-force attacks on /login and /register endpoints.
 Uses in-memory storage with sliding window algorithm.
+
+NOTE: This implementation uses in-memory, per-process storage. In a multi-instance
+deployment (e.g., multiple workers/containers behind a load balancer), each instance
+maintains its own counters, effectively multiplying the allowed requests by the
+number of instances.
+
+For production-grade, distributed rate limiting, use a shared backend such as Redis
+to store rate limit state centrally, or ensure single-instance deployment for auth.
+
+Threading note: We use threading.Lock rather than asyncio.Lock because the critical
+section is very short (dict operations only). This is acceptable for FastAPI/uvicorn
+as the lock is held for microseconds and won't block the event loop meaningfully.
 """
 
 import time
