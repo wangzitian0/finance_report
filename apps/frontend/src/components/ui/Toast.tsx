@@ -28,11 +28,10 @@ interface ToastProviderProps {
     children: ReactNode;
 }
 
-let toastIdCounter = 0;
-
 export function ToastProvider({ children }: ToastProviderProps) {
     const [toasts, setToasts] = useState<Toast[]>([]);
     const timeoutRefs = useRef<Map<number, NodeJS.Timeout>>(new Map());
+    const idCounterRef = useRef(0);
 
     // Cleanup timeouts on unmount
     useEffect(() => {
@@ -43,7 +42,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
     }, []);
 
     const showToast = useCallback((message: string, type: ToastType = "success") => {
-        const id = ++toastIdCounter;
+        const id = ++idCounterRef.current;
         setToasts((prev) => [...prev, { id, message, type }]);
 
         const timeout = setTimeout(() => {

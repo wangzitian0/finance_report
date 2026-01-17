@@ -63,7 +63,7 @@ export default function JournalPage() {
         setVoidDialogOpen(true);
     };
 
-    const handleVoidConfirm = async (reason: string = "") => {
+    const handleVoidConfirm = async (reason: string) => {
         if (!voidingEntryId) return;
         
         setVoidLoading(true);
@@ -197,7 +197,7 @@ export default function JournalPage() {
             <ConfirmDialog
                 isOpen={voidDialogOpen}
                 onCancel={handleVoidCancel}
-                onConfirm={handleVoidConfirm}
+                onConfirm={(reason) => handleVoidConfirm(reason!)}
                 title="Void Journal Entry"
                 message="Are you sure you want to void this journal entry? A reversal entry will be created automatically."
                 confirmLabel="Void Entry"
