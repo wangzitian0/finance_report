@@ -60,12 +60,17 @@ async def accept_match(
         .where(ReconciliationMatch.id == match_id)
         .where(BankStatement.user_id == user_id)
         .options(selectinload(ReconciliationMatch.transaction))
+        .with_for_update()
     )
     match = result.scalar_one_or_none()
     if not match:
         raise ValueError("Match not found")
 
+    if match.status != ReconciliationStatus.PENDING_REVIEW:
+        return match
+
     match.status = ReconciliationStatus.ACCEPTED
+    match.version += 1
     txn = match.transaction
     if txn:
         txn.status = BankStatementTransactionStatus.MATCHED
@@ -99,12 +104,17 @@ async def reject_match(
         .where(ReconciliationMatch.id == match_id)
         .where(BankStatement.user_id == user_id)
         .options(selectinload(ReconciliationMatch.transaction))
+        .with_for_update()
     )
     match = result.scalar_one_or_none()
     if not match:
         raise ValueError("Match not found")
 
+    if match.status != ReconciliationStatus.PENDING_REVIEW:
+        return match
+
     match.status = ReconciliationStatus.REJECTED
+    match.version += 1
     txn = match.transaction
     if txn:
         txn.status = BankStatementTransactionStatus.UNMATCHED
@@ -139,6 +149,7 @@ async def batch_accept(
         .where(BankStatement.user_id == user_id)
         .where(ReconciliationMatch.match_score >= min_score)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .with_for_update()
     )
     matches = result.scalars().all()
     matched_ids = {str(m.id) for m in matches}
@@ -154,6 +165,7 @@ async def batch_accept(
     accepted: list[ReconciliationMatch] = []
     for match in matches:
         match.status = ReconciliationStatus.ACCEPTED
+        match.version += 1
         accepted.append(match)
         result_txn = await db.execute(
             select(BankStatementTransaction).where(BankStatementTransaction.id == match.bank_txn_id)

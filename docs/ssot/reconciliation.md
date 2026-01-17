@@ -152,6 +152,7 @@ def calculate_match_score(
 - **Pattern A**: Auto-matches must record `score_breakdown` for audit
 - **Pattern B**: One-to-many matches must verify amount totals
 - **Pattern C**: Cross-period matches extend date tolerance to ±7 days
+- **Pattern D**: Review queue updates use row-level locking and increment `version` to prevent concurrent overwrites
 
 ### ⛔ Prohibited Patterns
 

@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -130,6 +130,56 @@ async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id:
         return -net_balance
 
 
+async def calculate_account_balances(
+    db: AsyncSession,
+    accounts: list[Account],
+    user_id: UUID,
+) -> dict[UUID, Decimal]:
+    """
+    Calculate balances for multiple accounts in a single query.
+
+    Returns a mapping of account_id -> balance, with account type adjustments applied.
+    """
+    if not accounts:
+        return {}
+
+    account_ids = [account.id for account in accounts]
+    net_query = (
+        select(
+            JournalLine.account_id,
+            func.coalesce(
+                func.sum(
+                    case(
+                        (JournalLine.direction == Direction.DEBIT, JournalLine.amount),
+                        else_=-JournalLine.amount,
+                    )
+                ),
+                Decimal("0"),
+            ).label("net_balance"),
+        )
+        .select_from(JournalLine)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .where(Account.user_id == user_id)
+        .where(JournalLine.account_id.in_(account_ids))
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .group_by(JournalLine.account_id)
+    )
+
+    result = await db.execute(net_query)
+    net_by_account = {row.account_id: row.net_balance for row in result.all()}
+
+    balances: dict[UUID, Decimal] = {}
+    for account in accounts:
+        net = net_by_account.get(account.id, Decimal("0"))
+        if account.type in (AccountType.ASSET, AccountType.EXPENSE):
+            balances[account.id] = net
+        else:
+            balances[account.id] = -net
+
+    return balances
+
+
 async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     """
     Verify that the accounting equation holds for a user.
@@ -147,6 +197,8 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     result = await db.execute(select(Account).where(Account.user_id == user_id))
     accounts = result.scalars().all()
 
+    balances = await calculate_account_balances(db, accounts, user_id)
+
     totals = {
         AccountType.ASSET: Decimal("0"),
         AccountType.LIABILITY: Decimal("0"),
@@ -156,8 +208,7 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     }
 
     for account in accounts:
-        balance = await calculate_account_balance(db, account.id, user_id)
-        totals[account.type] += balance
+        totals[account.type] += balances.get(account.id, Decimal("0"))
 
     left_side = totals[AccountType.ASSET]
     right_side = (

@@ -19,6 +19,7 @@ from src.services import (
     AccountNotFoundError,
     account_service,
     calculate_account_balance,
+    calculate_account_balances,
 )
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -57,12 +58,15 @@ async def list_accounts(
         db, user_id, account_type=account_type, is_active=is_active
     )
 
-    # Calculate balances only if requested
+    balances = {}
+    if include_balance:
+        balances = await calculate_account_balances(db, accounts, user_id)
+
     items = []
     for account in accounts:
         response = AccountResponse.model_validate(account)
         if include_balance:
-            response.balance = await calculate_account_balance(db, account.id, user_id)
+            response.balance = balances.get(account.id)
         items.append(response)
 
     return AccountListResponse(items=items, total=len(items))
