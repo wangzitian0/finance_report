@@ -76,7 +76,13 @@ NON_FINANCIAL_PATTERNS = (
     r"programming",
 )
 
-SENSITIVE_NUMBER_RE = re.compile(r"(?:\d[ -]?){8,}\d")
+# SECURITY: Match long number sequences but exclude date patterns (YYYY-MM-DD, DD/MM/YYYY, etc.)
+# Requires at least 12 consecutive digits to avoid matching dates
+SENSITIVE_NUMBER_RE = re.compile(
+    r"(?<!\d)(?:\d[ -]?){11,}\d(?!\d)"  # 12+ digits with optional separators
+    r"|"
+    r"(?<!\d)\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}(?!\d)"  # Credit card format (4x4)
+)
 
 DISCLAIMER_BY_LANG = {
     "en": DISCLAIMER_EN,

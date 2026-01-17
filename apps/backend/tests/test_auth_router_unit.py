@@ -4,17 +4,33 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
+from starlette.testclient import TestClient as StarletteTestClient
 
 from src.models import User
 from src.routers.auth import get_me, hash_password, login, register
 from src.schemas.auth import LoginRequest, RegisterRequest
 
 
+def _mock_request(client_ip: str = "127.0.0.1") -> Request:
+    """Create a mock request with a specific client IP."""
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/auth/test",
+        "headers": [],
+        "client": (client_ip, 12345),
+    }
+    return Request(scope=scope)
+
+
 @pytest.mark.asyncio
 async def test_register_creates_user(db: AsyncSession) -> None:
     payload = RegisterRequest(email="direct@example.com", password="secret123", name="Direct")
-    response = await register(payload, db)
+    mock_request = _mock_request("192.168.1.100")  # Unique IP for test
+    response = await register(mock_request, payload, db)
 
     assert response.email == "direct@example.com"
     assert response.name == "Direct"
@@ -27,8 +43,9 @@ async def test_login_rejects_invalid_password(db: AsyncSession) -> None:
     await db.commit()
 
     payload = LoginRequest(email="login-direct@example.com", password="wrong")
+    mock_request = _mock_request("192.168.1.101")  # Unique IP for test
     with pytest.raises(HTTPException, match="Invalid email or password"):
-        await login(payload, db)
+        await login(mock_request, payload, db)
 
 
 @pytest.mark.asyncio
