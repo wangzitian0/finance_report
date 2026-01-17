@@ -1,19 +1,21 @@
+from datetime import date
+from decimal import Decimal
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.models import (
-    Account, 
-    JournalEntry, 
-    BankStatement, 
-    AccountType, 
-    JournalEntryStatus, 
-    JournalLine, 
+    Account,
+    AccountType,
+    BankStatement,
+    BankStatementStatus,
     Direction,
-    BankStatementStatus
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
 )
-from decimal import Decimal
-from datetime import date
-from uuid import uuid4
+
 
 @pytest.mark.asyncio
 async def test_delete_account(client: AsyncClient, db: AsyncSession, test_user):

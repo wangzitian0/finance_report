@@ -5,11 +5,14 @@
 **Last Updated**: 2026-01-13  
 **Anchor Document**: [`docs/project/EPIC-005.reporting-visualization.md`](project/EPIC-005.reporting-visualization.md)
 
+> **Note**: This is a point-in-time audit snapshot. SSOT documents remain the authoritative technical truth.
+
 ## 🧭 Navigation
 
 - **[Project Overview](project/README.md)** — EPIC tracking and roadmap
 - **[Technical Docs](ssot/README.md)** — Single Source of Truth (SSOT)
 - **[Development Guide](ssot/development.md)** — Setup and development workflow
+- **[Project Target](target.md)** — North Star goals and decision criteria
 
 ---
 

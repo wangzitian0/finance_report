@@ -36,7 +36,7 @@ You are the System Architect, responsible for the overall design and technical d
 │                     Infrastructure Layer                     │
 │  PostgreSQL 15 - Transactional database                      │
 │  Redis 7 - Cache and queue                                   │
-│  Gemini 3 Flash - AI capabilities                            │
+│  Gemini 2.0 Flash (free) - AI capabilities                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,7 +67,7 @@ ReconciliationMatch: pending → auto_accepted / pending_review → accepted / r
 | Backend | FastAPI + SQLAlchemy | Async high performance, mature ORM |
 | Frontend | Next.js 14 + shadcn/ui | App Router + rapid UI development |
 | Database | PostgreSQL | ACID transactions, financial standard |
-| AI | Gemini 3 Flash | Vision + Text, cost-effective |
+| AI | Gemini 2.0 Flash (free) | Vision + Text, cost-effective |
 | Deployment | Dokploy | Self-hosted, data sovereignty |
 
 ## Key Design Decisions

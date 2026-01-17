@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { fetchAiModels } from "@/lib/aiModels";
 
 interface StatementUploaderProps {
     onUploadComplete?: () => void;
@@ -16,6 +18,36 @@ export default function StatementUploader({
     const [institution, setInstitution] = useState("");
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [models, setModels] = useState<{ id: string; name?: string; is_free: boolean }[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>("");
+    const [modelLoading, setModelLoading] = useState(true);
+
+    useEffect(() => {
+        let active = true;
+        const loadModels = async () => {
+            try {
+                const data = await fetchAiModels({ modality: "image" });
+                if (!active) return;
+                setModels(data.models);
+                const stored = typeof window !== "undefined" ? localStorage.getItem("statement_model_v1") : null;
+                let preferred = stored && data.models.some((m) => m.id === stored) ? stored : data.default_model;
+                if (!data.models.some((m) => m.id === preferred)) {
+                    preferred = data.models[0]?.id || "";
+                }
+                setSelectedModel(preferred);
+            } catch {
+                if (!active) return;
+                setModels([]);
+                setSelectedModel("");
+            } finally {
+                if (active) setModelLoading(false);
+            }
+        };
+        void loadModels();
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const validateAndSetFile = useCallback((f: File) => {
         const validExtensions = ["pdf", "csv", "png", "jpg", "jpeg"];
@@ -67,6 +99,9 @@ export default function StatementUploader({
             const formData = new FormData();
             formData.append("file", file);
             formData.append("institution", institution.trim());
+            if (selectedModel) {
+                formData.append("model", selectedModel);
+            }
 
             const { apiUpload } = await import("@/lib/api");
             await apiUpload("/api/statements/upload", formData);
@@ -167,6 +202,40 @@ export default function StatementUploader({
                     {error}
                 </div>
             )}
+
+            {/* Model Selection */}
+            <div>
+                <label htmlFor="ai-model" className="block text-sm font-medium mb-1.5">
+                    AI Model
+                </label>
+                <select
+                    id="ai-model"
+                    className="input"
+                    value={selectedModel}
+                    onChange={(e) => {
+                        const next = e.target.value;
+                        setSelectedModel(next);
+                        if (typeof window !== "undefined" && next) {
+                            localStorage.setItem("statement_model_v1", next);
+                        }
+                    }}
+                    disabled={modelLoading}
+                    aria-label="AI model"
+                >
+                    {models.length === 0 ? (
+                        <option value="">Default (server)</option>
+                    ) : (
+                        models.map((model) => (
+                            <option key={model.id} value={model.id}>
+                                {model.name || model.id} — {model.is_free ? "Free" : "Paid"}
+                            </option>
+                        ))
+                    )}
+                </select>
+                <p className="text-xs text-muted mt-1">
+                    Defaults to the configured free model. Paid models are available if enabled in OpenRouter.
+                </p>
+            </div>
 
             {/* Upload Button */}
             <button

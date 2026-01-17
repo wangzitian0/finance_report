@@ -98,21 +98,21 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 
 | Category | Where | Purpose |
 |----------|-------|---------|
-| **Unit + Integration** | Local, CI | 快速反馈，代码质量门禁 |
-| **Health Check** | PR Test, Prod | 验证服务可用性 |
-| **Smoke Test** | Staging | 端到端功能验证 |
-| **Performance** | Staging | API 响应时间基准 |
+| **Unit + Integration** | Local, CI | Fast feedback and quality gate |
+| **Health Check** | PR Test, Prod | Verify service availability |
+| **Smoke Test** | Staging | End-to-end functional validation |
+| **Performance** | Staging | API response time baseline |
 
 ### Scenario Matrix
 
 | # | Scenario | Trigger | Tests | Goal |
 |---|----------|---------|-------|------|
-| 1 | **Local Dev** | Manual | None | 开发迭代 |
-| 2 | **Local Test** | `moon run backend:test` | Unit+Integration | < 30s 反馈 |
-| 3 | **Remote CI** | PR / Push | Unit+Integration | 质量门禁 |
-| 4 | **PR Test** | PR opened | **Health Check** | 部署验证 |
-| 5 | **Staging** | Push to main | **Smoke + Perf** | 完整验证 |
-| 6 | **Production** | Manual dispatch | **Health Check** | 最小化验证 |
+| 1 | **Local Dev** | Manual | None | Iteration speed |
+| 2 | **Local Test** | `moon run backend:test` | Unit+Integration | < 30s feedback |
+| 3 | **Remote CI** | PR / Push | Unit+Integration | Quality gate |
+| 4 | **PR Test** | PR opened | **Health Check** | Deployment validation |
+| 5 | **Staging** | Push to main | **Smoke + Perf** | Full validation |
+| 6 | **Production** | Manual dispatch | **Health Check** | Minimal validation |
 
 ### pytest Markers
 

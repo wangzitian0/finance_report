@@ -7,6 +7,8 @@
 
 SSOT documents define the "why" and "how" of technical decisions before code is written. When code differs from SSOT, the documentation must be updated immediately to maintain truth.
 
+For the macro product direction and decision criteria, read [target.md](../../target.md) first.
+
 ## 📚 Document Index
 
 All SSOT documents are organized by domain. **Start here** to understand the system:
@@ -88,5 +90,5 @@ Each document follows this structure:
 ## Quick Links
 
 - [AGENTS.md](../../AGENTS.md) — Agent behavioral guidelines
-- [init.md](../../init.md) — Project specification
+- [target.md](../../target.md) — Project target and decision criteria
 - [Project Tracking](../project/README.md) — EPIC & tasks

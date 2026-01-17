@@ -3,8 +3,8 @@
 from uuid import uuid4
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from fastapi import HTTPException
+from httpx import ASGITransport, AsyncClient
 
 from src.auth import get_current_user_id
 

@@ -8,7 +8,7 @@ Finance Report is a personal financial management system built with:
 - **Backend**: FastAPI + SQLAlchemy 2 + PostgreSQL 15
 - **Frontend**: Next.js 14 + React + TypeScript + shadcn/ui
 - **Authentication**: FastAPI Users
-- **AI**: Gemini 3 Flash (document parsing + financial advisor)
+- **AI**: Gemini 2.0 Flash (free) (document parsing + financial advisor)
 - **Monorepo**: Moonrepo
 
 ## Core Domain Concepts

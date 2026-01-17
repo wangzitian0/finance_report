@@ -1,9 +1,20 @@
 """API routers package."""
 
-from src.routers import accounts, auth, chat, journal, reconciliation, reports, statements, users
+from src.routers import (
+    accounts,
+    ai_models,
+    auth,
+    chat,
+    journal,
+    reconciliation,
+    reports,
+    statements,
+    users,
+)
 
 __all__ = [
     "accounts",
+    "ai_models",
     "auth",
     "chat",
     "journal",

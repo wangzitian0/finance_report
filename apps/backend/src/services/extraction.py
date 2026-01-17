@@ -1,4 +1,4 @@
-"""Document extraction service using OpenRouter + Gemini 3 Flash Vision."""
+"""Document extraction service using OpenRouter vision models."""
 
 import base64
 import hashlib
@@ -96,7 +96,7 @@ class ExtractionService:
         if not original_filename:
             original_filename = file_path.name if file_path else "unknown"
 
-        # Call Gemini for extraction
+        # Call the OpenRouter vision model for extraction
         if file_type in ("pdf", "image", "png", "jpg", "jpeg"):
             extracted = await self.extract_financial_data(
                 file_content,
@@ -157,7 +157,7 @@ class ExtractionService:
             if not txn.get("date") or txn.get("amount") is None:
                 continue
 
-            # Handle case where Gemini returns date as non-string
+            # Handle case where the model returns date as non-string
             txn_date_val = txn["date"]
             if not isinstance(txn_date_val, str):
                 txn_date_val = str(txn_date_val)
@@ -196,7 +196,7 @@ class ExtractionService:
         file_url: str | None = None,
         force_model: str | None = None,
     ) -> dict[str, Any]:
-        """Call Gemini Vision API via OpenRouter."""
+        """Call OpenRouter vision API."""
         if not self.api_key:
             raise ExtractionError("OpenRouter API key not configured")
 
@@ -405,7 +405,7 @@ class ExtractionService:
         # Check format
         try:
             date_val = txn.get("date", "")
-            # Handle case where Gemini returns date as non-string
+            # Handle case where the model returns date as non-string
             if not isinstance(date_val, str):
                 date_val = str(date_val) if date_val else ""
             date.fromisoformat(date_val)

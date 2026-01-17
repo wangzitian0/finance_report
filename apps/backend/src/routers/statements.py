@@ -24,6 +24,11 @@ from src.schemas import (
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
+from src.services.openrouter_models import (
+    fetch_model_catalog,
+    model_matches_modality,
+    normalize_model_entry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +42,14 @@ async def upload_statement(
     file: UploadFile = File(...),
     institution: str = Form(...),
     account_id: UUID | None = Form(None),
+    model: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """
     Upload and parse a financial statement.
 
-    Supported file types: PDF, CSV, PNG, JPG
+    Supported file types: PDF, CSV, PNG, JPG. Optional model override via form field.
     """
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
@@ -66,6 +72,28 @@ async def upload_statement(
     )
     if duplicate.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
+
+    if model:
+        allowed_models = {settings.primary_model} | set(settings.fallback_models)
+        if model not in allowed_models:
+            try:
+                models = await fetch_model_catalog()
+                match = next(
+                    (normalize_model_entry(m) for m in models if m.get("id") == model),
+                    None,
+                )
+                if not match:
+                    raise HTTPException(400, "Invalid model selection.")
+                if extension != "csv" and not model_matches_modality(match, "image"):
+                    raise HTTPException(400, "Selected model does not support image inputs.")
+            except HTTPException:
+                raise
+            except Exception:
+                logger.exception("Failed to validate model catalog for model '%s'", model)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Unable to validate the requested model at this time.",
+                )
 
     try:
         statement_id = uuid4()
@@ -94,6 +122,7 @@ async def upload_statement(
             file_hash=file_hash,
             file_url=file_url,
             original_filename=filename,
+            force_model=model,
         )
 
         statement.id = statement_id
@@ -170,7 +199,24 @@ async def retry_statement_parsing(
     selected_model = model or settings.fallback_models[0]
     allowed_models = {settings.primary_model} | set(settings.fallback_models)
     if selected_model not in allowed_models:
-        raise HTTPException(400, f"Invalid model. Allowed: {', '.join(allowed_models)}")
+        try:
+            models = await fetch_model_catalog()
+            match = next(
+                (normalize_model_entry(m) for m in models if m.get("id") == selected_model),
+                None,
+            )
+            if not match:
+                raise HTTPException(400, "Invalid model selection.")
+            if not model_matches_modality(match, "image"):
+                raise HTTPException(400, "Selected model does not support image inputs.")
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Failed to validate model catalog for model '%s'", selected_model)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Unable to validate the requested model at this time.",
+            )
 
     try:
         service = ExtractionService()

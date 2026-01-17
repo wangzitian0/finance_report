@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using Free Vision models (`google/gemini-2.0-flash-exp:free` primary) via OpenRouter, outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using OpenRouter vision models (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs.
 
 ## Data Flow
 
@@ -12,7 +12,7 @@ The extraction pipeline parses financial statements (PDFs, images, CSVs) using F
 flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
     S --> B{File Type}
-    B -->|PDF/Image| C["Gemini 2.0 Flash (free) via OpenRouter"]
+    B -->|PDF/Image| C["OpenRouter Vision Model"]
     B -->|CSV| D[Structured Parser]
     C --> E[Extract JSON]
     D --> E
@@ -90,13 +90,14 @@ flowchart TB
 | GET | `/api/statements/pending-review` | List items needing review |
 | POST | `/api/statements/{id}/approve` | Approve statement |
 | POST | `/api/statements/{id}/reject` | Reject statement |
+| GET | `/api/ai/models` | OpenRouter model catalog for UI selection |
 
 ## Supported Institutions
 
 | Institution | Format | Tier | Notes |
 |-------------|--------|------|-------|
 | DBS/POSB | PDF | v1 | Singapore bank, GIRO/PayNow |
-| CMB (招商银行) | PDF | v1 | Chinese statements |
+| CMB (China Merchants Bank) | PDF | v1 | Chinese statements |
 | Maybank | PDF | v1 | Malaysia bank |
 | Wise | PDF/CSV | v1 | Fintech wallet |
 | Brokerage (generic) | PDF/CSV | v1 | Covers Moomoo/IBKR style |
@@ -104,7 +105,7 @@ flowchart TB
 | OCBC | PDF | Extended | Singapore bank |
 | MariBank | PDF | Extended | Digital bank |
 | GXS | PDF | Extended | Digital bank |
-| Futu (富途) | PDF | Extended | HK brokerage |
+| Futu (Futu Holdings) | PDF | Extended | HK brokerage |
 
 ## Configuration
 
@@ -122,6 +123,13 @@ S3_REGION=us-east-1
 S3_PRESIGN_EXPIRY_SECONDS=900
 ```
 
+## Model Selection
+
+- **Default**: Uses `PRIMARY_MODEL` for parsing.
+- **Override**: `/api/statements/upload` accepts a `model` form field to select a specific OpenRouter model.
+- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter.
+- **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
+
 ## Files
 
 | File | Purpose |
@@ -131,7 +139,7 @@ S3_PRESIGN_EXPIRY_SECONDS=900
 | `src/services/extraction.py` | Core extraction logic |
 | `src/services/validation.py` | Validation and confidence scoring |
 | `src/services/storage.py` | Object storage uploads + presigned URLs |
-| `src/prompts/statement.py` | Gemini prompt templates |
+| `src/prompts/statement.py` | Parsing prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |
 | `scripts/generate_fixtures.py` | Parse docs with caching |
 | `scripts/sanitize_fixtures.py` | Mask PII |
