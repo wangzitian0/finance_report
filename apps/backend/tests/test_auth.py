@@ -4,6 +4,9 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from fastapi import HTTPException
+
+from src.auth import get_current_user_id
 
 
 @pytest.mark.asyncio
@@ -53,3 +56,15 @@ async def test_auth_valid_user(client, test_user):
     # The client fixture already has the valid test_user.id in headers
     response = await client.get("/accounts")
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_id_direct(db, test_user):
+    user_id = await get_current_user_id(x_user_id=str(test_user.id), db=db)
+    assert user_id == test_user.id
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_id_invalid_user(db):
+    with pytest.raises(HTTPException, match="Invalid user"):
+        await get_current_user_id(x_user_id=str(uuid4()), db=db)

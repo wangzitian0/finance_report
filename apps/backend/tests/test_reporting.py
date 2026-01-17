@@ -18,6 +18,7 @@ from src.models import (
 )
 from src.services import reporting as reporting_service
 from src.services.reporting import (
+    ReportError,
     generate_balance_sheet,
     generate_cash_flow,
     generate_income_statement,
@@ -198,6 +199,362 @@ async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts,
     assert report["total_income"] == Decimal("5000.00")
     assert report["total_expenses"] == Decimal("200.00")
     assert report["net_income"] == Decimal("4800.00")
+
+
+@pytest.mark.asyncio
+async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    cash, _liability, equity, *_rest = chart_of_accounts
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="FX entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_balance_sheet(db, test_user_id, as_of_date=date.today(), currency="SGD")
+
+
+@pytest.mark.asyncio
+async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="start_date must be before end_date"):
+        await generate_income_statement(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 1, 1),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    cash, _liability, _equity, income, _expense = chart_of_accounts
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="FX income",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("50.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("50.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_income_statement(
+            db,
+            test_user_id,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_account_not_found(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="Account not found"):
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=uuid4(),
+            period="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_invalid_period(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    with pytest.raises(ReportError, match="Unsupported period"):
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=account.id,
+            period="yearly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="FX trend",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("10.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=account.id,
+            period="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_invalid_type(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="Breakdown type must be income or expense"):
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.ASSET,
+            period="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_invalid_period(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="Unsupported period"):
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.INCOME,
+            period="weekly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    expense = chart_of_accounts[-1]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="FX expense",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=expense.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("15.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.EXPENSE,
+            period="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_invalid_range(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="start_date must be before end_date"):
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 1, 1),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 1),
+        memo="FX before",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("5.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 2, 28),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 2, 10),
+        memo="FX during",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("7.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 2, 28),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_daily_weekly(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+
+    daily = await get_account_trend(
+        db,
+        test_user_id,
+        account_id=account.id,
+        period="daily",
+        currency="SGD",
+    )
+    weekly = await get_account_trend(
+        db,
+        test_user_id,
+        account_id=account.id,
+        period="weekly",
+        currency="SGD",
+    )
+
+    assert daily["period"] == "daily"
+    assert weekly["period"] == "weekly"
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
+    report = await get_category_breakdown(
+        db,
+        test_user_id,
+        breakdown_type=AccountType.INCOME,
+        period="annual",
+        currency="SGD",
+    )
+
+    assert report["period_start"].year == date.today().year
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_balances_before_period(
+    db: AsyncSession, chart_of_accounts, test_user_id
+) -> None:
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 1),
+        memo="Before period",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("20.00"),
+            currency="SGD",
+        )
+    )
+    await db.commit()
+
+    report = await generate_cash_flow(
+        db,
+        test_user_id,
+        start_date=date(2025, 2, 1),
+        end_date=date(2025, 2, 28),
+        currency="SGD",
+    )
+
+    assert "summary" in report
 
 
 @pytest.mark.asyncio
