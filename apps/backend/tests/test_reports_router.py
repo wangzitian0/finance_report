@@ -1,8 +1,8 @@
 """Integration tests for Reports Router."""
 
 from datetime import date
-from uuid import uuid4
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException

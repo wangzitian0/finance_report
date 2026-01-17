@@ -65,6 +65,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Project Target: target.md
   - User Guide:
       - Getting Started: user-guide/getting-started.md
       - Account Management: user-guide/accounts.md
@@ -89,7 +90,7 @@ nav:
       - Development Guide: ssot/development.md
   - Development:
       - Project Overview: project/README.md
-      - Code Audit Report: README.md
+      - Audit & Roadmap: README.md
       - Design Decisions: project/DECISIONS.md
       - EPICs:
           - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md

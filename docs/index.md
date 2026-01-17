@@ -2,6 +2,12 @@
 
 Welcome to the **Finance Report** documentation — your comprehensive guide to building and using a personal financial management system with double-entry bookkeeping and bank reconciliation.
 
+## 🎯 Project Target
+
+Read the North Star goals and decision criteria before deep technical work:
+
+- [Project Target (North Star)](target.md)
+
 ## 📖 Documentation Guide
 
 This documentation is organized into four main sections to help you find what you need quickly:
@@ -89,7 +95,7 @@ New to Finance Report? Follow these steps:
 | **Double-Entry Bookkeeping** | Every transaction balanced with debits and credits | ✅ Available |
 | **Chart of Accounts** | 5 account types: Asset, Liability, Equity, Income, Expense | ✅ Available |
 | **Bank Statement Import** | Upload PDF/CSV bank statements | ✅ Available |
-| **AI-Powered Parsing** | Gemini 3 Flash extracts transactions from statements | ✅ Available |
+| **AI-Powered Parsing** | Gemini 2.0 Flash (free) extracts transactions from statements | ✅ Available |
 | **Smart Reconciliation** | Multi-dimensional matching with confidence scoring | ✅ Available |
 | **Financial Reports** | Balance sheet, income statement, cash flow | 🚧 Coming Soon |
 | **AI Financial Advisor** | Personalized insights and recommendations | ✅ Available |
@@ -153,7 +159,7 @@ graph TB
     end
     
     subgraph AI["AI Services"]
-        Gemini[Gemini 3 Flash]
+        Gemini[Gemini 2.0 Flash (free)]
     end
     
     UI --> TQ --> API

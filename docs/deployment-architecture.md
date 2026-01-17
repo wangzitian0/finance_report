@@ -1,302 +1,225 @@
-# 部署架构完整指南
+# Deployment Architecture Guide
 
-## 概述
+## Overview
 
-Finance Report 采用**三层环境架构**，从本地开发到生产，清晰分工、各司其职。
+Finance Report uses a three-layer environment model, from local development to production, with clear separation of responsibilities.
 
-## 环境层级
+## Environment Layers
 
-### Layer 1️⃣：本地开发 & 本地 CI
+### Layer 1️⃣: Local Development & Local CI
 
-**目的**：快速反馈，最小化环境依赖
+**Goal**: Fast feedback with minimal environment dependencies.
 
-| 方面 | 说明 |
-|------|------|
-| **工具** | moon、pytest、eslint（纯 CLI，无 Docker） |
-| **命令** | `moon run backend:lint`、`pytest` |
-| **特点** | 秒级反馈，使用 mock/local provider |
-| **范围** | 代码验证、单元测试、类型检查 |
+| Aspect | Description |
+|--------|-------------|
+| **Tools** | moon, pytest, eslint (CLI-only, no Docker) |
+| **Commands** | `moon run backend:lint`, `pytest` |
+| **Traits** | Sub-second feedback, mock/local providers |
+| **Scope** | Code validation, unit tests, type checks |
 
-**不涉及 Docker，最快的开发循环**
+**No Docker involved — fastest dev loop.**
 
----
+### Layer 2️⃣: GitHub CI & PR Tests
 
-### Layer 2️⃣：GitHub CI 和 PR 测试
+**Trigger**: `git push` → PR created or updated on `main`
 
-**触发**：`git push` → PR 创建或更新 main 分支
+| Aspect | Description |
+|--------|-------------|
+| **Compose** | `docker-compose.yml` (this repo) |
+| **Platform** | GitHub Actions (CI) + Dokploy (PR test) |
+| **Build** | Build from source (no image registry) |
+| **Services** | PostgreSQL, Redis, MinIO, Backend, Frontend |
+| **Data** | Ephemeral (cleaned by GitHub Actions) |
+| **Use** | Integration tests, PR validation |
+| **URL** | GitHub CI only (no external URL) |
 
-| 方面 | 说明 |
-|------|------|
-| **Compose** | `docker-compose.yml`（本仓库） |
-| **平台** | GitHub Actions（CI）+ Dokploy（PR test） |
-| **构建** | 从源码 build（无镜像仓库）|
-| **服务** | PostgreSQL、Redis、MinIO、Backend、Frontend |
-| **数据** | 临时（GitHub Actions 自动清理） |
-| **用途** | 集成测试、验证 PR 功能 |
-| **URL** | GitHub CI 自动（无外部 URL） |
+- Run lint, backend tests, frontend build
+- Start `docker-compose.yml` for integration tests
+- Output coverage report
 
-#### GitHub CI（`.github/workflows/ci.yml`）
-- 运行 linter、backend tests、frontend build
-- 启动 `docker-compose.yml` 用于集成测试
-- 输出 coverage report
+- PR creates a full environment automatically
+- Domain: `report-pr-{number}.zitian.party`
+- PR close auto-destroys the environment
 
-#### PR Test（`.github/workflows/pr-test.yml`）
-- PR 创建时自动启动完整环境
-- 域名：`report-pr-{number}.zitian.party`
-- PR close 时自动销毁
+**Fast validation without Docker image overhead.**
 
-**快速验证，无 Docker 镜像开销**
+### Layer 3️⃣: Staging & Production (Shared Infrastructure)
 
----
+**Shared traits**:
+- Compose: parameterized templates from the `infra2` repository
+- Images: GHCR registry
+- Secrets: Vault (production-grade security)
+- Platform: Dokploy (orchestration)
 
-### Layer 3️⃣：Staging 和 Production（共享基础设施）
+#### Staging
 
-**共同特点**：
-- Compose：`infra2` 仓库的参数化模板
-- 镜像体系：GHCR 镜像仓库
-- Secrets 管理：Vault（生产级安全）
-- 平台：Dokploy（容器编排）
+**Trigger**: Auto-deploy on `main` push (auto-increment patch version)
 
-#### Staging 环境
+| Aspect | Description |
+|--------|-------------|
+| **Platform** | Dokploy (Projects > finance_report > staging) |
+| **Domain** | `report-staging.zitian.party` |
+| **Image tag** | Auto patch version (e.g., `v1.0.45`) |
+| **Data** | **Persistent** (volumes retained) |
+| **Env vars** | `ENV=staging` |
+| **Lifecycle** | Long-running (weeks/months) |
+| **Use** | E2E tests, smoke tests, ongoing validation |
 
-**触发**：`main` 分支 push 时自动部署（自动递增 Patch 版本）
+Release flow:
+1. Compute next patch version (v1.0.x → v1.0.x+1)
+2. Build backend/frontend images
+3. Push to GHCR (tag: v1.0.45)
+4. Call Dokploy API to update Staging
+5. Update `IMAGE_TAG=v1.0.45`
 
-| 方面 | 说明 |
-|------|------|
-| **Compose** | `infra2/finance_report/finance_report/10.app/compose.yaml` |
-| **平台** | Dokploy（Projects > finance_report > staging） |
-| **域名** | `report-staging.zitian.party` |
-| **镜像 tag** | 自动 Patch 版本（如 `v1.0.45`） |
-| **数据** | **持久化**（volumes 保留） |
-| **Vault** | `secret/data/finance_report/staging/app` |
-| **环境变量** | `ENV=staging` |
-| **生命周期** | 长期（weeks/months） |
-| **用途** | E2E 测试、Smoke 测试、持续验证 |
+#### Production
 
-**Workflow：`.github/workflows/staging-deploy.yml`**
+**Trigger**: Manual promote or release tag
+
+| Aspect | Description |
+|--------|-------------|
+| **Platform** | Dokploy (Projects > finance_report > production) |
+| **Domain** | `report.zitian.party` |
+| **Image tag** | Specific release (e.g., `v1.0.45` or `v1.1.0`) |
+| **Data** | Critical business data |
+| **Env vars** | `ENV=production` |
+| **Lifecycle** | Stable |
+| **Deploy strategy** | Blue-green or rolling update |
+
+Release flow:
+1. Manual trigger or release tag
+2. Select target version (e.g., v1.0.45 from Staging)
+3. Verify image exists
+4. Call Dokploy API to update Production
+5. Update `IMAGE_TAG=v1.0.45`
+
+## Six-Layer Environment Progression
+
+Each environment is closer to production but trades speed for realism.
+
+| Environment | Production Fidelity | Feedback Speed | Key Differences |
+|-------------|---------------------|----------------|-----------------|
+| **1. Local Dev** | ⭐ | 🚀🚀🚀 | No Docker, mock data, hot reload |
+| **2. Local Integration** | ⭐⭐ | 🚀🚀 | Local Docker, real DB, no network latency |
+| **3. GitHub CI** | ⭐⭐⭐ | 🚀 | Ephemeral, clean state, automated tests |
+| **4. PR Test** | ⭐⭐⭐⭐ | 🐢 | Isolated cloud env, source build, preview |
+| **5. Staging** | ⭐⭐⭐⭐⭐ | 🐢🐢 | Real infra config, persistent data, auto patch version |
+| **6. Production** | ⭐⭐⭐⭐⭐⭐ | 🐢🐢🐢 | Real traffic, manually controlled versions |
+
+## File Inventory
+
+### Compose Files
+
+| File | Purpose | Environment |
+|------|---------|------------|
+| **`docker-compose.yml`** | Unified dev/CI/PR compose | local / GitHub CI / PR test |
+| **`repo/finance_report/.../compose.yaml`** | Staging & Production template | staging / production |
+
+> The project maintains two compose files and uses env vars to control behavior.
+
+### Workflow Files
+
+| File | Trigger | Purpose |
+|------|---------|---------|
+| **`ci.yml`** | PR open/update + main push | Code validation + integration tests |
+| **`pr-test.yml`** | PR open/sync/close | PR test environment (auto create/destroy) |
+| **`staging-deploy.yml`** | main push | Build images + deploy staging |
+| **`production-deploy.yml`** | release tag | Build images + deploy production |
+
+### Configuration
+
+#### Vault Structure
+
 ```
-main push
-  ↓
-计算下一个 Patch 版本 (v1.0.x -> v1.0.x+1)
-  ↓
-构建 backend/frontend 镜像
-  ↓
-Push 到 GHCR (tag: v1.0.45)
-  ↓
-调用 Dokploy API 更新 Staging
-  ↓
-更新 IMAGE_TAG=v1.0.45
-```
-
-#### Production 环境
-
-**触发**：人为选择版本（Manual Promote）或 Release Tag
-
-| 方面 | 说明 |
-|------|------|
-| **Compose** | `infra2/finance_report/finance_report/10.app/compose.yaml` |
-| **平台** | Dokploy（Projects > finance_report > production） |
-| **域名** | `report.zitian.party` |
-| **镜像 tag** | 指定版本（如 `v1.0.45` 或 `v1.1.0`） |
-| **数据** | 关键业务数据 |
-| **Vault** | `secret/data/finance_report/production/app` |
-| **环境变量** | `ENV=production` |
-| **生命周期** | 稳定 |
-| **部署策略** | Blue-green 或 rolling update |
-
-**Workflow：`.github/workflows/production-deploy.yml`**
-```
-人工触发 / Release Tag
-  ↓
-指定目标版本 (e.g. v1.0.45 from Staging)
-  ↓
-确认镜像存在
-  ↓
-调用 Dokploy API 更新 Production
-  ↓
-更新 IMAGE_TAG=v1.0.45
-```
-
----
-
-## 6 层环境递进策略
-
-每个环境都比上一个更贴近线上真实状态，但反馈速度依次递减。
-
-| 环境 | 贴近线上度 | 反馈速度 | 核心差异 |
-|------|------------|----------|----------|
-| **1. Local Dev** | ⭐ | 🚀🚀🚀 | 无 Docker，Mock 数据，热重载 |
-| **2. Local Integration** | ⭐⭐ | 🚀🚀 | 本地 Docker，真实 DB，无网络延迟 |
-| **3. GitHub CI** | ⭐⭐⭐ | 🚀 | 临时环境，纯净状态，自动化测试 |
-| **4. PR Test** | ⭐⭐⭐⭐ | 🐢 | 独立云端环境，源码构建，预览功能 |
-| **5. Staging** | ⭐⭐⭐⭐⭐ | 🐢🐢 | 真实 Infra 配置，持久化数据，自动 Patch 版本 |
-| **6. Production** | ⭐⭐⭐⭐⭐⭐ | 🐢🐢🐢 | 真实流量，人为控制版本，稳定性优先 |
-
----
-
-## 文件清单
-
-### Compose 文件
-
-| 文件 | 用途 | 环境 |
-|------|------|------|
-| **`docker-compose.yml`** | 统一的 dev/CI/PR compose | local / GitHub CI / PR test |
-| **`repo/finance_report/.../compose.yaml`** | Staging & Production 模板 | staging / production |
-
-> 项目只维护 2 个 compose 文件，通过环境变量控制行为差异
-
-### Workflow 文件
-
-| 文件 | 触发 | 用途 |
-|------|------|------|
-| **`ci.yml`** | PR open/update + main push | 代码验证 + 集成测试 |
-| **`pr-test.yml`** | PR open/sync/close | PR 测试环境（自动创建/销毁） |
-| **`staging-deploy.yml`** | main push | 构建镜像 + 部署 staging |
-| **`production-deploy.yml`** | release tag | 构建镜像 + 部署 production |
-
-### 配置文件
-
-#### Vault 结构
-```
-secret/data/finance_report/
-├── staging/app
-│   ├── DATABASE_URL
-│   ├── REDIS_URL
-│   ├── S3_ENDPOINT
-│   ├── S3_ACCESS_KEY
-│   ├── S3_SECRET_KEY
-│   ├── S3_BUCKET
-│   └── OPENROUTER_API_KEY
-└── production/app
-    └── （同上结构）
+secret/
+  finance_report/
+    staging/
+      ...
+    production/
+      ...
 ```
 
-#### GitHub Secrets
-| Secret | 用途 |
-|--------|------|
-| `DOKPLOY_API_KEY` | Dokploy API 认证 |
-| `DOKPLOY_GITHUB_ID` | GitHub 集成 ID（`126refcRlCoWj6pmPXElU`） |
-| `DOKPLOY_STAGING_ENV_ID` | Staging environment ID（`pMoEBQzZLZPWb1XwlvaNh`） |
-| `DOKPLOY_PRODUCTION_ENV_ID` | Production environment ID |
-| `VAULT_STAGING_TOKEN` | Vault staging token |
-| `VAULT_PRODUCTION_TOKEN` | Vault production token |
+| Secret | Purpose |
+|--------|---------|
+| `DOKPLOY_API_KEY` | Dokploy API auth |
+| `DOKPLOY_GITHUB_ID` | GitHub integration ID (`126refcRlCoWj6pmPXElU`) |
 
----
+## Example Development Workflow
 
-## 开发工作流示例
+### Shipping a Feature
 
-### 开发新功能
+1. Create a feature branch
+2. Local dev + local CI validation (fast feedback)
+3. If full env is needed, start Docker Compose
+4. Commit and push
+5. Open a PR
+6. GitHub CI validates tests automatically
+7. Dokploy creates PR test environment
+8. Use `report-pr-{number}.zitian.party` for testing
+9. Each push updates the PR test env
+10. PR close destroys the env
 
-```bash
-# 1. 创建 feature branch
-git checkout -b feat/add-dashboard
+### Promote to Staging
 
-# 2. 本地开发 + 本地 CI 验证（快速反馈）
-moon run backend:lint
-pytest
-moon run frontend:build
+1. Merge to `main`
+2. GitHub CI validates
+3. Auto-deploy to staging
+4. `staging-deploy.yml` builds images (tag: `sha-xxx`)
+5. Deploy to `report-staging.zitian.party`
+6. QA / smoke tests on persistent data
 
-# 3. 如需完整环境，启动 Docker Compose
-docker compose up -d
+### Promote to Production
 
-# 4. 提交并推送
-git push origin feat/add-dashboard
+1. Create a release tag
+2. GitHub Actions triggers `production-deploy.yml`
+3. Build images (tag: `v1.2.3`)
+4. Deploy to `report.zitian.party`
+5. Run smoke tests
+6. Monitor production
 
-# 5. 创建 PR
-# → GitHub CI 自动验证
-# → Dokploy 自动创建 PR test 环境
-# → 获得 report-pr-{number}.zitian.party 域名进行功能测试
+## Architecture Advantages
 
-# 6. Review 和修改，每次 push 自动更新 PR test 环境
+| Advantage | Description |
+|-----------|-------------|
+| **Fast feedback** | CLI-based tests run quickly in local dev |
+| **Cost control** | Images are only built/pushed in staging/production workflows |
+| **Isolation** | PRs get isolated full environments |
+| **Durable data** | Staging keeps data for ongoing validation |
+| **Version clarity** | Production uses semantic versions |
+| **Recovery ready** | Staging mirrors production configuration |
 
-# 7. Merge PR
-# → PR test 环境自动销毁
-```
+## Technical Details
 
-### 发布到 Staging
+### Role of `docker-compose.yml`
 
-```bash
-# 1. 代码合并到 main
-git merge feat/add-dashboard
+1. **Local dev**: `docker compose up -d` starts full environment
+2. **GitHub CI**: auto-start for integration tests
+3. **PR Test**: Dokploy reads and deploys from GitHub repo
 
-# 2. GitHub CI 验证
-# → 所有 test 通过
+### Role of `infra2` compose.yaml
 
-# 3. 代码自动推送 staging
-# → `staging-deploy.yml` 触发
-# → 构建镜像（tag: sha-xxx）
-# → 部署到 report-staging.zitian.party
+1. Shared template for Staging/Production
+2. Env vars distinguish `ENV=staging` vs `ENV=production`
+3. Vault agent injects secrets
+4. Traefik labels handle routing and SSL
 
-# 4. QA / Smoke 测试
-# → 使用持久化数据进行测试
-```
+### Image Tag Strategy
 
-### 发布到 Production
+| Environment | Tag | Notes |
+|-------------|-----|-------|
+| PR test | N/A | Docker compose build (no registry) |
+| Staging | `sha-{commit_hash}` | Track latest `main` |
+| Production | `v1.2.3` | Semantic versions for stability |
 
-```bash
-# 1. 创建 release tag
-git tag v1.2.3
-git push origin v1.2.3
+## Open Items
 
-# 2. GitHub Actions 触发
-# → `production-deploy.yml` 运行
-# → 构建镜像（tag: v1.2.3）
-# → 部署到 report.zitian.party
+### Configuration
+- [x] Update README to document how to start `docker-compose.yml`
+- [ ] Configure GitHub repo environment protection rules (optional)
 
-# 3. 自动 smoke test
-
-# 4. 监控生产环境
-```
-
----
-
-## 架构优势
-
-| 优势 | 说明 |
-|------|------|
-| **快速反馈** | 本地 CLI 工具秒级验证 |
-| **成本可控** | 仅在 Staging/Production 部署工作流中构建并推送镜像 |
-| **隔离测试** | PR 自动创建完整隔离环境 |
-| **数据持久** | Staging 保留测试数据供持续验证 |
-| **版本管理** | Production 使用语义化版本，清晰稳定 |
-| **灾难恢复** | Staging 和 Production 配置一致，便于对标 |
-
----
-
-## 技术细节
-
-### docker-compose.yml 的作用
-
-1. **本地开发**：`docker compose up -d` 启动完整环境
-2. **GitHub CI**：自动启动用于集成测试
-3. **PR Test**：Dokploy 通过 GitHub 仓库读取并部署
-
-### infra2 compose.yaml 的作用
-
-1. **Staging/Production** 共享参数化模板
-2. 通过环境变量区分 `ENV=staging` vs `ENV=production`
-3. Vault agent 自动注入对应的 secrets
-4. Traefik 标签用于路由和 SSL 证书
-
-### 镜像 tag 策略
-
-| 环境 | Tag | 说明 |
-|------|-----|------|
-| PR test | N/A | Docker compose build（无镜像） |
-| Staging | `sha-{commit_hash}` | 追踪 main 最新版本 |
-| Production | `v1.2.3` | 语义化版本，稳定 |
-
----
-
-## 待完成事项
-
-### Configuration（配置）
-- [ ] 更新 README - 说明如何启动 docker-compose.yml
-- [ ] GitHub repo settings 中配置 environment protection rules（可选）
-
-### Testing（测试）
-- [x] 本地 `docker compose up -d` 验证
-- [x] GitHub CI 验证
-- [x] 创建 test PR 验证完整流程
-- [x] Staging 部署验证
-- [x] Production 部署验证
+### Testing
+- [x] Local `docker compose up -d` verification
+- [x] GitHub CI verification
+- [x] Test PR end-to-end validation
+- [x] Staging deployment validation
+- [x] Production deployment validation

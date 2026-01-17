@@ -28,7 +28,7 @@ flowchart LR
     U[User] --> UI[Chat UI]
     UI --> API[POST /api/chat]
     API --> CTX[Build Financial Context]
-    CTX --> LLM[OpenRouter Gemini 3 Flash]
+    CTX --> LLM[OpenRouter Model (default PRIMARY_MODEL)]
     LLM --> API
     API --> UI
 ```
@@ -106,6 +106,12 @@ The advisor only reads summarized, posted/reconciled data:
 1. Detect missing `OPENROUTER_API_KEY`.
 2. Return 503 with a friendly message and no partial response.
 3. Log the failure for audit.
+
+### SOP-004: Model Selection
+
+1. UI pulls available models from `/api/ai/models`.
+2. Client sends the selected `model` in `POST /api/chat`.
+3. If omitted, the service uses `PRIMARY_MODEL` with fallbacks.
 
 ### SOP-003: Cached Common Q&A
 

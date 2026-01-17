@@ -103,3 +103,4 @@ async def test_get_me_user_not_found(public_client):
     # Dependency returns 401 for non-existent user
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid user"
+

@@ -18,7 +18,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🏗️ **Architect** | Decoupled Design | AI only handles parsing, does not write directly to ledger, errors filtered through validation layer |
-| 💻 **Developer** | API Integration | Gemini 3 Flash call wrapper with retry, fallback, and cost control |
+| 💻 **Developer** | API Integration | Gemini 2.0 Flash (free) call wrapper with retry, fallback, and cost control |
 | 📊 **Accountant** | Data Integrity | Opening + Transactions ≈ Closing, reject if validation fails |
 | 🔗 **Reconciler** | Downstream Dependencies | Parsing results must be structured for matching algorithms |
 | 🧪 **Tester** | Parsing Accuracy | Multi-bank, multi-format coverage testing, target ≥ 95% |
@@ -216,7 +216,7 @@ def test_free_model_retry_on_timeout():
 ## Issues & Gaps
 
 - [x] Align BankStatement and BankStatementTransaction fields with SSOT extraction (file_hash, confidence_score, balance_validated, etc.).
-- [x] Align model/config with SSOT (Gemini 3 Flash + fallback models and OpenRouter limits).
+- [x] Align model/config with SSOT (Gemini 2.0 Flash (free) + fallback models and OpenRouter limits).
 - [x] Add confidence scoring and review queue routing (`/api/statements/pending-review`) to tasks and acceptance criteria.
 - [x] Standardize institution/template scope across checklist, Q5 decision, and SSOT supported institutions.
 - [x] Enforce balance validation routing (invalid balances route to manual entry and capture validation_error).
@@ -256,7 +256,7 @@ def test_free_model_retry_on_timeout():
 **✅ Your Answer**: Use OpenRouter, $2 daily limit is enforced at API level, no additional application-layer limits needed
 
 **Decision**: Application layer relies on OpenRouter official limits
-- Call Gemini 3 Flash through OpenRouter (not direct Google API)
+- Call Gemini 2.0 Flash (free) through OpenRouter (not direct Google API)
 - OpenRouter has daily quota management, automatically returns 429 error when exceeded
 - Application layer does not need to implement call limits, but must gracefully handle API quota exhaustion
 - When OpenRouter returns quota exhaustion, fallback to local rule-based parsing or notify user
@@ -268,17 +268,17 @@ def test_free_model_retry_on_timeout():
 **✅ Your Answer**: C - Support retry + manual editing. Prioritize upgrading to stronger model on retry.
 
 **Decision**: Layered fallback strategy to improve parsing success rate
-- **Layer 1**: Gemini 3 Flash (fast, cheap)
-- **Layer 2**: Upgrade to Gemini 2.0 or stronger model on retry (available through OpenRouter)
+- **Layer 1**: Gemini 2.0 Flash (free) (fast, cheap)
+- **Layer 2**: Upgrade to Gemini 2.0 Flash (free) or stronger model on retry (available through OpenRouter)
 - **Layer 3**: Show partial parsing results, allow user to edit and supplement
 - **Layer 4**: Manual entry (complete form)
 - Flow:
   ```
   Upload PDF
-  ├─ Try Gemini 3 Flash
+  ├─ Try Gemini 2.0 Flash (free)
   │  ├─ ✅ Success → Show results
   │  └─ ❌ Fail → Offer "Retry with stronger model"
-  │     ├─ Try Gemini 2.0 / GPT-4
+  │     ├─ Try Gemini 2.0 Flash (free) / GPT-4
   │     ├─ ✅ Success → Show results
   │     └─ ❌ Fail → Show partial results + Edit form
   └─ User can always manually add/edit transactions

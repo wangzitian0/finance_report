@@ -1,6 +1,7 @@
 # Finance Report AI Agent Behavioral Guidelines
 
 > **Prohibition**: AI may NOT modify this file without explicit authorization.
+> **Checklist**: When you think you have completed a task, you need to check this file line by line to make sure you have met all the requirements.
 > **English**: All code, PRs, commits, and reports must be in English; optional translated documentation files (e.g., *_ZH.md, *_CN.md) are allowed as non-authoritative copies.
 
 ## 🧭 Wiki Entry Map (Level 0/1)
@@ -9,7 +10,7 @@
 
 **Level 1 Entries (by purpose)**
 1. **Global Project Overview** → [README.md](README.md)
-2. **Project Goals & Specification** → [init.md](init.md)
+2. **Project Target (North Star)** → [target.md](target.md)
 3. **Technical Truth / SSOT** → [docs/ssot/README.md](docs/ssot/README.md)
 4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md)
 
@@ -18,13 +19,13 @@
 - **Copilot Instructions** → [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
 **Reading Order (10-minute overview)**
-1. [init.md](init.md) — Project goals, business flows, phased delivery
+1. [target.md](target.md) — Macro goals and decision criteria
 2. [README.md](README.md) — Tech stack, quick start commands
 3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [schema.md](docs/ssot/schema.md)
 4. [.claude/skills/README.md](.claude/skills/README.md) — Available agent roles
 
 **Routing Rules (where to go when)**
-- Need to understand business logic → [init.md](init.md)
+- Need to understand business logic → [target.md](target.md)
 - **Need environment setup / moon commands** → [docs/ssot/development.md](docs/ssot/development.md)
 - Need to write code → [.github/copilot-instructions.md](.github/copilot-instructions.md) + skill files
 - Need data model reference → [docs/ssot/](docs/ssot/)
@@ -34,7 +35,7 @@
 
 ## 📌 Core Domain Context
 
-**Read [init.md](init.md) for complete specification. Key points:**
+**Read [target.md](target.md) for macro goals and decision criteria. Key points:**
 
 ### Accounting Equation (MUST satisfy)
 ```
@@ -76,7 +77,7 @@ AI must use this cascade structure before processing tasks:
 - **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
 
 ### 4. Result (Verification)
-- **Self-Check**: Compare against project goals in [init.md](init.md)
+- **Self-Check**: Compare against project goals in [target.md](target.md)
 - **Evidence Loop**: Use verification methods from SSOT "The Proof" sections
 - **Update Docs**: Update README, Project docs, SSOT as needed
 
@@ -198,7 +199,7 @@ def validate_balance(lines: list[JournalLine]) -> bool:
 
 **Phase 0**: Infrastructure Setup (Moonrepo + Docker)
 
-See [init.md](init.md) Section 7 for full phased delivery plan.
+See [docs/project/README.md](docs/project/README.md) for phased delivery status.
 
 ---
 

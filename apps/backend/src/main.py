@@ -15,7 +15,7 @@ from src.config import settings
 from src.database import get_db, init_db
 from src.env_check import check_env_on_startup, print_loaded_config
 from src.models import PingState
-from src.routers import accounts, auth, chat, journal, reports, statements, users
+from src.routers import accounts, ai_models, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 
@@ -62,6 +62,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(accounts.router)
+app.include_router(ai_models.router)
 app.include_router(chat.router)
 app.include_router(journal.router)
 app.include_router(reports.router)
