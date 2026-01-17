@@ -71,12 +71,12 @@ def test_validate_balance_tolerance():
     assert Decimal(result["difference"]) <= Decimal("0.10")
 
 
-def test_validate_balance_handles_invalid_values():
-    """Invalid numeric inputs should return validation error details."""
+def test_validate_balance_error_path():
+    """Invalid transaction payloads should surface as validation errors."""
     extracted = {
         "opening_balance": "100.00",
         "closing_balance": "100.00",
-        "transactions": [{"direction": "IN"}],
+        "transactions": [{}],
     }
     result = validate_balance(extracted)
     assert result["balance_valid"] is False
@@ -111,3 +111,30 @@ def test_compute_confidence_score_invalid_difference() -> None:
     missing_fields = validate_completeness(extracted)
     score = compute_confidence_score(extracted, balance_result, missing_fields)
     assert score >= 0
+
+def test_compute_confidence_score_small_diff():
+    """Small balance differences should still earn partial score."""
+    extracted = {
+        "institution": "DBS",
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "100.00",
+        "closing_balance": "101.00",
+        "transactions": [{"amount": "1.00", "direction": "IN"}],
+    }
+    missing_fields = validate_completeness(extracted)
+    balance_result = {"balance_valid": False, "difference": "0.50"}
+    score = compute_confidence_score(extracted, balance_result, missing_fields)
+    assert score >= 30
+
+
+def test_validate_balance_incomplete_transaction():
+    """Transaction with some fields present but missing required ones should surface error."""
+    extracted = {
+        "opening_balance": "100.00",
+        "closing_balance": "110.00",
+        "transactions": [{"direction": "IN"}],  # Has direction but missing amount
+    }
+    result = validate_balance(extracted)
+    assert result["balance_valid"] is False
+    assert "Validation error" in (result["notes"] or "")

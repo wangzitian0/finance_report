@@ -64,30 +64,17 @@ def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
     )
 
 
-async def _build_match_response(
-    db: AsyncSession,
+def _build_match_response(
     match: ReconciliationMatch,
-    user_id: UUID,
+    *,
+    transaction: BankStatementTransaction | None,
+    entry_summaries: dict[str, JournalEntrySummary],
 ) -> ReconciliationMatchResponse:
-    transaction_result = await db.execute(
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatementTransaction.id == match.bank_txn_id)
-        .where(BankStatement.user_id == user_id)
-    )
-    transaction = transaction_result.scalar_one_or_none()
     entries: list[JournalEntrySummary] = []
-    if match.journal_entry_ids:
-        entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        result = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.id.in_(entry_ids))
-            .where(JournalEntry.user_id == user_id)
-            .options(selectinload(JournalEntry.lines))
-        )
-        for entry in result.scalars():
-            entries.append(_build_entry_summary(entry))
-
+    for entry_id in match.journal_entry_ids or []:
+        summary = entry_summaries.get(entry_id)
+        if summary:
+            entries.append(summary)
     return ReconciliationMatchResponse(
         id=match.id,
         bank_txn_id=match.bank_txn_id,
@@ -102,6 +89,34 @@ async def _build_match_response(
         transaction=transaction,
         entries=entries,
     )
+
+
+async def _load_entry_summaries(
+    db: AsyncSession,
+    matches: list[ReconciliationMatch],
+    user_id: UUID,
+) -> dict[str, JournalEntrySummary]:
+    entry_ids: set[UUID] = set()
+    for match in matches:
+        for entry_id in match.journal_entry_ids or []:
+            try:
+                entry_ids.add(UUID(entry_id))
+            except ValueError:
+                continue
+
+    if not entry_ids:
+        return {}
+
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id.in_(entry_ids))
+        .where(JournalEntry.user_id == user_id)
+        .options(selectinload(JournalEntry.lines))
+    )
+    return {
+        str(entry.id): _build_entry_summary(entry)
+        for entry in result.scalars().all()
+    }
 
 
 @router.post("/run", response_model=ReconciliationRunResponse)
@@ -164,7 +179,11 @@ async def list_matches(
         .join(BankStatementTransaction)
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.transaction))
+        .options(
+            selectinload(ReconciliationMatch.transaction).selectinload(
+                BankStatementTransaction.statement
+            )
+        )
     )
     if status:
         query = query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
@@ -172,7 +191,15 @@ async def list_matches(
 
     result = await db.execute(query)
     matches = result.scalars().all()
-    items = [await _build_match_response(db, match, user_id) for match in matches]
+    entry_summaries = await _load_entry_summaries(db, matches, user_id)
+    items = [
+        _build_match_response(
+            match,
+            transaction=match.transaction,
+            entry_summaries=entry_summaries,
+        )
+        for match in matches
+    ]
 
     total_query = (
         select(func.count(ReconciliationMatch.id))
@@ -198,8 +225,27 @@ async def pending_review_queue(
     user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
-    items = [await _build_match_response(db, match, user_id) for match in matches]
-    return ReconciliationMatchListResponse(items=items, total=len(items))
+    entry_summaries = await _load_entry_summaries(db, matches, user_id)
+    items = [
+        _build_match_response(
+            match,
+            transaction=match.transaction,
+            entry_summaries=entry_summaries,
+        )
+        for match in matches
+    ]
+
+    total_query = (
+        select(func.count(ReconciliationMatch.id))
+        .join(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatement.user_id == user_id)
+        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+    )
+    total_result = await db.execute(total_query)
+    total = total_result.scalar_one()
+
+    return ReconciliationMatchListResponse(items=items, total=total)
 
 
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
@@ -212,8 +258,13 @@ async def accept_match(
         match = await accept_match_service(db, match_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    await db.refresh(match)
-    return await _build_match_response(db, match, user_id)
+    await db.refresh(match, ["transaction"])
+    entry_summaries = await _load_entry_summaries(db, [match], user_id)
+    return _build_match_response(
+        match,
+        transaction=match.transaction,
+        entry_summaries=entry_summaries,
+    )
 
 
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
@@ -226,8 +277,13 @@ async def reject_match(
         match = await reject_match_service(db, match_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    await db.refresh(match)
-    return await _build_match_response(db, match, user_id)
+    await db.refresh(match, ["transaction"])
+    entry_summaries = await _load_entry_summaries(db, [match], user_id)
+    return _build_match_response(
+        match,
+        transaction=match.transaction,
+        entry_summaries=entry_summaries,
+    )
 
 
 @router.post("/batch-accept", response_model=ReconciliationMatchListResponse)
@@ -237,7 +293,25 @@ async def batch_accept(
     user_id: UUID = Depends(get_current_user_id),
 ) -> ReconciliationMatchListResponse:
     matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
-    items = [await _build_match_response(db, match, user_id) for match in matches]
+    if not matches:
+        return ReconciliationMatchListResponse(items=[], total=0)
+
+    match_ids = [match.id for match in matches]
+    result = await db.execute(
+        select(ReconciliationMatch)
+        .where(ReconciliationMatch.id.in_(match_ids))
+        .options(selectinload(ReconciliationMatch.transaction))
+    )
+    loaded_matches = result.scalars().all()
+    entry_summaries = await _load_entry_summaries(db, loaded_matches, user_id)
+    items = [
+        _build_match_response(
+            match,
+            transaction=match.transaction,
+            entry_summaries=entry_summaries,
+        )
+        for match in loaded_matches
+    ]
     return ReconciliationMatchListResponse(items=items, total=len(items))
 
 

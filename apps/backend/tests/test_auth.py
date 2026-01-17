@@ -1,10 +1,11 @@
 """Tests for authentication dependency."""
 
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 from fastapi import HTTPException
+from httpx import ASGITransport, AsyncClient
 
 from src.auth import get_current_user_id
 
@@ -60,11 +61,40 @@ async def test_auth_valid_user(client, test_user):
 
 @pytest.mark.asyncio
 async def test_get_current_user_id_direct(db, test_user):
+    """Directly resolve a valid user against the database session."""
     user_id = await get_current_user_id(x_user_id=str(test_user.id), db=db)
     assert user_id == test_user.id
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_id_invalid_user(db):
+async def test_get_current_user_id_invalid_user_db(db):
+    """Database-backed invalid user should raise 401."""
     with pytest.raises(HTTPException, match="Invalid user"):
         await get_current_user_id(x_user_id=str(uuid4()), db=db)
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_id_valid_user_mock():
+    """Directly exercise dependency with a valid user result."""
+    user_id = uuid4()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = user_id
+    db = AsyncMock()
+    db.execute.return_value = mock_result
+
+    resolved = await get_current_user_id(x_user_id=str(user_id), db=db)
+    assert resolved == user_id
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_id_invalid_user_mock():
+    """Directly exercise dependency with a missing user result."""
+    user_id = uuid4()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    db = AsyncMock()
+    db.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as excinfo:
+        await get_current_user_id(x_user_id=str(user_id), db=db)
+    assert excinfo.value.status_code == 401
