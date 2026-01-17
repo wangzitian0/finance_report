@@ -185,7 +185,9 @@ async def delete_journal_entry(
 ):
     """Delete a draft journal entry."""
     result = await db.execute(
-        select(JournalEntry).where(JournalEntry.id == entry_id).where(JournalEntry.user_id == user_id)
+        select(JournalEntry)
+        .where(JournalEntry.id == entry_id)
+        .where(JournalEntry.user_id == user_id)
     )
     entry = result.scalar_one_or_none()
 
