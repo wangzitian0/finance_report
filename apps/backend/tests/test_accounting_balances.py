@@ -78,3 +78,10 @@ async def test_calculate_account_balances_aggregates_by_type(db, test_user) -> N
     assert balances[asset.id] == Decimal("150.00")
     assert balances[income.id] == Decimal("200.00")
     assert balances[expense.id] == Decimal("50.00")
+
+
+@pytest.mark.asyncio
+async def test_calculate_account_balances_empty_list(db, test_user) -> None:
+    """Empty input should return an empty mapping."""
+    balances = await calculate_account_balances(db, [], test_user.id)
+    assert balances == {}
