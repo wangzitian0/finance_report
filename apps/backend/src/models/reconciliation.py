@@ -47,7 +47,7 @@ class ReconciliationMatch(Base):
     # Scores are non-monetary; floats are acceptable for display/analysis.
     score_breakdown: Mapped[dict[str, float]] = mapped_column(JSONB, default=dict)
     status: Mapped[ReconciliationStatus] = mapped_column(
-        SQLEnum(ReconciliationStatus),
+        SQLEnum(ReconciliationStatus, name="reconciliation_status_enum"),
         default=ReconciliationStatus.PENDING_REVIEW,
     )
     version: Mapped[int] = mapped_column(Integer, default=1)

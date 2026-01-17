@@ -256,8 +256,9 @@ async def generate_income_statement(
             continue
 
         for line, account, entry in lines_and_accounts:
+            # For account totals, use period average rate
             try:
-                converted = await convert_amount(
+                converted_total = await convert_amount(
                     db,
                     amount=line.amount,
                     currency=line.currency,
@@ -269,17 +270,34 @@ async def generate_income_statement(
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
 
-            signed = _signed_amount(account.type, line.direction, converted)
-            balances[account.id] += signed
+            signed_total = _signed_amount(account.type, line.direction, converted_total)
+            balances[account.id] += signed_total
 
+            # For monthly trend buckets, use the entry's month average rate
             period_key = _month_start(entry.entry_date)
+            month_end = _add_months(period_key, 1) - timedelta(days=1)
+            try:
+                converted_monthly = await convert_amount(
+                    db,
+                    amount=line.amount,
+                    currency=line.currency,
+                    target_currency=target_currency,
+                    rate_date=entry.entry_date,
+                    average_start=period_key,
+                    average_end=month_end,
+                )
+            except FxRateError:
+                # Fallback to period average if monthly rate unavailable
+                converted_monthly = converted_total
+
+            signed_monthly = _signed_amount(account.type, line.direction, converted_monthly)
             bucket = period_totals.setdefault(
                 period_key, {"income": Decimal("0"), "expense": Decimal("0")}
             )
             if account.type == AccountType.INCOME:
-                bucket["income"] += signed
+                bucket["income"] += signed_monthly
             else:
-                bucket["expense"] += signed
+                bucket["expense"] += signed_monthly
 
     def build_lines(filter_type: AccountType) -> list[dict[str, object]]:
         items = [account for account in accounts if account.type == filter_type]
@@ -577,8 +595,20 @@ async def generate_cash_flow(
 
     beginning_cash = Decimal("0")
     ending_cash = Decimal("0")
+    # Identify cash and cash-equivalent accounts by name patterns
+    # These should contribute to beginning/ending cash but NOT be categorized as Investing
+    cash_keywords = ("cash", "bank", "checking", "savings", "money market", "petty cash")
+
+    def is_cash_account(account: Account) -> bool:
+        """Check if account is a cash or cash-equivalent account."""
+        if account.type != AccountType.ASSET:
+            return False
+        name_lower = account.name.lower()
+        return any(keyword in name_lower for keyword in cash_keywords)
+
     for acc_id, account in account_id_to_account.items():
-        if account.type == AccountType.ASSET:
+        # Only cash accounts contribute to cash flow beginning/ending balances
+        if is_cash_account(account):
             beginning_cash += balances_before.get(acc_id, Decimal("0"))
             ending_cash += balances_after.get(acc_id, Decimal("0"))
 
@@ -601,6 +631,10 @@ async def generate_cash_flow(
             item["category"] = "Operating"
             operating_items.append(item)
         elif account.type == AccountType.ASSET:
+            # Cash accounts are excluded from activity categories (they ARE the cash flow)
+            # Non-cash assets (investments, equipment, etc.) go to Investing
+            if is_cash_account(account):
+                continue  # Skip cash accounts - they're reflected in net cash flow
             item["category"] = "Investing"
             investing_items.append(item)
         else:

@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import BankStatement, BankStatementTransaction
-from src.services.reconciliation import normalize_text
+from src.services.reconciliation import extract_merchant_tokens
 
 
 @dataclass
@@ -50,9 +50,9 @@ async def detect_anomalies(
             )
         )
 
-    merchant_token = normalize_text(txn.description).split()[:1]
-    if merchant_token:
-        token = merchant_token[0]
+    merchant_tokens = extract_merchant_tokens(txn.description)
+    if merchant_tokens:
+        token = merchant_tokens[0]
         safe_token = token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{safe_token}%"
         daily_count_result = await db.execute(

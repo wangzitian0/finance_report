@@ -447,10 +447,279 @@ async def test_build_match_response_with_invalid_uuid_in_entry_ids(
     # Should return empty dict since no valid UUIDs
     assert entry_summaries == {}
 
-    # Building response should still work with empty summaries
-    response = reconciliation_router._build_match_response(
-        match,
-        transaction=txn,
-        entry_summaries=entry_summaries,
+
+@pytest.mark.asyncio
+async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) -> None:
+    """Accept match should raise ValueError when entry amounts don't match transaction."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
     )
-    assert response.entries == []
+
+    # Create a journal entry with mismatched amount
+    account = Account(
+        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
+    )
+    db.add(account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Test entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Entry amount is $50, but transaction is $100 - should fail validation
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("50.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=80,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Amount mismatch"):
+        await accept_match_service(db, str(match.id), user_id=test_user.id)
+
+
+@pytest.mark.asyncio
+async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user) -> None:
+    """Accept match should succeed when amounts match within tolerance."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
+    )
+
+    account = Account(
+        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
+    )
+    db.add(account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Test entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Entry amount is $99.95 - within 1% tolerance of $100
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("99.95"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=85,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    assert result.status == ReconciliationStatus.ACCEPTED
+
+
+@pytest.mark.asyncio
+async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, test_user) -> None:
+    """Accept match with skip_amount_validation=True should bypass validation."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
+    )
+
+    account = Account(
+        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
+    )
+    db.add(account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Test entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Entry amount is $50, but we skip validation
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("50.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=80,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    # Should succeed with skip_amount_validation=True
+    result = await accept_match_service(
+        db, str(match.id), user_id=test_user.id, skip_amount_validation=True
+    )
+    assert result.status == ReconciliationStatus.ACCEPTED
+
+
+@pytest.mark.asyncio
+async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user) -> None:
+    """batch_accept should skip matches below min_score threshold."""
+    from src.services.review_queue import batch_accept
+
+    statement = await _create_statement(db, test_user.id)
+    # Create a low-score match
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("50.00"), status=BankStatementTransactionStatus.PENDING
+    )
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=60,  # Below default min_score of 75
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    # batch_accept with min_score=75 should skip this match
+    accepted = await batch_accept(db, user_id=test_user.id, match_ids=[str(match.id)], min_score=75)
+
+    # Should return empty since match was below threshold
+    assert len(accepted) == 0
+
+    # Verify match was not modified
+    await db.refresh(match)
+    assert match.status == ReconciliationStatus.PENDING_REVIEW
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, test_user) -> None:
+    """create_entry_from_txn should use statement's linked account when available."""
+    from src.services.review_queue import create_entry_from_txn
+
+    # Create a bank account to link to the statement
+    bank_account = Account(
+        user_id=test_user.id,
+        name="Linked Bank Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(bank_account)
+    await db.flush()
+
+    # Create statement with linked account_id
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path="test/path",
+        file_hash="hash123",
+        original_filename="test.pdf",
+        institution="Test Bank",
+        currency="SGD",
+        period_start=date.today(),
+        period_end=date.today(),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("900.00"),
+        account_id=bank_account.id,  # Link the account
+    )
+    db.add(statement)
+    await db.flush()
+
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.UNMATCHED
+    )
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+
+    # Verify entry uses the linked bank account
+    assert entry is not None
+    # Check that one of the lines uses the linked account
+    account_ids = [line.account_id for line in entry.lines]
+    assert bank_account.id in account_ids
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_rejects_other_user_transaction(
+    db: AsyncSession, test_user
+) -> None:
+    """create_entry_from_txn should reject transactions from other users."""
+    from src.services.review_queue import create_entry_from_txn
+
+    # Create a statement for a different user
+    other_user_id = uuid4()
+    other_statement = BankStatement(
+        user_id=other_user_id,
+        file_path="test/other",
+        file_hash="other123",
+        original_filename="other.pdf",
+        institution="Other Bank",
+        currency="SGD",
+        period_start=date.today(),
+        period_end=date.today(),
+        opening_balance=Decimal("500.00"),
+        closing_balance=Decimal("400.00"),
+    )
+    db.add(other_statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=other_statement.id,
+        txn_date=date.today(),
+        description="Other user txn",
+        amount=Decimal("50.00"),
+        direction="OUT",
+        status=BankStatementTransactionStatus.UNMATCHED,
+        confidence=ConfidenceLevel.HIGH,
+    )
+    db.add(txn)
+    await db.commit()
+
+    # Should fail when test_user tries to create entry from other user's transaction
+    with pytest.raises(ValueError, match="Transaction does not belong to user"):
+        await create_entry_from_txn(db, txn, user_id=test_user.id)

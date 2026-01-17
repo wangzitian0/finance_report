@@ -25,8 +25,10 @@ from src.models import (
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
     auto_accept,
+    build_many_to_one_groups,
     calculate_match_score,
     entry_total_amount,
+    extract_merchant_tokens,
     is_entry_balanced,
     load_reconciliation_config,
     normalize_text,
@@ -109,6 +111,58 @@ def test_normalize_and_description_scoring() -> None:
     assert score_description("Coffee Shop", "coffee shop") >= 95.0
 
 
+def test_extract_merchant_tokens() -> None:
+    """Test merchant token extraction with various inputs."""
+    # Basic extraction - takes significant words
+    tokens = extract_merchant_tokens("STARBUCKS COFFEE DOWNTOWN")
+    assert "starbucks" in tokens
+    assert len(tokens) <= 3
+
+    # Skip common prefixes
+    tokens = extract_merchant_tokens("POS VISA DEBIT STARBUCKS")
+    assert "starbucks" in tokens
+    assert "pos" not in tokens
+    assert "visa" not in tokens
+
+    # Skip short words and numbers
+    tokens = extract_merchant_tokens("123 AB COMPANY 456")
+    assert "company" in tokens
+    assert "123" not in tokens
+    assert "ab" not in tokens  # Too short
+
+    # Empty or all-skipped returns empty
+    tokens = extract_merchant_tokens("POS VISA 12")
+    assert tokens == []
+
+    # Handle empty string
+    tokens = extract_merchant_tokens("")
+    assert tokens == []
+
+
+def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
+    """build_many_to_one_groups should skip transactions with empty descriptions."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class MockTxn:
+        description: str
+        txn_date: date
+
+    txns = [
+        MockTxn(description="", txn_date=date(2024, 1, 1)),  # Empty - should skip
+        MockTxn(description="   ", txn_date=date(2024, 1, 1)),  # Whitespace - should skip
+        MockTxn(description="Regular payment", txn_date=date(2024, 1, 1)),  # No keyword - skip
+        MockTxn(description="Batch settlement", txn_date=date(2024, 1, 1)),  # Has keyword
+        MockTxn(description="Batch settlement", txn_date=date(2024, 1, 1)),  # Duplicate
+    ]
+
+    groups = build_many_to_one_groups(txns)  # type: ignore[arg-type]
+
+    # Only the "Batch settlement" transactions should be grouped
+    assert len(groups) == 1
+    assert len(groups[0]) == 2
+
+
 def test_score_amount_branches() -> None:
     config = DEFAULT_CONFIG
     assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0
@@ -123,7 +177,8 @@ def test_score_date_branches() -> None:
     config = DEFAULT_CONFIG
     assert score_date(date(2024, 1, 1), date(2024, 1, 1), config) == 100.0
     assert score_date(date(2024, 1, 1), date(2024, 1, 3), config) == 90.0
-    assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 70.0
+    # Cross-month within date_days gets bonus (75 vs 70)
+    assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 75.0
     assert score_date(date(2024, 1, 1), date(2024, 2, 1), config) == 0.0
 
 
@@ -222,7 +277,11 @@ def test_prune_candidates_orders_and_limits() -> None:
         target_amount=Decimal("100.00"),
         limit=2,
     )
-    assert pruned == [entry_close, entry_far_amount]
+    # New heuristic prioritizes exact amount match over date:
+    # entry_close: exact_match=0, amount_diff=0, date_diff=0
+    # entry_far_date: exact_match=0, amount_diff=0, date_diff=2
+    # entry_far_amount: exact_match=1 (>1% diff), amount_diff=10, date_diff=0
+    assert pruned == [entry_close, entry_far_date]
     assert (
         prune_candidates(
             candidates,
@@ -401,3 +460,5 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
     assert candidate.journal_entry_ids == [str(entry.id)]
     assert candidate.breakdown["many_to_one_bonus"] == 10.0
     assert auto_accept(candidate.score, DEFAULT_CONFIG)
+
+
