@@ -1,11 +1,11 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
 interface Toast {
-    id: string;
+    id: number;
     message: string;
     type: ToastType;
 }
@@ -28,29 +28,54 @@ interface ToastProviderProps {
     children: ReactNode;
 }
 
+let toastIdCounter = 0;
+
 export function ToastProvider({ children }: ToastProviderProps) {
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const timeoutRefs = useRef<Map<number, NodeJS.Timeout>>(new Map());
 
-    const showToast = useCallback((message: string, type: ToastType = "success") => {
-        const id = Math.random().toString(36).substring(7);
-        setToasts((prev) => [...prev, { id, message, type }]);
-
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.id !== id));
-        }, 3000);
+    // Cleanup timeouts on unmount
+    useEffect(() => {
+        return () => {
+            timeoutRefs.current.forEach((timeout) => clearTimeout(timeout));
+            timeoutRefs.current.clear();
+        };
     }, []);
 
-    const removeToast = useCallback((id: string) => {
+    const showToast = useCallback((message: string, type: ToastType = "success") => {
+        const id = ++toastIdCounter;
+        setToasts((prev) => [...prev, { id, message, type }]);
+
+        const timeout = setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+            timeoutRefs.current.delete(id);
+        }, 3000);
+        
+        timeoutRefs.current.set(id, timeout);
+    }, []);
+
+    const removeToast = useCallback((id: number) => {
+        const timeout = timeoutRefs.current.get(id);
+        if (timeout) {
+            clearTimeout(timeout);
+            timeoutRefs.current.delete(id);
+        }
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
 
     return (
         <ToastContext.Provider value={{ showToast }}>
             {children}
-            <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+            <div 
+                role="region"
+                aria-live="polite"
+                aria-label="Notifications"
+                className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
+            >
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}
+                        role={toast.type === "error" ? "alert" : "status"}
                         className={`px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[280px] max-w-[400px] animate-slide-up ${
                             toast.type === "success" ? "bg-[var(--success)] text-white" :
                             toast.type === "error" ? "bg-[var(--error)] text-white" :
@@ -58,7 +83,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
                             "bg-[var(--info)] text-white"
                         }`}
                     >
-                        <span className="text-lg">
+                        <span className="text-lg" aria-hidden="true">
                             {toast.type === "success" && "✓"}
                             {toast.type === "error" && "✕"}
                             {toast.type === "warning" && "⚠"}
@@ -68,6 +93,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
                         <button
                             onClick={() => removeToast(toast.id)}
                             className="opacity-70 hover:opacity-100"
+                            aria-label="Dismiss notification"
                         >
                             ✕
                         </button>

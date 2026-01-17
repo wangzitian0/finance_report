@@ -97,7 +97,11 @@ export default function StatementDetailPage() {
 
     const formatAmount = (amount: number, direction: string) => {
         const sign = direction === "IN" ? "+" : "-";
-        return `${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        return `${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const formatCurrency = (amount: number) => {
+        return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
     if (loading) {
@@ -209,13 +213,13 @@ export default function StatementDetailPage() {
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Opening Balance</div>
                     <div className="text-lg font-semibold">
-                        {statement.currency} {statement.opening_balance.toLocaleString()}
+                        {statement.currency} {formatCurrency(statement.opening_balance)}
                     </div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Closing Balance</div>
                     <div className="text-lg font-semibold">
-                        {statement.currency} {statement.closing_balance.toLocaleString()}
+                        {statement.currency} {formatCurrency(statement.closing_balance)}
                     </div>
                 </div>
                 <div className="card p-4">

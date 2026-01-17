@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -34,6 +34,21 @@ export default function ConfirmDialog({
     onCancel,
 }: ConfirmDialogProps) {
     const [inputValue, setInputValue] = useState("");
+    const titleId = useId();
+    const inputId = useId();
+
+    // Reset input value when dialog opens
+    useEffect(() => {
+        if (isOpen) {
+            setInputValue("");
+        }
+    }, [isOpen]);
+
+    const handleCancel = useCallback(() => {
+        if (loading) return;
+        setInputValue("");
+        onCancel();
+    }, [loading, onCancel]);
 
     // Handle ESC key to close dialog
     useEffect(() => {
@@ -47,7 +62,7 @@ export default function ConfirmDialog({
         
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, loading]);
+    }, [isOpen, loading, handleCancel]);
 
     if (!isOpen) return null;
 
@@ -59,10 +74,9 @@ export default function ConfirmDialog({
         setInputValue("");
     };
 
-    const handleCancel = () => {
+    const handleBackdropClick = () => {
         if (loading) return;
-        setInputValue("");
-        onCancel();
+        handleCancel();
     };
 
     const confirmButtonClass = confirmVariant === "danger"
@@ -73,10 +87,19 @@ export default function ConfirmDialog({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/60" onClick={handleCancel} />
-            <div className="relative z-10 w-full max-w-md card animate-slide-up">
+            <div 
+                className="fixed inset-0 bg-black/60" 
+                onClick={handleBackdropClick}
+                aria-hidden="true"
+            />
+            <div 
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                className="relative z-10 w-full max-w-md card animate-slide-up"
+            >
                 <div className="card-header">
-                    <h2 className="text-lg font-semibold">{title}</h2>
+                    <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
                 </div>
 
                 <div className="p-6 space-y-4">
@@ -85,12 +108,13 @@ export default function ConfirmDialog({
                     {showInput && (
                         <div>
                             {inputLabel && (
-                                <label className="block text-sm font-medium mb-1.5">
+                                <label htmlFor={inputId} className="block text-sm font-medium mb-1.5">
                                     {inputLabel}
                                     {inputRequired && <span className="text-[var(--error)]"> *</span>}
                                 </label>
                             )}
                             <textarea
+                                id={inputId}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 placeholder={inputPlaceholder}

@@ -63,8 +63,8 @@ export default function JournalPage() {
         setVoidDialogOpen(true);
     };
 
-    const handleVoidConfirm = async (reason?: string) => {
-        if (!voidingEntryId || !reason) return;
+    const handleVoidConfirm = async (reason: string = "") => {
+        if (!voidingEntryId) return;
         
         setVoidLoading(true);
         try {
