@@ -371,5 +371,5 @@ class TestExtractionServiceHelpers:
                 file_hash=None,
                 file_url=None,
                 original_filename=None,
-                force_model="google/gemini-2.0",
+                force_model="google/gemini-2.0-flash-exp:free",
             )

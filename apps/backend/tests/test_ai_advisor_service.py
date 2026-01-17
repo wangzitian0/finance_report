@@ -12,7 +12,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.prompts.ai_advisor import DISCLAIMER_EN
 from src.models import (
     Account,
     AccountType,
@@ -32,14 +31,16 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
+from src.prompts.ai_advisor import DISCLAIMER_EN
+from src.services import ai_advisor as ai_advisor_service
 from src.services.ai_advisor import (
-    AIAdvisorService,
     AIAdvisorError,
-    build_refusal,
-    ensure_disclaimer,
+    AIAdvisorService,
     ResponseCache,
     StreamRedactor,
+    build_refusal,
     detect_language,
+    ensure_disclaimer,
     estimate_tokens,
     is_non_financial,
     is_prompt_injection,
@@ -48,7 +49,6 @@ from src.services.ai_advisor import (
     normalize_question,
     redact_sensitive,
 )
-from src.services import ai_advisor as ai_advisor_service
 from src.services.reporting import ReportError
 
 
@@ -198,7 +198,8 @@ async def test_chat_stream_uses_cached_response(
     context_hash = hashlib.sha256(
         json.dumps(context, sort_keys=True, default=str).encode("utf-8")
     ).hexdigest()
-    cache_key = f"{test_user.id}:en:{normalize_question(message)}:{context_hash}"
+    model_key = service.primary_model
+    cache_key = f"{test_user.id}:en:{normalize_question(message)}:{context_hash}:{model_key}"
     ai_advisor_service._CACHE.set(cache_key, "cached response")
 
     chat = await service.chat_stream(db, test_user.id, message)
@@ -224,7 +225,9 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
     results = []
-    async for chunk, model in service._stream_openrouter([{"role": "user", "content": "hi"}]):
+    async for chunk, model in service._stream_openrouter(
+        [{"role": "user", "content": "hi"}], None
+    ):
         results.append((chunk, model))
 
     assert calls == ["primary", "fallback"]
@@ -247,7 +250,7 @@ async def test_stream_openrouter_raises_when_all_fail(
 
     with pytest.raises(RuntimeError, match="fallback"):
         async for _chunk, _model in service._stream_openrouter(
-            [{"role": "user", "content": "hi"}]
+            [{"role": "user", "content": "hi"}], None
         ):
             pass
 
@@ -257,6 +260,7 @@ async def test_chat_stream_requires_api_key(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = AIAdvisorService()
+    service.api_key = None
 
     async def fake_context(_db: AsyncSession, _user_id) -> dict[str, str]:
         return {"summary": "ok"}
@@ -349,7 +353,7 @@ async def test_stream_and_store_records_response(
     messages = [{"role": "user", "content": "Hello"}]
     ai_advisor_service._CACHE._store.clear()
 
-    async def fake_stream_openrouter(_messages: list[dict[str, str]]):
+    async def fake_stream_openrouter(_messages: list[dict[str, str]], _preferred: str | None):
         yield "A" * 40, "test-model"
 
     monkeypatch.setattr(service, "_stream_openrouter", fake_stream_openrouter)
@@ -360,6 +364,7 @@ async def test_stream_and_store_records_response(
         messages,
         "en",
         "cache-key",
+        None,
     )
     response = await _drain_stream(stream)
 
@@ -415,14 +420,16 @@ async def test_stream_and_store_raises_on_stream_error(
     session = await service._get_or_create_session(db, test_user.id, None, "Hello")
     messages = [{"role": "user", "content": "Hello"}]
 
-    async def fake_stream_openrouter(_messages: list[dict[str, str]]):
+    async def fake_stream_openrouter(_messages: list[dict[str, str]], _preferred: str | None):
         raise RuntimeError("stream failed")
         yield  # pragma: no cover
 
     monkeypatch.setattr(service, "_stream_openrouter", fake_stream_openrouter)
 
     with pytest.raises(AIAdvisorError, match="stream failed"):
-        await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))
+        await _drain_stream(
+            service._stream_and_store(db, session, messages, "en", "cache-key", None)
+        )
 
 
 @pytest.mark.asyncio

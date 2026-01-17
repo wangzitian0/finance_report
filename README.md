@@ -13,7 +13,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
-[![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%202.0%20Flash-4285F4.svg?logo=google)](https://ai.google.dev/)
+[![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%202.0%20Flash%20%28free%29-4285F4.svg?logo=google)](https://ai.google.dev/)
 
 </div>
 
@@ -34,17 +34,20 @@ Personal financial management system featuring **double-entry bookkeeping**, **A
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-# Start database + object storage (required for statement uploads)
-podman compose up -d postgres minio
-
 # Backend (Terminal 1)
-cd apps/backend && uv sync && uv run uvicorn src.main:app --reload
+moon run backend:dev
 
-# Frontend (Terminal 2, from project root)
-cd apps/frontend && npm install && npm run dev
+# Frontend (Terminal 2)
+moon run frontend:dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+Optional: run dependencies manually (e.g., MinIO for statement uploads):
+
+```bash
+docker compose up -d postgres minio
+```
 
 ## 🛠️ Development
 
@@ -70,8 +73,9 @@ User-scoped endpoints require an `X-User-Id` header (UUID). See
 | Resource | Description |
 |----------|-------------|
 | [📖 **Documentation Site**](https://wangzitian0.github.io/finance_report/) | **Complete documentation** — User guides, API reference, and technical docs |
-| [AGENTS.md](./AGENTS.md) | AI agent guidelines |
+| [target.md](./target.md) | Project target and decision criteria |
 | [docs/ssot/](./docs/ssot/) | Technical SSOT (Single Source of Truth) |
+| [AGENTS.md](./AGENTS.md) | AI agent guidelines |
 
 > 💡 **Documentation is automatically deployed** to [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/) via GitHub Pages on every push to `main`.
 

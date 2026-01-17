@@ -11,7 +11,7 @@
 
 Set up a runnable Monorepo development environment, complete user authentication and basic project skeleton.
 
-**From [init.md Section 7](../../init.md) - Phase 0**
+**From the project plan — Phase 0 alignment**
 
 ---
 
@@ -117,7 +117,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 ## Issues & Gaps
 
 - [x] Status is marked "Complete" while the checklist still has deferred items (infra/moon.yml, pre-commit hooks, Zustand), which makes Phase 0 exit criteria ambiguous.
-- [x] Phase 0 in `init.md` references `infra:docker:up`; without infra/moon.yml tasks, the Moon workflow is incomplete for local docker.
+- [x] Phase 0 plan references `infra:docker:up`; without infra/moon.yml tasks, the Moon workflow is incomplete for local docker.
 - [x] Ping demo API/Frontend field mismatch (`updated_at` vs `last_toggled`) fixed for consistency.
 
 ---

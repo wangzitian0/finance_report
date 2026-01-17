@@ -34,7 +34,7 @@
 |---|----------|----------|
 | Q5 | Bank Priority | **Universal Structure + Extension Fields** - DBS/CITIC/Maybank/Wise/Brokerages/Insurance |
 | Q6 | Cost Control | **OpenRouter Layer** - $2/day quota management |
-| Q7 | Failure Handling | **Layered Retry** - Gemini 3 Flash → Stronger Models → Manual Edit |
+| Q7 | Failure Handling | **Layered Retry** - Gemini 2.0 Flash (free) → Stronger Models → Manual Edit |
 | Q8 | Account Linking | **AI Suggestion + User Confirmation** - Parse → Match Recommendation → User Confirm |
 | Q9 | Historical Import | **Async ETL Task Queue** - Each upload corresponds to independent task |
 
@@ -117,11 +117,11 @@ Advantages: Efficient batch import, good user experience
 ```
 Upload PDF
   ↓
-Try Gemini 3 Flash (fast, cheap)
+Try Gemini 2.0 Flash (free) (fast, cheap)
   ├─ ✅ Success → Return results
   └─ ❌ Fail → Prompt user to retry
       ↓
-      Try Gemini 2.0 / GPT-4 (stronger models)
+      Try Gemini 2.0 Flash (free) / GPT-4 (stronger models)
       ├─ ✅ Success → Return results
       └─ ❌ Fail → Show partial results + edit form
 ```

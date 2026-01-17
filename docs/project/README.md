@@ -8,7 +8,23 @@ This section contains:
 
 - **EPIC Tracking** — Major project milestones and their status
 - **Design Decisions** — Key architectural choices and rationale
-- **Code Audit Report** — Current system status and action items ([View Report](../README.md))
+- **Repository Overview** — Current system orientation ([README.md](../README.md))
+
+## ✅ Status Snapshot
+
+**In Progress**
+- [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization
+- [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
+
+**TODO**
+- None listed. Add future EPICs here before work starts.
+
+**Done**
+- [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
+- [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
+- [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing
+- [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching
+- [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
 
 ## 🎯 Active Projects (EPICs)
 
@@ -23,7 +39,7 @@ This section contains:
 | [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | 🟡 In Progress | 0 | 1 week |
 
 **Total Duration**: 17-20 weeks  
-**Current Phase**: Phase 4 (Reporting & AI Features)
+**Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness
 
 ## 🗺️ EPIC Dependencies
 
@@ -55,10 +71,11 @@ graph LR
 ### For New Developers
 Start with these documents in order:
 
-1. **[Code Audit Report](../README.md)** — Current system status and priorities
-2. **[EPIC-001: Setup](./EPIC-001.phase0-setup.md)** — Infrastructure and authentication
-3. **[EPIC-002: Double-Entry](./EPIC-002.double-entry-core.md)** — Core accounting system
-4. **[Design Decisions](./DECISIONS.md)** — Key architectural choices
+1. **[target.md](../../target.md)** — North Star goals and decision criteria
+2. **[README.md](../README.md)** — Tech stack and quick start
+3. **[EPIC-001: Setup](./EPIC-001.phase0-setup.md)** — Infrastructure and authentication
+4. **[EPIC-002: Double-Entry](./EPIC-002.double-entry-core.md)** — Core accounting system
+5. **[Design Decisions](./DECISIONS.md)** — Key architectural choices
 
 ### For Feature Development
 Check the relevant EPIC for your feature:
@@ -92,7 +109,7 @@ Each EPIC document contains:
 
 - **Technical Specs**: [SSOT Documentation](../ssot/README.md)
 - **Development Setup**: [Development Guide](../ssot/development.md)
-- **Current Issues**: [Code Audit Report](../README.md)
+- **North Star**: [target.md](../../target.md)
 
 ---
 
@@ -100,6 +117,6 @@ Each EPIC document contains:
 
 ## Quick Links
 
-- [Project Specification](../../init.md)
+- [Project Target](../../target.md)
 - [SSOT Index](../ssot/README.md)
 - [AGENTS.md](../../AGENTS.md)

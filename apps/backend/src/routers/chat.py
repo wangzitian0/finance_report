@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -22,8 +23,10 @@ from src.schemas.chat import (
     ChatSuggestionsResponse,
 )
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
+from src.services.openrouter_models import is_model_known
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_class=StreamingResponse)
@@ -34,8 +37,28 @@ async def chat_message(
 ) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
+    if payload.model:
+        allowed_models = {service.primary_model, *service.fallback_models}
+        allowed = payload.model in allowed_models
+        if not allowed:
+            try:
+                allowed = await is_model_known(payload.model)
+            except Exception as e:
+                logger.error("Failed to validate model %s: %s", payload.model, e)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Unable to validate requested model at this time.",
+                ) from e
+        if not allowed:
+            raise HTTPException(status_code=400, detail="Invalid model selection.")
     try:
-        stream = await service.chat_stream(db, user_id, payload.message, payload.session_id)
+        stream = await service.chat_stream(
+            db,
+            user_id,
+            payload.message,
+            payload.session_id,
+            payload.model,
+        )
     except AIAdvisorError as exc:
         detail = str(exc)
         if "not found" in detail.lower():

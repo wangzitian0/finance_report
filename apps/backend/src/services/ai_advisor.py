@@ -275,6 +275,7 @@ class AIAdvisorService:
         user_id: UUID,
         message: str,
         session_id: UUID | None = None,
+        model: str | None = None,
     ) -> ChatStream:
         """Create a streaming chat response for a user message."""
         message = message.strip()
@@ -307,7 +308,8 @@ class AIAdvisorService:
         context_hash = hashlib.sha256(
             json.dumps(context, sort_keys=True, default=str).encode("utf-8")
         ).hexdigest()
-        cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}"
+        model_key = model or self.primary_model
+        cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
         _CACHE.prune()
         cached = _CACHE.get(cache_key)
         if cached:
@@ -333,6 +335,7 @@ class AIAdvisorService:
                 messages,
                 language,
                 cache_key,
+                model,
             ),
             model_name=None,
             cached=False,
@@ -514,13 +517,14 @@ class AIAdvisorService:
         messages: list[dict[str, str]],
         language: str,
         cache_key: str,
+        preferred_model: str | None,
     ) -> AsyncIterator[str]:
         redactor = StreamRedactor()
         chunks: list[str] = []
         model_used: str | None = None
 
         try:
-            async for chunk, model_name in self._stream_openrouter(messages):
+            async for chunk, model_name in self._stream_openrouter(messages, preferred_model):
                 model_used = model_name
                 safe_chunk = redactor.process(chunk)
                 if safe_chunk:
@@ -565,9 +569,11 @@ class AIAdvisorService:
         )
 
     async def _stream_openrouter(
-        self, messages: list[dict[str, str]]
+        self, messages: list[dict[str, str]], preferred_model: str | None
     ) -> AsyncIterator[tuple[str, str]]:
         models = [self.primary_model, *self.fallback_models]
+        if preferred_model:
+            models = [preferred_model, *models]
         last_error: Exception | None = None
 
         for model in models:

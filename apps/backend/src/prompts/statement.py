@@ -1,4 +1,4 @@
-"""Gemini prompt templates for statement parsing."""
+"""Prompt templates for statement parsing."""
 
 SYSTEM_PROMPT = """You are a financial statement parser.
 Extract structured transaction data from the provided document.
