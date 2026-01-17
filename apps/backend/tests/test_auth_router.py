@@ -87,3 +87,19 @@ async def test_get_me_success(client, test_user):
     data = response.json()
     assert data["id"] == str(test_user.id)
     assert data["email"] == test_user.email
+
+
+@pytest.mark.asyncio
+async def test_get_me_user_not_found(public_client):
+    """Test /auth/me with non-existent user ID returns 401.
+
+    Note: The get_current_user_id dependency validates user existence
+    and returns 401, so the router handler 404 path is never reached.
+    """
+    # Use a random UUID that doesn't exist in DB
+    headers = {"X-User-Id": "00000000-0000-0000-0000-000000000000"}
+    response = await public_client.get("/auth/me", headers=headers)
+
+    # Dependency returns 401 for non-existent user
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid user"

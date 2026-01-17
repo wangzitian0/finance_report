@@ -95,8 +95,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.bump_version.outputs.new_version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
-          build-args: |
-            NEXT_PUBLIC_API_URL=/api
+          # NEXT_PUBLIC_API_URL: empty = relative paths (frontend paths include /api/)
 
       - name: Deploy to Staging
         env:

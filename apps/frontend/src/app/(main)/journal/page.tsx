@@ -3,23 +3,31 @@
 import { useCallback, useEffect, useState } from "react";
 
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { JournalEntry, JournalEntryListResponse, JournalLine } from "@/lib/types";
 
 const STATUS_FILTERS = ["All", "draft", "posted", "reconciled", "void"] as const;
 
 export default function JournalPage() {
+    const { showToast } = useToast();
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<string>("All");
     const [isFormOpen, setIsFormOpen] = useState(false);
+    
+    // Void dialog state
+    const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+    const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
+    const [voidLoading, setVoidLoading] = useState(false);
 
     const fetchEntries = useCallback(async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (activeFilter !== "All") params.set("status", activeFilter);
+            if (activeFilter !== "All") params.set("status_filter", activeFilter);
             const data = await apiFetch<JournalEntryListResponse>(`/api/journal-entries?${params.toString()}`);
             setEntries(data.items);
             setError(null);
@@ -41,9 +49,12 @@ export default function JournalPage() {
     const handlePostEntry = async (entryId: string) => {
         try {
             await apiFetch(`/api/journal-entries/${entryId}/post`, { method: "POST" });
+            showToast("Entry posted successfully", "success");
             fetchEntries();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to post entry");
+            const message = err instanceof Error ? err.message : "Failed to post entry";
+            showToast(message, "error");
+            setError(message);
         }
     };
 
@@ -51,10 +62,46 @@ export default function JournalPage() {
         if (!window.confirm("Are you sure you want to delete this draft?")) return;
         try {
             await apiFetch(`/api/journal-entries/${entryId}`, { method: "DELETE" });
+            showToast("Draft entry deleted successfully", "success");
             fetchEntries();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to delete entry");
+            const message = err instanceof Error ? err.message : "Failed to delete entry";
+            showToast(message, "error");
+            setError(message);
         }
+    };
+
+    const openVoidDialog = (entryId: string) => {
+        setVoidingEntryId(entryId);
+        setVoidDialogOpen(true);
+    };
+
+    const handleVoidConfirm = async (reason: string) => {
+        if (!voidingEntryId) return;
+        
+        setVoidLoading(true);
+        try {
+            await apiFetch(`/api/journal-entries/${voidingEntryId}/void`, {
+                method: "POST",
+                body: JSON.stringify({ reason }),
+            });
+            showToast("Entry voided successfully. Reversal entry created.", "success");
+            setVoidDialogOpen(false);
+            setVoidingEntryId(null);
+            fetchEntries();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to void entry";
+            showToast(message, "error");
+            setError(message);
+        } finally {
+            setVoidLoading(false);
+        }
+    };
+
+    const handleVoidCancel = () => {
+        if (voidLoading) return;
+        setVoidDialogOpen(false);
+        setVoidingEntryId(null);
     };
 
     return (
@@ -155,6 +202,11 @@ export default function JournalPage() {
                                                     </button>
                                                 </div>
                                             )}
+                                            {(entry.status === "posted" || entry.status === "reconciled") && (
+                                                <button onClick={() => openVoidDialog(entry.id)} className="badge badge-error cursor-pointer hover:opacity-80">
+                                                    Void
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -165,6 +217,21 @@ export default function JournalPage() {
             )}
 
             <JournalEntryForm isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} onSuccess={fetchEntries} />
+            
+            <ConfirmDialog
+                isOpen={voidDialogOpen}
+                onCancel={handleVoidCancel}
+                onConfirm={(reason) => handleVoidConfirm(reason!)}
+                title="Void Journal Entry"
+                message="Are you sure you want to void this journal entry? A reversal entry will be created automatically."
+                confirmLabel="Void Entry"
+                confirmVariant="danger"
+                showInput
+                inputLabel="Void Reason"
+                inputPlaceholder="Enter reason for voiding this entry..."
+                inputRequired
+                loading={voidLoading}
+            />
         </div>
     );
 }

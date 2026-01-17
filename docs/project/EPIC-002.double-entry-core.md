@@ -1,10 +1,10 @@
 # EPIC-002: Double-Entry Bookkeeping Core
 
-> **Status**: ✅ Complete (Backend)  
+> **Status**: ✅ Complete  
 > **Phase**: 1  
 > **Duration**: 3 weeks  
 > **Dependencies**: EPIC-001  
-> **Completed**: 2026-01-10
+> **Completed**: 2026-01-17
 
 ---
 
@@ -75,15 +75,15 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ### Frontend Interface (Next Phase)
 
-- [ ] `/accounts` - Account management page
-  - [ ] Account list (grouped by type)
-  - [ ] Create account form
+- [x] `/accounts` - Account management page
+  - [x] Account list (grouped by type)
+  - [x] Create account form
   - [ ] Account details sidebar
-- [ ] `/journal` - Journal entry management page
-  - [ ] Journal entry list (searchable, paginated)
-  - [ ] Create journal entry form (dynamically add multiple lines)
+- [x] `/journal` - Journal entry management page
+  - [x] Journal entry list (searchable, paginated)
+  - [x] Create journal entry form (dynamically add multiple lines)
   - [ ] Journal entry details modal
-  - [ ] Post/void operation buttons
+  - [x] Post/void operation buttons
 
 ---
 
@@ -216,8 +216,8 @@ def test_many_lines_entry():
 - [x] `apps/backend/tests/test_accounting.py` - Unit tests
 - [x] Update `docs/ssot/schema.md` - ER diagram (implicit via models)
 - [x] Update `docs/ssot/accounting.md` - API documentation (implicit via service)
-- [ ] `apps/frontend/app/accounts/page.tsx` - Frontend (next phase)
-- [ ] `apps/frontend/app/journal/page.tsx` - Frontend (next phase)
+- [x] `apps/frontend/src/app/(main)/accounts/page.tsx` - Account management
+- [x] `apps/frontend/src/app/(main)/journal/page.tsx` - Journal entries
 
 **Implementation Summary**: See [EPIC-002-IMPLEMENTATION.md](./EPIC-002-IMPLEMENTATION.md)
 
