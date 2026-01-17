@@ -429,6 +429,8 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
 
     pending_resp = await client.get("/reconciliation/pending")
     assert pending_resp.status_code == 200
+    pending_data = pending_resp.json()
+    assert pending_data["total"] == 4
 
     accept_resp = await client.post(f"/reconciliation/matches/{match_accept.id}/accept")
     assert accept_resp.status_code == 200
@@ -450,9 +452,21 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
         params={"status": "pending_review"},
     )
     assert matches_resp.status_code == 200
+    matches_data = matches_resp.json()
+    assert matches_data["total"] == 1
 
     matches_all_resp = await client.get("/reconciliation/matches")
     assert matches_all_resp.status_code == 200
+    matches_all_data = matches_all_resp.json()
+    entries_item = next(
+        (item for item in matches_all_data["items"] if item.get("entries")),
+        None,
+    )
+    assert entries_item is not None
+    entry_summary = entries_item["entries"][0]
+    assert entry_summary["memo"]
+    assert entry_summary["entry_date"]
+    assert Decimal(str(entry_summary["total_amount"])) > 0
 
     stats_resp = await client.get("/reconciliation/stats")
     assert stats_resp.status_code == 200

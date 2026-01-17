@@ -1,9 +1,11 @@
 """Integration tests for Reports Router."""
 
 from datetime import date
+from uuid import uuid4
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -15,6 +17,9 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.routers import reports as reports_router
+from src.routers.reports import ExportFormat, ReportType, export_report
+from src.services.reporting import ReportError
 
 
 @pytest.fixture
@@ -152,3 +157,85 @@ async def test_export_endpoint(client, test_data_setup_reports):
     response_is = await client.get("/reports/export", params=params_is)
     assert response_is.status_code == 200
     assert "text/csv" in response_is.headers["content-type"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "attr", "params"),
+    [
+        ("/reports/balance-sheet", "generate_balance_sheet", {"currency": "SGD"}),
+        (
+            "/reports/income-statement",
+            "generate_income_statement",
+            {"start_date": date.today().isoformat(), "end_date": date.today().isoformat()},
+        ),
+        (
+            "/reports/cash-flow",
+            "generate_cash_flow",
+            {"start_date": date.today().isoformat(), "end_date": date.today().isoformat()},
+        ),
+        (
+            "/reports/trend",
+            "get_account_trend",
+            {"account_id": str(uuid4()), "period": "monthly"},
+        ),
+        ("/reports/breakdown", "get_category_breakdown", {"type": "income"}),
+    ],
+)
+async def test_reports_router_handles_report_error(
+    client, monkeypatch: pytest.MonkeyPatch, path: str, attr: str, params: dict[str, str]
+) -> None:
+    async def raise_error(*_args, **_kwargs):
+        raise ReportError("boom")
+
+    monkeypatch.setattr(reports_router, attr, raise_error)
+
+    response = await client.get(path, params=params)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "boom"
+
+
+@pytest.mark.asyncio
+async def test_export_report_invalid_format(db: AsyncSession, test_user) -> None:
+    with pytest.raises(HTTPException, match="Only CSV export is supported"):
+        await export_report(
+            report_type=ReportType.BALANCE_SHEET,
+            format="json",
+            as_of_date=None,
+            start_date=None,
+            end_date=None,
+            currency="SGD",
+            db=db,
+            user_id=test_user.id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_export_report_missing_income_dates(db: AsyncSession, test_user) -> None:
+    with pytest.raises(HTTPException, match="start_date and end_date are required"):
+        await export_report(
+            report_type=ReportType.INCOME_STATEMENT,
+            format=ExportFormat.CSV,
+            as_of_date=None,
+            start_date=None,
+            end_date=None,
+            currency="SGD",
+            db=db,
+            user_id=test_user.id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_export_report_unsupported_type(db: AsyncSession, test_user) -> None:
+    with pytest.raises(HTTPException, match="Unsupported report type"):
+        await export_report(
+            report_type="unsupported",
+            format=ExportFormat.CSV,
+            as_of_date=None,
+            start_date=None,
+            end_date=None,
+            currency="SGD",
+            db=db,
+            user_id=test_user.id,
+        )

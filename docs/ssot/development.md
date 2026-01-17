@@ -124,6 +124,10 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 > **Note:** Slow tests are skipped by default via `-m 'not slow'` in `pyproject.toml`.
 > Run all tests: `uv run pytest -m ""`
 
+### Coverage Gate
+
+- Backend line coverage must be **>= 95%** (`pytest-cov` enforces via `--cov-fail-under=95`).
+
 ### Workflow Diagram
 
 ```
@@ -165,6 +169,14 @@ Terminal 2: moon run backend:test  → refcount=2
 Terminal 2 exits                   → refcount=1
 Terminal 1 exits                   → refcount=0 (stop container)
 ```
+
+### Local Test Isolation (Branch Suffix)
+
+- Set `BRANCH_NAME=<branch_name>` to namespace test resources for local runs.
+- Use `WORKSPACE_ID=<id>` to isolate multiple working copies on the same branch (defaults to the last 8 characters of a repo-path checksum if omitted, so collisions are still possible).
+- The test DB container name and lock/state files include the branch suffix (and workspace id when set).
+- If `POSTGRES_PORT` is not set, a deterministic port is derived from the branch suffix (range: 5400-5999).
+- Test runs track whether the DB container was created or just started, and only remove containers they created.
 
 ### Key Features
 
