@@ -258,7 +258,7 @@ async def accept_match(
         match = await accept_match_service(db, match_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    await db.refresh(match)
+    await db.refresh(match, ["transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
         match,
@@ -277,7 +277,7 @@ async def reject_match(
         match = await reject_match_service(db, match_id, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    await db.refresh(match)
+    await db.refresh(match, ["transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
         match,
