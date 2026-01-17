@@ -24,7 +24,9 @@ fi
 workspace_id="${WORKSPACE_ID:-}"
 if [ -z "$workspace_id" ] && command -v cksum >/dev/null 2>&1; then
   workspace_id="$(printf '%s' "$repo_root" | cksum | awk '{print $1}')"
-  workspace_id="$(printf '%s' "$workspace_id" | awk '{print substr($0, length($0)-3)}')"
+  if [ "${#workspace_id}" -gt 8 ]; then
+    workspace_id="${workspace_id: -8}"
+  fi
 fi
 
 env_suffix=""
@@ -157,7 +159,12 @@ cleanup() {
           "${runtime_cmd[@]}" rm -f "$container_id" >/dev/null 2>&1 || true
           "${runtime_cmd[@]}" volume rm "${compose_project}_postgres_data" >/dev/null 2>&1 || true
         elif [ "$started_existing" = "true" ]; then
-          "${runtime_cmd[@]}" stop "$db_container_name" >/dev/null 2>&1 || true
+          if ! "${runtime_cmd[@]}" stop "$db_container_name" >/dev/null 2>&1; then
+            echo "Warning: failed to stop ${db_container_name}; leaving state for manual cleanup." >&2
+            write_state "$managed" "$started_existing" 1 "$container_id" "${db_port:-}"
+            release_lock
+            return
+          fi
         fi
       fi
       rm -f "$state_file"
@@ -171,16 +178,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [ -z "${POSTGRES_PORT:-}" ] && [ -n "$env_suffix" ]; then
-  if command -v cksum >/dev/null 2>&1; then
-    port_seed="$(printf '%s' "$env_suffix" | cksum | awk '{print $1}')"
-    POSTGRES_PORT=$((5400 + (port_seed % 600)))
-  else
-    POSTGRES_PORT=5432
-  fi
-fi
-export POSTGRES_PORT
-
 acquire_lock
 managed="false"
 started_existing="false"
@@ -191,6 +188,16 @@ if [ -f "$state_file" ] && [ -z "${POSTGRES_PORT:-}" ]; then
     POSTGRES_PORT="$db_port"
   fi
 fi
+
+if [ -z "${POSTGRES_PORT:-}" ] && [ -n "$env_suffix" ]; then
+  if command -v cksum >/dev/null 2>&1; then
+    port_seed="$(printf '%s' "$env_suffix" | cksum | awk '{print $1}')"
+    POSTGRES_PORT=$((5400 + (port_seed % 600)))
+  else
+    POSTGRES_PORT=5432
+  fi
+fi
+export POSTGRES_PORT
 
 if is_db_running; then
   container_id="$(get_db_container_id || true)"
@@ -211,7 +218,11 @@ else
   container_id="$(get_db_container_id || true)"
   if [ -n "$container_id" ]; then
     started_existing="true"
-    "${runtime_cmd[@]}" start "$db_container_name"
+    if ! "${runtime_cmd[@]}" start "$db_container_name"; then
+      echo "Failed to start existing Postgres container '${db_container_name}'." >&2
+      release_lock
+      exit 1
+    fi
   else
     managed="true"
     compose -f "$compose_file" up -d postgres
@@ -231,6 +242,11 @@ for _ in {1..30}; do
   fi
   sleep 1
 done
+
+if ! db_exec pg_isready -U postgres >/dev/null 2>&1; then
+  echo "PostgreSQL is not ready after waiting 30 seconds on port ${POSTGRES_PORT:-5432}." >&2
+  exit 1
+fi
 
 if ! db_exec psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='finance_report_test'" | grep -q 1; then
   db_exec psql -U postgres -c "CREATE DATABASE finance_report_test;"
