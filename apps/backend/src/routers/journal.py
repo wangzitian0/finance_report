@@ -175,3 +175,33 @@ async def void_entry(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_journal_entry(
+    entry_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Delete a draft journal entry."""
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id == entry_id)
+        .where(JournalEntry.user_id == user_id)
+    )
+    entry = result.scalar_one_or_none()
+
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Journal entry {entry_id} not found",
+        )
+
+    if entry.status != JournalEntryStatus.DRAFT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only draft entries can be deleted",
+        )
+
+    await db.delete(entry)
+    await db.commit()

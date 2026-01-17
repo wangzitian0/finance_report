@@ -3,11 +3,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user_id
 from src.database import get_db
-from src.models import AccountType
+from src.models import AccountType, JournalLine
 from src.schemas import (
     AccountCreate,
     AccountListResponse,
@@ -110,3 +111,33 @@ async def update_account(
     response = AccountResponse.model_validate(account)
     response.balance = balance
     return response
+
+
+@router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    account_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Delete an account (if unused)."""
+    # Check if account exists
+    try:
+        account = await account_service.get_account(db, user_id, account_id)
+    except AccountNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+    # Check for usage in journal lines
+    result = await db.execute(
+        select(JournalLine).where(JournalLine.account_id == account_id).limit(1)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete account with existing transactions. Archive it instead.",
+        )
+
+    await db.delete(account)
+    await db.commit()

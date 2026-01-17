@@ -65,3 +65,10 @@ class StorageService:
             )
         except (BotoCoreError, ClientError) as exc:
             raise StorageError(f"Failed to generate presigned URL for {key}") from exc
+
+    def delete_object(self, key: str) -> None:
+        """Delete an object from storage."""
+        try:
+            self.client.delete_object(Bucket=self.bucket, Key=key)
+        except (BotoCoreError, ClientError) as exc:
+            raise StorageError(f"Failed to delete {key} from {self.bucket}") from exc

@@ -58,6 +58,19 @@ export default function JournalPage() {
         }
     };
 
+    const handleDeleteEntry = async (entryId: string) => {
+        if (!window.confirm("Are you sure you want to delete this journal entry?")) return;
+        try {
+            await apiFetch(`/api/journal-entries/${entryId}`, { method: "DELETE" });
+            showToast("Draft entry deleted successfully", "success");
+            fetchEntries();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to delete entry";
+            showToast(message, "error");
+            setError(message);
+        }
+    };
+
     const openVoidDialog = (entryId: string) => {
         setVoidingEntryId(entryId);
         setVoidDialogOpen(true);
@@ -174,9 +187,20 @@ export default function JournalPage() {
                                                 <div className="text-xs text-muted">Total</div>
                                             </div>
                                             {entry.status === "draft" && (
-                                                <button onClick={() => handlePostEntry(entry.id)} className="badge badge-success cursor-pointer hover:opacity-80">
-                                                    Post
-                                                </button>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => handleDeleteEntry(entry.id)} 
+                                                        className="badge badge-error cursor-pointer hover:opacity-80"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handlePostEntry(entry.id)} 
+                                                        className="badge badge-success cursor-pointer hover:opacity-80"
+                                                    >
+                                                        Post
+                                                    </button>
+                                                </div>
                                             )}
                                             {(entry.status === "posted" || entry.status === "reconciled") && (
                                                 <button onClick={() => openVoidDialog(entry.id)} className="badge badge-error cursor-pointer hover:opacity-80">
