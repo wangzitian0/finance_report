@@ -51,8 +51,19 @@ async def accept_match(
     match_id: str,
     *,
     user_id: UUID,
+    skip_amount_validation: bool = False,
 ) -> ReconciliationMatch:
-    """Accept a pending reconciliation match."""
+    """Accept a pending reconciliation match.
+
+    Args:
+        db: Database session
+        match_id: ID of the match to accept
+        user_id: User ID for authorization
+        skip_amount_validation: If True, skip amount sum validation (for edge cases)
+
+    Raises:
+        ValueError: If match not found or amount validation fails
+    """
     result = await db.execute(
         select(ReconciliationMatch)
         .join(BankStatementTransaction)
@@ -69,9 +80,39 @@ async def accept_match(
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
 
+    txn = match.transaction
+
+    # Validate that journal entry amounts match transaction amount
+    if match.journal_entry_ids and txn and not skip_amount_validation:
+        from decimal import Decimal
+
+        entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
+        entries_result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id.in_(entry_ids))
+            .where(JournalEntry.user_id == user_id)
+            .options(selectinload(JournalEntry.lines))
+        )
+        entries = list(entries_result.scalars())
+
+        # Calculate total amount from journal entries (absolute value of debit/credit)
+        total_entry_amount = Decimal("0")
+        for entry in entries:
+            for line in entry.lines:
+                if line.direction == Direction.DEBIT:
+                    total_entry_amount += line.amount
+                    break  # One debit per entry for simple case
+
+        # Allow 1% tolerance or $0.10, whichever is greater
+        tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
+        if abs(total_entry_amount - txn.amount) > tolerance:
+            raise ValueError(
+                f"Amount mismatch: transaction={txn.amount}, "
+                f"entries={total_entry_amount}, tolerance={tolerance}"
+            )
+
     match.status = ReconciliationStatus.ACCEPTED
     match.version += 1
-    txn = match.transaction
     if txn:
         txn.status = BankStatementTransactionStatus.MATCHED
 
@@ -227,32 +268,41 @@ async def create_entry_from_txn(
     *,
     user_id: UUID,
 ) -> JournalEntry:
-    """Create a draft journal entry from a bank transaction."""
-    # Validate transaction belongs to user
-    stmt_check = await db.execute(
+    """Create a draft journal entry from a bank transaction.
+
+    Uses the statement's linked account if available, otherwise creates a default.
+    """
+    # Validate transaction belongs to user and get statement details
+    statement_result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == txn.statement_id)
         .where(BankStatement.user_id == user_id)
     )
-    if not stmt_check.scalar_one_or_none():
+    statement = statement_result.scalar_one_or_none()
+    if not statement:
         raise ValueError("Transaction does not belong to user")
 
-    currency = "SGD"
-    if txn.statement_id:
-        statement_result = await db.execute(
-            select(BankStatement).where(BankStatement.id == txn.statement_id)
-        )
-        statement = statement_result.scalar_one_or_none()
-        if statement and statement.currency:
-            currency = statement.currency
+    currency = statement.currency or "SGD"
 
-    bank_account = await get_or_create_account(
-        db,
-        name="Bank - Main",
-        account_type=AccountType.ASSET,
-        currency=currency,
-        user_id=user_id,
-    )
+    # Use statement's linked account if available, otherwise create default
+    bank_account: Account | None = None
+    if statement.account_id:
+        account_result = await db.execute(
+            select(Account)
+            .where(Account.id == statement.account_id)
+            .where(Account.user_id == user_id)
+        )
+        bank_account = account_result.scalar_one_or_none()
+
+    if not bank_account:
+        # Fallback: create or get default bank account
+        bank_account = await get_or_create_account(
+            db,
+            name="Bank - Main",
+            account_type=AccountType.ASSET,
+            currency=currency,
+            user_id=user_id,
+        )
     if txn.direction == "IN":
         counter_account = await get_or_create_account(
             db,

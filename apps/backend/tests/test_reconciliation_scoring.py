@@ -123,7 +123,8 @@ def test_score_date_branches() -> None:
     config = DEFAULT_CONFIG
     assert score_date(date(2024, 1, 1), date(2024, 1, 1), config) == 100.0
     assert score_date(date(2024, 1, 1), date(2024, 1, 3), config) == 90.0
-    assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 70.0
+    # Cross-month within date_days gets bonus (75 vs 70)
+    assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 75.0
     assert score_date(date(2024, 1, 1), date(2024, 2, 1), config) == 0.0
 
 
@@ -222,7 +223,11 @@ def test_prune_candidates_orders_and_limits() -> None:
         target_amount=Decimal("100.00"),
         limit=2,
     )
-    assert pruned == [entry_close, entry_far_amount]
+    # New heuristic prioritizes exact amount match over date:
+    # entry_close: exact_match=0, amount_diff=0, date_diff=0
+    # entry_far_date: exact_match=0, amount_diff=0, date_diff=2
+    # entry_far_amount: exact_match=1 (>1% diff), amount_diff=10, date_diff=0
+    assert pruned == [entry_close, entry_far_date]
     assert (
         prune_candidates(
             candidates,

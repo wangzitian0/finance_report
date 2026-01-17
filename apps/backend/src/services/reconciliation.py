@@ -190,18 +190,29 @@ def is_cross_period(txn_date: date, entry_date: date, max_days: int) -> bool:
 
 
 def score_date(txn_date: date, entry_date: date, config: ReconciliationConfig) -> float:
-    """Score date proximity (0-100)."""
+    """Score date proximity (0-100).
+
+    Scoring tiers:
+    - Same day: 100
+    - Within 3 days: 90
+    - Cross-month but within config.date_days: 75 (bonus for cross-period matching)
+    - Same month within config.date_days: 70
+    - Beyond config.date_days: decreasing score
+    """
     diff_days = abs((txn_date - entry_date).days)
     if diff_days == 0:
         return 100.0
     if diff_days <= 3:
         return 90.0
 
-    if is_cross_period(txn_date, entry_date, max_days=config.date_days):
+    # Check if within acceptable date window
+    if diff_days <= config.date_days:
+        # Cross-period matching gets a slight bonus (e.g., Friday txn -> Monday entry)
+        if is_cross_period(txn_date, entry_date, max_days=config.date_days):
+            return 75.0
         return 70.0
 
-    if diff_days <= config.date_days:
-        return 70.0
+    # Beyond acceptable window - rapidly decreasing score
     return float(max(0, 100 - diff_days * 10))
 
 
@@ -237,17 +248,48 @@ def score_business_logic(transaction: BankStatementTransaction, entry: JournalEn
     return 50.0
 
 
+def extract_merchant_tokens(description: str) -> list[str]:
+    """Extract meaningful merchant tokens from transaction description.
+
+    Improved extraction that takes up to 3 significant words, skipping
+    common prefixes like transaction codes, dates, and generic terms.
+    """
+    skip_patterns = {
+        "ref", "txn", "trn", "pos", "atm", "eft", "ibk", "ibt",
+        "payment", "transfer", "debit", "credit", "card", "visa", "mastercard",
+    }
+    words = normalize_text(description).split()
+    tokens = []
+    for word in words:
+        # Skip very short words, numbers, and common prefixes
+        if len(word) < 3:
+            continue
+        if word.isdigit():
+            continue
+        if word.lower() in skip_patterns:
+            continue
+        tokens.append(word)
+        if len(tokens) >= 3:
+            break
+    return tokens
+
+
 async def score_pattern(
     db: AsyncSession,
     transaction: BankStatementTransaction,
     config: ReconciliationConfig,
     user_id: UUID,
 ) -> float:
-    """Score based on historical matching patterns."""
-    merchant_key = normalize_text(transaction.description).split()[:1]
-    if not merchant_key:
+    """Score based on historical matching patterns.
+
+    Uses improved merchant extraction that considers multiple significant words.
+    """
+    merchant_tokens = extract_merchant_tokens(transaction.description)
+    if not merchant_tokens:
         return 0.0
-    token = merchant_key[0]
+
+    # Use first meaningful token for pattern matching
+    token = merchant_tokens[0]
     safe_token = token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{safe_token}%"
 
@@ -298,18 +340,29 @@ def prune_candidates(
     target_amount: Decimal,
     limit: int = MAX_COMBINATION_CANDIDATES,
 ) -> list[JournalEntry]:
-    """Reduce candidates before combinational matching to avoid blow-ups."""
+    """Reduce candidates before combinational matching to avoid blow-ups.
+
+    Prioritizes:
+    1. Exact amount matches (within 1%)
+    2. Then by date proximity
+    3. Then by absolute amount difference
+    """
     if len(candidates) <= limit:
         return candidates
 
-    scored: list[tuple[int, Decimal, JournalEntry]] = []
+    tolerance = target_amount * Decimal("0.01")  # 1% tolerance for "exact" match
+
+    scored: list[tuple[int, Decimal, int, JournalEntry]] = []
     for entry in candidates:
         amount_diff = abs(entry_total_amount(entry) - target_amount)
         date_diff = abs((txn_date - entry.entry_date).days)
-        scored.append((date_diff, amount_diff, entry))
+        # Exact match bonus: 0 if within tolerance, 1 otherwise
+        exact_match = 0 if amount_diff <= tolerance else 1
+        scored.append((exact_match, amount_diff, date_diff, entry))
 
-    scored.sort(key=lambda item: (item[0], item[1]))
-    return [entry for _, _, entry in scored[:limit]]
+    # Sort by: exact match first, then amount diff, then date diff
+    scored.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [entry for _, _, _, entry in scored[:limit]]
 
 
 async def calculate_match_score(
