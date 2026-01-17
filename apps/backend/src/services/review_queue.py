@@ -1,6 +1,7 @@
 """Review queue management for reconciliation."""
 
 import logging
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from src.models import (
     ReconciliationStatus,
 )
 from src.services.accounting import ValidationError, validate_journal_balance
+from src.services.reconciliation import entry_total_amount
 
 
 async def get_pending_items(
@@ -84,24 +86,17 @@ async def accept_match(
 
     # Validate that journal entry amounts match transaction amount
     if match.journal_entry_ids and txn and not skip_amount_validation:
-        from decimal import Decimal
-
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
         entries_result = await db.execute(
             select(JournalEntry)
             .where(JournalEntry.id.in_(entry_ids))
             .where(JournalEntry.user_id == user_id)
-            .options(selectinload(JournalEntry.lines))
+            .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
         )
         entries = list(entries_result.scalars())
 
-        # Calculate total amount from journal entries (absolute value of debit/credit)
-        total_entry_amount = Decimal("0")
-        for entry in entries:
-            for line in entry.lines:
-                if line.direction == Direction.DEBIT:
-                    total_entry_amount += line.amount
-                    break  # One debit per entry for simple case
+        # Use entry_total_amount() to correctly sum all debit lines
+        total_entry_amount = sum(entry_total_amount(entry) for entry in entries)
 
         # Allow 1% tolerance or $0.10, whichever is greater
         tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))

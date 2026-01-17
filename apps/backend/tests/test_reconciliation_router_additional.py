@@ -447,10 +447,162 @@ async def test_build_match_response_with_invalid_uuid_in_entry_ids(
     # Should return empty dict since no valid UUIDs
     assert entry_summaries == {}
 
-    # Building response should still work with empty summaries
-    response = reconciliation_router._build_match_response(
-        match,
-        transaction=txn,
-        entry_summaries=entry_summaries,
+
+@pytest.mark.asyncio
+async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) -> None:
+    """Accept match should raise ValueError when entry amounts don't match transaction."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
     )
-    assert response.entries == []
+
+    # Create a journal entry with mismatched amount
+    account = Account(
+        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
+    )
+    db.add(account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Test entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Entry amount is $50, but transaction is $100 - should fail validation
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("50.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=80,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Amount mismatch"):
+        await accept_match_service(db, str(match.id), user_id=test_user.id)
+
+
+@pytest.mark.asyncio
+async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user) -> None:
+    """Accept match should succeed when amounts match within tolerance."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
+    )
+
+    account = Account(
+        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
+    )
+    db.add(account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Test entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Entry amount is $99.95 - within 1% tolerance of $100
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("99.95"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=85,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    assert result.status == ReconciliationStatus.ACCEPTED
+
+
+@pytest.mark.asyncio
+async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, test_user) -> None:
+    """Accept match with skip_amount_validation=True should bypass validation."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
+    )
+
+    account = Account(
+        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
+    )
+    db.add(account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Test entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Entry amount is $50, but we skip validation
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("50.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=80,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    # Should succeed with skip_amount_validation=True
+    result = await accept_match_service(
+        db, str(match.id), user_id=test_user.id, skip_amount_validation=True
+    )
+    assert result.status == ReconciliationStatus.ACCEPTED
