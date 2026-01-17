@@ -3,11 +3,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user_id
 from src.database import get_db
-from src.models import AccountType
+from src.models import AccountType, JournalLine
 from src.schemas import (
     AccountCreate,
     AccountListResponse,
@@ -131,9 +132,6 @@ async def delete_account(
         )
 
     # Check for usage in journal lines
-    from sqlalchemy import select
-    from src.models import JournalLine
-    
     result = await db.execute(
         select(JournalLine).where(JournalLine.account_id == account_id).limit(1)
     )

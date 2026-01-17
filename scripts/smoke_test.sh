@@ -26,12 +26,12 @@ check_endpoint() {
     local method="${4:-GET}"
     local data="${5:-}"
     
-    local curl_opts="-sS -w \n%{http_code}"
+    local curl_opts=("-sS" "-w" "\n%{http_code}")
     if [ "$method" != "GET" ]; then
-        curl_opts="$curl_opts -X $method"
+        curl_opts+=("-X" "$method")
     fi
     if [ -n "$data" ]; then
-        curl_opts="$curl_opts -H 'Content-Type: application/json' -d '$data'"
+        curl_opts+=("-H" "Content-Type: application/json" "-d" "$data")
     fi
 
     local curl_output
@@ -40,7 +40,7 @@ check_endpoint() {
     local content=""
 
     # Run curl once, capture both body and HTTP status code
-    curl_output="$(curl $curl_opts "$url" 2>&1)" || curl_exit=$?
+    curl_output="$(curl "${curl_opts[@]}" "$url" 2>&1)" || curl_exit=$?
     http_code="${curl_output##*$'\n'}"
     content="${curl_output%$'\n'"$http_code"}"
 

@@ -400,7 +400,7 @@ async def delete_statement(
     if statement.file_path:
         storage = StorageService()
         try:
-            await run_in_threadpool(storage.delete_object, key=statement.file_path)
+            await run_in_threadpool(storage.delete_object, statement.file_path)
         except Exception as e:
             logger.warning(f"Failed to delete file from storage: {e}")
             # Proceed to delete from DB to avoid zombie record

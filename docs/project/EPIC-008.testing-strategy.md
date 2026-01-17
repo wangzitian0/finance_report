@@ -149,7 +149,7 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Ask Balance**: User asks "How much cash do I have?"; AI queries BS.
 - [ ] **Ask Spending**: User asks "How much did I spend on food?"; AI queries P&L.
 - [ ] **Spending Insight**: AI suggests "Your food spend is 20% higher than last month."
-- [ ] **Anomoly Detection**: AI alerts "Duplicate subscription detected?".
+- [ ] **Anomaly Detection**: AI alerts "Duplicate subscription detected?".
 - [ ] **Categorization Help**: AI suggests "Expenses:Software" for "Github" transaction.
 - [ ] **Budget Advice**: User asks "Can I afford a PS5?"; AI checks Free Cash Flow.
 - [ ] **Investment Check**: User asks "What is my asset allocation?"; AI summarizes.
