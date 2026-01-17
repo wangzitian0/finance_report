@@ -80,7 +80,7 @@ async def test_dashboard_ui_load(page: Page, app_url):
 @pytest.mark.e2e
 @SKIP_WRITE
 @SKIP_UI
-async def test_create_manual_journal_entry(page: Page, app_url):
+async def test_manual_journal_entry_creation(page: Page, app_url):
     """
     Scenario: User creates a manual journal entry.
     Environment: Staging/Dev Only.

@@ -35,7 +35,7 @@ export default function AccountsPage() {
             await apiFetch(`/api/accounts/${accountId}`, { method: "DELETE" });
             fetchAccounts();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to delete account. It may have transactions.");
+            setError(err instanceof Error ? err.message : "Failed to delete account");
         }
     };
 

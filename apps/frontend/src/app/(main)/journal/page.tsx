@@ -59,7 +59,7 @@ export default function JournalPage() {
     };
 
     const handleDeleteEntry = async (entryId: string) => {
-        if (!window.confirm("Are you sure you want to delete this draft?")) return;
+        if (!window.confirm("Are you sure you want to delete this journal entry?")) return;
         try {
             await apiFetch(`/api/journal-entries/${entryId}`, { method: "DELETE" });
             showToast("Draft entry deleted successfully", "success");
