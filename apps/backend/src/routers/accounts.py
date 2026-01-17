@@ -118,7 +118,7 @@ async def delete_account(
     account_id: UUID,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
-):
+) -> None:
     """Delete an account (if unused)."""
     # Check if account exists
     try:

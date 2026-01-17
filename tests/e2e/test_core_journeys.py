@@ -105,11 +105,9 @@ async def test_create_entry_via_api(app_url):
     Environment: Staging/Dev Only.
     """
     pytest.skip("Skipping API test - requires dynamic account IDs")
-    
-    payload = {
-        "entry_date": "2026-01-01",
-        "memo": "Smoke Test Entry API",
-        "lines": []
-    }
-    
-    # ... remaining code ...
+    # TODO: Implement API test with correct payload:
+    # {
+    #     "entry_date": "2026-01-01",
+    #     "memo": "Smoke Test Entry API",
+    #     "lines": [...]
+    # }

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import StatementUploader from "@/components/statements/StatementUploader";
+import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
 
 export default function StatementsPage() {
+    const { showToast } = useToast();
     const [statements, setStatements] = useState<BankStatement[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export default function StatementsPage() {
         
         try {
             await apiFetch(`/api/statements/${id}`, { method: "DELETE" });
+            showToast("Statement deleted successfully", "success");
             fetchStatements();
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to delete statement");
