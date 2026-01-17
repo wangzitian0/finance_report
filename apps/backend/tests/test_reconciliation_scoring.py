@@ -114,10 +114,7 @@ def test_score_amount_branches() -> None:
     assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0
     assert score_amount(Decimal("100.00"), Decimal("100.40"), config) == 90.0
     assert score_amount(Decimal("100.00"), Decimal("104.00"), config) == 70.0
-    assert (
-        score_amount(Decimal("1000.00"), Decimal("994.00"), config, is_multi=True)
-        == 70.0
-    )
+    assert score_amount(Decimal("1000.00"), Decimal("994.00"), config, is_multi=True) == 70.0
     assert score_amount(Decimal("0"), Decimal("10.00"), config) == 0.0
     assert score_amount(Decimal("100.00"), Decimal("160.00"), config) == 40.0
 
@@ -226,12 +223,15 @@ def test_prune_candidates_orders_and_limits() -> None:
         limit=2,
     )
     assert pruned == [entry_close, entry_far_amount]
-    assert prune_candidates(
-        candidates,
-        txn_date=txn_date,
-        target_amount=Decimal("100.00"),
-        limit=5,
-    ) == candidates
+    assert (
+        prune_candidates(
+            candidates,
+            txn_date=txn_date,
+            target_amount=Decimal("100.00"),
+            limit=5,
+        )
+        == candidates
+    )
 
 
 @pytest.mark.asyncio
@@ -362,7 +362,7 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
     )
     credit_line.account = bank
     entry.lines.extend([debit_line, credit_line])
-    
+
     # We need a statement to link the txn to a user_id for the history check query
     statement = Statement(
         user_id=user_id,

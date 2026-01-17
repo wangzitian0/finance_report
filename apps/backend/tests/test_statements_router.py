@@ -130,13 +130,13 @@ async def test_upload_storage_failure(db, monkeypatch, test_user):
     # Mock StorageService to raise StorageError
     mock_storage = MagicMock()
     mock_storage.upload_bytes.side_effect = statements_router.StorageError("S3 Down")
-    
+
     # We need to mock the class constructor to return our mock instance
     mock_storage_cls = MagicMock(return_value=mock_storage)
     monkeypatch.setattr(statements_router, "StorageService", mock_storage_cls)
 
     upload_file = make_upload_file("statement.pdf", content)
-    
+
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
             file=upload_file,
@@ -156,7 +156,7 @@ async def test_upload_invalid_extension(db, test_user):
     """Invalid file extension should return 400."""
     content = b"content"
     upload_file = make_upload_file("statement.exe", content)
-    
+
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
             file=upload_file,
@@ -501,14 +501,14 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
 
     await statements_router.retry_statement_parsing(
         statement_id=created.id,
-        model="xiaomi/mimo-v2-flash:free",
+        model="google/gemini-2.0-flash-exp:free",
         db=db,
         user_id=test_user.id,
     )
 
     mock_parse.assert_called_once()
     call_kwargs = mock_parse.call_args
-    assert call_kwargs.kwargs.get("force_model") == "xiaomi/mimo-v2-flash:free"
+    assert call_kwargs.kwargs.get("force_model") == "google/gemini-2.0-flash-exp:free"
 
     async def fake_retry(
         self,
@@ -534,7 +534,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
 
     retried = await statements_router.retry_statement_parsing(
         statement_id=created.id,
-        model="xiaomi/mimo-v2-flash:free",
+        model="google/gemini-2.0-flash-exp:free",
         db=db,
         user_id=test_user.id,
     )
@@ -612,7 +612,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=created.id,
-            model="xiaomi/mimo-v2-flash:free",
+            model="google/gemini-2.0-flash-exp:free",
             db=db,
             user_id=test_user.id,
         )

@@ -75,39 +75,81 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 
 ---
 
-## Five Scenarios
+## Six Scenarios
 
-| # | Scenario | Command | Smoke Test Timing |
-|---|----------|---------|-------------------|
-| 1 | **Dev Start** | `moon run backend:dev` + `moon run frontend:dev` | Manual: once both servers up, run `moon run :smoke` (see note below) |
-| 2 | **Local Test** | `moon run backend:test` | N/A (unit tests, not smoke) |
-| 3 | **Remote CI** | `moon run backend:test` | N/A (unit tests only in CI) |
-| 4 | **PR Test** | Handled by Github PR Test workflow | **Auto**: Runs after Dokploy deployment to `report-pr-XX.zitian.party` |
-| 5 | **Staging Deploy** | (manual) | After deploy: `BASE_URL=https://staging.xxx bash scripts/smoke_test.sh` |
-| 6 | **Prod Deploy** | Push to main | **After deploy**: docker-build.yml runs `smoke_test.sh` automatically |
+> **Core Principle**: Only Staging needs comprehensive testing.  
+> Other environments prioritize **speed** (Local/CI) or **stability** (Production).
 
-> **Note:** The `:smoke` task defaults to `http://localhost:3000`. In local development, either ensure the frontend proxy is configured or set `BASE_URL` (e.g., `BASE_URL=http://localhost:8000` for backend only) before running `moon run :smoke`.
+### Strategy Overview
 
-### Smoke Test Timing Detail
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  SPEED ←─────────────────────────────────────────→ THOROUGHNESS  │
+│                                                                   │
+│  Local      CI         PR Test       Staging        Production   │
+│  ─────      ──         ───────       ───────        ──────────   │
+│  Unit+Int   Unit+Int   Health        Smoke+Perf     Health       │
+│  < 30s      < 2min     Check         FULL TEST      Check        │
+│                        (deploy ok?)  (pre-prod)     (stable?)    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Test Categories
+
+| Category | Where | Purpose |
+|----------|-------|---------|
+| **Unit + Integration** | Local, CI | 快速反馈，代码质量门禁 |
+| **Health Check** | PR Test, Prod | 验证服务可用性 |
+| **Smoke Test** | Staging | 端到端功能验证 |
+| **Performance** | Staging | API 响应时间基准 |
+
+### Scenario Matrix
+
+| # | Scenario | Trigger | Tests | Goal |
+|---|----------|---------|-------|------|
+| 1 | **Local Dev** | Manual | None | 开发迭代 |
+| 2 | **Local Test** | `moon run backend:test` | Unit+Integration | < 30s 反馈 |
+| 3 | **Remote CI** | PR / Push | Unit+Integration | 质量门禁 |
+| 4 | **PR Test** | PR opened | **Health Check** | 部署验证 |
+| 5 | **Staging** | Push to main | **Smoke + Perf** | 完整验证 |
+| 6 | **Production** | Manual dispatch | **Health Check** | 最小化验证 |
+
+### pytest Markers
+
+| Marker | Description | Where |
+|--------|-------------|-------|
+| (none) | Standard tests | Local, CI |
+| `@pytest.mark.slow` | Performance tests | Manual only |
+
+> **Note:** Slow tests are skipped by default via `-m 'not slow'` in `pyproject.toml`.
+> Run all tests: `uv run pytest -m ""`
+
+### Workflow Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Scenario 1: Dev Start                                           │
-│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
-│ │ DB up   │ -> │ Servers │ -> │ Smoke   │                      │
-│ │ (manual)│    │ (moon)  │    │ (manual)│                      │
-│ └─────────┘    └─────────┘    └─────────┘                      │
-├─────────────────────────────────────────────────────────────────┤
-│ Scenario 2-3: Local/Remote Test                                 │
+│ Scenario 1-3: Local/CI                                          │
 │ ┌─────────┐    ┌─────────┐                                     │
-│ │ DB auto │ -> │ pytest  │  (no smoke, unit tests only)        │
+│ │ DB auto │ -> │ pytest  │  (Unit+Integration, fast)           │
 │ └─────────┘    └─────────┘                                     │
 ├─────────────────────────────────────────────────────────────────┤
-│ Scenario 5: Prod Deploy (GitHub Actions)                        │
+│ Scenario 4: PR Test                                             │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+│ │ Build   │ -> │ Deploy  │ -> │ Health  │  (deployment check)  │
+│ │ source  │    │ Dokploy │    │ Check   │                      │
+│ └─────────┘    └─────────┘    └─────────┘                      │
+├─────────────────────────────────────────────────────────────────┤
+│ Scenario 5: Staging (FULL VALIDATION)                           │
 │ ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
-│ │ Build   │ -> │ Push to │ -> │ Deploy  │ -> │ Smoke   │      │
-│ │ images  │    │ GHCR    │    │ Dokploy │    │ (auto)  │      │
+│ │ Build   │ -> │ Deploy  │ -> │ Smoke   │ -> │ Perf    │      │
+│ │ images  │    │ Dokploy │    │ Test    │    │ Bench   │      │
 │ └─────────┘    └─────────┘    └─────────┘    └─────────┘      │
+├─────────────────────────────────────────────────────────────────┤
+│ Scenario 6: Production (MINIMAL RISK)                           │
+│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
+│ │ Verify  │ -> │ Deploy  │ -> │ Health  │  (availability only) │
+│ │ image   │    │ Dokploy │    │ Check   │                      │
+│ └─────────┘    └─────────┘    └─────────┘                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

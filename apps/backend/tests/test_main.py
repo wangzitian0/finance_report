@@ -72,8 +72,7 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
 async def test_approve_statement_not_found(client: AsyncClient) -> None:
     """Test approving a non-existent statement."""
     response = await client.post(
-        "/statements/00000000-0000-0000-0000-000000000000/approve",
-        json={"notes": "ok"}
+        "/statements/00000000-0000-0000-0000-000000000000/approve", json={"notes": "ok"}
     )
     assert response.status_code == 404
 
@@ -81,10 +80,7 @@ async def test_approve_statement_not_found(client: AsyncClient) -> None:
 @skip_client_tests
 async def test_upload_no_file(client: AsyncClient) -> None:
     """Test upload endpoint without file."""
-    response = await client.post(
-        "/statements/upload",
-        data={"institution": "DBS"}
-    )
+    response = await client.post("/statements/upload", data={"institution": "DBS"})
     # Should fail validation - no file
     assert response.status_code == 422
 
@@ -124,18 +120,21 @@ class TestSchemas:
     def test_review_decision_approved(self):
         """Test ReviewDecision with approved."""
         from src.schemas.extraction import StatementDecisionRequest
+
         decision = StatementDecisionRequest()
         assert decision.notes is None
 
     def test_review_decision_rejected_with_notes(self):
         """Test ReviewDecision rejected with notes."""
         from src.schemas.extraction import StatementDecisionRequest
+
         decision = StatementDecisionRequest(notes="Incorrect amount")
         assert decision.notes == "Incorrect amount"
 
     def test_confidence_level_enum(self):
         """Test ConfidenceLevelEnum values."""
         from src.schemas.extraction import ConfidenceLevelEnum
+
         assert ConfidenceLevelEnum.HIGH.value == "high"
         assert ConfidenceLevelEnum.MEDIUM.value == "medium"
         assert ConfidenceLevelEnum.LOW.value == "low"
@@ -143,6 +142,7 @@ class TestSchemas:
     def test_statement_status_enum(self):
         """Test StatementStatusEnum values."""
         from src.schemas.extraction import BankStatementStatusEnum
+
         assert BankStatementStatusEnum.UPLOADED.value == "uploaded"
         assert BankStatementStatusEnum.PARSED.value == "parsed"
         assert BankStatementStatusEnum.APPROVED.value == "approved"
@@ -152,6 +152,7 @@ class TestSchemas:
         from decimal import Decimal
 
         from src.schemas.extraction import TransactionUpdateRequest
+
         update = TransactionUpdateRequest(amount=Decimal("100.00"))
         assert update.amount == Decimal("100.00")
         assert update.description is None
@@ -163,6 +164,7 @@ class TestDatabase:
     def test_base_metadata(self):
         """Test Base has proper metadata."""
         from src.database import Base
+
         assert Base.metadata is not None
 
     def test_get_db_depends(self):
@@ -170,6 +172,7 @@ class TestDatabase:
         import inspect
 
         from src.database import get_db
+
         assert inspect.isasyncgenfunction(get_db)
 
 
@@ -179,33 +182,39 @@ class TestModels:
     def test_statement_model_table_name(self):
         """Test Statement model has correct table name."""
         from src.models.statement import BankStatement
+
         assert BankStatement.__tablename__ == "bank_statements"
 
     def test_account_event_model_table_name(self):
         """Test AccountEvent model has correct table name."""
         from src.models.statement import BankStatementTransaction
+
         assert BankStatementTransaction.__tablename__ == "bank_statement_transactions"
 
     def test_statement_status_enum(self):
         """Test StatementStatus enum values."""
         from src.models.statement import BankStatementStatus
+
         assert BankStatementStatus.UPLOADED.value == "uploaded"
         assert BankStatementStatus.PARSED.value == "parsed"
 
     def test_confidence_level_enum(self):
         """Test ConfidenceLevel enum values."""
         from src.models.statement import ConfidenceLevel
+
         assert ConfidenceLevel.HIGH.value == "high"
         assert ConfidenceLevel.LOW.value == "low"
 
     def test_statement_relationship(self):
         """Test Statement has events relationship."""
         from src.models.statement import BankStatement
+
         assert hasattr(BankStatement, "transactions")
 
     def test_account_event_relationship(self):
         """Test AccountEvent has statement relationship."""
         from src.models.statement import BankStatementTransaction
+
         assert hasattr(BankStatementTransaction, "statement")
 
 
@@ -215,12 +224,14 @@ class TestConfig:
     def test_config_defaults(self):
         """Test Settings has reasonable defaults."""
         from src.config import Settings
+
         settings = Settings()
-        assert settings.primary_model == "nvidia/nemotron-3-nano-30b-a3b:free"
+        assert settings.primary_model == "google/gemini-2.0-flash-exp:free"
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):
         """Test database URL is set."""
         from src.config import Settings
+
         settings = Settings()
         assert "postgresql" in settings.database_url or "sqlite" in settings.database_url

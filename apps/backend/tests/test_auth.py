@@ -10,40 +10,42 @@ from httpx import ASGITransport, AsyncClient
 async def test_auth_missing_header(db_engine):
     """Test 401 when X-User-Id header is missing."""
     from src.main import app
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
     assert response.json()["detail"] == "Missing X-User-Id header"
 
+
 @pytest.mark.asyncio
 async def test_auth_invalid_uuid(db_engine):
     """Test 401 when X-User-Id is not a valid UUID."""
     from src.main import app
+
     transport = ASGITransport(app=app)
     async with AsyncClient(
-        transport=transport, 
-        base_url="http://test",
-        headers={"X-User-Id": "not-a-uuid"}
+        transport=transport, base_url="http://test", headers={"X-User-Id": "not-a-uuid"}
     ) as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid X-User-Id format"
 
+
 @pytest.mark.asyncio
 async def test_auth_non_existent_user(db_engine):
     """Test 401 when X-User-Id is a valid UUID but user does not exist."""
     from src.main import app
+
     transport = ASGITransport(app=app)
     random_uuid = str(uuid4())
     async with AsyncClient(
-        transport=transport, 
-        base_url="http://test",
-        headers={"X-User-Id": random_uuid}
+        transport=transport, base_url="http://test", headers={"X-User-Id": random_uuid}
     ) as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid user"
+
 
 @pytest.mark.asyncio
 async def test_auth_valid_user(client, test_user):

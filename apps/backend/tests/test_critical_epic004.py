@@ -63,7 +63,7 @@ def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> Stateme
 class TestMatchingAccuracy:
     """
     Tests for verifying matching accuracy rates.
-    
+
     Note: These tests use synthetic labeled data. In production, you should
     maintain a labeled test set with ground-truth matches.
     """
@@ -72,7 +72,7 @@ class TestMatchingAccuracy:
     async def test_high_confidence_matches_are_correct(self, db: AsyncSession):
         """
         CRITICAL #5: High-score matches (>=85) should be true positives.
-        
+
         This test creates scenarios where we KNOW the match is correct,
         then verifies the algorithm scores them highly.
         """
@@ -90,7 +90,7 @@ class TestMatchingAccuracy:
             type=AccountType.INCOME,
             currency="SGD",
         )
-        
+
         db.add_all([user, bank, income])
         await db.flush()
 
@@ -100,7 +100,7 @@ class TestMatchingAccuracy:
             entry_date = date(2024, 1, 15) + timedelta(days=i)
             amount = Decimal("100.00") + Decimal(str(i * 10))
             memo = f"Exact Match Test {i}"
-            
+
             entry = JournalEntry(
                 user_id=user_id,
                 entry_date=entry_date,
@@ -110,40 +110,42 @@ class TestMatchingAccuracy:
             )
             db.add(entry)
             await db.flush()
-            
-            db.add_all([
-                JournalLine(
-                    journal_entry_id=entry.id,
-                    account_id=bank.id,
-                    direction=Direction.DEBIT,
-                    amount=amount,
-                    currency="SGD",
-                ),
-                JournalLine(
-                    journal_entry_id=entry.id,
-                    account_id=income.id,
-                    direction=Direction.CREDIT,
-                    amount=amount,
-                    currency="SGD",
-                ),
-            ])
-            
+
+            db.add_all(
+                [
+                    JournalLine(
+                        journal_entry_id=entry.id,
+                        account_id=bank.id,
+                        direction=Direction.DEBIT,
+                        amount=amount,
+                        currency="SGD",
+                    ),
+                    JournalLine(
+                        journal_entry_id=entry.id,
+                        account_id=income.id,
+                        direction=Direction.CREDIT,
+                        amount=amount,
+                        currency="SGD",
+                    ),
+                ]
+            )
+
             statement = _make_statement(owner_id=user_id, base_date=entry_date)
             db.add(statement)
             await db.flush()
-            
+
             txn = AccountEvent(
                 statement_id=statement.id,
                 txn_date=entry_date,
                 description=memo,  # Exact match
-                amount=amount,     # Exact match
+                amount=amount,  # Exact match
                 direction="IN",
                 status=BankTransactionStatus.PENDING,
                 confidence=ConfidenceLevel.HIGH,
             )
             db.add(txn)
             correct_matches.append((entry.id, txn, statement.id))
-        
+
         await db.commit()
 
         # Execute matching for each statement
@@ -165,7 +167,7 @@ class TestMatchingAccuracy:
     async def test_unrelated_transactions_score_low(self, db: AsyncSession):
         """
         CRITICAL #5: Unrelated transactions should NOT score high (avoid false positives).
-        
+
         Creates entries and transactions that should NOT match.
         """
         user_id = uuid4()
@@ -176,7 +178,7 @@ class TestMatchingAccuracy:
         expense = Account(
             user_id=user_id, name="Expense - FP Test", type=AccountType.EXPENSE, currency="SGD"
         )
-        
+
         db.add_all([user, bank, expense])
         await db.flush()
 
@@ -190,23 +192,25 @@ class TestMatchingAccuracy:
         )
         db.add(entry)
         await db.flush()
-        
-        db.add_all([
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("2000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("2000.00"),
-                currency="SGD",
-            ),
-        ])
+
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=expense.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("2000.00"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=bank.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("2000.00"),
+                    currency="SGD",
+                ),
+            ]
+        )
 
         # Transaction from December - Completely unrelated
         statement = _make_statement(owner_id=user_id, base_date=date(2023, 12, 20))
@@ -230,7 +234,7 @@ class TestMatchingAccuracy:
         score_result = await calculate_match_score(
             db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
         )
-        
+
         # Unrelated transaction should score LOW (< 60 = unmatched)
         assert score_result.score < 60, (
             f"Unrelated transaction should score < 60, got {score_result.score}"
@@ -240,7 +244,7 @@ class TestMatchingAccuracy:
     async def test_similar_transactions_found(self, db: AsyncSession):
         """
         CRITICAL #6: Similar transactions should NOT be missed (avoid false negatives).
-        
+
         Tests that fuzzy matching finds transactions with minor differences.
         """
         user_id = uuid4()
@@ -251,7 +255,7 @@ class TestMatchingAccuracy:
         income = Account(
             user_id=user_id, name="Income - FN Test", type=AccountType.INCOME, currency="SGD"
         )
-        
+
         db.add_all([user, bank, income])
         await db.flush()
 
@@ -265,23 +269,25 @@ class TestMatchingAccuracy:
         )
         db.add(entry)
         await db.flush()
-        
-        db.add_all([
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-        ])
+
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=bank.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("5000.00"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=income.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("5000.00"),
+                    currency="SGD",
+                ),
+            ]
+        )
 
         # Transaction: Same salary, slightly different description
         statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 25))
@@ -305,7 +311,7 @@ class TestMatchingAccuracy:
         score_result = await calculate_match_score(
             db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
         )
-        
+
         assert score_result.score >= 60, (
             f"Similar transaction should score >= 60, got {score_result.score}"
         )
@@ -324,19 +330,17 @@ class TestBatchPerformance:
     async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession):
         """
         HIGH #13: Batch matching 1000 transactions should complete quickly.
-        
+
         Note: Full 10,000 test is too slow for CI. Use 1000 as representative.
         Scale: 1000 txns < 2s implies 10,000 < 20s (within acceptable range).
         """
         user_id = uuid4()
         user = User(id=user_id, email="perf@example.com", hashed_password="hashed")
-        bank = Account(
-            user_id=user_id, name="Bank - Perf", type=AccountType.ASSET, currency="SGD"
-        )
+        bank = Account(user_id=user_id, name="Bank - Perf", type=AccountType.ASSET, currency="SGD")
         expense = Account(
             user_id=user_id, name="Expense - Perf", type=AccountType.EXPENSE, currency="SGD"
         )
-        
+
         db.add_all([user, bank, expense])
         await db.flush()
 
@@ -347,7 +351,7 @@ class TestBatchPerformance:
         # Create 100 transactions (reduced from 1000 for CI speed)
         # This is still representative of algorithm efficiency
         txn_count = 100
-        
+
         for i in range(txn_count):
             txn = AccountEvent(
                 statement_id=statement.id,
@@ -359,7 +363,7 @@ class TestBatchPerformance:
                 confidence=ConfidenceLevel.HIGH,
             )
             db.add(txn)
-        
+
         # Create some entries to match against
         for j in range(20):
             entry = JournalEntry(
@@ -371,24 +375,26 @@ class TestBatchPerformance:
             )
             db.add(entry)
             await db.flush()
-            
-            db.add_all([
-                JournalLine(
-                    journal_entry_id=entry.id,
-                    account_id=expense.id,
-                    direction=Direction.DEBIT,
-                    amount=Decimal(str(10 + j)),
-                    currency="SGD",
-                ),
-                JournalLine(
-                    journal_entry_id=entry.id,
-                    account_id=bank.id,
-                    direction=Direction.CREDIT,
-                    amount=Decimal(str(10 + j)),
-                    currency="SGD",
-                ),
-            ])
-        
+
+            db.add_all(
+                [
+                    JournalLine(
+                        journal_entry_id=entry.id,
+                        account_id=expense.id,
+                        direction=Direction.DEBIT,
+                        amount=Decimal(str(10 + j)),
+                        currency="SGD",
+                    ),
+                    JournalLine(
+                        journal_entry_id=entry.id,
+                        account_id=bank.id,
+                        direction=Direction.CREDIT,
+                        amount=Decimal(str(10 + j)),
+                        currency="SGD",
+                    ),
+                ]
+            )
+
         await db.commit()
 
         # Measure execution time
@@ -396,10 +402,11 @@ class TestBatchPerformance:
         matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
         elapsed = time.perf_counter() - start_time
 
-        # 100 transactions should complete in < 5 seconds
-        # (more lenient than 10k < 10s requirement, but representative)
+        # Performance threshold: 5s for 100 transactions
+        # This test is marked @slow and skipped by default in CI/local.
+        # Run explicitly with: pytest -m slow
         assert elapsed < 5.0, f"Matching {txn_count} transactions took {elapsed:.2f}s (> 5s limit)"
-        
+
         # Should have processed all transactions
         assert len(matches) >= 0  # May or may not have matches
 
@@ -425,7 +432,7 @@ class TestConcurrentMatching:
         income = Account(
             user_id=user_id, name="Income - Concurrent", type=AccountType.INCOME, currency="SGD"
         )
-        
+
         db.add_all([user, bank, income])
         await db.flush()
 
@@ -435,7 +442,7 @@ class TestConcurrentMatching:
             stmt = _make_statement(owner_id=user_id, base_date=date(2024, 1, i + 1))
             db.add(stmt)
             statements.append(stmt)
-        
+
         await db.flush()
 
         # Add transactions to each statement
@@ -451,7 +458,7 @@ class TestConcurrentMatching:
                     confidence=ConfidenceLevel.HIGH,
                 )
                 db.add(txn)
-        
+
         await db.commit()
 
         # Execute matching for all statements concurrently
@@ -479,7 +486,7 @@ class TestCrossMonthMatching:
     async def test_month_end_to_month_start_match(self, db: AsyncSession):
         """
         HIGH #15: Transaction on 1/31 should match entry from 2/1.
-        
+
         Common scenario: Bank processes on last day, user enters on first day of new month.
         """
         user_id = uuid4()
@@ -490,7 +497,7 @@ class TestCrossMonthMatching:
         income = Account(
             user_id=user_id, name="Income - CrossMonth", type=AccountType.INCOME, currency="SGD"
         )
-        
+
         db.add_all([user, bank, income])
         await db.flush()
 
@@ -504,23 +511,25 @@ class TestCrossMonthMatching:
         )
         db.add(entry)
         await db.flush()
-        
-        db.add_all([
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("99.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("99.00"),
-                currency="SGD",
-            ),
-        ])
+
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=bank.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("99.00"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=income.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("99.00"),
+                    currency="SGD",
+                ),
+            ]
+        )
 
         # Transaction dated Jan 31 (one day before)
         statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 31))
@@ -544,7 +553,7 @@ class TestCrossMonthMatching:
         score_result = await calculate_match_score(
             db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
         )
-        
+
         # Date penalty should be small (1 day difference)
         # Amount and description are exact, so should score well
         assert score_result.score >= 70, (
@@ -555,7 +564,7 @@ class TestCrossMonthMatching:
     async def test_friday_to_monday_weekend_gap(self, db: AsyncSession):
         """
         HIGH #15: Friday bank transaction matching Monday entry.
-        
+
         Common scenario: Friday evening bank processing, Monday user entry.
         """
         user_id = uuid4()
@@ -566,7 +575,7 @@ class TestCrossMonthMatching:
         expense = Account(
             user_id=user_id, name="Expense - Weekend", type=AccountType.EXPENSE, currency="SGD"
         )
-        
+
         db.add_all([user, bank, expense])
         await db.flush()
 
@@ -581,23 +590,25 @@ class TestCrossMonthMatching:
         )
         db.add(entry)
         await db.flush()
-        
-        db.add_all([
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("150.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("150.00"),
-                currency="SGD",
-            ),
-        ])
+
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=expense.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("150.00"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=bank.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("150.00"),
+                    currency="SGD",
+                ),
+            ]
+        )
 
         # Transaction dated Friday (2024-01-12, 3 days before)
         friday = date(2024, 1, 12)
@@ -622,7 +633,7 @@ class TestCrossMonthMatching:
         score_result = await calculate_match_score(
             db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
         )
-        
+
         # 3-day gap has some penalty, but amount match + similar description should compensate
         assert score_result.score >= 65, (
             f"Weekend gap (3 days) match should score >= 65, got {score_result.score}"

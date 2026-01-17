@@ -10,8 +10,7 @@ from sqlalchemy.pool import NullPool
 
 # Use test database from docker-compose
 TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test"
+    "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test"
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
@@ -104,7 +103,8 @@ async def client(db_engine, test_user):
         ) as client:
             yield client
     finally:
-        app.dependency_overrides.clear()
+        # Only remove the override we added, not others
+        app.dependency_overrides.pop(get_db, None)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -136,4 +136,5 @@ async def public_client(db_engine):
         ) as client:
             yield client
     finally:
-        app.dependency_overrides.clear()
+        # Only remove the override we added, not others
+        app.dependency_overrides.pop(get_db, None)

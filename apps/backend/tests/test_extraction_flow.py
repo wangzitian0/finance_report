@@ -1,4 +1,3 @@
-
 import json
 from datetime import date
 from decimal import Decimal
@@ -24,7 +23,7 @@ class TestExtractionServiceFlow:
         # Create dummy PDF
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"dummy content")
-        
+
         # Mock extracted data
         mock_data = {
             "institution": "DBS",
@@ -38,31 +37,31 @@ class TestExtractionServiceFlow:
                     "date": "2025-01-15",
                     "description": "Test Txn",
                     "amount": "100.00",
-                    "direction": "IN"
+                    "direction": "IN",
                 }
-            ]
+            ],
         }
-        
+
         # Mock extract_financial_data
         with patch.object(
             service, "extract_financial_data", new_callable=AsyncMock
         ) as mock_extract:
             mock_extract.return_value = mock_data
-            
+
             stmt, events = await service.parse_document(
                 pdf_file,
                 "DBS",
                 user_id=UUID("00000000-0000-0000-0000-000000000001"),
                 file_content=pdf_file.read_bytes(),
             )
-            
+
             # Verify results
             assert stmt.institution == "DBS"
             assert stmt.period_start == date(2025, 1, 1)
             assert stmt.opening_balance == Decimal("1000.00")
             assert len(events) == 1
             assert events[0].amount == Decimal("100.00")
-            
+
             # Verify clean up (nothing to clean really)
 
     @pytest.mark.asyncio
@@ -70,16 +69,12 @@ class TestExtractionServiceFlow:
         """Test parse_document flow for CSV with mocked specific parser."""
         csv_file = tmp_path / "test.csv"
         csv_file.write_bytes(b"dummy csv")
-        
-        mock_data = {
-            "period_start": "2025-01-01",
-            "period_end": "2025-01-31",
-            "transactions": []
-        }
-        
+
+        mock_data = {"period_start": "2025-01-01", "period_end": "2025-01-31", "transactions": []}
+
         with patch.object(service, "_parse_csv_content", new_callable=AsyncMock) as mock_csv:
             mock_csv.return_value = mock_data
-            
+
             stmt, events = await service.parse_document(
                 csv_file,
                 "DBS",
@@ -87,7 +82,7 @@ class TestExtractionServiceFlow:
                 file_type="csv",
                 file_content=csv_file.read_bytes(),
             )
-            
+
             assert stmt.status == BankStatementStatus.PARSED  # High confidence as it validates
             assert len(events) == 0
 
@@ -96,7 +91,7 @@ class TestExtractionServiceFlow:
         """Test parse_document raises error for unsupported type."""
         txt_file = tmp_path / "test.txt"
         txt_file.write_bytes(b"text")
-        
+
         with pytest.raises(ExtractionError, match="Unsupported file type"):
             await service.parse_document(
                 txt_file,
@@ -111,28 +106,20 @@ class TestExtractionServiceFlow:
         """Test extract_financial_data handles JSON response."""
         # Setup API key
         service.api_key = "test-key"
-        
-        mock_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({"test": "data"})
-                    }
-                }
-            ]
-        }
-        
+
+        mock_response = {"choices": [{"message": {"content": json.dumps({"test": "data"})}}]}
+
         # Mock httpx using patch on src.services.extraction.httpx
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             # Setup response mock (MagicMock for sync methods like .json())
             response_mock = MagicMock()
             response_mock.status_code = 200
             response_mock.json.return_value = mock_response
             mock_instance.post.return_value = response_mock
-            
+
             result = await service.extract_financial_data(b"content", "DBS", "pdf")
             assert result == {"test": "data"}
 
@@ -140,21 +127,19 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_markdown_json(self, service):
         """Test extract_financial_data handles markdown wrapped JSON."""
         service.api_key = "test-key"
-        
-        content = "Here is the json:\n```json\n{\"test\": \"markdown\"}\n```"
-        mock_response = {
-            "choices": [{"message": {"content": content}}]
-        }
-        
+
+        content = 'Here is the json:\n```json\n{"test": "markdown"}\n```'
+        mock_response = {"choices": [{"message": {"content": content}}]}
+
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             response_mock = MagicMock()
             response_mock.status_code = 200
             response_mock.json.return_value = mock_response
             mock_instance.post.return_value = response_mock
-            
+
             result = await service.extract_financial_data(b"content", "DBS", "pdf")
             assert result == {"test": "markdown"}
 
@@ -162,16 +147,16 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_api_error(self, service):
         """Test extract_financial_data handles API error."""
         service.api_key = "test-key"
-        
+
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             response_mock = MagicMock()
             response_mock.status_code = 400
             response_mock.text = "Bad Request"
             mock_instance.post.return_value = response_mock
-            
+
             with pytest.raises(ExtractionError, match="OpenRouter API error: 400"):
                 await service.extract_financial_data(b"content", "DBS", "pdf")
 

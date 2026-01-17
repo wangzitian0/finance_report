@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using Gemini 3 Flash Vision via OpenRouter (with fallback models), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to Gemini via presigned URLs to avoid large Base64 payloads.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using Free Vision models (`google/gemini-2.0-flash-exp:free` primary) via OpenRouter, outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs.
 
 ## Data Flow
 
@@ -12,7 +12,7 @@ The extraction pipeline parses financial statements (PDFs, images, CSVs) using G
 flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
     S --> B{File Type}
-    B -->|PDF/Image| C[Gemini 3 Flash Vision (presigned URL)]
+    B -->|PDF/Image| C["Gemini 2.0 Flash (free) via OpenRouter"]
     B -->|CSV| D[Structured Parser]
     C --> E[Extract JSON]
     D --> E
@@ -110,13 +110,13 @@ flowchart TB
 
 Required environment variables:
 ```bash
-OPENROUTER_API_KEY=sk-or-...
-PRIMARY_MODEL=google/gemini-3-flash
-FALLBACK_MODELS=google/gemini-2.0,openai/gpt-4-turbo
+OPENROUTER_API_KEY=<YOUR_OPENROUTER_API_KEY>
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODELS=google/gemini-flash-1.5-8b:free,mistralai/pixtral-12b:free
 OPENROUTER_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
-S3_SECRET_KEY=minio123
+S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>
 S3_BUCKET=statements
 S3_REGION=us-east-1
 S3_PRESIGN_EXPIRY_SECONDS=900
