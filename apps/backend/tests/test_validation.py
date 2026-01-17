@@ -126,3 +126,15 @@ def test_compute_confidence_score_small_diff():
     balance_result = {"balance_valid": False, "difference": "0.50"}
     score = compute_confidence_score(extracted, balance_result, missing_fields)
     assert score >= 30
+
+
+def test_validate_balance_incomplete_transaction():
+    """Transaction with some fields present but missing required ones should surface error."""
+    extracted = {
+        "opening_balance": "100.00",
+        "closing_balance": "110.00",
+        "transactions": [{"direction": "IN"}],  # Has direction but missing amount
+    }
+    result = validate_balance(extracted)
+    assert result["balance_valid"] is False
+    assert "Validation error" in (result["notes"] or "")

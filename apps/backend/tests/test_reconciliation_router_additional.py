@@ -125,11 +125,21 @@ async def test_build_match_response_includes_entries(db: AsyncSession, test_user
     await db.commit()
     await db.refresh(match)
 
-    response = await reconciliation_router._build_match_response(db, match, test_user.id)
+    # Load entry summaries the same way the router does
+    entry_summaries = await reconciliation_router._load_entry_summaries(db, [match], test_user.id)
+    response = reconciliation_router._build_match_response(
+        match,
+        transaction=txn,
+        entry_summaries=entry_summaries,
+    )
 
     assert response.transaction is not None
     assert len(response.entries) == 1
     assert response.entries[0].total_amount == Decimal("100.00")
+    # Verify entry summary structure as per CR feedback
+    assert response.entries[0].entry_date == entry.entry_date
+    assert response.entries[0].memo == "Test entry"
+    assert response.entries[0].id == entry.id
 
 
 @pytest.mark.asyncio
@@ -360,3 +370,87 @@ async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
 
     anomalies = await reconciliation_router.list_anomalies(str(txn.id), db, test_user.id)
     assert isinstance(anomalies, list)
+
+
+@pytest.mark.asyncio
+async def test_accept_match_already_accepted_is_idempotent(db: AsyncSession, test_user) -> None:
+    """Accepting an already-accepted match should return it unchanged (idempotent)."""
+    from src.services.review_queue import accept_match as accept_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("15.00"), status=BankStatementTransactionStatus.MATCHED
+    )
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=90,
+        score_breakdown={},
+        status=ReconciliationStatus.ACCEPTED,  # Already accepted
+    )
+    db.add(match)
+    await db.commit()
+
+    # Second accept should be idempotent
+    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+
+    assert result.status == ReconciliationStatus.ACCEPTED
+
+
+@pytest.mark.asyncio
+async def test_reject_match_already_rejected_is_idempotent(db: AsyncSession, test_user) -> None:
+    """Rejecting an already-rejected match should return it unchanged (idempotent)."""
+    from src.services.review_queue import reject_match as reject_match_service
+
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("16.00"), status=BankStatementTransactionStatus.UNMATCHED
+    )
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=60,
+        score_breakdown={},
+        status=ReconciliationStatus.REJECTED,  # Already rejected
+    )
+    db.add(match)
+    await db.commit()
+
+    # Second reject should be idempotent
+    result = await reject_match_service(db, str(match.id), user_id=test_user.id)
+
+    assert result.status == ReconciliationStatus.REJECTED
+
+
+@pytest.mark.asyncio
+async def test_build_match_response_with_invalid_uuid_in_entry_ids(
+    db: AsyncSession, test_user
+) -> None:
+    """Invalid UUIDs in journal_entry_ids should be gracefully skipped."""
+    statement = await _create_statement(db, test_user.id)
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("20.00"), status=BankStatementTransactionStatus.PENDING
+    )
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=["not-a-valid-uuid", "also-invalid"],  # Invalid UUIDs
+        match_score=75,
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    # Loading entry summaries should skip invalid UUIDs without crashing
+    entry_summaries = await reconciliation_router._load_entry_summaries(db, [match], test_user.id)
+
+    # Should return empty dict since no valid UUIDs
+    assert entry_summaries == {}
+
+    # Building response should still work with empty summaries
+    response = reconciliation_router._build_match_response(
+        match,
+        transaction=txn,
+        entry_summaries=entry_summaries,
+    )
+    assert response.entries == []

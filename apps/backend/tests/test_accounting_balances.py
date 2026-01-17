@@ -10,7 +10,7 @@ from src.services.accounting import calculate_account_balances
 
 
 @pytest.mark.asyncio
-async def test_calculate_account_balances_aggregates_by_type(db, test_user) -> None:
+async def test_calculate_account_balances_by_type(db, test_user) -> None:
     """Balances should aggregate by account with type-specific sign handling."""
     asset = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
     income = Account(
