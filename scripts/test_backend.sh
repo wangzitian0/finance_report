@@ -85,7 +85,7 @@ get_db_host_port() {
 }
 
 compose() {
-  env COMPOSE_PROJECT_NAME="$compose_project" ENV_SUFFIX="$env_suffix" POSTGRES_PORT="$POSTGRES_PORT" \
+  env COMPOSE_PROJECT_NAME="$compose_project" ENV_SUFFIX="$env_suffix" POSTGRES_PORT="${POSTGRES_PORT:-5432}" \
     "${compose_cmd[@]}" "$@"
 }
 
@@ -157,7 +157,9 @@ cleanup() {
       if [ -n "$container_id" ] && [ "$current_id" = "$container_id" ]; then
         if [ "$managed" = "true" ]; then
           "${runtime_cmd[@]}" rm -f "$container_id" >/dev/null 2>&1 || true
-          "${runtime_cmd[@]}" volume rm "${compose_project}_postgres_data" >/dev/null 2>&1 || true
+          if ! "${runtime_cmd[@]}" volume rm "${compose_project}_postgres_data" >/dev/null 2>&1; then
+            echo "Warning: failed to remove volume ${compose_project}_postgres_data; clean up manually if needed." >&2
+          fi
         elif [ "$started_existing" = "true" ]; then
           if ! "${runtime_cmd[@]}" stop "$db_container_name" >/dev/null 2>&1; then
             echo "Warning: failed to stop ${db_container_name}; leaving state for manual cleanup." >&2
@@ -171,7 +173,7 @@ cleanup() {
       # NOTE: We do NOT pkill playwright globally - it may belong to other test sessions
       # pytest handles its own playwright cleanup; if orphaned, user can manually clean
     else
-      write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-}"
+      write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-5432}"
     fi
   fi
   release_lock
@@ -191,11 +193,15 @@ fi
 
 if [ -z "${POSTGRES_PORT:-}" ] && [ -n "$env_suffix" ]; then
   if command -v cksum >/dev/null 2>&1; then
+    # Derive a deterministic Postgres port in the range 5400-5999 from env_suffix.
     port_seed="$(printf '%s' "$env_suffix" | cksum | awk '{print $1}')"
     POSTGRES_PORT=$((5400 + (port_seed % 600)))
   else
     POSTGRES_PORT=5432
   fi
+fi
+if [ -z "${POSTGRES_PORT:-}" ]; then
+  POSTGRES_PORT=5432
 fi
 export POSTGRES_PORT
 
@@ -205,16 +211,15 @@ if is_db_running; then
     read_state
     refcount="${refcount:-0}"
     refcount=$((refcount + 1))
-    write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-${POSTGRES_PORT:-}}"
+    write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-${POSTGRES_PORT:-5432}}"
   else
     host_port="$(get_db_host_port || true)"
     if [ -n "$host_port" ]; then
       POSTGRES_PORT="$host_port"
     fi
-    write_state "false" "false" 1 "$container_id" "${POSTGRES_PORT:-}"
+    write_state "false" "false" 1 "$container_id" "${POSTGRES_PORT:-5432}"
   fi
 else
-  rm -f "$state_file"
   container_id="$(get_db_container_id || true)"
   if [ -n "$container_id" ]; then
     started_existing="true"
@@ -229,10 +234,17 @@ else
   fi
   host_port="$(get_db_host_port || true)"
   if [ -n "$host_port" ]; then
+    if [ -n "${POSTGRES_PORT:-}" ] && [ "$POSTGRES_PORT" != "$host_port" ]; then
+      echo "Warning: ${db_container_name} is bound to port ${host_port}, overriding ${POSTGRES_PORT}." >&2
+    fi
     POSTGRES_PORT="$host_port"
+  else
+    echo "Failed to detect host port mapping for ${db_container_name}." >&2
+    release_lock
+    exit 1
   fi
   container_id="$(get_db_container_id || true)"
-  write_state "$managed" "$started_existing" 1 "$container_id" "${POSTGRES_PORT:-}"
+  write_state "$managed" "$started_existing" 1 "$container_id" "${POSTGRES_PORT:-5432}"
 fi
 release_lock
 
