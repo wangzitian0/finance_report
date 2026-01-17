@@ -69,3 +69,45 @@ def test_validate_balance_tolerance():
     result = validate_balance(extracted)
     assert result["balance_valid"] is True
     assert Decimal(result["difference"]) <= Decimal("0.10")
+
+
+def test_validate_balance_handles_invalid_values():
+    """Invalid numeric inputs should return validation error details."""
+    extracted = {
+        "opening_balance": "100.00",
+        "closing_balance": "100.00",
+        "transactions": [{"direction": "IN"}],
+    }
+    result = validate_balance(extracted)
+    assert result["balance_valid"] is False
+    assert "Validation error" in (result["notes"] or "")
+
+
+def test_compute_confidence_score_large_transaction_count():
+    extracted = {
+        "institution": "DBS",
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "100.00",
+        "closing_balance": "100.00",
+        "transactions": [{"amount": "1.00", "direction": "IN"} for _ in range(501)],
+    }
+    balance_result = {"balance_valid": False, "difference": "5.00"}
+    missing_fields = []
+    score = compute_confidence_score(extracted, balance_result, missing_fields)
+    assert score >= 0
+
+
+def test_compute_confidence_score_invalid_difference() -> None:
+    extracted = {
+        "institution": "DBS",
+        "period_start": "bad-date",
+        "period_end": "bad-date",
+        "opening_balance": "invalid",
+        "closing_balance": "invalid",
+        "transactions": [],
+    }
+    balance_result = {"balance_valid": False, "difference": None}
+    missing_fields = validate_completeness(extracted)
+    score = compute_confidence_score(extracted, balance_result, missing_fields)
+    assert score >= 0

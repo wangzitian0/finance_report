@@ -56,6 +56,7 @@ moon run frontend:dev       # Start frontend
 moon run backend:test       # Run tests (auto-manages DB)
 moon run :lint              # Lint all
 ```
+Backend tests enforce **>= 95%** line coverage; see `docs/ssot/development.md` for details.
 For isolated local test DBs, set `BRANCH_NAME=<branch_name>` (and optionally `WORKSPACE_ID=<id>`) before running `backend:test`.
 See [development.md](docs/ssot/development.md) for detailed workflows.
 

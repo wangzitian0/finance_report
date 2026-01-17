@@ -285,6 +285,49 @@ async def test_chat_history_empty() -> None:
 
 
 @pytest.mark.asyncio
+async def test_chat_history_lists_sessions() -> None:
+    from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+    from src.routers.chat import chat_history
+
+    mock_session = MagicMock(spec=ChatSession)
+    mock_session.id = uuid4()
+    mock_session.user_id = uuid4()
+    mock_session.title = "Active Session"
+    mock_session.status = MagicMock()
+    mock_session.status.value = ChatSessionStatus.ACTIVE.value
+    mock_session.created_at = MagicMock()
+    mock_session.updated_at = MagicMock()
+    mock_session.last_active_at = MagicMock()
+
+    mock_message = MagicMock(spec=ChatMessage)
+    mock_message.role = MagicMock()
+    mock_message.role.value = ChatMessageRole.ASSISTANT.value
+    mock_message.content = "Latest answer"
+    mock_message.created_at = MagicMock()
+
+    session_result = MagicMock()
+    session_scalars = MagicMock()
+    session_scalars.all.return_value = [mock_session]
+    session_result.scalars.return_value = session_scalars
+
+    mock_db = MagicMock()
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            session_result,
+            MagicMock(scalar_one=MagicMock(return_value=2)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=mock_message)),
+        ]
+    )
+    mock_user_id = uuid4()
+
+    response = await chat_history(session_id=None, limit=20, db=mock_db, user_id=mock_user_id)
+
+    assert len(response.sessions) == 1
+    assert response.sessions[0].message_count == 2
+    assert response.sessions[0].last_message is not None
+
+
+@pytest.mark.asyncio
 async def test_chat_history_session_not_found() -> None:
     from fastapi import HTTPException
 

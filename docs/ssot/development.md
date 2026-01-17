@@ -124,6 +124,10 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 > **Note:** Slow tests are skipped by default via `-m 'not slow'` in `pyproject.toml`.
 > Run all tests: `uv run pytest -m ""`
 
+### Coverage Gate
+
+- Backend line coverage must be **>= 95%** (`pytest-cov` enforces via `--cov-fail-under=95`).
+
 ### Workflow Diagram
 
 ```
