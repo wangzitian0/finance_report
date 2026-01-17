@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from typing import Any
 
@@ -15,7 +16,7 @@ _MODEL_CACHE: dict[str, Any] = {
     "expires_at": 0.0,
     "models": [],
 }
-_CACHE_LOCK = asyncio.Lock()
+_CACHE_LOCK = threading.Lock()
 
 
 async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any]]:
@@ -24,7 +25,8 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
     if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
         return list(_MODEL_CACHE["models"])
 
-    async with _CACHE_LOCK:
+    await asyncio.to_thread(_CACHE_LOCK.acquire)
+    try:
         # Double-check after acquiring lock
         now = time.time()
         if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
@@ -44,6 +46,8 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
         _MODEL_CACHE["models"] = models
         _MODEL_CACHE["expires_at"] = time.time() + _CACHE_TTL_SECONDS
         return list(models)
+    finally:
+        _CACHE_LOCK.release()
 
 
 def _to_float(value: Any) -> float | None:

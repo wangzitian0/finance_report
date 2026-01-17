@@ -88,12 +88,12 @@ async def upload_statement(
                     raise HTTPException(400, "Selected model does not support image inputs.")
             except HTTPException:
                 raise
-            except Exception:
+            except Exception as e:
                 logger.exception("Failed to validate model catalog for model '%s'", model)
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Unable to validate the requested model at this time.",
-                )
+                ) from e
 
     try:
         statement_id = uuid4()
@@ -211,12 +211,12 @@ async def retry_statement_parsing(
                 raise HTTPException(400, "Selected model does not support image inputs.")
         except HTTPException:
             raise
-        except Exception:
+        except Exception as e:
             logger.exception("Failed to validate model catalog for model '%s'", selected_model)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to validate the requested model at this time.",
-            )
+            ) from e
 
     try:
         service = ExtractionService()
@@ -261,9 +261,9 @@ async def retry_statement_parsing(
         raise HTTPException(503, "Storage service unavailable")
     except ExtractionError as e:
         raise HTTPException(422, str(e))
-    except Exception:
+    except Exception as e:
         logger.exception("Unexpected error during statement retry")
-        raise HTTPException(500, "Retry failed due to an internal error")
+        raise HTTPException(500, "Retry failed due to an internal error") from e
 
 
 @router.get("", response_model=BankStatementListResponse)
@@ -447,8 +447,8 @@ async def delete_statement(
         storage = StorageService()
         try:
             await run_in_threadpool(storage.delete_object, statement.file_path)
-        except Exception as e:
-            logger.warning(f"Failed to delete file from storage: {e}")
+        except Exception:
+            logger.warning("Failed to delete file from storage", exc_info=True)
             # Proceed to delete from DB to avoid zombie record
 
     await db.delete(statement)

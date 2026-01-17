@@ -632,3 +632,163 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         )
     assert exc.value.status_code == 422
     assert "Retry failed" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_with_invalid_model(db, test_user, storage_stub, monkeypatch):
+    """Test upload with an invalid model selection."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content)
+
+    mock_fetch = AsyncMock(return_value=[{"id": "known/model"}])
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="unknown/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 400
+    assert "Invalid model selection" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_with_model_catalog_unavailable(
+    db, test_user, storage_stub, monkeypatch
+):
+    """Test upload when model catalog is unavailable."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content)
+
+    mock_fetch = AsyncMock(side_effect=Exception("catalog down"))
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="any/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 503
+    assert "Unable to validate" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_with_unsupported_modality(db, test_user, storage_stub, monkeypatch):
+    """Test upload with a model that does not support the file's modality."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content) # pdf is treated as image
+
+    mock_fetch = AsyncMock(return_value=[{"id": "text-model", "name": "Text Model"}])
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    
+    mock_modality_match = MagicMock(return_value=False)
+    monkeypatch.setattr(statements_router, "model_matches_modality", mock_modality_match)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="text-model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 400
+    assert "does not support image inputs" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_retry_statement_with_invalid_model(db, test_user, monkeypatch):
+    """Test retry with an invalid model selection."""
+    statement = build_statement(test_user.id, "hash", 80)
+    statement.status = BankStatementStatus.REJECTED
+    db.add(statement)
+    await db.commit()
+
+    mock_fetch = AsyncMock(return_value=[{"id": "known/model"}])
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.retry_statement_parsing(
+            statement_id=statement.id,
+            model="unknown/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    
+    assert exc.value.status_code == 400
+    assert "Invalid model selection" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_retry_statement_with_model_catalog_unavailable(db, test_user, monkeypatch):
+    """Test retry when model catalog is unavailable."""
+    statement = build_statement(test_user.id, "hash", 80)
+    statement.status = BankStatementStatus.REJECTED
+    db.add(statement)
+    await db.commit()
+
+    mock_fetch = AsyncMock(side_effect=Exception("catalog down"))
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.retry_statement_parsing(
+            statement_id=statement.id,
+            model="any/model",
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == 503
+    assert "Unable to validate" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_retry_statement_with_unsupported_modality(db, test_user, monkeypatch):
+    """Test retry with a model that does not support the file's modality."""
+    statement = build_statement(test_user.id, "hash", 80)
+    statement.status = BankStatementStatus.REJECTED
+    statement.original_filename = "image.png"
+    db.add(statement)
+    await db.commit()
+
+    mock_fetch = AsyncMock(return_value=[{"id": "text-model", "name": "Text Model"}])
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    
+    mock_modality_match = MagicMock(return_value=False)
+    monkeypatch.setattr(statements_router, "model_matches_modality", mock_modality_match)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.retry_statement_parsing(
+            statement_id=statement.id,
+            model="text-model",
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == 400
+    assert "does not support image inputs" in exc.value.detail

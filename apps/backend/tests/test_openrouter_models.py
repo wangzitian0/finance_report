@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from src.services.openrouter_models import (
     _MODEL_CACHE,
     fetch_model_catalog,
+    get_model_info,
     is_model_known,
     model_matches_modality,
     normalize_model_entry,
@@ -84,9 +86,7 @@ def test_model_matches_modality_not_matching():
 async def test_fetch_model_catalog_success():
     """Successful catalog fetch should return models."""
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "data": [{"id": "model1"}, {"id": "model2"}]
-    }
+    mock_response.json.return_value = {"data": [{"id": "model1"}, {"id": "model2"}]}
     mock_response.raise_for_status = MagicMock()
 
     with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
@@ -127,6 +127,44 @@ async def test_fetch_model_catalog_caching():
 
 
 @pytest.mark.asyncio
+async def test_fetch_model_catalog_force_refresh():
+    """force_refresh should bypass cache."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"data": [{"id": "new-data"}]}
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+        mock_instance = AsyncMock()
+        mock_instance.get.return_value = mock_response
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
+        mock_client.return_value = mock_instance
+
+        _MODEL_CACHE["models"] = [{"id": "cached"}]
+        _MODEL_CACHE["expires_at"] = float("inf")
+
+        models = await fetch_model_catalog(force_refresh=True)
+
+    assert mock_instance.get.call_count == 1
+    assert len(models) == 1
+    assert models[0]["id"] == "new-data"
+
+
+@pytest.mark.asyncio
+async def test_fetch_model_catalog_http_error():
+    """HTTP errors during fetch should be raised."""
+    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+        mock_instance = AsyncMock()
+        mock_instance.get.side_effect = httpx.RequestError("test error")
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
+        mock_client.return_value = mock_instance
+
+        with pytest.raises(httpx.RequestError):
+            await fetch_model_catalog()
+
+
+@pytest.mark.asyncio
 async def test_is_model_known_found():
     """Known model should return True."""
     _MODEL_CACHE["models"] = [{"id": "known/model"}]
@@ -144,3 +182,39 @@ async def test_is_model_known_not_found():
 
     result = await is_model_known("unknown/model")
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_get_model_info_found():
+    """Should return normalized info for a known model."""
+    _MODEL_CACHE["models"] = [{"id": "known/model", "name": "Known Model"}]
+    _MODEL_CACHE["expires_at"] = float("inf")
+
+    info = await get_model_info("known/model")
+    assert info is not None
+    assert info["id"] == "known/model"
+    assert info["name"] == "Known Model"
+
+
+@pytest.mark.asyncio
+async def test_get_model_info_not_found():
+    """Should return None for an unknown model."""
+    _MODEL_CACHE["models"] = [{"id": "other/model"}]
+    _MODEL_CACHE["expires_at"] = float("inf")
+
+    info = await get_model_info("unknown/model")
+    assert info is None
+
+
+@pytest.mark.asyncio
+async def test_get_model_info_fetch_error():
+    """Should return None if fetching the catalog fails."""
+    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+        mock_instance = AsyncMock()
+        mock_instance.get.side_effect = httpx.RequestError("test error")
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
+        mock_client.return_value = mock_instance
+
+        info = await get_model_info("any/model")
+    assert info is None

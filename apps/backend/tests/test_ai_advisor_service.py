@@ -260,6 +260,7 @@ async def test_chat_stream_requires_api_key(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = AIAdvisorService()
+    service.api_key = None
 
     async def fake_context(_db: AsyncSession, _user_id) -> dict[str, str]:
         return {"summary": "ok"}

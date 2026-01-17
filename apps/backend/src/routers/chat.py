@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,6 +26,7 @@ from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_lan
 from src.services.openrouter_models import is_model_known
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_class=StreamingResponse)
@@ -41,11 +43,12 @@ async def chat_message(
         if not allowed:
             try:
                 allowed = await is_model_known(payload.model)
-            except Exception:
+            except Exception as e:
+                logger.error("Failed to validate model %s: %s", payload.model, e)
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Unable to validate requested model at this time.",
-                )
+                ) from e
         if not allowed:
             raise HTTPException(status_code=400, detail="Invalid model selection.")
     try:
