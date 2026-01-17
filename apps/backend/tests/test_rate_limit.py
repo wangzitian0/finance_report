@@ -54,3 +54,28 @@ def test_rate_limiter_reset_clears_state() -> None:
     # Reset should allow new requests
     limiter.reset("test-ip")
     assert limiter.is_allowed("test-ip")[0] is True
+
+
+def test_rate_limiter_returns_remaining_block_time() -> None:
+    """Blocked requests should return remaining block time on subsequent attempts."""
+    limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=100))
+
+    # First request allowed
+    assert limiter.is_allowed("test-ip")[0] is True
+
+    # Second request triggers block
+    allowed, retry_after = limiter.is_allowed("test-ip")
+    assert allowed is False
+    assert retry_after == 100  # Full block duration on first block
+
+    # Third request while still blocked should return remaining time
+    allowed, retry_after = limiter.is_allowed("test-ip")
+    assert allowed is False
+    assert 0 < retry_after <= 100  # Remaining time
+
+
+def test_rate_limiter_reset_nonexistent_key_is_safe() -> None:
+    """Reset on a key that doesn't exist should not raise."""
+    limiter = RateLimiter(RateLimitConfig(max_requests=5, window_seconds=60, block_seconds=300))
+    # Should not raise
+    limiter.reset("nonexistent-key")
