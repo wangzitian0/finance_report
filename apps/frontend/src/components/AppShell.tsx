@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import { Sidebar } from "@/components/Sidebar";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
+import { ToastProvider } from "@/components/ui/Toast";
 
 interface AppShellProps {
     children: ReactNode;
@@ -36,7 +37,9 @@ function AppShellContent({ children }: AppShellProps) {
 export function AppShell({ children }: AppShellProps) {
     return (
         <WorkspaceProvider>
-            <AppShellContent>{children}</AppShellContent>
+            <ToastProvider>
+                <AppShellContent>{children}</AppShellContent>
+            </ToastProvider>
         </WorkspaceProvider>
     );
 }

@@ -1,6 +1,6 @@
 # EPIC-003: Smart Statement Parsing
 
-> **Status**: ✅ Complete (Backend)  
+> **Status**: ✅ Complete  
 > **Phase**: 2  
 > **Duration**: 4 weeks  
 > **Dependencies**: EPIC-002  
@@ -86,20 +86,20 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 ### Frontend Interface (Frontend)
 
-- [ ] `/upload` - Upload page
-  - [ ] Drag-and-drop upload component
-  - [ ] File type/size validation
-  - [ ] Upload progress bar
-  - [ ] Parsing status polling
-- [ ] `/statements` - Statement management
-  - [ ] Statement list (status badges)
-  - [ ] Statement details (transaction table)
-  - [ ] Parsing result preview
-  - [ ] Approve/Reject actions
-- [ ] Error handling
-  - [ ] Parsing failure notification
-  - [ ] Validation failure details
-  - [ ] Retry entry point
+- [x] `/upload` - Upload page (integrated into /statements)
+  - [x] Drag-and-drop upload component
+  - [x] File type/size validation
+  - [x] Upload progress bar
+  - [x] Parsing status polling
+- [x] `/statements` - Statement management
+  - [x] Statement list (status badges)
+  - [x] Statement details (transaction table)
+  - [x] Parsing result preview
+  - [x] Approve/Reject actions
+- [x] Error handling
+  - [x] Parsing failure notification
+  - [x] Validation failure details
+  - [x] Retry entry point
 
 ---
 
@@ -196,8 +196,8 @@ def test_free_model_retry_on_timeout():
 - [x] `apps/backend/src/services/extraction.py`
 - [x] `apps/backend/src/services/validation.py`
 - [x] `apps/backend/src/routers/statements.py`
-- [ ] `apps/frontend/app/upload/page.tsx`
-- [ ] `apps/frontend/app/statements/page.tsx`
+- [x] `apps/frontend/src/app/(main)/statements/page.tsx` (includes upload)
+- [x] `apps/frontend/src/app/(main)/statements/[id]/page.tsx`
 - [x] Update `docs/ssot/extraction.md` (Prompt templates)
 - [x] Test sample set `apps/backend/tests/fixtures/`
 
