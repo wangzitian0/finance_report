@@ -182,7 +182,7 @@ async def delete_journal_entry(
     entry_id: UUID,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
-):
+) -> None:
     """Delete a draft journal entry."""
     result = await db.execute(
         select(JournalEntry)

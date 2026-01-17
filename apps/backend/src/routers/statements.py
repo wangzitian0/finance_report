@@ -430,7 +430,7 @@ async def delete_statement(
     statement_id: UUID,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
-):
+) -> None:
     """Delete a statement."""
     result = await db.execute(
         select(BankStatement)
@@ -447,7 +447,7 @@ async def delete_statement(
         storage = StorageService()
         try:
             await run_in_threadpool(storage.delete_object, statement.file_path)
-        except Exception:
+        except StorageError:
             logger.warning("Failed to delete file from storage", exc_info=True)
             # Proceed to delete from DB to avoid zombie record
 

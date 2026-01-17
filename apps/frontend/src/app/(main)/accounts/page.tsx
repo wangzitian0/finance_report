@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
+import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { Account, AccountListResponse } from "@/lib/types";
 
 const ACCOUNT_TYPES = ["All", "ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
 
 export default function AccountsPage() {
+    const { showToast } = useToast();
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,9 +35,14 @@ export default function AccountsPage() {
         if (!window.confirm("Are you sure you want to delete this account? This will only work if there are no transactions.")) return;
         try {
             await apiFetch(`/api/accounts/${accountId}`, { method: "DELETE" });
+            showToast("Account deleted successfully", "success");
             fetchAccounts();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to delete account");
+            setError(
+                err instanceof Error
+                    ? `Failed to delete account: ${err.message}`
+                    : "Failed to delete account"
+            );
         }
     };
 
