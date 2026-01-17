@@ -675,7 +675,7 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
         db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.UNMATCHED
     )
 
-    entry = await create_entry_from_txn(db, txn.id, user_id=test_user.id)
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
 
     # Verify entry uses the linked bank account
     assert entry is not None
