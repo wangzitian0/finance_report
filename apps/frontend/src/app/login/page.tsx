@@ -106,6 +106,7 @@ export default function LoginPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
+                            autoComplete="email"
                             placeholder="you@example.com"
                             className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
                         />
@@ -125,7 +126,8 @@ export default function LoginPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             minLength={8}
-                            // Password minimum length is 8 characters, matching RegisterRequest Field(min_length=8) on the backend.
+                            // SECURITY: Use appropriate autocomplete attribute for password managers
+                            autoComplete={mode === "register" ? "new-password" : "current-password"}
                             placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"}
                             className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
                         />

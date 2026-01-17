@@ -41,11 +41,19 @@ app = FastAPI(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Global exception handler to ensure JSON response."""
+    """Global exception handler to ensure JSON response.
+    
+    SECURITY: Only expose exception details in DEBUG mode to prevent information leakage.
+    """
     traceback.print_exc()
+    # Only show exception details in DEBUG mode
+    if settings.debug:
+        detail = str(exc)
+    else:
+        detail = "An internal server error occurred. Please try again later."
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": detail},
     )
 
 

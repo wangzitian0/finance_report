@@ -47,8 +47,6 @@ class TestPrintLoadedConfig:
 
     def test_debug_mode_no_defaults_prints_none(self, capsys):
         """Test that function prints '(none)' when all env vars are provided (no defaults)."""
-        # All safe_fields in env_check:
-        # 'debug', 'base_currency', 'primary_model', 's3_endpoint', 's3_bucket', 'cors_origin_regex'
         env_vars = {
             "DEBUG": "true",
             "BASE_CURRENCY": "USD",
@@ -97,13 +95,13 @@ class TestCheckEnvOnStartup:
         captured = capsys.readouterr()
         assert "Missing required variables" not in captured.out
 
-    def test_production_missing_vars_warns(self, capsys):
-        """Test production with missing vars shows warning."""
-        # Set ENV to production and ensure required vars are missing
+    def test_production_missing_vars_warns_with_override(self, capsys):
+        """Test production with missing vars shows warning when STRICT_ENV_CHECK=false."""
         with patch.dict(
             os.environ,
             {
                 "ENV": "production",
+                "STRICT_ENV_CHECK": "false",
             },
             clear=True,
         ):
@@ -112,11 +110,10 @@ class TestCheckEnvOnStartup:
         captured = capsys.readouterr()
         assert "Missing required variables" in captured.out
 
-    def test_production_strict_mode_exits(self, capsys):
-        """Test that sys.exit(1) is called when STRICT_ENV_CHECK is enabled and vars are missing."""
+    def test_production_strict_mode_exits_by_default(self, capsys):
+        """Test that sys.exit(1) is called by default when vars are missing in production."""
         env_vars = {
             "ENV": "production",
-            "STRICT_ENV_CHECK": "true",
         }
         with patch.dict(os.environ, env_vars, clear=True):
             with pytest.raises(SystemExit) as exc:
@@ -125,3 +122,4 @@ class TestCheckEnvOnStartup:
 
         captured = capsys.readouterr()
         assert "Missing required variables" in captured.out
+        assert "Refusing to start" in captured.out

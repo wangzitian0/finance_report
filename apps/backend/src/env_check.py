@@ -93,6 +93,9 @@ def check_env_on_startup() -> None:
         print("Check secrets.ctmpl and vault-agent config.")
         print("=" * 60 + "\n")
 
-        # Fail in strict mode
-        if os.getenv("STRICT_ENV_CHECK", "").lower() in ("true", "1"):
+        # SECURITY: Fail by default in production, allow override with STRICT_ENV_CHECK=false
+        strict_check = os.getenv("STRICT_ENV_CHECK", "true").lower()
+        if strict_check not in ("false", "0", "no"):
+            print("\nERROR: Refusing to start with missing required variables.")
+            print("Set STRICT_ENV_CHECK=false to override (not recommended).")
             sys.exit(1)
