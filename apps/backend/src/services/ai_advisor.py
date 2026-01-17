@@ -76,12 +76,13 @@ NON_FINANCIAL_PATTERNS = (
     r"programming",
 )
 
-# SECURITY: Match long number sequences but avoid common date/time patterns (YYYY-MM-DD, DD/MM/YYYY, etc.)
+# SECURITY: Match long number sequences but avoid common date/time patterns
+# (YYYY-MM-DD, DD/MM/YYYY, etc.)
 # Generic branch: 12+ consecutive digits (no separators) to reduce accidental date matches
 SENSITIVE_NUMBER_RE = re.compile(
     r"(?<!\d)\d{12,}(?!\d)"  # 12+ contiguous digits (account numbers, identifiers)
     r"|"
-    r"(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)"  # Credit card format: 4x4 digits with optional spaces/dashes
+    r"(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)"  # Credit card format: 4x4 digits
 )
 
 DISCLAIMER_BY_LANG = {
