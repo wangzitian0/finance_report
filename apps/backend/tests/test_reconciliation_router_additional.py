@@ -606,3 +606,79 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
         db, str(match.id), user_id=test_user.id, skip_amount_validation=True
     )
     assert result.status == ReconciliationStatus.ACCEPTED
+
+
+@pytest.mark.asyncio
+async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user) -> None:
+    """batch_accept should skip matches below min_score threshold."""
+    from src.services.review_queue import batch_accept
+
+    statement = await _create_statement(db, test_user.id)
+    # Create a low-score match
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("50.00"), status=BankStatementTransactionStatus.PENDING
+    )
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=60,  # Below default min_score of 75
+        score_breakdown={},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.commit()
+
+    # batch_accept with min_score=75 should skip this match
+    accepted = await batch_accept(db, user_id=test_user.id, match_ids=[str(match.id)], min_score=75)
+
+    # Should return empty since match was below threshold
+    assert len(accepted) == 0
+
+    # Verify match was not modified
+    await db.refresh(match)
+    assert match.status == ReconciliationStatus.PENDING_REVIEW
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, test_user) -> None:
+    """create_entry_from_txn should use statement's linked account when available."""
+    from src.services.review_queue import create_entry_from_txn
+
+    # Create a bank account to link to the statement
+    bank_account = Account(
+        user_id=test_user.id,
+        name="Linked Bank Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(bank_account)
+    await db.flush()
+
+    # Create statement with linked account_id
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path="test/path",
+        file_hash="hash123",
+        original_filename="test.pdf",
+        institution="Test Bank",
+        currency="SGD",
+        period_start=date.today(),
+        period_end=date.today(),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("900.00"),
+        account_id=bank_account.id,  # Link the account
+    )
+    db.add(statement)
+    await db.flush()
+
+    txn = await _create_transaction(
+        db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.UNMATCHED
+    )
+
+    entry = await create_entry_from_txn(db, txn.id, user_id=test_user.id)
+
+    # Verify entry uses the linked bank account
+    assert entry is not None
+    # Check that one of the lines uses the linked account
+    account_ids = [line.account_id for line in entry.lines]
+    assert bank_account.id in account_ids
