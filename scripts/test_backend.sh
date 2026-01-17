@@ -18,14 +18,17 @@ fi
 
 safe_branch=""
 if [ -n "$branch_name" ]; then
-  safe_branch="$(printf '%s' "$branch_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g' | sed 's/^-*//; s/-*$//')"
+  safe_branch="$(printf '%s' "$branch_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._\\-]/-/g' | sed 's/^-*//; s/-*$//')"
+  if [ -z "$safe_branch" ]; then
+    safe_branch="unnamed"
+  fi
 fi
 
 workspace_id="${WORKSPACE_ID:-}"
 if [ -z "$workspace_id" ] && command -v cksum >/dev/null 2>&1; then
   workspace_id="$(printf '%s' "$repo_root" | cksum | awk '{print $1}')"
   if [ "${#workspace_id}" -gt 8 ]; then
-    workspace_id="${workspace_id: -8}"
+    workspace_id="${workspace_id#"${workspace_id%????????}"}"
   fi
 fi
 
@@ -81,7 +84,35 @@ get_db_container_id() {
 }
 
 get_db_host_port() {
-  "${runtime_cmd[@]}" port "$db_container_name" 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}'
+  local output status
+  set +e
+  output="$("${runtime_cmd[@]}" port "$db_container_name" 5432/tcp 2>&1)"
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    case "$output" in
+      *"No public port"*|*"not published"*|*"no such port"*)
+        return 0
+        ;;
+      *)
+        echo "Error: failed to get port mapping for ${db_container_name}: ${output}" >&2
+        return "$status"
+        ;;
+    esac
+  fi
+  printf '%s\n' "$output" | head -n 1 | awk -F: '{print $NF}'
+}
+
+wait_for_db_host_port() {
+  local host_port=""
+  for _ in {1..30}; do
+    host_port="$(get_db_host_port || true)"
+    if [ -n "$host_port" ]; then
+      break
+    fi
+    sleep 1
+  done
+  printf '%s' "$host_port"
 }
 
 compose() {
@@ -155,15 +186,27 @@ cleanup() {
     if [ "$refcount" -le 0 ]; then
       current_id="$(get_db_container_id || true)"
       if [ -n "$container_id" ] && [ "$current_id" = "$container_id" ]; then
+        # managed=true and started_existing=true are mutually exclusive by design.
         if [ "$managed" = "true" ]; then
+          db_data_volumes="$("${runtime_cmd[@]}" inspect -f '{{range .Mounts}}{{if or (eq .Destination "/var/lib/postgresql/data") (eq .Destination "/var/lib/postgres/data")}}{{.Name}} {{end}}{{end}}' "$container_id" 2>/dev/null || true)"
           "${runtime_cmd[@]}" rm -f "$container_id" >/dev/null 2>&1 || true
-          if ! "${runtime_cmd[@]}" volume rm "${compose_project}_postgres_data" >/dev/null 2>&1; then
-            echo "Warning: failed to remove volume ${compose_project}_postgres_data; clean up manually if needed." >&2
+          if [ -n "${db_data_volumes:-}" ]; then
+            for volume_name in $db_data_volumes; do
+              if [ -n "$volume_name" ]; then
+                if ! "${runtime_cmd[@]}" volume rm "$volume_name" >/dev/null 2>&1; then
+                  echo "Warning: failed to remove volume ${volume_name}; clean up manually if needed." >&2
+                fi
+              fi
+            done
+          else
+            if ! "${runtime_cmd[@]}" volume rm "${compose_project}_postgres_data" >/dev/null 2>&1; then
+              echo "Warning: failed to remove volume ${compose_project}_postgres_data; clean up manually if needed." >&2
+            fi
           fi
         elif [ "$started_existing" = "true" ]; then
           if ! "${runtime_cmd[@]}" stop "$db_container_name" >/dev/null 2>&1; then
             echo "Warning: failed to stop ${db_container_name}; leaving state for manual cleanup." >&2
-            write_state "$managed" "$started_existing" 1 "$container_id" "${db_port:-}"
+            write_state "$managed" "$started_existing" "$((refcount + 1))" "$container_id" "${db_port:-}"
             release_lock
             return
           fi
@@ -213,9 +256,13 @@ if is_db_running; then
     refcount=$((refcount + 1))
     write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-${POSTGRES_PORT:-5432}}"
   else
-    host_port="$(get_db_host_port || true)"
+    host_port="$(wait_for_db_host_port)"
     if [ -n "$host_port" ]; then
       POSTGRES_PORT="$host_port"
+    else
+      echo "Failed to detect host port mapping for ${db_container_name} after waiting 30 seconds." >&2
+      release_lock
+      exit 1
     fi
     write_state "false" "false" 1 "$container_id" "${POSTGRES_PORT:-5432}"
   fi
@@ -232,14 +279,14 @@ else
     managed="true"
     compose -f "$compose_file" up -d postgres
   fi
-  host_port="$(get_db_host_port || true)"
+  host_port="$(wait_for_db_host_port)"
   if [ -n "$host_port" ]; then
     if [ -n "${POSTGRES_PORT:-}" ] && [ "$POSTGRES_PORT" != "$host_port" ]; then
       echo "Warning: ${db_container_name} is bound to port ${host_port}, overriding ${POSTGRES_PORT}." >&2
     fi
     POSTGRES_PORT="$host_port"
   else
-    echo "Failed to detect host port mapping for ${db_container_name}." >&2
+    echo "Failed to detect host port mapping for ${db_container_name} after waiting 30 seconds." >&2
     release_lock
     exit 1
   fi
