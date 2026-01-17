@@ -25,6 +25,7 @@ from src.models import (
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
     auto_accept,
+    build_many_to_one_groups,
     calculate_match_score,
     entry_total_amount,
     extract_merchant_tokens,
@@ -136,6 +137,30 @@ def test_extract_merchant_tokens() -> None:
     # Handle empty string
     tokens = extract_merchant_tokens("")
     assert tokens == []
+
+
+def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
+    """build_many_to_one_groups should skip transactions with empty descriptions."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class MockTxn:
+        description: str
+        txn_date: date
+
+    txns = [
+        MockTxn(description="", txn_date=date(2024, 1, 1)),  # Empty - should skip
+        MockTxn(description="   ", txn_date=date(2024, 1, 1)),  # Whitespace - should skip
+        MockTxn(description="Regular payment", txn_date=date(2024, 1, 1)),  # No keyword - skip
+        MockTxn(description="Batch settlement", txn_date=date(2024, 1, 1)),  # Has keyword
+        MockTxn(description="Batch settlement", txn_date=date(2024, 1, 1)),  # Duplicate
+    ]
+
+    groups = build_many_to_one_groups(txns)  # type: ignore[arg-type]
+
+    # Only the "Batch settlement" transactions should be grouped
+    assert len(groups) == 1
+    assert len(groups[0]) == 2
 
 
 def test_score_amount_branches() -> None:
