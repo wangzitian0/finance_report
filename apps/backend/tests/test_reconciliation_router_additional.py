@@ -682,3 +682,44 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
     # Check that one of the lines uses the linked account
     account_ids = [line.account_id for line in entry.lines]
     assert bank_account.id in account_ids
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_rejects_other_user_transaction(
+    db: AsyncSession, test_user
+) -> None:
+    """create_entry_from_txn should reject transactions from other users."""
+    from src.services.review_queue import create_entry_from_txn
+
+    # Create a statement for a different user
+    other_user_id = uuid4()
+    other_statement = BankStatement(
+        user_id=other_user_id,
+        file_path="test/other",
+        file_hash="other123",
+        original_filename="other.pdf",
+        institution="Other Bank",
+        currency="SGD",
+        period_start=date.today(),
+        period_end=date.today(),
+        opening_balance=Decimal("500.00"),
+        closing_balance=Decimal("400.00"),
+    )
+    db.add(other_statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=other_statement.id,
+        txn_date=date.today(),
+        description="Other user txn",
+        amount=Decimal("50.00"),
+        direction="OUT",
+        status=BankStatementTransactionStatus.UNMATCHED,
+        confidence=ConfidenceLevel.HIGH,
+    )
+    db.add(txn)
+    await db.commit()
+
+    # Should fail when test_user tries to create entry from other user's transaction
+    with pytest.raises(ValueError, match="Transaction does not belong to user"):
+        await create_entry_from_txn(db, txn, user_id=test_user.id)
