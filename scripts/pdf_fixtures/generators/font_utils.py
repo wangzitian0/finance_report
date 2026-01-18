@@ -13,8 +13,10 @@ def register_chinese_fonts() -> Optional[str]:
         Font name if registered successfully, None otherwise
     """
     # Common Chinese font paths on different systems
+    # Try TTF files first (simpler), then TTC files with different subfont indices
     font_paths = [
-        # macOS - Found fonts
+        # macOS - Try TTF first if available, then TTC
+        "/System/Library/Fonts/Supplemental/PingFangSC-Regular.otf",  # Try OTF
         "/System/Library/Fonts/STHeiti Medium.ttc",
         "/System/Library/Fonts/STHeiti Light.ttc",
         "/System/Library/Fonts/Supplemental/Songti.ttc",
@@ -36,20 +38,27 @@ def register_chinese_fonts() -> Optional[str]:
                 # TTC files contain multiple fonts in one file
                 if font_path.endswith('.ttc'):
                     # Try subfontIndex 0 first (most common)
-                    try:
-                        pdfmetrics.registerFont(TTFont("ChineseFont", font_path, subfontIndex=0))
-                        return "ChineseFont"
-                    except Exception:
-                        # Try subfontIndex 1 if 0 fails
+                    for subfont_idx in [0, 1]:
                         try:
-                            pdfmetrics.registerFont(TTFont("ChineseFont", font_path, subfontIndex=1))
-                            return "ChineseFont"
+                            pdfmetrics.registerFont(TTFont("ChineseFont", font_path, subfontIndex=subfont_idx))
+                            # Test if the font actually works by checking if it's registered
+                            if "ChineseFont" in pdfmetrics.getRegisteredFontNames():
+                                return "ChineseFont"
                         except Exception:
                             continue
+                elif font_path.endswith('.otf'):
+                    # Try OTF file (OpenType)
+                    try:
+                        pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
+                        if "ChineseFont" in pdfmetrics.getRegisteredFontNames():
+                            return "ChineseFont"
+                    except Exception:
+                        continue
                 else:
                     # Regular TTF file
                     pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
-                    return "ChineseFont"
+                    if "ChineseFont" in pdfmetrics.getRegisteredFontNames():
+                        return "ChineseFont"
             except Exception as e:
                 # Log error for debugging but continue trying other fonts
                 continue
@@ -68,20 +77,33 @@ def get_safe_font(font_family: str, chinese_font: Optional[str] = None) -> str:
     Returns:
         Safe font name that reportlab can use
     """
-    # Standard reportlab fonts
-    safe_fonts = [
+    # If we have a registered Chinese font, prioritize it for Chinese text
+    # This ensures Chinese characters are displayed correctly
+    if chinese_font:
+        # If the template requests a Chinese font (SimHei, SimSun, etc.), use ChineseFont
+        if any(x in font_family for x in ["Sim", "Hei", "Sun", "Song", "Ping", "ST"]):
+            return chinese_font
+        # For other fonts, still use ChineseFont if available to ensure Chinese text works
+        # But allow standard fonts for pure English content
+        standard_fonts = [
+            "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+            "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+            "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+        ]
+        if font_family in standard_fonts:
+            return font_family
+        # For unknown fonts, use ChineseFont to be safe
+        return chinese_font
+    
+    # No Chinese font available - use standard fonts
+    standard_fonts = [
         "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
         "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
         "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
     ]
     
-    # If font is already safe, use it
-    if font_family in safe_fonts:
+    if font_family in standard_fonts:
         return font_family
-    
-    # If we have Chinese font and the requested font is Chinese, use it
-    if chinese_font and ("Sim" in font_family or "Hei" in font_family or "Sun" in font_family):
-        return chinese_font
     
     # Fallback based on style
     if "Bold" in font_family or "Hei" in font_family:

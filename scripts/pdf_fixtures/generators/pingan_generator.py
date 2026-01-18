@@ -31,23 +31,23 @@ class PinganGenerator(BasePDFGenerator):
         elements = []
         styles = getSampleStyleSheet()
         
-        # Header
+        # Header - Force Chinese font if available
         font_family, font_size = self._get_font("header")
-        safe_font = get_safe_font(font_family, self.chinese_font)
+        header_font = self.chinese_font if self.chinese_font else get_safe_font(font_family, self.chinese_font)
         
         header_style = ParagraphStyle(
             "Header",
             parent=styles["Heading1"],
-            fontName=safe_font,
+            fontName=header_font,
             fontSize=font_size,
             spaceAfter=12,
         )
         # Always use Chinese header
         elements.append(Paragraph("平安银行交易流水", header_style))
         
-        # Account Info
+        # Account Info - Force Chinese font if available
         account_no = f"6221 **** **** {account_last4}"
-        body_font = get_safe_font(self._get_font("body")[0], self.chinese_font)
+        body_font = self.chinese_font if self.chinese_font else get_safe_font(self._get_font("body")[0], self.chinese_font)
         body_style = ParagraphStyle(
             "Body",
             parent=styles["Normal"],
@@ -76,14 +76,14 @@ class PinganGenerator(BasePDFGenerator):
         table_config = self.template["tables"]["transaction_details"]
         columns = table_config["columns"]
         
-        # Table header - Always use Chinese
-        table_font = get_safe_font(self._get_font("table_header")[0], self.chinese_font)
+        # Table header - Force Chinese font if available
+        table_font = self.chinese_font if self.chinese_font else get_safe_font(self._get_font("table_header")[0], self.chinese_font)
         header_row = [col["name"] for col in columns]
         data = [header_row]
         
         # Transaction rows
-        # Use Chinese font for table body
-        table_body_font = get_safe_font(self._get_font("table_body")[0], self.chinese_font)
+        # Force Chinese font for table body
+        table_body_font = self.chinese_font if self.chinese_font else get_safe_font(self._get_font("table_body")[0], self.chinese_font)
         
         for txn in txns:
             row = [
@@ -99,8 +99,8 @@ class PinganGenerator(BasePDFGenerator):
         col_widths = self._get_column_widths(table_config)
         table = Table(data, colWidths=col_widths)
         table_style = self._create_table_style(table_config, table_font=table_font)
-        # Set Chinese font for table body rows
-        table_style.add("FONTNAME", (0, 1), (-1, -1), table_body_font)
+        # Force Chinese font for all table cells (header and body)
+        table_style.add("FONTNAME", (0, 0), (-1, -1), table_body_font)  # Apply to all rows including header
         table.setStyle(table_style)
         elements.append(table)
         
