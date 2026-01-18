@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "0006_statement_parsing_nullable_fields"
+revision = "0006_parse_nullable_fields"
 down_revision = "0005_fix_txn_status_enum"
 branch_labels = None
 depends_on = None
