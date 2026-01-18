@@ -43,8 +43,8 @@ def validate_balance_explicit(
     opening: Decimal, closing: Decimal, net_transactions: Decimal
 ) -> dict[str, Any]:
     """Validate balance using explicit Decimal values."""
-    expected_closing = opening + net_transactions
-    diff = abs(closing - expected_closing)
+    expected_closing = (opening or Decimal("0")) + (net_transactions or Decimal("0"))
+    diff = abs((closing or Decimal("0")) - expected_closing)
     balance_valid = diff <= BALANCE_TOLERANCE
 
     return {
@@ -73,12 +73,15 @@ def validate_completeness(extracted: dict[str, Any]) -> list[str]:
 def compute_confidence_score(
     extracted: dict[str, Any],
     balance_result: dict[str, Any],
+    missing_fields: list[str] | None = None,
 ) -> int:
     """Compute confidence score (0-100) based on SSOT weights.
 
-    Legacy interface for backward compatibility.
+    Supports optional missing_fields for backward compatibility.
     """
-    missing_fields = validate_completeness(extracted)
+    if missing_fields is None:
+        missing_fields = validate_completeness(extracted)
+
     score = 0
 
     # Balance validation (40%)
@@ -86,18 +89,18 @@ def compute_confidence_score(
         score += 40
     else:
         try:
-            diff = Decimal(balance_result.get("difference", "0"))
+            diff = Decimal(str(balance_result.get("difference", "0") or "0"))
             if diff <= Decimal("1.00"):
                 score += 30
             elif diff <= Decimal("10.00"):
                 score += 20
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, InvalidOperation):
             pass
 
     # Field completeness (30%)
-    required_fields = 5
-    present = required_fields - len(missing_fields)
-    score += int((present / required_fields) * 30)
+    required_fields_count = 5
+    present = required_fields_count - len(missing_fields)
+    score += int((present / required_fields_count) * 30)
 
     # Format consistency (20%)
     format_score = 20
@@ -106,14 +109,14 @@ def compute_confidence_score(
             date.fromisoformat(str(extracted["period_start"]))
         if extracted.get("period_end"):
             date.fromisoformat(str(extracted["period_end"]))
-        Decimal(str(extracted.get("opening_balance", "0")))
-        Decimal(str(extracted.get("closing_balance", "0")))
+        Decimal(str(extracted.get("opening_balance", "0") or "0"))
+        Decimal(str(extracted.get("closing_balance", "0") or "0"))
     except (ValueError, TypeError, InvalidOperation):
         format_score = 0
     score += format_score
 
     # Transaction count (10%)
-    txn_count = len(extracted.get("transactions", []))
+    txn_count = len(extracted.get("transactions", []) or [])
     if 1 <= txn_count <= 500:
         score += 10
     elif txn_count > 500:
