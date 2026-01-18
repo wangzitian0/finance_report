@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     # App settings
     debug: bool = False
     base_currency: str = "SGD"
+    next_public_app_url: str = "http://localhost:3000"
 
     # CORS origins - stored as string, parsed via property
     # Env format: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
