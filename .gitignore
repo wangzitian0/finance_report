@@ -1,5 +1,6 @@
 tmp/
 .env
+.envrc
 
 # MkDocs build output
 site/

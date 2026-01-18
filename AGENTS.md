@@ -4,6 +4,18 @@
 > **Checklist**: When you think you have completed a task, you need to check this file line by line to make sure you have met all the requirements.
 > **English**: All code, PRs, commits, and reports must be in English; optional translated documentation files (e.g., *_ZH.md, *_CN.md) are allowed as non-authoritative copies.
 
+---
+
+## 🚨 Security & Red Lines (CRITICAL)
+
+- **NEVER** use float for monetary amounts (**MUST** use `Decimal`).
+- **NEVER** commit sensitive files (`.env`, `*.pem`, credentials).
+- **NEVER** skip entry balance validation or post entries without accounting equation check.
+- **NEVER** use direct `fetch()` in frontend; **MUST** use `lib/api.ts` wrapper.
+- **NEVER** create `sa.Enum` without an explicit `name="..."` parameter.
+
+---
+
 ## 🧭 Wiki Entry Map (Level 0/1)
 
 **Level 0 Entry**: `AGENTS.md` (you are here)
@@ -72,12 +84,20 @@ AI must use this cascade structure before processing tasks:
   - **Infrastructure**: `infra/` (Docker, deployment)
 
 ### 3. Actions (Execution Steps)
-- **Atomic Operations**: Define specific action sequence for each task
-- **SSOT Alignment**: Actions must conform to [accounting.md](docs/ssot/accounting.md) and [reconciliation.md](docs/ssot/reconciliation.md)
-- **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
+- **Atomic Operations**: Define specific action sequence for each task.
+- **SSOT Alignment**: Actions must conform to [accounting.md](docs/ssot/accounting.md) and [reconciliation.md](docs/ssot/reconciliation.md).
+- **Contract Validation**:
+    - **Infra Check**: If adding environment variables, sync `repo` submodule (`infra2`).
+    - **DB Check**: Ensure explicit `name` for Enums and check migration length.
+    - **Next.js Check**: Ensure `NEXT_PUBLIC_` variables are added to `Dockerfile` `ARG`.
+- **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README.
 
 ### 4. Result (Verification)
 - **Self-Check**: Compare against project goals in [target.md](target.md)
+- **Engineering Audit**:
+    - [ ] **Submodule Sync**: Did I update `infra2` for config changes?
+    - [ ] **Enum Naming**: Are all `sa.Enum` fields explicitly named (e.g., `name="..._enum"`)?
+    - [ ] **Next.js Bake**: Are `NEXT_PUBLIC_` variables added to `Dockerfile` `ARG`?
 - **Evidence Loop**: Use verification methods from SSOT "The Proof" sections
 - **Update Docs**: Update README, Project docs, SSOT as needed
 
@@ -90,9 +110,17 @@ AI must use this cascade structure before processing tasks:
 2. **No SSOT, no work**: Before introducing new components, define their truth in `docs/ssot/`.
 3. **No hidden drift**: When code differs from SSOT, sync immediately. Never let SSOT rot.
 
+### Engineering Integrity
+4. **Explicit Enum Naming**: All database enums **MUST** have an explicit `name` parameter in SQLAlchemy.
+5. **Environment Lifecycle**:
+    - `NEXT_PUBLIC_` variables **MUST** be defined in `Dockerfile` as `ARG` and `ENV`.
+    - Backend variables **MUST** be documented in `.env.example` and `config.py`.
+6. **Cross-Repo Sync**: Changes to production configuration (Vault/Compose) **REQUIRE** a corresponding PR in the `repo` submodule (`infra2`).
+7. **Async Transaction Boundary**: Routers handle `commit()`; Services use `flush()` or internal logic.
+
 ### Accounting Integrity
-4. **Entries must balance**: Every JournalEntry must have balanced debits and credits.
-5. **Equation must hold**: At any point, the accounting equation must be satisfied.
+8. **Entries must balance**: Every JournalEntry must have balanced debits and credits.
+9. **Equation must hold**: At any point, the accounting equation must be satisfied.
 
 ### Delivery
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars.
@@ -200,12 +228,3 @@ def validate_balance(lines: list[JournalLine]) -> bool:
 **Phase 0**: Infrastructure Setup (Moonrepo + Docker)
 
 See [docs/project/README.md](docs/project/README.md) for phased delivery status.
-
----
-
-## 🔐 Security & Red Lines
-
-- **NEVER** commit sensitive files (`.env`, `*.pem`, credentials)
-- **NEVER** use float for monetary amounts
-- **NEVER** skip entry balance validation
-- **NEVER** post entries without accounting equation check
