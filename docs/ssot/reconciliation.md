@@ -153,6 +153,7 @@ def calculate_match_score(
 - **Pattern B**: One-to-many matches must verify amount totals
 - **Pattern C**: Cross-period matches extend date tolerance to ±7 days
 - **Pattern D**: Review queue updates use row-level locking and increment `version` to prevent concurrent overwrites
+- **Pattern E (Performance)**: Matching engine must pre-fetch candidates for the entire statement period and cache historical pattern scores to avoid N+1 database queries.
 
 ### ⛔ Prohibited Patterns
 

@@ -169,14 +169,11 @@ async def batch_accept(
     user_id: UUID,
     min_score: int = 80,
 ) -> list[ReconciliationMatch]:
-    """Batch accept high-score matches.
-
-    Note: Per EPIC-004 Q4 design, only matches with score >= min_score are accepted.
-    Lower-scoring matches are intentionally skipped to require individual review.
-    Skipped matches are logged for transparency.
-    """
+    """Batch accept high-score matches."""
     if not match_ids:
         return []
+    
+    # Optimization: join transaction and load it to avoid N+1 queries later
     result = await db.execute(
         select(ReconciliationMatch)
         .join(BankStatementTransaction)
@@ -185,7 +182,8 @@ async def batch_accept(
         .where(BankStatement.user_id == user_id)
         .where(ReconciliationMatch.match_score >= min_score)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        .with_for_update()
+        .options(selectinload(ReconciliationMatch.transaction))
+        .with_for_update(of=ReconciliationMatch)
     )
     matches = result.scalars().all()
     matched_ids = {str(m.id) for m in matches}
@@ -198,27 +196,38 @@ async def batch_accept(
             min_score,
             list(skipped_ids),
         )
+    
     accepted: list[ReconciliationMatch] = []
+    # Collect all entry IDs to pre-fetch them
+    all_entry_ids = []
+    for match in matches:
+        if match.journal_entry_ids:
+            all_entry_ids.extend([UUID(eid) for eid in match.journal_entry_ids])
+            
+    # Pre-fetch all journal entries to avoid N+1 queries in the loop
+    entries_map = {}
+    if all_entry_ids:
+        entries_result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id.in_(all_entry_ids))
+            .where(JournalEntry.user_id == user_id)
+        )
+        entries_map = {entry.id: entry for entry in entries_result.scalars().all()}
+
     for match in matches:
         match.status = ReconciliationStatus.ACCEPTED
         match.version += 1
         accepted.append(match)
-        result_txn = await db.execute(
-            select(BankStatementTransaction).where(BankStatementTransaction.id == match.bank_txn_id)
-        )
-        txn = result_txn.scalar_one_or_none()
+        
+        # Already loaded via selectinload
+        txn = match.transaction
         if txn:
             txn.status = BankStatementTransactionStatus.MATCHED
 
         if match.journal_entry_ids:
-            entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-            result_entries = await db.execute(
-                select(JournalEntry)
-                .where(JournalEntry.id.in_(entry_ids))
-                .where(JournalEntry.user_id == user_id)
-            )
-            for entry in result_entries.scalars():
-                if entry.status != JournalEntryStatus.VOID:
+            for entry_id_str in match.journal_entry_ids:
+                entry = entries_map.get(UUID(entry_id_str))
+                if entry and entry.status != JournalEntryStatus.VOID:
                     entry.status = JournalEntryStatus.RECONCILED
 
     await db.commit()

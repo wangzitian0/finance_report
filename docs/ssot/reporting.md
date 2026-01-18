@@ -137,6 +137,8 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 - **Pattern A**: Report generation is read-only, never modifies ledger
 - **Pattern B**: Always validate accounting equation before rendering
 - **Pattern C**: Cache report results with date-based invalidation
+- **Pattern D (Performance)**: Pre-fetch all necessary FX rates in bulk before starting report calculation to avoid N+1 queries.
+- **Pattern E (Reliability)**: Cap trend data points at 366 (one year of daily data) to prevent memory issues with unbounded queries.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** hardcode account codes in report logic

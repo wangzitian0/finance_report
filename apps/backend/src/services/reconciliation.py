@@ -88,9 +88,18 @@ DEFAULT_CONFIG = ReconciliationConfig(
 
 MAX_COMBINATION_CANDIDATES = 30
 
+_config_cache: ReconciliationConfig | None = None
 
-def load_reconciliation_config() -> ReconciliationConfig:
-    """Load reconciliation configuration from YAML if available."""
+
+def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConfig:
+    """Load reconciliation configuration from YAML if available.
+
+    Caches the result to avoid repeated disk I/O.
+    """
+    global _config_cache
+    if _config_cache is not None and not force_reload:
+        return _config_cache
+
     config = DEFAULT_CONFIG
     config_path = Path(__file__).resolve().parents[2] / "config" / "reconciliation.yaml"
 
@@ -101,30 +110,34 @@ def load_reconciliation_config() -> ReconciliationConfig:
             yaml = None
 
         if yaml:
-            raw = yaml.safe_load(config_path.read_text()) or {}
-            scoring = raw.get("scoring", {})
-            weights = scoring.get("weights", {})
-            thresholds = scoring.get("thresholds", {})
-            tolerances = scoring.get("tolerances", {})
+            try:
+                raw = yaml.safe_load(config_path.read_text()) or {}
+                scoring = raw.get("scoring", {})
+                weights = scoring.get("weights", {})
+                thresholds = scoring.get("thresholds", {})
+                tolerances = scoring.get("tolerances", {})
 
-            config = ReconciliationConfig(
-                weight_amount=Decimal(str(weights.get("amount", config.weight_amount))),
-                weight_date=Decimal(str(weights.get("date", config.weight_date))),
-                weight_description=Decimal(
-                    str(weights.get("description", config.weight_description))
-                ),
-                weight_business=Decimal(str(weights.get("business", config.weight_business))),
-                weight_history=Decimal(str(weights.get("history", config.weight_history))),
-                auto_accept=int(thresholds.get("auto_accept", config.auto_accept)),
-                pending_review=int(thresholds.get("pending_review", config.pending_review)),
-                amount_percent=Decimal(
-                    str(tolerances.get("amount_percent", config.amount_percent))
-                ),
-                amount_absolute=Decimal(
-                    str(tolerances.get("amount_absolute", config.amount_absolute))
-                ),
-                date_days=int(tolerances.get("date_days", config.date_days)),
-            )
+                config = ReconciliationConfig(
+                    weight_amount=Decimal(str(weights.get("amount", config.weight_amount))),
+                    weight_date=Decimal(str(weights.get("date", config.weight_date))),
+                    weight_description=Decimal(
+                        str(weights.get("description", config.weight_description))
+                    ),
+                    weight_business=Decimal(str(weights.get("business", config.weight_business))),
+                    weight_history=Decimal(str(weights.get("history", config.weight_history))),
+                    auto_accept=int(thresholds.get("auto_accept", config.auto_accept)),
+                    pending_review=int(thresholds.get("pending_review", config.pending_review)),
+                    amount_percent=Decimal(
+                        str(tolerances.get("amount_percent", config.amount_percent))
+                    ),
+                    amount_absolute=Decimal(
+                        str(tolerances.get("amount_absolute", config.amount_absolute))
+                    ),
+                    date_days=int(tolerances.get("date_days", config.date_days)),
+                )
+            except Exception:
+                # Fallback to default if YAML is malformed
+                pass
 
     auto_accept_env = os.getenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD")
     pending_review_env = os.getenv("RECONCILIATION_REVIEW_THRESHOLD")
@@ -133,6 +146,7 @@ def load_reconciliation_config() -> ReconciliationConfig:
     if pending_review_env:
         config = replace(config, pending_review=int(pending_review_env))
 
+    _config_cache = config
     return config
 
 
@@ -190,15 +204,14 @@ def is_cross_period(txn_date: date, entry_date: date, max_days: int) -> bool:
 
 
 def score_date(txn_date: date, entry_date: date, config: ReconciliationConfig) -> float:
-    """Score date proximity (0-100).
-
-    Scoring tiers:
-    - Same day: 100
-    - Within 3 days: 90
-    - Cross-month but within config.date_days: 75 (bonus for cross-period matching)
-    - Same month within config.date_days: 70
-    - Beyond config.date_days: decreasing score
-    """
+    """Score date proximity (0-100)."""
+    # Scoring tiers:
+    # - Same day: 100
+    # - Within 3 days: 90
+    # - Cross-month but within config.date_days: 75 (bonus for cross-period matching)
+    # - Same month within config.date_days: 70
+    # - Beyond config.date_days: decreasing score
+    # 
     diff_days = abs((txn_date - entry_date).days)
     if diff_days == 0:
         return 100.0
@@ -387,6 +400,7 @@ async def calculate_match_score(
     is_multi: bool = False,
     is_many_to_one: bool = False,
     amount_override: Decimal | None = None,
+    history_score_override: float | None = None,
 ) -> MatchCandidate:
     """Calculate match score for a transaction against entry candidates."""
     entry_amounts = [entry_total_amount(entry) for entry in entries]
@@ -401,7 +415,11 @@ async def calculate_match_score(
     business_score = (
         min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
     )
-    history_score = await score_pattern(db, transaction, config, user_id=user_id)
+    
+    if history_score_override is not None:
+        history_score = history_score_override
+    else:
+        history_score = await score_pattern(db, transaction, config, user_id=user_id)
 
     scores = {
         "amount": amount_score,
@@ -485,14 +503,49 @@ async def execute_matching(
 
     result = await db.execute(query)
     transactions = result.scalars().all()
+    if not transactions:
+        return []
+
+    # Optimization: Pre-fetch all candidates for the entire period to avoid N+1 find_candidates
+    min_date = min(txn.txn_date for txn in transactions) - timedelta(days=config.date_days)
+    max_date = max(txn.txn_date for txn in transactions) + timedelta(days=config.date_days)
+
+    all_candidates_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.entry_date.between(min_date, max_date))
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
+        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+    )
+    all_candidates = all_candidates_result.scalars().all()
+
+    def get_candidates_for_date(txn_date: date) -> list[JournalEntry]:
+        d_start = txn_date - timedelta(days=config.date_days)
+        d_end = txn_date + timedelta(days=config.date_days)
+        return [c for c in all_candidates if d_start <= c.entry_date <= d_end]
+
     matches: list[ReconciliationMatch] = []
     matched_txn_ids: set[UUID] = set()
+
+    # Optimization: Cache pattern scores to avoid repeated DB hits for similar merchants
+    pattern_score_cache: dict[str, float] = {}
+
+    async def get_cached_pattern_score(txn: BankStatementTransaction) -> float:
+        tokens = extract_merchant_tokens(txn.description)
+        if not tokens:
+            return 0.0
+        token = tokens[0]
+        if token in pattern_score_cache:
+            return pattern_score_cache[token]
+        score = await score_pattern(db, txn, config, user_id=user_id)
+        pattern_score_cache[token] = score
+        return score
 
     groups = build_many_to_one_groups(transactions)
     for group in groups:
         group_total = sum((txn.amount for txn in group), Decimal("0.00"))
         group_date = max(txn.txn_date for txn in group)
-        candidates = await find_candidates(db, group_date, config, user_id=user_id)
+        candidates = get_candidates_for_date(group_date)
         if not candidates:
             continue
         candidates = prune_candidates(
@@ -503,9 +556,13 @@ async def execute_matching(
 
         best_candidate: MatchCandidate | None = None
         best_entry: JournalEntry | None = None
+        # Optimization: pre-calculate pattern score once for the group
+        history_score = await get_cached_pattern_score(group[0])
+
         for entry in candidates:
             if not is_entry_balanced(entry):
                 continue
+            
             candidate = await calculate_match_score(
                 db,
                 group[0],
@@ -515,6 +572,7 @@ async def execute_matching(
                 is_multi=True,
                 is_many_to_one=True,
                 amount_override=group_total,
+                history_score_override=history_score,
             )
             candidate.breakdown["group_total"] = float(group_total)
             if candidate.score >= config.pending_review and (
@@ -550,7 +608,7 @@ async def execute_matching(
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
-        candidates = await find_candidates(db, txn.txn_date, config, user_id=user_id)
+        candidates = get_candidates_for_date(txn.txn_date)
         if not candidates:
             txn.status = BankStatementTransactionStatus.UNMATCHED
             continue
@@ -561,10 +619,21 @@ async def execute_matching(
         )
 
         best_match: MatchCandidate | None = None
+        # Optimization: use cached history score
+        history_score = await get_cached_pattern_score(txn)
+
         for entry in candidates:
             if not is_entry_balanced(entry):
                 continue
-            candidate = await calculate_match_score(db, txn, [entry], config, user_id=user_id)
+            
+            candidate = await calculate_match_score(
+                db, 
+                txn, 
+                [entry], 
+                config, 
+                user_id=user_id,
+                history_score_override=history_score
+            )
             if best_match is None or candidate.score > best_match.score:
                 best_match = candidate
 
@@ -582,6 +651,7 @@ async def execute_matching(
                 config,
                 user_id=user_id,
                 is_multi=True,
+                history_score_override=history_score,
             )
             candidate.breakdown["multi_entry"] = 1
             if best_match is None or candidate.score > best_match.score:
@@ -609,6 +679,7 @@ async def execute_matching(
                 config,
                 user_id=user_id,
                 is_multi=True,
+                history_score_override=history_score,
             )
             candidate.breakdown["multi_entry"] = 2
             if best_match is None or candidate.score > best_match.score:

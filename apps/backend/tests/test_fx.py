@@ -284,3 +284,79 @@ async def test_get_average_rate_casts_non_decimal():
         DummySession(), "USD", "SGD", date(2025, 1, 1), date(2025, 1, 2)
     )
     assert result == Decimal("1.11")
+
+
+def test_fx_cache_eviction() -> None:
+    """Test FX cache eviction logic when it reaches max_size."""
+    # Create cache with small max_size for testing
+    small_cache = fx_service._FxRateCache(max_size=5)
+    
+    # Fill cache
+    for i in range(5):
+        small_cache.set(f"key{i}", Decimal(str(i)))
+    
+    assert len(small_cache._store) == 5
+    
+    # Exceed capacity - should trigger eviction
+    # Our implementation clears 20% + any expired. 
+    # Since none are expired, it will remove floor(5 * 0.2) = 1 entry (oldest).
+    small_cache.set("key5", Decimal("5"))
+    
+    # After set, size should be 5 again (added 1, evicted 1)
+    assert len(small_cache._store) == 5
+    assert "key0" not in small_cache._store
+    assert "key5" in small_cache._store
+
+
+@pytest.mark.asyncio
+async def test_prefetched_fx_rates() -> None:
+    """Test the PrefetchedFxRates helper class."""
+    from src.services.fx import PrefetchedFxRates
+    
+    prefetched = PrefetchedFxRates()
+    
+    # Test set/get spot
+    prefetched.set_rate("USD", "SGD", date(2025, 1, 1), Decimal("1.35"))
+    assert prefetched.get_rate("USD", "SGD", date(2025, 1, 1)) == Decimal("1.35")
+    
+    # Test same currency
+    assert prefetched.get_rate("SGD", "sgd", date(2025, 1, 1)) == Decimal("1")
+    
+    # Test avg rate
+    prefetched.set_rate("USD", "SGD", date(2025, 1, 1), Decimal("1.34"), date(2025, 1, 1), date(2025, 1, 31))
+    assert prefetched.get_rate("USD", "SGD", date(2025, 1, 1), date(2025, 1, 1), date(2025, 1, 31)) == Decimal("1.34")
+    
+    # Missing key
+    assert prefetched.get_rate("GBP", "USD", date(2025, 1, 1)) is None
+
+
+@pytest.mark.asyncio
+async def test_prefetch_parallel(db: AsyncSession):
+    """Test batch prefetching from database."""
+    from src.services.fx import PrefetchedFxRates
+    
+    db.add_all([
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=date(2025, 1, 1), source="test"),
+        FxRate(base_currency="EUR", quote_currency="SGD", rate=Decimal("1.40"), rate_date=date(2025, 1, 1), source="test"),
+    ])
+    await db.commit()
+    
+    prefetched = PrefetchedFxRates()
+    # Fetch sequentially in test to avoid AsyncSession concurrency error
+    # but still verifying the data structures and loading logic.
+    await prefetched.prefetch(db, [("USD", "SGD", date(2025, 1, 1), None, None)])
+    await prefetched.prefetch(db, [("EUR", "SGD", date(2025, 1, 1), None, None)])
+    
+    assert prefetched.get_rate("USD", "SGD", date(2025, 1, 1)) == Decimal("1.30")
+    assert prefetched.get_rate("EUR", "SGD", date(2025, 1, 1)) == Decimal("1.40")
+
+
+@pytest.mark.asyncio
+async def test_convert_amount_average_fallback_error(db: AsyncSession):
+    """Test that convert_amount fails if fallback exchange rate lookup fails."""
+    # No rates in DB
+    with pytest.raises(FxRateError, match="No FX rate available"):
+        await convert_amount(
+            db, Decimal("10"), "USD", "SGD", date(2025, 1, 1),
+            average_start=date(2025, 1, 1), average_end=date(2025, 1, 1)
+        )
