@@ -20,9 +20,9 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Optional
 
 import redis
+
 from src.config import settings
 
 
@@ -49,11 +49,11 @@ class RateLimiter:
     Uses sliding window algorithm. Thread-safe for concurrent access.
     """
 
-    def __init__(self, config: Optional[RateLimitConfig] = None) -> None:
+    def __init__(self, config: RateLimitConfig | None = None) -> None:
         self.config = config or RateLimitConfig()
         self._local_state: dict[str, RateLimitState] = defaultdict(RateLimitState)
         self._lock = Lock()
-        self._redis: Optional[redis.Redis] = None
+        self._redis: redis.Redis | None = None
 
         if settings.redis_url:
             try:
@@ -96,7 +96,8 @@ class RateLimiter:
 
             if request_count > self.config.max_requests:
                 # Block the key
-                self._redis.setex(block_key, self.config.block_seconds, str(now + self.config.block_seconds))
+                block_val = str(now + self.config.block_seconds)
+                self._redis.setex(block_key, self.config.block_seconds, block_val)
                 return False, self.config.block_seconds
 
             return True, 0
