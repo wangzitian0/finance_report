@@ -304,22 +304,28 @@ async def test_chat_history_lists_sessions() -> None:
     mock_session.last_active_at = MagicMock()
 
     mock_message = MagicMock(spec=ChatMessage)
+    mock_message.id = uuid4()
     mock_message.role = MagicMock()
     mock_message.role.value = ChatMessageRole.ASSISTANT.value
     mock_message.content = "Latest answer"
     mock_message.created_at = MagicMock()
 
-    session_result = MagicMock()
-    session_scalars = MagicMock()
-    session_scalars.all.return_value = [mock_session]
-    session_result.scalars.return_value = session_scalars
+    # Optimized flow mock
+    # 1. Main result: rows of (ChatSession, count, last_msg_id)
+    main_result = MagicMock()
+    main_result.all.return_value = [(mock_session, 2, mock_message.id)]
+    
+    # 2. Last messages bulk result
+    msg_result = MagicMock()
+    msg_scalars = MagicMock()
+    msg_scalars.all.return_value = [mock_message]
+    msg_result.scalars.return_value = msg_scalars
 
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(
         side_effect=[
-            session_result,
-            MagicMock(scalar_one=MagicMock(return_value=2)),
-            MagicMock(scalar_one_or_none=MagicMock(return_value=mock_message)),
+            main_result,
+            msg_result,
         ]
     )
     mock_user_id = uuid4()

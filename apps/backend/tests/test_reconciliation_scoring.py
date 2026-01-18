@@ -99,7 +99,7 @@ def test_load_reconciliation_config_reads_yaml_and_env(monkeypatch: pytest.Monke
 
     monkeypatch.setenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "90")
     monkeypatch.setenv("RECONCILIATION_REVIEW_THRESHOLD", "70")
-    updated = load_reconciliation_config()
+    updated = load_reconciliation_config(force_reload=True)
     assert updated.auto_accept == 90
     assert updated.pending_review == 70
 

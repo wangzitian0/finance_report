@@ -133,25 +133,47 @@ async def chat_history(
             )
         )
     else:
+        # Optimized query to fetch sessions with message count and last message in fewer steps
+        # Using subqueries to avoid N+1 problem
+        count_subquery = (
+            select(func.count(ChatMessage.id))
+            .where(ChatMessage.session_id == ChatSession.id)
+            .correlate(ChatSession)
+            .scalar_subquery()
+        )
+
+        last_msg_subquery = (
+            select(ChatMessage.id)
+            .where(ChatMessage.session_id == ChatSession.id)
+            .order_by(ChatMessage.created_at.desc())
+            .limit(1)
+            .correlate(ChatSession)
+            .scalar_subquery()
+        )
+
         result = await db.execute(
-            select(ChatSession)
+            select(ChatSession, count_subquery, last_msg_subquery)
             .where(ChatSession.user_id == user_id)
             .where(ChatSession.status == ChatSessionStatus.ACTIVE)
             .order_by(ChatSession.last_active_at.desc(), ChatSession.created_at.desc())
             .limit(limit)
         )
-        for session in result.scalars().all():
-            count_result = await db.execute(
-                select(func.count(ChatMessage.id)).where(ChatMessage.session_id == session.id)
+
+        session_data = result.all()
+        if not session_data:
+            return ChatHistoryResponse(sessions=[])
+
+        # Fetch all "last messages" in one batch
+        last_msg_ids = [row[2] for row in session_data if row[2] is not None]
+        last_messages_map = {}
+        if last_msg_ids:
+            msg_result = await db.execute(
+                select(ChatMessage).where(ChatMessage.id.in_(last_msg_ids))
             )
-            message_count = count_result.scalar_one()
-            last_result = await db.execute(
-                select(ChatMessage)
-                .where(ChatMessage.session_id == session.id)
-                .order_by(ChatMessage.created_at.desc())
-                .limit(1)
-            )
-            last_message_obj = last_result.scalar_one_or_none()
+            last_messages_map = {msg.id: msg for msg in msg_result.scalars().all()}
+
+        for session, message_count, last_msg_id in session_data:
+            last_message_obj = last_messages_map.get(last_msg_id)
             last_message = None
             if last_message_obj:
                 last_message = ChatMessagePreview(
@@ -167,7 +189,7 @@ async def chat_history(
                     created_at=session.created_at,
                     updated_at=session.updated_at,
                     last_active_at=session.last_active_at,
-                    message_count=message_count,
+                    message_count=message_count or 0,
                     last_message=last_message,
                     messages=[],
                 )

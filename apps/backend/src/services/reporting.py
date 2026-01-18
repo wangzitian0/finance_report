@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.models import (
@@ -19,7 +20,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.services.fx import FxRateError, convert_amount
+from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount
 
 _REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
 
@@ -75,6 +76,9 @@ def _add_months(value: date, months: int) -> date:
     return date(year, month, day)
 
 
+MAX_TREND_POINTS = 366
+
+
 def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
     spans: list[PeriodSpan] = []
     cursor = start
@@ -83,6 +87,8 @@ def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
         while cursor <= end:
             spans.append(PeriodSpan(start=cursor, end=cursor))
             cursor += timedelta(days=1)
+            if len(spans) > MAX_TREND_POINTS:
+                break
         return spans
 
     if period == "weekly":
@@ -91,6 +97,8 @@ def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
             week_end = week_start + timedelta(days=6)
             spans.append(PeriodSpan(start=week_start, end=min(week_end, end)))
             cursor = week_start + timedelta(days=7)
+            if len(spans) > MAX_TREND_POINTS:
+                break
         return spans
 
     if period == "monthly":
@@ -99,6 +107,8 @@ def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
             month_end = _month_end(cursor)
             spans.append(PeriodSpan(start=month_start, end=min(month_end, end)))
             cursor = _add_months(month_start, 1)
+            if len(spans) > MAX_TREND_POINTS:
+                break
         return spans
 
     raise ReportError(f"Unsupported period: {period}")
@@ -234,10 +244,29 @@ async def generate_income_statement(
     result = await db.execute(stmt)
 
     entries_by_id: dict[UUID, list[tuple[JournalLine, Account, JournalEntry]]] = {}
+    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
+
     for line, account, entry in result.all():
         if entry.id not in entries_by_id:
             entries_by_id[entry.id] = []
         entries_by_id[entry.id].append((line, account, entry))
+
+        # Collect FX needs for pre-fetching
+        if line.currency != target_currency:
+            # Period average need
+            fx_needs.append((line.currency, target_currency, end_date, start_date, end_date))
+            # Monthly average need
+            period_key = _month_start(entry.entry_date)
+            month_end = _add_months(period_key, 1) - timedelta(days=1)
+            fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
+
+    # Batch pre-fetch all needed FX rates
+    fx_rates = PrefetchedFxRates()
+    if fx_needs:
+        try:
+            await fx_rates.prefetch(db, fx_needs)
+        except FxRateError as exc:
+            raise ReportError(str(exc)) from exc
 
     entries_to_include: set[UUID] = set()
     if tags:
@@ -256,39 +285,41 @@ async def generate_income_statement(
             continue
 
         for line, account, entry in lines_and_accounts:
-            # For account totals, use period average rate
-            try:
-                converted_total = await convert_amount(
-                    db,
-                    amount=line.amount,
-                    currency=line.currency,
-                    target_currency=target_currency,
-                    rate_date=end_date,
-                    average_start=start_date,
-                    average_end=end_date,
-                )
-            except FxRateError as exc:
-                raise ReportError(str(exc)) from exc
+            # Use pre-fetched rates
+            rate_total = fx_rates.get_rate(
+                line.currency, target_currency, end_date, start_date, end_date
+            )
+            if rate_total is None:
+                # Fallback to slow path if not pre-fetched (should be rare)
+                try:
+                    converted_total = await convert_amount(
+                        db,
+                        amount=line.amount,
+                        currency=line.currency,
+                        target_currency=target_currency,
+                        rate_date=end_date,
+                        average_start=start_date,
+                        average_end=end_date,
+                    )
+                except FxRateError as exc:
+                    raise ReportError(str(exc)) from exc
+            else:
+                converted_total = line.amount * rate_total
 
             signed_total = _signed_amount(account.type, line.direction, converted_total)
             balances[account.id] += signed_total
 
-            # For monthly trend buckets, use the entry's month average rate
+            # For monthly trend buckets, use pre-fetched monthly average rate
             period_key = _month_start(entry.entry_date)
             month_end = _add_months(period_key, 1) - timedelta(days=1)
-            try:
-                converted_monthly = await convert_amount(
-                    db,
-                    amount=line.amount,
-                    currency=line.currency,
-                    target_currency=target_currency,
-                    rate_date=entry.entry_date,
-                    average_start=period_key,
-                    average_end=month_end,
-                )
-            except FxRateError:
-                # Fallback to period average if monthly rate unavailable
+            rate_monthly = fx_rates.get_rate(
+                line.currency, target_currency, entry.entry_date, period_key, month_end
+            )
+            if rate_monthly is None:
+                # Fallback to period total rate if monthly rate unavailable
                 converted_monthly = converted_total
+            else:
+                converted_monthly = line.amount * rate_monthly
 
             signed_monthly = _signed_amount(account.type, line.direction, converted_monthly)
             bucket = period_totals.setdefault(
