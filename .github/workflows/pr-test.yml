@@ -200,6 +200,11 @@ jobs:
           
           if [ "$status" = "error" ]; then
             echo "::error::Compose deployment failed with status: $status"
+            # NEW: Log details
+            echo "Fetching deployment details..."
+            curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
+              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" \
+              | jq -r '.deployments[]? | "Date: \(.createdAt) Status: \(.status) Error: \(.errorMessage) Log: \(.logPath)"' || echo "Failed to fetch deployment details"
             exit 1
           elif [ "$status" = "done" ] || [ "$status" = "running" ]; then
             echo "✅ Compose status is healthy: $status"
