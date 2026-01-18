@@ -61,6 +61,7 @@ def register_chinese_fonts() -> Optional[str]:
                         return "ChineseFont"
             except Exception as e:
                 # Log error for debugging but continue trying other fonts
+                print(f"Warning: Failed to load font {font_path}: {e}")
                 continue
     
     return None

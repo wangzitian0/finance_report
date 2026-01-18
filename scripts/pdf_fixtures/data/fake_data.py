@@ -112,10 +112,10 @@ def generate_cmb_transactions(
                 # Ensure min < max for randint
                 min_val = min(min_amt, max_amt)
                 max_val = max(min_amt, max_amt)
-                min_cents = int(min_val)
-                max_cents = int(max_val)
-                cents = random.randint(min_cents, max_cents)
-                amount = Decimal(cents)
+                min_amount_int = int(min_val)
+                max_amount_int = int(max_val)
+                amount_int = random.randint(min_amount_int, max_amount_int)
+                amount = Decimal(amount_int)
         
         balance += amount
         
@@ -172,8 +172,15 @@ def generate_mari_transactions(
             amount = Decimal(cents) / Decimal(100)
         
         # Determine if outgoing or incoming
-        is_outgoing = amount < 0 or "Outward" in desc or "Payment" in desc
-        is_incoming = amount > 0 and ("Inward" in desc or "Interest" in desc)
+        if amount < 0:
+            is_outgoing = True
+            is_incoming = False
+        elif amount > 0:
+            is_outgoing = False
+            is_incoming = "Inward" in desc or "Interest" in desc
+        else:
+            is_outgoing = False
+            is_incoming = False
         
         balance += amount
         
@@ -279,10 +286,10 @@ def generate_pingan_transactions(
             # Ensure min < max for randint
             min_val = min(min_amt, max_amt)
             max_val = max(min_amt, max_amt)
-            min_cents = int(min_val)
-            max_cents = int(max_val)
-            cents = random.randint(min_cents, max_cents)
-            amount = Decimal(cents)
+            min_amount_int = int(min_val)
+            max_amount_int = int(max_val)
+            amount_int = random.randint(min_amount_int, max_amount_int)
+            amount = Decimal(amount_int)
         
         balance += amount
         
