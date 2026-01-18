@@ -361,7 +361,7 @@ async def reconciliation_stats(
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
     )
-    scores = [row[0] for row in score_result.all()]
+    scores = score_result.scalars().all()
     buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}
     for score in scores:
         if score < 60:

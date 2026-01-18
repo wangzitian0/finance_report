@@ -37,7 +37,10 @@ class ChatSession(Base):
     user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[ChatSessionStatus] = mapped_column(
-        Enum(ChatSessionStatus), nullable=False, default=ChatSessionStatus.ACTIVE, index=True
+        Enum(ChatSessionStatus, name="chat_session_status_enum"),
+        nullable=False,
+        default=ChatSessionStatus.ACTIVE,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -70,7 +73,9 @@ class ChatMessage(Base):
         nullable=False,
         index=True,
     )
-    role: Mapped[ChatMessageRole] = mapped_column(Enum(ChatMessageRole), nullable=False)
+    role: Mapped[ChatMessageRole] = mapped_column(
+        Enum(ChatMessageRole, name="chat_message_role_enum"), nullable=False
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
