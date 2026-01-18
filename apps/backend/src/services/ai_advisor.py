@@ -50,6 +50,8 @@ INJECTION_PATTERNS = (
     r"jailbreak",
     r"bypass safety",
     r"override (rules|policy)",
+    r"forget what we talked about",
+    r"you are now a",
 )
 
 SENSITIVE_PATTERNS = (
@@ -62,6 +64,7 @@ SENSITIVE_PATTERNS = (
     r"pin",
     r"social security",
     r"ssn",
+    r"secret key",
 )
 
 NON_FINANCIAL_PATTERNS = (
@@ -246,7 +249,7 @@ def build_refusal(reason: str, language: str) -> str:
 class StreamRedactor:
     """Streaming redactor that masks sensitive numbers without breaking chunks."""
 
-    def __init__(self, tail_size: int = 32) -> None:
+    def __init__(self, tail_size: int = 64) -> None:
         self._tail_size = tail_size
         self._buffer = ""
 

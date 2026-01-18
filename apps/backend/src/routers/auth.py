@@ -8,11 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
+from src.auth import get_current_user_id, oauth2_scheme
 from src.database import get_db
 from src.models import User
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
+from src.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -104,11 +105,14 @@ async def register(
     # Reset registration rate limit on success
     register_rate_limiter.reset(_get_client_ip(request))
 
+    access_token = create_access_token(data={"sub": str(user.id)})
+
     return AuthResponse(
         id=user.id,
         email=user.email,
         name=user.name,
         created_at=user.created_at,
+        access_token=access_token,
     )
 
 
@@ -138,17 +142,21 @@ async def login(
     # Reset rate limit on successful login
     auth_rate_limiter.reset(_get_client_ip(request))
 
+    access_token = create_access_token(data={"sub": str(user.id)})
+
     return AuthResponse(
         id=user.id,
         email=user.email,
         name=user.name,
         created_at=user.created_at,
+        access_token=access_token,
     )
 
 
 @router.get("/me", response_model=AuthResponse)
 async def get_me(
     user_id=Depends(get_current_user_id),
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Get current authenticated user."""
@@ -164,6 +172,7 @@ async def get_me(
     return AuthResponse(
         id=user.id,
         email=user.email,
-        name=None,
+        name=user.name,
         created_at=user.created_at,
+        access_token=token,
     )

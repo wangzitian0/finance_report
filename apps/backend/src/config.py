@@ -59,8 +59,10 @@ class Settings(BaseSettings):
     # OPTIONAL - have sensible defaults, rarely need override
     # ================================================================
 
-    # AI API (empty = AI features disabled)
-    openrouter_api_key: str = ""
+    # Security
+    secret_key: str = Field(default="dev_secret_key_change_in_prod", validation_alias="SECRET_KEY")
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24  # 24 hours
 
     # App settings
     debug: bool = False
@@ -74,7 +76,7 @@ class Settings(BaseSettings):
     cors_origins_str: str | None = Field(default=None, validation_alias="CORS_ORIGINS")
 
     # CORS origin regex - for dynamic subdomains (PR deployments)
-    cors_origin_regex: str = r"https://.*\.zitian\.party"
+    cors_origin_regex: str = r"https://report(-pr-\d+)?\.zitian\.party"
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

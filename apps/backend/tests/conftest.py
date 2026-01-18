@@ -92,14 +92,16 @@ async def client(db_engine, test_user):
     # Import app after setting env var
     from src.database import get_db
     from src.main import app
+    from src.security import create_access_token
 
     app.dependency_overrides[get_db] = override_get_db
+    token = create_access_token(data={"sub": str(test_user.id)})
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(
             transport=transport,
             base_url="http://test",
-            headers={"X-User-Id": str(test_user.id)},
+            headers={"Authorization": f"Bearer {token}"},
         ) as client:
             yield client
     finally:

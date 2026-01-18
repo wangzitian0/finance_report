@@ -10,6 +10,7 @@ interface AuthResponse {
     email: string;
     name: string | null;
     created_at: string;
+    access_token: string;
 }
 
 export default function LoginPage() {
@@ -42,7 +43,7 @@ export default function LoginPage() {
             }
 
             const data: AuthResponse = await res.json();
-            setUser(data.id, data.email);
+            setUser(data.id, data.email, data.access_token);
             router.push("/dashboard");
         } catch (err) {
             setError(err instanceof Error ? err.message : "An error occurred");
