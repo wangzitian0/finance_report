@@ -219,11 +219,11 @@ class ExtractionService:
         force_model: str | None = None,
     ) -> dict[str, Any]:
         """Call OpenRouter vision API."""
-        if not self.api_key:
-            raise ExtractionError("OpenRouter API key not configured")
-
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
+
+        if not self.api_key:
+            raise ExtractionError("OpenRouter API key not configured")
 
         # Determine MIME type
         mime_types = {
