@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # App settings
     debug: bool = False
     base_currency: str = "SGD"
+    # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
+    # and is used by backend components when they need to link to the frontend app.
+    next_public_app_url: str = "http://localhost:3000"
 
     # CORS origins - stored as string, parsed via property
     # Env format: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"

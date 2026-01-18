@@ -95,6 +95,9 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.bump_version.outputs.new_version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://report-staging.zitian.party/api
+            NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
           # NEXT_PUBLIC_API_URL: empty = relative paths (frontend paths include /api/)
 
       - name: Deploy to Staging
@@ -136,6 +139,13 @@ jobs:
             new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
           else
             new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
+          fi
+          
+          # Add/Update NEXT_PUBLIC_APP_URL
+          if echo "$new_env" | grep -q '^NEXT_PUBLIC_APP_URL='; then
+            new_env=$(echo "$new_env" | sed "s|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party|")
+          else
+            new_env=$(printf "%s\nNEXT_PUBLIC_APP_URL=%s" "$new_env" "https://report-staging.zitian.party")
           fi
           
           # Update environment
