@@ -76,8 +76,8 @@ class BankStatement(Base):
         SQLEnum(BankStatementStatus, name="bank_statement_status_enum"),
         default=BankStatementStatus.UPLOADED,
     )
-    confidence_score: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)  # 0-100
-    balance_validated: Mapped[bool | None] = mapped_column(nullable=True)
+    confidence_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
+    balance_validated: Mapped[bool | None] = mapped_column(default=None, nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit

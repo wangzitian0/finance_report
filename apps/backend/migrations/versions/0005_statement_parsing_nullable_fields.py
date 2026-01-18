@@ -34,6 +34,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Handle NULL values before making columns non-nullable
+    op.execute("UPDATE bank_statements SET currency = 'SGD' WHERE currency IS NULL")
+    op.execute("UPDATE bank_statements SET period_start = '1970-01-01' WHERE period_start IS NULL")
+    op.execute("UPDATE bank_statements SET period_end = '1970-01-01' WHERE period_end IS NULL")
+    op.execute("UPDATE bank_statements SET opening_balance = 0 WHERE opening_balance IS NULL")
+    op.execute("UPDATE bank_statements SET closing_balance = 0 WHERE closing_balance IS NULL")
+    op.execute("UPDATE bank_statements SET confidence_score = 0 WHERE confidence_score IS NULL")
+    op.execute("UPDATE bank_statements SET balance_validated = False WHERE balance_validated IS NULL")
+
     op.alter_column(
         "bank_statements", "balance_validated", existing_type=sa.Boolean(), nullable=False
     )

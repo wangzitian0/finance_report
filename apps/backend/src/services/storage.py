@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 import boto3
@@ -19,6 +20,7 @@ class StorageService:
     """Simple S3/MinIO storage wrapper."""
 
     _checked_buckets: set[str] = set()
+    _bucket_lock = threading.Lock()
 
     def __init__(self, bucket: str | None = None) -> None:
         self.bucket = bucket or settings.s3_bucket
@@ -32,28 +34,31 @@ class StorageService:
         )
 
     def _ensure_bucket(self) -> None:
-        if self.bucket in self._checked_buckets:
-            return
-        try:
-            self.client.head_bucket(Bucket=self.bucket)
-        except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code")
-            if code in ("404", "NoSuchBucket", "NotFound"):
-                try:
-                    if settings.s3_region and settings.s3_region != "us-east-1":
-                        self.client.create_bucket(
-                            Bucket=self.bucket,
-                            CreateBucketConfiguration={"LocationConstraint": settings.s3_region},
-                        )
-                    else:
-                        self.client.create_bucket(Bucket=self.bucket)
-                except (BotoCoreError, ClientError) as create_exc:
-                    raise StorageError(f"Failed to create bucket {self.bucket}") from create_exc
-            else:
+        with self._bucket_lock:
+            if self.bucket in self._checked_buckets:
+                return
+            try:
+                self.client.head_bucket(Bucket=self.bucket)
+            except ClientError as exc:
+                code = exc.response.get("Error", {}).get("Code")
+                if code in ("404", "NoSuchBucket", "NotFound"):
+                    try:
+                        if settings.s3_region and settings.s3_region != "us-east-1":
+                            self.client.create_bucket(
+                                Bucket=self.bucket,
+                                CreateBucketConfiguration={
+                                    "LocationConstraint": settings.s3_region
+                                },
+                            )
+                        else:
+                            self.client.create_bucket(Bucket=self.bucket)
+                    except (BotoCoreError, ClientError) as create_exc:
+                        raise StorageError(f"Failed to create bucket {self.bucket}") from create_exc
+                else:
+                    raise StorageError(f"Failed to access bucket {self.bucket}") from exc
+            except BotoCoreError as exc:
                 raise StorageError(f"Failed to access bucket {self.bucket}") from exc
-        except BotoCoreError as exc:
-            raise StorageError(f"Failed to access bucket {self.bucket}") from exc
-        self._checked_buckets.add(self.bucket)
+            self._checked_buckets.add(self.bucket)
 
     def upload_bytes(
         self,

@@ -4,8 +4,6 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy.engine import Engine
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
 from src.models import BankStatement, BankStatementStatus
