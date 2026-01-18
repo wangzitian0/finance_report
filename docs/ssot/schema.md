@@ -321,6 +321,21 @@ Reconciliation match table.
 
 ## 4. Design Constraints (Dos & Don'ts)
 
+### Naming Conventions
+
+- **Explicit Enums**: **ALWAYS** provide a `name` parameter to SQLAlchemy `Enum` types (e.g., `Enum(MyEnum, name="my_enum_type")`). This prevents SQLAlchemy from generating inconsistent default names (like `myenum`) which conflict with Alembic migrations and cause `UndefinedFunctionError` in Postgres.
+- **Migration Length**: Keep Alembic migration descriptions concise. File names exceeding 100 characters may fail on certain file systems or Docker volumes.
+
+### Async Session Management
+
+To prevent connection leaks and data race conditions:
+
+1.  **Dependency Injection**: Use the `get_db` FastAPI dependency for routers.
+2.  **Transaction Boundary**:
+    *   Routers should handle the high-level transaction (commit/rollback).
+    *   Services should use `flush()` if they need to generate IDs, but avoid `commit()` unless they are designed as a "Closed Loop" transaction.
+3.  **No Leaks**: Ensure every session is closed (handled by `get_db` generator).
+
 ### Recommended Patterns
 
 - **Pattern A**: Use `DECIMAL(18,2)` for amounts, avoid float precision issues

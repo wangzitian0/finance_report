@@ -49,27 +49,20 @@ text-gray-500
 
 ## 4. API Integration
 
-All API calls must go through the centralized `apiFetch` utility in `lib/api.ts`.
+All API calls must go through the centralized `apiFetch` or `apiUpload` utility in `lib/api.ts`.
 
-**Features:**
-- **Auto-Injection**: Automatically adds `X-User-Id` header from session.
-- **Base URL**: Handles `NEXT_PUBLIC_API_URL` configuration.
-- **Error Handling**: Standardized error parsing.
+**Rules:**
+- **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
+- **X-User-Id**: The utility automatically injects the `X-User-Id` header from local storage.
+- **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 
-```typescript
-import { apiFetch } from "@/lib/api";
+## 5. Security & Authentication
 
-// GET
-const data = await apiFetch<MyType>("/api/resource");
+- **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
+- **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
+- **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
 
-// POST
-await apiFetch("/api/resource", {
-  method: "POST",
-  body: JSON.stringify(data)
-});
-```
-
-## 5. Shared Types
+## 6. Shared Types
 
 To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
 

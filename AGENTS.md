@@ -74,10 +74,15 @@ AI must use this cascade structure before processing tasks:
 ### 3. Actions (Execution Steps)
 - **Atomic Operations**: Define specific action sequence for each task
 - **SSOT Alignment**: Actions must conform to [accounting.md](docs/ssot/accounting.md) and [reconciliation.md](docs/ssot/reconciliation.md)
+- **Infra Check**: If adding/changing environment variables, check `repo` submodule (`infra2`) for `secrets.ctmpl` and `compose.yaml` synchronization.
 - **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
 
 ### 4. Result (Verification)
 - **Self-Check**: Compare against project goals in [target.md](target.md)
+- **Engineering Audit**:
+    - [ ] **Submodule Sync**: Did I update `infra2` for config changes?
+    - [ ] **Enum Naming**: Are all `sa.Enum` fields explicitly named (e.g., `name="..._enum"`)?
+    - [ ] **Next.js Bake**: Are `NEXT_PUBLIC_` variables added to `Dockerfile` `ARG`?
 - **Evidence Loop**: Use verification methods from SSOT "The Proof" sections
 - **Update Docs**: Update README, Project docs, SSOT as needed
 
@@ -90,9 +95,16 @@ AI must use this cascade structure before processing tasks:
 2. **No SSOT, no work**: Before introducing new components, define their truth in `docs/ssot/`.
 3. **No hidden drift**: When code differs from SSOT, sync immediately. Never let SSOT rot.
 
+### Engineering Integrity (New)
+4. **Explicit Enum Naming**: All database enums MUST have an explicit `name` parameter in SQLAlchemy to prevent name collisions and migration mismatches.
+5. **Environment Lifecycle**:
+    - `NEXT_PUBLIC_` variables MUST be defined in `Dockerfile` as `ARG` to be available in client-side bundles.
+    - All external API calls MUST use `lib/api.ts` wrapper to ensure `X-User-Id` injection.
+6. **Cross-Repo Sync**: Changes to production configuration (Vault/Compose) require a corresponding PR in the `repo` submodule (`infra2`).
+
 ### Accounting Integrity
-4. **Entries must balance**: Every JournalEntry must have balanced debits and credits.
-5. **Equation must hold**: At any point, the accounting equation must be satisfied.
+7. **Entries must balance**: Every JournalEntry must have balanced debits and credits.
+8. **Equation must hold**: At any point, the accounting equation must be satisfied.
 
 ### Delivery
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars.

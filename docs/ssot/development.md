@@ -401,3 +401,35 @@ moon run :smoke
 # Check no orphan containers after tests
 podman ps | grep finance_report
 ```
+
+---
+
+## Engineering Standards
+
+### Environment Variable Lifecycle
+
+Variables follow a strict "Bake vs. Runtime" flow:
+
+1.  **Frontend (Next.js)**:
+    *   Variables prefixed with `NEXT_PUBLIC_` are "baked" into the static JS bundle during `npm run build`.
+    *   **Requirement**: These MUST be defined as `ARG` in `apps/frontend/Dockerfile`.
+    *   **Requirement**: They must also be passed in `docker-compose.yml` under `args`.
+2.  **Backend (FastAPI)**:
+    *   Variables are loaded at runtime via Pydantic Settings.
+    *   **Requirement**: All variables must have a type and default in `apps/backend/src/config.py`.
+3.  **Production (Vault)**:
+    *   Secrets are stored in Vault and rendered by `vault-agent` using `secrets.ctmpl`.
+    *   **Consistency**: CI runs `scripts/check_env_keys.py` to ensure `secrets.ctmpl` matches `config.py`.
+
+### Cross-Repo Synchronization
+
+The `repo/` directory is a submodule pointing to `infra2`.
+
+*   **Logic**: Main Repo (`finance_report`).
+*   **Infrastructure**: Submodule (`infra2`).
+*   **Workflow**:
+    1.  If a change requires a new environment variable or a change to `docker-compose.yml` labels/configs for production:
+    2.  Create a branch in `repo/`.
+    3.  Commit changes to `repo/finance_report/finance_report/10.app/`.
+    4.  Push and create a PR in `infra2`.
+    5.  Once merged, update the submodule pointer in the Main Repo PR.
