@@ -41,7 +41,9 @@ class Account(Base):
     user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    type: Mapped[AccountType] = mapped_column(Enum(AccountType), nullable=False)
+    type: Mapped[AccountType] = mapped_column(
+        Enum(AccountType, name="account_type_enum"), nullable=False
+    )
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SGD")
     parent_id: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True

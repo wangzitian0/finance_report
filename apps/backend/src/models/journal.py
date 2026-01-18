@@ -65,11 +65,16 @@ class JournalEntry(Base):
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     memo: Mapped[str] = mapped_column(String(500), nullable=False)
     source_type: Mapped[JournalEntrySourceType] = mapped_column(
-        Enum(JournalEntrySourceType), nullable=False, default=JournalEntrySourceType.MANUAL
+        Enum(JournalEntrySourceType, name="journal_source_type_enum"),
+        nullable=False,
+        default=JournalEntrySourceType.MANUAL,
     )
     source_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     status: Mapped[JournalEntryStatus] = mapped_column(
-        Enum(JournalEntryStatus), nullable=False, default=JournalEntryStatus.DRAFT, index=True
+        Enum(JournalEntryStatus, name="journal_entry_status_enum"),
+        nullable=False,
+        default=JournalEntryStatus.DRAFT,
+        index=True,
     )
     void_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     void_reversal_entry_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -111,7 +116,9 @@ class JournalLine(Base):
     account_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False, index=True
     )
-    direction: Mapped[Direction] = mapped_column(Enum(Direction), nullable=False)
+    direction: Mapped[Direction] = mapped_column(
+        Enum(Direction, name="journal_line_direction_enum"), nullable=False
+    )
     amount: Mapped[Decimal] = mapped_column(DECIMAL(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SGD")
     fx_rate: Mapped[Decimal | None] = mapped_column(DECIMAL(18, 6), nullable=True)
