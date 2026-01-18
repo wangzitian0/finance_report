@@ -240,7 +240,7 @@ export default function StatementUploader({
             {/* Upload Button */}
             <button
                 onClick={handleUpload}
-                disabled={!file || !institution.trim() || uploading}
+                disabled={uploading}
                 className="btn-primary w-full flex items-center justify-center gap-2"
             >
                 {uploading ? (
