@@ -47,6 +47,14 @@ app = FastAPI(
 )
 
 
+@app.middleware("http")
+async def strip_api_prefix(request: Request, call_next):
+    """Strip /api prefix if present to handle Traefik misconfiguration."""
+    if request.url.path.startswith("/api/"):
+        request.scope["path"] = request.url.path[4:]
+    return await call_next(request)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler to ensure JSON response.
