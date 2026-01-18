@@ -2,11 +2,12 @@
 
 import asyncio
 import hashlib
-import logging
 import mimetypes
+import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
@@ -16,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from src.auth import get_current_user_id
 from src.config import settings
 from src.database import create_session_maker_from_db, get_db
+from src.logger import get_logger
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
     BankStatementListResponse,
@@ -31,19 +33,13 @@ from src.services.openrouter_models import (
     normalize_model_entry,
 )
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+logger = get_logger(__name__)
+
+# Track background parsing tasks to avoid garbage collection
 _PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
-
-
-async def wait_for_parse_tasks() -> None:
-    """Wait for any in-flight background parsing tasks (tests only)."""
-    if not _PENDING_PARSE_TASKS:
-        return
-    await asyncio.gather(*_PENDING_PARSE_TASKS, return_exceptions=True)
 
 
 def _track_task(task: asyncio.Task[None]) -> None:
@@ -57,6 +53,7 @@ async def _handle_parse_failure(
     *,
     message: str,
 ) -> None:
+    logger.error("Statement parsing failed", statement_id=statement.id, reason=message)
     statement.status = BankStatementStatus.REJECTED
     statement.validation_error = message
     statement.confidence_score = 0
@@ -76,7 +73,16 @@ async def _parse_statement_background(
     content: bytes,
     model: str | None,
     session_maker: async_sessionmaker[AsyncSession],
+    request_id: str | None = None,
 ) -> None:
+    # Bind request_id to context for this background task
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id, statement_id=statement_id, task="parse_statement"
+    )
+
+    logger.info("Starting background parsing", filename=filename)
+    start_time = time.perf_counter()
+
     async with session_maker() as session:
         statement = await session.get(
             BankStatement,
@@ -84,6 +90,7 @@ async def _parse_statement_background(
             options=[selectinload(BankStatement.transactions)],
         )
         if not statement:
+            logger.error("Statement not found in DB for background parsing")
             return
 
         storage = StorageService()
@@ -111,7 +118,7 @@ async def _parse_statement_background(
             await _handle_parse_failure(statement, session, message=str(exc))
             return
         except Exception as exc:
-            logger.exception("Background parsing failed for statement %s", statement_id)
+            logger.exception("Background parsing failed unexpectedly")
             await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
             return
 
@@ -135,6 +142,12 @@ async def _parse_statement_background(
         statement.status = parsed_statement.status
 
         await session.commit()
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "Background parsing completed",
+            duration_ms=round(duration * 1000, 2),
+            transactions_count=len(transactions),
+        )
 
 
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -171,35 +184,10 @@ async def upload_statement(
         .where(BankStatement.file_hash == file_hash)
     )
     if duplicate.scalar_one_or_none():
-        raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
-
-    if model:
-        allowed_models = {settings.primary_model} | set(settings.fallback_models)
-        if model not in allowed_models:
-            try:
-                models = await fetch_model_catalog()
-                match = next(
-                    (normalize_model_entry(m) for m in models if m.get("id") == model),
-                    None,
-                )
-                if not match:
-                    raise HTTPException(400, "Invalid model selection.")
-                if extension != "csv" and not model_matches_modality(match, "image"):
-                    raise HTTPException(400, "Selected model does not support image inputs.")
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.exception("Failed to validate model catalog for model '%s'", model)
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Unable to validate the requested model at this time.",
-                ) from e
+        raise HTTPException(409, "This file has already been uploaded")
 
     statement_id = uuid4()
-    storage_key = f"statements/{statement_id}/{filename}"
-    content_type = (
-        file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    )
+    storage_key = f"statements/{user_id}/{statement_id}/{filename}"
 
     storage = StorageService()
     try:
@@ -207,9 +195,10 @@ async def upload_statement(
             storage.upload_bytes,
             key=storage_key,
             content=content,
-            content_type=content_type,
+            content_type=mimetypes.guess_type(filename)[0] or "application/pdf",
         )
     except StorageError as exc:
+        logger.error("Failed to upload statement to storage", error=str(exc))
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
 
     statement = BankStatement(
@@ -254,6 +243,7 @@ async def upload_statement(
             content=content,
             model=model,
             session_maker=create_session_maker_from_db(db),
+            request_id=structlog.contextvars.get_contextvars().get("request_id"),
         )
     )
     _track_task(task)
@@ -358,7 +348,7 @@ async def retry_statement_parsing(
 
         for existing_tx in list(statement.transactions):
             await db.delete(existing_tx)
-        await db.flush()
+        await session.flush()
 
         statement.transactions = list(new_transactions)
 
@@ -587,3 +577,9 @@ async def delete_statement(
 
     await db.delete(statement)
     await db.commit()
+
+
+async def wait_for_parse_tasks() -> None:
+    """Wait for all pending background parsing tasks to complete. Useful for tests."""
+    if _PENDING_PARSE_TASKS:
+        await asyncio.gather(*_PENDING_PARSE_TASKS, return_exceptions=True)

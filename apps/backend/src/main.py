@@ -1,25 +1,34 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
+import time
 import traceback
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
+from typing import Any
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 
 from src.config import settings
 from src.database import get_db, init_db
 from src.env_check import check_env_on_startup, print_loaded_config
+from src.logger import configure_logging, get_logger
 from src.models import PingState
 from src.routers import accounts, ai_models, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
+
+# Initialize logging early
+configure_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -32,11 +41,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     stop_event = asyncio.Event()
     supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
+    logger.info("Application started", version="0.1.0")
     yield
     stop_event.set()
     supervisor_task.cancel()
     with suppress(asyncio.CancelledError):
         await supervisor_task
+    logger.info("Application shutting down")
 
 
 app = FastAPI(
@@ -47,21 +58,65 @@ app = FastAPI(
 )
 
 
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next: Any) -> Response:
+    """Middleware to inject Request-ID and log request details."""
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+
+    # Clear and set contextvars for this request
+    # Note: structlog.contextvars are isolated per async context/task.
+    # We clear to ensure a clean slate for the top-level request task.
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+    )
+
+    start_time = time.perf_counter()
+    try:
+        response = await call_next(request)
+        duration = time.perf_counter() - start_time
+
+        logger.info(
+            "HTTP Request",
+            status_code=response.status_code,
+            duration_ms=round(duration * 1000, 2),
+        )
+
+        # Inject Request-ID into response headers
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except Exception as exc:
+        duration = time.perf_counter() - start_time
+        logger.exception(
+            "HTTP Request Failed",
+            duration_ms=round(duration * 1000, 2),
+            error=str(exc),
+        )
+        raise
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Global exception handler to ensure JSON response.
+    """Global exception handler to ensure JSON response."""
+    # Log is already handled by middleware or logger.exception
 
-    SECURITY: Only expose exception details in DEBUG mode to prevent information leakage.
-    """
-    traceback.print_exc()
     # Only show exception details in DEBUG mode
     if settings.debug:
         detail = str(exc)
+        trace = traceback.format_exc()
     else:
         detail = "An internal server error occurred. Please try again later."
+        trace = None
+
     return JSONResponse(
         status_code=500,
-        content={"detail": detail},
+        content={
+            "detail": detail,
+            "trace": trace if settings.debug else None,
+            "request_id": structlog.contextvars.get_contextvars().get("request_id"),
+        },
     )
 
 
@@ -92,7 +147,7 @@ app.include_router(users.router)
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
-    """Health check endpoint."""
+    """Check application health status."""
     return {"status": "healthy", "timestamp": datetime.now(UTC).isoformat()}
 
 
