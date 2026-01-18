@@ -20,6 +20,7 @@ from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
     validate_balance,
+    validate_balance_explicit,
 )
 
 logger = get_logger(__name__)
@@ -45,7 +46,7 @@ class ExtractionService:
         if not value:
             raise ValueError("Date is required")
         try:
-            return date.fromisoformat(value)
+            return date.fromisoformat(str(value))
         except (ValueError, TypeError):
             raise ValueError(f"Invalid date format: {value}")
 
@@ -62,11 +63,25 @@ class ExtractionService:
         missing = [f for f in required if not txn.get(f)]
         if missing:
             return ConfidenceLevel.LOW
+
+        # Validate date format
+        try:
+            date.fromisoformat(str(txn["date"]))
+        except (ValueError, TypeError):
+            return ConfidenceLevel.LOW
+
         return ConfidenceLevel.HIGH
+
+    def _validate_balance(self, extracted: dict[str, Any]) -> dict[str, Any]:
+        """Wrapper for test compatibility."""
+        return validate_balance(extracted)
+
+    def _compute_confidence(self, extracted: dict[str, Any], balance_result: dict[str, Any]) -> int:
+        """Wrapper for test compatibility."""
+        return compute_confidence_score(extracted, balance_result)
 
     async def parse_document(
         self,
-        *,
         file_path: Path,
         institution: str,
         user_id: UUID,
@@ -78,32 +93,39 @@ class ExtractionService:
         original_filename: str | None = None,
         force_model: str | None = None,
     ) -> tuple[BankStatement, list[BankStatementTransaction]]:
-        """Parse document using AI vision models."""
+        """Parse document using AI vision models or CSV parser."""
         model = force_model or self.primary_model
         logger.info(
             "Parsing document",
             institution=institution,
             file_type=file_type,
             model=model,
-            filename=original_filename or file_path.name,
+            filename=original_filename or (file_path.name if file_path else "unknown"),
         )
 
         try:
-            extracted = await self.extract_financial_data(
-                file_content=file_content,
-                institution=institution,
-                file_type=file_type,
-                file_url=file_url,
-                force_model=force_model,
-            )
+            if file_type == "csv":
+                if not file_content:
+                    raise ExtractionError("File content is required for CSV parsing")
+                extracted = await self._parse_csv_content(file_content, institution)
+            elif file_type in ("pdf", "png", "jpg", "jpeg"):
+                extracted = await self.extract_financial_data(
+                    file_content=file_content,
+                    institution=institution,
+                    file_type=file_type,
+                    file_url=file_url,
+                    force_model=force_model,
+                )
+            else:
+                raise ExtractionError(f"Unsupported file type: {file_type}")
 
             # Build models
             statement = BankStatement(
                 user_id=user_id,
                 account_id=account_id,
-                file_path=str(file_path),
+                file_path=str(file_path) if file_path else None,
                 file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
-                original_filename=original_filename or file_path.name,
+                original_filename=original_filename or (file_path.name if file_path else "unknown"),
                 institution=institution,
                 account_last4=extracted.get("account_last4"),
                 currency=extracted.get("currency", "SGD"),
@@ -114,6 +136,7 @@ class ExtractionService:
             )
 
             transactions = []
+            net_transactions = Decimal("0.00")
             for txn in extracted.get("transactions", []):
                 # Skip transactions with missing required fields
                 if not txn.get("date") or txn.get("amount") is None:
@@ -133,12 +156,19 @@ class ExtractionService:
                 except ValueError:
                     continue  # Skip invalid date formats
 
+                amount = Decimal(str(txn["amount"]))
+                direction = txn.get("direction", "IN")
+                if direction == "IN":
+                    net_transactions += amount
+                else:
+                    net_transactions -= amount
+
                 event_confidence = self._compute_event_confidence(txn)
                 transaction = BankStatementTransaction(
                     txn_date=parsed_date,
                     description=txn.get("description", "Unknown"),
-                    amount=Decimal(str(txn["amount"])),
-                    direction=txn.get("direction", "IN"),
+                    amount=amount,
+                    direction=direction,
                     reference=txn.get("reference"),
                     confidence=event_confidence,
                     confidence_reason=txn.get("confidence_reason"),
@@ -148,17 +178,16 @@ class ExtractionService:
                 transactions.append(transaction)
 
             # Validation
-            is_valid = validate_balance(
+            balance_result = validate_balance_explicit(
                 opening=statement.opening_balance,
                 closing=statement.closing_balance,
-                transactions=transactions,
+                net_transactions=net_transactions,
             )
-            confidence = compute_confidence_score(
-                is_valid=is_valid,
-                transactions=transactions,
-                institution=institution,
-            )
-            status = route_by_threshold(confidence)
+            is_valid = balance_result["balance_valid"]
+
+            # For confidence score, we use the original extracted dict to maintain logic
+            confidence = compute_confidence_score(extracted, balance_result)
+            status = route_by_threshold(confidence, is_valid)
 
             statement.balance_validated = is_valid
             statement.confidence_score = confidence
@@ -194,7 +223,7 @@ class ExtractionService:
             raise ExtractionError("OpenRouter API key not configured")
 
         if file_content is None and not file_url:
-            raise ExtractionError("File content or URL required for extraction")
+            raise ExtractionError("File content is required")
 
         # Determine MIME type
         mime_types = {
@@ -266,7 +295,7 @@ class ExtractionService:
                     )
 
                     if response.status_code != 200:
-                        error_msg = f"API error {response.status_code}: {response.text}"
+                        error_msg = f"OpenRouter API error: {response.status_code} - {response.text}"
                         logger.error("AI extraction failed", model=model, error=error_msg)
                         error = ExtractionError(error_msg)
                         if response.status_code == 429:

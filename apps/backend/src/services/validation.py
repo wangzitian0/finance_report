@@ -12,7 +12,10 @@ BALANCE_TOLERANCE = Decimal("0.10")
 
 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
-    """Validate that opening + transactions ~= closing within tolerance."""
+    """Validate that opening + transactions ~= closing within tolerance.
+
+    Legacy interface for backward compatibility.
+    """
     try:
         opening = Decimal(str(extracted.get("opening_balance") or "0"))
         closing = Decimal(str(extracted.get("closing_balance") or "0"))
@@ -25,21 +28,8 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
             else:
                 net -= amount
 
-        expected_closing = opening + net
-        diff = abs(closing - expected_closing)
-
-        balance_valid = diff <= BALANCE_TOLERANCE
-
-        return {
-            "balance_valid": balance_valid,
-            "expected_closing": str(expected_closing),
-            "actual_closing": str(closing),
-            "difference": str(diff),
-            "notes": None
-            if balance_valid
-            else f"Balance mismatch: expected {expected_closing}, got {closing}",
-        }
-    except (ValueError, KeyError) as exc:
+        return validate_balance_explicit(opening, closing, net)
+    except (ValueError, KeyError, InvalidOperation) as exc:
         return {
             "balance_valid": False,
             "expected_closing": "0",
@@ -47,6 +37,25 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
             "difference": "0",
             "notes": f"Validation error: {exc}",
         }
+
+
+def validate_balance_explicit(
+    opening: Decimal, closing: Decimal, net_transactions: Decimal
+) -> dict[str, Any]:
+    """Validate balance using explicit Decimal values."""
+    expected_closing = opening + net_transactions
+    diff = abs(closing - expected_closing)
+    balance_valid = diff <= BALANCE_TOLERANCE
+
+    return {
+        "balance_valid": balance_valid,
+        "expected_closing": str(expected_closing),
+        "actual_closing": str(closing),
+        "difference": f"{diff:.2f}",
+        "notes": None
+        if balance_valid
+        else f"Balance mismatch: expected {expected_closing}, got {closing}",
+    }
 
 
 def validate_completeness(extracted: dict[str, Any]) -> list[str]:
@@ -64,9 +73,12 @@ def validate_completeness(extracted: dict[str, Any]) -> list[str]:
 def compute_confidence_score(
     extracted: dict[str, Any],
     balance_result: dict[str, Any],
-    missing_fields: list[str],
 ) -> int:
-    """Compute confidence score (0-100) based on SSOT weights."""
+    """Compute confidence score (0-100) based on SSOT weights.
+
+    Legacy interface for backward compatibility.
+    """
+    missing_fields = validate_completeness(extracted)
     score = 0
 
     # Balance validation (40%)
@@ -90,8 +102,10 @@ def compute_confidence_score(
     # Format consistency (20%)
     format_score = 20
     try:
-        date.fromisoformat(extracted.get("period_start", ""))
-        date.fromisoformat(extracted.get("period_end", ""))
+        if extracted.get("period_start"):
+            date.fromisoformat(str(extracted["period_start"]))
+        if extracted.get("period_end"):
+            date.fromisoformat(str(extracted["period_end"]))
         Decimal(str(extracted.get("opening_balance", "0")))
         Decimal(str(extracted.get("closing_balance", "0")))
     except (ValueError, TypeError, InvalidOperation):
