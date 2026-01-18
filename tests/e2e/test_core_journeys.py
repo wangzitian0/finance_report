@@ -68,13 +68,11 @@ async def test_dashboard_ui_load(page: Page, app_url):
     await page.goto(f"{app_url}/dashboard")
     
     # We expect some key element to be present. 
-    # Adjust selector based on actual UI.
-    # Assuming there's a heading or title.
+    # Use Regex for title check as Playwright doesn't accept lambdas here.
     try:
-        await expect(page).to_have_title(lambda t: "Finance" in t or "Dashboard" in t, timeout=5000)
+        await expect(page).to_have_title(r"(Finance|Dashboard)", timeout=5000)
     except AssertionError:
-        # Fallback if title check fails (maybe title is different)
-        # Check for body visibility
+        # Fallback if title check fails
         await expect(page.locator("body")).to_be_visible()
 
 @pytest.mark.e2e
@@ -93,8 +91,6 @@ async def test_manual_journal_entry_creation(page: Page, app_url):
     if "login" in page.url:
         pytest.skip("Login required and auth not yet mocked for this test")
 
-    # ... remaining code ...
-
 # --- Integration Tests (API Data Mutation) ---
 
 @pytest.mark.e2e
@@ -105,20 +101,7 @@ async def test_create_entry_via_api(app_url):
     Environment: Staging/Dev Only.
     """
     pytest.skip("Skipping API test - requires dynamic account IDs")
-<<<<<<< HEAD
-    # TODO: Implement API test with correct payload:
-    # {
-    #     "entry_date": "2026-01-01",
-    #     "memo": "Smoke Test Entry API",
-    #     "lines": [...]
-    # }
-=======
-    
-    payload = {
-        "entry_date": "2026-01-01",
-        "memo": "Smoke Test Entry API",
-        "lines": []
-    }
-    
-    # ... remaining code ...
->>>>>>> origin/main
+    # Future Implementation:
+    # payload = { ... }
+    # response = await httpx.post(f"{app_url}/api/journal", json=payload)
+    # assert response.status_code == 201
