@@ -4,11 +4,9 @@ from datetime import datetime
 from decimal import Decimal
 from reportlab.platypus import Paragraph, Spacer, Table
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 
 from generators.base_generator import BasePDFGenerator
-from generators.font_utils import register_chinese_fonts, get_safe_font, can_display_chinese
+from generators.font_utils import register_chinese_fonts, get_safe_font
 from data.fake_data import generate_pingan_transactions
 
 
