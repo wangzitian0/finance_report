@@ -107,15 +107,21 @@ export default function AccountsPage() {
                     <p className="text-sm">Loading accounts...</p>
                 </div>
             ) : error ? (
-                <div className="card p-8 text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-600 mb-4">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="card p-8 text-center" role="alert" aria-live="polite">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-soft)] text-[var(--error)] mb-4">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     <p className="text-[var(--foreground)] font-medium mb-2">Failed to load accounts</p>
                     <p className="text-sm text-muted mb-6">{error}</p>
-                    <button onClick={fetchAccounts} className="btn-secondary">Retry</button>
+                    <button
+                        onClick={fetchAccounts}
+                        className="btn-secondary"
+                        aria-label="Retry loading accounts"
+                    >
+                        Retry
+                    </button>
                 </div>
             ) : filteredAccounts.length === 0 ? (
                 <div className="card p-8 text-center">
