@@ -49,7 +49,8 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    print("🚀 Starting Next.js dev server on http://localhost:3000")
+    app_url = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
+    print(f"🚀 Starting Next.js dev server on {app_url}")
     print("   Press Ctrl+C to stop")
     print()
 
