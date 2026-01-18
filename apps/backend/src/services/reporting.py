@@ -9,7 +9,6 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.models import (
@@ -66,7 +65,7 @@ def _month_end(value: date) -> date:
 
 def _quarter_start(value: date) -> date:
     month = ((value.month - 1) // 3) * 3 + 1
-    return date(value.year, month, 1)
+    return date(year=value.year, month=month, day=1)
 
 
 def _add_months(value: date, months: int) -> date:
@@ -258,7 +257,9 @@ async def generate_income_statement(
             # Monthly average need
             period_key = _month_start(entry.entry_date)
             month_end = _add_months(period_key, 1) - timedelta(days=1)
-            fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
+            fx_needs.append(
+                (line.currency, target_currency, entry.entry_date, period_key, month_end)
+            )
 
     # Batch pre-fetch all needed FX rates
     fx_rates = PrefetchedFxRates()
