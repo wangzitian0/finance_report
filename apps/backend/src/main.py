@@ -42,7 +42,7 @@ app = FastAPI(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler to ensure JSON response.
-    
+
     SECURITY: Only expose exception details in DEBUG mode to prevent information leakage.
     """
     traceback.print_exc()

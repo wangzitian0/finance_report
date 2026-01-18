@@ -255,8 +255,21 @@ def extract_merchant_tokens(description: str) -> list[str]:
     common prefixes like transaction codes, dates, and generic terms.
     """
     skip_patterns = {
-        "ref", "txn", "trn", "pos", "atm", "eft", "ibk", "ibt",
-        "payment", "transfer", "debit", "credit", "card", "visa", "mastercard",
+        "ref",
+        "txn",
+        "trn",
+        "pos",
+        "atm",
+        "eft",
+        "ibk",
+        "ibt",
+        "payment",
+        "transfer",
+        "debit",
+        "credit",
+        "card",
+        "visa",
+        "mastercard",
     }
     words = normalize_text(description).split()
     tokens = []

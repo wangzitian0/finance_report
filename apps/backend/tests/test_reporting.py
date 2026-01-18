@@ -817,9 +817,9 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     assert equity.name in financing_names, "Equity account should be in financing activities"
     # Cash accounts are excluded from activity categories - they ARE the cash flow
     # Their movements are reflected in beginning_cash and ending_cash
-    assert (
-        cash.name not in investing_names
-    ), "Cash account should NOT be in investing (it's the subject of the report)"
+    assert cash.name not in investing_names, (
+        "Cash account should NOT be in investing (it's the subject of the report)"
+    )
 
     summary: dict = report["summary"]
     assert "operating_activities" in summary

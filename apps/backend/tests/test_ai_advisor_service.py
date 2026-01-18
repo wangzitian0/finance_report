@@ -225,9 +225,7 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
     results = []
-    async for chunk, model in service._stream_openrouter(
-        [{"role": "user", "content": "hi"}], None
-    ):
+    async for chunk, model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
         results.append((chunk, model))
 
     assert calls == ["primary", "fallback"]
@@ -301,9 +299,7 @@ async def test_get_or_create_session_with_existing_session(db: AsyncSession, tes
     await db.commit()
     await db.refresh(session)
 
-    refreshed = await service._get_or_create_session(
-        db, test_user.id, session.id, "Check balances"
-    )
+    refreshed = await service._get_or_create_session(db, test_user.id, session.id, "Check balances")
 
     assert refreshed.id == session.id
     assert refreshed.last_active_at is not None

@@ -1,0 +1,66 @@
+# CMB (China Merchants Bank) PDF Format Template
+# Extracted format information only (no sensitive data)
+# This template can be refined by running: python scripts/analyzers/analyze_pdf.py --input <real_pdf> --output scripts/templates/cmb_template.yaml --source cmb
+
+source: cmb
+
+page:
+  size: A4
+  width: 595.27
+  height: 841.89
+  margins:
+    top: 72
+    bottom: 72
+    left: 72
+    right: 72
+
+fonts:
+  header:
+    family: SimHei  # 黑体
+    size: 14
+  body:
+    family: SimSun  # 宋体
+    size: 10
+  table_header:
+    family: SimHei  # 黑体
+    size: 9
+  table_body:
+    family: SimSun  # 宋体
+    size: 9
+
+tables:
+  transaction_details:
+    # CMB format: 记账日期, 货币, 交易金额, 联机余额, 交易摘要, 对手信息
+    # Date format: YYYY-MM-DD
+    columns:
+      - name: 记账日期
+        width: 80
+        align: left
+      - name: 货币
+        width: 50
+        align: left
+      - name: 交易金额
+        width: 80
+        align: right
+      - name: 联机余额
+        width: 90
+        align: right
+      - name: 交易摘要
+        width: 150
+        align: left
+      - name: 对手信息
+        width: 100
+        align: left
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+    row_style:
+      background: "#FFFFFF"
+      border: "1px solid #000000"
+
+text_elements:
+  account_number:
+    format: "6214 **** **** {last4}"  # Masked format
+  statement_period:
+    format: "YYYY-MM-DD"
+  currency: "CNY"

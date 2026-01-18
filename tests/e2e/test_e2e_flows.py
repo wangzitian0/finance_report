@@ -188,7 +188,7 @@ async def test_statement_import_flow(page: Page, repo_root: Path):
     import sys
     
     # Use repo_root fixture for robust pathing
-    script_path = repo_root / "scripts" / "generate_pdf_fixtures.py"
+    script_path = repo_root / "scripts" / "pdf_fixtures" / "generate_pdf_fixtures.py"
     output_dir = repo_root / "tmp" / "fixtures"
     
     # 1. Generate PDF

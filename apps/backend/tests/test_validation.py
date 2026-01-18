@@ -112,6 +112,7 @@ def test_compute_confidence_score_invalid_difference() -> None:
     score = compute_confidence_score(extracted, balance_result, missing_fields)
     assert score >= 0
 
+
 def test_compute_confidence_score_small_diff():
     """Small balance differences should still earn partial score."""
     extracted = {

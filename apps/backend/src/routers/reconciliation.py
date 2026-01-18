@@ -113,10 +113,7 @@ async def _load_entry_summaries(
         .where(JournalEntry.user_id == user_id)
         .options(selectinload(JournalEntry.lines))
     )
-    return {
-        str(entry.id): _build_entry_summary(entry)
-        for entry in result.scalars().all()
-    }
+    return {str(entry.id): _build_entry_summary(entry) for entry in result.scalars().all()}
 
 
 @router.post("/run", response_model=ReconciliationRunResponse)

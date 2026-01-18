@@ -460,5 +460,3 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
     assert candidate.journal_entry_ids == [str(entry.id)]
     assert candidate.breakdown["many_to_one_bonus"] == 10.0
     assert auto_accept(candidate.score, DEFAULT_CONFIG)
-
-

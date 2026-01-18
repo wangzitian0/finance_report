@@ -360,13 +360,15 @@ async def test_chat_with_allowed_model():
     async def mock_stream():
         yield "Hello"
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService, \
-         patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known:
+    with (
+        patch("src.routers.chat.AIAdvisorService") as MockService,
+        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+    ):
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
         mock_stream_obj.stream = mock_stream()
         mock_stream_obj.model_name = "allowed_model"
-        
+
         mock_service = MagicMock()
         mock_service.primary_model = "allowed_model"
         mock_service.fallback_models = ["fallback1"]
@@ -384,6 +386,7 @@ async def test_chat_with_allowed_model():
         mock_is_model_known.assert_not_called()
         mock_service.chat_stream.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_chat_with_known_external_model():
     from src.routers.chat import chat_message
@@ -394,11 +397,12 @@ async def test_chat_with_known_external_model():
     async def mock_stream():
         yield "Hello"
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService, \
-         patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known:
-        
+    with (
+        patch("src.routers.chat.AIAdvisorService") as MockService,
+        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+    ):
         mock_is_model_known.return_value = True
-        
+
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
         mock_stream_obj.stream = mock_stream()
@@ -421,6 +425,7 @@ async def test_chat_with_known_external_model():
         mock_is_model_known.assert_called_once_with("external_model")
         mock_service.chat_stream.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_chat_with_unknown_external_model():
     from fastapi import HTTPException
@@ -430,11 +435,12 @@ async def test_chat_with_unknown_external_model():
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService, \
-         patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known:
-        
+    with (
+        patch("src.routers.chat.AIAdvisorService") as MockService,
+        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+    ):
         mock_is_model_known.return_value = False
-        
+
         mock_service = MagicMock()
         mock_service.primary_model = "allowed_model"
         mock_service.fallback_models = ["fallback1"]
@@ -462,11 +468,12 @@ async def test_chat_with_model_validation_error():
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService, \
-         patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known:
-        
+    with (
+        patch("src.routers.chat.AIAdvisorService") as MockService,
+        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+    ):
         mock_is_model_known.side_effect = Exception("Some error")
-        
+
         mock_service = MagicMock()
         mock_service.primary_model = "allowed_model"
         mock_service.fallback_models = ["fallback1"]

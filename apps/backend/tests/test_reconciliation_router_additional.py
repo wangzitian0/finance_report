@@ -76,9 +76,7 @@ async def _create_transaction(
 @pytest.mark.asyncio
 async def test_build_match_response_includes_entries(db: AsyncSession, test_user) -> None:
     asset = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
-    income = Account(
-        user_id=test_user.id, name="Income", type=AccountType.INCOME, currency="SGD"
-    )
+    income = Account(user_id=test_user.id, name="Income", type=AccountType.INCOME, currency="SGD")
     db.add_all([asset, income])
     await db.flush()
 

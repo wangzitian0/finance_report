@@ -8,3 +8,7 @@ site/
 .DS_Store
 .vscode/
 .moon/cache/
+
+# PDF Fixtures: Input and Output directories
+scripts/pdf_fixtures/input/
+scripts/pdf_fixtures/output/
