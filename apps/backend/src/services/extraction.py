@@ -4,8 +4,7 @@ import base64
 import hashlib
 import json
 import re
-import time
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -21,7 +20,6 @@ from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
     validate_balance,
-    validate_completeness,
 )
 
 logger = get_logger(__name__)

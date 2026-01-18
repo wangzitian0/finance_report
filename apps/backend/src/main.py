@@ -9,12 +9,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import structlog
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
 
 from src.config import settings
 from src.database import get_db, init_db

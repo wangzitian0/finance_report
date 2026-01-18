@@ -10,6 +10,9 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from src.config import settings
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class StorageError(Exception):
@@ -80,6 +83,7 @@ class StorageService:
                 **extra_args,
             )
         except (BotoCoreError, ClientError) as exc:
+            logger.error("Failed to upload to S3", bucket=self.bucket, key=key, error=str(exc))
             raise StorageError(f"Failed to upload {key} to {self.bucket}") from exc
 
     def generate_presigned_url(
@@ -96,6 +100,12 @@ class StorageService:
                 ExpiresIn=expires_in or settings.s3_presign_expiry_seconds,
             )
         except (BotoCoreError, ClientError) as exc:
+            logger.error(
+                "Failed to generate presigned URL",
+                bucket=self.bucket,
+                key=key,
+                error=str(exc),
+            )
             raise StorageError(f"Failed to generate presigned URL for {key}") from exc
 
     def delete_object(self, key: str) -> None:
@@ -104,4 +114,5 @@ class StorageService:
         try:
             self.client.delete_object(Bucket=self.bucket, Key=key)
         except (BotoCoreError, ClientError) as exc:
+            logger.error("Failed to delete from S3", bucket=self.bucket, key=key, error=str(exc))
             raise StorageError(f"Failed to delete {key} from {self.bucket}") from exc

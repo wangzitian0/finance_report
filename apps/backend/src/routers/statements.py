@@ -5,6 +5,7 @@ import hashlib
 import mimetypes
 import time
 from pathlib import Path
+from typing import Annotated
 from uuid import UUID, uuid4
 
 import structlog
@@ -153,9 +154,9 @@ async def _parse_statement_background(
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
-    institution: str = Form(...),
-    account_id: UUID | None = Form(None),
-    model: str | None = Form(None),
+    institution: Annotated[str, Form()] = ...,
+    account_id: Annotated[UUID | None, Form()] = None,
+    model: Annotated[str | None, Form()] = None,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
@@ -184,7 +185,29 @@ async def upload_statement(
         .where(BankStatement.file_hash == file_hash)
     )
     if duplicate.scalar_one_or_none():
-        raise HTTPException(409, "This file has already been uploaded")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
+
+    if model:
+        allowed_models = {settings.primary_model} | set(settings.fallback_models)
+        if model not in allowed_models:
+            try:
+                models = await fetch_model_catalog()
+                match = next(
+                    (normalize_model_entry(m) for m in models if m.get("id") == model),
+                    None,
+                )
+                if not match:
+                    raise HTTPException(400, "Invalid model selection.")
+                if extension != "csv" and not model_matches_modality(match, "image"):
+                    raise HTTPException(400, "Selected model does not support image inputs.")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.exception("Failed to validate model catalog for model '%s'", model)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Unable to validate the requested model at this time.",
+                ) from e
 
     statement_id = uuid4()
     storage_key = f"statements/{user_id}/{statement_id}/{filename}"
@@ -264,29 +287,7 @@ async def retry_statement_parsing(
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
-    """Retry parsing with a different model (e.g., stronger model for better accuracy).
-
-    Allows re-parsing a statement that was previously parsed or rejected, using a specified
-    AI model for potentially better accuracy.
-
-    Args:
-        statement_id: UUID of the statement to retry parsing for.
-        model: Optional AI model to use (e.g., "xiaomi/mimo-v2-flash:free",
-               "openai/gpt-oss-120b:free"). If not provided, uses the first fallback model from
-               settings.
-
-    Returns:
-        Updated BankStatementResponse with new parsing results.
-
-    Raises:
-        400: If statement status is not parsed or rejected.
-        404: If statement not found.
-        422: If extraction fails.
-        503: If storage service is unavailable.
-
-    Note:
-        Existing transactions are replaced with new parsing results.
-    """
+    """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
 
     result = await db.execute(
         select(BankStatement)
@@ -348,7 +349,7 @@ async def retry_statement_parsing(
 
         for existing_tx in list(statement.transactions):
             await db.delete(existing_tx)
-        await session.flush()
+        await db.flush()
 
         statement.transactions = list(new_transactions)
 
