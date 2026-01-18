@@ -95,7 +95,7 @@ AI must use this cascade structure before processing tasks:
 5. **Equation must hold**: At any point, the accounting equation must be satisfied.
 
 ### Delivery
-1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars.
+1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars. If Dokploy is not enough to debug, use `ssh root@$VPS_HOST`, **You can only read, not modify**.
 2. **PR must work in test environment**: Before delivering PR, ensure health check passes on `report-pr-XX.zitian.party`.
 3. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
 
