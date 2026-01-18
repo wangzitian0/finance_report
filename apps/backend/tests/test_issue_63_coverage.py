@@ -1,9 +1,7 @@
 """Tests to close coverage gaps for Issue #63."""
 
 import asyncio
-import logging
 from datetime import date
-from decimal import Decimal
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -11,12 +9,11 @@ from uuid import uuid4
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from src.database import create_session_maker_from_db, init_db
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.database import create_session_maker_from_db
+from src.models.statement import BankStatement, BankStatementStatus
 from src.routers.statements import (
     _parse_statement_background,
     approve_statement,
@@ -28,7 +25,9 @@ from src.routers.statements import (
     upload_statement,
 )
 from src.schemas import StatementDecisionRequest
-from src.services.statement_parsing_supervisor import reset_stale_parsing_jobs, run_parsing_supervisor
+from src.services.statement_parsing_supervisor import (
+    run_parsing_supervisor,
+)
 from src.services.storage import StorageError, StorageService
 
 
@@ -129,7 +128,8 @@ async def test_parsing_supervisor_error_path(monkeypatch):
     )
     
     # Use a small timeout to avoid hanging
-    with patch("src.services.statement_parsing_supervisor.PARSING_SUPERVISOR_INTERVAL_SECONDS", 0.01):
+    patch_target = "src.services.statement_parsing_supervisor.PARSING_SUPERVISOR_INTERVAL_SECONDS"
+    with patch(patch_target, 0.01):
         await run_parsing_supervisor(stop_event)
     
     assert call_count >= 2
@@ -351,9 +351,15 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
 @pytest.mark.asyncio
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
     """Test HTTPException wrappers for ReportError in reports router."""
-    from src.routers.reports import balance_sheet, income_statement, cash_flow, account_trend, category_breakdown
+    from src.routers.reports import (
+        account_trend,
+        balance_sheet,
+        cash_flow,
+        category_breakdown,
+        income_statement,
+    )
+    from src.schemas.reporting import BreakdownPeriod, BreakdownType, TrendPeriod
     from src.services.reporting import ReportError
-    from src.schemas.reporting import TrendPeriod, BreakdownType, BreakdownPeriod
     
     uid = test_user.id
     
@@ -385,5 +391,10 @@ async def test_report_router_error_handlers(db, test_user, monkeypatch):
     assert exc.value.status_code == 400
 
     with pytest.raises(HTTPException) as exc:
-        await category_breakdown(breakdown_type=BreakdownType.EXPENSE, period=BreakdownPeriod.MONTHLY, db=db, user_id=uid)
+        await category_breakdown(
+            breakdown_type=BreakdownType.EXPENSE,
+            period=BreakdownPeriod.MONTHLY,
+            db=db,
+            user_id=uid,
+        )
     assert exc.value.status_code == 400

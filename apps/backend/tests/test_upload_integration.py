@@ -8,6 +8,7 @@ import pytest
 
 from src.routers import statements as statements_router
 
+
 @pytest.mark.asyncio
 async def test_full_upload_to_db_flow(client, test_user):
     """
