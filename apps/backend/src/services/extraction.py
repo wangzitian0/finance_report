@@ -295,7 +295,9 @@ class ExtractionService:
                     )
 
                     if response.status_code != 200:
-                        error_msg = f"OpenRouter API error: {response.status_code} - {response.text}"
+                        error_msg = (
+                            f"OpenRouter API error: {response.status_code} - {response.text}"
+                        )
                         logger.error("AI extraction failed", model=model, error=error_msg)
                         error = ExtractionError(error_msg)
                         if response.status_code == 429:
