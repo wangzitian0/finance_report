@@ -10,12 +10,13 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from src.auth import get_current_user_id
 from src.config import settings
-from src.database import async_session_maker, get_db
+from src.database import create_session_maker_from_db, get_db
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
     BankStatementListResponse,
@@ -75,9 +76,14 @@ async def _parse_statement_background(
     storage_key: str,
     content: bytes,
     model: str | None,
+    session_maker: async_sessionmaker[AsyncSession],
 ) -> None:
-    async with async_session_maker() as session:
-        statement = await session.get(BankStatement, statement_id)
+    async with session_maker() as session:
+        statement = await session.get(
+            BankStatement,
+            statement_id,
+            options=[selectinload(BankStatement.transactions)],
+        )
         if not statement:
             return
 
@@ -248,10 +254,17 @@ async def upload_statement(
             storage_key=storage_key,
             content=content,
             model=model,
+            session_maker=create_session_maker_from_db(db),
         )
     )
     _track_task(task)
 
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
 
 
@@ -360,8 +373,13 @@ async def retry_statement_parsing(
         statement.status = BankStatementStatus.PARSED
 
         await db.commit()
-        await db.refresh(statement)
 
+        result = await db.execute(
+            select(BankStatement)
+            .where(BankStatement.id == statement_id)
+            .options(selectinload(BankStatement.transactions))
+        )
+        statement = result.scalar_one()
         return BankStatementResponse.model_validate(statement)
 
     except StorageError:
@@ -498,8 +516,13 @@ async def approve_statement(
         statement.validation_error = decision.notes
 
     await db.commit()
-    await db.refresh(statement)
 
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
 
 
@@ -527,8 +550,13 @@ async def reject_statement(
         statement.validation_error = decision.notes
 
     await db.commit()
-    await db.refresh(statement)
 
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
 
 

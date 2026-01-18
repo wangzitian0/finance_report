@@ -95,6 +95,7 @@ class StorageService:
 
     def delete_object(self, key: str) -> None:
         """Delete an object from storage."""
+        self._ensure_bucket()
         try:
             self.client.delete_object(Bucket=self.bucket, Key=key)
         except (BotoCoreError, ClientError) as exc:

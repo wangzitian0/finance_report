@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
 from src.models import BankStatement, BankStatementStatus
@@ -17,10 +18,13 @@ PARSING_STALE_THRESHOLD = timedelta(minutes=30)
 PARSING_SUPERVISOR_INTERVAL_SECONDS = 300
 
 
-async def reset_stale_parsing_jobs() -> int:
+async def reset_stale_parsing_jobs(
+    sessionmaker: async_sessionmaker[AsyncSession] | None = None,
+) -> int:
     """Mark stale parsing jobs as rejected so users can retry."""
     cutoff = datetime.now(UTC) - PARSING_STALE_THRESHOLD
-    async with async_session_maker() as session:
+    session_factory = sessionmaker or async_session_maker
+    async with session_factory() as session:
         result = await session.execute(
             select(BankStatement)
             .where(BankStatement.status == BankStatementStatus.PARSING)

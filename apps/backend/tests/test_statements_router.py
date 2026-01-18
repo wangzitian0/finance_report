@@ -114,6 +114,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
     )
     await upload_file.close()
     await wait_for_background_tasks()
+    user_id = test_user.id
     db.expire_all()
 
     upload_file_dup = make_upload_file("statement.pdf", content)
@@ -124,7 +125,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
             account_id=None,
             model=None,
             db=db,
-            user_id=test_user.id,
+            user_id=user_id,
         )
     await upload_file_dup.close()
 
@@ -233,19 +234,23 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
     )
     await upload_file.close()
     await wait_for_background_tasks()
+    user_id = test_user.id
+    statement_id = created.id
     db.expire_all()
 
-    listed = await statements_router.list_statements(db=db, user_id=test_user.id)
+    listed = await statements_router.list_statements(db=db, user_id=user_id)
     assert listed.total == 1
-    assert listed.items[0].id == created.id
+    assert listed.items[0].id == statement_id
 
     fetched = await statements_router.get_statement(
-        statement_id=created.id, db=db, user_id=test_user.id
+        statement_id=statement_id, db=db, user_id=user_id
     )
-    assert fetched.id == created.id
+    assert fetched.id == statement_id
+    assert len(fetched.transactions) == 1
+    assert fetched.transactions[0].description == "Salary"
 
     txns = await statements_router.list_statement_transactions(
-        statement_id=created.id, db=db, user_id=test_user.id
+        statement_id=statement_id, db=db, user_id=user_id
     )
     assert txns.total == 1
     assert txns.items[0].description == "Salary"
@@ -399,9 +404,10 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
     await upload_file.close()
     await wait_for_background_tasks()
 
-    await db.refresh(created)
-    assert created.status == BankStatementStatus.REJECTED
-    assert created.validation_error == "Failed to parse PDF"
+    statement = await db.get(BankStatement, created.id)
+    assert statement is not None
+    assert statement.status == BankStatementStatus.REJECTED
+    assert statement.validation_error == "Failed to parse PDF"
 
 
 @pytest.mark.asyncio
