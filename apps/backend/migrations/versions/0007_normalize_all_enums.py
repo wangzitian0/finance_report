@@ -1,7 +1,7 @@
 """Normalize all enum names.
 
 Revision ID: 0007_normalize_all_enums
-Revises: 0006_statement_parsing_nullable_fields
+Revises: 0006_parse_nullable_fields
 Create Date: 2026-01-20 10:00:00.000000
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0007_normalize_all_enums"
-down_revision = "0006_statement_parsing_nullable_fields"
+down_revision = "0006_parse_nullable_fields"
 branch_labels = None
 depends_on = None
 
