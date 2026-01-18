@@ -2,7 +2,6 @@
 import pdfplumber
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from decimal import Decimal
 
 
 class PDFAnalyzer:

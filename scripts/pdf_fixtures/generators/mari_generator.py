@@ -2,7 +2,6 @@
 from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
-from reportlab.lib import colors
 from reportlab.platypus import Paragraph, Spacer, Table
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 

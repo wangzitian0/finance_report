@@ -2,13 +2,13 @@
 from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
-from reportlab.lib import colors
 from reportlab.platypus import Paragraph, Spacer, Table
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from generators.base_generator import BasePDFGenerator
+from generators.font_utils import register_chinese_fonts, get_safe_font, can_display_chinese
 from data.fake_data import generate_cmb_transactions
 
 
@@ -17,32 +17,7 @@ class CMBGenerator(BasePDFGenerator):
     
     def __init__(self, template_path: Path):
         super().__init__(template_path)
-        self.chinese_font = None
-        self._register_chinese_fonts()
-    
-    def _register_chinese_fonts(self):
-        """Register Chinese fonts if available."""
-        # Try to register Chinese fonts from system
-        # Common paths on macOS and Linux
-        font_paths = [
-            "/System/Library/Fonts/Supplemental/STHeiti Light.ttc",  # macOS
-            "/System/Library/Fonts/STHeiti Light.ttc",  # macOS
-            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",  # Linux
-            "/usr/share/fonts/truetype/arphic/uming.ttc",  # Linux
-        ]
-        
-        # Try to register a Chinese font
-        for font_path in font_paths:
-            if Path(font_path).exists():
-                try:
-                    pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
-                    self.chinese_font = "ChineseFont"
-                    return
-                except Exception:
-                    continue
-        
-        # Fallback: use Helvetica (will show squares for Chinese, but at least PDF generates)
-        self.chinese_font = None
+        self.chinese_font = register_chinese_fonts()
     
     def generate(
         self,
@@ -56,30 +31,34 @@ class CMBGenerator(BasePDFGenerator):
         elements = []
         styles = getSampleStyleSheet()
         
-        # Header - Use English to avoid font issues
+        # Header
         font_family, font_size = self._get_font("header")
-        if self.chinese_font:
-            font_family = self.chinese_font
-        elif font_family not in ["Helvetica", "Helvetica-Bold", "Times-Roman", "Courier"]:
-            font_family = "Helvetica-Bold"
+        safe_font = get_safe_font(font_family, self.chinese_font)
         
         header_style = ParagraphStyle(
             "Header",
             parent=styles["Heading1"],
-            fontName=font_family,
+            fontName=safe_font,
             fontSize=font_size,
             spaceAfter=12,
         )
-        # Use English header to avoid font issues
-        elements.append(Paragraph("China Merchants Bank - Transaction Statement", header_style))
+        # Always use Chinese header (font should be registered)
+        elements.append(Paragraph("招商银行交易流水", header_style))
         
-        # Account Info
+        # Account Info - Set font for body text
         account_no = f"6214 **** **** {account_last4}"
-        elements.append(Paragraph(f"Account: {account_no}", styles["Normal"]))
+        body_font = get_safe_font(self._get_font("body")[0], self.chinese_font)
+        body_style = ParagraphStyle(
+            "Body",
+            parent=styles["Normal"],
+            fontName=body_font,
+        )
+        # Always use Chinese (font should be registered)
+        elements.append(Paragraph(f"账户: {account_no}", body_style))
         
         # Period
-        period_str = f"{period_start.strftime('%Y-%m-%d')} to {period_end.strftime('%Y-%m-%d')}"
-        elements.append(Paragraph(f"Period: {period_str}", styles["Normal"]))
+        period_str = f"{period_start.strftime('%Y-%m-%d')} 至 {period_end.strftime('%Y-%m-%d')}"
+        elements.append(Paragraph(f"账期: {period_str}", body_style))
         elements.append(Spacer(1, 20))
         
         # Generate transactions
@@ -91,24 +70,16 @@ class CMBGenerator(BasePDFGenerator):
         )
         
         # Opening Balance
-        elements.append(Paragraph(f"Opening Balance: CNY {opening_balance:,.2f}", styles["Normal"]))
+        elements.append(Paragraph(f"期初余额: CNY {opening_balance:,.2f}", body_style))
         elements.append(Spacer(1, 10))
         
         # Transaction Table
         table_config = self.template["tables"]["transaction_details"]
         columns = table_config["columns"]
         
-        # Table header - Use English column names to avoid font issues
-        # Map Chinese column names to English
-        column_name_map = {
-            "记账日期": "Date",
-            "货币": "Currency",
-            "交易金额": "Amount",
-            "联机余额": "Balance",
-            "交易摘要": "Description",
-            "对手信息": "Counterparty",
-        }
-        header_row = [column_name_map.get(col["name"], col["name"]) for col in columns]
+        # Table header - Always use Chinese
+        table_font = get_safe_font(self._get_font("table_header")[0], self.chinese_font)
+        header_row = [col["name"] for col in columns]
         data = [header_row]
         
         # Transaction rows
@@ -123,16 +94,20 @@ class CMBGenerator(BasePDFGenerator):
             ]
             data.append(row)
         
-        # Create table
+        # Create table with Chinese font
         col_widths = self._get_column_widths(table_config)
         table = Table(data, colWidths=col_widths)
-        table.setStyle(self._create_table_style(table_config))
+        table_style = self._create_table_style(table_config, table_font=table_font)
+        # Set Chinese font for table body rows
+        table_body_font = get_safe_font(self._get_font("table_body")[0], self.chinese_font)
+        table_style.add("FONTNAME", (0, 1), (-1, -1), table_body_font)
+        table.setStyle(table_style)
         elements.append(table)
         
         elements.append(Spacer(1, 20))
         
         # Closing Balance
-        elements.append(Paragraph(f"Closing Balance: CNY {closing_balance:,.2f}", styles["Normal"]))
+        elements.append(Paragraph(f"期末余额: CNY {closing_balance:,.2f}", body_style))
         
         # Build PDF
         doc.build(elements)

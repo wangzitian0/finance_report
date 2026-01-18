@@ -32,11 +32,7 @@ except ImportError:
     print("❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'.")
     sys.exit(1)
 
-try:
-    import yaml
-except ImportError:
-    print("❌ pyyaml not installed. Please run 'pip install pyyaml'.")
-    sys.exit(1)
+
 
 
 def generate_legacy_dbs_pdf(output_path: Path):

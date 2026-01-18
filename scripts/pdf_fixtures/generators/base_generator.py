@@ -4,8 +4,7 @@ from pathlib import Path
 from typing import Dict, Any
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, TableStyle
 
 
 class BasePDFGenerator:
@@ -56,17 +55,22 @@ class BasePDFGenerator:
             font_info.get("size", 10),
         )
     
-    def _create_table_style(self, table_config: Dict[str, Any]) -> TableStyle:
+    def _create_table_style(self, table_config: Dict[str, Any], table_font: str = None) -> TableStyle:
         """Create table style from template."""
         header_style = table_config.get("header_style", {})
         row_style = table_config.get("row_style", {})
+        
+        # Use provided font or get from template
+        if table_font is None:
+            table_font = self._get_font("table_header")[0]
+        table_font_size = self._get_font("table_header")[1]
         
         commands = [
             # Header styling
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(header_style.get("background", "#CCCCCC"))),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor(header_style.get("text_color", "#000000"))),
-            ("FONTNAME", (0, 0), (-1, 0), self._get_font("table_header")[0]),
-            ("FONTSIZE", (0, 0), (-1, 0), self._get_font("table_header")[1]),
+            ("FONTNAME", (0, 0), (-1, 0), table_font),
+            ("FONTSIZE", (0, 0), (-1, 0), table_font_size),
             ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
             ("TOPPADDING", (0, 0), (-1, 0), 12),
         ]
