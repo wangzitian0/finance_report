@@ -20,6 +20,8 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "psycopg2-binary>=2.9.9",
     "structlog>=25.5.0",
+    "pyjwt>=2.10.1",
+    "redis>=7.1.0",
 ]
 
 [dependency-groups]

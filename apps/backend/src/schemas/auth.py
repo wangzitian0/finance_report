@@ -23,11 +23,13 @@ class LoginRequest(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    """Schema for auth response - returns user info."""
+    """Schema for auth response - returns user info and JWT token."""
 
     id: UUID
     email: str
     name: str | None = None
     created_at: datetime
+    access_token: str
+    token_type: str = "bearer"
 
     model_config = ConfigDict(from_attributes=True)
