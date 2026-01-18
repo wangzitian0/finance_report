@@ -25,6 +25,8 @@ def upgrade() -> None:
         ("journalentrysourcetype", "journal_source_type_enum", "journal_entries", "source_type"),
         ("direction", "journal_line_direction_enum", "journal_lines", "direction"),
         ("reconciliationstatus", "reconciliation_status_enum", "reconciliation_matches", "status"),
+        ("chatsessionstatus", "chat_session_status_enum", "chat_sessions", "status"),
+        ("chatmessagerole", "chat_message_role_enum", "chat_messages", "role"),
     ]
 
     for old_name, new_name, table, column in enums_to_fix:
@@ -76,6 +78,8 @@ def downgrade() -> None:
         ("journal_source_type_enum", "journalentrysourcetype"),
         ("journal_line_direction_enum", "direction"),
         ("reconciliation_status_enum", "reconciliationstatus"),
+        ("chat_session_status_enum", "chatsessionstatus"),
+        ("chat_message_role_enum", "chatmessagerole"),
     ]
     
     for current_name, old_name in enums_to_revert:
