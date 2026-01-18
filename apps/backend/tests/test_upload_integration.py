@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.routers import statements as statements_router
 
 @pytest.mark.asyncio
 async def test_full_upload_to_db_flow(client, test_user):
@@ -67,18 +68,16 @@ async def test_full_upload_to_db_flow(client, test_user):
             files={"file": ("test.pdf", BytesIO(content), "application/pdf")},
             data={"institution": "DBS"},
         )
+        await statements_router.wait_for_parse_tasks()
 
     # 4. Verify Upload Response
-    assert response.status_code == 200, response.text
+    assert response.status_code == 202, response.text
     data = response.json()
     statement_id = data["id"]
 
     # Verify core fields from upload response
     assert data["institution"] == "DBS"
-    assert data["opening_balance"] == "1000.00"
-    assert data["closing_balance"] == "1500.00"
-    assert data["status"] == "parsed"
-    assert data["balance_validated"] is True
+    assert data["status"] == "parsing"
     assert data["user_id"] == str(test_user.id)
 
     # 5. Verify Database Persistence via GET API
@@ -93,6 +92,10 @@ async def test_full_upload_to_db_flow(client, test_user):
     assert stmt_data["account_last4"] == "8888"
     assert stmt_data["period_start"] == "2025-01-01"
     assert stmt_data["period_end"] == "2025-01-31"
+    assert stmt_data["opening_balance"] == "1000.00"
+    assert stmt_data["closing_balance"] == "1500.00"
+    assert stmt_data["status"] == "parsed"
+    assert stmt_data["balance_validated"] is True
 
     # Verify transactions were persisted
     assert len(stmt_data["transactions"]) == 1

@@ -71,6 +71,10 @@ def build_statement(user_id, file_hash: str, confidence_score: int) -> BankState
     )
 
 
+async def wait_for_background_tasks() -> None:
+    await statements_router.wait_for_parse_tasks()
+
+
 @pytest.mark.asyncio
 async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_user):
     """Uploading the same file twice should trigger duplicate detection."""
@@ -109,6 +113,8 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
         user_id=test_user.id,
     )
     await upload_file.close()
+    await wait_for_background_tasks()
+    db.expire_all()
 
     upload_file_dup = make_upload_file("statement.pdf", content)
     with pytest.raises(HTTPException) as exc:
@@ -226,6 +232,8 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
         user_id=test_user.id,
     )
     await upload_file.close()
+    await wait_for_background_tasks()
+    db.expire_all()
 
     listed = await statements_router.list_statements(db=db, user_id=test_user.id)
     assert listed.total == 1
@@ -248,6 +256,10 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
     """Review queue filters by confidence and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
+    score_by_hash = {
+        hashlib.sha256(contents[0]).hexdigest(): scores[0],
+        hashlib.sha256(contents[1]).hexdigest(): scores[1],
+    }
 
     async def fake_parse_document(
         self,
@@ -262,7 +274,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
         original_filename=None,
     force_model=None,
     ):
-        score = scores.pop(0)
+        score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
         return statement, []
 
@@ -285,6 +297,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
         )
         await upload_file.close()
         created_ids.append(created.id)
+    await wait_for_background_tasks()
 
     pending = await statements_router.list_pending_review(db=db, user_id=test_user.id)
     assert pending.total == 1
@@ -344,7 +357,7 @@ async def test_upload_file_too_large(db, test_user):
 
 @pytest.mark.asyncio
 async def test_upload_extraction_failure(db, monkeypatch, test_user):
-    """Extraction failure returns 422."""
+    """Extraction failure marks statement as rejected."""
     content = b"content"
 
     mock_storage = MagicMock()
@@ -375,20 +388,20 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
     )
 
     upload_file = make_upload_file("statement.pdf", content)
-
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.upload_statement(
-            file=upload_file,
-            institution="DBS",
-            account_id=None,
-            model=None,
-            db=db,
-            user_id=test_user.id,
-        )
+    created = await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        model=None,
+        db=db,
+        user_id=test_user.id,
+    )
     await upload_file.close()
+    await wait_for_background_tasks()
 
-    assert exc.value.status_code == 422
-    assert "Failed to parse PDF" in exc.value.detail
+    await db.refresh(created)
+    assert created.status == BankStatementStatus.REJECTED
+    assert created.validation_error == "Failed to parse PDF"
 
 
 @pytest.mark.asyncio
@@ -442,6 +455,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
         user_id=test_user.id,
     )
     await upload_file.close()
+    await wait_for_background_tasks()
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
@@ -493,6 +507,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
         user_id=test_user.id,
     )
     await upload_file.close()
+    await wait_for_background_tasks()
 
     rejected = await statements_router.reject_statement(
         statement_id=created.id,
@@ -593,6 +608,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         user_id=test_user.id,
     )
     await upload_file.close()
+    await wait_for_background_tasks()
 
     rejected = await statements_router.reject_statement(
         statement_id=created.id,

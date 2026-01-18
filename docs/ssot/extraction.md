@@ -4,14 +4,15 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using OpenRouter vision models (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using OpenRouter vision models (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 
 ```mermaid
 flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
-    S --> B{File Type}
+    S --> P[Create PARSING Statement]
+    P --> B{File Type}
     B -->|PDF/Image| C["OpenRouter Vision Model"]
     B -->|CSV| D[Structured Parser]
     C --> E[Extract JSON]
@@ -48,6 +49,9 @@ flowchart TB
 | `balance_validated` | bool | Opening + txns ≈ closing |
 | `validation_error` | str | Optional validation failure details |
 
+**Parsing state note**: `currency`, `period_start`, `period_end`, `opening_balance`, `closing_balance`,
+`confidence_score`, and `balance_validated` are nullable while status is `parsing`.
+
 ### BankStatementTransaction
 
 | Field | Type | Description |
@@ -83,7 +87,7 @@ flowchart TB
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/statements/upload` | Upload and parse document |
+| POST | `/api/statements/upload` | Upload document and enqueue parsing (202 Accepted) |
 | GET | `/api/statements` | Statement list |
 | GET | `/api/statements/{id}` | Get statement with transactions |
 | GET | `/api/statements/{id}/transactions` | Transaction list |
@@ -122,6 +126,13 @@ S3_BUCKET=statements
 S3_REGION=us-east-1
 S3_PRESIGN_EXPIRY_SECONDS=900
 ```
+
+## Parsing Resilience
+
+- **Bucket auto-create**: storage ensures the bucket exists before upload.
+- **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
+- **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
+  with a validation error so users can retry.
 
 ## Model Selection
 

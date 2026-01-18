@@ -100,8 +100,16 @@ export default function StatementDetailPage() {
         return `${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    const formatCurrency = (amount: number) => {
+    const formatCurrency = (amount?: number | null) => {
+        if (amount === null || amount === undefined) return "—";
         return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const formatCode = (currency?: string | null) => currency || "—";
+
+    const formatPeriod = (start?: string | null, end?: string | null) => {
+        if (!start || !end) return "Parsing...";
+        return `${start} to ${end}`;
     };
 
     if (loading) {
@@ -158,7 +166,7 @@ export default function StatementDetailPage() {
                         </span>
                     </div>
                     <p className="page-description">
-                        {statement.institution} • {statement.currency} • {statement.period_start} to {statement.period_end}
+                        {statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end)}
                     </p>
                 </div>
 
@@ -213,29 +221,35 @@ export default function StatementDetailPage() {
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Opening Balance</div>
                     <div className="text-lg font-semibold">
-                        {statement.currency} {formatCurrency(statement.opening_balance)}
+                        {formatCode(statement.currency)} {formatCurrency(statement.opening_balance)}
                     </div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Closing Balance</div>
                     <div className="text-lg font-semibold">
-                        {statement.currency} {formatCurrency(statement.closing_balance)}
+                        {formatCode(statement.currency)} {formatCurrency(statement.closing_balance)}
                     </div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Confidence Score</div>
                     <div className={`text-lg font-semibold ${
-                        statement.confidence_score >= 85 ? "text-[var(--success)]" :
-                        statement.confidence_score >= 60 ? "text-[var(--warning)]" :
+                        (statement.confidence_score ?? 0) >= 85 ? "text-[var(--success)]" :
+                        (statement.confidence_score ?? 0) >= 60 ? "text-[var(--warning)]" :
+                        statement.confidence_score === null || statement.confidence_score === undefined ? "text-muted" :
                         "text-[var(--error)]"
                     }`}>
-                        {statement.confidence_score}%
+                        {statement.confidence_score ?? "—"}%
                     </div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Balance Validation</div>
                     <div className="flex items-center gap-2">
-                        {statement.balance_validated ? (
+                        {statement.balance_validated === null || statement.balance_validated === undefined ? (
+                            <>
+                                <span className="text-muted">…</span>
+                                <span className="text-sm font-medium text-muted">Parsing</span>
+                            </>
+                        ) : statement.balance_validated ? (
                             <>
                                 <span className="text-[var(--success)]">✓</span>
                                 <span className="text-sm font-medium">Verified</span>

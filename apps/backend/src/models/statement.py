@@ -65,19 +65,19 @@ class BankStatement(Base):
     # Statement details
     institution: Mapped[str] = mapped_column(String(100), nullable=False)
     account_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
-    currency: Mapped[str] = mapped_column(String(3), default="SGD")
-    period_start: Mapped[date] = mapped_column(Date, nullable=False)
-    period_end: Mapped[date] = mapped_column(Date, nullable=False)
-    opening_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    closing_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    currency: Mapped[str | None] = mapped_column(String(3), default="SGD", nullable=True)
+    period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    opening_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    closing_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 
     # Processing
     status: Mapped[BankStatementStatus] = mapped_column(
         SQLEnum(BankStatementStatus, name="bank_statement_status_enum"),
         default=BankStatementStatus.UPLOADED,
     )
-    confidence_score: Mapped[int] = mapped_column(Integer, default=0)  # 0-100
-    balance_validated: Mapped[bool] = mapped_column(default=False)
+    confidence_score: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)  # 0-100
+    balance_validated: Mapped[bool | None] = mapped_column(nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit
