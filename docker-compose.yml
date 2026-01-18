@@ -31,6 +31,8 @@ services:
     image: postgres:15-alpine
     container_name: finance-report-db${ENV_SUFFIX:-}
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

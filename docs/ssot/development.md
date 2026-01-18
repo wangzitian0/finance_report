@@ -177,6 +177,7 @@ Terminal 1 exits                   → refcount=0 (stop container)
 - The test DB container name and lock/state files include the branch suffix (and workspace id when set).
 - If `POSTGRES_PORT` is not set, a deterministic port is derived from the branch suffix (range: 5400-5999).
 - Test runs track whether the DB container was created or just started, and only remove containers they created.
+- The postgres service binds to `127.0.0.1:${POSTGRES_PORT:-5432}`; ensure unique ports when running multiple repos in parallel.
 
 ### Key Features
 

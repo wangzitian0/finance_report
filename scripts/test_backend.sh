@@ -56,6 +56,7 @@ fi
 compose_cmd=()
 runtime_cmd=()
 db_container_name="finance-report-db${env_suffix}"
+tunnel_pid=""
 
 if command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1; then
   compose_cmd=(podman compose)
@@ -103,6 +104,11 @@ get_db_host_port() {
   printf '%s\n' "$output" | head -n 1 | awk -F: '{print $NF}'
 }
 
+get_db_container_ip() {
+  "${runtime_cmd[@]}" inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$db_container_name" \
+    | tr -d '[:space:]'
+}
+
 wait_for_db_host_port() {
   local host_port=""
   for _ in {1..30}; do
@@ -113,6 +119,61 @@ wait_for_db_host_port() {
     sleep 1
   done
   printf '%s' "$host_port"
+}
+
+get_podman_machine_name() {
+  local name
+  name="$(podman machine list --format "{{.Name}} {{.Running}}" 2>/dev/null | awk '$2=="true"{print $1; exit}')"
+  name="${name%\*}"
+  printf '%s' "$name"
+}
+
+start_podman_tunnel() {
+  local target_host="$1"
+  local local_port="$2"
+  local machine
+  machine="$(get_podman_machine_name)"
+  if [ -z "$machine" ]; then
+    echo "No running podman machine found for SSH tunnel." >&2
+    return 1
+  fi
+  local ssh_identity ssh_port ssh_user
+  ssh_identity="$(podman machine inspect "$machine" --format '{{.SSHConfig.IdentityPath}}' 2>/dev/null || true)"
+  ssh_port="$(podman machine inspect "$machine" --format '{{.SSHConfig.Port}}' 2>/dev/null || true)"
+  ssh_user="$(podman machine inspect "$machine" --format '{{.SSHConfig.RemoteUsername}}' 2>/dev/null || true)"
+  if [ -z "$ssh_identity" ] || [ -z "$ssh_port" ] || [ -z "$ssh_user" ]; then
+    echo "Failed to resolve podman machine SSH config for ${machine}." >&2
+    return 1
+  fi
+  ssh -i "$ssh_identity" -p "$ssh_port" \
+    -o ExitOnForwardFailure=yes \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -N -L "127.0.0.1:${local_port}:${target_host}:5432" \
+    "${ssh_user}@localhost" >/dev/null 2>&1 &
+  tunnel_pid=$!
+  for _ in {1..10}; do
+    if python - <<PY >/dev/null 2>&1
+import socket
+s = socket.socket()
+s.settimeout(0.5)
+try:
+    s.connect(("127.0.0.1", int("${local_port}")))
+    s.close()
+    raise SystemExit(0)
+except OSError:
+    raise SystemExit(1)
+PY
+    then
+      return 0
+    fi
+    if ! kill -0 "$tunnel_pid" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  echo "Failed to establish SSH tunnel to ${target_host}:5432 via podman machine." >&2
+  return 1
 }
 
 compose() {
@@ -150,12 +211,19 @@ release_lock() {
 }
 
 write_state() {
+  local managed_value="$1"
+  local started_existing_value="$2"
+  local refcount_value="$3"
+  local container_id_value="$4"
+  local db_port_value="$5"
+  local db_host_value="${6:-localhost}"
   cat > "$state_file" <<EOF
-managed=$1
-started_existing=$2
-refcount=$3
-container_id=$4
-db_port=$5
+managed=$managed_value
+started_existing=$started_existing_value
+refcount=$refcount_value
+container_id=$container_id_value
+db_port=$db_port_value
+db_host=$db_host_value
 EOF
 }
 
@@ -166,6 +234,7 @@ read_state() {
   refcount="$(grep '^refcount=' "$state_file" 2>/dev/null | cut -d= -f2 || echo 0)"
   container_id="$(grep '^container_id=' "$state_file" 2>/dev/null | cut -d= -f2 || echo '')"
   db_port="$(grep '^db_port=' "$state_file" 2>/dev/null | cut -d= -f2 || echo '')"
+  db_host="$(grep '^db_host=' "$state_file" 2>/dev/null | cut -d= -f2 || echo '')"
 }
 
 cleanup() {
@@ -216,10 +285,13 @@ cleanup() {
       # NOTE: We do NOT pkill playwright globally - it may belong to other test sessions
       # pytest handles its own playwright cleanup; if orphaned, user can manually clean
     else
-      write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-5432}"
+      write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-5432}" "${db_host:-localhost}"
     fi
   fi
   release_lock
+  if [ -n "${tunnel_pid:-}" ]; then
+    kill "$tunnel_pid" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -232,7 +304,22 @@ if [ -f "$state_file" ] && [ -z "${POSTGRES_PORT:-}" ]; then
   if [ -n "${db_port:-}" ]; then
     POSTGRES_PORT="$db_port"
   fi
+  if [ -n "${db_host:-}" ] && [ "$db_host" != "localhost" ] && [ "${runtime_cmd[0]}" = "podman" ]; then
+    POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+    tunnel_target="$db_host"
+    if [ "$tunnel_target" = "127.0.0.1" ]; then
+      tunnel_target="$(get_db_container_ip || true)"
+    fi
+    if [ -z "$tunnel_target" ]; then
+      tunnel_target="$db_container_name"
+    fi
+    if ! start_podman_tunnel "$tunnel_target" "$POSTGRES_PORT"; then
+      exit 1
+    fi
+    db_host="127.0.0.1"
+  fi
 fi
+db_host="${db_host:-localhost}"
 
 if [ -z "${POSTGRES_PORT:-}" ] && [ -n "$env_suffix" ]; then
   if command -v cksum >/dev/null 2>&1; then
@@ -254,17 +341,55 @@ if is_db_running; then
     read_state
     refcount="${refcount:-0}"
     refcount=$((refcount + 1))
-    write_state "$managed" "$started_existing" "$refcount" "$container_id" "${db_port:-${POSTGRES_PORT:-5432}}"
+    db_host="${db_host:-localhost}"
+    if [ "$db_host" = "localhost" ]; then
+      host_port="$(get_db_host_port || true)"
+      if [ -n "$host_port" ]; then
+        POSTGRES_PORT="$host_port"
+      else
+        db_host="$(get_db_container_ip)"
+        if [ -z "$db_host" ]; then
+          echo "Failed to detect container IP for ${db_container_name}." >&2
+          release_lock
+          exit 1
+        fi
+        if [ "${runtime_cmd[0]}" = "podman" ]; then
+          POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+          if ! start_podman_tunnel "$db_host" "$POSTGRES_PORT"; then
+            release_lock
+            exit 1
+          fi
+          db_host="127.0.0.1"
+        else
+          POSTGRES_PORT=5432
+        fi
+      fi
+    fi
+    write_state "$managed" "$started_existing" "$refcount" "$container_id" "${POSTGRES_PORT:-5432}" "$db_host"
   else
     host_port="$(wait_for_db_host_port)"
     if [ -n "$host_port" ]; then
       POSTGRES_PORT="$host_port"
+      db_host="localhost"
     else
-      echo "Failed to detect host port mapping for ${db_container_name} after waiting 30 seconds." >&2
-      release_lock
-      exit 1
+      db_host="$(get_db_container_ip)"
+      if [ -z "$db_host" ]; then
+        echo "Failed to detect host port mapping or container IP for ${db_container_name}." >&2
+        release_lock
+        exit 1
+      fi
+      if [ "${runtime_cmd[0]}" = "podman" ]; then
+        POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+        if ! start_podman_tunnel "$db_host" "$POSTGRES_PORT"; then
+          release_lock
+          exit 1
+        fi
+        db_host="127.0.0.1"
+      else
+        POSTGRES_PORT=5432
+      fi
     fi
-    write_state "false" "false" 1 "$container_id" "${POSTGRES_PORT:-5432}"
+    write_state "false" "false" 1 "$container_id" "${POSTGRES_PORT:-5432}" "$db_host"
   fi
 else
   container_id="$(get_db_container_id || true)"
@@ -285,13 +410,33 @@ else
       echo "Warning: ${db_container_name} is bound to port ${host_port}, overriding ${POSTGRES_PORT}." >&2
     fi
     POSTGRES_PORT="$host_port"
+    db_host="localhost"
   else
-    echo "Failed to detect host port mapping for ${db_container_name} after waiting 30 seconds." >&2
-    release_lock
-    exit 1
+    if [ "${runtime_cmd[0]}" = "podman" ]; then
+      POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+      db_host="$(get_db_container_ip)"
+      if [ -z "$db_host" ]; then
+        echo "Failed to detect container IP for ${db_container_name}." >&2
+        release_lock
+        exit 1
+      fi
+      if ! start_podman_tunnel "$db_host" "$POSTGRES_PORT"; then
+        release_lock
+        exit 1
+      fi
+      db_host="127.0.0.1"
+    else
+      db_host="$(get_db_container_ip)"
+      if [ -z "$db_host" ]; then
+        echo "Failed to detect host port mapping or container IP for ${db_container_name}." >&2
+        release_lock
+        exit 1
+      fi
+      POSTGRES_PORT=5432
+    fi
   fi
   container_id="$(get_db_container_id || true)"
-  write_state "$managed" "$started_existing" 1 "$container_id" "${POSTGRES_PORT:-5432}"
+  write_state "$managed" "$started_existing" 1 "$container_id" "${POSTGRES_PORT:-5432}" "$db_host"
 fi
 release_lock
 
@@ -311,7 +456,7 @@ if ! db_exec psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='fina
   db_exec psql -U postgres -c "CREATE DATABASE finance_report_test;"
 fi
 
-export TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:${POSTGRES_PORT:-5432}/finance_report_test"
+export TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@${db_host}:${POSTGRES_PORT:-5432}/finance_report_test"
 export S3_ACCESS_KEY="minio"
 export S3_SECRET_KEY="minio123"
 

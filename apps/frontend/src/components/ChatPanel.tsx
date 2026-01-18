@@ -4,6 +4,7 @@ import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_URL } from "@/lib/api";
+import { getUserId } from "@/lib/auth";
 import { fetchAiModels } from "@/lib/aiModels";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
@@ -26,6 +27,14 @@ const splitDisclaimer = (content: string) => {
   return { body: content, disclaimer: "" };
 };
 const formatErrorMessage = (error: unknown) => error instanceof Error ? error.message : "Unable to send the message.";
+const buildHeaders = (base: HeadersInit = {}) => {
+  const headers: HeadersInit = { ...base };
+  const userId = getUserId();
+  if (userId) {
+    (headers as Record<string, string>)["X-User-Id"] = userId;
+  }
+  return headers;
+};
 
 export default function ChatPanel({ variant = "page", initialPrompt, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,14 +54,14 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const scrollToBottom = useCallback(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, []);
 
   const fetchSuggestions = useCallback(async () => {
-    try { const res = await fetch(`${API_URL}/api/chat/suggestions?language=${language}`); if (res.ok) { const data = await res.json() as ChatSuggestionsResponse; setSuggestions(data.suggestions || []); } } catch { setSuggestions([]); }
+    try { const res = await fetch(`${API_URL}/api/chat/suggestions?language=${language}`, { headers: buildHeaders() }); if (res.ok) { const data = await res.json() as ChatSuggestionsResponse; setSuggestions(data.suggestions || []); } } catch { setSuggestions([]); }
   }, [language]);
 
   const loadHistory = useCallback(async () => {
     const storedSession = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
     if (!storedSession) { setLoadingHistory(false); return; }
     try {
-      const res = await fetch(`${API_URL}/api/chat/history?session_id=${storedSession}`);
+      const res = await fetch(`${API_URL}/api/chat/history?session_id=${storedSession}`, { headers: buildHeaders() });
       if (!res.ok) { localStorage.removeItem(SESSION_KEY); setLoadingHistory(false); return; }
       const data = await res.json() as ChatHistoryResponse;
       const session = data.sessions[0];
@@ -129,7 +138,7 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           message: messageText,
           session_id: sessionId,
@@ -174,7 +183,7 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   }, [initialPrompt, initialPromptHandled, loadingHistory, messages.length, sendMessage]);
 
   const clearSession = async () => {
-    if (sessionId) { try { await fetch(`${API_URL}/api/chat/session/${sessionId}`, { method: "DELETE" }); } catch { } }
+    if (sessionId) { try { await fetch(`${API_URL}/api/chat/session/${sessionId}`, { method: "DELETE", headers: buildHeaders() }); } catch { } }
     localStorage.removeItem(SESSION_KEY);
     setSessionId(null);
     setMessages([]);
