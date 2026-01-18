@@ -11,9 +11,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "CREATE TYPE IF NOT EXISTS chat_session_status_enum AS ENUM ('active', 'deleted')"
-    )
+    op.execute("CREATE TYPE IF NOT EXISTS chat_session_status_enum AS ENUM ('active', 'deleted')")
     op.execute(
         "CREATE TYPE IF NOT EXISTS chat_message_role_enum AS ENUM ('user', 'assistant', 'system')"
     )

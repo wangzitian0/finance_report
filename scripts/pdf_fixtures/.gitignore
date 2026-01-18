@@ -1,0 +1,13 @@
+# Input: Real PDFs (sensitive, don't commit)
+input/**/*.pdf
+input/**/*.PDF
+!input/.gitkeep
+
+# Output: Generated test PDFs (can be committed if needed, but usually ignored)
+output/**/*.pdf
+output/**/*.PDF
+!output/.gitkeep
+
+# Local analysis outputs (if contain sensitive info)
+*.analysis.json
+*.analysis.yaml

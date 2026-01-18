@@ -5,7 +5,14 @@ from decimal import Decimal
 
 import pytest
 
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.services.accounting import calculate_account_balances
 
 
@@ -13,12 +20,8 @@ from src.services.accounting import calculate_account_balances
 async def test_calculate_account_balances_by_type(db, test_user) -> None:
     """Balances should aggregate by account with type-specific sign handling."""
     asset = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
-    income = Account(
-        user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD"
-    )
-    expense = Account(
-        user_id=test_user.id, name="Food", type=AccountType.EXPENSE, currency="SGD"
-    )
+    income = Account(user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD")
+    expense = Account(user_id=test_user.id, name="Food", type=AccountType.EXPENSE, currency="SGD")
     db.add_all([asset, income, expense])
     await db.commit()
     await db.refresh(asset)

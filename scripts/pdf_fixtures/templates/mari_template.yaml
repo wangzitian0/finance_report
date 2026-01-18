@@ -1,0 +1,96 @@
+# Mari Bank PDF Format Template
+# Extracted format information only (no sensitive data)
+# This template can be refined by running: python scripts/analyzers/analyze_pdf.py --input <real_pdf> --output scripts/templates/mari_template.yaml --source mari
+
+source: mari
+
+page:
+  size: A4
+  width: 595.27
+  height: 841.89
+  margins:
+    top: 72
+    bottom: 72
+    left: 72
+    right: 72
+
+fonts:
+  header:
+    family: Helvetica-Bold
+    size: 14
+  body:
+    family: Helvetica
+    size: 10
+  table_header:
+    family: Helvetica-Bold
+    size: 9
+  table_body:
+    family: Helvetica
+    size: 9
+
+tables:
+  account_summary:
+    # Account Summary section
+    columns:
+      - name: Account
+        width: 100
+        align: left
+      - name: Opening Balance
+        width: 100
+        align: right
+      - name: Total Outgoing
+        width: 100
+        align: right
+      - name: Total Incoming
+        width: 100
+        align: right
+      - name: Ending Balance
+        width: 100
+        align: right
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+  
+  transaction_details:
+    # Mari Bank format: DATE, TRANSACTION, OUTGOING (SGD), INCOMING (SGD)
+    # Date format: DD MMM (e.g., "15 JAN")
+    columns:
+      - name: DATE
+        width: 60
+        align: left
+      - name: TRANSACTION
+        width: 200
+        align: left
+      - name: OUTGOING (SGD)
+        width: 80
+        align: right
+      - name: INCOMING (SGD)
+        width: 80
+        align: right
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+    row_style:
+      background: "#FFFFFF"
+      border: "1px solid #000000"
+    key_phrase: "TRANSACTION DETAILS"  # Adapter looks for this
+
+  interest_details:
+    # Interest Details section (optional)
+    columns:
+      - name: Date
+        width: 80
+        align: left
+      - name: Interest
+        width: 80
+        align: right
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+
+text_elements:
+  account_number:
+    format: "****{last4}"  # Masked format
+  statement_period:
+    format: "STATEMENT PERIOD: DD MMM YYYY to DD MMM YYYY"
+  currency: "SGD"

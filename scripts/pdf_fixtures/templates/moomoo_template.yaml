@@ -1,0 +1,79 @@
+# Moomoo SG Brokerage PDF Format Template
+# Extracted format information only (no sensitive data)
+# This template can be refined by running: python analyzers/analyze_pdf.py --input input/real_pdf.pdf --output templates/moomoo_template.yaml --source moomoo
+
+source: moomoo
+
+page:
+  size: A4
+  width: 595.27
+  height: 841.89
+  margins:
+    top: 72
+    bottom: 72
+    left: 72
+    right: 72
+
+fonts:
+  header:
+    family: Helvetica-Bold
+    size: 14
+  body:
+    family: Helvetica
+    size: 10
+  table_header:
+    family: Helvetica-Bold
+    size: 9
+  table_body:
+    family: Helvetica
+    size: 9
+
+tables:
+  account_summary:
+    # Account Summary section
+    columns:
+      - name: Account
+        width: 100
+        align: left
+      - name: Opening Balance
+        width: 100
+        align: right
+      - name: Closing Balance
+        width: 100
+        align: right
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+  
+  transaction_details:
+    # Moomoo format: Date, Type, Description, Amount, Currency
+    # Transaction types: DEPOSIT, WITHDRAWAL, DIVIDEND, INTEREST, FEE
+    columns:
+      - name: Date
+        width: 80
+        align: left
+      - name: Type
+        width: 100
+        align: left
+      - name: Description
+        width: 200
+        align: left
+      - name: Amount
+        width: 100
+        align: right
+      - name: Currency
+        width: 60
+        align: left
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+    row_style:
+      background: "#FFFFFF"
+      border: "1px solid #000000"
+
+text_elements:
+  account_number:
+    format: "Account: ****{last4}"  # Masked format
+  statement_period:
+    format: "Statement Period: MMM YYYY"
+  currency: "USD"  # Default, can be multi-currency

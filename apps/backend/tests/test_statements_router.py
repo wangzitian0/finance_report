@@ -92,7 +92,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
         file_hash=None,
         file_url=None,
         original_filename=None,
-    force_model=None,
+        force_model=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         return statement, []
@@ -200,7 +200,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
         file_hash=None,
         file_url=None,
         original_filename=None,
-    force_model=None,
+        force_model=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         transaction = BankStatementTransaction(
@@ -277,7 +277,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
         file_hash=None,
         file_url=None,
         original_filename=None,
-    force_model=None,
+        force_model=None,
     ):
         score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
@@ -694,7 +694,6 @@ async def test_upload_statement_with_model_catalog_unavailable(
     monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
     monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
 
-
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
             file=upload_file,
@@ -713,11 +712,11 @@ async def test_upload_statement_with_model_catalog_unavailable(
 async def test_upload_statement_with_unsupported_modality(db, test_user, storage_stub, monkeypatch):
     """Test upload with a model that does not support the file's modality."""
     content = b"some content"
-    upload_file = make_upload_file("statement.pdf", content) # pdf is treated as image
+    upload_file = make_upload_file("statement.pdf", content)  # pdf is treated as image
 
     mock_fetch = AsyncMock(return_value=[{"id": "text-model", "name": "Text Model"}])
     monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
-    
+
     mock_modality_match = MagicMock(return_value=False)
     monkeypatch.setattr(statements_router, "model_matches_modality", mock_modality_match)
     monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
@@ -757,7 +756,7 @@ async def test_retry_statement_with_invalid_model(db, test_user, monkeypatch):
             db=db,
             user_id=test_user.id,
         )
-    
+
     assert exc.value.status_code == 400
     assert "Invalid model selection" in exc.value.detail
 
@@ -798,7 +797,7 @@ async def test_retry_statement_with_unsupported_modality(db, test_user, monkeypa
 
     mock_fetch = AsyncMock(return_value=[{"id": "text-model", "name": "Text Model"}])
     monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
-    
+
     mock_modality_match = MagicMock(return_value=False)
     monkeypatch.setattr(statements_router, "model_matches_modality", mock_modality_match)
     monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")

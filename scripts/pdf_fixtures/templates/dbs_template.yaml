@@ -1,0 +1,64 @@
+# DBS Bank PDF Format Template
+# Extracted format information only (no sensitive data)
+# This template can be refined by running: python scripts/analyzers/analyze_pdf.py --input <real_pdf> --output scripts/templates/dbs_template.yaml --source dbs
+
+source: dbs
+
+page:
+  size: A4
+  width: 595.27
+  height: 841.89
+  margins:
+    top: 72
+    bottom: 72
+    left: 72
+    right: 72
+
+fonts:
+  header:
+    family: Helvetica-Bold
+    size: 14
+  body:
+    family: Helvetica
+    size: 10
+  table_header:
+    family: Helvetica-Bold
+    size: 9
+  table_body:
+    family: Helvetica
+    size: 9
+
+tables:
+  transaction_details:
+    # DBS format: Date, Description, Withdrawal (-), Deposit (+), Balance
+    # Date format: DD/MM/YYYY
+    columns:
+      - name: Date
+        width: 70
+        align: left
+      - name: Description
+        width: 200
+        align: left
+      - name: Withdrawal
+        width: 60
+        align: right
+      - name: Deposit
+        width: 60
+        align: right
+      - name: Balance
+        width: 70
+        align: right
+    header_style:
+      background: "#CCCCCC"
+      text_color: "#000000"
+    row_style:
+      background: "#FFFFFF"
+      border: "1px solid #000000"
+    key_phrase: "Transaction Details"  # Adapter looks for this
+
+text_elements:
+  account_number:
+    format: "***-****-{last4}"  # Masked format
+  statement_period:
+    format: "DD MMM YYYY to DD MMM YYYY"
+  currency: "SGD"
