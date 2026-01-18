@@ -25,9 +25,11 @@ def test_init(mock_boto_client):
 def test_upload_bytes_success(mock_boto_client):
     """Test successful upload."""
     mock_s3 = MagicMock()
+    mock_s3.head_bucket.return_value = None
     mock_boto_client.return_value = mock_s3
 
     service = StorageService(bucket="test-bucket")
+    StorageService._checked_buckets.clear()
     service.upload_bytes(key="test/key.pdf", content=b"content", content_type="application/pdf")
 
     mock_s3.put_object.assert_called_once_with(
@@ -38,12 +40,14 @@ def test_upload_bytes_success(mock_boto_client):
 def test_upload_bytes_error(mock_boto_client):
     """Test upload failure."""
     mock_s3 = MagicMock()
+    mock_s3.head_bucket.return_value = None
     mock_s3.put_object.side_effect = ClientError(
         {"Error": {"Code": "500", "Message": "Error"}}, "put_object"
     )
     mock_boto_client.return_value = mock_s3
 
     service = StorageService(bucket="test-bucket")
+    StorageService._checked_buckets.clear()
 
     with pytest.raises(StorageError, match="Failed to upload"):
         service.upload_bytes(key="test/key", content=b"content")
@@ -52,10 +56,12 @@ def test_upload_bytes_error(mock_boto_client):
 def test_generate_presigned_url_success(mock_boto_client):
     """Test presigned URL generation."""
     mock_s3 = MagicMock()
+    mock_s3.head_bucket.return_value = None
     mock_s3.generate_presigned_url.return_value = "https://example.com/signed"
     mock_boto_client.return_value = mock_s3
 
     service = StorageService(bucket="test-bucket")
+    StorageService._checked_buckets.clear()
     url = service.generate_presigned_url(key="test/key")
 
     assert url == "https://example.com/signed"
@@ -69,12 +75,66 @@ def test_generate_presigned_url_success(mock_boto_client):
 def test_generate_presigned_url_error(mock_boto_client):
     """Test presigned URL generation failure."""
     mock_s3 = MagicMock()
+    mock_s3.head_bucket.return_value = None
     mock_s3.generate_presigned_url.side_effect = ClientError(
         {"Error": {"Code": "500", "Message": "Error"}}, "generate_presigned_url"
     )
     mock_boto_client.return_value = mock_s3
 
     service = StorageService(bucket="test-bucket")
+    StorageService._checked_buckets.clear()
 
     with pytest.raises(StorageError, match="Failed to generate presigned URL"):
         service.generate_presigned_url(key="test/key")
+
+
+def test_upload_bytes_creates_missing_bucket(mock_boto_client, monkeypatch):
+    """Missing bucket should be created before upload."""
+    mock_s3 = MagicMock()
+    mock_s3.head_bucket.side_effect = ClientError(
+        {"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket"
+    )
+    mock_boto_client.return_value = mock_s3
+    StorageService._checked_buckets.clear()
+
+    service = StorageService(bucket="test-bucket")
+    service.upload_bytes(key="test/key", content=b"content")
+
+    mock_s3.create_bucket.assert_called_once_with(Bucket="test-bucket")
+    mock_s3.put_object.assert_called_once()
+
+
+def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch):
+    """Missing bucket should include region configuration when needed."""
+    from src.services import storage as storage_module
+
+    mock_s3 = MagicMock()
+    mock_s3.head_bucket.side_effect = ClientError(
+        {"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket"
+    )
+    mock_boto_client.return_value = mock_s3
+    StorageService._checked_buckets.clear()
+    monkeypatch.setattr(storage_module.settings, "s3_region", "ap-southeast-1")
+
+    service = StorageService(bucket="test-bucket")
+    service.upload_bytes(key="test/key", content=b"content")
+
+    mock_s3.create_bucket.assert_called_once_with(
+        Bucket="test-bucket",
+        CreateBucketConfiguration={"LocationConstraint": "ap-southeast-1"},
+    )
+    mock_s3.put_object.assert_called_once()
+
+
+def test_upload_bytes_bucket_access_denied(mock_boto_client):
+    """Access denied when checking bucket should surface as StorageError."""
+    mock_s3 = MagicMock()
+    mock_s3.head_bucket.side_effect = ClientError(
+        {"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket"
+    )
+    mock_boto_client.return_value = mock_s3
+    StorageService._checked_buckets.clear()
+
+    service = StorageService(bucket="test-bucket")
+    with pytest.raises(StorageError, match="Failed to access bucket"):
+        service.upload_bytes(key="test/key", content=b"content")

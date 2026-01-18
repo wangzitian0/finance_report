@@ -1,5 +1,6 @@
 """Statement extraction API router."""
 
+import asyncio
 import hashlib
 import logging
 import mimetypes
@@ -9,12 +10,12 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from src.auth import get_current_user_id
 from src.config import settings
-from src.database import get_db
+from src.database import create_session_maker_from_db, get_db
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
     BankStatementListResponse,
@@ -35,9 +36,108 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
 
 
-@router.post("/upload", response_model=BankStatementResponse)
+async def wait_for_parse_tasks() -> None:
+    """Wait for any in-flight background parsing tasks (tests only)."""
+    if not _PENDING_PARSE_TASKS:
+        return
+    await asyncio.gather(*_PENDING_PARSE_TASKS, return_exceptions=True)
+
+
+def _track_task(task: asyncio.Task[None]) -> None:
+    _PENDING_PARSE_TASKS.add(task)
+    task.add_done_callback(_PENDING_PARSE_TASKS.discard)
+
+
+async def _handle_parse_failure(
+    statement: BankStatement,
+    db: AsyncSession,
+    *,
+    message: str,
+) -> None:
+    statement.status = BankStatementStatus.REJECTED
+    statement.validation_error = message
+    statement.confidence_score = 0
+    statement.balance_validated = False
+    await db.commit()
+
+
+async def _parse_statement_background(
+    *,
+    statement_id: UUID,
+    filename: str,
+    institution: str,
+    user_id: UUID,
+    account_id: UUID | None,
+    file_hash: str,
+    storage_key: str,
+    content: bytes,
+    model: str | None,
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_maker() as session:
+        statement = await session.get(
+            BankStatement,
+            statement_id,
+            options=[selectinload(BankStatement.transactions)],
+        )
+        if not statement:
+            return
+
+        storage = StorageService()
+        try:
+            file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key)
+        except StorageError as exc:
+            await _handle_parse_failure(statement, session, message=str(exc))
+            return
+
+        service = ExtractionService()
+        try:
+            parsed_statement, transactions = await service.parse_document(
+                file_path=Path(filename),
+                institution=institution,
+                user_id=user_id,
+                file_type=filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf",
+                account_id=account_id,
+                file_content=content,
+                file_hash=file_hash,
+                file_url=file_url,
+                original_filename=filename,
+                force_model=model,
+            )
+        except ExtractionError as exc:
+            await _handle_parse_failure(statement, session, message=str(exc))
+            return
+        except Exception as exc:
+            logger.exception("Background parsing failed for statement %s", statement_id)
+            await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
+            return
+
+        for existing_tx in list(statement.transactions):
+            await session.delete(existing_tx)
+        await session.flush()
+
+        for txn in transactions:
+            txn.statement = statement
+
+        statement.transactions = list(transactions)
+        statement.account_last4 = parsed_statement.account_last4
+        statement.currency = parsed_statement.currency
+        statement.period_start = parsed_statement.period_start
+        statement.period_end = parsed_statement.period_end
+        statement.opening_balance = parsed_statement.opening_balance
+        statement.closing_balance = parsed_statement.closing_balance
+        statement.confidence_score = parsed_statement.confidence_score
+        statement.balance_validated = parsed_statement.balance_validated
+        statement.validation_error = parsed_statement.validation_error
+        statement.status = parsed_statement.status
+
+        await session.commit()
+
+
+@router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
     institution: str = Form(...),
@@ -47,7 +147,7 @@ async def upload_statement(
     user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """
-    Upload and parse a financial statement.
+    Upload a financial statement and enqueue parsing.
 
     Supported file types: PDF, CSV, PNG, JPG. Optional model override via form field.
     """
@@ -95,57 +195,76 @@ async def upload_statement(
                     detail="Unable to validate the requested model at this time.",
                 ) from e
 
-    try:
-        statement_id = uuid4()
-        storage_key = f"statements/{statement_id}/{filename}"
-        content_type = (
-            file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-        )
+    statement_id = uuid4()
+    storage_key = f"statements/{statement_id}/{filename}"
+    content_type = (
+        file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    )
 
-        storage = StorageService()
+    storage = StorageService()
+    try:
         await run_in_threadpool(
             storage.upload_bytes,
             key=storage_key,
             content=content,
             content_type=content_type,
         )
-        file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key)
+    except StorageError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
 
-        service = ExtractionService()
-        statement, transactions = await service.parse_document(
-            file_path=Path(filename),
-            institution=institution,
-            user_id=user_id,
-            file_type=extension,
-            account_id=account_id,
-            file_content=content,
-            file_hash=file_hash,
-            file_url=file_url,
-            original_filename=filename,
-            force_model=model,
-        )
+    statement = BankStatement(
+        id=statement_id,
+        user_id=user_id,
+        account_id=account_id,
+        file_path=storage_key,
+        file_hash=file_hash,
+        original_filename=filename,
+        institution=institution,
+        status=BankStatementStatus.PARSING,
+        confidence_score=None,
+        balance_validated=None,
+        currency=None,
+        period_start=None,
+        period_end=None,
+        opening_balance=None,
+        closing_balance=None,
+    )
 
-        statement.id = statement_id
-        statement.original_filename = filename
-        statement.file_path = storage_key
-        statement.transactions = transactions
-
-        db.add(statement)
+    db.add(statement)
+    try:
         await db.commit()
         await db.refresh(statement)
+    except Exception as exc:
+        await db.rollback()
+        try:
+            await run_in_threadpool(storage.delete_object, storage_key)
+        except StorageError:
+            logger.warning("Failed to clean up storage object after DB error", exc_info=True)
+        raise HTTPException(500, "Failed to persist statement metadata") from exc
 
-        result = await db.execute(
-            select(BankStatement)
-            .where(BankStatement.id == statement.id)
-            .options(selectinload(BankStatement.transactions))
+    task = asyncio.create_task(
+        _parse_statement_background(
+            statement_id=statement_id,
+            filename=filename,
+            institution=institution,
+            user_id=user_id,
+            account_id=account_id,
+            file_hash=file_hash,
+            storage_key=storage_key,
+            content=content,
+            model=model,
+            session_maker=create_session_maker_from_db(db),
         )
-        statement = result.scalar_one()
-        return BankStatementResponse.model_validate(statement)
+    )
+    _track_task(task)
 
-    except ExtractionError as e:
-        raise HTTPException(422, str(e))
-    except StorageError as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
+    return BankStatementResponse.model_validate(statement)
 
 
 @router.post("/{statement_id}/retry", response_model=BankStatementResponse)
@@ -221,7 +340,7 @@ async def retry_statement_parsing(
     try:
         service = ExtractionService()
         storage = StorageService()
-        file_url = storage.generate_presigned_url(key=statement.file_path)
+        file_url = await run_in_threadpool(storage.generate_presigned_url, key=statement.file_path)
         new_statement, new_transactions = await service.parse_document(
             file_path=Path(statement.original_filename),
             institution=statement.institution,
@@ -253,8 +372,13 @@ async def retry_statement_parsing(
         statement.status = BankStatementStatus.PARSED
 
         await db.commit()
-        await db.refresh(statement)
 
+        result = await db.execute(
+            select(BankStatement)
+            .where(BankStatement.id == statement_id)
+            .options(selectinload(BankStatement.transactions))
+        )
+        statement = result.scalar_one()
         return BankStatementResponse.model_validate(statement)
 
     except StorageError:
@@ -391,8 +515,13 @@ async def approve_statement(
         statement.validation_error = decision.notes
 
     await db.commit()
-    await db.refresh(statement)
 
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
 
 
@@ -420,8 +549,13 @@ async def reject_statement(
         statement.validation_error = decision.notes
 
     await db.commit()
-    await db.refresh(statement)
 
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
 
 

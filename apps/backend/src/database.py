@@ -2,7 +2,13 @@
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase
 
 from src.config import settings
@@ -25,6 +31,31 @@ async_session_maker = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+
+def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSession]:
+    """Create a new session maker sharing the same engine as the provided session.
+
+    This is essential for background tasks to get a fresh session using the same
+    database bind, which is particularly important during tests where the session
+    might be bound to a specific test transaction.
+    """
+    bind = db.bind or db.get_bind()
+    if isinstance(bind, AsyncEngine):
+        async_engine = bind
+    elif isinstance(bind, Engine) and getattr(bind, "_async_engine", None):
+        async_engine = bind._async_engine
+    else:
+        async_engine = getattr(bind, "async_engine", None)
+
+    if not isinstance(async_engine, AsyncEngine):
+        raise RuntimeError("Async engine unavailable for session maker creation")
+
+    return async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

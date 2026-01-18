@@ -94,14 +94,14 @@ class BankStatementResponse(BaseModel):
     original_filename: str
     institution: str
     account_last4: str | None
-    currency: str
-    period_start: date
-    period_end: date
-    opening_balance: Decimal
-    closing_balance: Decimal
+    currency: str | None
+    period_start: date | None
+    period_end: date | None
+    opening_balance: Decimal | None
+    closing_balance: Decimal | None
     status: BankStatementStatusEnum
-    confidence_score: int
-    balance_validated: bool
+    confidence_score: int | None
+    balance_validated: bool | None
     validation_error: str | None
     created_at: datetime
     updated_at: datetime

@@ -1,8 +1,9 @@
 """Finance Report Backend - FastAPI Application."""
 
+import asyncio
 import traceback
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, Request
@@ -18,6 +19,7 @@ from src.models import PingState
 from src.routers import accounts, ai_models, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
+from src.services.statement_parsing_supervisor import run_parsing_supervisor
 
 
 @asynccontextmanager
@@ -28,7 +30,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     print_loaded_config(settings)
 
     await init_db()
+    stop_event = asyncio.Event()
+    supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
     yield
+    stop_event.set()
+    supervisor_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await supervisor_task
 
 
 app = FastAPI(

@@ -57,6 +57,18 @@ export default function StatementsPage() {
         }
     };
 
+    const formatCurrency = (currency?: string | null) => currency || "—";
+
+    const formatAmount = (amount?: number | null) => {
+        if (amount === null || amount === undefined) return "—";
+        return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const formatPeriod = (start?: string | null, end?: string | null) => {
+        if (!start || !end) return "Parsing...";
+        return `${start} → ${end}`;
+    };
+
     return (
         <div className="p-6">
             {/* Header */}
@@ -129,9 +141,9 @@ export default function StatementsPage() {
                                         <div className="flex items-center gap-3 text-xs text-muted">
                                             <span>{statement.institution}</span>
                                             <span>•</span>
-                                            <span>{statement.period_start} → {statement.period_end}</span>
+                                            <span>{formatPeriod(statement.period_start, statement.period_end)}</span>
                                             <span>•</span>
-                                            <span>{statement.currency}</span>
+                                            <span>{formatCurrency(statement.currency)}</span>
                                         </div>
                                     </div>
                                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
@@ -146,7 +158,7 @@ export default function StatementsPage() {
                                         </button>
                                         <div>
                                             <div className="text-lg font-semibold text-[var(--accent)]">
-                                                {statement.confidence_score}%
+                                                {statement.confidence_score ?? "—"}%
                                             </div>
                                             <div className="text-xs text-muted">{statement.transactions.length} txns</div>
                                         </div>
@@ -156,13 +168,19 @@ export default function StatementsPage() {
                                 <div className="mt-3 flex items-center gap-6 text-xs">
                                     <div>
                                         <span className="text-muted">Opening:</span>{" "}
-                                        <span>{statement.currency} {statement.opening_balance.toLocaleString()}</span>
+                                        <span>
+                                            {formatCurrency(statement.currency)} {formatAmount(statement.opening_balance)}
+                                        </span>
                                     </div>
                                     <div>
                                         <span className="text-muted">Closing:</span>{" "}
-                                        <span>{statement.currency} {statement.closing_balance.toLocaleString()}</span>
+                                        <span>
+                                            {formatCurrency(statement.currency)} {formatAmount(statement.closing_balance)}
+                                        </span>
                                     </div>
-                                    {statement.balance_validated ? (
+                                    {statement.balance_validated === null || statement.balance_validated === undefined ? (
+                                        <span className="badge badge-muted">Parsing</span>
+                                    ) : statement.balance_validated ? (
                                         <span className="badge badge-success">✓ Verified</span>
                                     ) : (
                                         <span className="badge badge-warning">Needs Review</span>

@@ -262,14 +262,14 @@ Statement header table for imported statements.
 | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
 | institution | VARCHAR(100) | NOT NULL | Bank/broker name |
 | account_last4 | VARCHAR(4) | | Last 4 digits |
-| currency | CHAR(3) | NOT NULL | Currency |
-| period_start | DATE | NOT NULL | Statement start |
-| period_end | DATE | NOT NULL | Statement end |
-| opening_balance | DECIMAL(18,2) | NOT NULL | Opening balance |
-| closing_balance | DECIMAL(18,2) | NOT NULL | Closing balance |
+| currency | CHAR(3) |  | Currency (nullable while parsing) |
+| period_start | DATE |  | Statement start (nullable while parsing) |
+| period_end | DATE |  | Statement end (nullable while parsing) |
+| opening_balance | DECIMAL(18,2) |  | Opening balance (nullable while parsing) |
+| closing_balance | DECIMAL(18,2) |  | Closing balance (nullable while parsing) |
 | status | ENUM | NOT NULL | uploaded/parsing/parsed/approved/rejected |
-| confidence_score | INT | NOT NULL | Extraction confidence |
-| balance_validated | BOOLEAN | NOT NULL | Balance check result |
+| confidence_score | INT |  | Extraction confidence (nullable while parsing) |
+| balance_validated | BOOLEAN |  | Balance check result (nullable while parsing) |
 | validation_error | TEXT | | Validation notes |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
