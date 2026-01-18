@@ -87,6 +87,13 @@ jobs:
           else
             new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
           fi
+
+          # Add/Update NEXT_PUBLIC_APP_URL
+          if echo "$new_env" | grep -q '^NEXT_PUBLIC_APP_URL='; then
+            new_env=$(echo "$new_env" | sed "s|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=https://report.zitian.party|")
+          else
+            new_env=$(printf "%s\nNEXT_PUBLIC_APP_URL=%s" "$new_env" "https://report.zitian.party")
+          fi
           
           # Update environment
           if ! curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \

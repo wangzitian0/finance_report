@@ -148,6 +148,7 @@ jobs:
           INTERNAL_DOMAIN=${{ env.INTERNAL_DOMAIN }}
           TRAEFIK_ENABLE=true
           NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}
+          NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}
           DEBUG=true
           POSTGRES_PORT=0
           REDIS_PORT=0
