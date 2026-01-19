@@ -164,7 +164,7 @@ async def test_execute_matching_no_candidates(db: AsyncSession):
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     db.add(statement)
     await db.flush()
-    
+
     txn = AccountEvent(
         statement_id=statement.id,
         txn_date=date(2024, 1, 1),
@@ -175,7 +175,7 @@ async def test_execute_matching_no_candidates(db: AsyncSession):
     )
     db.add(txn)
     await db.commit()
-    
+
     matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
     await db.refresh(txn)
@@ -332,6 +332,7 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
 async def test_batch_accept_no_ids(db: AsyncSession):
     """Test batch_accept with empty list."""
     from src.services.review_queue import batch_accept
+
     result = await batch_accept(db, [], user_id=uuid4())
     assert result == []
 
@@ -347,22 +348,23 @@ async def test_execute_matching_no_transactions(db: AsyncSession):
 async def test_find_candidates(db: AsyncSession):
     """Test find_candidates standalone helper."""
     from src.services.reconciliation import find_candidates, load_reconciliation_config
+
     user_id = uuid4()
     config = load_reconciliation_config()
-    
+
     entry = JournalEntry(
         user_id=user_id,
         entry_date=date(2024, 1, 1),
         memo="Test Entry",
-        status=JournalEntryStatus.POSTED
+        status=JournalEntryStatus.POSTED,
     )
     db.add(entry)
     await db.commit()
-    
+
     # Within range
     results = await find_candidates(db, date(2024, 1, 1), config, user_id)
     assert len(results) == 1
-    
+
     # Outside range
     results = await find_candidates(db, date(2024, 2, 1), config, user_id)
     assert len(results) == 0
@@ -547,7 +549,11 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
     assert all(line.currency == "USD" for line in entry.lines)
 
-    result = await db.execute(select(Account).where(Account.name == "Income - Uncategorized").where(Account.user_id == user_id))
+    result = await db.execute(
+        select(Account)
+        .where(Account.name == "Income - Uncategorized")
+        .where(Account.user_id == user_id)
+    )
     assert result.scalar_one_or_none() is not None
 
 

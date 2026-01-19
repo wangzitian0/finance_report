@@ -211,7 +211,7 @@ def score_date(txn_date: date, entry_date: date, config: ReconciliationConfig) -
     # - Cross-month but within config.date_days: 75 (bonus for cross-period matching)
     # - Same month within config.date_days: 70
     # - Beyond config.date_days: decreasing score
-    # 
+    #
     diff_days = abs((txn_date - entry_date).days)
     if diff_days == 0:
         return 100.0
@@ -415,7 +415,7 @@ async def calculate_match_score(
     business_score = (
         min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
     )
-    
+
     if history_score_override is not None:
         history_score = history_score_override
     else:
@@ -562,7 +562,7 @@ async def execute_matching(
         for entry in candidates:
             if not is_entry_balanced(entry):
                 continue
-            
+
             candidate = await calculate_match_score(
                 db,
                 group[0],
@@ -625,14 +625,9 @@ async def execute_matching(
         for entry in candidates:
             if not is_entry_balanced(entry):
                 continue
-            
+
             candidate = await calculate_match_score(
-                db, 
-                txn, 
-                [entry], 
-                config, 
-                user_id=user_id,
-                history_score_override=history_score
+                db, txn, [entry], config, user_id=user_id, history_score_override=history_score
             )
             if best_match is None or candidate.score > best_match.score:
                 best_match = candidate

@@ -98,9 +98,7 @@ async def _parse_statement_background(
         try:
             # Generate public URL for AI service access
             file_url = await run_in_threadpool(
-                storage.generate_presigned_url, 
-                key=storage_key,
-                public=True
+                storage.generate_presigned_url, key=storage_key, public=True
             )
         except StorageError as exc:
             await _handle_parse_failure(statement, session, message=str(exc))
@@ -337,9 +335,7 @@ async def retry_statement_parsing(
         service = ExtractionService()
         storage = StorageService()
         file_url = await run_in_threadpool(
-            storage.generate_presigned_url, 
-            key=statement.file_path,
-            public=True
+            storage.generate_presigned_url, key=statement.file_path, public=True
         )
         new_statement, new_transactions = await service.parse_document(
             file_path=Path(statement.original_filename),

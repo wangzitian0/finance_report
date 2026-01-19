@@ -133,7 +133,7 @@ class RateLimiter:
                 self._redis.delete(f"rl:{key}", f"rl_block:{key}")
             except Exception as exc:
                 logger.warning("Redis error during reset, ignoring: %s", exc)
-        
+
         with self._lock:
             if key in self._local_state:
                 del self._local_state[key]

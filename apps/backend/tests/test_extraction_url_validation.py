@@ -1,6 +1,8 @@
 """Tests for ExtractionService URL validation."""
+
 import pytest
-from src.services.extraction import ExtractionService, ExtractionError
+
+from src.services.extraction import ExtractionError, ExtractionService
 
 
 class TestValidateExternalUrl:

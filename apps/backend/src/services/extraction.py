@@ -93,21 +93,17 @@ class ExtractionService:
 
         # Check for localhost variants
         if hostname in ("localhost", "127.0.0.1", "::1"):
-            raise ExtractionError(
-                f"Cannot send localhost URL to external AI service: {url}"
-            )
+            raise ExtractionError(f"Cannot send localhost URL to external AI service: {url}")
 
-        from urllib.parse import urlparse
         import ipaddress
+        from urllib.parse import urlparse
 
         parsed = urlparse(url)
         hostname = parsed.hostname or ""
 
         # Check for localhost variants
         if hostname in ("localhost", "127.0.0.1", "::1"):
-            raise ExtractionError(
-                f"Cannot send localhost URL to external AI service: {url}"
-            )
+            raise ExtractionError(f"Cannot send localhost URL to external AI service: {url}")
 
         # Check for private network ranges and loopback using ipaddress
         try:
@@ -124,9 +120,7 @@ class ExtractionService:
         # This is a heuristic for internal service discovery names
         docker_patterns = ("-minio", "-redis", "-postgres", "-backend", "-frontend")
         if any(pattern in hostname for pattern in docker_patterns):
-            raise ExtractionError(
-                f"Cannot send internal Docker URL to external AI service: {url}"
-            )
+            raise ExtractionError(f"Cannot send internal Docker URL to external AI service: {url}")
 
     async def parse_document(
         self,
@@ -286,7 +280,7 @@ class ExtractionService:
         if file_url:
             # Validate URL before sending to external service
             self._validate_external_url(file_url)
-            
+
             # When using file_url, we trust it's already a public URL generated
             # with public=True flag or otherwise accessible.
             media_payload = {

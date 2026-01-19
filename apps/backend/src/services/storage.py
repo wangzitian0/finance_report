@@ -114,7 +114,7 @@ class StorageService:
             public: If True, use public endpoint/client (for external services)
         """
         use_public_client = public and self.public_client is not None
-        
+
         if public and not use_public_client:
             logger.warning(
                 "Public presigned URL requested but no public S3 client configured; "
@@ -130,7 +130,7 @@ class StorageService:
         # we might be returning an internal URL which external services can't access.
         # But we proceed with internal client as best effort (or maybe the internal
         # endpoint IS accessible).
-        
+
         try:
             return client.generate_presigned_url(
                 "get_object",

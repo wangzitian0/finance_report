@@ -172,7 +172,7 @@ async def batch_accept(
     """Batch accept high-score matches."""
     if not match_ids:
         return []
-    
+
     # Optimization: join transaction and load it to avoid N+1 queries later
     result = await db.execute(
         select(ReconciliationMatch)
@@ -196,14 +196,14 @@ async def batch_accept(
             min_score,
             list(skipped_ids),
         )
-    
+
     accepted: list[ReconciliationMatch] = []
     # Collect all entry IDs to pre-fetch them
     all_entry_ids = []
     for match in matches:
         if match.journal_entry_ids:
             all_entry_ids.extend([UUID(eid) for eid in match.journal_entry_ids])
-            
+
     # Pre-fetch all journal entries to avoid N+1 queries in the loop
     entries_map = {}
     if all_entry_ids:
@@ -218,7 +218,7 @@ async def batch_accept(
         match.status = ReconciliationStatus.ACCEPTED
         match.version += 1
         accepted.append(match)
-        
+
         # Already loaded via selectinload
         txn = match.transaction
         if txn:

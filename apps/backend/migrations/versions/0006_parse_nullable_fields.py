@@ -5,6 +5,7 @@ Revises: 0004_add_name_to_users
 Create Date: 2026-01-20 00:00:00.000000
 
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -41,7 +42,9 @@ def downgrade() -> None:
     op.execute("UPDATE bank_statements SET opening_balance = 0 WHERE opening_balance IS NULL")
     op.execute("UPDATE bank_statements SET closing_balance = 0 WHERE closing_balance IS NULL")
     op.execute("UPDATE bank_statements SET confidence_score = 0 WHERE confidence_score IS NULL")
-    op.execute("UPDATE bank_statements SET balance_validated = False WHERE balance_validated IS NULL")
+    op.execute(
+        "UPDATE bank_statements SET balance_validated = False WHERE balance_validated IS NULL"
+    )
 
     op.alter_column(
         "bank_statements", "balance_validated", existing_type=sa.Boolean(), nullable=False
@@ -57,4 +60,6 @@ def downgrade() -> None:
     )
     op.alter_column("bank_statements", "period_end", existing_type=sa.Date(), nullable=False)
     op.alter_column("bank_statements", "period_start", existing_type=sa.Date(), nullable=False)
-    op.alter_column("bank_statements", "currency", existing_type=sa.String(length=3), nullable=False)
+    op.alter_column(
+        "bank_statements", "currency", existing_type=sa.String(length=3), nullable=False
+    )

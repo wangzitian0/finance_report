@@ -46,7 +46,8 @@ def upgrade() -> None:
                         DROP TYPE bankstatementtransactionstatus;
                     END IF;
                 ELSE
-                    ALTER TYPE bankstatementtransactionstatus RENAME TO bank_statement_transaction_status_enum;  -- noqa: E501
+                    ALTER TYPE bankstatementtransactionstatus 
+                    RENAME TO bank_statement_transaction_status_enum;
                 END IF;
             END IF;
         END $$;
@@ -64,7 +65,8 @@ def downgrade() -> None:
             ) AND NOT EXISTS (
                 SELECT 1 FROM pg_type WHERE typname = 'bankstatementtransactionstatus'
             ) THEN
-                ALTER TYPE bank_statement_transaction_status_enum RENAME TO bankstatementtransactionstatus;  -- noqa: E501
+                ALTER TYPE bank_statement_transaction_status_enum 
+                RENAME TO bankstatementtransactionstatus;
             END IF;
         END $$;
         """

@@ -1085,16 +1085,26 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
 
 
 @pytest.mark.asyncio
-async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
+async def test_income_statement_fallback_rate(
+    db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch
+):
     """Test fallback to convert_amount when PrefetchedFxRates returns None."""
-    from src.services.fx import PrefetchedFxRates, FxRate
     from src.models import FxRate as FxRateModel
-    
+    from src.services.fx import PrefetchedFxRates
+
     cash, _liability, _equity, income, _expense = chart_of_accounts
-    
+
     # Add rate to DB
-    db.add(FxRateModel(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=date(2025, 1, 31), source="test"))
-    
+    db.add(
+        FxRateModel(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.35"),
+            rate_date=date(2025, 1, 31),
+            source="test",
+        )
+    )
+
     entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date(2025, 1, 15),
@@ -1104,18 +1114,33 @@ async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_account
     )
     db.add(entry)
     await db.flush()
-    db.add(JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal("100.00"), currency="USD"))
-    db.add(JournalLine(journal_entry_id=entry.id, account_id=income.id, direction=Direction.CREDIT, amount=Decimal("100.00"), currency="USD"))
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=cash.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="USD",
+        )
+    )
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=income.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency="USD",
+        )
+    )
     await db.commit()
 
-    original_get = PrefetchedFxRates.get_rate
     # Mock get_rate to return None, forcing fallback
     monkeypatch.setattr(PrefetchedFxRates, "get_rate", lambda self, *args, **kwargs: None)
-    
+
     report = await generate_income_statement(
         db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
     )
-    
+
     # If it didn't raise error and returned correct value, fallback worked
     assert report["total_income"] == Decimal("135.00")
 
@@ -1123,11 +1148,12 @@ async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_account
 def test_iter_periods_daily_limit():
     """Test that _iter_periods respects the MAX_TREND_POINTS limit."""
     from datetime import date, timedelta
-    from src.services.reporting import _iter_periods, MAX_TREND_POINTS
-    
+
+    from src.services.reporting import MAX_TREND_POINTS, _iter_periods
+
     # 1000 days span
     start = date(2020, 1, 1)
     end = start + timedelta(days=999)
-    
+
     spans = _iter_periods(start, end, "daily")
     assert len(spans) == MAX_TREND_POINTS + 1

@@ -326,7 +326,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
 
     # Test reject
     # Reuse statement_id for simplicity or create another one if needed.
-    # Here we reject the same one after changing status back if needed, 
+    # Here we reject the same one after changing status back if needed,
     # or just test with a fresh one. The current router allows state transitions.
     rejected = await statements_router.reject_statement(
         statement_id=statement_id,
@@ -416,13 +416,14 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
 
     statement = await db.get(BankStatement, created.id)
     assert statement is not None
-    
+
     # Wait for background task to update status to REJECTED
     if statement.status == BankStatementStatus.PARSING:
         import asyncio
+
         await asyncio.sleep(0.5)
         await db.refresh(statement)
-        
+
     assert statement.status == BankStatementStatus.REJECTED
 
 
