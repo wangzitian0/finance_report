@@ -255,6 +255,27 @@ jobs:
             echo "::warning::Unexpected compose status: $status"
           fi
 
+      - name: Wait for API readiness
+        env:
+          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          MAX_ATTEMPTS: 30
+          SLEEP_SECONDS: 5
+        run: |
+          echo "Waiting for API readiness at $APP_URL/api/health"
+          attempt=1
+          while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+            status=$(curl -sS -o /dev/null -w "%{http_code}" "$APP_URL/api/health" || true)
+            if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+              echo "API ready (status $status)"
+              exit 0
+            fi
+            echo "Waiting for API... attempt $attempt/$MAX_ATTEMPTS (status $status)"
+            sleep "$SLEEP_SECONDS"
+            attempt=$((attempt + 1))
+          done
+          echo "::error::API not ready after $MAX_ATTEMPTS attempts"
+          exit 1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -272,6 +293,8 @@ jobs:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
           TEST_ENV: staging
           SKIP_UI_TESTS: false
+          SMOKE_READY_ATTEMPTS: 30
+          SMOKE_READY_SLEEP_SECONDS: 5
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
