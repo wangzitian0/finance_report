@@ -96,9 +96,9 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=https://report-staging.zitian.party/api
+            NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
-          # NEXT_PUBLIC_API_URL: empty = relative paths (frontend paths include /api/)
+          # NEXT_PUBLIC_API_URL: no /api suffix - frontend paths include /api/
 
       - name: Deploy to Staging
         env:
