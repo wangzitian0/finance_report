@@ -3,14 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
-# Skip marker for client-based tests due to event loop issues with pytest-asyncio 1.x
-# These tests need refactoring to work with function-scoped event loops
-skip_client_tests = pytest.mark.skip(
-    reason="Event loop issues with async client fixture - needs refactoring"
-)
 
-
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_health(client: AsyncClient) -> None:
     """Test health endpoint."""
     response = await client.get("/health")
@@ -20,7 +14,7 @@ async def test_health(client: AsyncClient) -> None:
     assert "timestamp" in data
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_ping_initial_state(client: AsyncClient) -> None:
     """Test initial ping state."""
     response = await client.get("/ping")
@@ -31,7 +25,7 @@ async def test_ping_initial_state(client: AsyncClient) -> None:
     assert data["updated_at"] is None
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_ping_toggle(client: AsyncClient) -> None:
     """Test toggle endpoint."""
     # First toggle - should go from ping to pong
@@ -50,7 +44,7 @@ async def test_ping_toggle(client: AsyncClient) -> None:
     assert data["toggle_count"] == 2
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_get_statement_not_found(client: AsyncClient) -> None:
     """Test getting a non-existent statement."""
     response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
@@ -58,7 +52,7 @@ async def test_get_statement_not_found(client: AsyncClient) -> None:
     assert "not found" in response.json()["detail"].lower()
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_get_pending_review_empty(client: AsyncClient) -> None:
     """Test getting pending review list when empty."""
     response = await client.get("/statements/pending-review")
@@ -68,7 +62,7 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
     assert data["total"] == 0
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_approve_statement_not_found(client: AsyncClient) -> None:
     """Test approving a non-existent statement."""
     response = await client.post(
@@ -77,7 +71,7 @@ async def test_approve_statement_not_found(client: AsyncClient) -> None:
     assert response.status_code == 404
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_upload_no_file(client: AsyncClient) -> None:
     """Test upload endpoint without file."""
     response = await client.post("/statements/upload", data={"institution": "DBS"})
@@ -85,7 +79,7 @@ async def test_upload_no_file(client: AsyncClient) -> None:
     assert response.status_code == 422
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_health_endpoint_structure(client: AsyncClient) -> None:
     """Test health endpoint returns proper structure."""
     response = await client.get("/health")
@@ -96,7 +90,7 @@ async def test_health_endpoint_structure(client: AsyncClient) -> None:
     assert data["status"] == "healthy"
 
 
-@skip_client_tests
+@pytest.mark.asyncio
 async def test_ping_multiple_toggles(client: AsyncClient) -> None:
     """Test multiple ping toggles."""
     # Toggle 3 times

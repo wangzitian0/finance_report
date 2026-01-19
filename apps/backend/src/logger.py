@@ -43,6 +43,7 @@ def _configure_otel_logging() -> None:
         from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
         from opentelemetry.sdk.resources import Resource
+
         # OTLP log exporter moved between modules across opentelemetry versions.
         try:
             from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter

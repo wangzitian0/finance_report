@@ -2,8 +2,8 @@
 
 from uuid import UUID
 
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from passlib.context import CryptContext
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,12 +15,11 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
     """Hash a password."""
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 def get_current_user_id() -> UUID:

@@ -151,12 +151,12 @@ jobs:
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d '{
-              "composeId": "'"$compose_id"'",
+            -d '{ 
+              "composeId": "'$compose_id'",
               "sourceType": "github",
               "repository": "finance_report",
               "owner": "wangzitian0",
-              "branch": "'"$BRANCH_NAME"'",
+              "branch": "'$BRANCH_NAME'",
               "composePath": "docker-compose.yml",
               "githubId": "${{ env.GITHUB_INTEGRATION_ID }}"
             }'
@@ -293,8 +293,6 @@ jobs:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
           TEST_ENV: staging
           SKIP_UI_TESTS: false
-          SMOKE_READY_ATTEMPTS: 30
-          SMOKE_READY_SLEEP_SECONDS: 5
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
@@ -321,9 +319,9 @@ jobs:
             | API Health | [${url}/api/health](${url}/api/health) |
             
             **Details:**
-            - Compose: \`${{ needs.setup.outputs.compose_name }}\`
-            - Branch: \`${process.env.HEAD_REF}\`
-            - Commit: \`${{ github.sha }}\`
+            - Compose: `${{ needs.setup.outputs.compose_name }}`
+            - Branch: `${process.env.HEAD_REF}`
+            - Commit: `${{ github.sha }}`
             
             > ⏳ First deployment may take 3-5 minutes for build + SSL certificate.
             

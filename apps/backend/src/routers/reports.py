@@ -65,9 +65,9 @@ async def balance_sheet(
             as_of_date=as_of_date or date.today(),
             currency=currency,
         )
-        return BalanceSheetResponse(**report)
     except ReportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return BalanceSheetResponse(**report)
 
 
 @router.get("/income-statement", response_model=IncomeStatementResponse)
@@ -91,9 +91,9 @@ async def income_statement(
             tags=tags,
             account_type=account_type,
         )
-        return IncomeStatementResponse(**report)
     except ReportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return IncomeStatementResponse(**report)
 
 
 @router.get("/cash-flow", response_model=CashFlowResponse)
@@ -113,9 +113,9 @@ async def cash_flow(
             end_date=end_date,
             currency=currency,
         )
-        return CashFlowResponse(**report)
     except ReportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CashFlowResponse(**report)
 
 
 @router.get("/trend", response_model=AccountTrendResponse)
@@ -135,9 +135,9 @@ async def account_trend(
             period=period.value,
             currency=currency,
         )
-        return AccountTrendResponse(**report)
     except ReportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return AccountTrendResponse(**report)
 
 
 @router.get("/breakdown", response_model=CategoryBreakdownResponse)
@@ -160,9 +160,9 @@ async def category_breakdown(
             period=period.value,
             currency=currency,
         )
-        return CategoryBreakdownResponse(**report)
     except ReportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CategoryBreakdownResponse(**report)
 
 
 @router.get("/export")
@@ -177,9 +177,6 @@ async def export_report(
     user_id: UUID = Depends(get_current_user_id),
 ) -> StreamingResponse:
     """Export reports in CSV format."""
-    if format != ExportFormat.CSV:
-        raise HTTPException(status_code=400, detail="Only CSV export is supported")
-
     output = StringIO()
     writer = csv.writer(output)
 
@@ -224,11 +221,15 @@ async def export_report(
         writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
         filename = f"income-statement-{start_date}-to-{end_date}.csv"
     else:
-        raise HTTPException(status_code=400, detail="Unsupported report type")
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported report type",
+        )
 
-    output.seek(0)
+    content = output.getvalue()
+    output.close()
     return StreamingResponse(
-        output,
+        StringIO(content),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

@@ -300,7 +300,7 @@ class ExtractionService:
                 }
             else:
                 logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
-        
+
         if not media_payload:
             raise ExtractionError(
                 "No valid file content or accessible URL provided for AI extraction. "
@@ -364,7 +364,7 @@ class ExtractionService:
                             "AI extraction model failed", model=model, status=response.status_code
                         )
                         error = ExtractionError(error_msg)
-                        
+
                         # If we hit 429 on a model, continue trying remaining fallback models
                         # to maximize the chances of successful parsing.
                         last_error = error

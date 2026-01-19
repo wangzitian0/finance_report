@@ -1,6 +1,7 @@
 """Tests for URL validation in ExtractionService."""
 
 import pytest
+
 from src.services.extraction import ExtractionService
 
 
@@ -65,25 +66,16 @@ def test_validate_external_url_reject_internal_names(service):
 
 
 def test_validate_external_url_invalid_urls(service):
-
-
     """Invalid URLs should handle gracefully."""
-
 
     assert service._validate_external_url("not-a-url") is False
 
-
     assert service._validate_external_url("") is False
-
 
     # Technically external but we really only care if it passes the IP/hostname check.
 
-
     # The service doesn't strictly validate scheme here, but downstream HTTP client might fail.
-
 
     # For now, validation allows it if the hostname is public.
 
-
     assert service._validate_external_url("ftp://example.com") is True
-

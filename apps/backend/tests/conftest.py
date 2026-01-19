@@ -19,6 +19,19 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 async def db_engine():
     """Create a test database engine."""
     from src.database import Base
+    from src.models import (  # noqa: F401
+        Account,
+        BankStatement,
+        BankStatementTransaction,
+        ChatMessage,
+        ChatSession,
+        FxRate,
+        JournalEntry,
+        JournalLine,
+        PingState,
+        ReconciliationMatch,
+        User,
+    )
 
     engine = create_async_engine(
         TEST_DATABASE_URL,
