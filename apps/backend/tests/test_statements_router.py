@@ -486,7 +486,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
     await wait_for_background_tasks()
 
     # To trigger a 400, we need a status NOT in (PARSED, REJECTED, PARSING)
-    # Let's manually update DB status to UPLOADED
+    # UPLOADED status is not allowed for retry.
     statement = await db.get(BankStatement, created.id)
     statement.status = BankStatementStatus.UPLOADED
     await db.commit()
@@ -500,6 +500,8 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
         )
     assert exc.value.status_code == 400
     assert "stuck parsing statements" in exc.value.detail
+
+
 @pytest.mark.asyncio
 async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, test_user):
     """Verify that retrying a statement in PARSING status is allowed."""
@@ -783,6 +785,7 @@ async def test_retry_statement_with_invalid_model(db, test_user, monkeypatch):
     assert exc.value.status_code == 400
 
     assert "Invalid model selection" in exc.value.detail
+
 
 
 

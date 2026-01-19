@@ -30,9 +30,13 @@ from src.schemas.security import Token, TokenData, UserCreate, UserResponse
 from .extraction import (
     BankStatementListResponse,
     BankStatementResponse,
+    BankStatementStatusEnum,
     BankStatementTransactionListResponse,
     BankStatementTransactionResponse,
+    BankStatementTransactionStatusEnum,
     BankStatementUploadRequest,
+    ConfidenceLevelEnum,
+    ParsedStatementPreview,
     RetryParsingRequest,
     RetryStatementRequest,
     StatementDecisionRequest,
