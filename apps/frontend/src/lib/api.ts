@@ -26,9 +26,6 @@ export async function apiFetch<T>(
 
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  } else if (userId) {
-    // Fallback for transition period if needed, but expert suggests strict JWT
-    (headers as Record<string, string>)["X-User-Id"] = userId;
   }
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -72,8 +69,6 @@ export async function apiUpload<T>(
 
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  } else if (userId) {
-    (headers as Record<string, string>)["X-User-Id"] = userId;
   }
 
   const res = await fetch(`${API_URL}${path}`, {

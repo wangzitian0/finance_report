@@ -61,8 +61,11 @@ class Settings(BaseSettings):
 
     # Security
     secret_key: str = Field(default="dev_secret_key_change_in_prod", validation_alias="SECRET_KEY")
-    jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24  # 24 hours
+    jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=60 * 24, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+
+    # AI API (empty = AI features disabled)
+    openrouter_api_key: str = ""
 
     # App settings
     debug: bool = False
@@ -76,7 +79,7 @@ class Settings(BaseSettings):
     cors_origins_str: str | None = Field(default=None, validation_alias="CORS_ORIGINS")
 
     # CORS origin regex - for dynamic subdomains (PR deployments)
-    cors_origin_regex: str = r"https://report(-pr-\d+)?\.zitian\.party"
+    cors_origin_regex: str = r"https://report(-pr-[1-9]\d{0,3})?\.zitian\.party"
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

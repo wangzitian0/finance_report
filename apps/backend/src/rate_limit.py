@@ -16,14 +16,17 @@ section is very short (dict operations only). This is acceptable for FastAPI/uvi
 as the lock is held for microseconds and won't block the event loop meaningfully.
 """
 
+import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from threading import Lock
+from typing import Optional
 
 import redis
-
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -101,8 +104,8 @@ class RateLimiter:
                 return False, self.config.block_seconds
 
             return True, 0
-        except Exception:
-            # Fallback to local on Redis error
+        except Exception as exc:
+            logger.warning("Redis error during rate limiting, falling back to local: %s", exc)
             return self._is_allowed_local(key)
 
     def _is_allowed_local(self, key: str) -> tuple[bool, int]:
@@ -128,12 +131,17 @@ class RateLimiter:
         if self._redis:
             try:
                 self._redis.delete(f"rl:{key}", f"rl_block:{key}")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Redis error during reset, ignoring: %s", exc)
         
         with self._lock:
             if key in self._local_state:
                 del self._local_state[key]
+
+    def close(self) -> None:
+        """Close Redis connection."""
+        if self._redis:
+            self._redis.close()
 
 
 # Global rate limiters for auth endpoints
