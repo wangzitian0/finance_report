@@ -8,12 +8,24 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-# Use test database from docker-compose
+# --- Helper to ensure 127.0.0.1 consistency ---
+def normalize_url(url: str | None) -> str | None:
+    if url and "localhost" in url:
+        return url.replace("localhost", "127.0.0.1")
+    return url
+
+# Database setup
+TEST_DATABASE_URL = normalize_url(os.environ.get(
+    "DATABASE_URL", 
+    "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test"
+))
+
+# S3 setup
+os.environ["S3_ENDPOINT"] = normalize_url(os.environ.get("S3_ENDPOINT", "http://127.0.0.1:9000"))
+os.environ["REDIS_URL"] = normalize_url(os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0"))
+
+# Set ENVIRONMENT for pydantic settings
 os.environ["ENVIRONMENT"] = "testing"
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test"
-)
-os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 
 @pytest_asyncio.fixture(scope="function")
