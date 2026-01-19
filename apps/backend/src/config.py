@@ -62,7 +62,9 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = Field(default="dev_secret_key_change_in_prod", validation_alias="SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(default=60 * 24, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    access_token_expire_minutes: int = Field(
+        default=60 * 24, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES"
+    )
 
     # AI API (empty = AI features disabled)
     openrouter_api_key: str = ""

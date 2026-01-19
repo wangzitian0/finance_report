@@ -21,9 +21,9 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Optional
 
 import redis
+
 from src.config import settings
 
 logger = logging.getLogger(__name__)
