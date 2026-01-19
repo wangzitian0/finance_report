@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 from datetime import date
@@ -83,7 +84,7 @@ class ExtractionService:
         """Validate if a URL is accessible by external services (OpenRouter).
 
         Rejects:
-        - Private IP ranges (10.x, 172.16.x, 192.168.x, 127.x)
+        - Private IP ranges (RFC 1918, RFC 4193, etc.)
         - Localhost names
         - Internal Docker DNS names (e.g., http://minio:9000)
         """
@@ -93,26 +94,28 @@ class ExtractionService:
             if not hostname:
                 return False
 
-            # Reject localhost
-            if hostname in ("localhost", "127.0.0.1", "::1"):
+            # Reject localhost by name
+            if hostname.lower() == "localhost":
                 return False
 
+            # Check if it's an IP address (v4 or v6)
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                    return False
+            except ValueError:
+                # Not an IP address, proceed to hostname checks
+                pass
+
             # Reject common internal Docker/Kubernetes service names
-            # Logic: If it doesn't have a dot (e.g. "minio", "postgres"), it's likely internal
+            # Heuristic: If it has no dots, it's likely an internal service discovery name
             if "." not in hostname:
                 return False
 
-            # Simple IP check (not exhaustive, but covers common private ranges)
-            # 10.0.0.0/8
-            if hostname.startswith("10."):
-                return False
-            # 172.16.0.0/12
-            if hostname.startswith("172."):
-                parts = hostname.split(".")
-                if len(parts) == 4 and 16 <= int(parts[1]) <= 31:
-                    return False
-            # 192.168.0.0/16
-            if hostname.startswith("192.168."):
+            # Specific check for Docker Compose style names if needed,
+            # but the "no dots" check covers most internal cases.
+            docker_suffixes = ("-minio", "-redis", "-postgres", "-backend", "-frontend")
+            if hostname.endswith(docker_suffixes) and "." not in hostname:
                 return False
 
             return True
