@@ -163,24 +163,30 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
     assert exc.value.status_code == 404
 
     with pytest.raises(HTTPException) as exc:
-        await retry_statement_parsing(sid, None, db, uid)
+        from src.schemas import RetryParsingRequest
+        await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
     assert exc.value.status_code == 404
 
     # Retry invalid status
+    from src.models.statement import BankStatementStatus
     statement = BankStatement(
         id=sid,
         user_id=uid,
-        status=BankStatementStatus.PARSING,
+        status=BankStatementStatus.UPLOADED,  # Not in allowed list for retry
         file_path="p",
-        file_hash="h",
+        file_hash="h_err",
         original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
     await db.commit()
-    with pytest.raises(HTTPException) as exc:
-        await retry_statement_parsing(sid, None, db, uid)
-    assert exc.value.status_code == 400
+
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
+        mock_storage = mock_storage_cls.return_value
+        mock_storage.get_object.return_value = b"content"
+        with pytest.raises(HTTPException) as exc:
+            await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
+        assert exc.value.status_code == 400
 
     # Background parsing not found
     session_maker = create_session_maker_from_db(db)
@@ -358,39 +364,25 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
     # 1. StorageError in retry
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
-        mock_storage.generate_presigned_url.side_effect = StorageError("S3 Fail")
+        mock_storage.get_object.side_effect = StorageError("S3 Fail")
 
+        from src.schemas import RetryParsingRequest
         with pytest.raises(HTTPException) as exc:
-            await retry_statement_parsing(sid, None, db, uid)
+            await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
         assert exc.value.status_code == 503
 
     # 2. ExtractionError in retry
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
-        mock_storage.generate_presigned_url.return_value = "http://url"
+        mock_storage.get_object.return_value = b"content"
 
-        from src.services.extraction import ExtractionError
-
-        with patch("src.routers.statements.ExtractionService") as mock_ext_cls:
-            mock_ext = mock_ext_cls.return_value
-            mock_ext.parse_document.side_effect = ExtractionError("Parse Fail")
-
-            with pytest.raises(HTTPException) as exc:
-                await retry_statement_parsing(sid, None, db, uid)
-            assert exc.value.status_code == 422
-
-    # 3. Generic Exception in retry
-    with patch("src.routers.statements.StorageService") as mock_storage_cls:
-        mock_storage = mock_storage_cls.return_value
-        mock_storage.generate_presigned_url.return_value = "http://url"
-
-        with patch("src.routers.statements.ExtractionService") as mock_ext_cls:
-            mock_ext = mock_ext_cls.return_value
-            mock_ext.parse_document.side_effect = Exception("Unknown")
-
-            with pytest.raises(HTTPException) as exc:
-                await retry_statement_parsing(sid, None, db, uid)
-            assert exc.value.status_code == 500
+        # Note: retry now uses background task, so it returns 200/PARSING
+        # unless it fails BEFORE starting the task.
+        # To test pre-task failures, we can mock something earlier.
+        # But wait, retry_statement_parsing now returns 200 if task starts.
+        # Let's adjust expectations.
+        resp = await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
+        assert resp.status == BankStatementStatus.PARSING
 
 
 @pytest.mark.asyncio

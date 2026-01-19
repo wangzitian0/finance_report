@@ -51,6 +51,18 @@ class StatementDecisionRequest(BaseModel):
     notes: str | None = None
 
 
+class RetryParsingRequest(BaseModel):
+    """Request to retry parsing with an optional model override."""
+
+    model: str | None = None
+
+
+class RetryStatementRequest(BaseModel):
+    """Request payload for retrying statement parsing."""
+
+    model: str | None = Field(None, description="Optional model override (e.g. gpt-4o)")
+
+
 class TransactionUpdateRequest(BaseModel):
     """Request to manually correct a transaction."""
 

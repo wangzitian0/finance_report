@@ -147,6 +147,16 @@ class StorageService:
             )
             raise StorageError(f"Failed to generate presigned URL for {key}") from exc
 
+    def get_object(self, key: str) -> bytes:
+        """Download raw object bytes."""
+        self._ensure_bucket()
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=key)
+            return response["Body"].read()
+        except (BotoCoreError, ClientError) as exc:
+            logger.error("Failed to download from S3", bucket=self.bucket, key=key, error=str(exc))
+            raise StorageError(f"Failed to download {key} from {self.bucket}") from exc
+
     def delete_object(self, key: str) -> None:
         """Delete an object from storage."""
         self._ensure_bucket()

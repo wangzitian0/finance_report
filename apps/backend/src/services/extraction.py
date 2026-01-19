@@ -119,7 +119,6 @@ class ExtractionService:
 
             return True
         except Exception:
-            # If parsing fails or any other error occurs, consider the URL invalid/unsafe
             return False
 
     async def parse_document(
@@ -330,12 +329,12 @@ class ExtractionService:
         )
         last_error: ExtractionError | None = None
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            for model in models:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for i, model in enumerate(models):
                 if not model:
                     continue
                 try:
-                    logger.info("Attempting AI extraction", model=model, institution=institution)
+                    logger.info("Attempting AI extraction", model=model, attempt=i+1, total=len(models), institution=institution)
                     response = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers={
@@ -355,10 +354,11 @@ class ExtractionService:
                         error_msg = (
                             f"OpenRouter API error: {response.status_code} - {response.text}"
                         )
-                        logger.error("AI extraction failed", model=model, error=error_msg)
+                        logger.warning("AI extraction model failed", model=model, status=response.status_code)
                         error = ExtractionError(error_msg)
-                        if response.status_code == 429:
-                            raise error
+                        
+                        # Optimization: If we hit 429 on a free model, next models might also fail.
+                        # We still continue but with a warning.
                         last_error = error
                         continue
 

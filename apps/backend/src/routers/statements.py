@@ -25,6 +25,7 @@ from src.schemas import (
     BankStatementResponse,
     BankStatementTransactionListResponse,
     BankStatementTransactionResponse,
+    RetryParsingRequest,
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
@@ -286,11 +287,12 @@ async def upload_statement(
 @router.post("/{statement_id}/retry", response_model=BankStatementResponse)
 async def retry_statement_parsing(
     statement_id: UUID,
-    model: str | None = None,
+    request: RetryParsingRequest | None = None,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ) -> BankStatementResponse:
     """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
+    model_override = request.model if request else None
 
     result = await db.execute(
         select(BankStatement)
@@ -303,13 +305,19 @@ async def retry_statement_parsing(
     if not statement:
         raise HTTPException(404, "Statement not found")
 
-    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.REJECTED):
-        raise HTTPException(400, "Can only retry parsing for parsed or rejected statements")
+    if statement.status not in (
+        BankStatementStatus.PARSED,
+        BankStatementStatus.REJECTED,
+        BankStatementStatus.PARSING,
+    ):
+        raise HTTPException(
+            400, "Can only retry parsing for parsed, rejected, or stuck parsing statements"
+        )
 
     if not settings.fallback_models:
         raise HTTPException(500, "No fallback models are configured for statement parsing")
 
-    selected_model = model or settings.fallback_models[0]
+    selected_model = model_override or settings.fallback_models[0]
     allowed_models = {settings.primary_model} | set(settings.fallback_models)
     if selected_model not in allowed_models:
         try:
@@ -331,59 +339,49 @@ async def retry_statement_parsing(
                 detail="Unable to validate the requested model at this time.",
             ) from e
 
+    # Reset status to PARSING before starting background task
+    statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
+    await db.commit()
+    await db.refresh(statement)
+
+    # Need file content for some vision models if URL fails or for consistency
+    # But retry currently doesn't have the original 'content' bytes in memory.
+    # It must fetch from storage or use URL. 
+    # The _parse_statement_background requires 'content: bytes'.
+    # We'll fetch it from storage now.
     try:
-        service = ExtractionService()
         storage = StorageService()
-        file_url = await run_in_threadpool(
-            storage.generate_presigned_url, key=statement.file_path, public=True
-        )
-        new_statement, new_transactions = await service.parse_document(
-            file_path=Path(statement.original_filename),
+        content = await run_in_threadpool(storage.get_object, statement.file_path)
+    except StorageError as exc:
+        raise HTTPException(503, f"Failed to fetch file from storage: {exc}")
+
+    task = asyncio.create_task(
+        _parse_statement_background(
+            statement_id=statement.id,
+            filename=statement.original_filename,
             institution=statement.institution,
             user_id=user_id,
-            file_type=statement.original_filename.rsplit(".", 1)[-1].lower()
-            if "." in statement.original_filename
-            else "pdf",
             account_id=statement.account_id,
-            file_content=None,
             file_hash=statement.file_hash,
-            file_url=file_url,
-            original_filename=statement.original_filename,
-            force_model=selected_model,
+            storage_key=statement.file_path,
+            content=content,
+            model=selected_model,
+            session_maker=create_session_maker_from_db(db),
+            request_id=structlog.contextvars.get_contextvars().get("request_id"),
         )
+    )
+    _track_task(task)
 
-        for existing_tx in list(statement.transactions):
-            await db.delete(existing_tx)
-        await db.flush()
+    # Re-fetch statement with transactions to avoid MissingGreenlet error during Pydantic validation
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement.id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one()
 
-        statement.transactions = list(new_transactions)
-
-        statement.opening_balance = new_statement.opening_balance
-        statement.closing_balance = new_statement.closing_balance
-        statement.period_start = new_statement.period_start
-        statement.period_end = new_statement.period_end
-        statement.confidence_score = new_statement.confidence_score
-        statement.balance_validated = new_statement.balance_validated
-        statement.validation_error = new_statement.validation_error
-        statement.status = BankStatementStatus.PARSED
-
-        await db.commit()
-
-        result = await db.execute(
-            select(BankStatement)
-            .where(BankStatement.id == statement_id)
-            .options(selectinload(BankStatement.transactions))
-        )
-        statement = result.scalar_one()
-        return BankStatementResponse.model_validate(statement)
-
-    except StorageError:
-        raise HTTPException(503, "Storage service unavailable")
-    except ExtractionError as e:
-        raise HTTPException(422, str(e))
-    except Exception as e:
-        logger.exception("Unexpected error during statement retry")
-        raise HTTPException(500, "Retry failed due to an internal error") from e
+    return BankStatementResponse.model_validate(statement)
 
 
 @router.get("", response_model=BankStatementListResponse)
