@@ -87,6 +87,11 @@ class ExtractionService:
         - Private IP ranges (RFC 1918, RFC 4193, etc.)
         - Localhost names
         - Internal Docker DNS names (e.g., http://minio:9000)
+
+        Returns:
+        - True if the URL appears to be a valid, externally routable URL.
+        - False if the URL is invalid, uses localhost, resolves to a private/loopback/link-local
+          address, or appears to be an internal service name.
         """
         try:
             parsed = urlparse(url)
@@ -112,14 +117,9 @@ class ExtractionService:
             if "." not in hostname:
                 return False
 
-            # Specific check for Docker Compose style names if needed,
-            # but the "no dots" check covers most internal cases.
-            docker_suffixes = ("-minio", "-redis", "-postgres", "-backend", "-frontend")
-            if hostname.endswith(docker_suffixes) and "." not in hostname:
-                return False
-
             return True
         except Exception:
+            # If parsing fails or any other error occurs, consider the URL invalid/unsafe
             return False
 
     async def parse_document(
@@ -291,7 +291,7 @@ class ExtractionService:
                     "url": f"data:{mime_type};base64,{b64_content}",
                 },
             }
-        
+
         # 2. Try URL if no content, but verify it's not internal/localhost
         elif file_url:
             if self._validate_external_url(file_url):
