@@ -18,17 +18,6 @@ from src.schemas.chat import (
     ChatSessionResponse,
     ChatSuggestionsResponse,
 )
-from .extraction import (
-    BankStatementListResponse,
-    BankStatementResponse,
-    BankStatementTransactionListResponse,
-    BankStatementTransactionResponse,
-    BankStatementUploadRequest,
-    RetryParsingRequest,
-    RetryStatementRequest,
-    StatementDecisionRequest,
-    TransactionUpdateRequest,
-)
 from src.schemas.journal import (
     JournalEntryCreate,
     JournalEntryListResponse,
@@ -68,6 +57,18 @@ from src.schemas.user import (
     UserListResponse,
     UserResponse,
     UserUpdate,
+)
+
+from .extraction import (
+    BankStatementListResponse,
+    BankStatementResponse,
+    BankStatementTransactionListResponse,
+    BankStatementTransactionResponse,
+    BankStatementUploadRequest,
+    RetryParsingRequest,
+    RetryStatementRequest,
+    StatementDecisionRequest,
+    TransactionUpdateRequest,
 )
 
 __all__ = [

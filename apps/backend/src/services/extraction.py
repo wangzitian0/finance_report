@@ -334,7 +334,13 @@ class ExtractionService:
                 if not model:
                     continue
                 try:
-                    logger.info("Attempting AI extraction", model=model, attempt=i+1, total=len(models), institution=institution)
+                    logger.info(
+                        "Attempting AI extraction",
+                        model=model,
+                        attempt=i + 1,
+                        total=len(models),
+                        institution=institution,
+                    )
                     response = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers={
@@ -354,7 +360,9 @@ class ExtractionService:
                         error_msg = (
                             f"OpenRouter API error: {response.status_code} - {response.text}"
                         )
-                        logger.warning("AI extraction model failed", model=model, status=response.status_code)
+                        logger.warning(
+                            "AI extraction model failed", model=model, status=response.status_code
+                        )
                         error = ExtractionError(error_msg)
                         
                         # Optimization: If we hit 429 on a free model, next models might also fail.
