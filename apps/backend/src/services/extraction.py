@@ -86,15 +86,6 @@ class ExtractionService:
         Raises ExtractionError if the URL points to a private network address
         that external AI services cannot access.
         """
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        hostname = parsed.hostname or ""
-
-        # Check for localhost variants
-        if hostname in ("localhost", "127.0.0.1", "::1"):
-            raise ExtractionError(f"Cannot send localhost URL to external AI service: {url}")
-
         import ipaddress
         from urllib.parse import urlparse
 
