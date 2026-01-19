@@ -38,6 +38,7 @@ class TestPrintLoadedConfig:
             mock_settings.openrouter_api_key = ""
             mock_settings.s3_access_key = "test"
             mock_settings.s3_secret_key = "test"
+            mock_settings.deployment_environment = "development"
 
             print_loaded_config(mock_settings)
 
@@ -62,7 +63,7 @@ class TestPrintLoadedConfig:
         with patch.dict(os.environ, env_vars, clear=False):
             mock_settings = MagicMock()
             mock_settings.debug = True
-            mock_settings.environment = env_vars["ENV"]
+            mock_settings.deployment_environment = env_vars["ENV"]
             for k, v in env_vars.items():
                 setattr(mock_settings, k.lower(), v)
 

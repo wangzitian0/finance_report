@@ -7,7 +7,7 @@ import structlog
 from structlog.stdlib import BoundLogger
 from structlog.types import Processor
 
-from src.config import settings
+from src.config import parse_key_value_pairs, settings
 
 
 def _build_processors() -> list[Processor]:
@@ -27,23 +27,6 @@ def _select_renderer() -> Processor:
     return structlog.processors.JSONRenderer()
 
 
-def _parse_resource_attributes(value: str | None) -> dict[str, str]:
-    if not value:
-        return {}
-
-    attributes: dict[str, str] = {}
-    for item in value.split(","):
-        item = item.strip()
-        if not item or "=" not in item:
-            continue
-        key, raw_value = item.split("=", 1)
-        key = key.strip()
-        raw_value = raw_value.strip()
-        if key and raw_value:
-            attributes[key] = raw_value
-    return attributes
-
-
 def _build_otlp_logs_endpoint(endpoint: str) -> str:
     trimmed = endpoint.rstrip("/")
     if trimmed.endswith("/v1/logs"):
@@ -60,6 +43,7 @@ def _configure_otel_logging() -> None:
         from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
         from opentelemetry.sdk.resources import Resource
+        # OTLP log exporter moved between modules across opentelemetry versions.
         try:
             from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
         except ImportError:
@@ -72,7 +56,7 @@ def _configure_otel_logging() -> None:
         return
 
     resource_attributes = {"service.name": settings.otel_service_name}
-    resource_attributes.update(_parse_resource_attributes(settings.otel_resource_attributes))
+    resource_attributes.update(parse_key_value_pairs(settings.otel_resource_attributes))
     resource = Resource.create(resource_attributes)
 
     provider = LoggerProvider(resource=resource)

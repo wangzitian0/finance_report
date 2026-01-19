@@ -22,7 +22,7 @@ def print_loaded_config(settings) -> None:
     # Safe fields (can display values)
     safe_fields = [
         "debug",
-        "environment",
+        "deployment_environment",
         "base_currency",
         "primary_model",
         "s3_endpoint",
@@ -56,7 +56,7 @@ def print_loaded_config(settings) -> None:
     # Show fields using defaults
     print("\nFields using defaults:")
     env_aliases = {
-        "environment": "ENV",
+        "deployment_environment": "ENV",
     }
     defaults_used = []
     for field in safe_fields:

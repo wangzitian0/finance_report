@@ -21,6 +21,23 @@ def parse_comma_list(value: str | list[str] | None, default: list[str]) -> list[
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def parse_key_value_pairs(value: str | None) -> dict[str, str]:
+    """Parse comma-separated key=value pairs into a dict."""
+    if not value:
+        return {}
+    pairs: dict[str, str] = {}
+    for item in value.split(","):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        key, raw_value = item.split("=", 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if key and raw_value:
+            pairs[key] = raw_value
+    return pairs
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
@@ -78,7 +95,7 @@ class Settings(BaseSettings):
 
     # App settings
     debug: bool = False
-    environment: str = Field(default="development", validation_alias="ENV")
+    deployment_environment: str = Field(default="development", validation_alias="ENV")
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
@@ -114,6 +131,11 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="OTEL_RESOURCE_ATTRIBUTES",
     )
+
+    @property
+    def environment(self) -> str:
+        """Backward-compatible alias for deployment environment."""
+        return self.deployment_environment
 
     @cached_property
     def cors_origins(self) -> list[str]:
