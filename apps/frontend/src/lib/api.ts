@@ -18,7 +18,6 @@ export async function apiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAccessToken();
-  const userId = getUserId();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
@@ -61,7 +60,6 @@ export async function apiUpload<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAccessToken();
-  const userId = getUserId();
   const headers: HeadersInit = {
     // Do NOT set Content-Type for FormData - browser sets it with boundary
     ...(options.headers || {}),

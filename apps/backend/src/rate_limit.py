@@ -97,7 +97,7 @@ class RateLimiter:
 
             request_count = results[2]
 
-            if request_count > self.config.max_requests:
+            if request_count >= self.config.max_requests:
                 # Block the key
                 block_val = str(now + self.config.block_seconds)
                 self._redis.setex(block_key, self.config.block_seconds, block_val)
@@ -117,7 +117,7 @@ class RateLimiter:
                 return False, int(state.blocked_until - now)
 
             window_start = now - self.config.window_seconds
-            state.requests = [ts for ts in state.requests if ts > window_start]
+            state.requests = [ts for ts in state.requests if ts >= window_start]
 
             if len(state.requests) >= self.config.max_requests:
                 state.blocked_until = now + self.config.block_seconds

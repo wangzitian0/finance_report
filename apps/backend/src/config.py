@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     cors_origins_str: str | None = Field(default=None, validation_alias="CORS_ORIGINS")
 
     # CORS origin regex - for dynamic subdomains (PR deployments)
-    cors_origin_regex: str = r"https://report(-pr-[1-9]\d{0,3})?\.zitian\.party"
+    cors_origin_regex: str = r"https://report(-pr-\d+)?\.zitian\.party"
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
