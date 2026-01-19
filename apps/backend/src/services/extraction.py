@@ -80,6 +80,40 @@ class ExtractionService:
         """Wrapper for test compatibility."""
         return compute_confidence_score(extracted, balance_result)
 
+    def _validate_external_url(self, url: str) -> None:
+        """Validate that a URL is publicly accessible (not internal/private).
+
+        Raises ExtractionError if the URL points to a private network address
+        that external AI services cannot access.
+        """
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+
+        # Check for localhost variants
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            raise ExtractionError(
+                f"Cannot send localhost URL to external AI service: {url}"
+            )
+
+        # Check for private network ranges (RFC 1918)
+        private_prefixes = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                            "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+                            "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+                            "172.30.", "172.31.", "192.168.")
+        if any(hostname.startswith(prefix) for prefix in private_prefixes):
+            raise ExtractionError(
+                f"Cannot send private network URL to external AI service: {url}"
+            )
+
+        # Check for Docker-style internal hostnames (contain service names)
+        docker_patterns = ("-minio", "-redis", "-postgres", "-backend", "-frontend")
+        if any(pattern in hostname for pattern in docker_patterns):
+            raise ExtractionError(
+                f"Cannot send internal Docker URL to external AI service: {url}"
+            )
+
     async def parse_document(
         self,
         file_path: Path,
@@ -235,18 +269,23 @@ class ExtractionService:
         }
         mime_type = mime_types.get(file_type, "application/pdf")
 
-        if file_url:
-            media_payload = {
-                "type": "image_url",
-                "image_url": {"url": file_url},
-            }
-        elif file_content:
+        # IMPORTANT: Prefer base64 encoding over presigned URLs
+        # Presigned URLs from internal S3 endpoints (e.g., Docker network addresses)
+        # are inaccessible to external AI services like OpenRouter.
+        if file_content:
             b64_content = base64.b64encode(file_content).decode("utf-8")
             media_payload = {
                 "type": "image_url",
                 "image_url": {
                     "url": f"data:{mime_type};base64,{b64_content}",
                 },
+            }
+        elif file_url:
+            # Validate URL is publicly accessible
+            self._validate_external_url(file_url)
+            media_payload = {
+                "type": "image_url",
+                "image_url": {"url": file_url},
             }
         else:
             raise ExtractionError("Either file_url or file_content is required")
