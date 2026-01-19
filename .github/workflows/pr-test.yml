@@ -266,8 +266,11 @@ jobs:
           echo "Waiting for API readiness at $APP_URL/api/health"
           attempt=1
           while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
-            status=$(curl -sS -o /dev/null -w "%{http_code}" "$APP_URL/api/health" || true)
-            if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+            # Use single quotes for -w to prevent shell expansion of %
+            status=$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL/api/health" || echo "000")
+            
+            # Ensure status is a number before comparison
+            if [[ "$status" =~ ^[0-9]+$ ]] && [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
               echo "API ready (status $status)"
               exit 0
             fi
