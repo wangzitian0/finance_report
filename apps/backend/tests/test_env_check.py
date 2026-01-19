@@ -48,16 +48,21 @@ class TestPrintLoadedConfig:
     def test_debug_mode_no_defaults_prints_none(self, capsys):
         """Test that function prints '(none)' when all env vars are provided (no defaults)."""
         env_vars = {
+            "ENV": "development",
             "DEBUG": "true",
             "BASE_CURRENCY": "USD",
             "PRIMARY_MODEL": "test",
             "S3_ENDPOINT": "http://minio:9000",
             "S3_BUCKET": "test",
             "CORS_ORIGIN_REGEX": ".*",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+            "OTEL_SERVICE_NAME": "finance-report-backend",
+            "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=development",
         }
         with patch.dict(os.environ, env_vars, clear=False):
             mock_settings = MagicMock()
             mock_settings.debug = True
+            mock_settings.environment = env_vars["ENV"]
             for k, v in env_vars.items():
                 setattr(mock_settings, k.lower(), v)
 
