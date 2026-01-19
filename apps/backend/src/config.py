@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
 
     # App settings
+    environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     debug: bool = False
     deployment_environment: str = Field(default="development", validation_alias="ENV")
     base_currency: str = "SGD"

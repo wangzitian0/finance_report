@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 # Use test database from docker-compose
+os.environ["ENVIRONMENT"] = "testing"
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report_test"
 )
