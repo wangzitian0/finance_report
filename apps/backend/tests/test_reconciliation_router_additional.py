@@ -217,6 +217,7 @@ async def test_list_matches_filters_by_status(db: AsyncSession, test_user) -> No
     await db.commit()
 
     from src.routers import reconciliation as reconciliation_router
+
     response = await reconciliation_router.list_matches(
         status=ReconciliationStatusEnum.PENDING_REVIEW,
         limit=50,
@@ -233,6 +234,7 @@ async def test_list_matches_filters_by_status(db: AsyncSession, test_user) -> No
 async def test_load_entry_summaries_empty(db: AsyncSession, test_user) -> None:
     """Test _load_entry_summaries with empty input."""
     from src.routers.reconciliation import _load_entry_summaries
+
     result = await _load_entry_summaries(db, [], test_user.id)
     assert result == {}
 
@@ -240,14 +242,14 @@ async def test_load_entry_summaries_empty(db: AsyncSession, test_user) -> None:
 @pytest.mark.asyncio
 async def test_load_entry_summaries_invalid_uuid(db: AsyncSession, test_user) -> None:
     """Test _load_entry_summaries with invalid UUID strings."""
-    from src.routers.reconciliation import _load_entry_summaries
     from src.models import ReconciliationMatch
-    
+    from src.routers.reconciliation import _load_entry_summaries
+
     match = ReconciliationMatch(
         bank_txn_id=uuid4(),
         journal_entry_ids=["not-a-uuid"],
         match_score=80,
-        status=ReconciliationStatus.PENDING_REVIEW
+        status=ReconciliationStatus.PENDING_REVIEW,
     )
     result = await _load_entry_summaries(db, [match], test_user.id)
     assert result == {}

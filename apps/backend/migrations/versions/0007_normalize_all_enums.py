@@ -81,7 +81,7 @@ def downgrade() -> None:
         ("chat_session_status_enum", "chatsessionstatus"),
         ("chat_message_role_enum", "chatmessagerole"),
     ]
-    
+
     for current_name, old_name in enums_to_revert:
         op.execute(
             f"""

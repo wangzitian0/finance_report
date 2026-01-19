@@ -1,22 +1,25 @@
+from pathlib import Path
+
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from pathlib import Path
 
 # Paths relative to this test file: apps/backend/tests/test_migrations.py
 BACKEND_DIR = Path(__file__).parent.parent
 ALEMBIC_INI_PATH = BACKEND_DIR / "alembic.ini"
 SCRIPT_LOCATION = BACKEND_DIR / "migrations"
 
+
 @pytest.fixture
 def alembic_script():
     """Load the Alembic script directory configuration."""
     if not ALEMBIC_INI_PATH.exists():
         pytest.fail(f"alembic.ini not found at {ALEMBIC_INI_PATH}")
-    
+
     config = Config(str(ALEMBIC_INI_PATH))
     config.set_main_option("script_location", str(SCRIPT_LOCATION))
     return ScriptDirectory.from_config(config)
+
 
 def test_revision_id_length(alembic_script):
     """
@@ -31,6 +34,7 @@ def test_revision_id_length(alembic_script):
             f"Revision ID '{script.revision}' is too long ({len(script.revision)} chars). "
             f"Max allowed is 32 chars to avoid DB truncation errors."
         )
+
 
 def test_single_head(alembic_script):
     """

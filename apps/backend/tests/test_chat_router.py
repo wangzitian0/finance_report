@@ -314,7 +314,7 @@ async def test_chat_history_lists_sessions() -> None:
     # 1. Main result: rows of (ChatSession, count, last_msg_id)
     main_result = MagicMock()
     main_result.all.return_value = [(mock_session, 2, mock_message.id)]
-    
+
     # 2. Last messages bulk result
     msg_result = MagicMock()
     msg_scalars = MagicMock()

@@ -1,6 +1,5 @@
 """Tests for authentication dependency."""
 
-from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -29,7 +28,9 @@ async def test_auth_invalid_token(db_engine):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(
-        transport=transport, base_url="http://test", headers={"Authorization": "Bearer invalid-token"}
+        transport=transport,
+        base_url="http://test",
+        headers={"Authorization": "Bearer invalid-token"},
     ) as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
@@ -65,6 +66,7 @@ async def test_auth_valid_user(client, test_user):
 async def test_get_current_user_id_direct(db, test_user):
     """Directly resolve a valid user from JWT token payload."""
     from src.security import create_access_token
+
     token = create_access_token(data={"sub": str(test_user.id)})
     user_id = await get_current_user_id(token=token, db=db)
     assert user_id == test_user.id
@@ -74,6 +76,7 @@ async def test_get_current_user_id_direct(db, test_user):
 async def test_get_current_user_id_invalid_user_db(db):
     """Database-backed invalid user should raise 401."""
     from src.security import create_access_token
+
     token = create_access_token(data={"sub": str(uuid4())})
     with pytest.raises(HTTPException, match="User not found"):
         await get_current_user_id(token=token, db=db)

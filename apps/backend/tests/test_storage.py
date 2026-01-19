@@ -128,6 +128,8 @@ def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch):
 
 def test_upload_bytes_bucket_access_denied(mock_boto_client):
     """Access denied when checking bucket should surface as StorageError."""
+    StorageService._checked_buckets.clear()
+
     mock_s3 = MagicMock()
     mock_s3.head_bucket.side_effect = ClientError(
         {"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket"
@@ -138,3 +140,73 @@ def test_upload_bytes_bucket_access_denied(mock_boto_client):
     service = StorageService(bucket="test-bucket")
     with pytest.raises(StorageError, match="Failed to access bucket"):
         service.upload_bytes(key="test/key", content=b"content")
+
+
+def test_public_client_init(mock_boto_client, monkeypatch):
+    """Test public client initialization."""
+    from src.services import storage as storage_module
+
+    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
+    monkeypatch.setattr(storage_module.settings, "s3_public_access_key", "pub_key")
+    monkeypatch.setattr(storage_module.settings, "s3_public_secret_key", "pub_secret")
+
+    service = StorageService()
+    assert service.public_client is not None
+    assert mock_boto_client.call_count == 2
+
+    # Verify public client call args
+    call_args = mock_boto_client.call_args_list[1]
+    assert call_args[1]["endpoint_url"] == "https://public.s3"
+    assert call_args[1]["aws_access_key_id"] == "pub_key"
+
+
+def test_generate_presigned_url_public(mock_boto_client, monkeypatch):
+    """Test generating public presigned URL."""
+    from src.services import storage as storage_module
+
+    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
+
+    mock_s3_internal = MagicMock()
+    mock_s3_public = MagicMock()
+    mock_s3_public.generate_presigned_url.return_value = "https://public.s3/test-bucket/test/key"
+
+    # First call is internal, second is public
+    mock_boto_client.side_effect = [mock_s3_internal, mock_s3_public]
+
+    service = StorageService(bucket="test-bucket")
+    url = service.generate_presigned_url(key="test/key", public=True)
+
+    assert url == "https://public.s3/test-bucket/test/key"
+    mock_s3_public.generate_presigned_url.assert_called_once()
+
+    # Internal shouldn't be called for URL generation
+    mock_s3_internal.generate_presigned_url.assert_not_called()
+
+
+def test_public_url_fallback(mock_boto_client, monkeypatch):
+    """Test fallback to internal client when public client is not configured."""
+    from src.services import storage as storage_module
+
+    # Mock logger
+    mock_logger = MagicMock()
+    monkeypatch.setattr(storage_module, "logger", mock_logger)
+
+    # Ensure no public config
+    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", None)
+    StorageService._checked_buckets.clear()
+
+    service = StorageService(bucket="test-bucket")
+
+    # Mock internal client generate_presigned_url
+    service.client.generate_presigned_url.return_value = "https://internal.s3/key"
+
+    url = service.generate_presigned_url(key="test/key", public=True)
+
+    assert url == "https://internal.s3/key"
+
+    # Verify warning was logged
+    mock_logger.warning.assert_called_once()
+    assert "no public S3 client configured" in mock_logger.warning.call_args[0][0]
+
+    service.client.generate_presigned_url.assert_called_once()
+    mock_boto_client.assert_called_once()  # Only internal client should be initialized
