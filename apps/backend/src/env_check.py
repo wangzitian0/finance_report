@@ -22,7 +22,7 @@ def print_loaded_config(settings) -> None:
     # Safe fields (can display values)
     safe_fields = [
         "debug",
-        "deployment_environment",
+        "environment",
         "base_currency",
         "primary_model",
         "s3_endpoint",
@@ -56,7 +56,7 @@ def print_loaded_config(settings) -> None:
     # Show fields using defaults
     print("\nFields using defaults:")
     env_aliases = {
-        "deployment_environment": "ENV",
+        "environment": "ENVIRONMENT",
     }
     defaults_used = []
     for field in safe_fields:
@@ -90,7 +90,12 @@ def check_env_on_startup() -> None:
         if not os.getenv(key):
             missing.append(key)
 
-    if missing and os.getenv("ENV") in ("staging", "production"):
+    is_staging_or_prod = (
+        os.getenv("ENVIRONMENT") in ("staging", "production")
+        or os.getenv("ENV") in ("staging", "production")
+    )
+
+    if missing and is_staging_or_prod:
         print("\n" + "=" * 60)
         print("WARNING: Missing required variables for production")
         print("=" * 60)
@@ -107,7 +112,7 @@ def check_env_on_startup() -> None:
             print("Set STRICT_ENV_CHECK=false to override (not recommended).")
             sys.exit(1)
 
-    is_production_env = os.getenv("ENV") in ("staging", "production")
+    is_production_env = is_staging_or_prod
     has_otel_endpoint = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
     if is_production_env and not has_otel_endpoint:
         print("\n" + "=" * 60)
