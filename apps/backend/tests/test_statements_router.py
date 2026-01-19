@@ -33,6 +33,7 @@ class DummyStorage:
         *,
         key: str,
         expires_in: int | None = None,
+        public: bool = False,
     ) -> str:
         return f"https://example.com/{key}"
 
@@ -223,7 +224,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
     monkeypatch.setattr(
         statements_router.StorageService,
         "generate_presigned_url",
-        lambda self, key=None, expires_in=None: "http://fake.url",
+        lambda self, key=None, expires_in=None, **kwargs: "http://fake.url",
     )
 
     upload_file = make_upload_file("statement.pdf", content)
