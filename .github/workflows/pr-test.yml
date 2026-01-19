@@ -260,26 +260,32 @@ jobs:
       - name: Wait for API readiness
         env:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
-          MAX_ATTEMPTS: 30
-          SLEEP_SECONDS: 5
         run: |
-          echo "Waiting for API readiness at $APP_URL/api/health"
-          attempt=1
-          while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
-            # Use single quotes for -w to prevent shell expansion of %
-            status=$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL/api/health" || echo "000")
-            
-            # Ensure status is a number before comparison
-            if [[ "$status" =~ ^[0-9]+$ ]] && [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
-              echo "API ready (status $status)"
-              exit 0
-            fi
-            echo "Waiting for API... attempt $attempt/$MAX_ATTEMPTS (status $status)"
-            sleep "$SLEEP_SECONDS"
-            attempt=$((attempt + 1))
-          done
-          echo "::error::API not ready after $MAX_ATTEMPTS attempts"
-          exit 1
+          python3 - << 'EOF'
+          import urllib.request
+          import time
+          import os
+          import sys
+
+          url = os.environ["APP_URL"] + "/api/health"
+          print(f"Waiting for API readiness at {url}")
+          
+          for attempt in range(1, 31):
+              try:
+                  with urllib.request.urlopen(url, timeout=5) as response:
+                      status = response.getcode()
+                      if 200 <= status < 400:
+                          print(f"API ready (status {status})")
+                          sys.exit(0)
+              except Exception as e:
+                  status = "Error"
+                  print(f"Attempt {attempt}/30: {e}")
+              
+              time.sleep(5)
+          
+          print("::error::API not ready after 30 attempts")
+          sys.exit(1)
+          EOF
 
       - name: Set up Python
         uses: actions/setup-python@v5
