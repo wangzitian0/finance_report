@@ -62,9 +62,13 @@ from src.schemas.user import (
 from .extraction import (
     BankStatementListResponse,
     BankStatementResponse,
+    BankStatementStatusEnum,
     BankStatementTransactionListResponse,
     BankStatementTransactionResponse,
+    BankStatementTransactionStatusEnum,
     BankStatementUploadRequest,
+    ConfidenceLevelEnum,
+    ParsedStatementPreview,
     RetryParsingRequest,
     RetryStatementRequest,
     StatementDecisionRequest,

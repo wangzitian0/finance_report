@@ -365,8 +365,8 @@ class ExtractionService:
                         )
                         error = ExtractionError(error_msg)
                         
-                        # Optimization: If we hit 429 on a free model, next models might also fail.
-                        # We still continue but with a warning.
+                        # If we hit 429 on a model, continue trying remaining fallback models
+                        # to maximize the chances of successful parsing.
                         last_error = error
                         continue
 

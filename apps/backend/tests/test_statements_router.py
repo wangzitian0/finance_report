@@ -503,6 +503,38 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
 
 
 @pytest.mark.asyncio
+async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, test_user):
+    """Verify that retrying a statement in PARSING status is allowed."""
+    from unittest.mock import patch
+    from uuid import uuid4
+    from src.schemas import RetryParsingRequest
+    sid = uuid4()
+    statement = BankStatement(
+        id=sid,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSING,
+        file_path="p",
+        file_hash="h_parsing",
+        original_filename="f.pdf",
+        institution="DBS",
+    )
+    db.add(statement)
+    await db.commit()
+
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
+        mock_storage = mock_storage_cls.return_value
+        mock_storage.get_object.return_value = b"content"
+
+        resp = await statements_router.retry_statement_parsing(
+            statement_id=sid,
+            request=RetryParsingRequest(model=None),
+            db=db,
+            user_id=test_user.id,
+        )
+        assert resp.status == BankStatementStatus.PARSING
+
+
+@pytest.mark.asyncio
 async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user):
     """Retry parsing with stronger model succeeds."""
     from src.schemas import RetryParsingRequest
@@ -752,7 +784,7 @@ async def test_retry_statement_with_invalid_model(db, test_user, monkeypatch):
         )
     assert exc.value.status_code == 400
 
-    
+
     assert "Invalid model selection" in exc.value.detail
 
 
