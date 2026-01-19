@@ -156,8 +156,8 @@ class Settings(BaseSettings):
         return parse_comma_list(
             self.fallback_models_str,
             [
-                "google/gemini-flash-1.5-8b:free",
-                "mistralai/pixtral-12b:free",
+                "qwen/qwen-2.5-vl-7b-instruct:free",
+                "nvidia/nemotron-nano-12b-v2-vl:free",
             ],
         )
 
