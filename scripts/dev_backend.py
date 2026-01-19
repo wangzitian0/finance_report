@@ -75,9 +75,20 @@ def start_database(compose_cmd: list[str]) -> str | None:
                 check=True,
             )
             print("  ✓ Database ready")
+            
+            # --- 新增：自动运行迁移 ---
+            print("  🚀 Running migrations for development...")
+            subprocess.run(
+                ["uv", "run", "alembic", "upgrade", "head"],
+                cwd=REPO_ROOT / "apps" / "backend",
+                check=True,
+            )
+            print("  ✓ Migrations completed")
+            
             return container_id
         except subprocess.CalledProcessError:
             time.sleep(1)
+
 
     print("  ⚠️  Database may not be ready")
     return container_id
