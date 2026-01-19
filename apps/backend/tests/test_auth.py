@@ -12,89 +12,68 @@ from src.auth import get_current_user_id
 
 @pytest.mark.asyncio
 async def test_auth_missing_header(db_engine):
-    """Test 401 when X-User-Id header is missing."""
+    """Test 401 when Authorization header is missing."""
     from src.main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
-    assert response.json()["detail"] == "Missing X-User-Id header"
+    assert response.json()["detail"] == "Not authenticated"
 
 
 @pytest.mark.asyncio
-async def test_auth_invalid_uuid(db_engine):
-    """Test 401 when X-User-Id is not a valid UUID."""
+async def test_auth_invalid_token(db_engine):
+    """Test 401 when Authorization token is invalid."""
     from src.main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(
-        transport=transport, base_url="http://test", headers={"X-User-Id": "not-a-uuid"}
+        transport=transport, base_url="http://test", headers={"Authorization": "Bearer invalid-token"}
     ) as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid X-User-Id format"
+    assert response.json()["detail"] == "Could not validate credentials"
 
 
 @pytest.mark.asyncio
 async def test_auth_non_existent_user(db_engine):
-    """Test 401 when X-User-Id is a valid UUID but user does not exist."""
+    """Test 401 when JWT is valid but user does not exist."""
     from src.main import app
+    from src.security import create_access_token
 
     transport = ASGITransport(app=app)
     random_uuid = str(uuid4())
+    token = create_access_token(data={"sub": random_uuid})
     async with AsyncClient(
-        transport=transport, base_url="http://test", headers={"X-User-Id": random_uuid}
+        transport=transport, base_url="http://test", headers={"Authorization": f"Bearer {token}"}
     ) as ac:
         response = await ac.get("/accounts")
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid user"
+    assert response.json()["detail"] == "User not found"
 
 
 @pytest.mark.asyncio
 async def test_auth_valid_user(client, test_user):
-    """Test 200 when valid X-User-Id is provided."""
-    # The client fixture already has the valid test_user.id in headers
+    """Test 200 when valid JWT is provided."""
+    # The client fixture already has the valid JWT in headers
     response = await client.get("/accounts")
     assert response.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_get_current_user_id_direct(db, test_user):
-    """Directly resolve a valid user against the database session."""
-    user_id = await get_current_user_id(x_user_id=str(test_user.id), db=db)
+    """Directly resolve a valid user from JWT token payload."""
+    from src.security import create_access_token
+    token = create_access_token(data={"sub": str(test_user.id)})
+    user_id = await get_current_user_id(token=token, db=db)
     assert user_id == test_user.id
 
 
 @pytest.mark.asyncio
 async def test_get_current_user_id_invalid_user_db(db):
     """Database-backed invalid user should raise 401."""
-    with pytest.raises(HTTPException, match="Invalid user"):
-        await get_current_user_id(x_user_id=str(uuid4()), db=db)
-
-
-@pytest.mark.asyncio
-async def test_get_current_user_id_valid_user_mock():
-    """Directly exercise dependency with a valid user result."""
-    user_id = uuid4()
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = user_id
-    db = AsyncMock()
-    db.execute.return_value = mock_result
-
-    resolved = await get_current_user_id(x_user_id=str(user_id), db=db)
-    assert resolved == user_id
-
-
-@pytest.mark.asyncio
-async def test_get_current_user_id_invalid_user_mock():
-    """Directly exercise dependency with a missing user result."""
-    user_id = uuid4()
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
-    db = AsyncMock()
-    db.execute.return_value = mock_result
-
-    with pytest.raises(HTTPException) as excinfo:
-        await get_current_user_id(x_user_id=str(user_id), db=db)
-    assert excinfo.value.status_code == 401
+    from src.security import create_access_token
+    token = create_access_token(data={"sub": str(uuid4())})
+    with pytest.raises(HTTPException, match="User not found"):
+        await get_current_user_id(token=token, db=db)

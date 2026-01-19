@@ -1,4 +1,4 @@
-import { getUserId } from "./auth";
+import { getAccessToken, getUserId } from "./auth";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
@@ -17,14 +17,14 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const userId = getUserId();
+  const token = getAccessToken();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
 
-  if (userId) {
-    (headers as Record<string, string>)["X-User-Id"] = userId;
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -59,14 +59,14 @@ export async function apiUpload<T>(
   formData: FormData,
   options: RequestInit = {}
 ): Promise<T> {
-  const userId = getUserId();
+  const token = getAccessToken();
   const headers: HeadersInit = {
     // Do NOT set Content-Type for FormData - browser sets it with boundary
     ...(options.headers || {}),
   };
 
-  if (userId) {
-    (headers as Record<string, string>)["X-User-Id"] = userId;
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_URL}${path}`, {

@@ -21,6 +21,7 @@ from src.database import get_db, init_db
 from src.env_check import check_env_on_startup, print_loaded_config
 from src.logger import configure_logging, get_logger
 from src.models import PingState
+from src.rate_limit import auth_rate_limiter, register_rate_limiter
 from src.routers import accounts, ai_models, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
@@ -45,6 +46,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     stop_event.set()
     supervisor_task.cancel()
+
+    # Close rate limiters (Redis connections)
+    auth_rate_limiter.close()
+    register_rate_limiter.close()
+
     with suppress(asyncio.CancelledError):
         await supervisor_task
     logger.info("Application shutting down")

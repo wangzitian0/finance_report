@@ -18,7 +18,8 @@ async def test_register_success(public_client):
     assert data["email"] == "newuser@example.com"
     assert data["name"] == "New User"
     assert "id" in data
-    assert "created_at" in data
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
 
 
 @pytest.mark.asyncio
@@ -52,6 +53,8 @@ async def test_login_success(db: AsyncSession, public_client):
     data = response.json()
     assert data["email"] == "loginuser@example.com"
     assert data["id"] == str(user.id)
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
 
 
 @pytest.mark.asyncio
@@ -91,15 +94,15 @@ async def test_get_me_success(client, test_user):
 
 @pytest.mark.asyncio
 async def test_get_me_user_not_found(public_client):
-    """Test /auth/me with non-existent user ID returns 401.
+    """Test /auth/me with non-existent user ID returns 401."""
+    from src.security import create_access_token
 
-    Note: The get_current_user_id dependency validates user existence
-    and returns 401, so the router handler 404 path is never reached.
-    """
     # Use a random UUID that doesn't exist in DB
-    headers = {"X-User-Id": "00000000-0000-0000-0000-000000000000"}
+    user_id = "00000000-0000-0000-0000-000000000000"
+    token = create_access_token(data={"sub": user_id})
+    headers = {"Authorization": f"Bearer {token}"}
     response = await public_client.get("/auth/me", headers=headers)
 
     # Dependency returns 401 for non-existent user
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid user"
+    assert response.json()["detail"] == "User not found"
