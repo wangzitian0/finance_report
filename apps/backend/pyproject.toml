@@ -19,6 +19,7 @@ dependencies = [
     "pyyaml>=6.0.1",
     "passlib[bcrypt]>=1.7.4",
     "psycopg2-binary>=2.9.9",
+    "structlog>=25.5.0",
 ]
 
 [dependency-groups]

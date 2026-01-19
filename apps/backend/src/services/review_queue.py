@@ -1,6 +1,5 @@
 """Review queue management for reconciliation."""
 
-import logging
 from decimal import Decimal
 from uuid import UUID
 
@@ -8,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.logger import get_logger
 from src.models import (
     Account,
     AccountType,
@@ -159,7 +159,7 @@ async def reject_match(
     return match
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def batch_accept(

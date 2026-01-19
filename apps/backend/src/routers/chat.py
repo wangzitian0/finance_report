@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user_id
 from src.database import get_db
+from src.logger import get_logger
 from src.models import ChatMessage, ChatSession, ChatSessionStatus
 from src.schemas.chat import (
     ChatHistoryResponse,
@@ -26,7 +26,7 @@ from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_lan
 from src.services.openrouter_models import is_model_known
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.post("", response_class=StreamingResponse)
@@ -44,7 +44,7 @@ async def chat_message(
             try:
                 allowed = await is_model_known(payload.model)
             except Exception as e:
-                logger.error("Failed to validate model %s: %s", payload.model, e)
+                logger.error("Failed to validate model", model=payload.model, error=str(e))
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Unable to validate requested model at this time.",

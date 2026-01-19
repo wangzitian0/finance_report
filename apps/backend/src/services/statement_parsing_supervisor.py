@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
+from src.logger import get_logger
 from src.models import BankStatement, BankStatementStatus
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 PARSING_STALE_THRESHOLD = timedelta(minutes=30)
 PARSING_SUPERVISOR_INTERVAL_SECONDS = 300
@@ -49,7 +49,7 @@ async def run_parsing_supervisor(stop_event: asyncio.Event) -> None:
         try:
             count = await reset_stale_parsing_jobs()
             if count:
-                logger.warning("Reset %s stale parsing statements", count)
+                logger.warning("Reset stale parsing statements", count=count)
         except Exception:
             logger.exception("Failed to reset stale parsing statements")
 

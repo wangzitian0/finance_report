@@ -36,6 +36,9 @@ class DummyStorage:
     ) -> str:
         return f"https://example.com/{key}"
 
+    def delete_object(self, key: str) -> None:
+        return None
+
 
 @pytest.fixture
 def storage_stub(monkeypatch: pytest.MonkeyPatch) -> None:
