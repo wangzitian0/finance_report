@@ -96,7 +96,6 @@ class Settings(BaseSettings):
     # App settings
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     debug: bool = False
-    deployment_environment: str = Field(default="development", validation_alias="ENV")
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
@@ -132,11 +131,6 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="OTEL_RESOURCE_ATTRIBUTES",
     )
-
-    @property
-    def environment(self) -> str:
-        """Backward-compatible alias for deployment environment."""
-        return self.deployment_environment
 
     @cached_property
     def cors_origins(self) -> list[str]:
