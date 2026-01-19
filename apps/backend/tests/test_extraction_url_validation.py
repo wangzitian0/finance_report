@@ -22,17 +22,17 @@ class TestValidateExternalUrl:
 
     def test_private_10_network_rejected(self, service):
         """10.x.x.x URLs should be rejected."""
-        with pytest.raises(ExtractionError, match="private network URL"):
+        with pytest.raises(ExtractionError, match="private network IP"):
             service._validate_external_url("http://10.0.1.35:9000/file.pdf")
 
     def test_private_172_network_rejected(self, service):
         """172.16-31.x.x URLs should be rejected."""
-        with pytest.raises(ExtractionError, match="private network URL"):
+        with pytest.raises(ExtractionError, match="private network IP"):
             service._validate_external_url("http://172.17.0.1:9000/file.pdf")
 
     def test_private_192_168_rejected(self, service):
         """192.168.x.x URLs should be rejected."""
-        with pytest.raises(ExtractionError, match="private network URL"):
+        with pytest.raises(ExtractionError, match="private network IP"):
             service._validate_external_url("http://192.168.1.100:9000/file.pdf")
 
     def test_docker_minio_hostname_rejected(self, service):

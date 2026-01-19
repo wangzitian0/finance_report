@@ -97,17 +97,31 @@ class ExtractionService:
                 f"Cannot send localhost URL to external AI service: {url}"
             )
 
-        # Check for private network ranges (RFC 1918)
-        private_prefixes = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
-                            "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
-                            "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-                            "172.30.", "172.31.", "192.168.")
-        if any(hostname.startswith(prefix) for prefix in private_prefixes):
+        from urllib.parse import urlparse
+        import ipaddress
+
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+
+        # Check for localhost variants
+        if hostname in ("localhost", "127.0.0.1", "::1"):
             raise ExtractionError(
-                f"Cannot send private network URL to external AI service: {url}"
+                f"Cannot send localhost URL to external AI service: {url}"
             )
 
+        # Check for private network ranges and loopback using ipaddress
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                raise ExtractionError(
+                    f"Cannot send private network IP to external AI service: {url}"
+                )
+        except ValueError:
+            # Hostname is not an IP address, proceed to check pattern
+            pass
+
         # Check for Docker-style internal hostnames (contain service names)
+        # This is a heuristic for internal service discovery names
         docker_patterns = ("-minio", "-redis", "-postgres", "-backend", "-frontend")
         if any(pattern in hostname for pattern in docker_patterns):
             raise ExtractionError(

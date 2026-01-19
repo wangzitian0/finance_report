@@ -128,6 +128,8 @@ def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch):
 
 def test_upload_bytes_bucket_access_denied(mock_boto_client):
     """Access denied when checking bucket should surface as StorageError."""
+    StorageService._checked_buckets.clear()
+    
     mock_s3 = MagicMock()
     mock_s3.head_bucket.side_effect = ClientError(
         {"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket"
@@ -167,16 +169,45 @@ def test_generate_presigned_url_public(mock_boto_client, monkeypatch):
     
     mock_s3_internal = MagicMock()
     mock_s3_public = MagicMock()
-    mock_s3_public.generate_presigned_url.return_value = "https://public.s3/signed"
+    mock_s3_public.generate_presigned_url.return_value = "https://public.s3/test-bucket/test/key"
     
     # First call is internal, second is public
     mock_boto_client.side_effect = [mock_s3_internal, mock_s3_public]
 
-    service = StorageService()
-    url = service.generate_presigned_url(key="test.pdf", public=True)
+    service = StorageService(bucket="test-bucket")
+    url = service.generate_presigned_url(key="test/key", public=True)
 
-    assert url == "https://public.s3/signed"
+    assert url == "https://public.s3/test-bucket/test/key"
     mock_s3_public.generate_presigned_url.assert_called_once()
     
     # Internal shouldn't be called for URL generation
     mock_s3_internal.generate_presigned_url.assert_not_called()
+
+
+def test_public_url_fallback(mock_boto_client, monkeypatch):
+    """Test fallback to internal client when public client is not configured."""
+    from src.services import storage as storage_module
+    
+    # Mock logger
+    mock_logger = MagicMock()
+    monkeypatch.setattr(storage_module, "logger", mock_logger)
+
+    # Ensure no public config
+    monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", None)
+    StorageService._checked_buckets.clear()
+
+    service = StorageService(bucket="test-bucket")
+    
+    # Mock internal client generate_presigned_url
+    service.client.generate_presigned_url.return_value = "https://internal.s3/key"
+
+    url = service.generate_presigned_url(key="test/key", public=True)
+    
+    assert url == "https://internal.s3/key"
+    
+    # Verify warning was logged
+    mock_logger.warning.assert_called_once()
+    assert "no public S3 client configured" in mock_logger.warning.call_args[0][0]
+    
+    service.client.generate_presigned_url.assert_called_once()
+    mock_boto_client.assert_called_once() # Only internal client should be initialized
