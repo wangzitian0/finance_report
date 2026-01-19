@@ -270,6 +270,9 @@ class ExtractionService:
         mime_type = mime_types.get(file_type, "application/pdf")
 
         if file_url:
+            # Validate URL before sending to external service
+            self._validate_external_url(file_url)
+            
             # When using file_url, we trust it's already a public URL generated
             # with public=True flag or otherwise accessible.
             media_payload = {

@@ -136,7 +136,6 @@ def test_upload_bytes_bucket_access_denied(mock_boto_client):
     StorageService._checked_buckets.clear()
 
     service = StorageService(bucket="test-bucket")
-    service = StorageService(bucket="test-bucket")
     with pytest.raises(StorageError, match="Failed to access bucket"):
         service.upload_bytes(key="test/key", content=b"content")
 
