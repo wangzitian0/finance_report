@@ -67,16 +67,17 @@ async def test_get_me_returns_user(db: AsyncSession) -> None:
     await db.commit()
     await db.refresh(user)
 
-    response = await get_me(user_id=user.id, db=db)
+    response = await get_me(user_id=user.id, token="dummy-token", db=db)
 
     assert response.id == user.id
     assert response.email == user.email
+    assert response.access_token == "dummy-token"
 
 
 @pytest.mark.asyncio
 async def test_get_me_missing_user_raises(db: AsyncSession) -> None:
     with pytest.raises(HTTPException, match="User not found"):
-        await get_me(user_id=uuid4(), db=db)
+        await get_me(user_id=uuid4(), token="dummy-token", db=db)
 
 
 @pytest.mark.asyncio
