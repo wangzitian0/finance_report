@@ -1,13 +1,13 @@
-"""Document extraction service using OpenRouter vision models."""
-
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
@@ -80,38 +80,47 @@ class ExtractionService:
         """Wrapper for test compatibility."""
         return compute_confidence_score(extracted, balance_result)
 
-    def _validate_external_url(self, url: str) -> None:
-        """Validate that a URL is publicly accessible (not internal/private).
+    def _validate_external_url(self, url: str) -> bool:
+        """Validate if a URL is accessible by external services (OpenRouter).
 
-        Raises ExtractionError if the URL points to a private network address
-        that external AI services cannot access.
+        Rejects:
+        - Private IP ranges (RFC 1918, RFC 4193, etc.)
+        - Localhost names
+        - Internal Docker DNS names (e.g., http://minio:9000)
+
+        Returns:
+        - True if the URL appears to be a valid, externally routable URL.
+        - False if the URL is invalid, uses localhost, resolves to a private/loopback/link-local
+          address, or appears to be an internal service name.
         """
-        import ipaddress
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        hostname = parsed.hostname or ""
-
-        # Check for localhost variants
-        if hostname in ("localhost", "127.0.0.1", "::1"):
-            raise ExtractionError(f"Cannot send localhost URL to external AI service: {url}")
-
-        # Check for private network ranges and loopback using ipaddress
         try:
-            ip = ipaddress.ip_address(hostname)
-            if ip.is_private or ip.is_loopback or ip.is_link_local:
-                raise ExtractionError(
-                    f"Cannot send private network IP to external AI service: {url}"
-                )
-        except ValueError:
-            # Hostname is not an IP address, proceed to check pattern
-            pass
+            parsed = urlparse(url)
+            hostname = parsed.hostname
+            if not hostname:
+                return False
 
-        # Check for Docker-style internal hostnames (contain service names)
-        # This is a heuristic for internal service discovery names
-        docker_patterns = ("-minio", "-redis", "-postgres", "-backend", "-frontend")
-        if any(pattern in hostname for pattern in docker_patterns):
-            raise ExtractionError(f"Cannot send internal Docker URL to external AI service: {url}")
+            # Reject localhost by name
+            if hostname.lower() == "localhost":
+                return False
+
+            # Check if it's an IP address (v4 or v6)
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                    return False
+            except ValueError:
+                # Not an IP address, proceed to hostname checks
+                pass
+
+            # Reject common internal Docker/Kubernetes service names
+            # Heuristic: If it has no dots, it's likely an internal service discovery name
+            if "." not in hostname:
+                return False
+
+            return True
+        except Exception:
+            # If parsing fails or any other error occurs, consider the URL invalid/unsafe
+            return False
 
     async def parse_document(
         self,
@@ -268,19 +277,13 @@ class ExtractionService:
         }
         mime_type = mime_types.get(file_type, "application/pdf")
 
-        if file_url:
-            # Validate URL before sending to external service
-            self._validate_external_url(file_url)
+        # FIX: OpenRouter/LLM services often cannot access presigned URLs generated
+        # in private networks (e.g. Docker internal or localhost).
+        # We prefer base64 encoding (file_content) if available to avoid this 400 error.
+        media_payload = None
 
-            # When using file_url, we trust it's already a public URL generated
-            # with public=True flag or otherwise accessible.
-            media_payload = {
-                "type": "image_url",
-                "image_url": {"url": file_url},
-            }
-        elif file_content:
-            # Fallback to base64 if no URL is provided, but typically we expect a URL
-            # for better performance with modern vision models
+        # 1. Try base64 content first (most reliable for internal deployments)
+        if file_content:
             b64_content = base64.b64encode(file_content).decode("utf-8")
             media_payload = {
                 "type": "image_url",
@@ -288,8 +291,22 @@ class ExtractionService:
                     "url": f"data:{mime_type};base64,{b64_content}",
                 },
             }
-        else:
-            raise ExtractionError("Either file_url or file_content is required")
+
+        # 2. Try URL if no content, but verify it's not internal/localhost
+        elif file_url:
+            if self._validate_external_url(file_url):
+                media_payload = {
+                    "type": "image_url",
+                    "image_url": {"url": file_url},
+                }
+            else:
+                logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
+        
+        if not media_payload:
+            raise ExtractionError(
+                "No valid file content or accessible URL provided for AI extraction. "
+                "Ensure file content is uploaded or URL is public."
+            )
 
         # Build request
         prompt = get_parsing_prompt(institution)
