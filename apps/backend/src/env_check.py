@@ -107,7 +107,9 @@ def check_env_on_startup() -> None:
             print("Set STRICT_ENV_CHECK=false to override (not recommended).")
             sys.exit(1)
 
-    if os.getenv("ENV") in ("staging", "production") and not os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+    is_production_env = os.getenv("ENV") in ("staging", "production")
+    has_otel_endpoint = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+    if is_production_env and not has_otel_endpoint:
         print("\n" + "=" * 60)
         print("WARNING: SigNoz log export is disabled")
         print("=" * 60)
