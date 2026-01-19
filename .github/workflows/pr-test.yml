@@ -1,8 +1,4 @@
-# PR Test Environment Workflow
-#
-# Triggers:
-#   - PR opened/synchronized: Build → Create compose → Deploy
-#   - PR closed: Stop → Delete compose
+# PR Test Environment Workflow - Triggered by PR events
 #
 # Each PR gets an isolated environment with its own DB/Redis/MinIO.
 # Uses docker-compose.yml from this repo (not infra2).
@@ -43,10 +39,12 @@ jobs:
       compose_name: ${{ steps.info.outputs.compose_name }}
       pr_number: ${{ steps.info.outputs.pr_number }}
       action: ${{ steps.info.outputs.action }}
+      internal_domain: ${{ steps.info.outputs.internal_domain }}
     steps:
       - name: Determine Params
         id: info
         run: |
+          echo "internal_domain=${{ env.INTERNAL_DOMAIN }}" >> $GITHUB_OUTPUT
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})"
             echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
@@ -72,12 +70,43 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    environment:
-      name: pr-${{ github.event.pull_request.number }}
-      url: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:pr-${{ needs.setup.outputs.pr_number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:pr-${{ needs.setup.outputs.pr_number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}/api
+            NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
 
       - name: Check if compose exists
         id: check
@@ -100,16 +129,19 @@ jobs:
       - name: Create compose
         if: steps.check.outputs.exists != 'true'
         id: create
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BRANCH_NAME: ${{ github.head_ref }}
         run: |
           # Create new compose
           response=$(curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.create" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d '{
-              "name": "${{ needs.setup.outputs.compose_name }}",
-              "description": "PR #${{ needs.setup.outputs.pr_number }}: ${{ github.event.pull_request.title }}",
-              "environmentId": "${{ env.TEST_ENV_ID }}"
-            }')
+            -d "{
+              \"name\": \"${{ needs.setup.outputs.compose_name }}\",
+              \"description\": \"PR #${{ needs.setup.outputs.pr_number }}: $PR_TITLE\",
+              \"environmentId\": \"${{ env.TEST_ENV_ID }}\" 
+            }")
           
           compose_id=$(echo "$response" | jq -r '.composeId')
           echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
@@ -124,7 +156,7 @@ jobs:
               "sourceType": "github",
               "repository": "finance_report",
               "owner": "wangzitian0",
-              "branch": "${{ github.head_ref }}",
+              "branch": "'"$BRANCH_NAME"'",
               "composePath": "docker-compose.yml",
               "githubId": "${{ env.GITHUB_INTEGRATION_ID }}"
             }'
@@ -141,25 +173,36 @@ jobs:
       - name: Configure environment variables
         run: |
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
+          PR_NUMBER="${{ needs.setup.outputs.pr_number }}"
+          DOMAIN="${{ needs.setup.outputs.internal_domain }}"
           
-          # Set environment variables for Dokploy
-          env_vars="ENV_SUFFIX=-pr-${{ needs.setup.outputs.pr_number }}
-          ENV_DOMAIN_SUFFIX=-pr-${{ needs.setup.outputs.pr_number }}
-          INTERNAL_DOMAIN=${{ env.INTERNAL_DOMAIN }}
-          TRAEFIK_ENABLE=true
-          NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}
-          NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}
-          DEBUG=true
-          POSTGRES_PORT=0
-          REDIS_PORT=0
-          MINIO_API_PORT=0
-          MINIO_CONSOLE_PORT=0
-          OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
+          # Construct environment variables in a temporary file to avoid indentation issues
+          echo "REGISTRY=${{ env.REGISTRY }}" > .env.dokploy
+          echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}" >> .env.dokploy
+          echo "IMAGE_TAG=pr-$PR_NUMBER" >> .env.dokploy
+          echo "ENV_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
+          echo "ENV_DOMAIN_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
+          echo "INTERNAL_DOMAIN=$DOMAIN" >> .env.dokploy
+          echo "TRAEFIK_ENABLE=true" >> .env.dokploy
+          echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN/api" >> .env.dokploy
+          echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
+          echo "DEBUG=true" >> .env.dokploy
+          echo "POSTGRES_PORT=0" >> .env.dokploy
+          echo "REDIS_PORT=0" >> .env.dokploy
+          echo "MINIO_API_PORT=0" >> .env.dokploy
+          echo "MINIO_CONSOLE_PORT=0" >> .env.dokploy
+          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> .env.dokploy
+          
+          ENV_CONTENT=$(cat .env.dokploy)
+          
+          # Send to Dokploy
+          # Use --arg properly without extra escaping that breaks shell/jq boundary
+          PAYLOAD=$(jq -n --arg id "$COMPOSE_ID" --arg env "$ENV_CONTENT" '{composeId: $id, env: $env}')
           
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "$COMPOSE_ID" --arg env "$env_vars" '{composeId: $id, env: $env}')"
+            -d "$PAYLOAD"
           
           echo "Environment variables configured"
 
@@ -182,8 +225,8 @@ jobs:
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
           
-          echo "Deployment triggered. Waiting 90s for containers..."
-          sleep 90
+          echo "Deployment triggered. Waiting 120s for containers..."
+          sleep 120
 
       - name: Validate Compose Status
         env:
@@ -212,31 +255,41 @@ jobs:
             echo "::warning::Unexpected compose status: $status"
           fi
 
-      - name: Health Check
-        id: health_check
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Test Dependencies
         run: |
-          BASE_URL="https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}"
-          echo "Running health check on $BASE_URL..."
+          python -m pip install --upgrade pip
+          pip install httpx pytest pytest-asyncio pytest-playwright
+          npx playwright install chromium --with-deps
+
+      - name: End-to-End Tests
+        id: e2e_tests
+        env:
+          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          TEST_ENV: staging
+          SKIP_UI_TESTS: false
+        run: |
+          echo "🚀 Starting E2E Pipeline for $APP_URL"
           
-          for i in {1..10}; do
-            if curl -sf "$BASE_URL/api/health" > /dev/null; then
-              echo "✅ Health check passed!"
-              echo "healthy=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            echo "Attempt $i/10 failed, waiting 10s..."
-            sleep 10
-          done
+          echo "--- Phase 1: Smoke Check (Shell) ---"
+          bash scripts/smoke_test.sh "$APP_URL" staging
           
-          echo "::error::Health check failed after 10 attempts"
-          echo "healthy=false" >> $GITHUB_OUTPUT
-          exit 1
+          echo "--- Phase 2: Core Flow Validation (Python) ---"
+          pytest tests/e2e -v -m "smoke or e2e"
+          
+          echo "✅ E2E Pipeline passed!"
 
       - name: Comment on PR
         uses: actions/github-script@v7
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         with:
           script: |
-            const url = `https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ env.INTERNAL_DOMAIN }}`;
+            const url = `https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}`;
             const body = `## 🧪 Test Environment Deployed
             
             | Service | URL |
@@ -246,7 +299,7 @@ jobs:
             
             **Details:**
             - Compose: \`${{ needs.setup.outputs.compose_name }}\`
-            - Branch: \`${{ github.head_ref }}\`
+            - Branch: \`${process.env.HEAD_REF}\`
             - Commit: \`${{ github.sha }}\`
             
             > ⏳ First deployment may take 3-5 minutes for build + SSL certificate.
