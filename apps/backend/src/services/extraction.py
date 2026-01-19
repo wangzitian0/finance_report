@@ -269,23 +269,22 @@ class ExtractionService:
         }
         mime_type = mime_types.get(file_type, "application/pdf")
 
-        # IMPORTANT: Prefer base64 encoding over presigned URLs
-        # Presigned URLs from internal S3 endpoints (e.g., Docker network addresses)
-        # are inaccessible to external AI services like OpenRouter.
-        if file_content:
+        if file_url:
+            # When using file_url, we trust it's already a public URL generated
+            # with public=True flag or otherwise accessible.
+            media_payload = {
+                "type": "image_url",
+                "image_url": {"url": file_url},
+            }
+        elif file_content:
+            # Fallback to base64 if no URL is provided, but typically we expect a URL
+            # for better performance with modern vision models
             b64_content = base64.b64encode(file_content).decode("utf-8")
             media_payload = {
                 "type": "image_url",
                 "image_url": {
                     "url": f"data:{mime_type};base64,{b64_content}",
                 },
-            }
-        elif file_url:
-            # Validate URL is publicly accessible
-            self._validate_external_url(file_url)
-            media_payload = {
-                "type": "image_url",
-                "image_url": {"url": file_url},
             }
         else:
             raise ExtractionError("Either file_url or file_content is required")

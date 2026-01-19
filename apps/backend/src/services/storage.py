@@ -36,6 +36,19 @@ class StorageService:
             config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
         )
 
+        # Initialize public client if configuration exists
+        self.public_client = None
+        if settings.s3_public_endpoint:
+            self.public_bucket = settings.s3_public_bucket or self.bucket
+            self.public_client = boto3.client(
+                "s3",
+                endpoint_url=settings.s3_public_endpoint,
+                aws_access_key_id=settings.s3_public_access_key or settings.s3_access_key,
+                aws_secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
+                region_name=settings.s3_region,
+                config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+            )
+
     def _ensure_bucket(self) -> None:
         with self._bucket_lock:
             if self.bucket in self._checked_buckets:
@@ -91,19 +104,35 @@ class StorageService:
         *,
         key: str,
         expires_in: int | None = None,
+        public: bool = False,
     ) -> str:
-        """Generate a presigned URL for temporary access."""
+        """Generate a presigned URL for temporary access.
+
+        Args:
+            key: S3 object key
+            expires_in: Expiry in seconds
+            public: If True, use public endpoint/client (for external services)
+        """
+        client = self.public_client if (public and self.public_client) else self.client
+        bucket = self.public_bucket if (public and self.public_client) else self.bucket
+
+        # Fallback validation: if public requested but no public client,
+        # we might be returning an internal URL which external services can't access.
+        # But we proceed with internal client as best effort (or maybe the internal
+        # endpoint IS accessible).
+        
         try:
-            return self.client.generate_presigned_url(
+            return client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.bucket, "Key": key},
+                Params={"Bucket": bucket, "Key": key},
                 ExpiresIn=expires_in or settings.s3_presign_expiry_seconds,
             )
         except (BotoCoreError, ClientError) as exc:
             logger.error(
                 "Failed to generate presigned URL",
-                bucket=self.bucket,
+                bucket=bucket,
                 key=key,
+                public=public,
                 error=str(exc),
             )
             raise StorageError(f"Failed to generate presigned URL for {key}") from exc

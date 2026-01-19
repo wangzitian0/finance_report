@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     s3_secret_key: str = Field(default="minio_local_secret", validation_alias="S3_SECRET_KEY")
     s3_bucket: str = "statements"
 
+    # S3 / MinIO public access (for external AI services)
+    # If not set, falls back to internal S3 settings
+    s3_public_endpoint: str | None = Field(default=None, validation_alias="S3_PUBLIC_ENDPOINT")
+    s3_public_access_key: str | None = Field(default=None, validation_alias="S3_PUBLIC_ACCESS_KEY")
+    s3_public_secret_key: str | None = Field(default=None, validation_alias="S3_PUBLIC_SECRET_KEY")
+    s3_public_bucket: str | None = Field(default=None, validation_alias="S3_PUBLIC_BUCKET")
+
     # ================================================================
     # OPTIONAL - have sensible defaults, rarely need override
     # ================================================================
