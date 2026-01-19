@@ -78,8 +78,36 @@ check_endpoint() {
     return 1
 }
 
+# Wait for app/API to become reachable before running checks
+wait_for_endpoint() {
+    local name="$1"
+    local url="$2"
+    local max_attempts="${SMOKE_READY_ATTEMPTS:-30}"
+    local sleep_seconds="${SMOKE_READY_SLEEP_SECONDS:-5}"
+    local attempt=1
+
+    while [ "$attempt" -le "$max_attempts" ]; do
+        local http_code="000"
+        http_code="$(curl -sS -o /dev/null -w "%{http_code}" "$url" || true)"
+        if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
+            echo "✓ Ready: $name ($http_code)"
+            return 0
+        fi
+        echo "Waiting for $name ($url) - attempt $attempt/$max_attempts (status $http_code)..."
+        sleep "$sleep_seconds"
+        attempt=$((attempt + 1))
+    done
+
+    echo "✗ Timed out waiting for $name ($url)"
+    return 1
+}
+
 # Run tests
 FAILED=0
+
+# --- Readiness Check ---
+echo "--- Readiness Check ---"
+wait_for_endpoint "API Health" "$BASE_URL/api/health" || FAILED=1
 
 # --- Read-Only Checks (All Modes) ---
 echo "--- Read-Only Checks ---"

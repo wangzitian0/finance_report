@@ -21,6 +21,23 @@ def parse_comma_list(value: str | list[str] | None, default: list[str]) -> list[
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def parse_key_value_pairs(value: str | None) -> dict[str, str]:
+    """Parse comma-separated key=value pairs into a dict."""
+    if not value:
+        return {}
+    pairs: dict[str, str] = {}
+    for item in value.split(","):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        key, raw_value = item.split("=", 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if key and raw_value:
+            pairs[key] = raw_value
+    return pairs
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
@@ -78,6 +95,7 @@ class Settings(BaseSettings):
 
     # App settings
     debug: bool = False
+    deployment_environment: str = Field(default="development", validation_alias="ENV")
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
@@ -99,6 +117,25 @@ class Settings(BaseSettings):
     # S3 optional settings
     s3_region: str = "us-east-1"
     s3_presign_expiry_seconds: int = 900
+
+    # Observability (optional)
+    otel_exporter_otlp_endpoint: str | None = Field(
+        default=None,
+        validation_alias="OTEL_EXPORTER_OTLP_ENDPOINT",
+    )
+    otel_service_name: str = Field(
+        default="finance-report-backend",
+        validation_alias="OTEL_SERVICE_NAME",
+    )
+    otel_resource_attributes: str | None = Field(
+        default=None,
+        validation_alias="OTEL_RESOURCE_ATTRIBUTES",
+    )
+
+    @property
+    def environment(self) -> str:
+        """Backward-compatible alias for deployment environment."""
+        return self.deployment_environment
 
     @cached_property
     def cors_origins(self) -> list[str]:

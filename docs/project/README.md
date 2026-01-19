@@ -15,9 +15,11 @@ This section contains:
 **In Progress**
 - [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization
 - [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
+- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation (Testing Pending)
+- [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
 
 **TODO**
-- None listed. Add future EPICs here before work starts.
+- [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
 
 **Done**
 - [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
@@ -37,6 +39,9 @@ This section contains:
 | [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | 🟡 In Progress | 4 | 3 weeks |
 | [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | ✅ Complete | 4 | 2 weeks |
 | [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | 🟡 In Progress | 0 | 1 week |
+| [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | ⏳ Pending | 0 | 2 weeks |
+| [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | 🟡 In Progress | 2 | 2-3 weeks |
+| [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | 🟡 In Progress | 0 | 1 week |
 
 **Total Duration**: 17-20 weeks  
 **Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness

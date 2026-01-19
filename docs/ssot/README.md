@@ -18,6 +18,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
 | [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, and building documentation |
+| [observability.md](./observability.md) | `observability` | Logging and SigNoz OTLP export configuration |
 | [authentication.md](./authentication.md) | `authentication` | API user identity, registration/login flow, and frontend integration |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | React/Next.js SSR handling, theme system, and API patterns |
 | [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes, and migrations |
@@ -38,14 +39,15 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 For new developers joining the project:
 
 1. **[development.md](./development.md)** — Setup your environment and understand the build/test workflow
-2. **[schema.md](./schema.md)** — Understand the database structure
-3. **[authentication.md](./authentication.md)** — Learn how auth and registration works
-4. **[frontend-patterns.md](./frontend-patterns.md)** — React/Next.js patterns and SSR handling
-5. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
-6. **[extraction.md](./extraction.md)** — See how bank statements are parsed
-7. **[reconciliation.md](./reconciliation.md)** — Understand the matching engine
-8. **[reporting.md](./reporting.md)** — Learn how reports are generated
-9. **[ai_advisor.md](./ai_advisor.md)** — Understand the AI advisor implementation
+2. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
+3. **[schema.md](./schema.md)** — Understand the database structure
+4. **[authentication.md](./authentication.md)** — Learn how auth and registration works
+5. **[frontend-patterns.md](./frontend-patterns.md)** — React/Next.js patterns and SSR handling
+6. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
+7. **[extraction.md](./extraction.md)** — See how bank statements are parsed
+8. **[reconciliation.md](./reconciliation.md)** — Understand the matching engine
+9. **[reporting.md](./reporting.md)** — Learn how reports are generated
+10. **[ai_advisor.md](./ai_advisor.md)** — Understand the AI advisor implementation
 
 ## 📊 Document Dependency Graph
 

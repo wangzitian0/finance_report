@@ -22,11 +22,15 @@ def print_loaded_config(settings) -> None:
     # Safe fields (can display values)
     safe_fields = [
         "debug",
+        "deployment_environment",
         "base_currency",
         "primary_model",
         "s3_endpoint",
         "s3_bucket",
         "cors_origin_regex",
+        "otel_exporter_otlp_endpoint",
+        "otel_service_name",
+        "otel_resource_attributes",
     ]
 
     # Sensitive fields (only show if set)
@@ -51,9 +55,12 @@ def print_loaded_config(settings) -> None:
 
     # Show fields using defaults
     print("\nFields using defaults:")
+    env_aliases = {
+        "deployment_environment": "ENV",
+    }
     defaults_used = []
     for field in safe_fields:
-        env_name = field.upper()
+        env_name = env_aliases.get(field, field.upper())
         if not os.getenv(env_name):
             defaults_used.append(field)
 
@@ -99,3 +106,13 @@ def check_env_on_startup() -> None:
             print("\nERROR: Refusing to start with missing required variables.")
             print("Set STRICT_ENV_CHECK=false to override (not recommended).")
             sys.exit(1)
+
+    is_production_env = os.getenv("ENV") in ("staging", "production")
+    has_otel_endpoint = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+    if is_production_env and not has_otel_endpoint:
+        print("\n" + "=" * 60)
+        print("WARNING: SigNoz log export is disabled")
+        print("=" * 60)
+        print("OTEL_EXPORTER_OTLP_ENDPOINT is not set.")
+        print("Production logs will remain on stdout only.")
+        print("=" * 60 + "\n")
