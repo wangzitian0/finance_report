@@ -1,10 +1,12 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from pathlib import Path
-from uuid import uuid4
 from decimal import Decimal
-from src.services.extraction import ExtractionService, ExtractionError
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+
+import pytest
+
 from src.models.statement import BankStatement, BankStatementStatus, ConfidenceLevel
+from src.services.extraction import ExtractionError, ExtractionService
 
 # Remove the redundant db fixture that causes loop issues
 
@@ -227,7 +229,6 @@ def test_validate_external_url_invalid_cases():
 @pytest.mark.asyncio
 async def test_handle_parse_failure(db):
     from src.routers.statements import _handle_parse_failure
-    from src.models import BankStatement
 
     sid = uuid4()
     statement = BankStatement(
@@ -252,10 +253,9 @@ async def test_handle_parse_failure(db):
 
 @pytest.mark.asyncio
 async def test_parse_statement_background_storage_error(db, monkeypatch):
-    from src.routers.statements import _parse_statement_background
-    from src.services.storage import StorageService, StorageError
-    from src.models import BankStatement
     from src.database import create_session_maker_from_db
+    from src.routers.statements import _parse_statement_background
+    from src.services.storage import StorageError
 
     sid = uuid4()
     uid = uuid4()

@@ -1,9 +1,8 @@
-import pytest
-from uuid import uuid4
-from datetime import date, datetime, UTC
+from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
-from src.models.chat import ChatSession, ChatMessage, ChatMessageRole, ChatSessionStatus
+from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.market_data import FxRate
 
 
@@ -77,8 +76,8 @@ def test_openrouter_model_matches_modality():
 
 
 def test_validation_route_by_threshold():
-    from src.services.validation import route_by_threshold
     from src.models.statement import BankStatementStatus
+    from src.services.validation import route_by_threshold
 
     assert route_by_threshold(85, True) == BankStatementStatus.PARSED
     assert route_by_threshold(60, True) == BankStatementStatus.PARSED
