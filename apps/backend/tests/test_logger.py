@@ -117,12 +117,8 @@ def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
     opentelemetry_exporter = make_module("opentelemetry.exporter", is_pkg=True)
     opentelemetry_otlp = make_module("opentelemetry.exporter.otlp", is_pkg=True)
     opentelemetry_proto = make_module("opentelemetry.exporter.otlp.proto", is_pkg=True)
-    opentelemetry_proto_http = make_module(
-        "opentelemetry.exporter.otlp.proto.http", is_pkg=True
-    )
-    opentelemetry_log_exporter = make_module(
-        "opentelemetry.exporter.otlp.proto.http._log_exporter"
-    )
+    opentelemetry_proto_http = make_module("opentelemetry.exporter.otlp.proto.http", is_pkg=True)
+    opentelemetry_log_exporter = make_module("opentelemetry.exporter.otlp.proto.http._log_exporter")
     opentelemetry_log_exporter.OTLPLogExporter = DummyExporter
 
     opentelemetry._logs = opentelemetry_logs

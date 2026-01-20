@@ -17,6 +17,7 @@ def mock_boto_client():
 
 def test_init(mock_boto_client):
     """Test service initialization."""
+    StorageService._checked_buckets.clear()
     service = StorageService(bucket="test-bucket")
     assert service.bucket == "test-bucket"
     mock_boto_client.assert_called_once()
@@ -129,13 +130,11 @@ def test_upload_bytes_creates_bucket_with_region(mock_boto_client, monkeypatch):
 def test_upload_bytes_bucket_access_denied(mock_boto_client):
     """Access denied when checking bucket should surface as StorageError."""
     StorageService._checked_buckets.clear()
-
     mock_s3 = MagicMock()
     mock_s3.head_bucket.side_effect = ClientError(
         {"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket"
     )
     mock_boto_client.return_value = mock_s3
-    StorageService._checked_buckets.clear()
 
     service = StorageService(bucket="test-bucket")
     with pytest.raises(StorageError, match="Failed to access bucket"):
@@ -149,6 +148,7 @@ def test_public_client_init(mock_boto_client, monkeypatch):
     monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
     monkeypatch.setattr(storage_module.settings, "s3_public_access_key", "pub_key")
     monkeypatch.setattr(storage_module.settings, "s3_public_secret_key", "pub_secret")
+    StorageService._checked_buckets.clear()
 
     service = StorageService()
     assert service.public_client is not None
@@ -184,7 +184,7 @@ def test_generate_presigned_url_public(mock_boto_client, monkeypatch):
 
 
 def test_public_url_fallback(mock_boto_client, monkeypatch):
-    """Test fallback to internal client when public client is not configured."""
+    """Test that missing public client raises StorageError."""
     from src.services import storage as storage_module
 
     # Mock logger
@@ -197,16 +197,10 @@ def test_public_url_fallback(mock_boto_client, monkeypatch):
 
     service = StorageService(bucket="test-bucket")
 
-    # Mock internal client generate_presigned_url
-    service.client.generate_presigned_url.return_value = "https://internal.s3/key"
+    # Should raise StorageError instead of falling back
+    with pytest.raises(StorageError, match="Public storage client is not configured"):
+        service.generate_presigned_url(key="test/key", public=True)
 
-    url = service.generate_presigned_url(key="test/key", public=True)
-
-    assert url == "https://internal.s3/key"
-
-    # Verify warning was logged
-    mock_logger.warning.assert_called_once()
-    assert "no public S3 client configured" in mock_logger.warning.call_args[0][0]
-
-    service.client.generate_presigned_url.assert_called_once()
-    mock_boto_client.assert_called_once()  # Only internal client should be initialized
+    # Verify error was logged
+    mock_logger.error.assert_called_once()
+    assert "no public S3 client configured" in mock_logger.error.call_args[0][0]

@@ -54,7 +54,7 @@ jobs:
       - name: Verify backend dependencies
         run: |
           cd apps/backend
-          uv run python -c "import email_validator; import bcrypt; import passlib; print('All dependencies OK')"
+          uv run python -c "import email_validator; import bcrypt; print('All dependencies OK')"
       
       - name: Check env keys consistency
         run: |

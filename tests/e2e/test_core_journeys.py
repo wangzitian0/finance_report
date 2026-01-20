@@ -101,7 +101,4 @@ async def test_create_entry_via_api(app_url):
     Environment: Staging/Dev Only.
     """
     pytest.skip("Skipping API test - requires dynamic account IDs")
-    # Future Implementation:
-    # payload = { ... }
-    # response = await httpx.post(f"{app_url}/api/journal", json=payload)
-    # assert response.status_code == 201
+    # TODO: Implement API test with correct payload and authentication

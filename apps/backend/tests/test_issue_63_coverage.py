@@ -164,11 +164,13 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
 
     with pytest.raises(HTTPException) as exc:
         from src.schemas import RetryParsingRequest
+
         await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
     assert exc.value.status_code == 404
 
     # Retry invalid status
     from src.models.statement import BankStatementStatus
+
     statement = BankStatement(
         id=sid,
         user_id=uid,
@@ -367,6 +369,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
         mock_storage.get_object.side_effect = StorageError("S3 Fail")
 
         from src.schemas import RetryParsingRequest
+
         with pytest.raises(HTTPException) as exc:
             await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
         assert exc.value.status_code == 503

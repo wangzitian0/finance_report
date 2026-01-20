@@ -434,6 +434,7 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
 async def test_retry_statement_not_found(db, test_user):
     """Retry on missing statement returns 404."""
     from src.schemas import RetryParsingRequest
+
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
@@ -448,6 +449,7 @@ async def test_retry_statement_not_found(db, test_user):
 async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, test_user):
     """Retry on statement not in parsed/rejected status returns 400."""
     from src.schemas import RetryParsingRequest
+
     content = b"statement"
 
     async def fake_parse_document(
@@ -507,7 +509,9 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
     """Verify that retrying a statement in PARSING status is allowed."""
     from unittest.mock import patch
     from uuid import uuid4
+
     from src.schemas import RetryParsingRequest
+
     sid = uuid4()
     statement = BankStatement(
         id=sid,
@@ -538,6 +542,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
 async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user):
     """Retry parsing with stronger model succeeds."""
     from src.schemas import RetryParsingRequest
+
     content = b"statement"
 
     async def fake_parse_document(
@@ -606,6 +611,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, test_user):
     """Retry extraction failure returns 422."""
     from src.schemas import RetryParsingRequest
+
     content = b"statement"
 
     async def fake_parse_document(
@@ -775,6 +781,7 @@ async def test_retry_statement_with_invalid_model(db, test_user, monkeypatch):
     monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
 
     from src.schemas import RetryParsingRequest
+
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=statement.id,
@@ -804,6 +811,7 @@ async def test_retry_statement_with_model_catalog_unavailable(db, test_user, mon
 
     with pytest.raises(HTTPException) as exc:
         from src.schemas import RetryParsingRequest
+
         await statements_router.retry_statement_parsing(
             statement_id=statement.id,
             request=RetryParsingRequest(model="any/model"),
@@ -819,6 +827,7 @@ async def test_retry_statement_with_model_catalog_unavailable(db, test_user, mon
 async def test_retry_statement_with_unsupported_modality(db, test_user, monkeypatch):
     """Test retry with a model that does not support the file's modality."""
     from src.schemas import RetryParsingRequest
+
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
     statement.original_filename = "image.png"

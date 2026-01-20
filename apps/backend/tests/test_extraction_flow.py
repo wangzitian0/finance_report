@@ -171,17 +171,17 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_prefers_content(self, service):
         """Test that file_content is prioritized over file_url (base64 path)."""
         service.api_key = "test-key"
-        
+
         # Both content and URL provided
         content = b"file-content"
         url = "http://internal-url.local/file.pdf"
-        
+
         mock_response = {"choices": [{"message": {"content": json.dumps({"success": True})}}]}
 
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             response_mock = MagicMock()
             response_mock.status_code = 200
             response_mock.json.return_value = mock_response
@@ -189,18 +189,15 @@ class TestExtractionServiceFlow:
 
             # Should not raise error about internal URL because content is present
             await service.extract_financial_data(
-                file_content=content, 
-                file_url=url, 
-                institution="DBS", 
-                file_type="pdf"
+                file_content=content, file_url=url, institution="DBS", file_type="pdf"
             )
-            
+
             # Verify the call payload used base64, not image_url
             call_args = mock_instance.post.call_args
             payload = call_args.kwargs["json"]
             message_content = payload["messages"][0]["content"]
             media_part = message_content[1]
-            
+
             assert "data:application/pdf;base64," in media_part["image_url"]["url"]
             assert media_part["image_url"]["url"].startswith("data:")
 
@@ -209,25 +206,22 @@ class TestExtractionServiceFlow:
         """Test extract_financial_data uses valid public URL when no content."""
         service.api_key = "test-key"
         url = "https://example.com/public.pdf"
-        
+
         mock_response = {"choices": [{"message": {"content": json.dumps({"success": True})}}]}
 
         with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_instance
-            
+
             response_mock = MagicMock()
             response_mock.status_code = 200
             response_mock.json.return_value = mock_response
             mock_instance.post.return_value = response_mock
 
             await service.extract_financial_data(
-                file_content=None, 
-                file_url=url, 
-                institution="DBS", 
-                file_type="pdf"
+                file_content=None, file_url=url, institution="DBS", file_type="pdf"
             )
-            
+
             # Verify payload used URL
             call_args = mock_instance.post.call_args
             payload = call_args.kwargs["json"]
@@ -239,11 +233,8 @@ class TestExtractionServiceFlow:
         """Test extract_financial_data rejects private URL when no content."""
         service.api_key = "test-key"
         url = "http://192.168.1.1/private.pdf"
-        
+
         with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
             await service.extract_financial_data(
-                file_content=None, 
-                file_url=url, 
-                institution="DBS", 
-                file_type="pdf"
+                file_content=None, file_url=url, institution="DBS", file_type="pdf"
             )

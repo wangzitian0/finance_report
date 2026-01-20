@@ -116,20 +116,18 @@ class StorageService:
         use_public_client = public and self.public_client is not None
 
         if public and not use_public_client:
-            logger.warning(
-                "Public presigned URL requested but no public S3 client configured; "
-                "falling back to internal endpoint.",
+            logger.error(
+                "Public presigned URL requested but no public S3 client configured",
                 bucket=self.bucket,
                 key=key,
+            )
+            # Halt if public URL is requested but cannot be generated via public endpoint
+            raise StorageError(
+                "Public storage client is not configured; cannot generate public presigned URL"
             )
 
         client = self.public_client if use_public_client else self.client
         bucket = self.public_bucket if use_public_client else self.bucket
-
-        # Fallback validation: if public requested but no public client,
-        # we might be returning an internal URL which external services can't access.
-        # But we proceed with internal client as best effort (or maybe the internal
-        # endpoint IS accessible).
 
         try:
             return client.generate_presigned_url(

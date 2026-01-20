@@ -120,11 +120,6 @@ jobs:
           
           current_env=$(echo "$env_response" | jq -r '.env // empty')
           
-          # Update Compose Path to use production file
-          # Note: Currently relying on default or manually set path, or inject via update
-          # For strict correctness, we assume the Stack is configured or we use the 'compose' update API properly.
-          # Since we are using image-based deployment now, we rely on the IMAGE_TAG env var.
-          
           # Mask any sensitive values
           while IFS= read -r line; do
             case "$line" in
@@ -133,7 +128,7 @@ jobs:
                 if [ -n "$value" ]; then
                   echo "::add-mask::$value"
                 fi
-                ;;
+                ;; 
             esac
           done <<< "$current_env"
           
@@ -196,9 +191,11 @@ jobs:
           echo "--- Phase 1: Smoke Check (Shell) ---"
           bash scripts/smoke_test.sh "$APP_URL" staging
           
-          echo "--- Phase 2: Validation (Python) ---"
+          echo "--- Phase 2: Core Flow Validation (Python) ---"
           # Run full suite including UI tests since SKIP_UI_TESTS=false
           pytest tests/e2e -v -m "smoke or e2e"
+          
+          echo "✅ Staging E2E Pipeline passed!"
 
       - name: Performance Benchmark
         continue-on-error: true  # Don't block deploy, but report issues

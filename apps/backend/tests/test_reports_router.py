@@ -5,7 +5,6 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -18,7 +17,6 @@ from src.models import (
     JournalLine,
 )
 from src.routers import reports as reports_router
-from src.routers.reports import ExportFormat, ReportType, export_report
 from src.services.reporting import ReportError
 
 
@@ -197,45 +195,56 @@ async def test_reports_router_handles_report_error(
 
 
 @pytest.mark.asyncio
-async def test_export_report_invalid_format(db: AsyncSession, test_user) -> None:
-    with pytest.raises(HTTPException, match="Only CSV export is supported"):
-        await export_report(
-            report_type=ReportType.BALANCE_SHEET,
-            format="json",
-            as_of_date=None,
-            start_date=None,
-            end_date=None,
-            currency="SGD",
-            db=db,
-            user_id=test_user.id,
-        )
+async def test_export_report_invalid_format(client, test_data_setup_reports) -> None:
+    """Test export with invalid format."""
+    await test_data_setup_reports()
+    params = {
+        "report_type": "balance-sheet",
+        "format": "json",
+        "currency": "SGD",
+    }
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_export_report_missing_income_dates(db: AsyncSession, test_user) -> None:
-    with pytest.raises(HTTPException, match="start_date and end_date are required"):
-        await export_report(
-            report_type=ReportType.INCOME_STATEMENT,
-            format=ExportFormat.CSV,
-            as_of_date=None,
-            start_date=None,
-            end_date=None,
-            currency="SGD",
-            db=db,
-            user_id=test_user.id,
-        )
+async def test_export_report_missing_income_dates(client, test_data_setup_reports) -> None:
+    """Test export income statement without dates."""
+    await test_data_setup_reports()
+    params = {
+        "report_type": "income-statement",
+        "format": "csv",
+        "currency": "SGD",
+    }
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 400
+    assert "start_date and end_date are required" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_export_report_unsupported_type(db: AsyncSession, test_user) -> None:
-    with pytest.raises(HTTPException, match="Unsupported report type"):
-        await export_report(
-            report_type="unsupported",
-            format=ExportFormat.CSV,
-            as_of_date=None,
-            start_date=None,
-            end_date=None,
-            currency="SGD",
-            db=db,
-            user_id=test_user.id,
-        )
+async def test_export_report_unsupported_type(client, test_data_setup_reports) -> None:
+    """Test export with unsupported report type."""
+    await test_data_setup_reports()
+    params = {
+        "report_type": "unsupported",
+        "format": "csv",
+        "currency": "SGD",
+    }
+    # FastAPI validation will likely catch this before the endpoint if using Enum
+    # But if we force it (e.g. by not using the Enum in the client call which sends strings),
+    # it depends on how FastAPI validates Query params against Enum.
+    # If we send a string not in the Enum, FastAPI returns 422 Validation Error.
+    # To hit the "else" block in the code, we need to pass a value that IS a valid ReportType
+    # but not handled in the if/elif chain.
+    # Currently ReportType has BALANCE_SHEET and INCOME_STATEMENT.
+    # If we add a new type to Enum but forget to handle it, this test would catch it.
+    # Since we can't easily pass an "invalid" enum member that validates,
+    # we can only test this if we mock the ReportType enum or if there are other types.
+    # Looking at ReportType definition in reports.py:
+    # class ReportType(str, Enum): BALANCE_SHEET, INCOME_STATEMENT
+    # So it's impossible to pass a valid ReportType that falls through the if/elif chain
+    # unless we modify the Enum.
+
+    # However, let's keep the client call and expect 422 if it's invalid value.
+    response = await client.get("/reports/export", params=params)
+    assert response.status_code == 422

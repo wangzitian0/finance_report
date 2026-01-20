@@ -45,6 +45,19 @@
 
 ---
 
+## 🛠️ Environment & Automation (Moon)
+
+**DO NOT manual check environment** (e.g., `docker ps`). Use `moon` to manage lifecycles.
+
+- **Dev**: `moon run backend:dev` (FastAPI + DB), `moon run frontend:dev` (Next.js)
+- **Test**: `moon run backend:test` (Auto-DB lifecycle + Integrated tests)
+- **Quality**: `moon run :lint` (Check all), `moon run backend:format` (Ruff)
+- **Proof**: `moon run :smoke` (E2E against local/remote)
+
+*Reference: [docs/ssot/development.md](docs/ssot/development.md)*
+
+---
+
 ## 📌 Core Domain Context
 
 **Read [target.md](target.md) for macro goals and decision criteria. Key points:**

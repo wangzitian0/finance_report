@@ -5,12 +5,7 @@ from datetime import UTC
 import pytest
 from httpx import AsyncClient
 
-skip_client_tests = pytest.mark.skip(
-    reason="Database tests require PostgreSQL service - skipped in unit test runs"
-)
 
-
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_create_user_success(client: AsyncClient) -> None:
     """Test creating a new user successfully."""
@@ -28,7 +23,6 @@ async def test_create_user_success(client: AsyncClient) -> None:
     assert "updated_at" in data
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_create_user_duplicate_email(client: AsyncClient) -> None:
     """Test that creating a user with existing email fails with generic message."""
@@ -46,7 +40,6 @@ async def test_create_user_duplicate_email(client: AsyncClient) -> None:
     assert "Invalid registration data" in response.json()["detail"]
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_create_user_invalid_password(client: AsyncClient) -> None:
     """Test that creating user with short password fails validation."""
@@ -58,7 +51,6 @@ async def test_create_user_invalid_password(client: AsyncClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_create_user_invalid_email(client: AsyncClient) -> None:
     """Test that creating user with invalid email format fails validation."""
@@ -66,26 +58,28 @@ async def test_create_user_invalid_email(client: AsyncClient) -> None:
         "email": "not-an-email",
         "password": "securepassword123",
     }
+    # Note: client uses ASGITransport which bypasses real network,
+    # but Pydantic EmailStr still validates format.
     response = await client.post("/users", json=payload)
     assert response.status_code == 422  # Validation error
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_list_users_empty(client: AsyncClient) -> None:
     """Test listing users when none exist."""
+    # The client fixture creates one test_user by default.
+    # So we expect 1 user, not 0.
     response = await client.get("/users")
     assert response.status_code == 200
     data = response.json()
-    assert data["items"] == []
-    assert data["total"] == 0
+    assert len(data["items"]) == 1
+    assert data["total"] == 1
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_list_users_with_data(client: AsyncClient) -> None:
     """Test listing users after creating some."""
-    # Create users
+    # Create 3 more users (total 4)
     for i in range(3):
         payload = {
             "email": f"user{i}@example.com",
@@ -96,15 +90,14 @@ async def test_list_users_with_data(client: AsyncClient) -> None:
     response = await client.get("/users")
     assert response.status_code == 200
     data = response.json()
-    assert len(data["items"]) == 3
-    assert data["total"] == 3
+    assert len(data["items"]) == 4
+    assert data["total"] == 4
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_list_users_pagination(client: AsyncClient) -> None:
     """Test pagination parameters work correctly."""
-    # Create 5 users
+    # Create 5 users (total 6)
     for i in range(5):
         payload = {
             "email": f"pageuser{i}@example.com",
@@ -117,17 +110,16 @@ async def test_list_users_pagination(client: AsyncClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
-    assert data["total"] == 5
+    assert data["total"] == 6
 
     # Get second page
     response = await client.get("/users?limit=2&offset=2")
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
-    assert data["total"] == 5
+    assert data["total"] == 6
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_get_user_by_id(client: AsyncClient) -> None:
     """Test getting a user by their ID."""
@@ -147,7 +139,6 @@ async def test_get_user_by_id(client: AsyncClient) -> None:
     assert data["email"] == "getme@example.com"
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_get_user_not_found(client: AsyncClient) -> None:
     """Test getting a non-existent user returns generic 404 message."""
@@ -159,7 +150,6 @@ async def test_get_user_not_found(client: AsyncClient) -> None:
     assert "not found" in response.json()["detail"].lower()
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_update_user_email(client: AsyncClient) -> None:
     """Test updating a user's email."""
@@ -180,7 +170,6 @@ async def test_update_user_email(client: AsyncClient) -> None:
     assert data["id"] == user_id
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_update_user_duplicate_email(client: AsyncClient) -> None:
     """Test that updating to an existing email fails with generic message."""
@@ -204,7 +193,6 @@ async def test_update_user_duplicate_email(client: AsyncClient) -> None:
     assert "Invalid update data" in response.json()["detail"]
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_update_user_not_found(client: AsyncClient) -> None:
     """Test updating a non-existent user returns 404."""
@@ -215,7 +203,6 @@ async def test_update_user_not_found(client: AsyncClient) -> None:
     assert response.status_code == 404
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_password_is_hashed(client: AsyncClient) -> None:
     """Test that passwords are stored as hashes, not plain text."""
@@ -233,7 +220,6 @@ async def test_password_is_hashed(client: AsyncClient) -> None:
     assert "hashed_password" not in data  # Response schema doesn't expose it
 
 
-@skip_client_tests
 @pytest.mark.asyncio
 async def test_user_response_timezone_aware(client: AsyncClient) -> None:
     """Test that response timestamps are timezone-aware."""

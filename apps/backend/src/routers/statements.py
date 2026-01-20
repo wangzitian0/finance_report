@@ -347,7 +347,7 @@ async def retry_statement_parsing(
 
     # Need file content for some vision models if URL fails or for consistency
     # But retry currently doesn't have the original 'content' bytes in memory.
-    # It must fetch from storage or use URL. 
+    # It must fetch from storage or use URL.
     # The _parse_statement_background requires 'content: bytes'.
     # We'll fetch it from storage now.
     try:
