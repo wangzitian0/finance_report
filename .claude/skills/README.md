@@ -8,8 +8,7 @@ This directory contains professional skill definitions for AI-powered collaborat
 
 | Role | Directory/File | Source | Responsibility |
 |------|----------------|--------|----------------|
-| 📊 Accounting Advisor | `accountant.md` | Project-specific | Double-entry rules, chart of accounts, financial compliance |
-| 🔗 Reconciliation Specialist | `reconciler.md` | Project-specific | Bank statement matching algorithms, review queue management |
+| ⚖️ Auditor | `auditor.md` | Project-specific | Unified expertise: Double-entry rules, reconciliation, reporting, and audit |
 | 🔧 Backend Developer | `backend-development/` | [mrgoonie/claudekit-skills](https://github.com/mrgoonie/claudekit-skills) | Production backend systems, security (OWASP Top 10), performance optimization, API design |
 | 🧪 Senior QA Engineer | `senior-qa/` | [davila7/claude-code-templates](https://github.com/davila7/claude-code-templates) | Testing strategies, test automation, quality assurance, coverage analysis |
 | ⚛️ Vercel React Developer | `vercel-react-best-practices/` | [langgenius/dify](https://github.com/langgenius/dify) | Next.js/React performance optimization, bundle optimization, SSR/client best practices |
@@ -22,8 +21,9 @@ This directory contains professional skill definitions for AI-powered collaborat
 ### Single Skill Consultation
 ```bash
 # Domain-specific skills
-@.claude/skills/accountant.md How should I record this cross-currency investment?
-@.claude/skills/reconciler.md Improve matching accuracy for this transaction type
+@.claude/skills/auditor.md How should I record this cross-currency investment?
+@.claude/skills/auditor.md Improve matching accuracy for this transaction type
+@.claude/skills/auditor.md Generate a comparative balance sheet for Q3 vs Q4
 
 # Development skills
 @.claude/skills/backend-development/SKILL.md How to implement OAuth 2.1 authentication?
@@ -53,8 +53,7 @@ This directory contains professional skill definitions for AI-powered collaborat
 ## Skill Categories
 
 ### Domain-Specific (Finance)
-- **Accounting**: Double-entry bookkeeping, financial compliance
-- **Reconciliation**: Transaction matching, confidence scoring
+- **Auditor**: Double-entry bookkeeping, reconciliation, financial reporting, audit verification
 
 ### Development
 - **Backend**: FastAPI, PostgreSQL, security, performance
@@ -72,12 +71,12 @@ This directory contains professional skill definitions for AI-powered collaborat
 
 | Task | Primary Skill | Supporting Skills |
 |------|---------------|-------------------|
-| Chart of accounts design | Accounting | Backend (validation) |
-| Double-entry validation | Accounting | QA (test coverage) |
-| Reconciliation algorithm | Reconciliation | Backend (implementation), QA (testing) |
+| Chart of accounts design | Auditor | Backend (validation) |
+| Double-entry validation | Auditor | QA (test coverage) |
+| Reconciliation algorithm | Auditor | Backend (implementation), QA (testing) |
 | API security | Backend | QA (security testing) |
 | Financial reports UI | UI/UX | Vercel React (optimization) |
-| Feature prioritization | Product Manager | Accounting (domain validation) |
+| Feature prioritization | Product Manager | Auditor (domain validation) |
 | Performance optimization | Vercel React | Backend (API performance) |
 
 ## Adding New Skills
