@@ -2,36 +2,20 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from src.models.statement import (
+    BankStatementStatus,
+    BankStatementTransactionStatus,
+    ConfidenceLevel,
+)
 
-class BankStatementStatusEnum(str, Enum):
-    """Statement processing status."""
-
-    UPLOADED = "uploaded"
-    PARSING = "parsing"
-    PARSED = "parsed"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-
-class BankStatementTransactionStatusEnum(str, Enum):
-    """Reconciliation status for a transaction."""
-
-    PENDING = "pending"
-    MATCHED = "matched"
-    UNMATCHED = "unmatched"
-
-
-class ConfidenceLevelEnum(str, Enum):
-    """Confidence level for parsed data."""
-
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
+# Re-export enums with schema-friendly names for API consumers
+BankStatementStatusEnum = BankStatementStatus
+BankStatementTransactionStatusEnum = BankStatementTransactionStatus
+ConfidenceLevelEnum = ConfidenceLevel
 
 
 # --- Request Schemas ---
@@ -92,7 +76,7 @@ class BankStatementTransactionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BankStatementResponse(BaseModel):
@@ -118,7 +102,7 @@ class BankStatementResponse(BaseModel):
     updated_at: datetime
     transactions: list[BankStatementTransactionResponse] = Field(default_factory=list)
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BankStatementListResponse(BaseModel):
