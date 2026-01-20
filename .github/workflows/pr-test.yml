@@ -333,9 +333,12 @@ jobs:
         uses: actions/github-script@v7
         env:
           HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          INTERNAL_DOMAIN: ${{ needs.setup.outputs.internal_domain }}
+          COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
         with:
           script: |
-            const url = `https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}`;
+            const url = `https://report-pr-${process.env.PR_NUMBER}.${process.env.INTERNAL_DOMAIN}`;
             const body = `## 🧪 Test Environment Deployed
             
             | Service | URL |
@@ -344,7 +347,7 @@ jobs:
             | API Health | [${url}/api/health](${url}/api/health) |
             
             **Details:**
-            - Compose: \`${{ needs.setup.outputs.compose_name }}\`
+            - Compose: \`${process.env.COMPOSE_NAME}\`
             - Branch: \`${process.env.HEAD_REF}\`
             - Commit: \`${{ github.sha }}\`
             
