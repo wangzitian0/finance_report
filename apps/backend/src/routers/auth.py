@@ -64,7 +64,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 async def register(
     request: Request,
     data: RegisterRequest,
-    *,
     db: DbSession,
 ) -> AuthResponse:
     """Register a new user with email and password."""
@@ -120,7 +119,6 @@ async def register(
 async def login(
     request: Request,
     data: LoginRequest,
-    *,
     db: DbSession,
 ) -> AuthResponse:
     """Login with email and password."""
@@ -157,9 +155,8 @@ async def login(
 @router.get("/me", response_model=AuthResponse)
 async def get_me(
     token: str = Depends(oauth2_scheme),
-    *,
-    user_id: CurrentUserId,
-    db: DbSession,
+    user_id: CurrentUserId = None,
+    db: DbSession = None,
 ) -> AuthResponse:
     """Get current authenticated user."""
     result = await db.execute(select(User).where(User.id == user_id))

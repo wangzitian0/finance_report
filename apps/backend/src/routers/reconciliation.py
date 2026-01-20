@@ -118,9 +118,8 @@ async def _load_entry_summaries(
 @router.post("/run", response_model=ReconciliationRunResponse)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> ReconciliationRunResponse:
     # Verify statement belongs to user if provided
     if payload.statement_id:
@@ -168,9 +167,8 @@ async def list_matches(
     status: ReconciliationStatusEnum | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> ReconciliationMatchListResponse:
     query = (
         select(ReconciliationMatch)
@@ -219,9 +217,8 @@ async def list_matches(
 async def pending_review_queue(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     entry_summaries = await _load_entry_summaries(db, matches, user_id)

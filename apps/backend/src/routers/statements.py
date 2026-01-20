@@ -162,9 +162,8 @@ async def upload_statement(
     institution: Annotated[str, Form()] = ...,
     account_id: Annotated[UUID | None, Form()] = None,
     model: Annotated[str | None, Form()] = None,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> BankStatementResponse:
     """
     Upload a financial statement and enqueue parsing.
@@ -290,9 +289,8 @@ async def upload_statement(
 async def retry_statement_parsing(
     statement_id: UUID,
     request: RetryParsingRequest | None = None,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> BankStatementResponse:
     """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
     model_override = request.model if request else None

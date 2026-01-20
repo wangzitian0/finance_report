@@ -30,9 +30,8 @@ logger = get_logger(__name__)
 @router.post("", response_class=StreamingResponse)
 async def chat_message(
     payload: ChatRequest,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
@@ -84,9 +83,8 @@ async def chat_message(
 async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> ChatHistoryResponse:
     """Retrieve chat session history."""
     sessions: list[ChatSessionResponse] = []
@@ -201,9 +199,8 @@ async def chat_history(
 @router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> None:
     """Soft-delete a chat session."""
     result = await db.execute(

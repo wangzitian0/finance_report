@@ -45,9 +45,8 @@ async def list_accounts(
     account_type: AccountType | None = None,
     is_active: bool | None = None,
     include_balance: bool = Query(False, description="Include balance (slower)"),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> AccountListResponse:
     """List all accounts with optional filters.
 

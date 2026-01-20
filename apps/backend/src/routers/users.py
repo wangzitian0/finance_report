@@ -29,8 +29,7 @@ def get_current_user_id() -> UUID:
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    *,
-    db: DbSession,
+    db: DbSession = None,
 ) -> UserResponse:
     """Create a new user."""
     result = await db.execute(select(User).where(User.email == user_data.email))
@@ -57,8 +56,7 @@ async def create_user(
 async def list_users(
     limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    *,
-    db: DbSession,
+    db: DbSession = None,
 ) -> UserListResponse:
     """List all users with pagination."""
     count_result = await db.execute(select(func.count(User.id)))
@@ -78,8 +76,7 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: UUID,
-    *,
-    db: DbSession,
+    db: DbSession = None,
 ) -> UserResponse:
     """Get user by ID."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -98,8 +95,7 @@ async def get_user(
 async def update_user(
     user_id: UUID,
     user_data: UserUpdate,
-    *,
-    db: DbSession,
+    db: DbSession = None,
 ) -> UserResponse:
     """Update user details."""
     result = await db.execute(select(User).where(User.id == user_id))

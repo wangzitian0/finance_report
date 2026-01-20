@@ -82,9 +82,8 @@ async def list_journal_entries(
     end_date: date_type | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
     query = select(JournalEntry).where(JournalEntry.user_id == user_id)
@@ -119,9 +118,8 @@ async def list_journal_entries(
 @router.get("/{entry_id}", response_model=JournalEntryResponse)
 async def get_journal_entry(
     entry_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
     """Get journal entry details."""
     result = await db.execute(
@@ -144,9 +142,8 @@ async def get_journal_entry(
 @router.post("/{entry_id}/post", response_model=JournalEntryResponse)
 async def post_entry(
     entry_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
     """Post a journal entry (draft → posted)."""
     try:
@@ -164,9 +161,8 @@ async def post_entry(
 async def void_entry(
     entry_id: UUID,
     void_request: VoidJournalEntryRequest,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
     """Void a posted journal entry by creating a reversal entry."""
     try:
@@ -182,9 +178,8 @@ async def void_entry(
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_journal_entry(
     entry_id: UUID,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> None:
     """Delete a draft journal entry."""
     result = await db.execute(
