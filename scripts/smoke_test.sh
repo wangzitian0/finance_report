@@ -148,16 +148,22 @@ check_endpoint "Ping API" "$BASE_URL/api/ping" || FAILED=1
 # --- Write/Mutation Checks (Staging/Dev Only) ---
 if [ "$MODE" = "dev" ] || [ "$MODE" = "staging" ]; then
     echo "--- Write Checks ($MODE) ---"
-    # Placeholder for a write check. 
-    # Currently, we don't have a dedicated public 'safe' write endpoint for smoke tests 
-    # without auth tokens. If auth is needed, this script would need a token.
-    # For now, we will just echo that we are skipping complex write tests in this shell script
-    # and relying on the Python E2E suite for that.
-    echo "ℹ️  Complex write tests are delegated to the Python E2E suite."
-    echo "✓ Write Mode Enabled (Placeholder)"
+    
+    # Test ping/pong toggle (safe mutation without auth)
+    BEFORE_STATE="$(curl -sS "$BASE_URL/api/ping" | grep -o '"state":"[^"]*"' || echo '')"
+    check_endpoint "Ping Toggle (POST)" "$BASE_URL/api/ping/toggle" "" "POST" || FAILED=1
+    AFTER_STATE="$(curl -sS "$BASE_URL/api/ping" | grep -o '"state":"[^"]*"' || echo '')"
+    
+    if [ -n "$BEFORE_STATE" ] && [ -n "$AFTER_STATE" ] && [ "$BEFORE_STATE" != "$AFTER_STATE" ]; then
+        echo "✓ State Changed ($BEFORE_STATE → $AFTER_STATE)"
+    elif [ -z "$BEFORE_STATE" ]; then
+        echo "ℹ️  Ping state verification skipped (state was empty before)"
+    fi
+    
+    echo "ℹ️  Complex authenticated write tests delegated to Python E2E suite"
 else
     echo "--- Write Checks ---"
-    echo "ℹ️  Skipping write checks in '$MODE' mode."
+    echo "ℹ️  Skipping write checks in '$MODE' mode"
 fi
 
 echo "========================================"

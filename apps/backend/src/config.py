@@ -101,14 +101,17 @@ class Settings(BaseSettings):
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
-    next_public_app_url: str = "http://localhost:3000"
+    next_public_app_url: str = Field(
+        default="http://localhost:3000",
+        validation_alias="NEXT_PUBLIC_APP_URL",
+    )
 
     # CORS origins - stored as string, parsed via property
     # Env format: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
     cors_origins_str: str | None = Field(default=None, validation_alias="CORS_ORIGINS")
 
-    # CORS origin regex - for dynamic subdomains (PR deployments)
-    cors_origin_regex: str = r"https://report(-pr-\d+)?\.zitian\.party"
+    # CORS origin regex - for dynamic subdomains (PR deployments and staging)
+    cors_origin_regex: str = r"https://report(-pr-\d+|-staging)?\.zitian\.party"
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

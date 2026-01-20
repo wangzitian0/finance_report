@@ -1,5 +1,13 @@
 import { getAccessToken, getUserId } from "./auth";
 
+/**
+ * API base URL for backend requests.
+ *
+ * - Development: Empty string (Next.js rewrites proxy /api/* to backend)
+ * - Production: Can be empty (same-origin) or set to backend domain
+ *
+ * When empty, API calls use relative paths (e.g., /api/accounts).
+ */
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -7,8 +15,11 @@ export const API_URL =
  * Base URL of the frontend application.
  *
  * Use this when you need to construct absolute URLs that point back to
- * the frontend app itself (for example, in redirects or UI components).
- * In development it defaults to `http://localhost:3000`.
+ * the frontend app itself (e.g., in redirects or OAuth callbacks).
+ *
+ * - Development: Defaults to http://localhost:3000
+ * - Production: Set via NEXT_PUBLIC_APP_URL (e.g., https://report.zitian.party)
+ * - PR environments: Auto-set to https://report-pr-{number}.zitian.party
  */
 export const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

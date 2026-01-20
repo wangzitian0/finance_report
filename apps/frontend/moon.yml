@@ -46,5 +46,9 @@ tasks:
       - 'install'
 
   test:
-    command: 'echo "No tests configured yet"'
-    local: true
+    command: 'npm run test'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - 'install'
