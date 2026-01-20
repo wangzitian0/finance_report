@@ -22,6 +22,8 @@ Usage:
 
 import argparse
 import os
+import re
+import shlex
 import subprocess
 import sys
 from enum import Enum
@@ -110,7 +112,7 @@ def get_container_name(service: Service, env: Environment) -> str:
     )
 
 
-def view_local_logs(service: Service, tail: int = 50, follow: bool = False):
+def view_local_logs(service: Service, tail: int = 50, follow: bool = False) -> None:
     """View Docker logs locally"""
     env = Environment.LOCAL
     container = get_container_name(service, env)
@@ -131,9 +133,18 @@ def view_local_logs(service: Service, tail: int = 50, follow: bool = False):
         sys.exit(1)
 
 
+def validate_hostname(hostname: str) -> bool:
+    """Validate hostname matches domain or IP pattern"""
+    # Simple regex for domain name or IP address
+    # Allows dots, hyphens, alphanumeric
+    if not hostname:
+        return False
+    return bool(re.match(r"^[a-zA-Z0-9.-]+$", hostname))
+
+
 def view_remote_logs_docker(
     service: Service, env: Environment, tail: int = 50, follow: bool = False
-):
+) -> None:
     """View Docker logs on remote environment via SSH"""
     container = get_container_name(service, env)
 
@@ -147,22 +158,43 @@ def view_remote_logs_docker(
 
             init = OpSecrets()
             vps_host = init.get("VPS_HOST")
-        except (ImportError, Exception):
+        except ImportError:
             print(
                 "❌ VPS_HOST not set. Set it via environment or configure 1Password.",
                 file=sys.stderr,
             )
             sys.exit(1)
+        except Exception as e:
+            print(
+                "❌ Failed to load VPS_HOST from 1Password via OpSecrets.",
+                file=sys.stderr,
+            )
+            print(f"   Details: {e!r}", file=sys.stderr)
+            sys.exit(1)
+
+    # Validate VPS_HOST to prevent command injection
+    if not vps_host or not validate_hostname(vps_host):
+        print(f"❌ Invalid VPS_HOST value: {vps_host}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"📋 Viewing logs for {container} on {env.value} ({vps_host})")
 
+    # Configurable SSH user (default: root)
+    ssh_user = os.getenv("VPS_USER", "root")
+    if not validate_hostname(ssh_user):  # Basic validation for user too
+        print(f"❌ Invalid VPS_USER value: {ssh_user}", file=sys.stderr)
+        sys.exit(1)
+
+    # Use shlex.quote to prevent command injection in the remote command
+    remote_cmd = f"docker logs {shlex.quote(container)} --tail {int(tail)}"
+    if follow:
+        remote_cmd += " -f"
+
     cmd = [
         "ssh",
-        f"root@{vps_host}",
-        f"docker logs {container} --tail {tail}",
+        f"{ssh_user}@{vps_host}",
+        remote_cmd,
     ]
-    if follow:
-        cmd[-1] += " -f"
 
     try:
         subprocess.run(cmd, check=True)
@@ -171,7 +203,7 @@ def view_remote_logs_docker(
         sys.exit(1)
 
 
-def view_remote_logs_signoz(service: Service, env: Environment):
+def view_remote_logs_signoz(service: Service, env: Environment) -> None:
     """View logs via SigNoz (placeholder for future implementation)"""
     print(f"📊 SigNoz logs for {service.value} in {env.value}")
     print()
@@ -191,7 +223,7 @@ def view_remote_logs_signoz(service: Service, env: Environment):
     print("💡 Future: Direct SigNoz API integration")
 
 
-def restart_service(service: Service, env: Environment):
+def restart_service(service: Service, env: Environment) -> None:
     """Restart service via Dokploy API"""
     if env == Environment.LOCAL:
         print(
@@ -202,32 +234,16 @@ def restart_service(service: Service, env: Environment):
 
     print(f"🔄 Restarting {service.value} in {env.value}...")
 
-    try:
-        sys.path.insert(0, str(REPO_ROOT / "repo"))
-        from libs.dokploy import DokployClient
+    # Map service to container ID
+    container = get_container_name(service, env)
 
-        client = DokployClient()
-
-        # Map service to Dokploy container ID
-        container = get_container_name(service, env)
-
-        # Note: Dokploy API doesn't have direct log endpoints
-        # This requires SSH access or using Dokploy UI
-        print(f"⚠️  Dokploy API doesn't support direct container restart")
-        print(f"💡 Use: ssh root@$VPS_HOST docker restart {container}")
-
-    except ImportError:
-        print(
-            "❌ Dokploy client not available. Install infra2 dependencies.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    except Exception as e:
-        print(f"❌ Failed to restart service: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Note: Dokploy API doesn't have direct log endpoints
+    # This requires SSH access or using Dokploy UI
+    print(f"⚠️  Dokploy API doesn't support direct container restart")
+    print(f"💡 Use: ssh root@$VPS_HOST docker restart {container}")
 
 
-def list_containers(env: Environment):
+def list_containers(env: Environment) -> None:
     """List all Finance Report containers in environment"""
     print(f"📦 Finance Report containers in {env.value}:")
     print()
@@ -237,7 +253,7 @@ def list_containers(env: Environment):
         print(f"  - {service.value:12} → {container}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Unified debugging tool for Finance Report",
         formatter_class=argparse.RawDescriptionHelpFormatter,
