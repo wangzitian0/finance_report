@@ -109,6 +109,26 @@ async def db_engine():
     await engine.dispose()
 
 
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def patch_database_connection(db_engine):
+    """Ensure all tests use the test database connection via hook.
+
+    This handles tests that manually instantiate the app/client without using
+    the client fixture.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+    from src import database
+
+    test_maker = async_sessionmaker(
+        db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    database.set_test_session_maker(test_maker)
+    yield
+    database.set_test_session_maker(None)
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db(db_engine):
     """Create a test database session.
@@ -149,29 +169,12 @@ async def client(db_engine, test_user):
     # Override the database URL for the app
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-    # Monkeypatch the session maker to use our test engine
-    # This ensures that even if dependency override fails, the app uses the test DB
-    from src import database
-
-    original_maker = database.async_session_maker
-
-    test_maker = async_sessionmaker(
-        db_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    database.async_session_maker = test_maker
-
-    async def override_get_db():
-        async with test_maker() as session:
-            yield session
+    # Database connection is handled by patch_database_connection autouse fixture
 
     # Import app after setting env var
-    from src.database import get_db
     from src.main import app
     from src.security import create_access_token
 
-    app.dependency_overrides[get_db] = override_get_db
     token = create_access_token(data={"sub": str(test_user.id)})
     try:
         transport = ASGITransport(app=app)
@@ -182,10 +185,7 @@ async def client(db_engine, test_user):
         ) as client:
             yield client
     finally:
-        # Restore original session maker
-        database.async_session_maker = original_maker
-        # Only remove the override we added, not others
-        app.dependency_overrides.pop(get_db, None)
+        pass
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -194,27 +194,11 @@ async def public_client(db_engine):
     # Override the database URL for the app
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-    # Monkeypatch session maker
-    from src import database
-
-    original_maker = database.async_session_maker
-
-    test_maker = async_sessionmaker(
-        db_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    database.async_session_maker = test_maker
-
-    async def override_get_db():
-        async with test_maker() as session:
-            yield session
+    # Database connection is handled by patch_database_connection autouse fixture
 
     # Import app after setting env var
-    from src.database import get_db
     from src.main import app
 
-    app.dependency_overrides[get_db] = override_get_db
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(
@@ -223,6 +207,37 @@ async def public_client(db_engine):
         ) as client:
             yield client
     finally:
-        database.async_session_maker = original_maker
-        # Only remove the override we added, not others
-        app.dependency_overrides.pop(get_db, None)
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def public_client(db_engine):
+    """Create async test client without auth headers."""
+    # Override the database URL for the app
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+    # Create test session maker bound to test engine
+    test_maker = async_sessionmaker(
+        db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    # Inject test session maker via explicit hook
+    from src import database
+
+    database.set_test_session_maker(test_maker)
+
+    # Import app after setting env var
+    from src.main import app
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as client:
+            yield client
+    finally:
+        # Reset session maker
+        database.set_test_session_maker(None)
