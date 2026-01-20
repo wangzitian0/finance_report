@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
-from src.database import get_db
+from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import ChatMessage, ChatSession, ChatSessionStatus
 from src.schemas.chat import (
@@ -32,8 +30,8 @@ logger = get_logger(__name__)
 @router.post("", response_class=StreamingResponse)
 async def chat_message(
     payload: ChatRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
@@ -85,8 +83,8 @@ async def chat_message(
 async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> ChatHistoryResponse:
     """Retrieve chat session history."""
     sessions: list[ChatSessionResponse] = []
@@ -201,8 +199,8 @@ async def chat_history(
 @router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> None:
     """Soft-delete a chat session."""
     result = await db.execute(

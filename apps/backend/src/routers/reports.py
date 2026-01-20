@@ -8,12 +8,10 @@ from enum import Enum
 from io import StringIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
-from src.database import get_db
+from src.deps import CurrentUserId, DbSession
 from src.models import AccountType
 from src.schemas import (
     AccountTrendResponse,
@@ -54,8 +52,8 @@ class ReportType(str, Enum):
 async def balance_sheet(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     try:
@@ -77,8 +75,8 @@ async def income_statement(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     tags: list[str] | None = Query(default=None, alias="tags"),
     account_type: AccountType | None = Query(default=None, alias="account_type"),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
     try:
@@ -101,8 +99,8 @@ async def cash_flow(
     start_date: date = Query(...),
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> CashFlowResponse:
     """Get cash flow statement for a period."""
     try:
@@ -123,8 +121,8 @@ async def account_trend(
     account_id: UUID = Query(...),
     period: TrendPeriod = Query(default=TrendPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> AccountTrendResponse:
     """Get account trend data."""
     try:
@@ -145,8 +143,8 @@ async def category_breakdown(
     breakdown_type: BreakdownType = Query(..., alias="type"),
     period: BreakdownPeriod = Query(default=BreakdownPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
     account_type = (
@@ -173,8 +171,8 @@ async def export_report(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> StreamingResponse:
     """Export reports in CSV format."""
     output = StringIO()

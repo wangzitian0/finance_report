@@ -355,8 +355,12 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     db.add_all([match_accept, match_reject, match_batch])
     await db.commit()
 
-    accepted = await reconciliation_router.accept_match(str(match_accept.id), db, test_user.id)
-    rejected = await reconciliation_router.reject_match(str(match_reject.id), db, test_user.id)
+    accepted = await reconciliation_router.accept_match(
+        match_id=str(match_accept.id), db=db, user_id=test_user.id
+    )
+    rejected = await reconciliation_router.reject_match(
+        match_id=str(match_reject.id), db=db, user_id=test_user.id
+    )
     batch = await reconciliation_router.batch_accept(
         payload=BatchAcceptRequest(match_ids=[str(match_batch.id)]),
         db=db,
@@ -381,7 +385,9 @@ async def test_list_unmatched_and_create_entry(db: AsyncSession, test_user) -> N
     )
     assert unmatched.total == 1
 
-    entry = await reconciliation_router.create_entry(str(txn.id), db, test_user.id)
+    entry = await reconciliation_router.create_entry(
+        txn_id=str(txn.id), db=db, user_id=test_user.id
+    )
     assert entry.total_amount == Decimal("4.00")
 
 
@@ -393,7 +399,9 @@ async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
     )
     await db.commit()
 
-    anomalies = await reconciliation_router.list_anomalies(str(txn.id), db, test_user.id)
+    anomalies = await reconciliation_router.list_anomalies(
+        txn_id=str(txn.id), db=db, user_id=test_user.id
+    )
     assert isinstance(anomalies, list)
 
 

@@ -90,10 +90,9 @@ def check_env_on_startup() -> None:
         if not os.getenv(key):
             missing.append(key)
 
-    is_staging_or_prod = (
-        os.getenv("ENVIRONMENT") in ("staging", "production")
-        or os.getenv("ENV") in ("staging", "production")
-    )
+    is_staging_or_prod = os.getenv("ENVIRONMENT") in ("staging", "production") or os.getenv(
+        "ENV"
+    ) in ("staging", "production")
 
     if missing and is_staging_or_prod:
         print("\n" + "=" * 60)

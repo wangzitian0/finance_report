@@ -9,15 +9,15 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from src.auth import get_current_user_id
 from src.config import settings
-from src.database import create_session_maker_from_db, get_db
+from src.database import create_session_maker_from_db
+from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementStatus
 from src.schemas import (
@@ -34,6 +34,7 @@ from src.services.openrouter_models import (
     model_matches_modality,
     normalize_model_entry,
 )
+from src.utils import raise_bad_request, raise_internal_error, raise_not_found
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -161,8 +162,8 @@ async def upload_statement(
     institution: Annotated[str, Form()] = ...,
     account_id: Annotated[UUID | None, Form()] = None,
     model: Annotated[str | None, Form()] = None,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> BankStatementResponse:
     """
     Upload a financial statement and enqueue parsing.
@@ -173,7 +174,7 @@ async def upload_statement(
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 
     if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
-        raise HTTPException(400, f"Unsupported file type: {extension}")
+        raise_bad_request(f"Unsupported file type: {extension}")
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
@@ -201,9 +202,9 @@ async def upload_statement(
                     None,
                 )
                 if not match:
-                    raise HTTPException(400, "Invalid model selection.")
+                    raise_bad_request("Invalid model selection.")
                 if extension != "csv" and not model_matches_modality(match, "image"):
-                    raise HTTPException(400, "Selected model does not support image inputs.")
+                    raise_bad_request("Selected model does not support image inputs.")
             except HTTPException:
                 raise
             except Exception as e:
@@ -256,7 +257,7 @@ async def upload_statement(
             await run_in_threadpool(storage.delete_object, storage_key)
         except StorageError:
             logger.warning("Failed to clean up storage object after DB error", exc_info=True)
-        raise HTTPException(500, "Failed to persist statement metadata") from exc
+        raise_internal_error("Failed to persist statement metadata", cause=exc)
 
     task = asyncio.create_task(
         _parse_statement_background(
@@ -288,8 +289,8 @@ async def upload_statement(
 async def retry_statement_parsing(
     statement_id: UUID,
     request: RetryParsingRequest | None = None,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> BankStatementResponse:
     """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
     model_override = request.model if request else None
@@ -303,7 +304,7 @@ async def retry_statement_parsing(
     statement = result.scalar_one_or_none()
 
     if not statement:
-        raise HTTPException(404, "Statement not found")
+        raise_not_found("Statement")
 
     if statement.status not in (
         BankStatementStatus.PARSED,
@@ -315,7 +316,7 @@ async def retry_statement_parsing(
         )
 
     if not settings.fallback_models:
-        raise HTTPException(500, "No fallback models are configured for statement parsing")
+        raise_internal_error("No fallback models are configured for statement parsing")
 
     selected_model = model_override or settings.fallback_models[0]
     allowed_models = {settings.primary_model} | set(settings.fallback_models)
@@ -327,9 +328,9 @@ async def retry_statement_parsing(
                 None,
             )
             if not match:
-                raise HTTPException(400, "Invalid model selection.")
+                raise_bad_request("Invalid model selection.")
             if not model_matches_modality(match, "image"):
-                raise HTTPException(400, "Selected model does not support image inputs.")
+                raise_bad_request("Selected model does not support image inputs.")
         except HTTPException:
             raise
         except Exception as e:
@@ -386,8 +387,8 @@ async def retry_statement_parsing(
 
 @router.get("", response_model=BankStatementListResponse)
 async def list_statements(
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementListResponse:
     """List all statements for the current user."""
     result = await db.execute(
@@ -411,8 +412,8 @@ async def list_statements(
 
 @router.get("/pending-review", response_model=BankStatementListResponse)
 async def list_pending_review(
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementListResponse:
     """List statements pending human review (confidence 60-84)."""
     result = await db.execute(
@@ -445,8 +446,8 @@ async def list_pending_review(
 @router.get("/{statement_id}", response_model=BankStatementResponse)
 async def get_statement(
     statement_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """Get a statement with all its transactions."""
     result = await db.execute(
@@ -458,7 +459,7 @@ async def get_statement(
     statement = result.scalar_one_or_none()
 
     if not statement:
-        raise HTTPException(404, "Statement not found")
+        raise_not_found("Statement")
 
     return BankStatementResponse.model_validate(statement)
 
@@ -466,8 +467,8 @@ async def get_statement(
 @router.get("/{statement_id}/transactions", response_model=BankStatementTransactionListResponse)
 async def list_statement_transactions(
     statement_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementTransactionListResponse:
     """List transactions for a statement."""
     result = await db.execute(
@@ -479,7 +480,7 @@ async def list_statement_transactions(
     statement = result.scalar_one_or_none()
 
     if not statement:
-        raise HTTPException(404, "Statement not found")
+        raise_not_found("Statement")
 
     items = [BankStatementTransactionResponse.model_validate(t) for t in statement.transactions]
     return BankStatementTransactionListResponse(items=items, total=len(items))
@@ -489,8 +490,8 @@ async def list_statement_transactions(
 async def approve_statement(
     statement_id: UUID,
     decision: StatementDecisionRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """Approve a statement after human review."""
     result = await db.execute(
@@ -502,7 +503,7 @@ async def approve_statement(
     statement = result.scalar_one_or_none()
 
     if not statement:
-        raise HTTPException(404, "Statement not found")
+        raise_not_found("Statement")
 
     statement.status = BankStatementStatus.APPROVED
     if decision.notes:
@@ -523,8 +524,8 @@ async def approve_statement(
 async def reject_statement(
     statement_id: UUID,
     decision: StatementDecisionRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """Reject a statement after human review."""
     result = await db.execute(
@@ -536,7 +537,7 @@ async def reject_statement(
     statement = result.scalar_one_or_none()
 
     if not statement:
-        raise HTTPException(404, "Statement not found")
+        raise_not_found("Statement")
 
     statement.status = BankStatementStatus.REJECTED
     if decision.notes:
@@ -556,8 +557,8 @@ async def reject_statement(
 @router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_statement(
     statement_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> None:
     """Delete a statement."""
     result = await db.execute(
@@ -568,7 +569,7 @@ async def delete_statement(
     statement = result.scalar_one_or_none()
 
     if not statement:
-        raise HTTPException(404, "Statement not found")
+        raise_not_found("Statement")
 
     # Delete from storage
     if statement.file_path:

@@ -32,6 +32,15 @@ async_session_maker = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# Test hook to override session maker
+_test_session_maker = None
+
+
+def set_test_session_maker(maker: async_sessionmaker[AsyncSession] | None) -> None:
+    """Set a test session maker to override the default one."""
+    global _test_session_maker
+    _test_session_maker = maker
+
 
 def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSession]:
     """Create a new session maker sharing the same engine as the provided session.
@@ -60,7 +69,8 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for database session."""
-    async with async_session_maker() as session:
+    maker = _test_session_maker or async_session_maker
+    async with maker() as session:
         try:
             yield session
         finally:
@@ -69,13 +79,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """
-    Database initialization is handled by the container entrypoint 
-    via Alembic migrations. This ensures consistency across all 
+    Database initialization is handled by the container entrypoint
+    via Alembic migrations. This ensures consistency across all
     environments and prevents schema-code mismatch.
     """
     from src.logger import get_logger
+
     logger = get_logger(__name__)
     logger.info("Database initialized (schema managed by migrations)")
-
-
-

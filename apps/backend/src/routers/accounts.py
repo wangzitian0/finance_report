@@ -2,12 +2,10 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id
-from src.database import get_db
+from src.deps import CurrentUserId, DbSession
 from src.models import AccountType, JournalLine
 from src.schemas import (
     AccountCreate,
@@ -28,8 +26,8 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account(
     account_data: AccountCreate,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> AccountResponse:
     """Create a new account."""
     account = await account_service.create_account(db, user_id, account_data)
@@ -47,8 +45,8 @@ async def list_accounts(
     account_type: AccountType | None = None,
     is_active: bool | None = None,
     include_balance: bool = Query(False, description="Include balance (slower)"),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> AccountListResponse:
     """List all accounts with optional filters.
 
@@ -75,8 +73,8 @@ async def list_accounts(
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
     account_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> AccountResponse:
     """Get account details with current balance."""
     try:
@@ -98,8 +96,8 @@ async def get_account(
 async def update_account(
     account_id: UUID,
     account_data: AccountUpdate,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> AccountResponse:
     """Update account details."""
     try:
@@ -120,8 +118,8 @@ async def update_account(
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
     account_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> None:
     """Delete an account (if unused)."""
     # Check if account exists

@@ -42,7 +42,7 @@ def _mock_request(
 async def test_register_creates_user(db: AsyncSession) -> None:
     payload = RegisterRequest(email="direct@example.com", password="secret123", name="Direct")
     mock_request = _mock_request("192.168.1.100")  # Unique IP for test
-    response = await register(mock_request, payload, db)
+    response = await register(mock_request, payload, db=db)
 
     assert response.email == "direct@example.com"
     assert response.name == "Direct"
@@ -57,7 +57,7 @@ async def test_login_rejects_invalid_password(db: AsyncSession) -> None:
     payload = LoginRequest(email="login-direct@example.com", password="wrong")
     mock_request = _mock_request("192.168.1.101")  # Unique IP for test
     with pytest.raises(HTTPException, match="Invalid email or password"):
-        await login(mock_request, payload, db)
+        await login(mock_request, payload, db=db)
 
 
 @pytest.mark.asyncio
@@ -92,7 +92,7 @@ async def test_register_duplicate_email_fails(db: AsyncSession) -> None:
     payload = RegisterRequest(email="duplicate@example.com", password="secret123", name="Second")
     mock_request = _mock_request("192.168.1.102")
     with pytest.raises(HTTPException, match="Email already registered"):
-        await register(mock_request, payload, db)
+        await register(mock_request, payload, db=db)
 
 
 def test_get_client_ip_with_x_forwarded_for_trusted(monkeypatch) -> None:
@@ -157,6 +157,6 @@ async def test_successful_login_resets_rate_limit(db: AsyncSession) -> None:
     # Login successfully
     payload = LoginRequest(email="resettest@example.com", password="correct123")
     mock_request = _mock_request("192.168.1.200")
-    response = await login(mock_request, payload, db)
+    response = await login(mock_request, payload, db=db)
 
     assert response.email == "resettest@example.com"

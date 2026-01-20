@@ -62,6 +62,11 @@ export async function apiFetch<T>(
     throw new Error(message);
   }
 
+  // 204 No Content has no response body
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return (await res.json()) as T;
 }
 
@@ -104,6 +109,11 @@ export async function apiUpload<T>(
       }
     }
     throw new Error(message);
+  }
+
+  // 204 No Content has no response body
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   return (await res.json()) as T;
