@@ -211,14 +211,13 @@ def validate_balance(lines: list[JournalLine]) -> bool:
 | 📋 PM | `pm.md` | Requirement analysis, task breakdown |
 | 🏗️ Architect | `architect.md` | System design, tech decisions |
 | 💻 Developer | `developer.md` | Code implementation |
-| 📊 Accountant | `accountant.md` | Double-entry rules, entry validation |
-| 🔗 Reconciler | `reconciler.md` | Matching algorithm tuning |
+| ⚖️ Auditor | `auditor.md` | Accounting, reconciliation, reporting, and audit |
 | 🧪 Tester | `tester.md` | Test strategy, quality assurance |
 
 ### Usage
 ```bash
-@.claude/skills/accountant.md How should I record this cross-currency transaction?
-@.claude/skills/reconciler.md Match accuracy dropped, please analyze
+@.claude/skills/auditor.md How should I record this cross-currency transaction?
+@.claude/skills/auditor.md Match accuracy dropped, please analyze
 ```
 
 ---
