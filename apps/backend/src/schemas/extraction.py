@@ -1,51 +1,38 @@
+"""Pydantic schemas for document extraction API."""
+
 from datetime import date, datetime
-from typing import Literal
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.models.extraction import BankStatementStatus
+from src.models.statement import (
+    BankStatementStatus,
+    BankStatementTransactionStatus,
+    ConfidenceLevel,
+)
+
+# Re-export enums with schema-friendly names for API consumers
+BankStatementStatusEnum = BankStatementStatus
+BankStatementTransactionStatusEnum = BankStatementTransactionStatus
+ConfidenceLevelEnum = ConfidenceLevel
+
+
+# --- Request Schemas ---
 
 
 class BankStatementUploadRequest(BaseModel):
-    institution: str = Field(..., description="Financial institution name (e.g. DBS, OCBC)")
+    """Request to upload and parse a statement."""
 
-
-class BankStatementResponse(BaseModel):
-    id: UUID
-    institution: str
-    status: BankStatementStatus
-    file_path: str
-    original_filename: str
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class BankStatementListResponse(BaseModel):
-    statements: list[BankStatementResponse]
-
-
-class BankStatementTransactionResponse(BaseModel):
-    id: UUID
-    statement_id: UUID
-    date: date
-    description: str
-    amount: float
-    currency: str
-    transaction_type: Literal["DEBIT", "CREDIT"]
-    raw_data: dict | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class BankStatementTransactionListResponse(BaseModel):
-    transactions: list[BankStatementTransactionResponse]
+    institution: str = Field(..., description="Bank/broker name (e.g., DBS, Wise)")
+    file_type: str = Field(..., description="File type: pdf, csv, image")
+    account_id: UUID | None = Field(None, description="Optional account link")
 
 
 class StatementDecisionRequest(BaseModel):
-    action: Literal["APPROVE", "REJECT"]
+    """Review decision payload for approve/reject."""
+
+    notes: str | None = None
 
 
 class RetryParsingRequest(BaseModel):
@@ -62,7 +49,87 @@ RetryStatementRequest = RetryParsingRequest
 class TransactionUpdateRequest(BaseModel):
     """Request to manually correct a transaction."""
 
-    date: date | None = None
+    txn_date: date | None = None
     description: str | None = None
-    amount: float | None = None
-    transaction_type: Literal["DEBIT", "CREDIT"] | None = None
+    amount: Decimal | None = None
+    direction: str | None = None
+    reference: str | None = None
+
+
+# --- Response Schemas ---
+
+
+class BankStatementTransactionResponse(BaseModel):
+    """Single transaction extracted from statement."""
+
+    id: UUID
+    statement_id: UUID
+    txn_date: date
+    description: str
+    amount: Decimal
+    direction: str
+    reference: str | None
+    status: BankStatementTransactionStatusEnum
+    confidence: ConfidenceLevelEnum
+    confidence_reason: str | None
+    raw_text: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BankStatementResponse(BaseModel):
+    """Parsed statement with transactions."""
+
+    id: UUID
+    user_id: UUID
+    account_id: UUID | None
+    file_path: str
+    original_filename: str
+    institution: str
+    account_last4: str | None
+    currency: str | None
+    period_start: date | None
+    period_end: date | None
+    opening_balance: Decimal | None
+    closing_balance: Decimal | None
+    status: BankStatementStatusEnum
+    confidence_score: int | None
+    balance_validated: bool | None
+    validation_error: str | None
+    created_at: datetime
+    updated_at: datetime
+    transactions: list[BankStatementTransactionResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BankStatementListResponse(BaseModel):
+    """List of statements for review queue."""
+
+    items: list[BankStatementResponse]
+    total: int
+
+
+class BankStatementTransactionListResponse(BaseModel):
+    """List of statement transactions."""
+
+    items: list[BankStatementTransactionResponse]
+    total: int
+
+
+class ParsedStatementPreview(BaseModel):
+    """Preview of parsed data before saving (for validation)."""
+
+    institution: str
+    account_last4: str | None
+    currency: str
+    period_start: date
+    period_end: date
+    opening_balance: Decimal
+    closing_balance: Decimal
+    transactions_count: int
+    confidence_score: int
+    balance_validated: bool
+    validation_error: str | None
