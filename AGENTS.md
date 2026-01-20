@@ -58,6 +58,84 @@
 
 ---
 
+## 🔍 Debugging & Observability
+
+**Use `scripts/debug.py` for unified debugging** across all environments.
+
+### Environment Detection
+
+The debug tool automatically detects your environment:
+- **Local/CI**: Uses Docker logs directly (fast)
+- **Staging/Production**: Uses SSH + Docker logs or SigNoz (centralized)
+
+### Common Commands
+
+```bash
+# View logs (auto-detects environment)
+python scripts/debug.py logs backend
+python scripts/debug.py logs frontend --tail 100
+python scripts/debug.py logs backend --follow
+
+# Specify environment explicitly
+python scripts/debug.py logs backend --env staging
+python scripts/debug.py logs frontend --env production
+
+# Check service status (last 20 lines)
+python scripts/debug.py status backend --env staging
+
+# List all container names for an environment
+python scripts/debug.py containers --env production
+
+# View via SigNoz (staging/production only)
+python scripts/debug.py logs backend --env production --method signoz
+```
+
+### Container Naming Patterns
+
+| Environment | Backend | Frontend | Postgres | Redis |
+|-------------|---------|----------|----------|-------|
+| Local/CI | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-redis` |
+| Staging | `finance-report-backend-staging` | `finance-report-frontend-staging` | `finance-report-db-staging` | `finance-report-redis-staging` |
+| Production | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-redis` |
+| PR (#47) | `finance-report-backend-pr-47` | `finance-report-frontend-pr-47` | `finance-report-db-pr-47` | `finance-report-redis-pr-47` |
+
+### SigNoz Integration
+
+For staging/production, structured logs are shipped to SigNoz via OTLP:
+
+- **Staging**: `https://signoz-staging.zitian.party`
+- **Production**: `https://signoz.zitian.party`
+
+Query logs by service name:
+```
+service_name = "finance-report-backend"
+```
+
+See [docs/ssot/observability.md](docs/ssot/observability.md) for OTLP configuration details.
+
+### Remote Debugging (SSH)
+
+For operations not covered by `debug.py`, SSH access is available:
+
+```bash
+# SSH into VPS (read-only inspection recommended)
+ssh root@$VPS_HOST
+
+# Check container status
+docker ps --filter name=finance-report
+
+# View logs directly
+docker logs finance-report-backend --tail 50
+docker logs finance-report-backend -f
+
+# Restart container (use with caution)
+docker restart finance-report-backend
+```
+
+**IMPORTANT**: Prefer `debug.py` over direct SSH. Direct modifications on VPS are discouraged—deploy via CI instead.
+
+---
+
 ## 📌 Core Domain Context
 
 **Read [target.md](target.md) for macro goals and decision criteria. Key points:**
