@@ -128,8 +128,8 @@ services:
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-https://.*\.zitian\.party}
       DEBUG: ${DEBUG:-false}
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
-      start_period: ${BACKEND_HEALTHCHECK_START_PERIOD:-60s}
+      test: [ "CMD", "curl", "-f", "http://127.0.0.1:8000/health" ]
+      start_period: 90s
       interval: 30s
       timeout: 10s
       retries: 5
@@ -166,8 +166,8 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
-      start_period: 60s
+      test: [ "CMD", "curl", "-f", "http://127.0.0.1:3000" ]
+      start_period: 90s
       interval: 30s
       timeout: 10s
       retries: 5

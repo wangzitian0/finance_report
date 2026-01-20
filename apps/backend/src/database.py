@@ -68,20 +68,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Initialize database tables."""
-    from src.models import (  # noqa: F401
-        Account,
-        BankStatement,
-        BankStatementTransaction,
-        ChatMessage,
-        ChatSession,
-        FxRate,
-        JournalEntry,
-        JournalLine,
-        PingState,
-        ReconciliationMatch,
-        User,
-    )
+    """
+    Database initialization is handled by the container entrypoint 
+    via Alembic migrations. This ensures consistency across all 
+    environments and prevents schema-code mismatch.
+    """
+    from src.logger import get_logger
+    logger = get_logger(__name__)
+    logger.info("Database initialized (schema managed by migrations)")
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+
+

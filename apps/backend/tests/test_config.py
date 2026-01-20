@@ -25,6 +25,7 @@ def test_parse_key_value_pairs_ignores_invalid_items() -> None:
 
 
 def test_environment_alias_reads_deployment_environment(monkeypatch) -> None:
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("ENV", "staging")
     settings = Settings(_env_file=None)
     assert settings.environment == "staging"

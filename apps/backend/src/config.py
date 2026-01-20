@@ -8,7 +8,7 @@ Environment Variable Strategy:
 
 from functools import cached_property
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,13 +61,13 @@ class Settings(BaseSettings):
     # ================================================================
 
     # Database
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
 
     # Redis (optional for local, required for staging/prod)
     redis_url: str | None = None
 
     # S3 / MinIO storage
-    s3_endpoint: str = "http://localhost:9000"
+    s3_endpoint: str = "http://127.0.0.1:9000"
     s3_access_key: str = Field(default="minio", validation_alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="minio_local_secret", validation_alias="S3_SECRET_KEY")
     s3_bucket: str = "statements"
@@ -94,8 +94,10 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
 
     # App settings
+    environment: str = Field(
+        default="development", validation_alias=AliasChoices("ENVIRONMENT", "ENV")
+    )
     debug: bool = False
-    deployment_environment: str = Field(default="development", validation_alias="ENV")
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
@@ -131,11 +133,6 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="OTEL_RESOURCE_ATTRIBUTES",
     )
-
-    @property
-    def environment(self) -> str:
-        """Backward-compatible alias for deployment environment."""
-        return self.deployment_environment
 
     @cached_property
     def cors_origins(self) -> list[str]:

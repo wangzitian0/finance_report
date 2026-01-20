@@ -74,6 +74,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Log in to Container registry
         uses: docker/login-action@v3
@@ -255,26 +257,47 @@ jobs:
             echo "::warning::Unexpected compose status: $status"
           fi
 
+      - name: Network Diagnosis
+        env:
+          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+        run: |
+          DOMAIN=$(echo $APP_URL | sed 's|https://||')
+          echo "🔍 Diagnosing $DOMAIN"
+          host $DOMAIN || echo "⚠️ DNS Resolution failed"
+          ping -c 3 $DOMAIN || echo "⚠️ Ping failed"
+          curl -vI $APP_URL/api/health || echo "⚠️ Curl verbose failed"
+
       - name: Wait for API readiness
         env:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
-          MAX_ATTEMPTS: 30
-          SLEEP_SECONDS: 5
         run: |
-          echo "Waiting for API readiness at $APP_URL/api/health"
-          attempt=1
-          while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
-            status=$(curl -sS -o /dev/null -w "%{http_code}" "$APP_URL/api/health" || true)
-            if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
-              echo "API ready (status $status)"
-              exit 0
-            fi
-            echo "Waiting for API... attempt $attempt/$MAX_ATTEMPTS (status $status)"
-            sleep "$SLEEP_SECONDS"
-            attempt=$((attempt + 1))
-          done
-          echo "::error::API not ready after $MAX_ATTEMPTS attempts"
-          exit 1
+          python3 - << 'EOF'
+          import urllib.request
+          import time
+          import os
+          import sys
+          import traceback
+
+          url = os.environ["APP_URL"] + "/api/health"
+          print(f"Waiting for API readiness at {url}")
+          
+          for attempt in range(1, 41): # Increased to 40 attempts (200s)
+              try:
+                  with urllib.request.urlopen(url, timeout=10) as response:
+                      status = response.getcode()
+                      if 200 <= status < 400:
+                          print(f"✅ API ready (status {status})")
+                          sys.exit(0)
+                      else:
+                          print(f"⚠️ Attempt {attempt}/40: Received status {status}")
+              except Exception as e:
+                  print(f"❌ Attempt {attempt}/40: {type(e).__name__}: {e}")
+              
+              time.sleep(5)
+          
+          print("::error::API not ready after 40 attempts")
+          sys.exit(1)
+          EOF
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -310,9 +333,12 @@ jobs:
         uses: actions/github-script@v7
         env:
           HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          INTERNAL_DOMAIN: ${{ needs.setup.outputs.internal_domain }}
+          COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
         with:
           script: |
-            const url = `https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}`;
+            const url = `https://report-pr-${process.env.PR_NUMBER}.${process.env.INTERNAL_DOMAIN}`;
             const body = `## 🧪 Test Environment Deployed
             
             | Service | URL |
@@ -321,7 +347,7 @@ jobs:
             | API Health | [${url}/api/health](${url}/api/health) |
             
             **Details:**
-            - Compose: \`${{ needs.setup.outputs.compose_name }}\`
+            - Compose: \`${process.env.COMPOSE_NAME}\`
             - Branch: \`${process.env.HEAD_REF}\`
             - Commit: \`${{ github.sha }}\`
             
