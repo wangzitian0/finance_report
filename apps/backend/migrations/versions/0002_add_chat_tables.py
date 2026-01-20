@@ -11,10 +11,24 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE TYPE IF NOT EXISTS chat_session_status_enum AS ENUM ('active', 'deleted')")
-    op.execute(
-        "CREATE TYPE IF NOT EXISTS chat_message_role_enum AS ENUM ('user', 'assistant', 'system')"
-    )
+    # PostgreSQL doesn't support CREATE TYPE IF NOT EXISTS before v15
+    # Use DO block to check type existence before creating
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'chat_session_status_enum') THEN
+                CREATE TYPE chat_session_status_enum AS ENUM ('active', 'deleted');
+            END IF;
+        END$$;
+    """)
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'chat_message_role_enum') THEN
+                CREATE TYPE chat_message_role_enum AS ENUM ('user', 'assistant', 'system');
+            END IF;
+        END$$;
+    """)
     chat_session_status_enum = sa.Enum(
         "active",
         "deleted",
