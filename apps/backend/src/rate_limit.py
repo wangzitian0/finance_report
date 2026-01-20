@@ -16,7 +16,6 @@ section is very short (dict operations only). This is acceptable for FastAPI/uvi
 as the lock is held for microseconds and won't block the event loop meaningfully.
 """
 
-import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -25,8 +24,9 @@ from threading import Lock
 import redis
 
 from src.config import settings
+from src.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

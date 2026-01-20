@@ -6,10 +6,9 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth import get_current_user_id, oauth2_scheme
-from src.database import get_db
+from src.auth import oauth2_scheme
+from src.deps import CurrentUserId, DbSession
 from src.models import User
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
@@ -65,7 +64,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 async def register(
     request: Request,
     data: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
+    *,
+    db: DbSession,
 ) -> AuthResponse:
     """Register a new user with email and password."""
     # SECURITY: Rate limit registration to prevent abuse
@@ -120,7 +120,8 @@ async def register(
 async def login(
     request: Request,
     data: LoginRequest,
-    db: AsyncSession = Depends(get_db),
+    *,
+    db: DbSession,
 ) -> AuthResponse:
     """Login with email and password."""
     # SECURITY: Rate limit login attempts to prevent brute-force attacks
@@ -155,9 +156,10 @@ async def login(
 
 @router.get("/me", response_model=AuthResponse)
 async def get_me(
-    user_id=Depends(get_current_user_id),
     token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
+    *,
+    user_id: CurrentUserId,
+    db: DbSession,
 ) -> AuthResponse:
     """Get current authenticated user."""
     result = await db.execute(select(User).where(User.id == user_id))

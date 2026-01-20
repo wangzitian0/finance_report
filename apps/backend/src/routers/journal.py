@@ -3,13 +3,11 @@
 from datetime import date as date_type
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.auth import get_current_user_id
-from src.database import get_db
+from src.deps import CurrentUserId, DbSession
 from src.models import JournalEntry, JournalEntryStatus, JournalLine
 from src.schemas import (
     JournalEntryCreate,
@@ -30,8 +28,8 @@ router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
 @router.post("", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_journal_entry(
     entry_data: JournalEntryCreate,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     """Create a new journal entry in draft status."""
     # Create entry header
@@ -84,8 +82,9 @@ async def list_journal_entries(
     end_date: date_type | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
     query = select(JournalEntry).where(JournalEntry.user_id == user_id)
@@ -120,8 +119,9 @@ async def list_journal_entries(
 @router.get("/{entry_id}", response_model=JournalEntryResponse)
 async def get_journal_entry(
     entry_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     """Get journal entry details."""
     result = await db.execute(
@@ -144,8 +144,9 @@ async def get_journal_entry(
 @router.post("/{entry_id}/post", response_model=JournalEntryResponse)
 async def post_entry(
     entry_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     """Post a journal entry (draft → posted)."""
     try:
@@ -163,8 +164,9 @@ async def post_entry(
 async def void_entry(
     entry_id: UUID,
     void_request: VoidJournalEntryRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     """Void a posted journal entry by creating a reversal entry."""
     try:
@@ -180,8 +182,9 @@ async def void_entry(
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_journal_entry(
     entry_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> None:
     """Delete a draft journal entry."""
     result = await db.execute(

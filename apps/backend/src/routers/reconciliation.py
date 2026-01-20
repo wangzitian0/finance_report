@@ -3,13 +3,12 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.auth import get_current_user_id
-from src.database import get_db
+from src.deps import CurrentUserId, DbSession
 from src.models import (
     BankStatement,
     BankStatementTransaction,
@@ -119,8 +118,9 @@ async def _load_entry_summaries(
 @router.post("/run", response_model=ReconciliationRunResponse)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationRunResponse:
     # Verify statement belongs to user if provided
     if payload.statement_id:
@@ -168,8 +168,9 @@ async def list_matches(
     status: ReconciliationStatusEnum | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     query = (
         select(ReconciliationMatch)
@@ -218,8 +219,9 @@ async def list_matches(
 async def pending_review_queue(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     entry_summaries = await _load_entry_summaries(db, matches, user_id)
@@ -248,8 +250,9 @@ async def pending_review_queue(
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
 async def accept_match(
     match_id: str,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchResponse:
     try:
         match = await accept_match_service(db, match_id, user_id=user_id)
@@ -267,8 +270,9 @@ async def accept_match(
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
 async def reject_match(
     match_id: str,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchResponse:
     try:
         match = await reject_match_service(db, match_id, user_id=user_id)
@@ -286,8 +290,9 @@ async def reject_match(
 @router.post("/batch-accept", response_model=ReconciliationMatchListResponse)
 async def batch_accept(
     payload: BatchAcceptRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
     if not matches:
@@ -314,8 +319,9 @@ async def batch_accept(
 
 @router.get("/stats", response_model=ReconciliationStatsResponse)
 async def reconciliation_stats(
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationStatsResponse:
     total_result = await db.execute(
         select(func.count(BankStatementTransaction.id))
@@ -390,8 +396,9 @@ async def reconciliation_stats(
 async def list_unmatched(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
     result = await db.execute(
         select(BankStatementTransaction)
@@ -418,8 +425,9 @@ async def list_unmatched(
 @router.post("/unmatched/{txn_id}/create-entry", response_model=JournalEntrySummary)
 async def create_entry(
     txn_id: str,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntrySummary:
     result = await db.execute(
         select(BankStatementTransaction)
@@ -437,8 +445,9 @@ async def create_entry(
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])
 async def list_anomalies(
     txn_id: str,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> list[AnomalyResponse]:
     result = await db.execute(
         select(BankStatementTransaction)
