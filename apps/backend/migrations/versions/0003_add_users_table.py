@@ -1,13 +1,10 @@
-"""add users table
+"""add users table (no-op: users table created in 0001_initial_schema)
 
 Revision ID: 0003_add_users_table
 Revises: 0002_add_chat_tables
 Create Date: 2026-01-11 19:30:00.000000
 
 """
-
-import sqlalchemy as sa
-from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0003_add_users_table"
@@ -17,27 +14,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "users",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("email", sa.String(length=255), nullable=False),
-        sa.Column("hashed_password", sa.String(length=255), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("email"),
-    )
+    pass
 
 
 def downgrade() -> None:
-    op.drop_table("users")
+    pass
