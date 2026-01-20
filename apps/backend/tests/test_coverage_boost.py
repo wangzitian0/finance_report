@@ -108,3 +108,31 @@ def test_openrouter_normalize_model_is_free():
 
     assert normalize_model_entry(free_model)["is_free"] is True
     assert normalize_model_entry(paid_model)["is_free"] is False
+
+
+def test_openrouter_normalize_model_without_id():
+    from src.services.openrouter_models import normalize_model_entry
+
+    model_no_id = {"name": "No ID Model", "pricing": {"prompt": "0", "completion": "0"}}
+
+    normalized = normalize_model_entry(model_no_id)
+    assert "id" not in normalized or normalized.get("id") is None
+
+
+def test_validation_confidence_with_invalid_amount():
+    from src.services.validation import compute_confidence_score
+
+    extracted_data = {
+        "description": "Test",
+        "amount": "not_a_number",
+        "transaction_date": "2024-01-01",
+    }
+
+    balance_result = {
+        "balance_valid": False,
+        "difference": "invalid_decimal",
+    }
+
+    score = compute_confidence_score(extracted_data, balance_result)
+    assert isinstance(score, int)
+    assert 0 <= score <= 100
