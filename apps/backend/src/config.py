@@ -107,8 +107,8 @@ class Settings(BaseSettings):
     # Env format: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
     cors_origins_str: str | None = Field(default=None, validation_alias="CORS_ORIGINS")
 
-    # CORS origin regex - for dynamic subdomains (PR deployments)
-    cors_origin_regex: str = r"https://report(-pr-\d+)?\.zitian\.party"
+    # CORS origin regex - for dynamic subdomains (PR deployments and staging)
+    cors_origin_regex: str = r"https://report(-pr-\d+|-staging)?\.zitian\.party"
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
