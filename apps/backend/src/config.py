@@ -101,7 +101,10 @@ class Settings(BaseSettings):
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
-    next_public_app_url: str = "http://localhost:3000"
+    next_public_app_url: str = Field(
+        default="http://localhost:3000",
+        validation_alias="NEXT_PUBLIC_APP_URL",
+    )
 
     # CORS origins - stored as string, parsed via property
     # Env format: CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
