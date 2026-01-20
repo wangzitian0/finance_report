@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains 6 professional role definitions for multi-agent collaborative development of the financial management system.
+This directory contains professional role definitions for multi-agent collaborative development of the financial management system.
 
 ## Available Roles
 
@@ -14,17 +14,20 @@ This directory contains 6 professional role definitions for multi-agent collabor
 | 📊 Accounting Advisor | `accountant.md` | Double-entry rules, chart of accounts |
 | 🔗 Reconciliation Specialist | `reconciler.md` | Matching algorithms, review queue |
 | 🧪 QA Engineer | `tester.md` | Balance verification, equation testing |
+| 🔧 Backend Developer | `backend-development/SKILL.md` | Production-ready backend systems, security, performance |
 
 ## Usage
 
 ### Single Role Consultation
 ```
 @.claude/skills/accountant.md How should I record this cross-currency investment?
+@.claude/skills/backend-development/SKILL.md How to implement OAuth 2.1 authentication?
 ```
 
 ### Multi-Role Collaboration
 ```
 @.claude/skills/architect.md @.claude/skills/accountant.md Please review this reconciliation engine design together
+@.claude/skills/backend-development/SKILL.md @.claude/skills/developer.md Implement secure API with FastAPI
 ```
 
 ### Collaboration Matrix
