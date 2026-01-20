@@ -135,11 +135,19 @@ def view_local_logs(service: Service, tail: int = 50, follow: bool = False) -> N
 
 def validate_hostname(hostname: str) -> bool:
     """Validate hostname matches domain or IP pattern"""
-    # Simple regex for domain name or IP address
-    # Allows dots, hyphens, alphanumeric
+    # Allows dots, hyphens, alphanumeric, but disallows leading hyphens
+    # to prevent SSH option injection (e.g. -oProxyCommand)
     if not hostname:
         return False
-    return bool(re.match(r"^[a-zA-Z0-9.-]+$", hostname))
+    return bool(re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", hostname))
+
+
+def validate_username(username: str) -> bool:
+    """Validate username matches unix pattern"""
+    # Allows alphanumeric, hyphens, underscores
+    if not username:
+        return False
+    return bool(re.match(r"^[a-z_][a-z0-9_-]*$", username))
 
 
 def view_remote_logs_docker(
@@ -151,29 +159,15 @@ def view_remote_logs_docker(
     # Get VPS host from environment
     vps_host = os.getenv("VPS_HOST")
     if not vps_host:
-        # Try loading from infra2 if available
-        try:
-            sys.path.insert(0, str(REPO_ROOT / "repo"))
-            from libs.env import OpSecrets
-
-            init = OpSecrets()
-            vps_host = init.get("VPS_HOST")
-        except ImportError:
-            print(
-                "❌ VPS_HOST not set. Set it via environment or configure 1Password.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        except Exception as e:
-            print(
-                "❌ Failed to load VPS_HOST from 1Password via OpSecrets.",
-                file=sys.stderr,
-            )
-            print(f"   Details: {e!r}", file=sys.stderr)
-            sys.exit(1)
+        print(
+            "❌ VPS_HOST not set. Set it via environment before running this command.",
+            file=sys.stderr,
+        )
+        print("   Example: export VPS_HOST=1.2.3.4", file=sys.stderr)
+        sys.exit(1)
 
     # Validate VPS_HOST to prevent command injection
-    if not vps_host or not validate_hostname(vps_host):
+    if not validate_hostname(vps_host):
         print(f"❌ Invalid VPS_HOST value: {vps_host}", file=sys.stderr)
         sys.exit(1)
 
@@ -181,7 +175,7 @@ def view_remote_logs_docker(
 
     # Configurable SSH user (default: root)
     ssh_user = os.getenv("VPS_USER", "root")
-    if not validate_hostname(ssh_user):  # Basic validation for user too
+    if not validate_username(ssh_user):
         print(f"❌ Invalid VPS_USER value: {ssh_user}", file=sys.stderr)
         sys.exit(1)
 
@@ -305,24 +299,6 @@ Examples:
         help="Log viewing method (default: docker)",
     )
 
-    # Restart command
-    restart_parser = subparsers.add_parser(
-        "restart", help="Restart service (remote only)"
-    )
-    restart_parser.add_argument(
-        "service",
-        type=str,
-        choices=[s.value for s in Service],
-        help="Service to restart",
-    )
-    restart_parser.add_argument(
-        "--env",
-        type=str,
-        choices=[e.value for e in Environment],
-        default=Environment.STAGING.value,
-        help="Target environment (default: staging)",
-    )
-
     # Status command (alias for logs without follow)
     status_parser = subparsers.add_parser("status", help="Check service status")
     status_parser.add_argument(
@@ -356,18 +332,6 @@ Examples:
     if args.command == "logs":
         service = Service(args.service)
         env = Environment(args.env) if args.env else detect_environment()
-
-        if args.method == "signoz":
-            view_remote_logs_signoz(service, env)
-        elif env in (Environment.LOCAL, Environment.CI):
-            view_local_logs(service, tail=args.tail, follow=args.follow)
-        else:
-            view_remote_logs_docker(service, env, tail=args.tail, follow=args.follow)
-
-    elif args.command == "restart":
-        service = Service(args.service)
-        env = Environment(args.env)
-        restart_service(service, env)
 
     elif args.command == "status":
         service = Service(args.service)
