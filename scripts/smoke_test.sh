@@ -112,7 +112,21 @@ wait_for_endpoint "API Health" "$BASE_URL/api/health" || FAILED=1
 # --- SRE / Environment Parity Checks ---
 echo "--- SRE Consistency Checks ---"
 
-# 1. CORS Validation (Crucial for PR environments)
+# 1. API URL Configuration Validation (Critical for PR environments)
+# Verify that the frontend is NOT making requests to double /api/api/ paths
+echo "Checking API URL configuration..."
+API_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/api/ping" 2>/dev/null || echo "000")
+if [ "$API_CHECK" = "200" ]; then
+    echo "✓ API endpoint reachable (no double /api/ issue)"
+elif [ "$API_CHECK" = "000" ]; then
+    echo "✗ API endpoint unreachable - possible URL misconfiguration"
+    FAILED=1
+else
+    echo "✗ API endpoint returned unexpected status $API_CHECK - possible URL misconfiguration"
+    FAILED=1
+fi
+
+# 2. CORS Validation (Crucial for PR environments)
 # Verify if backend correctly handles CORS for the expected frontend URL
 FRONTEND_URL="${BASE_URL%/}"
 echo "Checking CORS for Origin: $FRONTEND_URL"
