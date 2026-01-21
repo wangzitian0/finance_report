@@ -7,10 +7,12 @@ Covers:
 - Scenario 3: Report Generation View.
 - Scenario 4: Reconciliation Match Approval.
 - Scenario 5: Account/Journal Entry lifecycle.
+- Scenario 6: User Registration Flow.
 """
 
 import os
 import sys
+import uuid
 import pytest
 import subprocess
 from pathlib import Path
@@ -200,15 +202,13 @@ async def test_registration_flow(page: Page):
     [Scenario 6] User Registration Flow.
     Verifies that the API URL configuration is correct (no double /api/ issue).
     """
-    import uuid
-
     await page.goto(get_url("/login"))
 
     # Verify we are on the login page
     await expect(page.locator("body")).to_be_visible()
 
-    # Switch to Register tab
-    await page.get_by_role("button", name="Register").click()
+    # Switch to Register tab - use .first to specify the tab button (not the bottom link)
+    await page.get_by_role("button", name="Register").first.click()
 
     # Generate unique email for this test
     unique_email = f"e2e-test-{uuid.uuid4().hex[:8]}@example.com"
