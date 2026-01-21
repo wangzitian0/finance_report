@@ -73,7 +73,11 @@ class BankStatement(Base):
 
     # Processing
     status: Mapped[BankStatementStatus] = mapped_column(
-        SQLEnum(BankStatementStatus, name="bank_statement_status_enum"),
+        SQLEnum(
+            BankStatementStatus,
+            name="bank_statement_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=BankStatementStatus.UPLOADED,
     )
     confidence_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
@@ -118,13 +122,21 @@ class BankStatementTransaction(Base):
     direction: Mapped[str] = mapped_column(String(3), nullable=False)  # IN, OUT
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[BankStatementTransactionStatus] = mapped_column(
-        SQLEnum(BankStatementTransactionStatus, name="bank_statement_transaction_status_enum"),
+        SQLEnum(
+            BankStatementTransactionStatus,
+            name="bank_statement_transaction_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=BankStatementTransactionStatus.PENDING,
     )
 
     # Confidence tracking
     confidence: Mapped[ConfidenceLevel] = mapped_column(
-        SQLEnum(ConfidenceLevel, name="confidence_level_enum"),
+        SQLEnum(
+            ConfidenceLevel,
+            name="confidence_level_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=ConfidenceLevel.HIGH,
     )
     confidence_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
