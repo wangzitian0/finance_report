@@ -117,6 +117,7 @@ async def patch_database_connection(db_engine):
     the client fixture.
     """
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
     from src import database
 
     test_maker = async_sessionmaker(
@@ -182,28 +183,6 @@ async def client(db_engine, test_user):
             transport=transport,
             base_url="http://test",
             headers={"Authorization": f"Bearer {token}"},
-        ) as client:
-            yield client
-    finally:
-        pass
-
-
-@pytest_asyncio.fixture(scope="function")
-async def public_client(db_engine):
-    """Create async test client without auth headers."""
-    # Override the database URL for the app
-    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-
-    # Database connection is handled by patch_database_connection autouse fixture
-
-    # Import app after setting env var
-    from src.main import app
-
-    try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport,
-            base_url="http://test",
         ) as client:
             yield client
     finally:
