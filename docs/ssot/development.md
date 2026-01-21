@@ -410,6 +410,33 @@ podman ps | grep finance_report
 
 Variables follow a strict "Bake vs. Runtime" flow:
 
+```mermaid
+flowchart TD
+    Start[I need a new Env Var] --> Type{Is it for?}
+    
+    Type -->|Frontend| Front[Next.js Public]
+    Type -->|Backend| Back[FastAPI Runtime]
+    Type -->|Secret| Secret[Production Secret]
+    
+    Front --> F1[Add to .env.example]
+    F1 --> F2[Add to Dockerfile ARG]
+    F2 --> F3[Add to docker-compose.yml args]
+    F3 --> F4[Use NEXT_PUBLIC_ prefix]
+    
+    Back --> B1[Add to .env.example]
+    B1 --> B2[Add to apps/backend/src/config.py]
+    B2 --> B3[Set default value in config.py]
+    
+    Secret --> S1[Add to secrets.ctmpl]
+    S1 --> S2[Add to config.py]
+    S2 --> S3[Add to .env.example]
+    
+    style Start fill:#f9f,stroke:#333,stroke-width:2px
+    style Front fill:#e1f5fe
+    style Back fill:#e8f5e9
+    style Secret fill:#ffebee
+```
+
 1.  **Frontend (Next.js)**:
     *   Variables prefixed with `NEXT_PUBLIC_` are "baked" into the static JS bundle during `npm run build`.
     *   **Requirement**: These MUST be defined as `ARG` in `apps/frontend/Dockerfile`.
@@ -417,9 +444,10 @@ Variables follow a strict "Bake vs. Runtime" flow:
 2.  **Backend (FastAPI)**:
     *   Variables are loaded at runtime via Pydantic Settings.
     *   **Requirement**: All variables must have a type and default in `apps/backend/src/config.py`.
+    *   **Requirement**: Must be documented in `.env.example`.
 3.  **Production (Vault)**:
     *   Secrets are stored in Vault and rendered by `vault-agent` using `secrets.ctmpl`.
-    *   **Consistency**: CI runs `scripts/check_env_keys.py` to ensure `secrets.ctmpl` matches `config.py`.
+    *   **Consistency**: CI runs `scripts/check_env_keys.py` to ensure `secrets.ctmpl`, `config.py`, and `.env.example` are aligned.
 
 ### Cross-Repo Synchronization
 
