@@ -794,8 +794,6 @@ async def test_retry_statement_with_invalid_model(db, test_user, monkeypatch):
     assert "Invalid model selection" in exc.value.detail
 
 
-
-
 @pytest.mark.asyncio
 async def test_retry_statement_with_model_catalog_unavailable(db, test_user, monkeypatch):
     """Test retry when model catalog is unavailable."""
