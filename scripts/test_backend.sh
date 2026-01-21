@@ -460,5 +460,9 @@ export TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@${db_host}:${PO
 export S3_ACCESS_KEY="minio"
 export S3_SECRET_KEY="minio123"
 
+# Ensure test database is migrated to the latest schema (prevents Test vs Prod drift)
+echo "Running database migrations on test database..."
+uv run alembic upgrade head -x dburl="$TEST_DATABASE_URL"
+
 cd "$repo_root/apps/backend"
 uv run pytest "$@"
