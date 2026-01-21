@@ -87,6 +87,7 @@ nav:
       - Reporting: ssot/reporting.md
       - AI Advisor: ssot/ai_advisor.md
       - Database Schema: ssot/schema.md
+      - Observability: ssot/observability.md
       - Development Guide: ssot/development.md
   - Development:
       - Project Overview: project/README.md
