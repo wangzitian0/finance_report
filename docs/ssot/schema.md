@@ -325,6 +325,16 @@ Reconciliation match table.
 
 - **Explicit Enums**: **ALWAYS** provide a `name` parameter to SQLAlchemy `Enum` types (e.g., `Enum(MyEnum, name="my_enum_type")`). This prevents SQLAlchemy from generating inconsistent default names (like `myenum`) which conflict with Alembic migrations and cause `UndefinedFunctionError` in Postgres.
 - **Migration Length**: Keep Alembic migration descriptions concise. File names exceeding 100 characters may fail on certain file systems or Docker volumes.
+- **Migration Revision ID**: Must be manually set to a short string (max 12 chars) if auto-generated IDs are too long or collide.
+
+### Migration Guardrails (Automated Checks)
+
+CI pipelines enforce the following rules via `tests/test_schema_guardrails.py`:
+
+1.  **Strict Enum Naming**: All `sa.Enum` fields in models MUST have `name="..."` explicitly defined.
+    -   ❌ Bad: `sa.Column(sa.Enum(Status))` -> Postgres type: `status` (implicit)
+    -   ✅ Good: `sa.Column(sa.Enum(Status, name="journal_entry_status"))` -> Postgres type: `journal_entry_status`
+2.  **Revision ID Length**: Alembic revision file names must not have insanely long prefixes.
 
 ### Async Session Management
 

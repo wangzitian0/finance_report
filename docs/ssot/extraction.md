@@ -141,6 +141,19 @@ S3_PRESIGN_EXPIRY_SECONDS=900
 - **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter.
 - **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
 
+## Data Integrity & Typing
+
+To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
+
+1.  **AI Output**: The LLM prompt must request monetary values as numbers or strings.
+2.  **Pydantic Validation**:
+    -   **NEVER** use `float` for `amount` fields.
+    -   **MUST** use `Decimal` with strict mode or string coercion.
+    -   Example: `amount: Decimal = Field(decimal_places=2)`
+3.  **Database Storage**: Stored as `DECIMAL(18,2)`.
+
+> **Float Ban**: Any code found using `float` for currency calculation will be rejected by CI.
+
 ## Files
 
 | File | Purpose |

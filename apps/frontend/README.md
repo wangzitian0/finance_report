@@ -46,6 +46,14 @@ The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc)
 | `/chat` | AI Advisor chat interface |
 | `/ping-pong` | API connectivity demo |
 
+## Environment Variables
+
+### `NEXT_PUBLIC_API_URL`
+
+- **Rule**: Must **NOT** end with a slash `/`.
+- **Reason**: The frontend client automatically appends paths starting with `/`. Double slashes (`//`) can cause 404s on some proxies.
+- **Example**: `https://api.example.com` (Good), `https://api.example.com/` (Bad).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

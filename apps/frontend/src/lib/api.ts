@@ -8,8 +8,9 @@ import { getAccessToken, getUserId } from "./auth";
  *
  * When empty, API calls use relative paths (e.g., /api/accounts).
  */
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "";
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "")
+  .trim()
+  .replace(/\/$/, "");
 
 /**
  * Base URL of the frontend application.
@@ -38,7 +39,10 @@ export async function apiFetch<T>(
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  // Guard: Ensure path starts with / to avoid "http://hostpath" concatenation errors
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
     ...options,
     headers,
   });
@@ -85,7 +89,10 @@ export async function apiUpload<T>(
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  // Guard: Ensure path starts with /
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
     method: "POST",
     body: formData,
     ...options,
