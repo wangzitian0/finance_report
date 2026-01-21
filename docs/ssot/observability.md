@@ -241,9 +241,11 @@ API keys are stored in Vault at `secret/platform/{env}/signoz`:
 
 Read API key from Vault:
 ```bash
-export VAULT_ROOT_TOKEN=$(op read 'op://Infra2/dexluuvzg5paff3cltmtnlnosm/Root Token')
-curl -s "https://vault.zitian.party/v1/secret/data/platform/production/signoz" \
-  -H "X-Vault-Token: $VAULT_ROOT_TOKEN" | jq '.data.data.api_key'
+# WARNING: Vault root token is highly privileged. Do not log or persist in shell history.
+# Prefer using `op run` to avoid exposing the token in environment variables.
+op run --env-file=<(echo 'VAULT_ROOT_TOKEN="op://Infra2/dexluuvzg5paff3cltmtnlnosm/Root Token"') -- \
+  curl -s "https://vault.zitian.party/v1/secret/data/platform/production/signoz" \
+  -H 'X-Vault-Token: $VAULT_ROOT_TOKEN' | jq '.data.data.api_key'
 ```
 
 ### 9.3 API Key Usage
@@ -251,6 +253,9 @@ curl -s "https://vault.zitian.party/v1/secret/data/platform/production/signoz" \
 Use the API key for SigNoz API calls:
 
 ```bash
+# Replace <api_key> with the value from the Vault query above
+# or from the `invoke signoz.shared.create-api-key` output.
+
 # Query alerts
 curl -s "https://signoz.zitian.party/api/v1/alerts" \
   -H "SIGNOZ-API-KEY: <api_key>"
