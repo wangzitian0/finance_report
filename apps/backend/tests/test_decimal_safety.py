@@ -53,7 +53,7 @@ def test_float_injection_safety():
     # If it accepted it, it better match "0.30" exactly
     # If it captured the artifact 0.3000000000000000444..., this assertion will fail.
     # This acts as a tripwire for the "Float" pitfall.
-    assert obj.amount == Decimal("0.30") or obj.amount == Decimal("0.3"), (
+    assert obj.amount == Decimal("0.30"), (
         f"DANGEROUS: Float {bad_float} was converted to {obj.amount} with precision artifacts! "
         "Update Pydantic models to use strict=True or a rounding validator."
     )

@@ -31,14 +31,10 @@ describe('apiFetch', () => {
     expect(fetchMock).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
   });
 
-  it('should handle whitespace in base URL gracefully', async () => {
-    // This assumes API_URL logic in api.ts uses .trim()
-    // We cannot change the const import at runtime easily in ES modules without setup,
-    // so we verify the path normalization part specifically.
-    await apiFetch('  /users  ');
-    // Path normalization currently only handles leading slash. 
-    // It does NOT trim the input path itself, but we should verify it handles the slash.
-    const expectedUrl = `${API_URL}/users  `; 
+  it('should preserve whitespace in path while normalizing leading slash', async () => {
+    await apiFetch('users  ');
+
+    const expectedUrl = `${API_URL}/users  `;
     expect(fetchMock).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
   });
 });
