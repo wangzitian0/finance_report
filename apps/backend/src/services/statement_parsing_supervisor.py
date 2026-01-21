@@ -27,7 +27,7 @@ async def reset_stale_parsing_jobs(
     async with session_factory() as session:
         result = await session.execute(
             select(BankStatement)
-            .where(BankStatement.status == BankStatementStatus.PARSING)
+            .where(BankStatement.status == BankStatementStatus.PARSING.value)
             .where(BankStatement.updated_at < cutoff)
         )
         stale_statements = result.scalars().all()
