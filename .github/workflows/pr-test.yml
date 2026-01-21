@@ -107,7 +107,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}/api
+            NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
             NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
 
       - name: Check if compose exists
@@ -186,7 +186,7 @@ jobs:
           echo "ENV_DOMAIN_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
           echo "INTERNAL_DOMAIN=$DOMAIN" >> .env.dokploy
           echo "TRAEFIK_ENABLE=true" >> .env.dokploy
-          echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN/api" >> .env.dokploy
+          echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
           echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
           echo "DEBUG=true" >> .env.dokploy
           echo "POSTGRES_PORT=0" >> .env.dokploy
