@@ -11,6 +11,7 @@ from src.models.statement import (
     BankStatementTransactionStatus,
     ConfidenceLevel,
 )
+from src.schemas.base import ListResponse
 
 # Re-export enums with schema-friendly names for API consumers
 BankStatementStatusEnum = BankStatementStatus
@@ -105,18 +106,10 @@ class BankStatementResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class BankStatementListResponse(BaseModel):
-    """List of statements for review queue."""
-
-    items: list[BankStatementResponse]
-    total: int
+BankStatementListResponse = ListResponse[BankStatementResponse]
 
 
-class BankStatementTransactionListResponse(BaseModel):
-    """List of statement transactions."""
-
-    items: list[BankStatementTransactionResponse]
-    total: int
+BankStatementTransactionListResponse = ListResponse[BankStatementTransactionResponse]
 
 
 class ParsedStatementPreview(BaseModel):

@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from src.schemas.base import ListResponse
+
 
 class UserBase(BaseModel):
     """Base user schema."""
@@ -43,8 +45,4 @@ class UserResponse(UserBase):
         return v
 
 
-class UserListResponse(BaseModel):
-    """Schema for user list response."""
-
-    items: list[UserResponse]
-    total: int
+UserListResponse = ListResponse[UserResponse]

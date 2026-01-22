@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_URL, apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
+import { formatCurrencyLocale } from "@/lib/currency";
 
 interface ReportLine {
   account_id: string;
@@ -34,8 +35,6 @@ const toNumber = (value: number | string): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
-const formatCurrency = (currency: string, value: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 
 const buildTree = (lines: ReportLine[]): AccountNode[] => {
   const nodes = new Map<string, AccountNode>();
@@ -93,7 +92,7 @@ export default function BalanceSheetPage() {
             {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}
             <span>{node.name}</span>
           </div>
-          <span className="font-medium">{report ? formatCurrency(report.currency, toNumber(node.amount)) : "—"}</span>
+          <span className="font-medium">{report ? formatCurrencyLocale(toNumber(node.amount), report.currency) : "—"}</span>
         </div>
         {hasChildren && isExpanded && <div className="ml-2 border-l border-[var(--border)] pl-2">{node.children.map((c) => renderNode(c, depth + 1))}</div>}
       </div>
@@ -139,17 +138,17 @@ export default function BalanceSheetPage() {
         <div className="card p-5">
           <h2 className="font-semibold mb-3">Assets</h2>
           <div className="space-y-1">{assetsTree.length ? assetsTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)]">Total: {report ? formatCurrency(report.currency, toNumber(report.total_assets)) : "—"}</div>
+          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)]">Total: {report ? formatCurrencyLocale(toNumber(report.total_assets), report.currency) : "—"}</div>
         </div>
         <div className="card p-5">
           <h2 className="font-semibold mb-3">Liabilities</h2>
           <div className="space-y-1">{liabilitiesTree.length ? liabilitiesTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--error)]">Total: {report ? formatCurrency(report.currency, toNumber(report.total_liabilities)) : "—"}</div>
+          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--error)]">Total: {report ? formatCurrencyLocale(toNumber(report.total_liabilities), report.currency) : "—"}</div>
         </div>
         <div className="card p-5">
           <h2 className="font-semibold mb-3">Equity</h2>
           <div className="space-y-1">{equityTree.length ? equityTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold">Total: {report ? formatCurrency(report.currency, toNumber(report.total_equity)) : "—"}</div>
+          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold">Total: {report ? formatCurrencyLocale(toNumber(report.total_equity), report.currency) : "—"}</div>
         </div>
       </div>
     </div>

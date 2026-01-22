@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
+import { formatAmount } from "@/lib/currency";
 import {
   ReconciliationMatchListResponse,
   ReconciliationMatchResponse,
@@ -151,7 +152,7 @@ export default function ReconciliationWorkbench() {
         <div className="card p-5 w-full max-w-sm">
           <div className="text-xs text-muted uppercase tracking-wide">Match Rate</div>
           <div className="flex items-end gap-2 mt-1">
-            <span className="text-3xl font-semibold text-[var(--accent)]">{stats ? stats.match_rate.toFixed(1) : "0.0"}%</span>
+            <span className="text-3xl font-semibold text-[var(--accent)]">{stats ? formatAmount(stats.match_rate, 1) : "0.0"}%</span>
             <span className="text-sm text-muted">{stats?.matched_transactions ?? 0} / {stats?.total_transactions ?? 0}</span>
           </div>
           <div className="mt-3 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
@@ -229,7 +230,7 @@ export default function ReconciliationWorkbench() {
                 <p className="font-medium text-sm mb-2">Score Breakdown</p>
                 <div className="space-y-1 text-xs">
                   {Object.entries(selected.score_breakdown).map(([key, value]) => (
-                    <div key={key} className="flex justify-between"><span className="capitalize text-muted">{key.replace("_", " ")}</span><span className="font-semibold text-[var(--accent)]">{Number(value).toFixed(1)}</span></div>
+                    <div key={key} className="flex justify-between"><span className="capitalize text-muted">{key.replace("_", " ")}</span><span className="font-semibold text-[var(--accent)]">{formatAmount(Number(value), 1)}</span></div>
                   ))}
                 </div>
               </div>

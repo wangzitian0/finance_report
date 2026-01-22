@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.schemas.base import ListResponse
 from src.schemas.extraction import BankStatementTransactionStatusEnum
 
 
@@ -64,11 +65,7 @@ class ReconciliationMatchResponse(BaseModel):
     entries: list[JournalEntrySummary] = Field(default_factory=list)
 
 
-class ReconciliationMatchListResponse(BaseModel):
-    """List response for reconciliation matches."""
-
-    items: list[ReconciliationMatchResponse]
-    total: int
+ReconciliationMatchListResponse = ListResponse[ReconciliationMatchResponse]
 
 
 class ReconciliationRunRequest(BaseModel):
@@ -105,11 +102,7 @@ class ReconciliationStatsResponse(BaseModel):
     score_distribution: dict[str, int]
 
 
-class UnmatchedTransactionsResponse(BaseModel):
-    """Response for unmatched transactions."""
-
-    items: list[BankTransactionSummary]
-    total: int
+UnmatchedTransactionsResponse = ListResponse[BankTransactionSummary]
 
 
 class AnomalyResponse(BaseModel):
