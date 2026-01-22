@@ -1,7 +1,26 @@
 import Decimal from "decimal.js";
 
 export function parseAmount(value: string | number): Decimal {
-  return new Decimal(value || "0");
+  if (value === null || value === undefined) {
+    throw new Error("parseAmount received null or undefined");
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") {
+      throw new Error("parseAmount received an empty string");
+    }
+    return new Decimal(trimmed);
+  }
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("parseAmount received a non-finite number");
+    }
+    return new Decimal(value);
+  }
+
+  throw new Error("parseAmount received an invalid type");
 }
 
 export function formatAmount(value: Decimal | string | number, decimals = 2): string {
