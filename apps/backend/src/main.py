@@ -168,11 +168,18 @@ async def check_database(db: AsyncSession) -> bool:
         await db.execute(text("SELECT 1"))
         return True
     except (OSError, TimeoutError) as e:
-        # Expected: Network errors, connection refused, query timeout
         logger.error(
-            "Health check: Database connection failed",
+            "Health check: Database network error",
             error=str(e),
             error_type=type(e).__name__,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Health check: Database unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
         )
         return False
 
@@ -188,11 +195,18 @@ async def check_redis() -> bool:
         await redis_client.ping()
         return True
     except (OSError, TimeoutError) as e:
-        # Expected: Network errors, connection refused, Redis command failures
         logger.error(
-            "Health check: Redis connection failed",
+            "Health check: Redis network error",
             error=str(e),
             error_type=type(e).__name__,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Health check: Redis unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
         )
         return False
     finally:
@@ -215,7 +229,6 @@ async def check_s3() -> bool:
             await s3_client.head_bucket(Bucket=settings.s3_bucket)
             return True
     except ClientError as e:
-        # Expected: 404 Not Found, 403 Forbidden, bucket access errors
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
         logger.error(
             "Health check: S3 client error",
@@ -225,11 +238,18 @@ async def check_s3() -> bool:
         )
         return False
     except (BotoCoreError, OSError, TimeoutError) as e:
-        # Expected: Connection errors, timeouts, network issues
         logger.error(
             "Health check: S3 connection failed",
             error=str(e),
             error_type=type(e).__name__,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Health check: S3 unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
         )
         return False
 
@@ -241,23 +261,40 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
     Returns 200 if all critical services are healthy, 503 otherwise.
     This endpoint is used by Docker healthcheck and deployment verification.
     """
-    checks = {
-        "database": await check_database(db),
-        "redis": await check_redis(),
-        "s3": await check_s3(),
-    }
+    try:
+        checks = {
+            "database": await check_database(db),
+            "redis": await check_redis(),
+            "s3": await check_s3(),
+        }
 
-    all_healthy = all(checks.values())
-    status_code = 200 if all_healthy else 503
+        all_healthy = all(checks.values())
+        status_code = 200 if all_healthy else 503
 
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": "healthy" if all_healthy else "unhealthy",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "checks": checks,
-        },
-    )
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "healthy" if all_healthy else "unhealthy",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "checks": checks,
+            },
+        )
+    except Exception as e:
+        logger.error(
+            "Health check: Unexpected error in endpoint",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "error": "Health check failed with unexpected error",
+                "error_type": type(e).__name__,
+            },
+        )
 
 
 @app.get("/ping", response_model=PingStateResponse)
