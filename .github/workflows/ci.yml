@@ -38,7 +38,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "0.5.14"
-          enable-cache: false
+          enable-cache: true
       
       - name: Set up Python
         run: uv python install 3.12
@@ -77,8 +77,7 @@ jobs:
           # Redis is optional (only required for distributed rate limiting in production)
         run: |
           cd apps/backend
-          # Skip slow tests in CI for faster feedback (see pyproject.toml markers)
-          uv run pytest -v -m "not slow" --cov=src --cov-report=lcov --cov-report=term-missing
+          uv run pytest -v -m "not slow" -n 2 --cov=src --cov-report=lcov --cov-report=term-missing
       
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
