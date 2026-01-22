@@ -23,6 +23,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | React/Next.js SSR handling, theme system, and API patterns |
 | [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes, and migrations |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rules, accounting equation, and transaction validation |
+| [env_smoke_test.md](./env_smoke_test.md) | `env_smoke_test` | Environment variable smoke testing — Validates configuration works via real operations |
 
 ### Feature-Specific Documents
 

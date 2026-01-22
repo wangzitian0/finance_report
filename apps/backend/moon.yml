@@ -49,3 +49,15 @@ tasks:
     local: true
     deps:
       - 'install'
+
+  env-check:
+    command: 'uv run python -m src.env_smoke_test'
+    local: true
+    deps:
+      - 'install'
+
+  env-check-quick:
+    command: 'uv run python -m src.env_smoke_test --quick'
+    local: true
+    deps:
+      - 'install'

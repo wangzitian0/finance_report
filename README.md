@@ -57,6 +57,7 @@ This project uses [Moonrepo](https://moonrepo.dev/) for task orchestration:
 moon run backend:dev        # Start backend
 moon run frontend:dev       # Start frontend
 moon run backend:test       # Run tests (auto-manages DB)
+moon run backend:env-check  # Smoke test environment variables
 moon run :lint              # Lint all
 ```
 Backend tests enforce **>= 95%** line coverage; see `docs/ssot/development.md` for details.
