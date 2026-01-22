@@ -9,11 +9,14 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import aioboto3
 import structlog
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -26,6 +29,14 @@ from src.routers import accounts, ai_models, auth, chat, journal, reports, state
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
+
+# Conditional import for Redis (optional dependency in production)
+try:
+    import redis.asyncio as redis
+
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
 
 # Initialize logging early
 configure_logging()
@@ -151,10 +162,139 @@ app.include_router(users.router)
 # --- Health & Demo Endpoints ---
 
 
+async def check_database(db: AsyncSession) -> bool:
+    """Check database connectivity."""
+    try:
+        await db.execute(text("SELECT 1"))
+        return True
+    except (OSError, TimeoutError) as e:
+        logger.error(
+            "Health check: Database network error",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Health check: Database unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
+        )
+        return False
+
+
+async def check_redis() -> bool:
+    """Check Redis connectivity if configured."""
+    if not settings.redis_url or not REDIS_AVAILABLE:
+        return True
+
+    redis_client = None
+    try:
+        redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+        await redis_client.ping()
+        return True
+    except (OSError, TimeoutError) as e:
+        logger.error(
+            "Health check: Redis network error",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Health check: Redis unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
+        )
+        return False
+    finally:
+        if redis_client:
+            await redis_client.aclose()
+
+
+async def check_s3() -> bool:
+    """Check S3/MinIO connectivity with short timeout."""
+    try:
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint,
+            aws_access_key_id=settings.s3_access_key,
+            aws_secret_access_key=settings.s3_secret_key,
+            region_name=settings.s3_region,
+            config=BotoConfig(connect_timeout=5, read_timeout=5),
+        ) as s3_client:
+            await s3_client.head_bucket(Bucket=settings.s3_bucket)
+            return True
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "Unknown")
+        logger.error(
+            "Health check: S3 client error",
+            error=str(e),
+            error_code=error_code,
+            bucket=settings.s3_bucket,
+        )
+        return False
+    except (BotoCoreError, OSError, TimeoutError) as e:
+        logger.error(
+            "Health check: S3 connection failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Health check: S3 unexpected error",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
+        )
+        return False
+
+
 @app.get("/health")
-async def health_check() -> dict[str, str]:
-    """Check application health status."""
-    return {"status": "healthy", "timestamp": datetime.now(UTC).isoformat()}
+async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
+    """Check application health status with dependency checks.
+
+    Returns 200 if all critical services are healthy, 503 otherwise.
+    This endpoint is used by Docker healthcheck and deployment verification.
+    """
+    try:
+        checks = {
+            "database": await check_database(db),
+            "redis": await check_redis(),
+            "s3": await check_s3(),
+        }
+
+        all_healthy = all(checks.values())
+        status_code = 200 if all_healthy else 503
+
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "healthy" if all_healthy else "unhealthy",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "checks": checks,
+            },
+        )
+    except Exception as e:
+        logger.error(
+            "Health check: Unexpected error in endpoint",
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=type(e).__module__,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "error": "Health check failed with unexpected error",
+                "error_type": type(e).__name__,
+            },
+        )
 
 
 @app.get("/ping", response_model=PingStateResponse)

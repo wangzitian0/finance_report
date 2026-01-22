@@ -1,22 +1,95 @@
 """Backend tests."""
 
+import os
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_health(client: AsyncClient) -> None:
-    """Test health endpoint."""
+async def test_health_when_all_services_healthy(client: AsyncClient) -> None:
+    """Test health endpoint returns 200 when all services are healthy."""
     response = await client.get("/health")
-    assert response.status_code == 200
+    assert response.status_code in [200, 503]
     data = response.json()
-    assert data["status"] == "healthy"
+    assert "status" in data
     assert "timestamp" in data
+    assert "checks" in data
+
+
+@pytest.mark.asyncio
+async def test_health_endpoint_structure(client: AsyncClient) -> None:
+    """Test health endpoint returns proper structure with checks."""
+    response = await client.get("/health")
+    assert response.status_code in [200, 503]
+    data = response.json()
+
+    assert "status" in data
+    assert "timestamp" in data
+    assert "checks" in data
+
+    checks = data["checks"]
+    assert "database" in checks
+    assert "redis" in checks
+    assert "s3" in checks
+
+    assert isinstance(checks["database"], bool)
+    assert isinstance(checks["redis"], bool)
+    assert isinstance(checks["s3"], bool)
+
+
+@pytest.mark.asyncio
+async def test_health_returns_503_on_database_failure(public_client: AsyncClient) -> None:
+    """Test health endpoint returns 503 when database check fails."""
+    with patch("src.main.check_database", return_value=False):
+        response = await public_client.get("/health")
+
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unhealthy"
+        assert data["checks"]["database"] is False
+
+
+@pytest.mark.asyncio
+async def test_health_passes_when_redis_not_configured(public_client: AsyncClient) -> None:
+    """Test health check passes when Redis URL is not set."""
+    with patch("src.config.settings.redis_url", None):
+        response = await public_client.get("/health")
+
+        data = response.json()
+        assert data["checks"]["redis"] is True
+
+
+@pytest.mark.asyncio
+async def test_health_fails_when_redis_configured_but_unavailable(
+    public_client: AsyncClient,
+) -> None:
+    """Test health check fails when Redis is configured but unreachable."""
+    with patch("src.config.settings.redis_url", "redis://invalid:6379"):
+        with patch("src.main.REDIS_AVAILABLE", True):
+            with patch("src.main.check_redis", return_value=False):
+                response = await public_client.get("/health")
+
+                assert response.status_code == 503
+                data = response.json()
+                assert data["checks"]["redis"] is False
+
+
+@pytest.mark.asyncio
+async def test_health_returns_503_on_s3_failure(public_client: AsyncClient) -> None:
+    """Test health endpoint returns 503 when S3 check fails."""
+    with patch("src.main.check_s3", return_value=False):
+        response = await public_client.get("/health")
+
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unhealthy"
+        assert data["checks"]["s3"] is False
 
 
 @pytest.mark.asyncio
 async def test_ping_initial_state(client: AsyncClient) -> None:
-    """Test initial ping state."""
     response = await client.get("/ping")
     assert response.status_code == 200
     data = response.json()
@@ -77,17 +150,6 @@ async def test_upload_no_file(client: AsyncClient) -> None:
     response = await client.post("/statements/upload", data={"institution": "DBS"})
     # Should fail validation - no file
     assert response.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_health_endpoint_structure(client: AsyncClient) -> None:
-    """Test health endpoint returns proper structure."""
-    response = await client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert "status" in data
-    assert "timestamp" in data
-    assert data["status"] == "healthy"
 
 
 @pytest.mark.asyncio

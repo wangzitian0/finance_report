@@ -110,11 +110,29 @@ jobs:
           echo "Deploying $IMAGE_TAG to staging..."
           
           # Get current env (suppress output to avoid leaking secrets)
-          env_response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" 2>/dev/null)
+          response_file=$(mktemp)
+          error_file=$(mktemp)
+          trap "rm -f '$response_file' '$error_file'" EXIT INT TERM
           
-          if [ $? -ne 0 ] || [ -z "$env_response" ]; then
-            echo "ERROR: Failed to fetch current environment from API"
+          http_code=$(curl -s -o "$response_file" -w "%{http_code}" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" \
+            2>"$error_file" || echo "000")
+          
+          if [ "$http_code" = "000" ]; then
+            echo "ERROR: Failed to connect to Dokploy API (DNS/TLS/network error)"
+            cat "$error_file"
+            exit 1
+          elif [ "$http_code" != "200" ]; then
+            echo "ERROR: Dokploy API returned HTTP $http_code"
+            cat "$response_file"
+            exit 1
+          fi
+          
+          env_response=$(cat "$response_file")
+          
+          if [ -z "$env_response" ]; then
+            echo "ERROR: Empty response from API"
             exit 1
           fi
           
@@ -147,24 +165,172 @@ jobs:
           fi
           
           # Update environment
-          if ! curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          update_response_file=$(mktemp)
+          update_error_file=$(mktemp)
+          trap "rm -f '$response_file' '$error_file' '$update_response_file' '$update_error_file'" EXIT INT TERM
+          
+          http_code=$(curl -s -o "$update_response_file" -w "%{http_code}" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" > /dev/null; then
-            echo "ERROR: Failed to update environment"
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" \
+            2>"$update_error_file" || echo "000")
+          
+          if [ "$http_code" = "000" ]; then
+            echo "ERROR: Failed to connect to Dokploy API for environment update"
+            cat "$update_error_file"
+            exit 1
+          elif [ "$http_code" != "200" ]; then
+            echo "ERROR: Environment update failed with HTTP $http_code"
+            cat "$update_response_file"
             exit 1
           fi
           
           echo "Environment updated to use image tag: $IMAGE_TAG"
           
           # Redeploy
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          deploy_response_file=$(mktemp)
+          deploy_error_file=$(mktemp)
+          trap "rm -f '$response_file' '$error_file' '$update_response_file' '$update_error_file' '$deploy_response_file' '$deploy_error_file'" EXIT INT TERM
+          
+          http_code=$(curl -s -o "$deploy_response_file" -w "%{http_code}" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" \
+            2>"$deploy_error_file" || echo "000")
+          
+          if [ "$http_code" = "000" ]; then
+            echo "ERROR: Failed to connect to Dokploy API for deployment trigger"
+            cat "$deploy_error_file"
+            exit 1
+          elif [ "$http_code" != "200" ]; then
+            echo "ERROR: Deployment trigger failed with HTTP $http_code"
+            cat "$deploy_response_file"
+            exit 1
+          fi
+          
+          echo "Deployment triggered. Waiting for backend to become healthy..."
+          echo ""
+          
+          # Create temp files and setup cleanup trap
+          health_response_file=$(mktemp)
+          health_error_file=$(mktemp)
+          trap "rm -f '$health_response_file' '$health_error_file'" EXIT INT TERM
+          
+          # Poll health endpoint until healthy or timeout
+          # 36 attempts * 10s = 6 minutes total (accounts for slow migrations)
+          max_attempts=36
+          attempt=1
+          health_url="https://report-staging.zitian.party/api/health"
+          
+          while (( attempt <= max_attempts )); do
+            echo "[WAITING] Health check attempt $attempt/$max_attempts..."
             
-          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
-          sleep ${{ env.DEPLOY_WAIT_SECONDS }}
+            # Capture both HTTP status code and response body
+            http_code=$(curl -s -o "$health_response_file" -w "%{http_code}" "$health_url" 2>"$health_error_file" || echo "000")
+            
+            # Check for connection errors (curl exit code != 0)
+            if [ "$http_code" = "000" ]; then
+              echo "[WARNING] Connection failed (attempt $attempt/$max_attempts)"
+              
+              if (( attempt == max_attempts )); then
+                timeout=$((max_attempts * 10))
+                echo ""
+                echo "========================================="
+                echo "[FAIL] Deployment Failed: Cannot connect to health endpoint"
+                echo "========================================="
+                echo "URL: $health_url"
+                echo ""
+                echo "Connection error:"
+                cat "$health_error_file" 2>/dev/null || echo "(no error details)"
+                echo ""
+                echo "Troubleshooting:"
+                echo "1. Check DNS resolution: nslookup report-staging.zitian.party"
+                echo "2. Check TLS certificate: curl -v $health_url"
+                echo "3. Check container status via Dokploy"
+                echo "4. Check SigNoz: https://signoz.zitian.party"
+                echo "   Filter: deployment.environment=staging service_name=finance-report-backend"
+                echo "========================================="
+                exit 1
+              fi
+              
+              sleep 10
+              ((attempt++))
+              continue
+            fi
+            
+            # Check for HTTP errors
+            if [ "$http_code" != "200" ]; then
+              echo "[WARNING] HTTP $http_code (attempt $attempt/$max_attempts)"
+              
+              if (( attempt == max_attempts )); then
+                timeout=$((max_attempts * 10))
+                echo ""
+                echo "========================================="
+                echo "[FAIL] Deployment Failed: Health endpoint returned HTTP $http_code"
+                echo "========================================="
+                echo "URL: $health_url"
+                echo "Response:"
+                cat "$health_response_file" 2>/dev/null || echo "(no response body)"
+                echo ""
+                echo "Troubleshooting: Check SigNoz for application logs"
+                echo "========================================="
+                exit 1
+              fi
+              
+              sleep 10
+              ((attempt++))
+              continue
+            fi
+            
+            # Check if response contains "healthy"
+            health_response=$(cat "$health_response_file" 2>/dev/null || echo "")
+            if echo "$health_response" | grep -q '"status":"healthy"'; then
+              elapsed=$((attempt * 10))
+              echo ""
+              echo "========================================="
+              echo "[SUCCESS] Deployment Successful ($elapsed seconds)"
+              echo "========================================="
+              echo "Version: $IMAGE_TAG"
+              echo "Environment: staging"
+              echo "URL: https://report-staging.zitian.party"
+              echo "Response: $health_response"
+              echo ""
+              echo "Logs: https://signoz.zitian.party"
+              echo "Filter: deployment.environment=staging service_name=finance-report-backend"
+              echo "========================================="
+              exit 0
+            fi
+            
+            # Response is 200 but not healthy
+            echo "[WARNING] Backend is unhealthy (attempt $attempt/$max_attempts)"
+            echo "Response: $health_response"
+            
+            if (( attempt == max_attempts )); then
+              timeout=$((max_attempts * 10))
+              echo ""
+              echo "========================================="
+              echo "[FAIL] Deployment Failed: Backend unhealthy after ${timeout}s"
+              echo "========================================="
+              echo "Last health check response:"
+              echo "$health_response"
+              echo ""
+              echo "Troubleshooting:"
+              echo "1. Check which dependency failed in response above"
+              echo "2. Check SigNoz: https://signoz.zitian.party"
+              echo "   Filter: deployment.environment=staging service_name=finance-report-backend"
+              echo "3. Look for CHECKPOINT markers in logs:"
+              echo "   - [CHECKPOINT-1] Vault secrets not ready"
+              echo "   - [CHECKPOINT-2] Database migration failed"
+              echo "   - [CHECKPOINT-3] Application startup failed"
+              echo "========================================="
+              exit 1
+            fi
+            
+            sleep 10
+            ((attempt++))
+          done
 
       - name: Checkout repository
         uses: actions/checkout@v4
