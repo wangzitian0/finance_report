@@ -47,6 +47,9 @@ class ChatSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         "ChatMessage", back_populates="session", cascade="all, delete-orphan"
     )
 
+    def __repr__(self) -> str:
+        return f"<ChatSession {self.id} status={self.status.value}>"
+
 
 class ChatMessage(Base, UUIDMixin):
     """Individual chat message stored for a session."""
@@ -71,3 +74,6 @@ class ChatMessage(Base, UUIDMixin):
     )
 
     session: Mapped[ChatSession] = relationship("ChatSession", back_populates="messages")
+
+    def __repr__(self) -> str:
+        return f"<ChatMessage {self.role.value} session={self.session_id}>"

@@ -90,6 +90,9 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         "JournalLine", back_populates="journal_entry", cascade="all, delete-orphan"
     )
 
+    def __repr__(self) -> str:
+        return f"<JournalEntry {self.entry_date} - {self.memo[:30]}>"
+
 
 class JournalLine(Base, UUIDMixin, TimestampMixin):
     """
@@ -124,3 +127,6 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
 
     journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
     account: Mapped[Account] = relationship("Account", back_populates="journal_lines")
+
+    def __repr__(self) -> str:
+        return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"
