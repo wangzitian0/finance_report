@@ -9,11 +9,14 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import aioboto3
 import structlog
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -26,6 +29,14 @@ from src.routers import accounts, ai_models, auth, chat, journal, reports, state
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
+
+# Conditional import for Redis (optional dependency in production)
+try:
+    import redis.asyncio as redis
+
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
 
 # Initialize logging early
 configure_logging()
@@ -151,10 +162,102 @@ app.include_router(users.router)
 # --- Health & Demo Endpoints ---
 
 
+async def check_database(db: AsyncSession) -> bool:
+    """Check database connectivity."""
+    try:
+        await db.execute(text("SELECT 1"))
+        return True
+    except (OSError, TimeoutError) as e:
+        # Expected: Network errors, connection refused, query timeout
+        logger.error(
+            "Health check: Database connection failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+
+
+async def check_redis() -> bool:
+    """Check Redis connectivity if configured."""
+    if not settings.redis_url or not REDIS_AVAILABLE:
+        return True
+
+    redis_client = None
+    try:
+        redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+        await redis_client.ping()
+        return True
+    except (OSError, TimeoutError) as e:
+        # Expected: Network errors, connection refused, Redis command failures
+        logger.error(
+            "Health check: Redis connection failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+    finally:
+        if redis_client:
+            await redis_client.aclose()
+
+
+async def check_s3() -> bool:
+    """Check S3/MinIO connectivity with short timeout."""
+    try:
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint,
+            aws_access_key_id=settings.s3_access_key,
+            aws_secret_access_key=settings.s3_secret_key,
+            region_name=settings.s3_region,
+            config=BotoConfig(connect_timeout=2, read_timeout=2),
+        ) as s3_client:
+            await s3_client.head_bucket(Bucket=settings.s3_bucket)
+            return True
+    except ClientError as e:
+        # Expected: 404 Not Found, 403 Forbidden, bucket access errors
+        error_code = e.response.get("Error", {}).get("Code", "Unknown")
+        logger.error(
+            "Health check: S3 client error",
+            error=str(e),
+            error_code=error_code,
+            bucket=settings.s3_bucket,
+        )
+        return False
+    except (BotoCoreError, OSError, TimeoutError) as e:
+        # Expected: Connection errors, timeouts, network issues
+        logger.error(
+            "Health check: S3 connection failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return False
+
+
 @app.get("/health")
-async def health_check() -> dict[str, str]:
-    """Check application health status."""
-    return {"status": "healthy", "timestamp": datetime.now(UTC).isoformat()}
+async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
+    """Check application health status with dependency checks.
+
+    Returns 200 if all critical services are healthy, 503 otherwise.
+    This endpoint is used by Docker healthcheck and deployment verification.
+    """
+    checks = {
+        "database": await check_database(db),
+        "redis": await check_redis(),
+        "s3": await check_s3(),
+    }
+
+    all_healthy = all(checks.values())
+    status_code = 200 if all_healthy else 503
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if all_healthy else "unhealthy",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "checks": checks,
+        },
+    )
 
 
 @app.get("/ping", response_model=PingStateResponse)

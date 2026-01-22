@@ -112,24 +112,58 @@ jobs:
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$(jq -n --arg id "${{ env.PRODUCTION_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null
           
-          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
-          sleep ${{ env.DEPLOY_WAIT_SECONDS }}
+          echo "Deployment triggered. Waiting for backend to become healthy..."
+          echo ""
+          
+          max_attempts=24
+          attempt=1
+          
+          while (( attempt <= max_attempts )); do
+            echo "⏳ Health check attempt $attempt/$max_attempts..."
+            
+            health_response=$(curl -sf https://report.zitian.party/api/health 2>&1 || echo "")
+            
+            if echo "$health_response" | grep -q '"status":"healthy"'; then
+              elapsed=$((attempt * 10))
+              echo ""
+              echo "========================================="
+              echo "✅ Deployment Successful ($elapsed seconds)"
+              echo "========================================="
+              echo "Version: $IMAGE_TAG"
+              echo "Environment: production"
+              echo "URL: https://report.zitian.party"
+              echo ""
+              echo "📊 Logs: https://signoz.zitian.party"
+              echo "Filter: deployment.environment=production service_name=finance-report-backend"
+              echo "========================================="
+              exit 0
+            fi
+            
+            if (( attempt == max_attempts )); then
+              timeout=$((max_attempts * 10))
+              echo ""
+              echo "========================================="
+              echo "❌ Deployment Failed (timeout: ${timeout}s)"
+              echo "========================================="
+              echo "Last response: $health_response"
+              echo ""
+              echo "Troubleshooting:"
+              echo "1. Check SigNoz: https://signoz.zitian.party"
+              echo "   Filter: deployment.environment=production service_name=finance-report-backend"
+              echo "2. Look for CHECKPOINT markers in logs"
+              echo "========================================="
+              exit 1
+            fi
+            
+            sleep 10
+            ((attempt++))
+          done
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Health Check
+      - name: Run Smoke Tests
         run: |
-          echo "Verifying production health..."
-          
-          for i in {1..5}; do
-            if curl -sf https://report.zitian.party/api/health > /dev/null; then
-              echo "✅ Production is healthy!"
-              exit 0
-            fi
-            echo "Attempt $i/5 failed, waiting 15s..."
-            sleep 15
-          done
-          
-          echo "::error::Production health check failed!"
-          exit 1
+          echo "Running production smoke tests..."
+          chmod +x scripts/smoke_test.sh
+          ./scripts/smoke_test.sh https://report.zitian.party

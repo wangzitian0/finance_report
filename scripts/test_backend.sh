@@ -462,7 +462,7 @@ export S3_SECRET_KEY="minio123"
 
 # Ensure test database is migrated to the latest schema (prevents Test vs Prod drift)
 echo "Running database migrations on test database..."
-uv run alembic upgrade head -x dburl="$TEST_DATABASE_URL"
+DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
 
 cd "$repo_root/apps/backend"
 uv run pytest "$@"

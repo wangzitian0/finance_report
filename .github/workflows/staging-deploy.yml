@@ -163,8 +163,126 @@ jobs:
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null
             
-          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
-          sleep ${{ env.DEPLOY_WAIT_SECONDS }}
+          echo "Deployment triggered. Waiting for backend to become healthy..."
+          echo ""
+          
+          # Poll health endpoint until healthy or timeout
+          # 36 attempts * 10s = 6 minutes total (accounts for slow migrations)
+          max_attempts=36
+          attempt=1
+          health_url="https://report-staging.zitian.party/api/health"
+          
+          while (( attempt <= max_attempts )); do
+            echo "⏳ Health check attempt $attempt/$max_attempts..."
+            
+            # Capture both HTTP status code and response body
+            http_code=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$health_url" 2>/tmp/health_error.txt || echo "000")
+            
+            # Check for connection errors (curl exit code != 0)
+            if [ "$http_code" = "000" ]; then
+              echo "⚠️  Connection failed (attempt $attempt/$max_attempts)"
+              
+              if (( attempt == max_attempts )); then
+                timeout=$((max_attempts * 10))
+                echo ""
+                echo "========================================="
+                echo "❌ Deployment Failed: Cannot connect to health endpoint"
+                echo "========================================="
+                echo "URL: $health_url"
+                echo ""
+                echo "Connection error:"
+                cat /tmp/health_error.txt 2>/dev/null || echo "(no error details)"
+                echo ""
+                echo "Troubleshooting:"
+                echo "1. Check DNS resolution: nslookup report-staging.zitian.party"
+                echo "2. Check TLS certificate: curl -v $health_url"
+                echo "3. Check container status via Dokploy"
+                echo "4. Check SigNoz: https://signoz.zitian.party"
+                echo "   Filter: deployment.environment=staging service_name=finance-report-backend"
+                echo "========================================="
+                rm -f /tmp/health_response.json /tmp/health_error.txt
+                exit 1
+              fi
+              
+              sleep 10
+              ((attempt++))
+              continue
+            fi
+            
+            # Check for HTTP errors
+            if [ "$http_code" != "200" ]; then
+              echo "⚠️  HTTP $http_code (attempt $attempt/$max_attempts)"
+              
+              if (( attempt == max_attempts )); then
+                timeout=$((max_attempts * 10))
+                echo ""
+                echo "========================================="
+                echo "❌ Deployment Failed: Health endpoint returned HTTP $http_code"
+                echo "========================================="
+                echo "URL: $health_url"
+                echo "Response:"
+                cat /tmp/health_response.json 2>/dev/null || echo "(no response body)"
+                echo ""
+                echo "Troubleshooting: Check SigNoz for application logs"
+                echo "========================================="
+                rm -f /tmp/health_response.json /tmp/health_error.txt
+                exit 1
+              fi
+              
+              sleep 10
+              ((attempt++))
+              continue
+            fi
+            
+            # Check if response contains "healthy"
+            health_response=$(cat /tmp/health_response.json 2>/dev/null || echo "")
+            if echo "$health_response" | grep -q '"status":"healthy"'; then
+              elapsed=$((attempt * 10))
+              echo ""
+              echo "========================================="
+              echo "✅ Deployment Successful ($elapsed seconds)"
+              echo "========================================="
+              echo "Version: $IMAGE_TAG"
+              echo "Environment: staging"
+              echo "URL: https://report-staging.zitian.party"
+              echo "Response: $health_response"
+              echo ""
+              echo "📊 Logs: https://signoz.zitian.party"
+              echo "Filter: deployment.environment=staging service_name=finance-report-backend"
+              echo "========================================="
+              rm -f /tmp/health_response.json /tmp/health_error.txt
+              exit 0
+            fi
+            
+            # Response is 200 but not healthy
+            echo "⚠️  Backend is unhealthy (attempt $attempt/$max_attempts)"
+            echo "Response: $health_response"
+            
+            if (( attempt == max_attempts )); then
+              timeout=$((max_attempts * 10))
+              echo ""
+              echo "========================================="
+              echo "❌ Deployment Failed: Backend unhealthy after ${timeout}s"
+              echo "========================================="
+              echo "Last health check response:"
+              echo "$health_response"
+              echo ""
+              echo "Troubleshooting:"
+              echo "1. Check which dependency failed in response above"
+              echo "2. Check SigNoz: https://signoz.zitian.party"
+              echo "   Filter: deployment.environment=staging service_name=finance-report-backend"
+              echo "3. Look for CHECKPOINT markers in logs:"
+              echo "   - [CHECKPOINT-1] Vault secrets not ready"
+              echo "   - [CHECKPOINT-2] Database migration failed"
+              echo "   - [CHECKPOINT-3] Application startup failed"
+              echo "========================================="
+              rm -f /tmp/health_response.json /tmp/health_error.txt
+              exit 1
+            fi
+            
+            sleep 10
+            ((attempt++))
+          done
 
       - name: Checkout repository
         uses: actions/checkout@v4
