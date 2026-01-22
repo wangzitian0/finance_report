@@ -22,7 +22,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
-from src.models.base import TimestampMixin, UUIDMixin, UserOwnedMixin
+from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.models.account import Account
