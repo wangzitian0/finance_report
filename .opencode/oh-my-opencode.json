@@ -1,0 +1,39 @@
+{
+    "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/v0.1.0/assets/oh-my-opencode.schema.json",
+    "google_auth": true,
+    "agents": {
+        "Sisyphus": {
+            "model": "copilot/claude-sonnet-4.5",
+            "skills": [
+                "domain/development",
+                "domain/schema",
+                "domain/accounting",
+                "domain/reconciliation",
+                "professional/backend-development",
+                "meta/skill-writer"
+            ],
+            "description": "Main orchestrator with full domain knowledge and documentation skills",
+            "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
+        },
+        "explore": {
+            "model": "google/antigravity-gemini-3-flash",
+            "description": "Blazing fast codebase exploration (use as parallel grep)"
+        },
+        "librarian": {
+            "model": "google/antigravity-gemini-3-flash",
+            "description": "External documentation and OSS exploration"
+        },
+        "frontend-ui-ux-engineer": {
+            "model": "google/antigravity-gemini-3-pro-high",
+            "skills": [
+                "professional/frontend-react",
+                "professional/ui-ux-design"
+            ],
+            "description": "UI/UX design and visual implementation (mandatory for styling)"
+        },
+        "multimodal-looker": {
+            "model": "google/antigravity-gemini-3-pro-high",
+            "description": "Image and multimodal content analysis"
+        }
+    }
+}
