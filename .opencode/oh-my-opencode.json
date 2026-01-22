@@ -9,6 +9,7 @@
                 "domain/schema",
                 "domain/accounting",
                 "domain/reconciliation",
+                "domain/production-debug",
                 "professional/backend-development",
                 "meta/skill-writer"
             ],

@@ -361,6 +361,7 @@ skills/
 | | `domain/extraction` | AI document parsing |
 | | `domain/schema` | Database models, migrations |
 | | `domain/development` | Moon commands, CI/CD, DB lifecycle |
+| | `domain/production-debug` | Production/staging debugging via Dokploy, SSH, SigNoz |
 | **Professional** | `professional/backend-development` | Full backend guide (11 reference docs) |
 | | `professional/frontend-react` | React/Next.js patterns + Vercel rules |
 | | `professional/qa-testing` | Testing strategies, automation |
@@ -377,7 +378,8 @@ skills/
 
 # Skills are auto-loaded for agents based on oh-my-opencode.json
 # Sisyphus has: domain/development, domain/schema, domain/accounting,
-#               domain/reconciliation, professional/backend-development
+#               domain/reconciliation, domain/production-debug, 
+#               professional/backend-development
 ```
 
 ---
