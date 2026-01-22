@@ -8,6 +8,7 @@ Environment Variables:
     COMPOSE_ID: Default compose ID if not provided as argument
 """
 
+import os
 import sys
 from libs.dokploy import get_dokploy
 
@@ -18,8 +19,6 @@ def check_deployments(compose_id: str | None = None) -> None:
 
     # Use provided ID, environment variable, or default
     if not compose_id:
-        import os
-
         compose_id = os.getenv("COMPOSE_ID", "A6V-hbJlgHMwgPDoTDnhH")
 
     try:
