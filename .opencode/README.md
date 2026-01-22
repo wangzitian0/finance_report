@@ -141,7 +141,7 @@ User Request
     ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Sisyphus (Orchestrator)                                     │
-│  Model: Claude Opus Thinking                                 │
+│  Model: copilot/claude-sonnet-4.5 (Claude Sonnet 4.5)        │
 │  Skills: domain/development, domain/schema, domain/accounting│
 │          domain/reconciliation, professional/backend-dev,    │
 │          meta/skill-writer                                   │
