@@ -72,7 +72,7 @@ sequenceDiagram
 **Token Storage**:
 - Frontend: `localStorage` (key: `finance_access_token`)
 - Token format: `Bearer <jwt_token>`
-- Token lifetime: 7 days (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- Token lifetime: 1 day (1440 minutes, configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
 
 **Backend Validation**:
 - Uses `OAuth2PasswordBearer` scheme
@@ -310,7 +310,7 @@ Pages that require authentication should redirect to `/login` if `isAuthenticate
 **Current Implementation**:
 - **Algorithm**: HS256 (HMAC with SHA-256)
 - **Secret Key**: Stored in `SECRET_KEY` environment variable
-- **Token Lifetime**: 7 days (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- **Token Lifetime**: 1 day (1440 minutes, configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
 - **Token Claims**: `sub` (user ID), `exp` (expiration timestamp)
 
 ### Security Features
@@ -328,7 +328,7 @@ Pages that require authentication should redirect to `/login` if `isAuthenticate
 
 **Token Validation**:
 - Signature verification on every request
-- Expiration check (tokens auto-expire after 7 days)
+- Expiration check (tokens auto-expire after 1 day)
 - User existence verification against database
 - Missing/invalid token → immediate 401 response
 

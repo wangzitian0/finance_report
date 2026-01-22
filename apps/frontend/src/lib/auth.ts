@@ -40,5 +40,5 @@ export function clearUser(): void {
 }
 
 export function isAuthenticated(): boolean {
-    return getUserId() !== null;
+    return getAccessToken() !== null;
 }
