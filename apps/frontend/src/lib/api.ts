@@ -48,6 +48,13 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Authentication required");
+    }
+
     const errorText = await res.text();
     let message = `Request failed with ${res.status}`;
     if (errorText) {
@@ -100,6 +107,13 @@ export async function apiUpload<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Authentication required");
+    }
+
     const errorText = await res.text();
     let message = `Request failed with ${res.status}`;
     if (errorText) {
