@@ -1,26 +1,80 @@
 ---
-name: vercel-react-best-practices
-description: React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.
+name: frontend-react
+description: React and Next.js frontend development skill combining project-specific patterns (SSR/CSR, theme, API) with Vercel's performance optimization best practices. Use for all React/Next.js work.
 license: MIT
 metadata:
-  author: vercel
-  version: "1.0.0"
+  author: finance-report + vercel
+  version: "2.0.0"
 ---
 
-# Vercel React Best Practices
+# Frontend React Development
 
-Comprehensive performance optimization guide for React and Next.js applications, maintained by Vercel. Contains 45 rules across 8 categories, prioritized by impact to guide automated refactoring and code generation.
+> **Merged Skill**: Combines project-specific frontend patterns with Vercel's React best practices.
 
-## When to Apply
+## Part 1: Project Patterns
 
-Reference these guidelines when:
-- Writing new React components or Next.js pages
-- Implementing data fetching (client or server-side)
-- Reviewing code for performance issues
-- Refactoring existing React/Next.js code
-- Optimizing bundle size or load times
+### SSR vs CSR Handling
 
-## Rule Categories by Priority
+#### Mounted State Pattern
+
+Handle hydration mismatches when using client-side state (localStorage, window):
+
+```tsx
+const [mounted, setMounted] = useState(false);
+useEffect(() => setMounted(true), []);
+
+if (!mounted) return null; // or loading skeleton
+```
+
+**Applied In**: `ThemeToggle.tsx`, `Sidebar.tsx`
+
+### Theme System
+
+Use CSS variables to avoid FOUC and support system preferences:
+
+```css
+/* Good */
+bg-[var(--background-card)]
+text-[var(--muted-foreground)]
+
+/* Avoid */
+bg-white
+text-gray-500
+```
+
+**Structure**:
+- `app/globals.css`: Defines `:root` and `.dark` variables
+- `lib/theme.ts`: Theme state management
+- `ThemeToggle.tsx`: Theme switcher component
+
+### API Integration
+
+All API calls must use `apiFetch` or `apiUpload` from `lib/api.ts`:
+
+- **NO Direct `fetch()`**: Never use native fetch for `/api/*` calls
+- **X-User-Id**: Auto-injected from local storage
+- **Absolute URLs**: Use `APP_URL` constant
+
+### Security
+
+- **AuthGuard**: Protects all `(main)` routes
+- **Public Routes**: Only `/login` and `/ping-pong` exempt
+- **Injection Protection**: Via `apiFetch` wrapper
+
+### Shared Types
+
+Define in `src/lib/types.ts`:
+- `Account`, `JournalEntry`, `JournalLine`
+- `BankStatement`, `BankStatementTransaction`
+- `ReportLine`, `BalanceSheetResponse`, `IncomeStatementResponse`
+
+---
+
+## Part 2: Vercel React Best Practices
+
+Comprehensive performance optimization guide for React and Next.js applications.
+
+### Rule Categories by Priority
 
 | Priority | Category | Impact | Prefix |
 |----------|----------|--------|--------|
@@ -33,9 +87,9 @@ Reference these guidelines when:
 | 7 | JavaScript Performance | LOW-MEDIUM | `js-` |
 | 8 | Advanced Patterns | LOW | `advanced-` |
 
-## Quick Reference
+### Quick Reference
 
-### 1. Eliminating Waterfalls (CRITICAL)
+#### 1. Eliminating Waterfalls (CRITICAL)
 
 - `async-defer-await` - Move await into branches where actually used
 - `async-parallel` - Use Promise.all() for independent operations
@@ -43,7 +97,7 @@ Reference these guidelines when:
 - `async-api-routes` - Start promises early, await late in API routes
 - `async-suspense-boundaries` - Use Suspense to stream content
 
-### 2. Bundle Size Optimization (CRITICAL)
+#### 2. Bundle Size Optimization (CRITICAL)
 
 - `bundle-barrel-imports` - Import directly, avoid barrel files
 - `bundle-dynamic-imports` - Use next/dynamic for heavy components
@@ -51,7 +105,7 @@ Reference these guidelines when:
 - `bundle-conditional` - Load modules only when feature is activated
 - `bundle-preload` - Preload on hover/focus for perceived speed
 
-### 3. Server-Side Performance (HIGH)
+#### 3. Server-Side Performance (HIGH)
 
 - `server-cache-react` - Use React.cache() for per-request deduplication
 - `server-cache-lru` - Use LRU cache for cross-request caching
@@ -59,12 +113,12 @@ Reference these guidelines when:
 - `server-parallel-fetching` - Restructure components to parallelize fetches
 - `server-after-nonblocking` - Use after() for non-blocking operations
 
-### 4. Client-Side Data Fetching (MEDIUM-HIGH)
+#### 4. Client-Side Data Fetching (MEDIUM-HIGH)
 
 - `client-swr-dedup` - Use SWR for automatic request deduplication
 - `client-event-listeners` - Deduplicate global event listeners
 
-### 5. Re-render Optimization (MEDIUM)
+#### 5. Re-render Optimization (MEDIUM)
 
 - `rerender-defer-reads` - Don't subscribe to state only used in callbacks
 - `rerender-memo` - Extract expensive work into memoized components
@@ -74,7 +128,7 @@ Reference these guidelines when:
 - `rerender-lazy-state-init` - Pass function to useState for expensive values
 - `rerender-transitions` - Use startTransition for non-urgent updates
 
-### 6. Rendering Performance (MEDIUM)
+#### 6. Rendering Performance (MEDIUM)
 
 - `rendering-animate-svg-wrapper` - Animate div wrapper, not SVG element
 - `rendering-content-visibility` - Use content-visibility for long lists
@@ -84,7 +138,7 @@ Reference these guidelines when:
 - `rendering-activity` - Use Activity component for show/hide
 - `rendering-conditional-render` - Use ternary, not && for conditionals
 
-### 7. JavaScript Performance (LOW-MEDIUM)
+#### 7. JavaScript Performance (LOW-MEDIUM)
 
 - `js-batch-dom-css` - Group CSS changes via classes or cssText
 - `js-index-maps` - Build Map for repeated lookups
@@ -99,7 +153,7 @@ Reference these guidelines when:
 - `js-set-map-lookups` - Use Set/Map for O(1) lookups
 - `js-tosorted-immutable` - Use toSorted() for immutability
 
-### 8. Advanced Patterns (LOW)
+#### 8. Advanced Patterns (LOW)
 
 - `advanced-event-handler-refs` - Store event handlers in refs
 - `advanced-use-latest` - useLatest for stable callback refs
@@ -111,15 +165,6 @@ Read individual rule files for detailed explanations and code examples:
 ```
 rules/async-parallel.md
 rules/bundle-barrel-imports.md
-rules/_sections.md
 ```
-
-Each rule file contains:
-- Brief explanation of why it matters
-- Incorrect code example with explanation
-- Correct code example with explanation
-- Additional context and references
-
-## Full Compiled Document
 
 For the complete guide with all rules expanded: `AGENTS.md`

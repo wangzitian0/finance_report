@@ -27,19 +27,19 @@
 4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md)
 
 **Supplementary Entries**
-- **Agent Skills** → [.claude/skills/README.md](.claude/skills/README.md)
+- **Agent Skills** → [.opencode/skills/](.opencode/skills/)
 - **Copilot Instructions** → [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
 **Reading Order (10-minute overview)**
 1. [target.md](target.md) — Macro goals and decision criteria
 2. [README.md](README.md) — Tech stack, quick start commands
 3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [schema.md](docs/ssot/schema.md)
-4. [.claude/skills/README.md](.claude/skills/README.md) — Available agent roles
+4. [.opencode/oh-my-opencode.json](.opencode/oh-my-opencode.json) — Agent configurations
 
 **Routing Rules (where to go when)**
 - Need to understand business logic → [target.md](target.md)
 - **Need environment setup / moon commands** → [docs/ssot/development.md](docs/ssot/development.md)
-- Need to write code → [.github/copilot-instructions.md](.github/copilot-instructions.md) + skill files
+- Need to write code → [.opencode/skills/](.opencode/skills/) + SSOT files
 - Need data model reference → [docs/ssot/](docs/ssot/)
 - Need to track current work → [docs/project/](docs/project/)
 
@@ -293,22 +293,86 @@ def validate_balance(lines: list[JournalLine]) -> bool:
 
 ---
 
-## 🤖 Agent Role Activation
+## 🤖 Agent & Skill Architecture
 
-**Skill files location**: `.claude/skills/`
+**Three-layer System**: Orchestrator → Agents → Skills
 
-| Role | File | When to Use |
-|------|------|-------------|
-| 📋 PM | `pm.md` | Requirement analysis, task breakdown |
-| 🏗️ Architect | `architect.md` | System design, tech decisions |
-| 💻 Developer | `developer.md` | Code implementation |
-| ⚖️ Auditor | `auditor.md` | Accounting, reconciliation, reporting, and audit |
-| 🧪 Tester | `tester.md` | Test strategy, quality assurance |
+### System Agents (Actually Callable)
+
+Agents are defined in `.opencode/oh-my-opencode.json`:
+
+| Agent | Cost | When to Use |
+|-------|------|-------------|
+| **Sisyphus** | — | Main orchestrator, handles most tasks directly with skills (including documentation) |
+| `explore` | FREE | Codebase exploration, parallel grep (use in background) |
+| `librarian` | FREE | External docs, OSS examples (use in background) |
+| `frontend-ui-ux-engineer` | MEDIUM | **Mandatory** for visual/styling changes |
+| `multimodal-looker` | MEDIUM | Image/PDF analysis |
+| `oracle` | EXPENSIVE | Architecture decisions, debugging (system built-in) |
+
+### Sisyphus Workflow
+
+Sisyphus (orchestrator) handles most tasks directly by loading relevant skills.
+Delegation happens ONLY for:
+
+1. **Parallel exploration** → `explore` + `librarian` (background, parallel)
+2. **Visual changes** → `frontend-ui-ux-engineer` (mandatory for CSS/styling)
+3. **Image/PDF analysis** → `multimodal-looker`
+4. **Architecture decisions** → `oracle` (expensive, use sparingly)
+
+### Skill Categories
+
+Skills are organized in `.opencode/skills/` by category:
+
+```
+skills/
+├── domain/              # Project-specific (from SSOT)
+│   ├── accounting/      # Double-entry bookkeeping
+│   ├── reconciliation/  # Statement matching
+│   ├── reporting/       # Financial statements
+│   ├── extraction/      # Document parsing
+│   ├── schema/          # Database models
+│   └── development/     # Moon commands, CI/CD
+│
+├── professional/        # Reusable expertise
+│   ├── backend-development/  # FastAPI, security, performance
+│   ├── frontend-react/       # Next.js + Vercel best practices
+│   ├── qa-testing/           # Testing strategies, automation
+│   ├── ui-ux-design/         # UI/UX design, accessibility
+│   ├── product-management/   # PRD, RICE prioritization
+│   └── auditor/              # Financial auditing
+│
+└── meta/                # About skills themselves
+    └── skill-writer/    # Creating new skills
+```
+
+### Skill Reference
+
+| Category | Skill | Purpose |
+|----------|-------|---------|
+| **Domain** | `domain/accounting` | Double-entry bookkeeping rules |
+| | `domain/reconciliation` | Bank statement matching |
+| | `domain/reporting` | Financial statements generation |
+| | `domain/extraction` | AI document parsing |
+| | `domain/schema` | Database models, migrations |
+| | `domain/development` | Moon commands, CI/CD, DB lifecycle |
+| **Professional** | `professional/backend-development` | Full backend guide (11 reference docs) |
+| | `professional/frontend-react` | React/Next.js patterns + Vercel rules |
+| | `professional/qa-testing` | Testing strategies, automation |
+| | `professional/ui-ux-design` | UI/UX design, accessibility |
+| | `professional/product-management` | PRD templates, RICE prioritization |
+| | `professional/auditor` | Financial auditing expertise |
+| **Meta** | `meta/skill-writer` | Creating new skills |
 
 ### Usage
+
 ```bash
-@.claude/skills/auditor.md How should I record this cross-currency transaction?
-@.claude/skills/auditor.md Match accuracy dropped, please analyze
+# Load a skill on-demand
+/skill domain/accounting
+
+# Skills are auto-loaded for agents based on oh-my-opencode.json
+# Sisyphus has: domain/development, domain/schema, domain/accounting,
+#               domain/reconciliation, professional/backend-development
 ```
 
 ---
