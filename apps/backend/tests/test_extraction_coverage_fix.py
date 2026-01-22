@@ -294,6 +294,9 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
     )
 
     await db.refresh(statement)
+    # After PR #117: Presigned URL failure is logged but doesn't stop processing.
+    # Processing continues with base64 fallback, then fails at extraction
+    # due to missing OPENROUTER_API_KEY in test environment.
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.validation_error is not None
-    assert "Presigned fail" in statement.validation_error
+    assert "OpenRouter API key not configured" in statement.validation_error

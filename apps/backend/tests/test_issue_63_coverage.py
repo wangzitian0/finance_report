@@ -263,7 +263,10 @@ async def test_parse_statement_background_error_paths(db, test_user):
 
     session_maker = create_session_maker_from_db(db)
 
-    # 1. StorageError in background
+    # 1. StorageError in background (presigned URL failure)
+    # After PR #117: Presigned URL StorageError is logged but doesn't stop processing.
+    # Processing continues with base64 fallback, then fails at extraction
+    # due to missing OPENROUTER_API_KEY in test environment.
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.side_effect = StorageError("S3 Fail")
@@ -283,7 +286,7 @@ async def test_parse_statement_background_error_paths(db, test_user):
 
         await db.refresh(statement)
         assert statement.status == BankStatementStatus.REJECTED
-        assert "S3 Fail" in statement.validation_error
+        assert "OpenRouter API key not configured" in statement.validation_error
 
     # 2. ExtractionError in background
     statement.status = BankStatementStatus.PARSING
