@@ -59,7 +59,7 @@ export default function AccountFormModal({
             editForm.reset({
                 name: editAccount.name,
                 code: editAccount.code || "",
-                is_active: true,
+                is_active: editAccount.is_active,
             });
         } else {
             createForm.reset();

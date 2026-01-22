@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
@@ -22,24 +22,46 @@ export default function ReconciliationWorkbench() {
   const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: stats } = useQuery({
+  const { data: stats, error: statsError } = useQuery({
     queryKey: ["reconciliation", "stats"],
     queryFn: () => apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
   });
 
-  const { data: pendingData, isLoading } = useQuery({
+  const { data: pendingData, isLoading, error: pendingError } = useQuery({
     queryKey: ["reconciliation", "pending"],
     queryFn: () => apiFetch<ReconciliationMatchListResponse>("/api/reconciliation/pending"),
-    select: (data) => {
-      if (selected && data.items.some((i) => i.id === selected.id)) {
-        return data;
-      }
-      if (data.items.length > 0 && !selected) {
-        setSelected(data.items[0]);
-      }
-      return data;
-    },
   });
+
+  useEffect(() => {
+    if (!pendingData?.items) return;
+
+    const items = pendingData.items;
+
+    if (items.length === 0) {
+      if (selected !== null) {
+        setSelected(null);
+      }
+      return;
+    }
+
+    const existingSelection = selected && items.find((item) => item.id === selected.id);
+
+    if (existingSelection) {
+      if (existingSelection !== selected) {
+        setSelected(existingSelection);
+      }
+    } else {
+      setSelected(items[0]);
+    }
+  }, [pendingData, selected]);
+
+  useEffect(() => {
+    if (statsError) {
+      setError(`Failed to load reconciliation stats: ${statsError.message}`);
+    } else if (pendingError) {
+      setError(`Failed to load pending matches: ${pendingError.message}`);
+    }
+  }, [statsError, pendingError]);
 
   const { data: anomalies = [] } = useQuery({
     queryKey: ["reconciliation", "anomalies", selected?.transaction?.id],

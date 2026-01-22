@@ -29,7 +29,7 @@ export function compareAmounts(a: Decimal | string | number, b: Decimal | string
 }
 
 export function isAmountZero(value: Decimal | string | number, tolerance = 0.01): boolean {
-  return new Decimal(value).abs().lessThan(tolerance);
+  return new Decimal(value).abs().lessThanOrEqualTo(tolerance);
 }
 
 export function formatCurrency(

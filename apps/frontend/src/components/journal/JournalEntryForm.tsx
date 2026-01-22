@@ -106,7 +106,14 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                 }),
             });
 
-            reset();
+            reset({
+                entry_date: new Date().toISOString().slice(0, 10),
+                memo: "",
+                lines: [
+                    { account_id: "", direction: "DEBIT", amount: "", currency: "SGD" },
+                    { account_id: "", direction: "CREDIT", amount: "", currency: "SGD" },
+                ],
+            });
             onSuccess();
             onClose();
         } catch (err) {
