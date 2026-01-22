@@ -97,14 +97,20 @@ async def _parse_statement_background(
             return
 
         storage = StorageService()
+        file_url = None
         try:
             # Generate public URL for AI service access
+            # If S3_PUBLIC_ENDPOINT is not configured, file_url will remain None
+            # and ExtractionService will use base64 content instead
             file_url = await run_in_threadpool(
                 storage.generate_presigned_url, key=storage_key, public=True
             )
         except StorageError as exc:
-            await _handle_parse_failure(statement, session, message=str(exc))
-            return
+            logger.warning(
+                "Could not generate public presigned URL, will use base64 content instead",
+                error=str(exc),
+                statement_id=statement_id,
+            )
 
         service = ExtractionService()
         try:
