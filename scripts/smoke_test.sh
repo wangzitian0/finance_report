@@ -159,6 +159,20 @@ check_endpoint "API Docs" "$BASE_URL/api/docs" || FAILED=1
 check_endpoint "Reconciliation Page" "$BASE_URL/reconciliation" || FAILED=1
 check_endpoint "Ping API" "$BASE_URL/api/ping" || FAILED=1
 
+# --- Authentication Tests ---
+echo "--- Authentication Tests ---"
+# Test that protected endpoints return 401 when unauthenticated
+AUTH_TEST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/api/statements" 2>/dev/null || echo "000")
+if [ "$AUTH_TEST_CODE" = "401" ]; then
+    echo "✓ Protected endpoint returns 401 (unauthenticated)"
+else
+    echo "✗ Protected endpoint returned $AUTH_TEST_CODE (expected 401)"
+    FAILED=1
+fi
+
+# Test that login page is accessible
+check_endpoint "Login Page" "$BASE_URL/login" || FAILED=1
+
 # --- Write/Mutation Checks (Staging/Dev Only) ---
 if [ "$MODE" = "dev" ] || [ "$MODE" = "staging" ]; then
     echo "--- Write Checks ($MODE) ---"

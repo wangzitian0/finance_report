@@ -3,8 +3,8 @@
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { API_URL } from "@/lib/api";
-import { getUserId } from "@/lib/auth";
+import { API_URL, apiFetch } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 import { fetchAiModels } from "@/lib/aiModels";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
@@ -27,11 +27,11 @@ const splitDisclaimer = (content: string) => {
   return { body: content, disclaimer: "" };
 };
 const formatErrorMessage = (error: unknown) => error instanceof Error ? error.message : "Unable to send the message.";
-const buildHeaders = (base: HeadersInit = {}) => {
+const buildAuthHeaders = (base: HeadersInit = {}) => {
   const headers: HeadersInit = { ...base };
-  const userId = getUserId();
-  if (userId) {
-    (headers as Record<string, string>)["X-User-Id"] = userId;
+  const token = getAccessToken();
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
   return headers;
 };
@@ -54,19 +54,26 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const scrollToBottom = useCallback(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, []);
 
   const fetchSuggestions = useCallback(async () => {
-    try { const res = await fetch(`${API_URL}/api/chat/suggestions?language=${language}`, { headers: buildHeaders() }); if (res.ok) { const data = await res.json() as ChatSuggestionsResponse; setSuggestions(data.suggestions || []); } } catch { setSuggestions([]); }
+    try { 
+      const data = await apiFetch<ChatSuggestionsResponse>(`/api/chat/suggestions?language=${language}`);
+      setSuggestions(data.suggestions || []); 
+    } catch { 
+      setSuggestions([]); 
+    }
   }, [language]);
 
   const loadHistory = useCallback(async () => {
     const storedSession = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
     if (!storedSession) { setLoadingHistory(false); return; }
     try {
-      const res = await fetch(`${API_URL}/api/chat/history?session_id=${storedSession}`, { headers: buildHeaders() });
-      if (!res.ok) { localStorage.removeItem(SESSION_KEY); setLoadingHistory(false); return; }
-      const data = await res.json() as ChatHistoryResponse;
+      const data = await apiFetch<ChatHistoryResponse>(`/api/chat/history?session_id=${storedSession}`);
       const session = data.sessions[0];
       if (session) { setSessionId(session.id); setMessages(session.messages.map((m) => ({ id: m.id, role: m.role, content: m.content }))); }
-    } catch { localStorage.removeItem(SESSION_KEY); } finally { setLoadingHistory(false); }
+    } catch { 
+      localStorage.removeItem(SESSION_KEY); 
+    } finally { 
+      setLoadingHistory(false); 
+    }
   }, []);
 
   useEffect(() => { fetchSuggestions(); loadHistory(); }, [fetchSuggestions, loadHistory]);
@@ -138,7 +145,7 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
-        headers: buildHeaders({ "Content-Type": "application/json" }),
+        headers: buildAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           message: messageText,
           session_id: sessionId,
@@ -183,7 +190,14 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   }, [initialPrompt, initialPromptHandled, loadingHistory, messages.length, sendMessage]);
 
   const clearSession = async () => {
-    if (sessionId) { try { await fetch(`${API_URL}/api/chat/session/${sessionId}`, { method: "DELETE", headers: buildHeaders() }); } catch { } }
+    if (sessionId) { 
+      try { 
+        await fetch(`${API_URL}/api/chat/session/${sessionId}`, { 
+          method: "DELETE", 
+          headers: buildAuthHeaders() 
+        }); 
+      } catch { } 
+    }
     localStorage.removeItem(SESSION_KEY);
     setSessionId(null);
     setMessages([]);

@@ -25,6 +25,28 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "")
 export const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+// Redirect guard to prevent concurrent 401s from racing
+let redirecting = false;
+
+function handle401Redirect(): never {
+  if (typeof window === "undefined") {
+    // SSR context - log for debugging
+    console.error("[api] 401 Unauthorized in SSR context - cannot redirect");
+    throw new Error("Authentication required");
+  }
+
+  if (!redirecting) {
+    redirecting = true;
+    try {
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("[api] Failed to redirect to login:", err);
+      throw new Error("Authentication required - redirect failed");
+    }
+  }
+  throw new Error("Authentication required");
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -48,6 +70,10 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      handle401Redirect();
+    }
+
     const errorText = await res.text();
     let message = `Request failed with ${res.status}`;
     if (errorText) {
@@ -100,6 +126,10 @@ export async function apiUpload<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      handle401Redirect();
+    }
+
     const errorText = await res.text();
     let message = `Request failed with ${res.status}`;
     if (errorText) {
