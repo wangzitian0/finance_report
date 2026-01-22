@@ -163,8 +163,41 @@ jobs:
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null
             
-          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s..."
+          echo "Deployment triggered. Waiting ${DEPLOY_WAIT_SECONDS}s for containers to start..."
           sleep ${{ env.DEPLOY_WAIT_SECONDS }}
+          
+          echo "Waiting for services to be fully ready..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            
+            # Check backend health endpoint
+            if curl -sf -m 10 https://report-staging.zitian.party/api/health > /dev/null 2>&1; then
+              echo "✅ Backend API is healthy (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+              
+              # Extra buffer for frontend Next.js to finish startup
+              echo "Waiting 15s for frontend to stabilize..."
+              sleep 15
+              
+              # Verify frontend is also responding
+              if curl -sf -m 10 https://report-staging.zitian.party/ > /dev/null 2>&1; then
+                echo "✅ Frontend is responding"
+                break
+              else
+                echo "⚠️  Frontend not responding yet, but backend is healthy. Continuing..."
+                break
+              fi
+            fi
+            
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Services not ready yet, waiting 5s..."
+            sleep 5
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "::warning::Services did not become healthy within expected time, but continuing with tests..."
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@v4
