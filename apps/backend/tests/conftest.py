@@ -97,8 +97,11 @@ async def db_engine():
 
     # Create all tables
     async with engine.begin() as conn:
-        # Ensure clean slate
-        await conn.run_sync(Base.metadata.drop_all)
+        # Ensure clean slate - drop all tables with CASCADE to handle foreign keys
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
