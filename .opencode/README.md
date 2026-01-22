@@ -209,6 +209,7 @@ Generated from `docs/ssot/` - the Single Source of Truth for this project.
 | Extraction | `domain/extraction` | [docs/ssot/extraction.md](../docs/ssot/extraction.md) |
 | Schema | `domain/schema` | [docs/ssot/schema.md](../docs/ssot/schema.md) |
 | Development | `domain/development` | [docs/ssot/development.md](../docs/ssot/development.md) |
+| Production Debug | `domain/production-debug` | [docs/ssot/development.md](../docs/ssot/development.md) + [docs/ssot/observability.md](../docs/ssot/observability.md) |
 
 ### Professional Skills (Reusable)
 

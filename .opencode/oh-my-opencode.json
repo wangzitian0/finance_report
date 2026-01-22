@@ -9,8 +9,9 @@
                 "domain/schema",
                 "domain/accounting",
                 "domain/reconciliation",
+                "domain/production-debug",
                 "professional/backend-development",
-                "meta/skill-writer"
+                "meta/skill-writer",
             ],
             "description": "Main orchestrator with full domain knowledge and documentation skills",
             "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
