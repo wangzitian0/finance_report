@@ -17,10 +17,9 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -64,7 +63,7 @@ class EnvironmentSmokeTest:
                 assert row is not None and row[0] == 1, "SELECT 1 failed"
 
                 # 2. Test table creation (in transaction, auto rollback)
-                test_table = f"smoke_test_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+                test_table = f"smoke_test_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
                 await conn.execute(
                     text(
                         f"""
@@ -125,7 +124,7 @@ class EnvironmentSmokeTest:
             await redis.ping()
 
             # 2. Test set/get/delete
-            test_key = f"smoke_test:{datetime.now(timezone.utc).isoformat()}"
+            test_key = f"smoke_test:{datetime.now(UTC).isoformat()}"
             test_value = "smoke_test_value"
 
             await redis.set(test_key, test_value, ex=10)
@@ -166,9 +165,9 @@ class EnvironmentSmokeTest:
         start = asyncio.get_event_loop().time()
         try:
             storage = StorageService()
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
             test_key = f"smoke_test/{timestamp}.txt"
-            test_content = f"Smoke test at {datetime.now(timezone.utc).isoformat()}".encode()
+            test_content = f"Smoke test at {datetime.now(UTC).isoformat()}".encode()
 
             # Run in thread pool since storage service is synchronous
             loop = asyncio.get_event_loop()
@@ -319,7 +318,8 @@ class EnvironmentSmokeTest:
         skipped_count = sum(1 for r in self.results if r.status == "skipped")
 
         print(
-            f"\nSummary: {ok_count} OK, {warning_count} warnings, {error_count} errors, {skipped_count} skipped"
+            f"\nSummary: {ok_count} OK, {warning_count} warnings, "
+            f"{error_count} errors, {skipped_count} skipped"
         )
 
         if error_count > 0:
