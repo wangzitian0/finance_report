@@ -1,7 +1,8 @@
 /**
  * Auth utilities for user session management.
  *
- * MVP: Stores user ID in localStorage for X-User-Id header injection.
+ * Stores JWT access token and user info in localStorage.
+ * Token is sent via Authorization: Bearer header on all API requests.
  * SSR-safe: Returns null on server.
  */
 
