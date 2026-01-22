@@ -70,8 +70,8 @@ To prevent floating-point errors:
 
 ## Source Files
 
-- **Models**: `src/models/statement.py`
-- **Schemas**: `src/schemas/extraction.py`
-- **Logic**: `src/services/extraction.py`
-- **Validation**: `src/services/validation.py`
-- **Storage**: `src/services/storage.py`
+- **Models**: `apps/backend/src/models/statement.py`
+- **Schemas**: `apps/backend/src/schemas/extraction.py`
+- **Logic**: `apps/backend/src/services/extraction.py`
+- **Validation**: `apps/backend/src/services/validation.py`
+- **Storage**: `apps/backend/src/services/storage.py`

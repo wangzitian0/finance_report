@@ -98,7 +98,7 @@ Risk: Integration bugs from spec interpretation differences
 const result = await task({
   agent: "sisyphus",
   prompt: "Implement reconciliation feature",
-  skills: ["domain/reconciliation", "professional/backend-dev", "professional/qa-testing"]
+  skills: ["domain/reconciliation", "professional/backend-development", "professional/qa-testing"]
 })
 // Sisyphus maintains context across backend → frontend → tests
 
@@ -237,7 +237,7 @@ Curated best practices and patterns applicable across projects.
 
 Skills are automatically loaded by agents based on `oh-my-opencode.json` configuration:
 
-```json
+```jsonc
 {
   "agents": {
     "Sisyphus": {

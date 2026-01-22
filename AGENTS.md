@@ -297,7 +297,7 @@ def validate_balance(lines: list[JournalLine]) -> bool:
 
 **Three-layer System**: Orchestrator → Agents → Skills
 
-### System Agents (Actually Callable)
+### Configured Agents
 
 Agents are defined in `.opencode/oh-my-opencode.json`:
 
@@ -308,7 +308,12 @@ Agents are defined in `.opencode/oh-my-opencode.json`:
 | `librarian` | FREE | External docs, OSS examples (use in background) |
 | `frontend-ui-ux-engineer` | MEDIUM | **Mandatory** for visual/styling changes |
 | `multimodal-looker` | MEDIUM | Image/PDF analysis |
-| `oracle` | EXPENSIVE | Architecture decisions, debugging (system built-in) |
+
+### Built-in System Agent
+
+| Agent | Cost | When to Use |
+|-------|------|-------------|
+| `oracle` | EXPENSIVE | Architecture decisions, debugging (system built-in, not configured) |
 
 ### Sisyphus Workflow
 
