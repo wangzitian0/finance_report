@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { apiFetch } from "@/lib/api";
 import { Account } from "@/lib/types";
@@ -13,7 +16,24 @@ interface AccountFormModalProps {
 }
 
 const ACCOUNT_TYPES = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
-const CURRENCIES = ["SGD", "USD", "EUR", "GBP", "JPY", "CNY", "HKD"];
+const CURRENCIES = ["SGD", "USD", "EUR", "GBP", "JPY", "CNY", "HKD"] as const;
+
+const createAccountSchema = z.object({
+    name: z.string().min(1, "Account name is required").trim(),
+    code: z.string().trim().optional(),
+    type: z.enum(ACCOUNT_TYPES),
+    currency: z.enum(CURRENCIES),
+    description: z.string().trim().optional(),
+});
+
+const editAccountSchema = z.object({
+    name: z.string().min(1, "Account name is required").trim(),
+    code: z.string().trim().optional(),
+    is_active: z.boolean(),
+});
+
+type CreateAccountForm = z.infer<typeof createAccountSchema>;
+type EditAccountForm = z.infer<typeof editAccountSchema>;
 
 export default function AccountFormModal({
     isOpen,
@@ -21,66 +41,70 @@ export default function AccountFormModal({
     onSuccess,
     editAccount,
 }: AccountFormModalProps) {
-    const [name, setName] = useState("");
-    const [code, setCode] = useState("");
-    const [type, setType] = useState<typeof ACCOUNT_TYPES[number]>("ASSET");
-    const [currency, setCurrency] = useState("SGD");
-    const [description, setDescription] = useState("");
-    const [isActive, setIsActive] = useState(true);
-    const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     const isEditing = !!editAccount;
+
+    const createForm = useForm<CreateAccountForm>({
+        resolver: zodResolver(createAccountSchema),
+        defaultValues: { name: "", code: "", type: "ASSET", currency: "SGD", description: "" },
+    });
+
+    const editForm = useForm<EditAccountForm>({
+        resolver: zodResolver(editAccountSchema),
+        defaultValues: { name: "", code: "", is_active: true },
+    });
 
     useEffect(() => {
         if (editAccount) {
-            setName(editAccount.name);
-            setCode(editAccount.code || "");
-            setType(editAccount.type as typeof ACCOUNT_TYPES[number]);
-            setCurrency(editAccount.currency);
-            setDescription("");
-            setIsActive(true);
+            editForm.reset({
+                name: editAccount.name,
+                code: editAccount.code || "",
+                is_active: editAccount.is_active,
+            });
         } else {
-            setName("");
-            setCode("");
-            setType("ASSET");
-            setCurrency("SGD");
-            setDescription("");
-            setIsActive(true);
+            createForm.reset();
         }
         setError(null);
-    }, [editAccount, isOpen]);
+    }, [editAccount, isOpen, createForm, editForm]);
 
-    const handleSubmit = useCallback(async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name.trim()) {
-            setError("Account name is required");
-            return;
-        }
-
-        setSaving(true);
+    const handleCreateSubmit = async (data: CreateAccountForm) => {
         setError(null);
-
         try {
-            if (isEditing && editAccount) {
-                await apiFetch(`/api/accounts/${editAccount.id}`, {
-                    method: "PUT",
-                    body: JSON.stringify({ name: name.trim(), code: code.trim() || null, is_active: isActive }),
-                });
-            } else {
-                await apiFetch("/api/accounts", {
-                    method: "POST",
-                    body: JSON.stringify({ name: name.trim(), code: code.trim() || null, type, currency, description: description.trim() || null }),
-                });
-            }
+            await apiFetch("/api/accounts", {
+                method: "POST",
+                body: JSON.stringify({
+                    name: data.name,
+                    code: data.code || null,
+                    type: data.type,
+                    currency: data.currency,
+                    description: data.description || null,
+                }),
+            });
             onSuccess();
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to save account");
-        } finally {
-            setSaving(false);
+            setError(err instanceof Error ? err.message : "Failed to create account");
         }
-    }, [name, code, type, currency, description, isActive, isEditing, editAccount, onSuccess, onClose]);
+    };
+
+    const handleEditSubmit = async (data: EditAccountForm) => {
+        if (!editAccount) return;
+        setError(null);
+        try {
+            await apiFetch(`/api/accounts/${editAccount.id}`, {
+                method: "PUT",
+                body: JSON.stringify({
+                    name: data.name,
+                    code: data.code || null,
+                    is_active: data.is_active,
+                }),
+            });
+            onSuccess();
+            onClose();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to update account");
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -92,59 +116,136 @@ export default function AccountFormModal({
                     <h2 className="text-lg font-semibold">{isEditing ? "Edit Account" : "New Account"}</h2>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5">Account Name *</label>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Cash on Hand" className="input" />
-                    </div>
+                {isEditing ? (
+                    <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5">Account Name *</label>
+                            <input
+                                type="text"
+                                {...editForm.register("name")}
+                                placeholder="e.g., Cash on Hand"
+                                className="input"
+                            />
+                            {editForm.formState.errors.name && (
+                                <p className="text-sm text-red-500 mt-1">{editForm.formState.errors.name.message}</p>
+                            )}
+                        </div>
 
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5">Account Code</label>
-                        <input type="text" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g., 1000" className="input" />
-                    </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5">Account Code</label>
+                            <input
+                                type="text"
+                                {...editForm.register("code")}
+                                placeholder="e.g., 1000"
+                                className="input"
+                            />
+                            {editForm.formState.errors.code && (
+                                <p className="text-sm text-red-500 mt-1">{editForm.formState.errors.code.message}</p>
+                            )}
+                        </div>
 
-                    {!isEditing && (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                {...editForm.register("is_active")}
+                                className="w-4 h-4 rounded border-[var(--border)] bg-[var(--background)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                            />
+                            <span className="text-sm">Active</span>
+                        </label>
+
+                        {error && <div className="alert-error">{error}</div>}
+
+                        <div className="flex gap-3 pt-2">
+                            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={editForm.formState.isSubmitting} className="btn-primary flex-1">
+                                {editForm.formState.isSubmitting ? "Saving..." : "Save Changes"}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5">Account Name *</label>
+                            <input
+                                type="text"
+                                {...createForm.register("name")}
+                                placeholder="e.g., Cash on Hand"
+                                className="input"
+                            />
+                            {createForm.formState.errors.name && (
+                                <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.name.message}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5">Account Code</label>
+                            <input
+                                type="text"
+                                {...createForm.register("code")}
+                                placeholder="e.g., 1000"
+                                className="input"
+                            />
+                            {createForm.formState.errors.code && (
+                                <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.code.message}</p>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium mb-1.5">Type *</label>
-                                <select value={type} onChange={(e) => setType(e.target.value as typeof ACCOUNT_TYPES[number])} className="input">
-                                    {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                <select {...createForm.register("type")} className="input">
+                                    {ACCOUNT_TYPES.map((t) => (
+                                        <option key={t} value={t}>
+                                            {t}
+                                        </option>
+                                    ))}
                                 </select>
+                                {createForm.formState.errors.type && (
+                                    <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.type.message}</p>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1.5">Currency *</label>
-                                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input">
-                                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                                <select {...createForm.register("currency")} className="input">
+                                    {CURRENCIES.map((c) => (
+                                        <option key={c} value={c}>
+                                            {c}
+                                        </option>
+                                    ))}
                                 </select>
+                                {createForm.formState.errors.currency && (
+                                    <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.currency.message}</p>
+                                )}
                             </div>
                         </div>
-                    )}
 
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5">Description</label>
-                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description..." rows={2} className="input resize-none" />
-                    </div>
-
-                    {isEditing && (
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4 rounded border-[var(--border)] bg-[var(--background)] text-[var(--accent)] focus:ring-[var(--accent)]" />
-                            <span className="text-sm">Active</span>
-                        </label>
-                    )}
-
-                    {error && (
-                        <div className="alert-error">
-                            {error}
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5">Description</label>
+                            <textarea
+                                {...createForm.register("description")}
+                                placeholder="Optional description..."
+                                rows={2}
+                                className="input resize-none"
+                            />
+                            {createForm.formState.errors.description && (
+                                <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.description.message}</p>
+                            )}
                         </div>
-                    )}
 
-                    <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-                        <button type="submit" disabled={saving} className="btn-primary flex-1">
-                            {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Account"}
-                        </button>
-                    </div>
-                </form>
+                        {error && <div className="alert-error">{error}</div>}
+
+                        <div className="flex gap-3 pt-2">
+                            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={createForm.formState.isSubmitting} className="btn-primary flex-1">
+                                {createForm.formState.isSubmitting ? "Saving..." : "Create Account"}
+                            </button>
+                        </div>
+                    </form>
+                )}
             </div>
         </div>
     );

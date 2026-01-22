@@ -1,3 +1,5 @@
+import { formatAmount } from "@/lib/currency";
+
 interface BarItem {
   label: string;
   income: number;
@@ -34,12 +36,12 @@ export function BarChart({
                 <div
                   className="w-3 rounded-full bg-emerald-400/80 shadow-[0_0_14px_rgba(16,185,129,0.35)]"
                   style={{ height: incomeHeight }}
-                  title={`Income ${item.income.toFixed(0)}`}
+                  title={`Income ${formatAmount(item.income, 0)}`}
                 />
                 <div
                   className="w-3 rounded-full bg-rose-400/80 shadow-[0_0_14px_rgba(244,63,94,0.35)]"
                   style={{ height: expenseHeight }}
-                  title={`Expense ${item.expense.toFixed(0)}`}
+                  title={`Expense ${formatAmount(item.expense, 0)}`}
                 />
               </div>
               <span className="text-xs text-slate-500">{item.label}</span>

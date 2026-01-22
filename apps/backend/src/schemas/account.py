@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from src.models.account import AccountType
+from src.schemas.base import BaseResponse, ListResponse
 
 
 class AccountBase(BaseModel):
@@ -37,7 +38,7 @@ class AccountUpdate(BaseModel):
     is_active: bool | None = None
 
 
-class AccountResponse(AccountBase):
+class AccountResponse(AccountBase, BaseResponse):
     """Schema for account response."""
 
     id: UUID
@@ -47,11 +48,5 @@ class AccountResponse(AccountBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
 
-
-class AccountListResponse(BaseModel):
-    """Schema for account list response."""
-
-    items: list[AccountResponse]
-    total: int
+AccountListResponse = ListResponse[AccountResponse]

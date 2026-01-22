@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from src.models.journal import Direction, JournalEntrySourceType, JournalEntryStatus
+from src.schemas.base import BaseResponse, ListResponse
 
 
 class JournalLineBase(BaseModel):
@@ -28,15 +29,13 @@ class JournalLineCreate(JournalLineBase):
     pass
 
 
-class JournalLineResponse(JournalLineBase):
+class JournalLineResponse(JournalLineBase, BaseResponse):
     """Schema for journal line response."""
 
     id: UUID
     journal_entry_id: UUID
     created_at: datetime
     updated_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class JournalEntryBase(BaseModel):
@@ -67,7 +66,7 @@ class JournalEntryCreate(JournalEntryBase):
         return self
 
 
-class JournalEntryResponse(JournalEntryBase):
+class JournalEntryResponse(JournalEntryBase, BaseResponse):
     """Schema for journal entry response."""
 
     id: UUID
@@ -79,14 +78,8 @@ class JournalEntryResponse(JournalEntryBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
 
-
-class JournalEntryListResponse(BaseModel):
-    """Schema for journal entry list response."""
-
-    items: list[JournalEntryResponse]
-    total: int
+JournalEntryListResponse = ListResponse[JournalEntryResponse]
 
 
 class VoidJournalEntryRequest(BaseModel):

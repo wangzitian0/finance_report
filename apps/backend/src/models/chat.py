@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import enum
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class ChatSessionStatus(str, enum.Enum):
@@ -28,28 +29,17 @@ class ChatMessageRole(str, enum.Enum):
     SYSTEM = "system"
 
 
-class ChatSession(Base):
+class ChatSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Chat session header for AI advisor conversations."""
 
     __tablename__ = "chat_sessions"
 
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[ChatSessionStatus] = mapped_column(
         Enum(ChatSessionStatus, name="chat_session_status_enum"),
         nullable=False,
         default=ChatSessionStatus.ACTIVE,
         index=True,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
     )
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -61,14 +51,13 @@ class ChatSession(Base):
         return f"<ChatSession {self.id} status={self.status.value}>"
 
 
-class ChatMessage(Base):
+class ChatMessage(Base, UUIDMixin):
     """Individual chat message stored for a session."""
 
     __tablename__ = "chat_messages"
 
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     session_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True),
+        PGUUID(as_uuid=True),
         ForeignKey("chat_sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
