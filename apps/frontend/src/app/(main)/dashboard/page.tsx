@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
+import { formatCurrencyLocale } from "@/lib/currency";
 import { BarChart } from "@/components/charts/BarChart";
 import { PieChart } from "@/components/charts/PieChart";
 import { TrendChart } from "@/components/charts/TrendChart";
@@ -18,8 +19,6 @@ import {
 } from "@/lib/types";
 
 const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
-const formatCurrency = (currency: string, value: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
 export default function DashboardPage() {
@@ -140,21 +139,21 @@ export default function DashboardPage() {
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Assets</p>
           <p className="text-2xl font-semibold text-[var(--success)] mt-1">
-            {balanceSheet ? formatCurrency(balanceSheet.currency, toNumber(balanceSheet.total_assets)) : "—"}
+            {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_assets), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date}</p>
         </div>
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Liabilities</p>
           <p className="text-2xl font-semibold text-[var(--error)] mt-1">
-            {balanceSheet ? formatCurrency(balanceSheet.currency, toNumber(balanceSheet.total_liabilities)) : "—"}
+            {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_liabilities), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">Obligations</p>
         </div>
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Net Assets</p>
           <p className="text-2xl font-semibold mt-1">
-            {balanceSheet ? formatCurrency(balanceSheet.currency, netAssets) : "—"}
+            {balanceSheet ? formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">{balanceSheet?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</p>
         </div>
@@ -228,7 +227,7 @@ export default function DashboardPage() {
             {unmatched?.items?.length ? unmatched.items.map((t) => (
               <div key={t.id} className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
                 <div><p className="font-medium">{t.description}</p><p className="text-xs text-muted">{t.txn_date}</p></div>
-                <span className="font-semibold">{balanceSheet ? formatCurrency(balanceSheet.currency, toNumber(t.amount)) : t.amount}</span>
+                <span className="font-semibold">{balanceSheet ? formatCurrencyLocale(toNumber(t.amount), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : t.amount}</span>
               </div>
             )) : <p className="text-sm text-muted">No unmatched transactions.</p>}
             <Link href="/reconciliation/unmatched" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">

@@ -59,3 +59,17 @@ export function formatCurrency(
   const amount = formatAmount(value, decimals);
   return `${currency} ${amount}`;
 }
+
+export function formatCurrencyLocale(
+  value: Decimal | string | number,
+  currency: string = "SGD",
+  locale: string = "en-US",
+  options?: Intl.NumberFormatOptions
+): string {
+  const formatter = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    ...options,
+  });
+  return formatter.format(Number(value));
+}
