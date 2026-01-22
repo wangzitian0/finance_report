@@ -5,251 +5,108 @@ description: Debug production and staging environments using Dokploy API, VPS SS
 
 # Production/Staging Debug
 
-> **Purpose**: Unified debugging workflow for production/staging via Dokploy API, SSH, and SigNoz.
+> Unified debugging for production/staging via Dokploy API, SSH, and SigNoz.
 
-## Quick Start
+## Quick Reference
 
 ```bash
-# Check service health
-python scripts/debug.py status backend --env production
-
 # View logs
 python scripts/debug.py logs backend --tail 50 --follow
+python scripts/debug.py logs backend --env staging
+
+# Check health
+python scripts/debug.py status backend --env production
 
 # List containers
 python scripts/debug.py containers --env production
 
-# Use SigNoz (production/staging)
+# SigNoz (historical logs)
 python scripts/debug.py logs backend --env production --method signoz
 ```
 
 ---
 
-## Container Naming Patterns
+## Container Naming
 
-| Environment | Backend | Frontend |
-|-------------|---------|----------|
-| **Local/CI** | `finance-report-backend` | `finance-report-frontend` |
-| **Staging** | `finance-report-backend-staging` | `finance-report-frontend-staging` |
-| **Production** | `finance-report-backend` | `finance-report-frontend` |
-| **PR (#47)** | `finance-report-backend-pr-47` | `finance-report-frontend-pr-47` |
-
----
-
-## Common Operations
-
-### View Logs
-
-```bash
-# Auto-detects environment
-python scripts/debug.py logs backend
-python scripts/debug.py logs frontend --env staging --follow
-
-# Force SigNoz (historical logs)
-python scripts/debug.py logs backend --env production --method signoz
-```
-
-### Check Service Health
-
-```bash
-python scripts/debug.py status backend --env production
-python scripts/debug.py status frontend --env staging
-```
-
-### List Services
-
-```bash
-# List all finance-report containers
-python scripts/debug.py containers --env production
-
-# List all Dokploy projects/environments (Python)
-python scripts/list_dokploy.py
-```
+| Environment | Pattern |
+|-------------|---------|
+| Local/CI | `finance-report-{service}` |
+| Staging | `finance-report-{service}-staging` |
+| Production | `finance-report-{service}` |
+| PR #47 | `finance-report-{service}-pr-47` |
 
 ---
 
-## Dokploy API Operations
-
-### View Service Configuration
+## Dokploy API
 
 ```python
 from libs.dokploy import get_dokploy
 
 client = get_dokploy()
-compose_id = "A6V-hbJlgHMwgPDoTDnhH"  # Finance Report Production
+compose_id = "A6V-hbJlgHMwgPDoTDnhH"  # Finance Report
 
+# View config
 compose = client.get_compose(compose_id)
-print(f"Service: {compose.get('name')}")
-print(f"Env vars:\n{compose.get('env')}")
-```
+print(compose.get('env'))
 
-### Update Environment Variables
-
-```python
-from libs.dokploy import get_dokploy
-
-client = get_dokploy()
-compose_id = "A6V-hbJlgHMwgPDoTDnhH"
-
-# Update specific vars (merges with existing)
+# Update env vars
 client.update_compose_env(compose_id, env_vars={"DEBUG": "true"})
 
-# Trigger redeploy
+# Trigger deploy
 client.deploy_compose(compose_id)
 ```
 
-**IMPORTANT**: Env var changes require infrastructure PR in `repo/` submodule.
-
-### Trigger Deployment
-
-```python
-from libs.dokploy import get_dokploy
-
-client = get_dokploy()
-compose_id = "A6V-hbJlgHMwgPDoTDnhH"
-
-# Trigger redeploy
-client.deploy_compose(compose_id)
-```
+**Note**: Env var changes need PR in `repo/` submodule.
 
 ---
 
-## SSH Access (Emergency Only)
-
-**IMPORTANT**: Prefer `scripts/debug.py` and Dokploy API. Deploy via CI, not manual SSH edits.
+## SSH (Emergency Only)
 
 ```bash
-# SSH into VPS (read-only inspection)
 ssh root@$VPS_HOST
 
 # View logs
-docker logs finance-report-backend --tail 50 -f
+docker logs finance-report-backend -f --tail 50
 
-# Check container status
-docker ps --filter name=finance-report
-
-# Restart container (emergency only)
+# Restart (emergency)
 docker restart finance-report-backend
 ```
 
-**Never via SSH**:
-- ❌ Modify config files
-- ❌ Manual database changes
-- ❌ Install packages
+**Never**: Modify files, manual DB changes, install packages via SSH.
 
 ---
 
 ## Troubleshooting
 
-### Container Not Found
+**Container not found**: `python scripts/debug.py containers --env production`
 
-```bash
-# List all containers
-python scripts/debug.py containers --env production
+**SSH fails**: Check `$VPS_HOST`, test with `ssh root@$VPS_HOST "echo OK"`
 
-# Verify naming pattern matches SSOT table above
-```
+**Empty logs**: Use SigNoz for historical logs
 
-### SSH Connection Failed
-
-```bash
-# Check environment
-echo $VPS_HOST
-
-# Test connection
-ssh root@$VPS_HOST "echo Success"
-
-# Load direnv if needed
-direnv allow
-```
-
-### Logs Empty/Truncated
-
-```bash
-# Check container uptime
-docker ps --filter name=finance-report-backend --format "{{.Status}}"
-
-# Use SigNoz for historical logs
-python scripts/debug.py logs backend --env production --method signoz
-```
-
-### Deployment Stuck
-
-```python
-# Check deployment history via Python
-from libs.dokploy import get_dokploy
-client = get_dokploy()
-deployments = client._request('GET', 'compose.deployments?composeId=A6V-hbJlgHMwgPDoTDnhH')
-for dep in deployments[:5]:
-    print(f"ID: {dep['deploymentId']}, Status: {dep['status']}")
-```
-
-Or use utility script:
-```bash
-python scripts/check_deployments.py
-```
-
----
-
-## Safety Guidelines
-
-**Read-Only First**:
-- ✅ View logs, check status, list containers
-- ✅ Read env vars via Dokploy API
-
-**Deployment Changes**:
-1. Make changes in code
-2. Open PR → Deploy via GitHub Actions
-3. Emergency only: Use Dokploy API → Document in PR
-
----
-
-## SigNoz Integration
-
-For production/staging structured logs:
-
-- **Staging**: `https://signoz-staging.zitian.party`
-- **Production**: `https://signoz.zitian.party`
-
-Query by service name:
-```
-service_name = "finance-report-backend"
-```
-
-See [docs/ssot/observability.md](../../../docs/ssot/observability.md) for OTLP configuration.
-
----
-
-## Verification
-
-After debugging:
-
-```bash
-# 1. Check health
-python scripts/debug.py status backend --env production
-
-# 2. Test endpoint
-curl https://report.zitian.party/api/health
-
-# 3. Run smoke tests
-BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
-```
-
----
-
-## Related Documentation
-
-- [Development SSOT](../../../docs/ssot/development.md) — Deployment architecture
-- [Observability SSOT](../../../docs/ssot/observability.md) — Logging and SigNoz
-- [Dokploy API Client](../../../repo/libs/dokploy.py) — API source code
+**Deployment stuck**: `python scripts/check_deployments.py`
 
 ---
 
 ## Utility Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/check_dokploy.py` | View service configuration |
-| `scripts/list_dokploy.py` | List all projects/environments/services |
-| `scripts/check_deployments.py` | Check deployment history |
-| `scripts/check_compose_details.py` | Inspect compose details (JSON dump) |
+- `scripts/check_dokploy.py` - View service config
+- `scripts/list_dokploy.py` - List all resources
+- `scripts/check_deployments.py` - Deployment history
+- `scripts/check_compose_details.py` - Full compose JSON
+
+---
+
+## SigNoz
+
+- Staging: `https://signoz-staging.zitian.party`
+- Production: `https://signoz.zitian.party`
+- Query: `service_name = "finance-report-backend"`
+
+---
+
+## Docs
+
+- [Development SSOT](../../../docs/ssot/development.md)
+- [Observability SSOT](../../../docs/ssot/observability.md)
+- [Dokploy API](../../../repo/libs/dokploy.py)
