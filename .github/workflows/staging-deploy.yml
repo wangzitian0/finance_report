@@ -110,11 +110,29 @@ jobs:
           echo "Deploying $IMAGE_TAG to staging..."
           
           # Get current env (suppress output to avoid leaking secrets)
-          env_response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" 2>/dev/null)
+          response_file=$(mktemp)
+          error_file=$(mktemp)
+          trap "rm -f '$response_file' '$error_file'" EXIT INT TERM
           
-          if [ $? -ne 0 ] || [ -z "$env_response" ]; then
-            echo "ERROR: Failed to fetch current environment from API"
+          http_code=$(curl -s -o "$response_file" -w "%{http_code}" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" \
+            2>"$error_file" || echo "000")
+          
+          if [ "$http_code" = "000" ]; then
+            echo "ERROR: Failed to connect to Dokploy API (DNS/TLS/network error)"
+            cat "$error_file"
+            exit 1
+          elif [ "$http_code" != "200" ]; then
+            echo "ERROR: Dokploy API returned HTTP $http_code"
+            cat "$response_file"
+            exit 1
+          fi
+          
+          env_response=$(cat "$response_file")
+          
+          if [ -z "$env_response" ]; then
+            echo "ERROR: Empty response from API"
             exit 1
           fi
           
@@ -147,22 +165,51 @@ jobs:
           fi
           
           # Update environment
-          if ! curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          update_response_file=$(mktemp)
+          update_error_file=$(mktemp)
+          trap "rm -f '$response_file' '$error_file' '$update_response_file' '$update_error_file'" EXIT INT TERM
+          
+          http_code=$(curl -s -o "$update_response_file" -w "%{http_code}" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" > /dev/null; then
-            echo "ERROR: Failed to update environment"
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" \
+            2>"$update_error_file" || echo "000")
+          
+          if [ "$http_code" = "000" ]; then
+            echo "ERROR: Failed to connect to Dokploy API for environment update"
+            cat "$update_error_file"
+            exit 1
+          elif [ "$http_code" != "200" ]; then
+            echo "ERROR: Environment update failed with HTTP $http_code"
+            cat "$update_response_file"
             exit 1
           fi
           
           echo "Environment updated to use image tag: $IMAGE_TAG"
           
           # Redeploy
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          deploy_response_file=$(mktemp)
+          deploy_error_file=$(mktemp)
+          trap "rm -f '$response_file' '$error_file' '$update_response_file' '$update_error_file' '$deploy_response_file' '$deploy_error_file'" EXIT INT TERM
+          
+          http_code=$(curl -s -o "$deploy_response_file" -w "%{http_code}" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" > /dev/null
-            
+            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" \
+            2>"$deploy_error_file" || echo "000")
+          
+          if [ "$http_code" = "000" ]; then
+            echo "ERROR: Failed to connect to Dokploy API for deployment trigger"
+            cat "$deploy_error_file"
+            exit 1
+          elif [ "$http_code" != "200" ]; then
+            echo "ERROR: Deployment trigger failed with HTTP $http_code"
+            cat "$deploy_response_file"
+            exit 1
+          fi
+          
           echo "Deployment triggered. Waiting for backend to become healthy..."
           echo ""
           
