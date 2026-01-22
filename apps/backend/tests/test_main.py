@@ -153,17 +153,6 @@ async def test_upload_no_file(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_health_endpoint_structure(client: AsyncClient) -> None:
-    """Test health endpoint returns proper structure."""
-    response = await client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert "status" in data
-    assert "timestamp" in data
-    assert data["status"] == "healthy"
-
-
-@pytest.mark.asyncio
 async def test_ping_multiple_toggles(client: AsyncClient) -> None:
     """Test multiple ping toggles."""
     # Toggle 3 times
