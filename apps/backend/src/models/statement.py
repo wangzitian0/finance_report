@@ -1,17 +1,18 @@
 """Bank statement models for document extraction."""
 
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.models.base import TimestampMixin, UUIDMixin, UserOwnedMixin
 
 if TYPE_CHECKING:
     from src.models.reconciliation import ReconciliationMatch
@@ -43,7 +44,7 @@ class ConfidenceLevel(str, Enum):
     LOW = "low"  # <60: Manual entry required
 
 
-class BankStatement(Base):
+class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Uploaded financial statement."""
 
     __tablename__ = "bank_statements"
@@ -51,18 +52,14 @@ class BankStatement(Base):
         UniqueConstraint("user_id", "file_hash", name="uq_bank_statements_user_file_hash"),
     )
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     account_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True
     )
 
-    # File metadata
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Statement details
     institution: Mapped[str] = mapped_column(String(100), nullable=False)
     account_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), default="SGD", nullable=True)
@@ -71,7 +68,6 @@ class BankStatement(Base):
     opening_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     closing_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 
-    # Processing
     status: Mapped[BankStatementStatus] = mapped_column(
         SQLEnum(
             BankStatementStatus,
@@ -80,22 +76,10 @@ class BankStatement(Base):
         ),
         default=BankStatementStatus.UPLOADED,
     )
-    confidence_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
+    confidence_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     balance_validated: Mapped[bool | None] = mapped_column(default=None, nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Audit
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-
-    # Relationships
     transactions: Mapped[list["BankStatementTransaction"]] = relationship(
         "BankStatementTransaction",
         back_populates="statement",
@@ -103,23 +87,21 @@ class BankStatement(Base):
     )
 
 
-class BankStatementTransaction(Base):
+class BankStatementTransaction(Base, UUIDMixin, TimestampMixin):
     """Individual transaction extracted from a statement."""
 
     __tablename__ = "bank_statement_transactions"
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     statement_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("bank_statements.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Transaction details
     txn_date: Mapped[date] = mapped_column(Date, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    direction: Mapped[str] = mapped_column(String(3), nullable=False)  # IN, OUT
+    direction: Mapped[str] = mapped_column(String(3), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[BankStatementTransactionStatus] = mapped_column(
         SQLEnum(
@@ -130,7 +112,6 @@ class BankStatementTransaction(Base):
         default=BankStatementTransactionStatus.PENDING,
     )
 
-    # Confidence tracking
     confidence: Mapped[ConfidenceLevel] = mapped_column(
         SQLEnum(
             ConfidenceLevel,
@@ -140,20 +121,8 @@ class BankStatementTransaction(Base):
         default=ConfidenceLevel.HIGH,
     )
     confidence_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # Original OCR
+    raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Audit
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-
-    # Relationships
     statement: Mapped["BankStatement"] = relationship(
         "BankStatement",
         back_populates="transactions",

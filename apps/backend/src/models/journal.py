@@ -3,25 +3,26 @@
 from __future__ import annotations
 
 import enum
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID
 
 from sqlalchemy import (
     DECIMAL,
     CheckConstraint,
     Date,
-    DateTime,
     Enum,
     ForeignKey,
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.models.base import TimestampMixin, UUIDMixin, UserOwnedMixin
 
 if TYPE_CHECKING:
     from src.models.account import Account
@@ -51,7 +52,7 @@ class Direction(str, enum.Enum):
     CREDIT = "CREDIT"
 
 
-class JournalEntry(Base):
+class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
     Journal entry header containing metadata for a bookkeeping transaction.
 
@@ -60,8 +61,6 @@ class JournalEntry(Base):
 
     __tablename__ = "journal_entries"
 
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     memo: Mapped[str] = mapped_column(String(500), nullable=False)
     source_type: Mapped[JournalEntrySourceType] = mapped_column(
@@ -73,7 +72,7 @@ class JournalEntry(Base):
         nullable=False,
         default=JournalEntrySourceType.MANUAL,
     )
-    source_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    source_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     status: Mapped[JournalEntryStatus] = mapped_column(
         Enum(
             JournalEntryStatus,
@@ -85,28 +84,14 @@ class JournalEntry(Base):
         index=True,
     )
     void_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    void_reversal_entry_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    void_reversal_entry_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-
-    # Relationships
     lines: Mapped[list[JournalLine]] = relationship(
         "JournalLine", back_populates="journal_entry", cascade="all, delete-orphan"
     )
 
-    def __repr__(self) -> str:
-        return f"<JournalEntry {self.entry_date} - {self.memo[:30]}>"
 
-
-class JournalLine(Base):
+class JournalLine(Base, UUIDMixin, TimestampMixin):
     """
     Individual debit or credit line in a journal entry.
 
@@ -117,12 +102,11 @@ class JournalLine(Base):
     __tablename__ = "journal_lines"
     __table_args__ = (CheckConstraint("amount > 0", name="positive_amount"),)
 
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     journal_entry_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("journal_entries.id"), nullable=False, index=True
+        PGUUID(as_uuid=True), ForeignKey("journal_entries.id"), nullable=False, index=True
     )
     account_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False, index=True
+        PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False, index=True
     )
     direction: Mapped[Direction] = mapped_column(
         Enum(
@@ -138,19 +122,5 @@ class JournalLine(Base):
     event_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-
-    # Relationships
     journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
     account: Mapped[Account] = relationship("Account", back_populates="journal_lines")
-
-    def __repr__(self) -> str:
-        return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"

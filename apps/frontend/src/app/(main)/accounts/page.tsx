@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { useToast } from "@/components/ui/Toast";
@@ -11,45 +12,37 @@ const ACCOUNT_TYPES = ["All", "ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE
 
 export default function AccountsPage() {
     const { showToast } = useToast();
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const queryClient = useQueryClient();
     const [activeFilter, setActiveFilter] = useState<string>("All");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
-    const fetchAccounts = useCallback(async () => {
-        setLoading(true);
-        try {
-            const data = await apiFetch<AccountListResponse>("/api/accounts?include_balance=true");
-            setAccounts(data.items);
-            setError(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load accounts");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const { data, isLoading, error, refetch } = useQuery({
+        queryKey: ["accounts"],
+        queryFn: () => apiFetch<AccountListResponse>("/api/accounts?include_balance=true"),
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (accountId: string) => apiFetch(`/api/accounts/${accountId}`, { method: "DELETE" }),
+        onSuccess: () => {
+            showToast("Account deleted successfully", "success");
+            queryClient.invalidateQueries({ queryKey: ["accounts"] });
+        },
+        onError: (err: Error) => {
+            showToast(`Failed to delete account: ${err.message}`, "error");
+        },
+    });
 
     const handleDeleteAccount = async (accountId: string) => {
         if (!window.confirm("Are you sure you want to delete this account? This will only work if there are no transactions.")) return;
-        try {
-            await apiFetch(`/api/accounts/${accountId}`, { method: "DELETE" });
-            showToast("Account deleted successfully", "success");
-            fetchAccounts();
-        } catch (err) {
-            setError(
-                err instanceof Error
-                    ? `Failed to delete account: ${err.message}`
-                    : "Failed to delete account"
-            );
-        }
+        deleteMutation.mutate(accountId);
     };
 
-    useEffect(() => {
-        fetchAccounts();
-    }, [fetchAccounts]);
+    const handleModalSuccess = () => {
+        queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    };
 
+    const accounts = data?.items ?? [];
     const filteredAccounts = activeFilter === "All"
         ? accounts
         : accounts.filter((a) => a.type === activeFilter);
@@ -96,12 +89,12 @@ export default function AccountsPage() {
             {/* Error */}
             {error && (
                 <div className="mb-4 alert-error">
-                    {error}
+                    {error instanceof Error ? error.message : "Failed to load accounts"}
                 </div>
             )}
 
             {/* Content */}
-            {loading ? (
+            {isLoading ? (
                 <div className="card p-8 text-center text-muted">
                     <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
                     <p className="text-sm">Loading accounts...</p>
@@ -114,9 +107,9 @@ export default function AccountsPage() {
                         </svg>
                     </div>
                     <p className="text-[var(--foreground)] font-medium mb-2">Failed to load accounts</p>
-                    <p className="text-sm text-muted mb-6">{error}</p>
+                    <p className="text-sm text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
                     <button
-                        onClick={fetchAccounts}
+                        onClick={() => refetch()}
                         className="btn-secondary"
                         aria-label="Retry loading accounts"
                     >
@@ -166,6 +159,7 @@ export default function AccountsPage() {
                                                 onClick={() => handleDeleteAccount(account.id)}
                                                 className="btn-ghost p-2 text-muted hover:text-[var(--error)]"
                                                 title="Delete Account"
+                                                disabled={deleteMutation.isPending}
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -183,7 +177,7 @@ export default function AccountsPage() {
             <AccountFormModal
                 isOpen={isModalOpen}
                 onClose={() => { setIsModalOpen(false); setEditingAccount(null); }}
-                onSuccess={fetchAccounts}
+                onSuccess={handleModalSuccess}
                 editAccount={editingAccount}
             />
         </div>
