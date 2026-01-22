@@ -210,7 +210,7 @@ async def check_s3() -> bool:
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
-            config=BotoConfig(connect_timeout=2, read_timeout=2),
+            config=BotoConfig(connect_timeout=5, read_timeout=5),
         ) as s3_client:
             await s3_client.head_bucket(Bucket=settings.s3_bucket)
             return True
