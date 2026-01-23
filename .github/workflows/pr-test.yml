@@ -253,7 +253,8 @@ jobs:
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
           
-          echo "Deployment triggered"
+          echo "Deployment triggered, waiting 10s for status to update..."
+          sleep 10
 
       - name: Poll Deployment Status
         env:
@@ -262,20 +263,46 @@ jobs:
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
           echo "Polling deployment status for $COMPOSE_ID..."
           
+          # Track the start time to detect stale error status
+          START_TIME=$(date +%s)
+          
           for i in $(seq 1 60); do
             response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
               "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID")
             
             status=$(echo "$response" | jq -r '.composeStatus // "unknown"')
-            echo "Attempt $i/60: Status = $status"
             
-            if [ "$status" = "done" ] || [ "$status" = "running" ]; then
-              echo "✅ Deployment completed with status: $status"
-              exit 0
-            elif [ "$status" = "error" ]; then
-              echo "::error::Deployment failed"
-              echo "$response" | jq -r '.deployments[]? | "Date: \(.createdAt) Status: \(.status) Error: \(.errorMessage)"' || true
-              exit 1
+            # Get the latest deployment status and time
+            latest_deploy=$(echo "$response" | jq -r '.deployments[-1] // {}')
+            latest_status=$(echo "$latest_deploy" | jq -r '.status // "unknown"')
+            latest_started=$(echo "$latest_deploy" | jq -r '.startedAt // ""')
+            
+            echo "Attempt $i/60: composeStatus=$status, latestDeployment=$latest_status"
+            
+            # Check if latest deployment started after we triggered (within last 2 min)
+            if [ -n "$latest_started" ]; then
+              deploy_time=$(date -d "$latest_started" +%s 2>/dev/null || echo "0")
+              time_diff=$((START_TIME - deploy_time))
+              
+              # If latest deployment is recent (within 120s of our start)
+              if [ "$time_diff" -lt 120 ] && [ "$time_diff" -gt -300 ]; then
+                if [ "$latest_status" = "done" ]; then
+                  echo "✅ Latest deployment completed successfully"
+                  exit 0
+                elif [ "$latest_status" = "error" ]; then
+                  echo "::error::Latest deployment failed"
+                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
+                  exit 1
+                fi
+              fi
+            fi
+            
+            # Fallback: check compose-level status after a grace period
+            if [ "$i" -gt 5 ]; then
+              if [ "$status" = "done" ] || [ "$status" = "running" ]; then
+                echo "✅ Deployment completed with status: $status"
+                exit 0
+              fi
             fi
             
             sleep 5
