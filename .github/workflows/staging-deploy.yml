@@ -71,7 +71,6 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
-          # NEXT_PUBLIC_API_URL: no /api suffix - frontend paths include /api/
 
       - name: Check Deployment Dependencies
         env:
