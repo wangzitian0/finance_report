@@ -70,7 +70,7 @@ class TestReconciliationDualRead:
 
         captured = capsys.readouterr()
         assert "Layer 0/2 Consistency Verified" in captured.out
-        assert "count': 1" in captured.out
+        assert "'count': 1" in captured.out
 
     async def test_dual_read_validation_detects_mismatch(
         self, db, test_user, mock_ai_response, monkeypatch, capsys
@@ -104,5 +104,5 @@ class TestReconciliationDualRead:
 
         captured = capsys.readouterr()
         assert "Layer 0/2 Count Mismatch" in captured.out
-        assert "layer0_count': 1" in captured.out
-        assert "layer2_count': 0" in captured.out
+        assert "'layer0_count': 1" in captured.out
+        assert "'layer2_count': 0" in captured.out
