@@ -19,18 +19,48 @@
 
 set -euo pipefail
 
+# Collect all missing requirements
+missing_args=()
+missing_envs=()
+
 COMPOSE_ID="${1:-}"
 IMAGE_TAG="${2:-}"
 APP_URL="${3:-}"
 
-if [ -z "$COMPOSE_ID" ] || [ -z "$IMAGE_TAG" ] || [ -z "$APP_URL" ]; then
-  echo "ERROR: Missing required arguments"
-  echo "Usage: $0 <compose_id> <image_tag> <app_url>"
-  exit 1
-fi
+[ -z "$COMPOSE_ID" ] && missing_args+=("compose_id")
+[ -z "$IMAGE_TAG" ] && missing_args+=("image_tag")
+[ -z "$APP_URL" ] && missing_args+=("app_url")
 
-if [ -z "${DOKPLOY_API_KEY:-}" ] || [ -z "${DOKPLOY_API_URL:-}" ]; then
-  echo "ERROR: Missing required environment variables: DOKPLOY_API_KEY, DOKPLOY_API_URL"
+[ -z "${DOKPLOY_API_KEY:-}" ] && missing_envs+=("DOKPLOY_API_KEY")
+[ -z "${DOKPLOY_API_URL:-}" ] && missing_envs+=("DOKPLOY_API_URL")
+
+# Report all missing requirements at once
+if [ ${#missing_args[@]} -gt 0 ] || [ ${#missing_envs[@]} -gt 0 ]; then
+  echo "========================================="
+  echo "ERROR: Missing Required Dependencies"
+  echo "========================================="
+  
+  if [ ${#missing_args[@]} -gt 0 ]; then
+    echo ""
+    echo "Missing Arguments:"
+    for arg in "${missing_args[@]}"; do
+      echo "  - $arg"
+    done
+    echo ""
+    echo "Usage: $0 <compose_id> <image_tag> <app_url>"
+  fi
+  
+  if [ ${#missing_envs[@]} -gt 0 ]; then
+    echo ""
+    echo "Missing Environment Variables:"
+    for env in "${missing_envs[@]}"; do
+      echo "  - $env"
+    done
+    echo ""
+    echo "Required in workflow step 'env:' section"
+  fi
+  
+  echo "========================================="
   exit 1
 fi
 

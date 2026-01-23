@@ -114,6 +114,12 @@ jobs:
             NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
             NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
 
+      - name: Check Deployment Dependencies
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
+        run: bash scripts/check_deployment_deps.sh
+
       - name: Check if compose exists
         id: check
         run: |

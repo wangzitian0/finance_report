@@ -114,9 +114,17 @@ jobs:
           done
           echo "✅ Images verified"
 
+      - name: Check Deployment Dependencies
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
+        run: bash scripts/check_deployment_deps.sh
+
       - name: Deploy & Health Check
         env:
           IMAGE_TAG: ${{ steps.version.outputs.tag }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
         run: |
           bash scripts/dokploy_deploy.sh \
             "$PRODUCTION_COMPOSE_ID" \
