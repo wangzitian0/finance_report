@@ -1,6 +1,6 @@
 """Tests for multi-currency reporting and FX gain/loss calculation."""
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
@@ -13,7 +13,6 @@ from src.models import (
     Direction,
     FxRate,
     JournalEntry,
-    JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
 )
@@ -206,7 +205,6 @@ async def test_fx_liability_inversion(
     )
     db.add(usd_debt)
     sgd_cash = multi_currency_accounts[0]
-    capital = multi_currency_accounts[2]
     await db.commit()
     await db.refresh(usd_debt)
 
