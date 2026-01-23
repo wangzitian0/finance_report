@@ -1,0 +1,32 @@
+"""Error ID constants for Sentry tracking and error aggregation."""
+
+
+class ErrorIds:
+    """Centralized error IDs for production monitoring and debugging."""
+
+    # OpenRouter Streaming (ERR_OR_xxx)
+    OPENROUTER_API_KEY_MISSING = "ERR_OR_001"
+    OPENROUTER_HTTP_ERROR = "ERR_OR_002"
+    OPENROUTER_CONSECUTIVE_PARSE_FAIL = "ERR_OR_003"
+    OPENROUTER_TIMEOUT = "ERR_OR_004"
+    OPENROUTER_CONNECTION_ERROR = "ERR_OR_005"
+
+    # Extraction Service (ERR_EXT_xxx)
+    EXTRACTION_EMPTY_RESPONSE = "ERR_EXT_001"
+    EXTRACTION_JSON_PARSE = "ERR_EXT_002"
+    EXTRACTION_ALL_MODELS_FAILED = "ERR_EXT_003"
+    EXTRACTION_INVALID_URL = "ERR_EXT_004"
+    EXTRACTION_STORAGE_ERROR = "ERR_EXT_005"
+
+    # AI Advisor (ERR_AI_xxx)
+    AI_STREAMING_FAILED = "ERR_AI_001"
+    AI_ALL_MODELS_FAILED = "ERR_AI_002"
+    AI_SESSION_NOT_FOUND = "ERR_AI_003"
+    AI_CONTEXT_TOO_LARGE = "ERR_AI_004"
+
+    # Rate Limiting (ERR_RATE_xxx)
+    RATE_LIMIT_EXCEEDED = "ERR_RATE_001"
+
+    # Storage (ERR_STORAGE_xxx)
+    STORAGE_UPLOAD_FAILED = "ERR_STORAGE_001"
+    STORAGE_DOWNLOAD_FAILED = "ERR_STORAGE_002"

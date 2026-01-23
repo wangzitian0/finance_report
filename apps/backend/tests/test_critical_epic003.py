@@ -13,7 +13,7 @@ from datetime import date
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import UploadFile
@@ -346,16 +346,12 @@ class TestParsingTimeout:
         """
         service.api_key = "test-key"
 
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
+        from src.services.openrouter_streaming import OpenRouterStreamError
 
-            # Simulate timeout
-            import httpx
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.side_effect = OpenRouterStreamError("Connection timed out")
 
-            mock_instance.post.side_effect = httpx.TimeoutException("Connection timed out")
-
-            with pytest.raises((ExtractionError, httpx.TimeoutException)):
+            with pytest.raises(ExtractionError):
                 await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
@@ -378,14 +374,10 @@ class TestGeminiRetry:
         """
         service.api_key = "test-key"
 
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
+        from src.services.openrouter_streaming import OpenRouterStreamError
 
-            response_mock = MagicMock()
-            response_mock.status_code = 429  # Rate limited
-            response_mock.text = "Rate limit exceeded"
-            mock_instance.post.return_value = response_mock
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.side_effect = OpenRouterStreamError("HTTP 429: Rate limit exceeded")
 
             with pytest.raises(ExtractionError, match="429"):
                 await service.extract_financial_data(b"content", "DBS", "pdf")

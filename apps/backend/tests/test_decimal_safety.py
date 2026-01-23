@@ -1,8 +1,8 @@
-import pytest
 from decimal import Decimal
 from uuid import uuid4
-from src.schemas.journal import JournalLineCreate
+
 from src.models.journal import Direction
+from src.schemas.journal import JournalLineCreate
 
 # Tests for Data Integrity (Float vs Decimal)
 # Ref: docs/ssot/accounting.md (Anti-pattern A)

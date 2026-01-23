@@ -155,8 +155,8 @@ auth_rate_limiter = RateLimiter(
 
 register_rate_limiter = RateLimiter(
     RateLimitConfig(
-        max_requests=3,  # 3 registrations
-        window_seconds=3600,  # per hour
-        block_seconds=3600,  # 1 hour block
+        max_requests=10,  # 10 registrations
+        window_seconds=600,  # per 10 minutes
+        block_seconds=600,  # 10 minute block
     )
 )

@@ -1,9 +1,8 @@
-import pytest
-from sqlalchemy import inspect
-from sqlalchemy.types import Enum
 from pathlib import Path
 
-# Import all models to inspect them
+from sqlalchemy import inspect
+from sqlalchemy.types import Enum
+
 from src import models
 
 

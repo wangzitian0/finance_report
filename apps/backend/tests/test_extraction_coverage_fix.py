@@ -1,6 +1,6 @@
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -8,7 +8,10 @@ import pytest
 from src.models.statement import BankStatementStatus, ConfidenceLevel
 from src.services.extraction import ExtractionError, ExtractionService
 
-# Remove the redundant db fixture that causes loop issues
+
+async def mock_stream_generator(content: str):
+    """Helper to create async generator for streaming mock."""
+    yield content
 
 
 @pytest.mark.asyncio
@@ -65,13 +68,12 @@ async def test_extract_financial_data_all_models_fail():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_response = MagicMock()
-        mock_response.status_code = 429
-        mock_response.text = "Quota Exceeded"
-        mock_post.return_value = mock_response
+    from src.services.openrouter_streaming import OpenRouterStreamError
 
-        with pytest.raises(ExtractionError, match="OpenRouter API error"):
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+        mock_stream.side_effect = OpenRouterStreamError("HTTP 429: Quota Exceeded")
+
+        with pytest.raises(ExtractionError, match="rate limited"):
             await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
@@ -80,20 +82,10 @@ async def test_extract_financial_data_json_markdown_fallback():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        # Return content wrapped in markdown
-        mock_response.json.return_value = {
-            "choices": [
-                {
-                    "message": {
-                        "content": 'Here is the data: ```json\n{"account_last4": "1234"}\n```'
-                    }
-                }
-            ]
-        }
-        mock_post.return_value = mock_response
+    content = 'Here is the data: ```json\n{"account_last4": "1234"}\n```'
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+        mock_stream.return_value = mock_stream_generator(content)
 
         result = await service.extract_financial_data(b"content", "DBS", "pdf")
         assert result["account_last4"] == "1234"
@@ -104,15 +96,12 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "Invalid JSON without markdown"}}]
-        }
-        mock_post.return_value = mock_response
+    content = "Invalid JSON without markdown that is clearly not empty"
 
-        with pytest.raises(ExtractionError, match="Failed to parse JSON response"):
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+        mock_stream.return_value = mock_stream_generator(content)
+
+        with pytest.raises(ExtractionError, match=r"All \d+ models failed\. Breakdown:.*"):
             await service.extract_financial_data(b"content", "DBS", "pdf")
 
 

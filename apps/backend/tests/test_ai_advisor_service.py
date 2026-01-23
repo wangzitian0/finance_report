@@ -49,6 +49,7 @@ from src.services.ai_advisor import (
     normalize_question,
     redact_sensitive,
 )
+from src.services.openrouter_streaming import OpenRouterStreamError
 from src.services.reporting import ReportError
 
 
@@ -219,7 +220,7 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     async def fake_stream_model(model: str, _messages: list[dict[str, str]]):
         calls.append(model)
         if model == "primary":
-            raise RuntimeError("fail primary")
+            raise OpenRouterStreamError(message="fail primary", retryable=True)
         yield "hello"
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
@@ -241,12 +242,12 @@ async def test_stream_openrouter_raises_when_all_fail(
     service.fallback_models = ["fallback"]
 
     async def fake_stream_model(model: str, _messages: list[dict[str, str]]):
-        raise RuntimeError(f"fail {model}")
+        raise OpenRouterStreamError(message=f"fail {model}", retryable=True)
         yield  # pragma: no cover
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
-    with pytest.raises(RuntimeError, match="fallback"):
+    with pytest.raises(OpenRouterStreamError, match="fallback"):
         async for _chunk, _model in service._stream_openrouter(
             [{"role": "user", "content": "hi"}], None
         ):

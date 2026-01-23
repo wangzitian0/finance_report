@@ -19,6 +19,9 @@ export default function StatementDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [retryLoading, setRetryLoading] = useState(false);
+    const [polling, setPolling] = useState(false);
+    const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+    const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
     
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -29,16 +32,52 @@ export default function StatementDetailPage() {
             const data = await apiFetch<BankStatement>(`/api/statements/${statementId}`);
             setStatement(data);
             setError(null);
+            setConsecutiveErrors(0);
+            
+            // Enable polling if statement is still parsing
+            setPolling(data.status === "parsing");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load statement");
+            const errorMessage = err instanceof Error ? err.message : "Failed to load statement";
+            
+            setConsecutiveErrors(prev => {
+                const newCount = prev + 1;
+                
+                if (polling && newCount >= 3) {
+                    setPolling(false);
+                    const reason = `Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`;
+                    setPollingStoppedReason(reason);
+                    showToast("Auto-refresh stopped due to repeated errors", "error");
+                }
+                
+                return newCount;
+            });
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
-    }, [statementId]);
+    }, [statementId, polling, showToast]);
+
+    const resumePolling = useCallback(() => {
+        setPollingStoppedReason(null);
+        setConsecutiveErrors(0);
+        setPolling(true);
+        fetchStatement();
+    }, [fetchStatement]);
 
     useEffect(() => {
         fetchStatement();
     }, [fetchStatement]);
+
+    // Auto-refresh while parsing
+    useEffect(() => {
+        if (!polling) return;
+
+        const interval = setInterval(fetchStatement, 3000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, [polling, fetchStatement]);
 
     const handleApproveConfirm = async () => {
         setActionLoading(true);
@@ -151,6 +190,27 @@ export default function StatementDetailPage() {
                 </Link>
             </div>
 
+            {/* Polling Stopped Alert */}
+            {pollingStoppedReason && (
+                <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg">
+                    <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                            <div className="font-medium text-[var(--error)] mb-1">Auto-refresh Stopped</div>
+                            <div className="text-sm text-[var(--foreground-muted)] mb-3">{pollingStoppedReason}</div>
+                            <button 
+                                onClick={resumePolling}
+                                className="btn-secondary text-sm"
+                            >
+                                Resume Auto-Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="page-header flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -213,6 +273,21 @@ export default function StatementDetailPage() {
             {error && (
                 <div className="mb-4 alert-error">
                     {error}
+                </div>
+            )}
+
+            {/* Parsing Progress Indicator */}
+            {polling && (
+                <div className="mb-4 card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                        <div>
+                            <div className="text-sm font-medium text-[var(--accent)]">Parsing in progress...</div>
+                            <div className="text-xs text-muted mt-0.5">
+                                AI is extracting transaction data. This may take up to 3 minutes.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
