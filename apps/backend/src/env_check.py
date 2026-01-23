@@ -36,10 +36,6 @@ def get_vault_required_keys() -> list[str]:
         "S3_BUCKET",
         "S3_REGION",
         "S3_PRESIGN_EXPIRY_SECONDS",
-        "S3_PUBLIC_ENDPOINT",
-        "S3_PUBLIC_ACCESS_KEY",
-        "S3_PUBLIC_SECRET_KEY",
-        "S3_PUBLIC_BUCKET",
         "REDIS_URL",
         "SECRET_KEY",
     ]
