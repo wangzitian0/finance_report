@@ -60,6 +60,11 @@ class _FxRateCache:
 _cache = _FxRateCache()
 
 
+def clear_fx_cache() -> None:
+    """Clear the global FX rate cache (primarily for tests)."""
+    _cache._store.clear()
+
+
 def _normalize_currency(code: str) -> str:
     return code.strip().upper()
 
