@@ -488,6 +488,45 @@ jobs:
               });
             }
 
+  smoke-test:
+    name: Smoke Test PR Environment
+    runs-on: ubuntu-latest
+    needs: [setup, deploy]
+    if: needs.setup.outputs.action == 'deploy'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run smoke tests
+        env:
+          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+        run: |
+          echo "Running smoke tests against $APP_URL"
+          export SMOKE_READY_ATTEMPTS=60
+          export SMOKE_READY_SLEEP_SECONDS=5
+          bash scripts/smoke_test.sh "$APP_URL" "staging"
+
+      - name: Comment PR with smoke test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ needs.setup.outputs.pr_number }};
+            const appUrl = `https://report-pr-${prNumber}.${{ needs.setup.outputs.internal_domain }}`;
+            const status = '${{ job.status }}' === 'success' ? '✅ All checks passed' : '❌ Some checks failed';
+            
+            const body = `## 🧪 Smoke Test Results\n\n**Environment**: ${appUrl}\n\n**Status**: ${status}\n\nSee [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
+
   cleanup:
     name: Cleanup Test Environment
     if: needs.setup.outputs.action == 'cleanup'
