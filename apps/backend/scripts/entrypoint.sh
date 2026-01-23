@@ -83,6 +83,10 @@ def run_db_setup():
                 duration = time.time() - start
                 print(f"✅ Database ready (migrations took {duration:.1f}s)")
             finally:
+                # Explicitly release advisory lock to ensure clean handoff.
+                # While PostgreSQL auto-releases locks on connection close,
+                # explicit release prevents edge cases where connection pooling
+                # or abnormal termination could delay lock release.
                 cur.execute("SELECT pg_advisory_unlock(%s);", (lock_id,))
 
     except Exception as e:

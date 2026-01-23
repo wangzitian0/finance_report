@@ -77,6 +77,8 @@ jobs:
           # Redis is optional (only required for distributed rate limiting in production)
         run: |
           cd apps/backend
+          # Run tests sequentially (removed -n 2) to ensure proper test isolation
+          # with the new CASCADE-based cleanup in conftest.py
           uv run pytest -v -m "not slow" --cov=src --cov-report=lcov --cov-report=term-missing
       
       - name: Upload coverage to Coveralls
