@@ -35,7 +35,7 @@ jobs:
 
       - name: Extract version
         id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "tag=${GITHUB_REF#refs/tags/}"  >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -91,7 +91,7 @@ jobs:
             VERSION=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*")
             [ -z "$VERSION" ] && { echo "::error::No tags found"; exit 1; }
           fi
-          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$VERSION"  >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR
         uses: docker/login-action@v3

@@ -44,23 +44,25 @@ jobs:
       - name: Determine Params
         id: info
         run: |
-          echo "internal_domain=${{ env.INTERNAL_DOMAIN }}" >> $GITHUB_OUTPUT
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})"
-            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
-            echo "compose_name=pr-${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
-            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
-          else
-            echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})"
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            echo "compose_name=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            
-            if [ "${{ github.event.action }}" == "closed" ]; then
-              echo "action=cleanup" >> $GITHUB_OUTPUT
+          {
+            echo "internal_domain=${{ env.INTERNAL_DOMAIN }}"
+            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+              echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})"
+              echo "pr_number=${{ github.event.inputs.pr_number }}"
+              echo "compose_name=pr-${{ github.event.inputs.pr_number }}"
+              echo "action=${{ github.event.inputs.action }}"
             else
-              echo "action=deploy" >> $GITHUB_OUTPUT
+              echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})"
+              echo "pr_number=${{ github.event.pull_request.number }}"
+              echo "compose_name=pr-${{ github.event.pull_request.number }}"
+              
+              if [ "${{ github.event.action }}" == "closed" ]; then
+                echo "action=cleanup"
+              else
+                echo "action=deploy"
+              fi
             fi
-          fi
+          } >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy Test Environment
@@ -130,11 +132,11 @@ jobs:
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
+            echo "exists=true"  >> "$GITHUB_OUTPUT"
+            echo "compose_id=$compose_id"  >> "$GITHUB_OUTPUT"
             echo "Found existing compose: $compose_id"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false"  >> "$GITHUB_OUTPUT"
             echo "Compose does not exist"
           fi
 
@@ -156,30 +158,30 @@ jobs:
             }")
           
           compose_id=$(echo "$response" | jq -r '.composeId')
-          echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
+          echo "compose_id=$compose_id"  >> "$GITHUB_OUTPUT"
           echo "Created compose: $compose_id"
           
           # Configure GitHub source
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d '{ 
-              "composeId": "'$compose_id'",
-              "sourceType": "github",
-              "repository": "finance_report",
-              "owner": "wangzitian0",
-              "branch": "'$BRANCH_NAME'",
-              "composePath": "docker-compose.yml",
-              "githubId": "${{ env.GITHUB_INTEGRATION_ID }}"
-            }'
+            -d "{ 
+              \"composeId\": \"$compose_id\",
+              \"sourceType\": \"github\",
+              \"repository\": \"finance_report\",
+              \"owner\": \"wangzitian0\",
+              \"branch\": \"$BRANCH_NAME\",
+              \"composePath\": \"docker-compose.yml\",
+              \"githubId\": \"${{ env.GITHUB_INTEGRATION_ID }}\"
+            }"
 
       - name: Get compose ID
         id: compose
         run: |
           if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
-            echo "id=${{ steps.check.outputs.compose_id }}" >> $GITHUB_OUTPUT
+            echo "id=${{ steps.check.outputs.compose_id }}"  >> "$GITHUB_OUTPUT"
           else
-            echo "id=${{ steps.create.outputs.compose_id }}" >> $GITHUB_OUTPUT
+            echo "id=${{ steps.create.outputs.compose_id }}"  >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure environment variables
@@ -189,26 +191,28 @@ jobs:
           DOMAIN="${{ needs.setup.outputs.internal_domain }}"
           
           # Construct environment variables in a temporary file to avoid indentation issues
-          echo "REGISTRY=${{ env.REGISTRY }}" > .env.dokploy
-          echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}" >> .env.dokploy
-          echo "IMAGE_TAG=pr-$PR_NUMBER" >> .env.dokploy
-          echo "ENV_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
-          echo "ENV_DOMAIN_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
-          echo "INTERNAL_DOMAIN=$DOMAIN" >> .env.dokploy
-          echo "TRAEFIK_ENABLE=true" >> .env.dokploy
-          echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
-          echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
-          echo "DEBUG=true" >> .env.dokploy
-          echo "POSTGRES_PORT=0" >> .env.dokploy
-          echo "REDIS_PORT=0" >> .env.dokploy
-          echo "MINIO_API_PORT=0" >> .env.dokploy
-          echo "MINIO_CONSOLE_PORT=0" >> .env.dokploy
-          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> .env.dokploy
-          
-          # SigNoz Logging (EPIC-010)
-          echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318" >> .env.dokploy
-          echo "OTEL_SERVICE_NAME=finance-report-backend" >> .env.dokploy
-          echo "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-$PR_NUMBER" >> .env.dokploy
+          {
+            echo "REGISTRY=${{ env.REGISTRY }}"
+            echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}"
+            echo "IMAGE_TAG=pr-$PR_NUMBER"
+            echo "ENV_SUFFIX=-pr-$PR_NUMBER"
+            echo "ENV_DOMAIN_SUFFIX=-pr-$PR_NUMBER"
+            echo "INTERNAL_DOMAIN=$DOMAIN"
+            echo "TRAEFIK_ENABLE=true"
+            echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
+            echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
+            echo "DEBUG=true"
+            echo "POSTGRES_PORT=0"
+            echo "REDIS_PORT=0"
+            echo "MINIO_API_PORT=0"
+            echo "MINIO_CONSOLE_PORT=0"
+            echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
+            
+            # SigNoz Logging (EPIC-010)
+            echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"
+            echo "OTEL_SERVICE_NAME=finance-report-backend"
+            echo "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-$PR_NUMBER"
+          } > .env.dokploy
           
           ENV_CONTENT=$(cat .env.dokploy)
           
@@ -276,11 +280,11 @@ jobs:
         env:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
         run: |
-          DOMAIN=$(echo $APP_URL | sed 's|https://||')
+          DOMAIN="${APP_URL#https://}"
           echo "🔍 Diagnosing $DOMAIN"
-          host $DOMAIN || echo "⚠️ DNS Resolution failed"
-          ping -c 3 $DOMAIN || echo "⚠️ Ping failed"
-          curl -vI $APP_URL/api/health || echo "⚠️ Curl verbose failed"
+          host "$DOMAIN" || echo "⚠️ DNS Resolution failed"
+          ping -c 3 "$DOMAIN" || echo "⚠️ Ping failed"
+          curl -vI "$APP_URL/api/health" || echo "⚠️ Curl verbose failed"
 
       - name: Wait for API readiness
         env:
