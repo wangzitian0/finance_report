@@ -25,6 +25,7 @@ dependencies = [
     "opentelemetry-sdk>=1.24.0",
     "opentelemetry-exporter-otlp-proto-http>=1.24.0",
     "bcrypt==4.0.1",
+    "httpx-sse>=0.4.3",
 ]
 
 [dependency-groups]
