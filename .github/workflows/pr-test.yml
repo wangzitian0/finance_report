@@ -309,16 +309,8 @@ jobs:
           sys.exit(1)
           EOF
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Test Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install httpx pytest pytest-asyncio pytest-playwright
-          npx playwright install chromium --with-deps
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
         id: e2e_tests
