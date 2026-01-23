@@ -232,31 +232,35 @@ class TestDualWriteLayer2:
         assert statement.closing_balance == Decimal("1500.00")
         assert len(transactions) == 2
 
-    async def test_dual_write_failure_is_non_fatal(
+    async def test_dual_write_failure_raises_error(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
+        """Test that dual-write failures (non-IntegrityError) raise RuntimeError."""
         monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
 
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
+
+        from src.services.extraction import ExtractionError
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             with patch(
                 "src.services.extraction.DeduplicationService.create_uploaded_document",
                 side_effect=Exception("DB error"),
             ):
-                statement, transactions = await service.parse_document(
-                    file_path=Path("test_statement.pdf"),
-                    institution="DBS",
-                    user_id=test_user.id,
-                    file_content=sample_file_content,
-                    file_hash=file_hash,
-                    original_filename="test_statement.pdf",
-                    db=db,
-                )
+                with pytest.raises(ExtractionError) as exc_info:
+                    await service.parse_document(
+                        file_path=Path("test_statement.pdf"),
+                        institution="DBS",
+                        user_id=test_user.id,
+                        file_content=sample_file_content,
+                        file_hash=file_hash,
+                        original_filename="test_statement.pdf",
+                        db=db,
+                    )
 
-        assert statement is not None
-        assert len(transactions) == 2
+        assert "Failed to parse document" in str(exc_info.value)
+        assert "Failed to write to Layer 2" in str(exc_info.value.__cause__)
 
     async def test_dual_write_handles_missing_db_session(
         self, test_user, mock_ai_response, sample_file_content, monkeypatch
