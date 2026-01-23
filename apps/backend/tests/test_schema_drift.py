@@ -1,6 +1,7 @@
-import pytest
 import os
 import subprocess
+
+import pytest
 
 
 def test_missing_migrations_check():
