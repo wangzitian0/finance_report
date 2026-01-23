@@ -26,14 +26,41 @@ def get_project_root() -> Path:
 
 
 def parse_secrets_ctmpl(path: Path) -> set[str]:
-    """Extract KEY list from secrets.ctmpl."""
+    """Extract KEY list from secrets.ctmpl.
+
+    Only extracts keys that are output as environment variables.
+    Ignores keys assigned to template variables (e.g., $pg_password).
+    """
     if not path.exists():
         print(f"WARNING: secrets.ctmpl not found: {path}")
         return set()
 
     content = path.read_text()
-    # Match .Data.data.KEY_NAME
-    keys = set(re.findall(r"\.Data\.data\.(\w+)", content))
+    keys = set()
+
+    # Parse line by line to distinguish output vars from template vars
+    for line in content.splitlines():
+        line = line.strip()
+
+        # Skip template variable assignments ({{- $var := ... -}})
+        if re.match(r"\{\{-?\s*\$\w+\s*:=", line):
+            continue
+
+        # Skip lines that only reference template variables without outputting
+        # e.g., {{- with secret ... -}} or {{- end }}
+        if re.match(r"\{\{-?\s*(with|end|if|else)", line):
+            continue
+
+        # Match environment variable outputs: KEY={{ ... .Data.data.FIELD ... }}
+        # But not template variable assignments containing .Data.data.FIELD
+        env_var_match = re.match(r"^([A-Z_][A-Z0-9_]*)=", line)
+        if env_var_match:
+            # This line outputs an env var, extract any .Data.data references
+            vault_keys = re.findall(r"\.Data\.data\.(\w+)", line)
+            # But these are used to construct the value, not output directly
+            # We want the KEY itself (left side of =)
+            keys.add(env_var_match.group(1))
+
     return keys
 
 
