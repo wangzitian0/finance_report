@@ -72,7 +72,7 @@ def _configure_otel_logging() -> None:
 
 
 def configure_logging() -> None:
-    """Configure structlog for structured logging."""
+    """Configure structlog for structured logging and optional OTEL export."""
 
     processors = _build_processors()
     renderer = _select_renderer()
