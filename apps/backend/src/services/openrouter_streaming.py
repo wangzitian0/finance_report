@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
+from httpx_sse import aconnect_sse
 
 from src.config import settings
 from src.logger import get_logger
@@ -71,56 +72,38 @@ async def _stream_openrouter_base(
     timeout_config = httpx.Timeout(timeout, connect=connect_timeout, read=timeout)
 
     async with httpx.AsyncClient(timeout=timeout_config) as client:
-        async with client.stream(
+        async with aconnect_sse(
+            client,
             "POST",
             f"{base_url}/chat/completions",
             headers=headers,
             json=payload,
-        ) as response:
-            if response.status_code != 200:
-                error_text = await response.aread()
+        ) as event_source:
+            if event_source.response.status_code != 200:
+                error_text = await event_source.response.aread()
                 error_message = (
-                    f"HTTP {response.status_code}: {error_text.decode('utf-8', errors='replace')}"
+                    f"HTTP {event_source.response.status_code}: "
+                    f"{error_text.decode('utf-8', errors='replace')}"
                 )
                 # Rate limits and service errors are retryable
-                retryable = response.status_code in (429, 500, 502, 503, 504)
+                retryable = event_source.response.status_code in (429, 500, 502, 503, 504)
                 raise OpenRouterStreamError(error_message, retryable=retryable)
 
-            # Track consecutive JSON parse failures to detect malformed streams early.
-            # Threshold of 10 allows transient issues (e.g., incomplete chunks) while
-            # preventing infinite loops on persistently corrupt streams.
-            consecutive_failures = 0
-            max_consecutive_failures = 10
-
-            async for line in response.aiter_lines():
-                if not line or not line.strip():
-                    continue
-
-                if line.startswith("data: "):
-                    line = line[6:]
-
-                if line == "[DONE]":
+            async for event in event_source.aiter_sse():
+                if event.data == "[DONE]":
                     break
 
                 try:
-                    chunk_data = json.loads(line)
+                    chunk_data = json.loads(event.data)
                     delta = chunk_data.get("choices", [{}])[0].get("delta", {})
                     content = delta.get("content", "")
                     if content:
-                        consecutive_failures = 0
                         yield content
                 except json.JSONDecodeError:
-                    consecutive_failures += 1
                     logger.warning(
-                        f"Failed to parse SSE chunk ({mode_label})",
-                        line=line,
-                        consecutive_failures=consecutive_failures,
+                        f"Failed to parse JSON in SSE event ({mode_label})",
+                        data_preview=event.data[:200],
                     )
-                    if consecutive_failures >= max_consecutive_failures:
-                        raise OpenRouterStreamError(
-                            f"Failed to parse {max_consecutive_failures} consecutive SSE chunks",
-                            retryable=False,
-                        )
                     continue
 
 
