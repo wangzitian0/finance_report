@@ -8,10 +8,55 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
+
+
+def get_vault_managed_keys_from_env_example() -> list[str]:
+    env_example_path = Path(__file__).parents[3] / ".env.example"
+
+    if not env_example_path.exists():
+        return []
+
+    required_keys = []
+    lines = env_example_path.read_text().splitlines()
+
+    pending_vault_marker = None
+    vault_prefix_pattern = None
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+
+        if "[VAULT]" in stripped and stripped.startswith("#"):
+            pending_vault_marker = i
+
+            if "All " in stripped and "_*" in stripped:
+                parts = stripped.split("All ")[1].split("_*")[0]
+                vault_prefix_pattern = parts.strip() + "_"
+            else:
+                vault_prefix_pattern = None
+            continue
+
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        if "=" in stripped:
+            key = stripped.split("=")[0].strip()
+            if not key:
+                continue
+
+            if pending_vault_marker is not None and (i - pending_vault_marker) <= 10:
+                if vault_prefix_pattern and key.startswith(vault_prefix_pattern):
+                    required_keys.append(key)
+                elif not vault_prefix_pattern:
+                    required_keys.append(key)
+            else:
+                pending_vault_marker = None
+                vault_prefix_pattern = None
+
+    return required_keys
 
 
 def print_loaded_config(settings) -> None:
-    """Print loaded config summary (for debugging)."""
     if os.getenv("DEBUG", "").lower() not in ("true", "1", "yes"):
         return
 
@@ -19,7 +64,6 @@ def print_loaded_config(settings) -> None:
     print("Config loaded (DEBUG mode)")
     print("=" * 60)
 
-    # Safe fields (can display values)
     safe_fields = [
         "debug",
         "environment",
@@ -33,7 +77,6 @@ def print_loaded_config(settings) -> None:
         "otel_resource_attributes",
     ]
 
-    # Sensitive fields (only show if set)
     sensitive_fields = [
         "database_url",
         "redis_url",
@@ -53,7 +96,6 @@ def print_loaded_config(settings) -> None:
         status = "set" if value else "not set"
         print(f"  {field}: {status}")
 
-    # Show fields using defaults
     print("\nFields using defaults:")
     env_aliases = {
         "environment": "ENVIRONMENT",
@@ -74,27 +116,32 @@ def print_loaded_config(settings) -> None:
 
 
 def check_env_on_startup() -> None:
-    """Check critical environment variables at startup."""
-    # Keys required in Vault (required for staging/production)
-    vault_required = [
-        "DATABASE_URL",
-        "REDIS_URL",
-        "S3_ENDPOINT",
-        "S3_ACCESS_KEY",
-        "S3_SECRET_KEY",
-        "S3_BUCKET",
-    ]
+    is_staging_or_prod = os.getenv("ENVIRONMENT") in ("staging", "production") or os.getenv(
+        "ENV"
+    ) in ("staging", "production")
+
+    if not is_staging_or_prod:
+        return
+
+    vault_required = get_vault_managed_keys_from_env_example()
+
+    if not vault_required:
+        fallback_keys = [
+            "DATABASE_URL",
+            "REDIS_URL",
+            "S3_ENDPOINT",
+            "S3_ACCESS_KEY",
+            "S3_SECRET_KEY",
+            "S3_BUCKET",
+        ]
+        vault_required = fallback_keys
 
     missing = []
     for key in vault_required:
         if not os.getenv(key):
             missing.append(key)
 
-    is_staging_or_prod = os.getenv("ENVIRONMENT") in ("staging", "production") or os.getenv(
-        "ENV"
-    ) in ("staging", "production")
-
-    if missing and is_staging_or_prod:
+    if missing:
         print("\n" + "=" * 60)
         print("WARNING: Missing required variables for production")
         print("=" * 60)
@@ -104,16 +151,14 @@ def check_env_on_startup() -> None:
         print("Check secrets.ctmpl and vault-agent config.")
         print("=" * 60 + "\n")
 
-        # SECURITY: Fail by default in production, allow override with STRICT_ENV_CHECK=false
         strict_check = os.getenv("STRICT_ENV_CHECK", "true").lower()
         if strict_check not in ("false", "0", "no"):
             print("\nERROR: Refusing to start with missing required variables.")
             print("Set STRICT_ENV_CHECK=false to override (not recommended).")
             sys.exit(1)
 
-    is_production_env = is_staging_or_prod
     has_otel_endpoint = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
-    if is_production_env and not has_otel_endpoint:
+    if not has_otel_endpoint:
         print("\n" + "=" * 60)
         print("WARNING: SigNoz log export is disabled")
         print("=" * 60)

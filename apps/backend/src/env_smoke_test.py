@@ -443,14 +443,29 @@ async def main() -> None:
         "--quick", action="store_true", help="Skip optional service tests (Redis, OpenRouter)"
     )
     parser.add_argument(
+        "--critical-only",
+        action="store_true",
+        help="Test only critical services (DB + S3) for fast container startup validation",
+    )
+    parser.add_argument(
         "--fail-on-warning",
         action="store_true",
         help="Exit with error code if warnings found",
     )
     args = parser.parse_args()
 
-    tester = EnvironmentSmokeTest(skip_optional=args.quick)
-    await tester.run_all_tests()
+    skip_optional = args.quick or args.critical_only
+
+    tester = EnvironmentSmokeTest(skip_optional=skip_optional)
+
+    if args.critical_only:
+        results = []
+        results.append(await tester.test_database())
+        results.append(await tester.test_minio())
+        tester.results = results
+    else:
+        await tester.run_all_tests()
+
     tester.print_results()
 
     if tester.has_errors():
