@@ -137,7 +137,7 @@ class TestGetVaultRequiredKeys:
         keys = get_vault_required_keys()
 
         assert isinstance(keys, list)
-        assert len(keys) == 20
+        assert len(keys) == 16
 
         expected_keys = [
             "DATABASE_URL",
