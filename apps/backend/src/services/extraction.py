@@ -329,7 +329,7 @@ class ExtractionService:
         )
         last_error: ExtractionError | None = None
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             for i, model in enumerate(models):
                 if not model:
                     continue
@@ -393,6 +393,20 @@ class ExtractionService:
                         last_error = ExtractionError(f"Failed to parse JSON response: {e}")
                         continue
 
+                except httpx.TimeoutException:
+                    logger.warning("AI extraction timed out (>180s)", model=model, attempt=i + 1)
+                    last_error = ExtractionError(f"Model {model} timed out after 180s")
+                    continue
+                except httpx.HTTPStatusError as e:
+                    logger.warning(
+                        "AI extraction HTTP error",
+                        model=model,
+                        status=e.response.status_code,
+                    )
+                    last_error = ExtractionError(
+                        f"HTTP {e.response.status_code}: {e.response.text}"
+                    )
+                    continue
                 except Exception as e:
                     if isinstance(e, ExtractionError):
                         raise

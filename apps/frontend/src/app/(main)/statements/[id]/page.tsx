@@ -19,6 +19,7 @@ export default function StatementDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [retryLoading, setRetryLoading] = useState(false);
+    const [polling, setPolling] = useState(false);
     
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -29,6 +30,9 @@ export default function StatementDetailPage() {
             const data = await apiFetch<BankStatement>(`/api/statements/${statementId}`);
             setStatement(data);
             setError(null);
+            
+            // Enable polling if statement is still parsing
+            setPolling(data.status === "parsing");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to load statement");
         } finally {
@@ -39,6 +43,16 @@ export default function StatementDetailPage() {
     useEffect(() => {
         fetchStatement();
     }, [fetchStatement]);
+
+    // Auto-refresh while parsing
+    useEffect(() => {
+        if (!polling) return;
+
+        const interval = setInterval(fetchStatement, 3000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, [polling, fetchStatement]);
 
     const handleApproveConfirm = async () => {
         setActionLoading(true);
@@ -213,6 +227,21 @@ export default function StatementDetailPage() {
             {error && (
                 <div className="mb-4 alert-error">
                     {error}
+                </div>
+            )}
+
+            {/* Parsing Progress Indicator */}
+            {polling && (
+                <div className="mb-4 card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                        <div>
+                            <div className="text-sm font-medium text-[var(--accent)]">Parsing in progress...</div>
+                            <div className="text-xs text-muted mt-0.5">
+                                AI is extracting transaction data. This may take up to 3 minutes.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
