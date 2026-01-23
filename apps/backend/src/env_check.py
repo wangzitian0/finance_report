@@ -103,9 +103,10 @@ def print_loaded_config(settings) -> None:
 
 
 def check_env_on_startup() -> None:
-    is_staging_or_prod = os.getenv("ENVIRONMENT") in ("staging", "production") or os.getenv(
-        "ENV"
-    ) in ("staging", "production")
+    is_staging_or_prod = os.getenv("ENVIRONMENT") in ("staging", "production") or os.getenv("ENV") in (
+        "staging",
+        "production",
+    )
 
     if not is_staging_or_prod:
         return

@@ -280,9 +280,7 @@ async def test_get_average_rate_casts_non_decimal():
         async def execute(self, _stmt):
             return DummyResult()
 
-    result = await get_average_rate(
-        DummySession(), "USD", "SGD", date(2025, 1, 1), date(2025, 1, 2)
-    )
+    result = await get_average_rate(DummySession(), "USD", "SGD", date(2025, 1, 1), date(2025, 1, 2))
     assert result == Decimal("1.11")
 
 
@@ -323,12 +321,8 @@ async def test_prefetched_fx_rates() -> None:
     assert prefetched.get_rate("SGD", "sgd", date(2025, 1, 1)) == Decimal("1")
 
     # Test avg rate
-    prefetched.set_rate(
-        "USD", "SGD", date(2025, 1, 1), Decimal("1.34"), date(2025, 1, 1), date(2025, 1, 31)
-    )
-    assert prefetched.get_rate(
-        "USD", "SGD", date(2025, 1, 1), date(2025, 1, 1), date(2025, 1, 31)
-    ) == Decimal("1.34")
+    prefetched.set_rate("USD", "SGD", date(2025, 1, 1), Decimal("1.34"), date(2025, 1, 1), date(2025, 1, 31))
+    assert prefetched.get_rate("USD", "SGD", date(2025, 1, 1), date(2025, 1, 1), date(2025, 1, 31)) == Decimal("1.34")
 
     # Missing key
     assert prefetched.get_rate("GBP", "USD", date(2025, 1, 1)) is None

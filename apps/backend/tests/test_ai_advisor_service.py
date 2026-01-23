@@ -83,9 +83,7 @@ def test_detect_language() -> None:
 
 def test_normalize_question() -> None:
     assert normalize_question("  What are my expenses?  ") == "what are my expenses"
-    assert normalize_question("What are my expenses?") == normalize_question(
-        "what are my expenses?"
-    )
+    assert normalize_question("What are my expenses?") == normalize_question("what are my expenses?")
     assert normalize_question("test message") == "test message"
     assert len(normalize_question("!!!")) > 0
 
@@ -183,9 +181,7 @@ async def test_chat_stream_refusal_branches(db: AsyncSession, test_user) -> None
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_uses_cached_response(
-    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     service = AIAdvisorService()
     message = "How much did I spend this month?"
     context = {"summary": "ok"}
@@ -196,9 +192,7 @@ async def test_chat_stream_uses_cached_response(
     monkeypatch.setattr(service, "get_financial_context", fake_context)
 
     ai_advisor_service._CACHE._store.clear()
-    context_hash = hashlib.sha256(
-        json.dumps(context, sort_keys=True, default=str).encode("utf-8")
-    ).hexdigest()
+    context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
     model_key = service.primary_model
     cache_key = f"{test_user.id}:en:{normalize_question(message)}:{context_hash}:{model_key}"
     ai_advisor_service._CACHE.set(cache_key, "cached response")
@@ -248,16 +242,12 @@ async def test_stream_openrouter_raises_when_all_fail(
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
     with pytest.raises(OpenRouterStreamError, match="fallback"):
-        async for _chunk, _model in service._stream_openrouter(
-            [{"role": "user", "content": "hi"}], None
-        ):
+        async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
             pass
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_requires_api_key(
-    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     service = AIAdvisorService()
     service.api_key = None
 
@@ -342,9 +332,7 @@ async def test_load_history_skips_system_messages(db: AsyncSession, test_user) -
 
 
 @pytest.mark.asyncio
-async def test_stream_and_store_records_response(
-    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_stream_and_store_records_response(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     service = AIAdvisorService()
     session = await service._get_or_create_session(db, test_user.id, None, "Hello")
     messages = [{"role": "user", "content": "Hello"}]
@@ -377,9 +365,7 @@ async def test_record_message_sets_title(db: AsyncSession, test_user) -> None:
     await db.commit()
     await db.refresh(session)
 
-    message = await service._record_message(
-        db, session, ChatMessageRole.USER, "Set title from message"
-    )
+    message = await service._record_message(db, session, ChatMessageRole.USER, "Set title from message")
 
     assert message.session_id == session.id
     assert session.title == "Set title from message"
@@ -424,9 +410,7 @@ async def test_stream_and_store_raises_on_stream_error(
     monkeypatch.setattr(service, "_stream_openrouter", fake_stream_openrouter)
 
     with pytest.raises(AIAdvisorError, match="stream failed"):
-        await _drain_stream(
-            service._stream_and_store(db, session, messages, "en", "cache-key", None)
-        )
+        await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key", None))
 
 
 @pytest.mark.asyncio

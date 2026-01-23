@@ -131,9 +131,7 @@ class TestAssetService:
         assert len(positions) == 0  # get_positions filters ACTIVE
 
         # Check DB directly
-        res = await db.execute(
-            select(ManagedPosition).where(ManagedPosition.user_id == test_user.id)
-        )
+        res = await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == test_user.id))
         pos = res.scalar_one()
         assert pos.status == PositionStatus.DISPOSED
         assert pos.disposal_date == date(2024, 1, 17)

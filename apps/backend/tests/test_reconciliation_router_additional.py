@@ -152,9 +152,7 @@ async def test_run_reconciliation_filters_unmatched(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     statement = await _create_statement(db, test_user.id)
-    await _create_transaction(
-        db, statement.id, amount=Decimal("5.00"), status=BankStatementTransactionStatus.UNMATCHED
-    )
+    await _create_transaction(db, statement.id, amount=Decimal("5.00"), status=BankStatementTransactionStatus.UNMATCHED)
     await db.commit()
 
     async def fake_execute_matching(*_args, **_kwargs):
@@ -273,11 +271,7 @@ async def test_reconciliation_stats_bucket_distribution(db: AsyncSession, test_u
                 journal_entry_ids=[],
                 match_score=score,
                 score_breakdown={},
-                status=(
-                    ReconciliationStatus.PENDING_REVIEW
-                    if score < 90
-                    else ReconciliationStatus.AUTO_ACCEPTED
-                ),
+                status=(ReconciliationStatus.PENDING_REVIEW if score < 90 else ReconciliationStatus.AUTO_ACCEPTED),
             )
         )
     db.add_all(matches)
@@ -311,9 +305,7 @@ async def test_pending_review_queue_returns_items(db: AsyncSession, test_user) -
     )
     await db.commit()
 
-    response = await reconciliation_router.pending_review_queue(
-        limit=50, offset=0, db=db, user_id=test_user.id
-    )
+    response = await reconciliation_router.pending_review_queue(limit=50, offset=0, db=db, user_id=test_user.id)
 
     assert response.total == 1
     assert response.items[0].status == ReconciliationStatusEnum.PENDING_REVIEW
@@ -355,12 +347,8 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     db.add_all([match_accept, match_reject, match_batch])
     await db.commit()
 
-    accepted = await reconciliation_router.accept_match(
-        match_id=str(match_accept.id), db=db, user_id=test_user.id
-    )
-    rejected = await reconciliation_router.reject_match(
-        match_id=str(match_reject.id), db=db, user_id=test_user.id
-    )
+    accepted = await reconciliation_router.accept_match(match_id=str(match_accept.id), db=db, user_id=test_user.id)
+    rejected = await reconciliation_router.reject_match(match_id=str(match_reject.id), db=db, user_id=test_user.id)
     batch = await reconciliation_router.batch_accept(
         payload=BatchAcceptRequest(match_ids=[str(match_batch.id)]),
         db=db,
@@ -380,14 +368,10 @@ async def test_list_unmatched_and_create_entry(db: AsyncSession, test_user) -> N
     )
     await db.commit()
 
-    unmatched = await reconciliation_router.list_unmatched(
-        limit=50, offset=0, db=db, user_id=test_user.id
-    )
+    unmatched = await reconciliation_router.list_unmatched(limit=50, offset=0, db=db, user_id=test_user.id)
     assert unmatched.total == 1
 
-    entry = await reconciliation_router.create_entry(
-        txn_id=str(txn.id), db=db, user_id=test_user.id
-    )
+    entry = await reconciliation_router.create_entry(txn_id=str(txn.id), db=db, user_id=test_user.id)
     assert entry.total_amount == Decimal("4.00")
 
 
@@ -399,9 +383,7 @@ async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
     )
     await db.commit()
 
-    anomalies = await reconciliation_router.list_anomalies(
-        txn_id=str(txn.id), db=db, user_id=test_user.id
-    )
+    anomalies = await reconciliation_router.list_anomalies(txn_id=str(txn.id), db=db, user_id=test_user.id)
     assert isinstance(anomalies, list)
 
 
@@ -456,9 +438,7 @@ async def test_reject_match_already_rejected_is_idempotent(db: AsyncSession, tes
 
 
 @pytest.mark.asyncio
-async def test_build_match_response_with_invalid_uuid_in_entry_ids(
-    db: AsyncSession, test_user
-) -> None:
+async def test_build_match_response_with_invalid_uuid_in_entry_ids(db: AsyncSession, test_user) -> None:
     """Invalid UUIDs in journal_entry_ids should be gracefully skipped."""
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(
@@ -492,9 +472,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     )
 
     # Create a journal entry with mismatched amount
-    account = Account(
-        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
-    )
+    account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
     db.add(account)
     await db.flush()
 
@@ -544,9 +522,7 @@ async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user)
         db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
     )
 
-    account = Account(
-        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
-    )
+    account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
     db.add(account)
     await db.flush()
 
@@ -596,9 +572,7 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
         db, statement.id, amount=Decimal("100.00"), status=BankStatementTransactionStatus.PENDING
     )
 
-    account = Account(
-        user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD"
-    )
+    account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
     db.add(account)
     await db.flush()
 
@@ -635,9 +609,7 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
     await db.commit()
 
     # Should succeed with skip_amount_validation=True
-    result = await accept_match_service(
-        db, str(match.id), user_id=test_user.id, skip_amount_validation=True
-    )
+    result = await accept_match_service(db, str(match.id), user_id=test_user.id, skip_amount_validation=True)
     assert result.status == ReconciliationStatus.ACCEPTED
 
 
@@ -718,9 +690,7 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
 
 
 @pytest.mark.asyncio
-async def test_create_entry_from_txn_rejects_other_user_transaction(
-    db: AsyncSession, test_user
-) -> None:
+async def test_create_entry_from_txn_rejects_other_user_transaction(db: AsyncSession, test_user) -> None:
     """create_entry_from_txn should reject transactions from other users."""
     from src.services.review_queue import create_entry_from_txn
 

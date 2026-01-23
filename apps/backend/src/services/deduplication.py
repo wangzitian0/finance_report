@@ -78,9 +78,7 @@ class DeduplicationService:
         If dedup_hash exists -> Append to source_documents array
         If dedup_hash new -> Insert new record
         """
-        dedup_hash = self.calculate_transaction_hash(
-            user_id, txn_date, amount, direction, description, reference
-        )
+        dedup_hash = self.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference)
 
         stmt = select(AtomicTransaction).where(
             AtomicTransaction.user_id == user_id,

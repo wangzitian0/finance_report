@@ -34,15 +34,9 @@ from src.services.anomaly import detect_anomalies
 from src.services.reconciliation import execute_matching
 from src.services.review_queue import (
     accept_match as accept_match_service,
-)
-from src.services.review_queue import (
     batch_accept as batch_accept_service,
-)
-from src.services.review_queue import (
     create_entry_from_txn,
     get_pending_items,
-)
-from src.services.review_queue import (
     reject_match as reject_match_service,
 )
 
@@ -150,9 +144,7 @@ async def run_reconciliation(
     )
 
     if payload.statement_id:
-        unmatched_query = unmatched_query.where(
-            BankStatementTransaction.statement_id == payload.statement_id
-        )
+        unmatched_query = unmatched_query.where(BankStatementTransaction.statement_id == payload.statement_id)
     unmatched_result = await db.execute(unmatched_query)
     unmatched_count = unmatched_result.scalar_one()
 
@@ -177,11 +169,7 @@ async def list_matches(
         .join(BankStatementTransaction)
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
-        .options(
-            selectinload(ReconciliationMatch.transaction).selectinload(
-                BankStatementTransaction.statement
-            )
-        )
+        .options(selectinload(ReconciliationMatch.transaction).selectinload(BankStatementTransaction.statement))
     )
     if status:
         query = query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
@@ -206,9 +194,7 @@ async def list_matches(
         .where(BankStatement.user_id == user_id)
     )
     if status:
-        total_query = total_query.where(
-            ReconciliationMatch.status == ReconciliationStatus(status.value)
-        )
+        total_query = total_query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
     total_result = await db.execute(total_query)
     total = total_result.scalar_one()
 
@@ -323,9 +309,7 @@ async def reconciliation_stats(
     user_id: CurrentUserId,
 ) -> ReconciliationStatsResponse:
     total_result = await db.execute(
-        select(func.count(BankStatementTransaction.id))
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
+        select(func.count(BankStatementTransaction.id)).join(BankStatement).where(BankStatement.user_id == user_id)
     )
     matched_result = await db.execute(
         select(func.count(BankStatementTransaction.id))

@@ -9,17 +9,14 @@ from uuid import UUID
 from sqlalchemy import (
     Boolean,
     Date,
+    Enum as SQLEnum,
     ForeignKey,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
 )
-from sqlalchemy import (
-    Enum as SQLEnum,
-)
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -57,17 +54,11 @@ class ClassificationRule(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     __tablename__ = "classification_rules"
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "rule_name", "version_number", name="uq_classification_rules_version"
-        ),
+        UniqueConstraint("user_id", "rule_name", "version_number", name="uq_classification_rules_version"),
     )
 
-    version_number: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Monotonic version"
-    )
-    effective_date: Mapped[date] = mapped_column(
-        Date, nullable=False, comment="Rule applies from date"
-    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False, comment="Monotonic version")
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False, comment="Rule applies from date")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     rule_name: Mapped[str] = mapped_column(String(100), nullable=False)
 
@@ -107,9 +98,7 @@ class TransactionClassification(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "transaction_classification"
-    __table_args__ = (
-        UniqueConstraint("atomic_txn_id", "rule_version_id", name="uq_txn_classification_version"),
-    )
+    __table_args__ = (UniqueConstraint("atomic_txn_id", "rule_version_id", name="uq_txn_classification_version"),)
 
     atomic_txn_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -179,9 +168,7 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     asset_identifier: Mapped[str] = mapped_column(String(100), nullable=False)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
-    cost_basis: Mapped[Decimal] = mapped_column(
-        Numeric(18, 2), nullable=False, comment="Total cost basis"
-    )
+    cost_basis: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, comment="Total cost basis")
 
     acquisition_date: Mapped[date] = mapped_column(Date, nullable=False)
     disposal_date: Mapped[date | None] = mapped_column(Date, nullable=True)

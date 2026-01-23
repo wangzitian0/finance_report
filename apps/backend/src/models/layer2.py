@@ -4,8 +4,7 @@ from datetime import date
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import Date, Numeric, String, Text, UniqueConstraint
-from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Date, Enum as SQLEnum, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,14 +34,10 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "atomic_transactions"
-    __table_args__ = (
-        UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_transactions_user_dedup_hash"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_transactions_user_dedup_hash"),)
 
     txn_date: Mapped[date] = mapped_column(Date, nullable=False)
-    amount: Mapped[Decimal] = mapped_column(
-        Numeric(18, 2), nullable=False, comment="Absolute value"
-    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, comment="Absolute value")
     direction: Mapped[TransactionDirection] = mapped_column(
         SQLEnum(
             TransactionDirection,
@@ -68,10 +63,7 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<AtomicTransaction {self.txn_date} {self.direction.value} "
-            f"{self.amount} {self.currency}>"
-        )
+        return f"<AtomicTransaction {self.txn_date} {self.direction.value} {self.amount} {self.currency}>"
 
 
 class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
@@ -85,20 +77,14 @@ class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "atomic_positions"
-    __table_args__ = (
-        UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_positions_user_dedup_hash"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_positions_user_dedup_hash"),)
 
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     asset_identifier: Mapped[str] = mapped_column(
         String(100), nullable=False, comment="Ticker (AAPL), ISIN, property address"
     )
-    broker: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="Moomoo, Ping An Securities, etc."
-    )
-    quantity: Mapped[Decimal] = mapped_column(
-        Numeric(18, 6), nullable=False, comment="Shares, units"
-    )
+    broker: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Moomoo, Ping An Securities, etc.")
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, comment="Shares, units")
     market_value: Mapped[Decimal] = mapped_column(
         Numeric(18, 2), nullable=False, comment="Fair value in asset's currency"
     )

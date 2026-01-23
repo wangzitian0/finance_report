@@ -17,9 +17,7 @@ def test_missing_migrations_check():
 
     try:
         # Run alembic check in the backend directory
-        result = subprocess.run(
-            ["alembic", "check"], cwd="apps/backend", capture_output=True, text=True
-        )
+        result = subprocess.run(["alembic", "check"], cwd="apps/backend", capture_output=True, text=True)
 
         if result.returncode != 0:
             if "Target database is not up to date" in result.stderr:

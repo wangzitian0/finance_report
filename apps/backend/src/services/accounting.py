@@ -40,9 +40,7 @@ def validate_fx_rates(lines: list[JournalLine]) -> None:
     base_currency = settings.base_currency.upper()
     for line in lines:
         if line.currency.upper() != base_currency and line.fx_rate is None:
-            raise ValidationError(
-                f"fx_rate required for currency {line.currency} (base {base_currency})"
-            )
+            raise ValidationError(f"fx_rate required for currency {line.currency} (base {base_currency})")
 
 
 def validate_journal_balance(lines: list[JournalLine]) -> None:
@@ -62,9 +60,7 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
     total_credit = sum(line.amount for line in lines if line.direction == Direction.CREDIT)
 
     if abs(total_debit - total_credit) > Decimal("0.01"):
-        raise ValidationError(
-            f"Journal entry not balanced: debit={total_debit}, credit={total_credit}"
-        )
+        raise ValidationError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
 
 
 async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id: UUID) -> Decimal:
@@ -270,9 +266,7 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     return entry
 
 
-async def void_journal_entry(
-    db: AsyncSession, entry_id: UUID, reason: str, user_id: UUID
-) -> JournalEntry:
+async def void_journal_entry(db: AsyncSession, entry_id: UUID, reason: str, user_id: UUID) -> JournalEntry:
     """
     Void a posted journal entry by creating a reversal entry.
 
@@ -315,9 +309,7 @@ async def void_journal_entry(
 
     # Create reversed lines
     for line in entry.lines:
-        reversed_direction = (
-            Direction.CREDIT if line.direction == Direction.DEBIT else Direction.DEBIT
-        )
+        reversed_direction = Direction.CREDIT if line.direction == Direction.DEBIT else Direction.DEBIT
         reversal_line = JournalLine(
             journal_entry_id=reversal_entry.id,
             account_id=line.account_id,

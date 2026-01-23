@@ -147,9 +147,7 @@ async def test_list_accounts_with_filters(mock_db, user_id):
     mock_result.scalars.return_value.all.return_value = mock_accounts
     mock_db.execute.return_value = mock_result
 
-    results = await account_service.list_accounts(
-        mock_db, user_id, account_type=AccountType.ASSET, is_active=True
-    )
+    results = await account_service.list_accounts(mock_db, user_id, account_type=AccountType.ASSET, is_active=True)
 
     assert len(results) == 1
     mock_db.execute.assert_called_once()

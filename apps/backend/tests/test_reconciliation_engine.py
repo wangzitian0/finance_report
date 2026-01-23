@@ -550,9 +550,7 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     assert all(line.currency == "USD" for line in entry.lines)
 
     result = await db.execute(
-        select(Account)
-        .where(Account.name == "Income - Uncategorized")
-        .where(Account.user_id == user_id)
+        select(Account).where(Account.name == "Income - Uncategorized").where(Account.user_id == user_id)
     )
     assert result.scalar_one_or_none() is not None
 
@@ -601,9 +599,7 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
 
     entry_accept = await create_entry_from_txn(db, txn_accept, user_id=user_id)
     entry_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.id == entry_accept.id)
-        .options(selectinload(JournalEntry.lines))
+        select(JournalEntry).where(JournalEntry.id == entry_accept.id).options(selectinload(JournalEntry.lines))
     )
     entry_accept = entry_result.scalar_one()
     validate_journal_balance(entry_accept.lines)

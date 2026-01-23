@@ -12,21 +12,12 @@ from src import logger as logger_module
 
 
 def test_build_otlp_logs_endpoint_adds_suffix() -> None:
-    assert (
-        logger_module._build_otlp_logs_endpoint("http://collector:4318")
-        == "http://collector:4318/v1/logs"
-    )
-    assert (
-        logger_module._build_otlp_logs_endpoint("http://collector:4318/")
-        == "http://collector:4318/v1/logs"
-    )
+    assert logger_module._build_otlp_logs_endpoint("http://collector:4318") == "http://collector:4318/v1/logs"
+    assert logger_module._build_otlp_logs_endpoint("http://collector:4318/") == "http://collector:4318/v1/logs"
 
 
 def test_build_otlp_logs_endpoint_preserves_logs_path() -> None:
-    assert (
-        logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs")
-        == "http://collector:4318/v1/logs"
-    )
+    assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
 
 
 def test_select_renderer_uses_console_in_debug(monkeypatch) -> None:

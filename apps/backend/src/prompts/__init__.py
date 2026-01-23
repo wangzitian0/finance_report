@@ -9,9 +9,9 @@ from src.prompts.statement import (
 )
 
 __all__ = [
+    "INSTITUTION_HINTS",
     "SYSTEM_PROMPT",
     "VALIDATION_PROMPT",
-    "INSTITUTION_HINTS",
     "get_ai_advisor_prompt",
     "get_parsing_prompt",
 ]

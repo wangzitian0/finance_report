@@ -159,9 +159,7 @@ class TestMatchingAccuracy:
 
         # All exact matches should score >= 85 (auto-accept threshold)
         # This gives us confidence that high scores = true positives
-        assert high_score_count >= 8, (
-            f"Expected 80%+ of exact matches to score >= 85, got {high_score_count}/10"
-        )
+        assert high_score_count >= 8, f"Expected 80%+ of exact matches to score >= 85, got {high_score_count}/10"
 
     @pytest.mark.asyncio
     async def test_unrelated_transactions_score_low(self, db: AsyncSession):
@@ -172,12 +170,8 @@ class TestMatchingAccuracy:
         """
         user_id = uuid4()
         user = User(id=user_id, email="fp@example.com", hashed_password="hashed")
-        bank = Account(
-            user_id=user_id, name="Bank - FP Test", type=AccountType.ASSET, currency="SGD"
-        )
-        expense = Account(
-            user_id=user_id, name="Expense - FP Test", type=AccountType.EXPENSE, currency="SGD"
-        )
+        bank = Account(user_id=user_id, name="Bank - FP Test", type=AccountType.ASSET, currency="SGD")
+        expense = Account(user_id=user_id, name="Expense - FP Test", type=AccountType.EXPENSE, currency="SGD")
 
         db.add_all([user, bank, expense])
         await db.flush()
@@ -231,14 +225,10 @@ class TestMatchingAccuracy:
 
         # Calculate match score
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(
-            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
-        )
+        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         # Unrelated transaction should score LOW (< 60 = unmatched)
-        assert score_result.score < 60, (
-            f"Unrelated transaction should score < 60, got {score_result.score}"
-        )
+        assert score_result.score < 60, f"Unrelated transaction should score < 60, got {score_result.score}"
 
     @pytest.mark.asyncio
     async def test_similar_transactions_found(self, db: AsyncSession):
@@ -249,12 +239,8 @@ class TestMatchingAccuracy:
         """
         user_id = uuid4()
         user = User(id=user_id, email="fn@example.com", hashed_password="hashed")
-        bank = Account(
-            user_id=user_id, name="Bank - FN Test", type=AccountType.ASSET, currency="SGD"
-        )
-        income = Account(
-            user_id=user_id, name="Income - FN Test", type=AccountType.INCOME, currency="SGD"
-        )
+        bank = Account(user_id=user_id, name="Bank - FN Test", type=AccountType.ASSET, currency="SGD")
+        income = Account(user_id=user_id, name="Income - FN Test", type=AccountType.INCOME, currency="SGD")
 
         db.add_all([user, bank, income])
         await db.flush()
@@ -308,13 +294,9 @@ class TestMatchingAccuracy:
 
         # Should find the match (score >= 60 for review queue)
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(
-            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
-        )
+        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
-        assert score_result.score >= 60, (
-            f"Similar transaction should score >= 60, got {score_result.score}"
-        )
+        assert score_result.score >= 60, f"Similar transaction should score >= 60, got {score_result.score}"
 
 
 # =============================================================================
@@ -337,9 +319,7 @@ class TestBatchPerformance:
         user_id = uuid4()
         user = User(id=user_id, email="perf@example.com", hashed_password="hashed")
         bank = Account(user_id=user_id, name="Bank - Perf", type=AccountType.ASSET, currency="SGD")
-        expense = Account(
-            user_id=user_id, name="Expense - Perf", type=AccountType.EXPENSE, currency="SGD"
-        )
+        expense = Account(user_id=user_id, name="Expense - Perf", type=AccountType.EXPENSE, currency="SGD")
 
         db.add_all([user, bank, expense])
         await db.flush()
@@ -426,12 +406,8 @@ class TestConcurrentMatching:
         """
         user_id = uuid4()
         user = User(id=user_id, email="concurrent@example.com", hashed_password="hashed")
-        bank = Account(
-            user_id=user_id, name="Bank - Concurrent", type=AccountType.ASSET, currency="SGD"
-        )
-        income = Account(
-            user_id=user_id, name="Income - Concurrent", type=AccountType.INCOME, currency="SGD"
-        )
+        bank = Account(user_id=user_id, name="Bank - Concurrent", type=AccountType.ASSET, currency="SGD")
+        income = Account(user_id=user_id, name="Income - Concurrent", type=AccountType.INCOME, currency="SGD")
 
         db.add_all([user, bank, income])
         await db.flush()
@@ -491,12 +467,8 @@ class TestCrossMonthMatching:
         """
         user_id = uuid4()
         user = User(id=user_id, email="crossmonth@example.com", hashed_password="hashed")
-        bank = Account(
-            user_id=user_id, name="Bank - CrossMonth", type=AccountType.ASSET, currency="SGD"
-        )
-        income = Account(
-            user_id=user_id, name="Income - CrossMonth", type=AccountType.INCOME, currency="SGD"
-        )
+        bank = Account(user_id=user_id, name="Bank - CrossMonth", type=AccountType.ASSET, currency="SGD")
+        income = Account(user_id=user_id, name="Income - CrossMonth", type=AccountType.INCOME, currency="SGD")
 
         db.add_all([user, bank, income])
         await db.flush()
@@ -550,15 +522,11 @@ class TestCrossMonthMatching:
 
         # Should still find a reasonable match despite 1-day difference
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(
-            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
-        )
+        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         # Date penalty should be small (1 day difference)
         # Amount and description are exact, so should score well
-        assert score_result.score >= 70, (
-            f"Cross-month (1 day diff) match should score >= 70, got {score_result.score}"
-        )
+        assert score_result.score >= 70, f"Cross-month (1 day diff) match should score >= 70, got {score_result.score}"
 
     @pytest.mark.asyncio
     async def test_friday_to_monday_weekend_gap(self, db: AsyncSession):
@@ -569,12 +537,8 @@ class TestCrossMonthMatching:
         """
         user_id = uuid4()
         user = User(id=user_id, email="weekend@example.com", hashed_password="hashed")
-        bank = Account(
-            user_id=user_id, name="Bank - Weekend", type=AccountType.ASSET, currency="SGD"
-        )
-        expense = Account(
-            user_id=user_id, name="Expense - Weekend", type=AccountType.EXPENSE, currency="SGD"
-        )
+        bank = Account(user_id=user_id, name="Bank - Weekend", type=AccountType.ASSET, currency="SGD")
+        expense = Account(user_id=user_id, name="Expense - Weekend", type=AccountType.EXPENSE, currency="SGD")
 
         db.add_all([user, bank, expense])
         await db.flush()
@@ -630,11 +594,7 @@ class TestCrossMonthMatching:
 
         # Should still match despite 3-day weekend gap
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(
-            db, txn, [entry], DEFAULT_CONFIG, user_id=user_id
-        )
+        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         # 3-day gap has some penalty, but amount match + similar description should compensate
-        assert score_result.score >= 65, (
-            f"Weekend gap (3 days) match should score >= 65, got {score_result.score}"
-        )
+        assert score_result.score >= 65, f"Weekend gap (3 days) match should score >= 65, got {score_result.score}"

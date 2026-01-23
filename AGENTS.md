@@ -54,6 +54,22 @@
 - **Quality**: `moon run :lint` (Check all), `moon run backend:format` (Ruff)
 - **Proof**: `moon run :smoke` (E2E against local/remote)
 
+### Pre-commit Hooks (REQUIRED for contributors)
+
+Before your first commit, install pre-commit hooks to prevent CI failures:
+
+```bash
+make install          # Install deps + pre-commit hooks
+# OR manually:
+pip install pre-commit && pre-commit install
+```
+
+**What hooks do**:
+1. **Ruff lint + format** — Auto-fixes Python style issues
+2. **Env var consistency** — Validates `secrets.ctmpl` ↔ `config.py` ↔ `.env.example`
+3. **File hygiene** — Trailing whitespace, merge conflicts, large files
+4. **Branch protection** — Prevents direct commits to `main`
+
 *Reference: [docs/ssot/development.md](docs/ssot/development.md)*
 
 ---

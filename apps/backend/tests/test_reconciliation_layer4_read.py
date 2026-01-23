@@ -90,9 +90,7 @@ class TestReconciliationLayer4Read:
         await db.commit()
         return entry
 
-    async def test_reconciliation_reads_layer2(
-        self, db, test_user, mock_ai_response, monkeypatch, capsys
-    ):
+    async def test_reconciliation_reads_layer2(self, db, test_user, mock_ai_response, monkeypatch, capsys):
         """Test that reconciliation uses AtomicTransaction when enabled."""
         await self._create_candidate_entry(db, test_user.id)
 
@@ -147,9 +145,7 @@ class TestReconciliationLayer4Read:
 
         assert l0_txn.status == BankStatementTransactionStatus.PENDING
 
-    async def test_reconciliation_idempotency_layer2(
-        self, db, test_user, mock_ai_response, monkeypatch
-    ):
+    async def test_reconciliation_idempotency_layer2(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that already matched Layer 2 transactions are skipped."""
         await self._create_candidate_entry(db, test_user.id)
 

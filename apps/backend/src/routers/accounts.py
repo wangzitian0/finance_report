@@ -52,9 +52,7 @@ async def list_accounts(
 
     Set include_balance=true to calculate balances (may be slower with many accounts).
     """
-    accounts = await account_service.list_accounts(
-        db, user_id, account_type=account_type, is_active=is_active
-    )
+    accounts = await account_service.list_accounts(db, user_id, account_type=account_type, is_active=is_active)
 
     balances = {}
     if include_balance:
@@ -132,9 +130,7 @@ async def delete_account(
         )
 
     # Check for usage in journal lines
-    result = await db.execute(
-        select(JournalLine).where(JournalLine.account_id == account_id).limit(1)
-    )
+    result = await db.execute(select(JournalLine).where(JournalLine.account_id == account_id).limit(1))
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

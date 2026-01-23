@@ -101,9 +101,7 @@ async def chat_history(
             raise HTTPException(status_code=404, detail="Chat session not found")
 
         messages_result = await db.execute(
-            select(ChatMessage)
-            .where(ChatMessage.session_id == session.id)
-            .order_by(ChatMessage.created_at.asc())
+            select(ChatMessage).where(ChatMessage.session_id == session.id).order_by(ChatMessage.created_at.asc())
         )
         messages = messages_result.scalars().all()
         message_responses = [ChatMessageResponse.model_validate(msg) for msg in messages]
@@ -165,9 +163,7 @@ async def chat_history(
         last_msg_ids = [row[2] for row in session_data if row[2] is not None]
         last_messages_map = {}
         if last_msg_ids:
-            msg_result = await db.execute(
-                select(ChatMessage).where(ChatMessage.id.in_(last_msg_ids))
-            )
+            msg_result = await db.execute(select(ChatMessage).where(ChatMessage.id.in_(last_msg_ids)))
             last_messages_map = {msg.id: msg for msg in msg_result.scalars().all()}
 
         for session, message_count, last_msg_id in session_data:
@@ -204,9 +200,7 @@ async def delete_session(
 ) -> None:
     """Soft-delete a chat session."""
     result = await db.execute(
-        select(ChatSession)
-        .where(ChatSession.id == session_id)
-        .where(ChatSession.user_id == user_id)
+        select(ChatSession).where(ChatSession.id == session_id).where(ChatSession.user_id == user_id)
     )
     session = result.scalar_one_or_none()
     if not session:

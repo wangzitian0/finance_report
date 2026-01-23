@@ -264,8 +264,7 @@ class ExtractionService:
                     user_id=user_id,
                     file_path=file_path,
                     file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
-                    original_filename=original_filename
-                    or (file_path.name if file_path else "unknown"),
+                    original_filename=original_filename or (file_path.name if file_path else "unknown"),
                     institution=institution,
                     transactions=transactions,
                 )
@@ -350,11 +349,7 @@ class ExtractionService:
             }
         ]
 
-        models = (
-            [force_model]
-            if force_model
-            else [self.primary_model] + list(self.fallback_models or [])
-        )
+        models = [force_model] if force_model else [self.primary_model] + list(self.fallback_models or [])
         last_error: ExtractionError | None = None
         error_summary: dict[str, int] = {}
 
@@ -489,9 +484,7 @@ class ExtractionService:
                 models_tried=len(models),
                 error_breakdown=error_summary,
             )
-            raise ExtractionError(
-                f"All {len(models)} models failed. Breakdown: {breakdown}. Last: {last_error}"
-            )
+            raise ExtractionError(f"All {len(models)} models failed. Breakdown: {breakdown}. Last: {last_error}")
 
         raise last_error or ExtractionError("Extraction failed after all retries")
 

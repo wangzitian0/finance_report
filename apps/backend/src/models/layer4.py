@@ -5,10 +5,8 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Boolean, Date, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -47,9 +45,7 @@ class ReportSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     )
 
     as_of_date: Mapped[date] = mapped_column(Date, nullable=False, comment="Report end date")
-    start_date: Mapped[date | None] = mapped_column(
-        Date, nullable=True, comment="Report start date (for ranges)"
-    )
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="Report start date (for ranges)")
 
     rule_version_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -57,9 +53,7 @@ class ReportSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=False,
     )
 
-    report_data: Mapped[dict] = mapped_column(
-        JSONB, nullable=False, comment="Full report JSON structure"
-    )
+    report_data: Mapped[dict] = mapped_column(JSONB, nullable=False, comment="Full report JSON structure")
 
     is_latest: Mapped[bool] = mapped_column(
         Boolean,

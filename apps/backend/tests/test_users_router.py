@@ -232,11 +232,7 @@ async def test_user_response_timezone_aware(client: AsyncClient) -> None:
     data = response.json()
 
     # Check created_at is timezone-aware (contains Z or +00:00)
-    assert (
-        "Z" in data["created_at"]
-        or "+00:00" in data["created_at"]
-        or "T00:00:00+00:00" in data["created_at"]
-    )
+    assert "Z" in data["created_at"] or "+00:00" in data["created_at"] or "T00:00:00+00:00" in data["created_at"]
 
 
 class TestUserSchemas:

@@ -39,9 +39,7 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         }
 
 
-def validate_balance_explicit(
-    opening: Decimal, closing: Decimal, net_transactions: Decimal
-) -> dict[str, Any]:
+def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactions: Decimal) -> dict[str, Any]:
     """Validate balance using explicit Decimal values."""
     expected_closing = (opening or Decimal("0")) + (net_transactions or Decimal("0"))
     diff = abs((closing or Decimal("0")) - expected_closing)
@@ -52,9 +50,7 @@ def validate_balance_explicit(
         "expected_closing": str(expected_closing),
         "actual_closing": str(closing),
         "difference": f"{diff:.2f}",
-        "notes": None
-        if balance_valid
-        else f"Balance mismatch: expected {expected_closing}, got {closing}",
+        "notes": None if balance_valid else f"Balance mismatch: expected {expected_closing}, got {closing}",
     }
 
 

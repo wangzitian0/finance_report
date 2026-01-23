@@ -43,6 +43,4 @@ def test_docker_compose_integrity():
             if context:
                 # Resolve relative path from project root
                 full_path = compose_path.parent / context
-                assert full_path.exists(), (
-                    f"Service '{service_name}' has non-existent build context: {context}"
-                )
+                assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"

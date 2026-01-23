@@ -77,20 +77,14 @@ async def test_storage_service_errors():
         service = StorageService(bucket="err-bucket")
 
         # Bucket creation failure
-        mock_s3.head_bucket.side_effect = ClientError(
-            {"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket"
-        )
-        mock_s3.create_bucket.side_effect = ClientError(
-            {"Error": {"Code": "500", "Message": "Error"}}, "create_bucket"
-        )
+        mock_s3.head_bucket.side_effect = ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "head_bucket")
+        mock_s3.create_bucket.side_effect = ClientError({"Error": {"Code": "500", "Message": "Error"}}, "create_bucket")
         with pytest.raises(StorageError, match="Failed to create bucket"):
             service.upload_bytes(key="k", content=b"c")
 
         # Access denied failure (not 404)
         StorageService._checked_buckets.clear()
-        mock_s3.head_bucket.side_effect = ClientError(
-            {"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket"
-        )
+        mock_s3.head_bucket.side_effect = ClientError({"Error": {"Code": "403", "Message": "Forbidden"}}, "head_bucket")
         with pytest.raises(StorageError, match="Failed to access bucket"):
             service.upload_bytes(key="k", content=b"c")
 
@@ -123,9 +117,7 @@ async def test_parsing_supervisor_error_path(monkeypatch):
         stop_event.set()
         return 0
 
-    monkeypatch.setattr(
-        "src.services.statement_parsing_supervisor.reset_stale_parsing_jobs", failing_reset
-    )
+    monkeypatch.setattr("src.services.statement_parsing_supervisor.reset_stale_parsing_jobs", failing_reset)
 
     # Use a small timeout to avoid hanging
     patch_target = "src.services.statement_parsing_supervisor.PARSING_SUPERVISOR_INTERVAL_SECONDS"
