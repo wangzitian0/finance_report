@@ -10,10 +10,15 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from src.config import settings
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
+from src.models.layer1 import DocumentType
+from src.models.layer2 import TransactionDirection
 from src.prompts import get_parsing_prompt
+from src.services.deduplication import DeduplicationService
 from src.services.openrouter_streaming import (
     OpenRouterStreamError,
     accumulate_stream,
@@ -136,6 +141,7 @@ class ExtractionService:
         file_url: str | None = None,
         original_filename: str | None = None,
         force_model: str | None = None,
+        db: Any | None = None,  # AsyncSession, optional for dual write
     ) -> tuple[BankStatement, list[BankStatementTransaction]]:
         """Parse document using AI vision models or CSV parser."""
         model = force_model or self.primary_model
@@ -198,6 +204,13 @@ class ExtractionService:
                 try:
                     parsed_date = date.fromisoformat(txn_date_val)
                 except ValueError:
+                    logger.warning(
+                        "Skipping transaction with invalid date format",
+                        raw_date=txn_date_val,
+                        description=txn.get("description", "N/A"),
+                        amount=txn.get("amount"),
+                        statement_file=original_filename or "unknown",
+                    )
                     continue  # Skip invalid date formats
 
                 amount = Decimal(str(txn["amount"]))
@@ -223,8 +236,8 @@ class ExtractionService:
 
             # Validation
             balance_result = validate_balance_explicit(
-                opening=statement.opening_balance,
-                closing=statement.closing_balance,
+                opening=statement.opening_balance or Decimal("0.00"),
+                closing=statement.closing_balance or Decimal("0.00"),
                 net_transactions=net_transactions,
             )
             is_valid = balance_result["balance_valid"]
@@ -244,6 +257,18 @@ class ExtractionService:
                 is_balanced=is_valid,
                 tx_count=len(transactions),
             )
+
+            if settings.enable_4_layer_write and db:
+                await self._dual_write_layer2(
+                    db=db,
+                    user_id=user_id,
+                    file_path=file_path,
+                    file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
+                    original_filename=original_filename
+                    or (file_path.name if file_path else "unknown"),
+                    institution=institution,
+                    transactions=transactions,
+                )
 
             return statement, transactions
 
@@ -472,5 +497,83 @@ class ExtractionService:
 
     async def _parse_csv_content(self, file_content: bytes, institution: str) -> dict[str, Any]:
         """Parse CSV content directly from bytes."""
-        # This is a placeholder for actual CSV parsing logic
         return {}
+
+    async def _dual_write_layer2(
+        self,
+        db: Any,
+        user_id: UUID,
+        file_path: Path | None,
+        file_hash: str,
+        original_filename: str,
+        institution: str,
+        transactions: list[BankStatementTransaction],
+    ) -> None:
+        """Write parsed data to Layer 1/2 tables (Phase 2 dual write)."""
+        dedup_service = DeduplicationService()
+
+        doc_type_map = {
+            "dbs": DocumentType.BANK_STATEMENT,
+            "ocbc": DocumentType.BANK_STATEMENT,
+            "standard chartered": DocumentType.BANK_STATEMENT,
+            "citibank": DocumentType.BANK_STATEMENT,
+            "uob": DocumentType.BANK_STATEMENT,
+            "posb": DocumentType.BANK_STATEMENT,
+        }
+        doc_type = doc_type_map.get(institution.lower(), DocumentType.BANK_STATEMENT)
+
+        try:
+            uploaded_doc = await dedup_service.create_uploaded_document(
+                db=db,
+                user_id=user_id,
+                file_path=str(file_path) if file_path else file_hash,
+                file_hash=file_hash,
+                original_filename=original_filename,
+                document_type=doc_type,
+            )
+
+            layer2_count = 0
+            for txn in transactions:
+                direction_map = {"IN": TransactionDirection.IN, "OUT": TransactionDirection.OUT}
+                l2_direction = direction_map.get(txn.direction, TransactionDirection.IN)
+
+                await dedup_service.upsert_atomic_transaction(
+                    db=db,
+                    user_id=user_id,
+                    txn_date=txn.txn_date,
+                    amount=txn.amount,
+                    direction=l2_direction,
+                    description=txn.description,
+                    currency=txn.statement.currency or "SGD",
+                    source_doc_id=uploaded_doc.id,
+                    source_doc_type=doc_type,
+                    reference=txn.reference,
+                )
+                layer2_count += 1
+
+            logger.info(
+                "Dual write to Layer 2 completed",
+                uploaded_doc_id=str(uploaded_doc.id),
+                layer2_transactions=layer2_count,
+                layer0_transactions=len(transactions),
+            )
+
+        except IntegrityError:
+            # Duplicate upload - acceptable silent failure
+            logger.warning(
+                "Dual write skipped - document already exists",
+                file_hash=file_hash,
+                user_id=str(user_id),
+            )
+        except Exception as e:
+            # All other errors are CRITICAL - must be visible to user
+            logger.error(
+                "Dual write to Layer 2 FAILED - data integrity compromised",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=str(user_id),
+                file_hash=file_hash,
+                layer0_transactions=len(transactions),
+            )
+            # Re-raise to ensure caller knows dual-write failed
+            raise RuntimeError(f"Failed to write to Layer 2: {e}") from e

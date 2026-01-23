@@ -14,6 +14,7 @@ from src.database import Base
 from src.models.base import TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from src.models.layer2 import AtomicTransaction
     from src.models.statement import BankStatementTransaction
 
 
@@ -32,10 +33,15 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "reconciliation_matches"
 
-    bank_txn_id: Mapped[UUID] = mapped_column(
+    bank_txn_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("bank_statement_transactions.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    atomic_txn_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("atomic_transactions.id", ondelete="CASCADE"),
+        nullable=True,
     )
     journal_entry_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -58,4 +64,8 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
     transaction: Mapped["BankStatementTransaction"] = relationship(
         "BankStatementTransaction",
         back_populates="matches",
+    )
+    atomic_transaction: Mapped["AtomicTransaction"] = relationship(
+        "AtomicTransaction",
+        foreign_keys=[atomic_txn_id],
     )

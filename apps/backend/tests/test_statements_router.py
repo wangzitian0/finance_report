@@ -100,6 +100,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         return statement, []
@@ -208,6 +209,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         transaction = BankStatementTransaction(
@@ -285,6 +287,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
@@ -396,6 +399,7 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         raise statements_router.ExtractionError("Failed to parse PDF")
 
@@ -464,6 +468,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         statement.status = BankStatementStatus.PARSING
@@ -557,6 +562,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=95)
         statement.status = BankStatementStatus.REJECTED
@@ -626,6 +632,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         statement.status = BankStatementStatus.REJECTED

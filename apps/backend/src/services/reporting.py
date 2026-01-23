@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Sequence, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,8 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.constants.error_ids import ErrorIds
 from src.logger import get_logger
-
-logger = get_logger(__name__)
 from src.models import (
     Account,
     AccountType,
@@ -25,6 +24,8 @@ from src.models import (
     JournalLine,
 )
 from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount
+
+logger = get_logger(__name__)
 
 _REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
 
@@ -405,7 +406,8 @@ async def generate_income_statement(
                     )
                 except FxRateError as exc:
                     logger.warning(
-                        "Average FX rate unavailable for income statement, falling back to spot rate",
+                        "Average FX rate unavailable for income statement, "
+                        "falling back to spot rate",
                         error_id=ErrorIds.REPORT_FX_FALLBACK,
                         account_id=account.id,
                         currency=line.currency,

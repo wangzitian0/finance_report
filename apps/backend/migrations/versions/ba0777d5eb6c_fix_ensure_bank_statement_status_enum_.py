@@ -1,8 +1,6 @@
 """fix: ensure bank_statement_status_enum has PARSING"""
 
 from alembic import op
-import sqlalchemy as sa
-
 
 revision = "ba0777d5eb6c"
 down_revision = "0007_normalize_all_enums"

@@ -137,6 +137,20 @@ class Settings(BaseSettings):
         validation_alias="OTEL_RESOURCE_ATTRIBUTES",
     )
 
+    # Feature Flags for 4-Layer Architecture Migration (EPIC-011)
+    enable_4_layer_write: bool = Field(
+        default=False,
+        validation_alias="ENABLE_4_LAYER_WRITE",
+    )
+    enable_4_layer_read: bool = Field(
+        default=False,
+        validation_alias="ENABLE_4_LAYER_READ",
+    )
+    enable_layer_0_write: bool = Field(
+        default=True,
+        validation_alias="ENABLE_LAYER_0_WRITE",
+    )
+
     @cached_property
     def cors_origins(self) -> list[str]:
         """Parse CORS origins from env string or use defaults."""

@@ -145,7 +145,26 @@ def calculate_match_score(
 
 ---
 
-## 4. Design Constraints (Dos & Don'ts)
+## 4. EPIC-011 Migration (Dual Read & Cutover)
+
+During the migration to 4-Layer Architecture, the reconciliation engine supports two modes:
+
+### Phase 3: Dual Read Validation
+Consistency checks run alongside normal operations:
+1.  **Dual Read**: Fetches both Layer 0 (Legacy) and Layer 2 (New) transactions.
+2.  **Validation**: Compares count and total amount.
+3.  **Logging**: Discrepancies logged as warnings.
+
+### Phase 4: Cutover (Layer 2 Read)
+Activated via `ENABLE_4_LAYER_READ=true`:
+1.  **Source Switch**: Reads pending transactions from `AtomicTransaction` (Layer 2) instead of `BankStatementTransaction`.
+2.  **Matching**: Creates `ReconciliationMatch` records linked via `atomic_txn_id`.
+3.  **Status**: Uses existence of match record to determine status (since Atomic records are immutable).
+4.  **Legacy Bypass**: Does not update `BankStatementTransaction` status.
+
+---
+
+## 5. Design Constraints (Dos & Don'ts)
 
 ### ✅ Recommended Patterns
 
