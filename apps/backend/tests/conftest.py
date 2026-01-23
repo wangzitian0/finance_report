@@ -3,12 +3,24 @@
 import os
 from uuid import uuid4
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
+
+from src.services.fx import clear_fx_cache
+
+
+# --- FX Cache Cleanup ---
+@pytest.fixture(autouse=True)
+def cleanup_fx_cache():
+    """Clear FX cache before and after each test to ensure isolation."""
+    clear_fx_cache()
+    yield
+    clear_fx_cache()
 
 
 # --- Helper to ensure 127.0.0.1 consistency ---
