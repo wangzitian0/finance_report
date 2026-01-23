@@ -94,13 +94,10 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:pr-${{ needs.setup.outputs.pr_number }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
             type=gha
-          cache-to: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest,mode=max
-            type=gha,mode=max
+          cache-to: type=gha,mode=max
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -109,13 +106,10 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:pr-${{ needs.setup.outputs.pr_number }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
             type=gha
-          cache-to: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest,mode=max
-            type=gha,mode=max
+          cache-to: type=gha,mode=max
           build-args: |
             NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
             NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
@@ -309,16 +303,8 @@ jobs:
           sys.exit(1)
           EOF
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Test Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install httpx pytest pytest-asyncio pytest-playwright
-          npx playwright install chromium --with-deps
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
         id: e2e_tests

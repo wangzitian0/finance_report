@@ -261,9 +261,55 @@ BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
 
 ---
 
+## Deployment Architecture
+
+### Dual-Repository Model
+
+Finance Report uses **two git repositories** for configuration:
+
+| Environment | Configuration Source | Purpose |
+|-------------|---------------------|---------|
+| **Local/CI/PR** | `/docker-compose.yml` | Development + PR previews |
+| **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
+
+The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2) (infrastructure repo).
+
+**Key implications**:
+- Workflows build images and trigger deployments
+- Actual deployment config managed in `infra2`
+- Env vars for staging/prod stored in HashiCorp Vault
+- Container names include env suffix (e.g., `-staging`)
+
+### Secret Injection Flow
+
+Production deployments use Vault sidecar pattern:
+
+```
+1. Dokploy pulls compose.yaml from infra2
+2. vault-agent sidecar starts → renders /secrets/.env
+3. Backend waits for secrets (CHECKPOINT-1)
+4. Alembic runs migrations (CHECKPOINT-2)
+5. Uvicorn starts application (CHECKPOINT-3)
+```
+
+Health check timeout (6min) accounts for this entire flow.
+
+### Container Naming
+
+| Environment | Backend | Database |
+|-------------|---------|----------|
+| Local/CI | `finance-report-backend` | `finance-report-db` |
+| PR #47 | `finance-report-backend-pr-47` | `finance-report-db-pr-47` |
+| Staging | `finance_report-backend-staging` | `finance_report-postgres-staging` |
+| Production | `finance_report-backend` | `finance_report-postgres` |
+
+**Note**: Local uses hyphens (Compose), prod uses underscores (Dokploy).
+
+---
+
 ## CI Workflows
 
-### ci.yml (on PR/push)
+### ci.yml (PR/push)
 
 ```
 Trigger: PR or push to main
@@ -273,22 +319,63 @@ Smoke:  ❌ Not run (unit tests only)
 Note:   Uses moon tasks for install/lint/build (uv/npm invoked via moon)
 ```
 
-### docker-build.yml (Build and Deploy)
+### Deployment Workflows
 
+**Helper scripts**: `scripts/dokploy_deploy.sh`, `scripts/health_check.sh`
+
+#### staging-deploy.yml
+
+```yaml
+Trigger: Push to main (apps/** changed)
+Flow: Build (commit SHA) → Deploy → Health (6min) → E2E tests
+URL: https://report-staging.zitian.party
 ```
+
+#### production-release.yml
+
+```yaml
 Triggers:
-  - Push to main (apps/** changed) → Build + Deploy Production + Smoke
-  - Manual dispatch → Build + Optional deploy to staging/production
+  - Tag push (v*.*.*): Build release images
+  - Manual dispatch: Deploy to production
 
-Environments:
-  - Production: report.zitian.party (auto on main push)
-  - Staging: report-staging.zitian.party (manual trigger only)
+Build job: Tag → Build backend + frontend → Push to GHCR
+Deploy job: Verify images → Deploy → Health (4min) → Smoke test
 
-Required Secrets:
-  - DOKPLOY_API_KEY: API key for Dokploy
-  - DOKPLOY_COMPOSE_ID: Production compose ID
-  - DOKPLOY_STAGING_COMPOSE_ID: Staging compose ID
+URL: https://report.zitian.party
 ```
+
+### Version Release Workflow
+
+**Manual control** for stable releases and cherry-picks:
+
+```bash
+# Create release tag
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+# → Triggers production-release.yml (build job)
+# → Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
+
+# Deploy to production (manual)
+# → Actions → Production Release → Run workflow → Select v1.2.3
+```
+
+**Hotfix flow**:
+```bash
+git checkout -b hotfix/bug v1.2.3
+git cherry-pick abc123
+git tag -a v1.2.4 -m "Hotfix: critical bug"
+git push origin v1.2.4
+# → Build automatically, deploy manually
+```
+
+### Deployment Failures
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Stuck "Waiting for secrets" | Vault token expired | `invoke vault.setup-tokens --project=finance_report` |
+| 6min timeout | Migration failed | Check SigNoz for CHECKPOINT-2 errors |
+| "Image not found" | Tag not built | `git push origin v1.2.3` to trigger build |
+| 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |
 
 ---
 

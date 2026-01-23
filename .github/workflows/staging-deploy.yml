@@ -21,53 +21,25 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
-  DEPLOY_WAIT_SECONDS: 120
 
 jobs:
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to push tags
       packages: write
     outputs:
-      new_version: ${{ steps.bump_version.outputs.new_version }}
+      commit_sha: ${{ steps.get_sha.outputs.short_sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Required to fetch all tags
 
-      - name: Bump Patch Version
-        id: bump_version
+      - name: Get Commit SHA
+        id: get_sha
         run: |
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Get latest tag (format vX.Y.Z) or default to v0.0.0
-          latest_tag=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $latest_tag"
-          
-          # Remove 'v' prefix
-          version=${latest_tag#v}
-          
-          # Split into array
-          IFS='.' read -r -a parts <<< "$version"
-          major=${parts[0]}
-          minor=${parts[1]}
-          patch=${parts[2]}
-          
-          # Increment patch
-          new_patch=$((patch + 1))
-          new_version="v$major.$minor.$new_patch"
-          
-          echo "New version: $new_version"
-          echo "new_version=$new_version" >> $GITHUB_OUTPUT
-          
-          # Create and push tag
-          git tag -a "$new_version" -m "Release $new_version"
-          git push origin "$new_version"
+          short_sha=$(git rev-parse --short HEAD)
+          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
+          echo "Deploying commit: $short_sha"
 
       - name: Log in to Container registry
         uses: docker/login-action@v3
@@ -85,9 +57,8 @@ jobs:
           context: ./apps/backend
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.bump_version.outputs.new_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -95,9 +66,8 @@ jobs:
           context: ./apps/frontend
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.bump_version.outputs.new_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           build-args: |
             NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
@@ -105,246 +75,22 @@ jobs:
 
       - name: Deploy to Staging
         env:
-          IMAGE_TAG: ${{ steps.bump_version.outputs.new_version }}
+          IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
         run: |
-          echo "Deploying $IMAGE_TAG to staging..."
-          
-          # Get current env (suppress output to avoid leaking secrets)
-          response_file=$(mktemp)
-          error_file=$(mktemp)
-          trap "rm -f '$response_file' '$error_file'" EXIT INT TERM
-          
-          http_code=$(curl -s -o "$response_file" -w "%{http_code}" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=${{ env.STAGING_COMPOSE_ID }}" \
-            2>"$error_file" || echo "000")
-          
-          if [ "$http_code" = "000" ]; then
-            echo "ERROR: Failed to connect to Dokploy API (DNS/TLS/network error)"
-            cat "$error_file"
-            exit 1
-          elif [ "$http_code" != "200" ]; then
-            echo "ERROR: Dokploy API returned HTTP $http_code"
-            cat "$response_file"
-            exit 1
-          fi
-          
-          env_response=$(cat "$response_file")
-          
-          if [ -z "$env_response" ]; then
-            echo "ERROR: Empty response from API"
-            exit 1
-          fi
-          
-          current_env=$(echo "$env_response" | jq -r '.env // empty')
-          
-          # Mask any sensitive values
-          while IFS= read -r line; do
-            case "$line" in
-              VAULT_*=*|[A-Z_]*TOKEN=*|[A-Z_]*SECRET=*|[A-Z_]*KEY=*|[A-Z_]*PASSWORD=*)
-                value=${line#*=}
-                if [ -n "$value" ]; then
-                  echo "::add-mask::$value"
-                fi
-                ;; 
-            esac
-          done <<< "$current_env"
-          
-          # Update IMAGE_TAG
-          if echo "$current_env" | grep -q '^IMAGE_TAG='; then
-            new_env=$(echo "$current_env" | sed "s/^IMAGE_TAG=.*/IMAGE_TAG=$IMAGE_TAG/")
-          else
-            new_env=$(printf "%s\nIMAGE_TAG=%s" "$current_env" "$IMAGE_TAG")
-          fi
-          
-          # Add/Update NEXT_PUBLIC_APP_URL
-          if echo "$new_env" | grep -q '^NEXT_PUBLIC_APP_URL='; then
-            new_env=$(echo "$new_env" | sed "s|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party|")
-          else
-            new_env=$(printf "%s\nNEXT_PUBLIC_APP_URL=%s" "$new_env" "https://report-staging.zitian.party")
-          fi
-          
-          # Update environment
-          update_response_file=$(mktemp)
-          update_error_file=$(mktemp)
-          trap "rm -f '$response_file' '$error_file' '$update_response_file' '$update_error_file'" EXIT INT TERM
-          
-          http_code=$(curl -s -o "$update_response_file" -w "%{http_code}" \
-            -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" --arg env "$new_env" '{composeId: $id, env: $env}')" \
-            2>"$update_error_file" || echo "000")
-          
-          if [ "$http_code" = "000" ]; then
-            echo "ERROR: Failed to connect to Dokploy API for environment update"
-            cat "$update_error_file"
-            exit 1
-          elif [ "$http_code" != "200" ]; then
-            echo "ERROR: Environment update failed with HTTP $http_code"
-            cat "$update_response_file"
-            exit 1
-          fi
-          
-          echo "Environment updated to use image tag: $IMAGE_TAG"
-          
-          # Redeploy
-          deploy_response_file=$(mktemp)
-          deploy_error_file=$(mktemp)
-          trap "rm -f '$response_file' '$error_file' '$update_response_file' '$update_error_file' '$deploy_response_file' '$deploy_error_file'" EXIT INT TERM
-          
-          http_code=$(curl -s -o "$deploy_response_file" -w "%{http_code}" \
-            -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "$(jq -n --arg id "${{ env.STAGING_COMPOSE_ID }}" '{composeId: $id}')" \
-            2>"$deploy_error_file" || echo "000")
-          
-          if [ "$http_code" = "000" ]; then
-            echo "ERROR: Failed to connect to Dokploy API for deployment trigger"
-            cat "$deploy_error_file"
-            exit 1
-          elif [ "$http_code" != "200" ]; then
-            echo "ERROR: Deployment trigger failed with HTTP $http_code"
-            cat "$deploy_response_file"
-            exit 1
-          fi
+          bash scripts/dokploy_deploy.sh \
+            "${{ env.STAGING_COMPOSE_ID }}" \
+            "$IMAGE_TAG" \
+            "https://report-staging.zitian.party"
           
           echo "Deployment triggered. Waiting for backend to become healthy..."
-          echo ""
-          
-          # Create temp files and setup cleanup trap
-          health_response_file=$(mktemp)
-          health_error_file=$(mktemp)
-          trap "rm -f '$health_response_file' '$health_error_file'" EXIT INT TERM
-          
-          # Poll health endpoint until healthy or timeout
-          # 36 attempts * 10s = 6 minutes total (accounts for slow migrations)
-          max_attempts=36
-          attempt=1
-          health_url="https://report-staging.zitian.party/api/health"
-          
-          while (( attempt <= max_attempts )); do
-            echo "[WAITING] Health check attempt $attempt/$max_attempts..."
-            
-            # Capture both HTTP status code and response body
-            http_code=$(curl -s -o "$health_response_file" -w "%{http_code}" "$health_url" 2>"$health_error_file" || echo "000")
-            
-            # Check for connection errors (curl exit code != 0)
-            if [ "$http_code" = "000" ]; then
-              echo "[WARNING] Connection failed (attempt $attempt/$max_attempts)"
-              
-              if (( attempt == max_attempts )); then
-                timeout=$((max_attempts * 10))
-                echo ""
-                echo "========================================="
-                echo "[FAIL] Deployment Failed: Cannot connect to health endpoint"
-                echo "========================================="
-                echo "URL: $health_url"
-                echo ""
-                echo "Connection error:"
-                cat "$health_error_file" 2>/dev/null || echo "(no error details)"
-                echo ""
-                echo "Troubleshooting:"
-                echo "1. Check DNS resolution: nslookup report-staging.zitian.party"
-                echo "2. Check TLS certificate: curl -v $health_url"
-                echo "3. Check container status via Dokploy"
-                echo "4. Check SigNoz: https://signoz.zitian.party"
-                echo "   Filter: deployment.environment=staging service_name=finance-report-backend"
-                echo "========================================="
-                exit 1
-              fi
-              
-              sleep 10
-              ((attempt++))
-              continue
-            fi
-            
-            # Check for HTTP errors
-            if [ "$http_code" != "200" ]; then
-              echo "[WARNING] HTTP $http_code (attempt $attempt/$max_attempts)"
-              
-              if (( attempt == max_attempts )); then
-                timeout=$((max_attempts * 10))
-                echo ""
-                echo "========================================="
-                echo "[FAIL] Deployment Failed: Health endpoint returned HTTP $http_code"
-                echo "========================================="
-                echo "URL: $health_url"
-                echo "Response:"
-                cat "$health_response_file" 2>/dev/null || echo "(no response body)"
-                echo ""
-                echo "Troubleshooting: Check SigNoz for application logs"
-                echo "========================================="
-                exit 1
-              fi
-              
-              sleep 10
-              ((attempt++))
-              continue
-            fi
-            
-            # Check if response contains "healthy"
-            health_response=$(cat "$health_response_file" 2>/dev/null || echo "")
-            if echo "$health_response" | grep -q '"status":"healthy"'; then
-              elapsed=$((attempt * 10))
-              echo ""
-              echo "========================================="
-              echo "[SUCCESS] Deployment Successful ($elapsed seconds)"
-              echo "========================================="
-              echo "Version: $IMAGE_TAG"
-              echo "Environment: staging"
-              echo "URL: https://report-staging.zitian.party"
-              echo "Response: $health_response"
-              echo ""
-              echo "Logs: https://signoz.zitian.party"
-              echo "Filter: deployment.environment=staging service_name=finance-report-backend"
-              echo "========================================="
-              exit 0
-            fi
-            
-            # Response is 200 but not healthy
-            echo "[WARNING] Backend is unhealthy (attempt $attempt/$max_attempts)"
-            echo "Response: $health_response"
-            
-            if (( attempt == max_attempts )); then
-              timeout=$((max_attempts * 10))
-              echo ""
-              echo "========================================="
-              echo "[FAIL] Deployment Failed: Backend unhealthy after ${timeout}s"
-              echo "========================================="
-              echo "Last health check response:"
-              echo "$health_response"
-              echo ""
-              echo "Troubleshooting:"
-              echo "1. Check which dependency failed in response above"
-              echo "2. Check SigNoz: https://signoz.zitian.party"
-              echo "   Filter: deployment.environment=staging service_name=finance-report-backend"
-              echo "3. Look for CHECKPOINT markers in logs:"
-              echo "   - [CHECKPOINT-1] Vault secrets not ready"
-              echo "   - [CHECKPOINT-2] Database migration failed"
-              echo "   - [CHECKPOINT-3] Application startup failed"
-              echo "========================================="
-              exit 1
-            fi
-            
-            sleep 10
-            ((attempt++))
-          done
+          bash scripts/health_check.sh \
+            "https://report-staging.zitian.party/api/health" \
+            "staging" \
+            36 \
+            "$IMAGE_TAG"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Test Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install httpx pytest pytest-asyncio pytest-playwright
-          npx playwright install chromium --with-deps
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
         env:
