@@ -21,7 +21,6 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
-  DEPLOY_WAIT_SECONDS: 120
 
 jobs:
   build-and-deploy:
@@ -60,7 +59,6 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -70,7 +68,6 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
           build-args: |
             NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
