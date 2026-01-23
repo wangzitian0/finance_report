@@ -79,27 +79,36 @@ async def test_full_navigation(page: Page):
 
 
 @pytest.mark.e2e
-async def test_statement_upload_parsing_flow(page: Page, tmp_path):
+@pytest.mark.critical
+async def test_statement_upload_parsing_flow(authenticated_page: Page, tmp_path):
     """
     [Scenario 2] Upload a statement, wait for parsing, and then delete it.
     Uses the generate_pdf_fixtures.py script to create a real PDF.
+
+    This is a CRITICAL test - it validates the core AI parsing functionality.
+    Uses authenticated_page fixture to ensure user is logged in.
     """
-    # 0. Preparation: Locate PDF fixture generator
+    page = authenticated_page
+
     root_dir = Path(__file__).parent.parent.parent
-    script_path = root_dir / "scripts" / "generate_pdf_fixtures.py"
-    # Fallback to older path if not found at root (some PRs move it)
+    script_path = root_dir / "scripts" / "pdf_fixtures" / "generate_pdf_fixtures.py"
+
     if not script_path.exists():
-        script_path = root_dir / "scripts" / "pdf_fixtures" / "generate_pdf_fixtures.py"
+        pytest.fail(
+            f"PDF fixture generator not found at {script_path}. "
+            "Ensure scripts/pdf_fixtures/generate_pdf_fixtures.py exists."
+        )
 
     output_dir = tmp_path
 
-    # 1. Generate PDF
     cmd = [sys.executable, str(script_path), str(output_dir)]
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        pytest.skip(
-            f"Failed to generate PDF fixture: {e.stderr}. Ensure reportlab is installed."
+        pytest.fail(
+            f"PDF fixture generation failed: {e.stderr}\n"
+            f"Command: {' '.join(cmd)}\n"
+            f"This is unexpected - reportlab should be installed in CI."
         )
 
     target_pdf = output_dir / "e2e_dbs_statement.pdf"
@@ -107,12 +116,15 @@ async def test_statement_upload_parsing_flow(page: Page, tmp_path):
         pytest.fail(f"Generated PDF not found at {target_pdf}")
 
     try:
-        # 2. Upload
         await page.goto(get_url("/statements"))
+        await page.wait_for_load_state("networkidle")
 
-        # Wait for redirect or check if we are on login
         if "/login" in page.url:
-            pytest.skip("Redirected to login - auth not configured for E2E")
+            pytest.fail(
+                f"Redirected to login despite using authenticated_page fixture. "
+                f"Current URL: {page.url}. "
+                f"Check if auth tokens are being properly injected."
+            )
 
         await page.get_by_label("Bank / Institution").fill("DBS E2E Test")
         await page.set_input_files("input[type='file']", str(target_pdf))
@@ -124,7 +136,7 @@ async def test_statement_upload_parsing_flow(page: Page, tmp_path):
         # 4. Verify List
         await expect(page.get_by_text("DBS E2E Test").first).to_be_visible()
 
-        # 5. Wait for Parsing
+        # 5. Wait for Parsing (AI processing - this is the critical part!)
         row = page.locator("a", has=page.get_by_text("DBS E2E Test")).first
         await expect(row).to_contain_text(
             f"{EXPECTED_TXN_COUNT} txns", timeout=PARSING_TIMEOUT

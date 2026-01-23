@@ -13,5 +13,5 @@ runs:
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        pip install httpx pytest pytest-asyncio pytest-playwright
+        pip install httpx pytest pytest-asyncio pytest-playwright reportlab
         npx playwright install chromium --with-deps
