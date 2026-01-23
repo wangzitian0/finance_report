@@ -10,6 +10,8 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from src.config import settings
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
@@ -202,6 +204,13 @@ class ExtractionService:
                 try:
                     parsed_date = date.fromisoformat(txn_date_val)
                 except ValueError:
+                    logger.warning(
+                        "Skipping transaction with invalid date format",
+                        raw_date=txn_date_val,
+                        description=txn.get("description", "N/A"),
+                        amount=txn.get("amount"),
+                        statement_file=original_filename or "unknown",
+                    )
                     continue  # Skip invalid date formats
 
                 amount = Decimal(str(txn["amount"]))
@@ -549,10 +558,22 @@ class ExtractionService:
                 layer0_transactions=len(transactions),
             )
 
+        except IntegrityError as e:
+            # Duplicate upload - acceptable silent failure
+            logger.warning(
+                "Dual write skipped - document already exists",
+                file_hash=file_hash,
+                user_id=str(user_id),
+            )
         except Exception as e:
+            # All other errors are CRITICAL - must be visible to user
             logger.error(
-                "Dual write to Layer 2 failed (non-fatal)",
+                "Dual write to Layer 2 FAILED - data integrity compromised",
                 error=str(e),
+                error_type=type(e).__name__,
                 user_id=str(user_id),
                 file_hash=file_hash,
+                layer0_transactions=len(transactions),
             )
+            # Re-raise to ensure caller knows dual-write failed
+            raise RuntimeError(f"Failed to write to Layer 2: {e}") from e

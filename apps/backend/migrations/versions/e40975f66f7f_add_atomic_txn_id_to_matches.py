@@ -10,7 +10,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add atomic_txn_id column
     op.add_column("reconciliation_matches", sa.Column("atomic_txn_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
         "fk_matches_atomic_txn",
@@ -21,10 +20,14 @@ def upgrade() -> None:
         ondelete="CASCADE",
     )
 
-    # Make bank_txn_id nullable
+    op.create_index(
+        "idx_reconciliation_matches_atomic_txn",
+        "reconciliation_matches",
+        ["atomic_txn_id"],
+    )
+
     op.alter_column("reconciliation_matches", "bank_txn_id", existing_type=sa.UUID(), nullable=True)
 
-    # Add check constraint
     op.create_check_constraint(
         "check_match_target",
         "reconciliation_matches",
@@ -41,5 +44,6 @@ def downgrade() -> None:
         "reconciliation_matches", "bank_txn_id", existing_type=sa.UUID(), nullable=False
     )
 
+    op.drop_index("idx_reconciliation_matches_atomic_txn", "reconciliation_matches")
     op.drop_constraint("fk_matches_atomic_txn", "reconciliation_matches", type_="foreignkey")
     op.drop_column("reconciliation_matches", "atomic_txn_id")

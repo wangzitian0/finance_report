@@ -141,9 +141,13 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
                     ),
                     date_days=int(tolerances.get("date_days", config.date_days)),
                 )
-            except Exception:
-                # Fallback to default if YAML is malformed
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Failed to load reconciliation config - using defaults",
+                    config_path=str(config_path),
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
     auto_accept_env = os.getenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD")
     pending_review_env = os.getenv("RECONCILIATION_REVIEW_THRESHOLD")
@@ -851,7 +855,19 @@ async def execute_matching(
             if not settings.enable_4_layer_read:
                 txn.status = BankStatementTransactionStatus.PENDING
 
-    await db.commit()
+    try:
+        await db.flush()
+    except Exception as e:
+        logger.error(
+            "Reconciliation flush failed",
+            user_id=str(user_id),
+            statement_id=str(statement_id) if statement_id else None,
+            matches_attempted=len(matches),
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
     return matches
 
 
