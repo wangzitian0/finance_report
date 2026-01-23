@@ -79,7 +79,9 @@ async def test_full_navigation(page: Page):
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="AI parsing backend issue: statements being rejected instead of parsed (0 txns). See PR #142 comments. Needs separate backend fix.")
+@pytest.mark.skip(
+    reason="AI parsing backend issue: statements being rejected instead of parsed (0 txns). See PR #142 comments. Needs separate backend fix."
+)
 async def test_statement_upload_parsing_flow(authenticated_page: Page, tmp_path):
     """
     [Scenario 2] Upload a statement, wait for parsing, and then delete it.
@@ -90,12 +92,6 @@ async def test_statement_upload_parsing_flow(authenticated_page: Page, tmp_path)
 
     NOTE: Temporarily not marked as @pytest.mark.critical due to backend AI
     parsing issue. Will restore critical marker once backend is fixed.
-    """
-    [Scenario 2] Upload a statement, wait for parsing, and then delete it.
-    Uses the generate_pdf_fixtures.py script to create a real PDF.
-
-    This is a CRITICAL test - it validates the core AI parsing functionality.
-    Uses authenticated_page fixture to ensure user is logged in.
     """
     page = authenticated_page
 
