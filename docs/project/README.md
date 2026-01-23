@@ -20,6 +20,7 @@ This section contains:
 
 **TODO**
 - [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
+- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (Securities, Real Estate, Depreciation, ESOP)
 
 **Done**
 - [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
@@ -42,8 +43,9 @@ This section contains:
 | [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | ⏳ Pending | 0 | 2 weeks |
 | [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | 🟡 In Progress | 2 | 2-3 weeks |
 | [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | 🟡 In Progress | 0 | 1 week |
+| [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | ⏳ Pending | 5 | 4-5 weeks |
 
-**Total Duration**: 17-20 weeks  
+**Total Duration**: 21-25 weeks  
 **Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness
 
 ## 🗺️ EPIC Dependencies
@@ -57,6 +59,8 @@ graph LR
     E2 --> E6[EPIC-006<br/>AI Advisor]
     E4 --> E6
     E7[EPIC-007<br/>Deployment]
+    E2 --> E11[EPIC-011<br/>Asset Lifecycle]
+    E5 --> E11
     
     style E1 fill:#90EE90
     style E2 fill:#90EE90
@@ -65,11 +69,13 @@ graph LR
     style E5 fill:#FFD700
     style E6 fill:#90EE90
     style E7 fill:#FFD700
+    style E11 fill:#D3D3D3
 ```
 
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
 **Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
-**Infrastructure Path**: EPIC-007 deploys completed features to production
+**Infrastructure Path**: EPIC-007 deploys completed features to production  
+**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting)
 
 ## 📖 Reading Guide
 
@@ -91,6 +97,7 @@ Check the relevant EPIC for your feature:
 - **Reports**: [EPIC-005](./EPIC-005.reporting-visualization.md)
 - **AI Features**: [EPIC-006](./EPIC-006.ai-advisor.md)
 - **Deployment**: [EPIC-007](./EPIC-007.deployment.md)
+- **Asset Management**: [EPIC-011](./EPIC-011.asset-lifecycle.md)
 
 ## 📊 Quality Standards
 
