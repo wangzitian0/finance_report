@@ -8,11 +8,17 @@ import pytest
 from sqlalchemy import delete
 
 from src.config import settings
+from src.logger import configure_logging
 from src.models import (
     AtomicTransaction,
 )
 from src.services.extraction import ExtractionService
 from src.services.reconciliation import execute_matching
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_logging():
+    configure_logging()
 
 
 @pytest.fixture
@@ -42,9 +48,9 @@ class TestReconciliationDualRead:
     """Tests for Phase 3 Dual Read validation in reconciliation."""
 
     async def test_dual_read_validation_logs_consistency(
-        self, db, test_user, mock_ai_response, monkeypatch, capsys
+        self, db, test_user, mock_ai_response, monkeypatch
     ):
-        """Test that consistent Layer 0/2 data logs verification success."""
+        """Test that consistent Layer 0/2 data is validated."""
         monkeypatch.setattr(settings, "enable_4_layer_write", True)
 
         service = ExtractionService()
@@ -66,14 +72,17 @@ class TestReconciliationDualRead:
                 db.add(txn)
         await db.commit()
 
-        await execute_matching(db, user_id=test_user.id, statement_id=statement.id)
+        with patch("src.services.reconciliation.logger.info") as mock_info:
+            await execute_matching(db, user_id=test_user.id, statement_id=statement.id)
 
-        captured = capsys.readouterr()
-        assert "Layer 0/2 Consistency Verified" in captured.out
-        assert "'count': 1" in captured.out
+            info_calls = [str(call) for call in mock_info.call_args_list]
+            assert any("Layer 0/2 Consistency Verified" in call for call in info_calls)
+            assert any(
+                "'count': 1" in call or "'count':1" in call.replace(" ", "") for call in info_calls
+            )
 
     async def test_dual_read_validation_detects_mismatch(
-        self, db, test_user, mock_ai_response, monkeypatch, capsys
+        self, db, test_user, mock_ai_response, monkeypatch
     ):
         """Test that missing Layer 2 data triggers mismatch warning."""
         monkeypatch.setattr(settings, "enable_4_layer_write", True)
@@ -100,9 +109,16 @@ class TestReconciliationDualRead:
         await db.execute(delete(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
         await db.commit()
 
-        await execute_matching(db, user_id=test_user.id, statement_id=statement.id)
+        with patch("src.services.reconciliation.logger.warning") as mock_warning:
+            await execute_matching(db, user_id=test_user.id, statement_id=statement.id)
 
-        captured = capsys.readouterr()
-        assert "Layer 0/2 Count Mismatch" in captured.out
-        assert "'layer0_count': 1" in captured.out
-        assert "'layer2_count': 0" in captured.out
+            warning_calls = [str(call) for call in mock_warning.call_args_list]
+            assert any("Layer 0/2 Count Mismatch" in call for call in warning_calls)
+            assert any(
+                "'layer0_count': 1" in call or "'layer0_count':1" in call.replace(" ", "")
+                for call in warning_calls
+            )
+            assert any(
+                "'layer2_count': 0" in call or "'layer2_count':0" in call.replace(" ", "")
+                for call in warning_calls
+            )
