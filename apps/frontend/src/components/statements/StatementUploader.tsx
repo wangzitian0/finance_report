@@ -4,6 +4,34 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fetchAiModels } from "@/lib/aiModels";
 
+function getSafeStorage(key: string): string | null {
+    try {
+        if (typeof window === "undefined") return null;
+        return localStorage.getItem(key);
+    } catch (error) {
+        console.warn(`[Storage] Failed to read ${key}:`, error);
+        return null;
+    }
+}
+
+function setSafeStorage(key: string, value: string): void {
+    try {
+        if (typeof window === "undefined") return;
+        localStorage.setItem(key, value);
+    } catch (error) {
+        console.warn(`[Storage] Failed to write ${key}:`, error);
+    }
+}
+
+function removeSafeStorage(key: string): void {
+    try {
+        if (typeof window === "undefined") return;
+        localStorage.removeItem(key);
+    } catch (error) {
+        console.warn(`[Storage] Failed to remove ${key}:`, error);
+    }
+}
+
 interface StatementUploaderProps {
     onUploadComplete?: () => void;
     onError?: (error: string) => void;
@@ -29,14 +57,30 @@ export default function StatementUploader({
                 const data = await fetchAiModels({ modality: "image" });
                 if (!active) return;
                 setModels(data.models);
-                const stored = typeof window !== "undefined" ? localStorage.getItem("statement_model_v1") : null;
-                let preferred = stored && data.models.some((m) => m.id === stored) ? stored : data.default_model;
+                const stored = getSafeStorage("statement_model_v1");
+                
+                // IMPORTANT: Validate stored model ID against current catalog
+                // OpenRouter periodically removes models (e.g., Gemini 2.0 → 3.0 upgrade)
+                // If stored ID is invalid/stale, fall back to default to prevent parsing failures
+                const isStoredValid = stored && data.models.some((m) => m.id === stored);
+                let preferred = isStoredValid ? stored : data.default_model;
+                
+                // Double-check preferred model exists (handles race: default_model not in filtered catalog)
                 if (!data.models.some((m) => m.id === preferred)) {
                     preferred = data.models[0]?.id || "";
                 }
+                
+                // Clear invalid localStorage entry to prevent future issues
+                // User will see the new default model selected on next page load
+                if (stored && !isStoredValid) {
+                    removeSafeStorage("statement_model_v1");
+                }
+                
                 setSelectedModel(preferred);
-            } catch {
+            } catch (error) {
                 if (!active) return;
+                console.error("[StatementUploader] Failed to load AI models:", error);
+                setError("Unable to load AI models. Using server default.");
                 setModels([]);
                 setSelectedModel("");
             } finally {
@@ -215,8 +259,8 @@ export default function StatementUploader({
                     onChange={(e) => {
                         const next = e.target.value;
                         setSelectedModel(next);
-                        if (typeof window !== "undefined" && next) {
-                            localStorage.setItem("statement_model_v1", next);
+                        if (next) {
+                            setSafeStorage("statement_model_v1", next);
                         }
                     }}
                     disabled={modelLoading}

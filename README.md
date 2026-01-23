@@ -13,7 +13,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
-[![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%202.0%20Flash%20%28free%29-4285F4.svg?logo=google)](https://ai.google.dev/)
+[![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%203%20Flash%20Preview-4285F4.svg?logo=google)](https://ai.google.dev/)
 
 </div>
 

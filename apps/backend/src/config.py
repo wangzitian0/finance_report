@@ -111,7 +111,7 @@ class Settings(BaseSettings):
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    primary_model: str = "google/gemini-2.0-flash-exp:free"
+    primary_model: str = "google/gemini-3-flash-preview"
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
     openrouter_daily_limit_usd: int | None = 2
 
