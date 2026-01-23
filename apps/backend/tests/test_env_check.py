@@ -1,15 +1,13 @@
 """Tests for env_check module."""
 
 import os
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.env_check import (
     check_env_on_startup,
-    get_vault_managed_keys_from_env_example,
+    get_vault_required_keys,
     print_loaded_config,
 )
 
@@ -89,26 +87,14 @@ class TestCheckEnvOnStartup:
 
     def test_production_with_all_vars(self, capsys):
         """Test production with all required vars set."""
-        with patch("src.env_check.get_vault_managed_keys_from_env_example") as mock_parser:
-            mock_parser.return_value = [
-                "DATABASE_URL",
-                "S3_ENDPOINT",
-                "S3_ACCESS_KEY",
-                "S3_SECRET_KEY",
-                "S3_BUCKET",
-                "REDIS_URL",
-            ]
-            env_vars = {
-                "ENV": "production",
-                "DATABASE_URL": "postgresql://...",
-                "S3_ENDPOINT": "http://localhost:9000",
-                "S3_ACCESS_KEY": "test",
-                "S3_SECRET_KEY": "test",
-                "S3_BUCKET": "test",
-                "REDIS_URL": "redis://localhost:6379/0",
-            }
-            with patch.dict(os.environ, env_vars, clear=False):
-                check_env_on_startup()
+        # Set all required vault-managed keys
+        required_keys = get_vault_required_keys()
+        env_vars = {"ENV": "production"}
+        for key in required_keys:
+            env_vars[key] = f"test-value-{key}"
+
+        with patch.dict(os.environ, env_vars, clear=False):
+            check_env_on_startup()
 
         captured = capsys.readouterr()
         assert "Missing required variables" not in captured.out
@@ -143,160 +129,34 @@ class TestCheckEnvOnStartup:
         assert "Refusing to start" in captured.out
 
 
-class TestGetVaultManagedKeysParser:
-    """Tests for get_vault_managed_keys_from_env_example parser."""
+class TestGetVaultRequiredKeys:
+    """Tests for get_vault_required_keys function."""
 
-    def test_parser_finds_keys_from_real_env_example(self):
-        """Test parser correctly identifies keys from actual .env.example file."""
-        keys = get_vault_managed_keys_from_env_example()
+    def test_returns_expected_list_of_keys(self):
+        """Test that function returns expected list of required keys."""
+        keys = get_vault_required_keys()
 
-        expected_minimum = [
+        assert isinstance(keys, list)
+        assert len(keys) == 20
+
+        expected_keys = [
             "DATABASE_URL",
             "ENVIRONMENT",
-            "OPENROUTER_API_KEY",
             "S3_ENDPOINT",
             "S3_ACCESS_KEY",
             "S3_SECRET_KEY",
             "S3_BUCKET",
             "S3_REGION",
             "S3_PRESIGN_EXPIRY_SECONDS",
+            "REDIS_URL",
         ]
 
-        for expected_key in expected_minimum:
+        for expected_key in expected_keys:
             assert expected_key in keys, f"Missing expected key: {expected_key}"
 
-    def test_parser_respects_10_line_window(self):
-        """Test that keys beyond 10 lines after [VAULT] marker are excluded."""
-        content = """# [VAULT]
-KEY1=val
-KEY2=val
+    def test_returns_consistent_results(self):
+        """Test that function returns consistent results across multiple calls."""
+        keys1 = get_vault_required_keys()
+        keys2 = get_vault_required_keys()
 
-KEY4=val
-
-KEY6=val
-
-KEY8=val
-
-KEY10=val
-# Comment line 11
-KEY11=val
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".env.example", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
-        try:
-            with patch.object(Path, "__truediv__", return_value=Path(temp_path)):
-                keys = get_vault_managed_keys_from_env_example()
-
-            assert "KEY1" in keys
-            assert "KEY10" in keys
-            assert "KEY11" not in keys
-        finally:
-            os.unlink(temp_path)
-
-    def test_parser_extracts_prefix_pattern(self):
-        """Test parser correctly extracts and applies prefix patterns like 'S3_*'."""
-        content = """# [VAULT] All S3_* variables
-S3_ENDPOINT=x
-S3_BUCKET=y
-DEBUG=z
-REDIS_URL=a
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".env.example", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
-        try:
-            with patch.object(Path, "__truediv__", return_value=Path(temp_path)):
-                keys = get_vault_managed_keys_from_env_example()
-
-            assert "S3_ENDPOINT" in keys
-            assert "S3_BUCKET" in keys
-            assert "DEBUG" not in keys
-            assert "REDIS_URL" not in keys
-        finally:
-            os.unlink(temp_path)
-
-    def test_missing_env_example_returns_empty_list(self):
-        """Test that missing .env.example file returns empty list without crashing."""
-        with patch.object(Path, "exists", return_value=False):
-            keys = get_vault_managed_keys_from_env_example()
-
-        assert keys == []
-
-    def test_malformed_env_example_handled_gracefully(self):
-        """Test that malformed .env.example (invalid UTF-8) is handled gracefully."""
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".env.example", delete=False) as f:
-            f.write(b"\xff\xfe\x00\x00")
-            temp_path = f.name
-
-        try:
-            with patch.object(Path, "__truediv__", return_value=Path(temp_path)):
-                keys = get_vault_managed_keys_from_env_example()
-
-            assert isinstance(keys, list)
-            assert keys == []
-        finally:
-            os.unlink(temp_path)
-
-    def test_parser_handles_multiple_vault_markers(self):
-        """Test parser correctly handles multiple [VAULT] markers with different patterns."""
-        content = """# [VAULT] All S3_* variables
-S3_ENDPOINT=x
-S3_BUCKET=y
-
-# [VAULT]
-DATABASE_URL=postgres://...
-REDIS_URL=redis://...
-
-# [VAULT] All OTEL_* variables
-OTEL_ENDPOINT=http://...
-OTEL_SERVICE_NAME=test
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".env.example", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
-        try:
-            with patch.object(Path, "__truediv__", return_value=Path(temp_path)):
-                keys = get_vault_managed_keys_from_env_example()
-
-            assert "S3_ENDPOINT" in keys
-            assert "S3_BUCKET" in keys
-            assert "DATABASE_URL" in keys
-            assert "REDIS_URL" in keys
-            assert "OTEL_ENDPOINT" in keys
-            assert "OTEL_SERVICE_NAME" in keys
-        finally:
-            os.unlink(temp_path)
-
-    def test_parser_resets_state_after_window_expires(self):
-        """Test that parser correctly resets state when 10-line window expires with comments."""
-        content = """# [VAULT] All S3_* variables
-S3_ENDPOINT=x
-# Comment 1
-# Comment 2
-# Comment 3
-# Comment 4
-# Comment 5
-# Comment 6
-# Comment 7
-# Comment 8
-# Comment 9
-# Comment 10
-# Comment 11 (line 13, window expired)
-UNRELATED_VAR=should_not_match
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".env.example", delete=False) as f:
-            f.write(content)
-            temp_path = f.name
-
-        try:
-            with patch.object(Path, "__truediv__", return_value=Path(temp_path)):
-                keys = get_vault_managed_keys_from_env_example()
-
-            assert "S3_ENDPOINT" in keys
-            assert "UNRELATED_VAR" not in keys
-        finally:
-            os.unlink(temp_path)
+        assert keys1 == keys2
