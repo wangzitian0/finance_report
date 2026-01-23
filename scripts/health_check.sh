@@ -16,15 +16,27 @@
 
 set -euo pipefail
 
-# Parse arguments
+missing_args=()
+
 HEALTH_URL="${1:-}"
 ENVIRONMENT="${2:-}"
 MAX_ATTEMPTS="${3:-24}"
 IMAGE_TAG="${4:-}"
 
-if [ -z "$HEALTH_URL" ] || [ -z "$ENVIRONMENT" ]; then
-  echo "ERROR: Missing required arguments"
+[ -z "$HEALTH_URL" ] && missing_args+=("health_url")
+[ -z "$ENVIRONMENT" ] && missing_args+=("environment")
+
+if [ ${#missing_args[@]} -gt 0 ]; then
+  echo "========================================="
+  echo "ERROR: Missing Required Arguments"
+  echo "========================================="
+  echo ""
+  for arg in "${missing_args[@]}"; do
+    echo "  - $arg"
+  done
+  echo ""
   echo "Usage: $0 <health_url> <environment> [max_attempts] [image_tag]"
+  echo "========================================="
   exit 1
 fi
 
