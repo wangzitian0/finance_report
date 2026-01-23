@@ -219,6 +219,9 @@ AI must use this cascade structure before processing tasks:
 3. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
 
 ### Environment Variable Management
+
+**For complete reference, see: [.opencode/skills/domain/secrets-management/skill.md](.opencode/skills/domain/secrets-management/skill.md)**
+
 4. **Three-layer SSOT**:
    - `secrets.ctmpl` → Staging/Prod required keys (Vault)
    - `.env.example` → Complete variable documentation
@@ -361,7 +364,7 @@ skills/
 | | `domain/extraction` | AI document parsing |
 | | `domain/schema` | Database models, migrations |
 | | `domain/development` | Moon commands, CI/CD, DB lifecycle |
-| | `domain/production-debug` | Production/staging debugging via Dokploy, SSH, SigNoz |
+| | `domain/infra-operations` | Infrastructure operations: deployment, secrets, debugging, monitoring |
 | **Professional** | `professional/backend-development` | Full backend guide (11 reference docs) |
 | | `professional/frontend-react` | React/Next.js patterns + Vercel rules |
 | | `professional/qa-testing` | Testing strategies, automation |
@@ -378,7 +381,7 @@ skills/
 
 # Skills are auto-loaded for agents based on oh-my-opencode.json
 # Sisyphus has: domain/development, domain/schema, domain/accounting,
-#               domain/reconciliation, domain/production-debug, 
+#               domain/reconciliation, domain/infra-operations, 
 #               professional/backend-development
 ```
 
