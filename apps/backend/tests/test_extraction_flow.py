@@ -1,13 +1,18 @@
 import json
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
 
 from src.models.statement import BankStatementStatus
 from src.services.extraction import ExtractionError, ExtractionService
+
+
+async def mock_stream_generator(content: str):
+    """Helper to create async generator for streaming mock."""
+    yield content
 
 
 class TestExtractionServiceFlow:
@@ -104,21 +109,12 @@ class TestExtractionServiceFlow:
     @pytest.mark.asyncio
     async def test_extract_financial_data_success_json(self, service, tmp_path):
         """Test extract_financial_data handles JSON response."""
-        # Setup API key
         service.api_key = "test-key"
 
-        mock_response = {"choices": [{"message": {"content": json.dumps({"test": "data"})}}]}
+        json_content = json.dumps({"test": "data"})
 
-        # Mock httpx using patch on src.services.extraction.httpx
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
-
-            # Setup response mock (MagicMock for sync methods like .json())
-            response_mock = MagicMock()
-            response_mock.status_code = 200
-            response_mock.json.return_value = mock_response
-            mock_instance.post.return_value = response_mock
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.return_value = mock_stream_generator(json_content)
 
             result = await service.extract_financial_data(b"content", "DBS", "pdf")
             assert result == {"test": "data"}
@@ -129,16 +125,9 @@ class TestExtractionServiceFlow:
         service.api_key = "test-key"
 
         content = 'Here is the json:\n```json\n{"test": "markdown"}\n```'
-        mock_response = {"choices": [{"message": {"content": content}}]}
 
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
-
-            response_mock = MagicMock()
-            response_mock.status_code = 200
-            response_mock.json.return_value = mock_response
-            mock_instance.post.return_value = response_mock
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.return_value = mock_stream_generator(content)
 
             result = await service.extract_financial_data(b"content", "DBS", "pdf")
             assert result == {"test": "markdown"}
@@ -148,16 +137,12 @@ class TestExtractionServiceFlow:
         """Test extract_financial_data handles API error."""
         service.api_key = "test-key"
 
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
+        from src.services.openrouter_streaming import OpenRouterStreamError
 
-            response_mock = MagicMock()
-            response_mock.status_code = 400
-            response_mock.text = "Bad Request"
-            mock_instance.post.return_value = response_mock
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.side_effect = OpenRouterStreamError("HTTP 400: Bad Request")
 
-            with pytest.raises(ExtractionError, match="OpenRouter API error: 400"):
+            with pytest.raises(ExtractionError, match="failed"):
                 await service.extract_financial_data(b"content", "DBS", "pdf")
 
     @pytest.mark.asyncio
@@ -172,30 +157,21 @@ class TestExtractionServiceFlow:
         """Test that file_content is prioritized over file_url (base64 path)."""
         service.api_key = "test-key"
 
-        # Both content and URL provided
         content = b"file-content"
         url = "http://internal-url.local/file.pdf"
 
-        mock_response = {"choices": [{"message": {"content": json.dumps({"success": True})}}]}
+        json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.return_value = mock_stream_generator(json_content)
 
-            response_mock = MagicMock()
-            response_mock.status_code = 200
-            response_mock.json.return_value = mock_response
-            mock_instance.post.return_value = response_mock
-
-            # Should not raise error about internal URL because content is present
             await service.extract_financial_data(
                 file_content=content, file_url=url, institution="DBS", file_type="pdf"
             )
 
-            # Verify the call payload used base64, not image_url
-            call_args = mock_instance.post.call_args
-            payload = call_args.kwargs["json"]
-            message_content = payload["messages"][0]["content"]
+            call_args = mock_stream.call_args
+            payload = call_args.kwargs["messages"]
+            message_content = payload[0]["content"]
             media_part = message_content[1]
 
             assert "data:application/pdf;base64," in media_part["image_url"]["url"]
@@ -207,25 +183,18 @@ class TestExtractionServiceFlow:
         service.api_key = "test-key"
         url = "https://example.com/public.pdf"
 
-        mock_response = {"choices": [{"message": {"content": json.dumps({"success": True})}}]}
+        json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.httpx.AsyncClient") as MockClient:
-            mock_instance = AsyncMock()
-            MockClient.return_value.__aenter__.return_value = mock_instance
-
-            response_mock = MagicMock()
-            response_mock.status_code = 200
-            response_mock.json.return_value = mock_response
-            mock_instance.post.return_value = response_mock
+        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+            mock_stream.return_value = mock_stream_generator(json_content)
 
             await service.extract_financial_data(
                 file_content=None, file_url=url, institution="DBS", file_type="pdf"
             )
 
-            # Verify payload used URL
-            call_args = mock_instance.post.call_args
-            payload = call_args.kwargs["json"]
-            media_part = payload["messages"][0]["content"][1]
+            call_args = mock_stream.call_args
+            payload = call_args.kwargs["messages"]
+            media_part = payload[0]["content"][1]
             assert media_part["image_url"]["url"] == url
 
     @pytest.mark.asyncio

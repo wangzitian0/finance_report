@@ -2,11 +2,16 @@
 
 import json
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.routers import statements as statements_router
+
+
+async def mock_stream_generator(content: str):
+    """Helper to create async generator for streaming mock."""
+    yield content
 
 
 @pytest.mark.asyncio
@@ -37,33 +42,19 @@ async def test_full_upload_to_db_flow(client, test_user):
         ],
     }
 
-    # 2. Mock external dependencies (Storage + AI API only)
     with (
         patch("src.routers.statements.StorageService") as MockStorage,
-        patch("src.services.extraction.httpx.AsyncClient") as MockHttpClient,
+        patch("src.services.extraction.stream_openrouter_json") as mock_stream,
         patch("src.services.extraction.settings") as mock_settings,
     ):
-        # Mock Storage
         storage_instance = MockStorage.return_value
         storage_instance.upload_bytes = MagicMock()
         storage_instance.generate_presigned_url.return_value = "https://mock.s3/file.pdf"
 
-        # Mock HTTP Client for Extraction
-        mock_http_client = AsyncMock()
-        MockHttpClient.return_value.__aenter__.return_value = mock_http_client
+        mock_stream.return_value = mock_stream_generator(json.dumps(mock_ai_response))
 
-        response_mock = MagicMock()
-        response_mock.status_code = 200
-        response_mock.json.return_value = {
-            "choices": [{"message": {"content": json.dumps(mock_ai_response)}}]
-        }
-        mock_http_client.post.return_value = response_mock
-
-        # Override extraction service API key check
         mock_settings.openrouter_api_key = "mock-key"
 
-        # 3. Execute Request
-        # Note: Authentication is handled by client fixture's X-User-Id header
         response = await client.post(
             "/statements/upload",
             files={"file": ("test.pdf", BytesIO(content), "application/pdf")},
@@ -71,12 +62,10 @@ async def test_full_upload_to_db_flow(client, test_user):
         )
         await statements_router.wait_for_parse_tasks()
 
-    # 4. Verify Upload Response
     assert response.status_code == 202, response.text
     data = response.json()
     statement_id = data["id"]
 
-    # Verify core fields from upload response
     assert data["institution"] == "DBS"
     assert data["status"] == "parsing"
     assert data["user_id"] == str(test_user.id)

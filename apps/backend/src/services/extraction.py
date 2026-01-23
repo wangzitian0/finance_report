@@ -10,12 +10,15 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
-import httpx
-
 from src.config import settings
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
 from src.prompts import get_parsing_prompt
+from src.services.openrouter_streaming import (
+    OpenRouterStreamError,
+    accumulate_stream,
+    stream_openrouter_json,
+)
 from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
@@ -329,90 +332,64 @@ class ExtractionService:
         )
         last_error: ExtractionError | None = None
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            for i, model in enumerate(models):
-                if not model:
-                    continue
+        for i, model in enumerate(models):
+            if not model:
+                continue
+            try:
+                logger.info(
+                    "Attempting AI extraction (streaming)",
+                    model=model,
+                    attempt=i + 1,
+                    total=len(models),
+                    institution=institution,
+                )
+
+                stream = stream_openrouter_json(
+                    messages=messages,
+                    model=model,
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=180.0,
+                )
+
+                content = await accumulate_stream(stream)
+
+                if return_raw:
+                    logger.info("AI extraction successful (raw)", model=model)
+                    return {"choices": [{"message": {"content": content}}]}
+
                 try:
-                    logger.info(
-                        "Attempting AI extraction",
-                        model=model,
-                        attempt=i + 1,
-                        total=len(models),
-                        institution=institution,
-                    )
-                    response = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": "https://finance-report.local",
-                            "X-Title": "Finance Report Backend",
-                        },
-                        json={
-                            "model": model,
-                            "messages": messages,
-                            "response_format": {"type": "json_object"},
-                        },
-                    )
-
-                    if response.status_code != 200:
-                        error_msg = (
-                            f"OpenRouter API error: {response.status_code} - {response.text}"
-                        )
-                        logger.warning(
-                            "AI extraction model failed", model=model, status=response.status_code
-                        )
-                        error = ExtractionError(error_msg)
-
-                        # If we hit 429 on a model, continue trying remaining fallback models
-                        # to maximize the chances of successful parsing.
-                        last_error = error
-                        continue
-
-                    data = response.json()
-                    if return_raw:
-                        logger.info("AI extraction successful (raw)", model=model)
-                        return data
-
-                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-
-                    # Parse JSON from response
-                    try:
-                        parsed = json.loads(content)
-                        logger.info("AI extraction successful", model=model)
+                    parsed = json.loads(content)
+                    logger.info("AI extraction successful (streaming)", model=model)
+                    return parsed
+                except json.JSONDecodeError as e:
+                    json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
+                    if json_match:
+                        parsed = json.loads(json_match.group(1))
+                        logger.info("AI extraction successful (markdown fallback)", model=model)
                         return parsed
-                    except json.JSONDecodeError as e:
-                        # Try to extract JSON from markdown code blocks
-                        json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-                        if json_match:
-                            parsed = json.loads(json_match.group(1))
-                            logger.info("AI extraction successful (markdown fallback)", model=model)
-                            return parsed
-                        logger.error("Failed to parse AI JSON response", model=model, error=str(e))
-                        last_error = ExtractionError(f"Failed to parse JSON response: {e}")
-                        continue
+                    logger.error("Failed to parse AI JSON response", model=model, error=str(e))
+                    last_error = ExtractionError(f"Failed to parse JSON response: {e}")
+                    continue
 
-                except httpx.TimeoutException:
-                    logger.warning("AI extraction timed out (>180s)", model=model, attempt=i + 1)
-                    last_error = ExtractionError(f"Model {model} timed out after 180s")
-                    continue
-                except httpx.HTTPStatusError as e:
-                    logger.warning(
-                        "AI extraction HTTP error",
-                        model=model,
-                        status=e.response.status_code,
-                    )
-                    last_error = ExtractionError(
-                        f"HTTP {e.response.status_code}: {e.response.text}"
-                    )
-                    continue
-                except Exception as e:
-                    if isinstance(e, ExtractionError):
-                        raise
-                    logger.exception("AI extraction unexpected error", model=model)
-                    last_error = ExtractionError(str(e))
-                    continue
+            except OpenRouterStreamError as e:
+                error_msg = str(e)
+                if "429" in error_msg or "quota" in error_msg.lower():
+                    logger.warning("AI extraction rate limited", model=model, attempt=i + 1)
+                    last_error = ExtractionError(f"Model {model} rate limited: {error_msg}")
+                elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    logger.warning("AI extraction timed out", model=model, attempt=i + 1)
+                    last_error = ExtractionError(f"Model {model} timed out: {error_msg}")
+                else:
+                    logger.warning("AI extraction HTTP error", model=model, error=error_msg)
+                    last_error = ExtractionError(f"Model {model} failed: {error_msg}")
+                continue
+            except Exception as e:
+                if isinstance(e, ExtractionError):
+                    raise
+                logger.exception("AI extraction unexpected error", model=model)
+                last_error = ExtractionError(str(e))
+                continue
 
         raise last_error or ExtractionError("Extraction failed after all retries")
 
