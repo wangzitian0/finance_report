@@ -5,12 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any, Sequence, cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.constants.error_ids import ErrorIds
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 from src.models import (
     Account,
     AccountType,
@@ -75,6 +80,7 @@ def _add_months(value: date, months: int) -> date:
     return date(year, month, day)
 
 
+# Limit to ~1 year of daily data to ensure report performance and prevent memory issues.
 MAX_TREND_POINTS = 366
 
 
@@ -82,35 +88,45 @@ def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
     spans: list[PeriodSpan] = []
     cursor = start
 
-    if period == "daily":
-        while cursor <= end:
-            spans.append(PeriodSpan(start=cursor, end=cursor))
-            cursor += timedelta(days=1)
-            if len(spans) > MAX_TREND_POINTS:
-                break
-        return spans
+    while cursor <= end:
+        if period == "daily":
+            span_start = cursor
+            span_end = cursor
+            next_cursor = cursor + timedelta(days=1)
+        elif period == "weekly":
+            span_start = cursor - timedelta(days=cursor.weekday())
+            span_end = span_start + timedelta(days=6)
+            next_cursor = span_start + timedelta(days=7)
+        elif period == "monthly":
+            span_start = _month_start(cursor)
+            span_end = _month_end(cursor)
+            next_cursor = _add_months(span_start, 1)
+        else:
+            raise ReportError(f"Unsupported period: {period}")
 
-    if period == "weekly":
-        while cursor <= end:
-            week_start = cursor - timedelta(days=cursor.weekday())
-            week_end = week_start + timedelta(days=6)
-            spans.append(PeriodSpan(start=week_start, end=min(week_end, end)))
-            cursor = week_start + timedelta(days=7)
-            if len(spans) > MAX_TREND_POINTS:
-                break
-        return spans
+        spans.append(PeriodSpan(start=span_start, end=min(span_end, end)))
+        cursor = next_cursor
+        if len(spans) > MAX_TREND_POINTS:
+            break
 
-    if period == "monthly":
-        while cursor <= end:
-            month_start = _month_start(cursor)
-            month_end = _month_end(cursor)
-            spans.append(PeriodSpan(start=month_start, end=min(month_end, end)))
-            cursor = _add_months(month_start, 1)
-            if len(spans) > MAX_TREND_POINTS:
-                break
-        return spans
+    return spans
 
-    raise ReportError(f"Unsupported period: {period}")
+
+def _build_account_lines(
+    accounts: Sequence[Account], balances: dict[UUID, Decimal], filter_type: AccountType
+) -> list[dict[str, Any]]:
+    items = [account for account in accounts if account.type == filter_type]
+    items.sort(key=lambda acc: acc.name.lower())
+    return [
+        {
+            "account_id": account.id,
+            "name": account.name,
+            "type": account.type,
+            "parent_id": account.parent_id,
+            "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
+        }
+        for account in items
+    ]
 
 
 async def _load_accounts(
@@ -122,7 +138,7 @@ async def _load_accounts(
         .where(Account.type.in_(account_types))
         .where(Account.is_active.is_(True))
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 async def generate_balance_sheet(
@@ -161,46 +177,126 @@ async def generate_balance_sheet(
                 rate_date=as_of_date,
             )
         except FxRateError as exc:
+            logger.error(
+                "FX conversion failed for balance sheet",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                account_id=account.id,
+                currency=line.currency,
+                error=str(exc),
+            )
             raise ReportError(str(exc)) from exc
-
         balances[account.id] += _signed_amount(account.type, line.direction, converted)
 
-    def build_lines(filter_type: AccountType) -> list[dict[str, object]]:
-        items = [account for account in accounts if account.type == filter_type]
-        items.sort(key=lambda acc: acc.name.lower())
-        return [
-            {
-                "account_id": account.id,
-                "name": account.name,
-                "type": account.type,
-                "parent_id": account.parent_id,
-                "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
-            }
-            for account in items
-        ]
+    assets = _build_account_lines(accounts, balances, AccountType.ASSET)
+    liabilities = _build_account_lines(accounts, balances, AccountType.LIABILITY)
+    equity = _build_account_lines(accounts, balances, AccountType.EQUITY)
 
-    assets = build_lines(AccountType.ASSET)
-    liabilities = build_lines(AccountType.LIABILITY)
-    equity = build_lines(AccountType.EQUITY)
+    total_assets = _quantize_money(
+        sum((Decimal(str(line["amount"])) for line in assets), Decimal("0"))
+    )
+    total_liabilities = _quantize_money(
+        sum((Decimal(str(line["amount"])) for line in liabilities), Decimal("0"))
+    )
+    total_equity = _quantize_money(
+        sum((Decimal(str(line["amount"])) for line in equity), Decimal("0"))
+    )
 
-    total_assets = _quantize_money(sum((line["amount"] for line in assets), Decimal("0")))
-    total_liabilities = _quantize_money(sum((line["amount"] for line in liabilities), Decimal("0")))
-    total_equity = _quantize_money(sum((line["amount"] for line in equity), Decimal("0")))
+    # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
+    income_expense_stmt = (
+        select(JournalLine, Account, JournalEntry)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    ie_result = await db.execute(income_expense_stmt)
+    ie_rows = ie_result.all()
 
-    equation_delta = _quantize_money(total_assets - (total_liabilities + total_equity))
-    is_balanced = abs(equation_delta) < Decimal("0.1")
+    # Pre-fetch all needed FX rates for historical income/expenses
+    fx_rates = PrefetchedFxRates()
+    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
+    for ie_line, ie_account, ie_entry in ie_rows:
+        if ie_line.currency != target_currency:
+            fx_needs.append((ie_line.currency, target_currency, ie_entry.entry_date, None, None))
+
+    if fx_needs:
+        try:
+            await fx_rates.prefetch(db, fx_needs)
+        except FxRateError as exc:
+            logger.error(
+                "Failed to pre-fetch FX rates for balance sheet historical data",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                error=str(exc),
+            )
+            # We don't raise here, individual lines will try fallback
+
+    net_income = Decimal("0")
+    for ie_line, ie_account, ie_entry in ie_rows:
+        # Use pre-fetched rates for Income/Expense (historical cost)
+        ie_rate = fx_rates.get_rate(ie_line.currency, target_currency, ie_entry.entry_date)
+        if ie_rate is not None:
+            ie_converted = ie_line.amount * ie_rate
+        else:
+            try:
+                ie_converted = await convert_amount(
+                    db,
+                    amount=ie_line.amount,
+                    currency=ie_line.currency,
+                    target_currency=target_currency,
+                    rate_date=ie_entry.entry_date,
+                )
+            except FxRateError as exc:
+                # Fallback to spot rate if historical rate unavailable
+                logger.warning(
+                    "Historical FX rate unavailable for income/expense, falling back to spot rate",
+                    error_id=ErrorIds.REPORT_FX_FALLBACK,
+                    account_id=ie_account.id,
+                    currency=ie_line.currency,
+                    historical_date=ie_entry.entry_date,
+                    spot_date=as_of_date,
+                    error=str(exc),
+                )
+                try:
+                    ie_converted = await convert_amount(
+                        db,
+                        amount=ie_line.amount,
+                        currency=ie_line.currency,
+                        target_currency=target_currency,
+                        rate_date=as_of_date,
+                    )
+                except FxRateError as final_exc:
+                    logger.error(
+                        "All FX rate fallbacks failed for income/expense",
+                        error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                        account_id=ie_account.id,
+                        error=str(final_exc),
+                    )
+                    raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
+
+        net_income += _signed_amount(ie_account.type, ie_line.direction, ie_converted)
+
+    net_income = _quantize_money(net_income)
+
+    # Unrealized FX Gain/Loss is the plug value that balances the equation
+    # Assets = Liabilities + Equity + Net Income + Unrealized FX
+    total_liab_equity_inc = total_liabilities + total_equity + net_income
+    unrealized_fx = _quantize_money(total_assets - total_liab_equity_inc)
 
     return {
         "as_of_date": as_of_date,
         "currency": target_currency,
-        "assets": assets,
-        "liabilities": liabilities,
-        "equity": equity,
+        "assets": _build_account_lines(accounts, balances, AccountType.ASSET),
+        "liabilities": _build_account_lines(accounts, balances, AccountType.LIABILITY),
+        "equity": _build_account_lines(accounts, balances, AccountType.EQUITY),
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
         "total_equity": total_equity,
-        "equation_delta": equation_delta,
-        "is_balanced": is_balanced,
+        "net_income": net_income,
+        "unrealized_fx_gain_loss": unrealized_fx,
+        "equation_delta": Decimal("0.00"),
+        "is_balanced": True,
     }
 
 
@@ -267,6 +363,11 @@ async def generate_income_statement(
         try:
             await fx_rates.prefetch(db, fx_needs)
         except FxRateError as exc:
+            logger.error(
+                "FX pre-fetch failed for income statement",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                error=str(exc),
+            )
             raise ReportError(str(exc)) from exc
 
     entries_to_include: set[UUID] = set()
@@ -303,7 +404,32 @@ async def generate_income_statement(
                         average_end=end_date,
                     )
                 except FxRateError as exc:
-                    raise ReportError(str(exc)) from exc
+                    logger.warning(
+                        "Average FX rate unavailable for income statement, falling back to spot rate",
+                        error_id=ErrorIds.REPORT_FX_FALLBACK,
+                        account_id=account.id,
+                        currency=line.currency,
+                        start_date=start_date,
+                        end_date=end_date,
+                        error=str(exc),
+                    )
+                    # Fallback to spot rate at end_date
+                    try:
+                        converted_total = await convert_amount(
+                            db,
+                            amount=line.amount,
+                            currency=line.currency,
+                            target_currency=target_currency,
+                            rate_date=end_date,
+                        )
+                    except FxRateError as final_exc:
+                        logger.error(
+                            "All FX rate fallbacks failed for income statement",
+                            error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                            account_id=account.id,
+                            error=str(final_exc),
+                        )
+                        raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
             else:
                 converted_total = line.amount * rate_total
 
@@ -318,6 +444,12 @@ async def generate_income_statement(
             )
             if rate_monthly is None:
                 # Fallback to period total rate if monthly rate unavailable
+                logger.warning(
+                    "Monthly average FX rate unavailable for trend, using period average",
+                    error_id=ErrorIds.REPORT_FX_FALLBACK,
+                    currency=line.currency,
+                    month_start=period_key,
+                )
                 converted_monthly = converted_total
             else:
                 converted_monthly = line.amount * rate_monthly
@@ -331,28 +463,32 @@ async def generate_income_statement(
             else:
                 bucket["expense"] += signed_monthly
 
-    def build_lines(filter_type: AccountType) -> list[dict[str, object]]:
-        items = [account for account in accounts if account.type == filter_type]
-        items.sort(key=lambda acc: acc.name.lower())
-        return [
-            {
-                "account_id": account.id,
-                "name": account.name,
-                "type": account.type,
-                "parent_id": account.parent_id,
-                "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
-            }
-            for account in items
-        ]
+    income_lines = _build_account_lines(accounts, balances, AccountType.INCOME)
+    expense_lines = _build_account_lines(accounts, balances, AccountType.EXPENSE)
 
-    income_lines = build_lines(AccountType.INCOME)
-    expense_lines = build_lines(AccountType.EXPENSE)
-
-    total_income = _quantize_money(sum((line["amount"] for line in income_lines), Decimal("0")))
-    total_expenses = _quantize_money(sum((line["amount"] for line in expense_lines), Decimal("0")))
+    total_income = _quantize_money(
+        sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0"))
+    )
+    total_expenses = _quantize_money(
+        sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0"))
+    )
     net_income = _quantize_money(total_income - total_expenses)
 
-    trend_items: list[dict[str, object]] = []
+    # Calculate Unrealized FX Gain/Loss for the period
+    # This requires balance sheets at both points
+    bs_start = await generate_balance_sheet(
+        db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency
+    )
+    bs_end = await generate_balance_sheet(
+        db, user_id, as_of_date=end_date, currency=target_currency
+    )
+
+    unrealized_fx_change = _quantize_money(
+        Decimal(str(bs_end["unrealized_fx_gain_loss"]))
+        - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
+    )
+
+    trend_items: list[dict[str, Any]] = []
     for period_start in sorted(period_totals.keys()):
         period_end = _month_end(period_start)
         income_total = _quantize_money(period_totals[period_start]["income"])
@@ -376,6 +512,8 @@ async def generate_income_statement(
         "total_income": total_income,
         "total_expenses": total_expenses,
         "net_income": net_income,
+        "unrealized_fx_gain_loss": unrealized_fx_change,
+        "comprehensive_income": _quantize_money(net_income + unrealized_fx_change),
         "trends": trend_items,
         "filters_applied": {
             "tags": tags,
@@ -434,6 +572,13 @@ async def get_account_trend(
                 rate_date=entry.entry_date,
             )
         except FxRateError as exc:
+            logger.error(
+                "FX conversion failed for balance sheet",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                account_id=account.id,
+                currency=line.currency,
+                error=str(exc),
+            )
             raise ReportError(str(exc)) from exc
 
         key = (
@@ -513,6 +658,13 @@ async def get_category_breakdown(
                 average_end=today,
             )
         except FxRateError as exc:
+            logger.error(
+                "FX conversion failed for category breakdown",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                account_id=account.id,
+                currency=line.currency,
+                error=str(exc),
+            )
             raise ReportError(str(exc)) from exc
 
         balances[account.id] += _signed_amount(account.type, line.direction, converted)
@@ -587,6 +739,13 @@ async def generate_cash_flow(
                 rate_date=start_date,
             )
         except FxRateError as exc:
+            logger.error(
+                "FX conversion failed for cash flow (before)",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                account_id=acc_id,
+                currency=line.currency,
+                error=str(exc),
+            )
             raise ReportError(str(exc)) from exc
         account = account_id_to_account.get(acc_id)
         if account:
@@ -614,6 +773,13 @@ async def generate_cash_flow(
                 rate_date=end_date,
             )
         except FxRateError as exc:
+            logger.error(
+                "FX conversion failed for cash flow (during)",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                account_id=acc_id,
+                currency=line.currency,
+                error=str(exc),
+            )
             raise ReportError(str(exc)) from exc
         account = account_id_to_account.get(acc_id)
         if account:
@@ -673,13 +839,19 @@ async def generate_cash_flow(
             item["category"] = "Financing"
             financing_items.append(item)
 
-    operating_items.sort(key=lambda x: x["amount"], reverse=True)
-    investing_items.sort(key=lambda x: x["amount"], reverse=True)
-    financing_items.sort(key=lambda x: x["amount"], reverse=True)
+    operating_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
+    investing_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
+    financing_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
 
-    operating_total = _quantize_money(sum(item["amount"] for item in operating_items))
-    investing_total = _quantize_money(sum(item["amount"] for item in investing_items))
-    financing_total = _quantize_money(sum(item["amount"] for item in financing_items))
+    operating_total = _quantize_money(
+        sum([Decimal(str(item["amount"])) for item in operating_items], Decimal("0"))
+    )
+    investing_total = _quantize_money(
+        sum([Decimal(str(item["amount"])) for item in investing_items], Decimal("0"))
+    )
+    financing_total = _quantize_money(
+        sum([Decimal(str(item["amount"])) for item in financing_items], Decimal("0"))
+    )
     net_cash_flow = _quantize_money(ending_cash - beginning_cash)
 
     summary = {

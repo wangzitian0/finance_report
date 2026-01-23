@@ -41,23 +41,25 @@ class _FxRateCache:
         return entry.value
 
     def set(self, key: str, value: Decimal) -> None:
-        # Prevent unbounded growth
         if len(self._store) >= self._max_size:
-            # Simple eviction: remove expired keys or just clear a chunk
-            expired = [k for k, v in self._store.items() if v.expires_at < datetime.now(UTC)]
-            for k in expired:
-                self._store.pop(k, None)
+            now = datetime.now(UTC)
+            self._store = {k: v for k, v in self._store.items() if v.expires_at > now}
 
-            # If still too large, remove oldest (FIFO-ish since dict is ordered in Python 3.7+)
             if len(self._store) >= self._max_size:
-                keys_to_remove = list(self._store.keys())[: int(self._max_size * 0.2)]
-                for k in keys_to_remove:
+                num_to_remove = int(self._max_size * 0.2)
+                keys = list(self._store.keys())
+                for k in keys[:num_to_remove]:
                     self._store.pop(k, None)
 
         self._store[key] = _CacheEntry(value=value, expires_at=datetime.now(UTC) + self._ttl)
 
 
 _cache = _FxRateCache()
+
+
+def clear_fx_cache() -> None:
+    """Clear the global FX rate cache (primarily for tests)."""
+    _cache._store.clear()
 
 
 def _normalize_currency(code: str) -> str:

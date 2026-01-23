@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -510,15 +511,18 @@ async def test_account_trend_daily_weekly(db: AsyncSession, chart_of_accounts, t
 
 @pytest.mark.asyncio
 async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
-    report = await get_category_breakdown(
-        db,
-        test_user_id,
-        breakdown_type=AccountType.INCOME,
-        period="annual",
-        currency="SGD",
+    report = cast(
+        dict[str, Any],
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.INCOME,
+            period="annual",
+            currency="SGD",
+        ),
     )
 
-    assert report["period_start"].year == date.today().year
+    assert cast(date, report["period_start"]).year == date.today().year
 
 
 @pytest.mark.asyncio
@@ -628,15 +632,21 @@ async def test_account_trend_monthly(
     )
     await db.commit()
 
-    report = await get_account_trend(
-        db,
-        test_user_id,
-        account_id=cash.id,
-        period="monthly",
-        currency="SGD",
+    report = cast(
+        dict[str, Any],
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=cash.id,
+            period="monthly",
+            currency="SGD",
+        ),
     )
 
-    points = {point["period_start"]: point["amount"] for point in report["points"]}
+    points = {
+        point["period_start"]: point["amount"]
+        for point in cast(list[dict[str, Any]], report["points"])
+    }
     assert points[FixedDate(2024, 12, 1)] == Decimal("100.00")
     assert points[FixedDate(2025, 2, 1)] == Decimal("-40.00")
 
@@ -684,15 +694,18 @@ async def test_category_breakdown_quarterly(
     )
     await db.commit()
 
-    report = await get_category_breakdown(
-        db,
-        test_user_id,
-        breakdown_type=AccountType.EXPENSE,
-        period="quarterly",
-        currency="SGD",
+    report = cast(
+        dict[str, Any],
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.EXPENSE,
+            period="quarterly",
+            currency="SGD",
+        ),
     )
 
-    assert report["items"][0]["total"] == Decimal("120.00")
+    assert cast(list[dict[str, Any]], report["items"])[0]["total"] == Decimal("120.00")
 
 
 @pytest.mark.asyncio
@@ -788,12 +801,15 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     )
     await db.commit()
 
-    report: dict = await generate_cash_flow(
-        db,
-        test_user_id,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 1, 31),
-        currency="SGD",
+    report = cast(
+        dict[str, Any],
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            currency="SGD",
+        ),
     )
 
     assert "operating" in report
@@ -833,18 +849,21 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
 @pytest.mark.asyncio
 async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_user_id):
     """Cash flow statement with no transactions should return empty lists."""
-    report: dict = await generate_cash_flow(
-        db,
-        test_user_id,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 1, 31),
-        currency="SGD",
+    report = cast(
+        dict[str, Any],
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            currency="SGD",
+        ),
     )
 
     assert report["operating"] == []
     assert report["investing"] == []
     assert report["financing"] == []
-    assert report["summary"]["net_cash_flow"] == Decimal("0.00")
+    assert cast(dict[str, Any], report["summary"])["net_cash_flow"] == Decimal("0.00")
 
 
 @pytest.mark.asyncio
