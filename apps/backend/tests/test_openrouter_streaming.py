@@ -248,3 +248,128 @@ class TestAccumulateStream:
         stream = mock_stream_generator([])
         result = await accumulate_stream(stream)
         assert result == ""
+
+
+class TestErrorRetryableFlags:
+    """Test retryable flag is set correctly for different error types."""
+
+    @pytest.mark.asyncio
+    async def test_api_key_missing_not_retryable(self):
+        """Missing API key errors should not be retryable."""
+        with pytest.raises(OpenRouterStreamError) as exc_info:
+            stream = stream_openrouter_chat(
+                messages=[{"role": "user", "content": "test"}],
+                model="openai/gpt-3.5-turbo",
+                api_key=None,
+            )
+            async for _ in stream:
+                pass
+
+        assert not exc_info.value.retryable
+        assert "API key not configured" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_error_retryable(self):
+        """HTTP 429 rate limit errors should be retryable."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 429
+        mock_response.aread = AsyncMock(return_value=b"Rate limit exceeded")
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.stream = MagicMock()
+        mock_client.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_client.stream.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(OpenRouterStreamError) as exc_info:
+                async for _ in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "test"}],
+                    model="openai/gpt-3.5-turbo",
+                    api_key="test-key",
+                ):
+                    pass
+
+            assert exc_info.value.retryable
+            assert "429" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_server_error_retryable(self):
+        """HTTP 5xx server errors should be retryable."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 503
+        mock_response.aread = AsyncMock(return_value=b"Service unavailable")
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.stream = MagicMock()
+        mock_client.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_client.stream.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(OpenRouterStreamError) as exc_info:
+                async for _ in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "test"}],
+                    model="openai/gpt-3.5-turbo",
+                    api_key="test-key",
+                ):
+                    pass
+
+            assert exc_info.value.retryable
+            assert "503" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_auth_error_not_retryable(self):
+        """HTTP 401/403 auth errors should not be retryable."""
+        mock_response = AsyncMock()
+        mock_response.status_code = 401
+        mock_response.aread = AsyncMock(return_value=b"Unauthorized")
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.stream = MagicMock()
+        mock_client.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_client.stream.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(OpenRouterStreamError) as exc_info:
+                async for _ in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "test"}],
+                    model="openai/gpt-3.5-turbo",
+                    api_key="test-key",
+                ):
+                    pass
+
+            assert not exc_info.value.retryable
+            assert "401" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_parse_failure_not_retryable(self):
+        """Consecutive parse failures should not be retryable."""
+        malformed_chunks = ["{invalid json}" for _ in range(11)]
+
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = MagicMock(return_value=MockAsyncIterator(malformed_chunks))
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.stream = MagicMock()
+        mock_client.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_client.stream.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(OpenRouterStreamError) as exc_info:
+                async for _ in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "test"}],
+                    model="openai/gpt-3.5-turbo",
+                    api_key="test-key",
+                ):
+                    pass
+
+            assert not exc_info.value.retryable
+            assert "Failed to parse" in str(exc_info.value)
