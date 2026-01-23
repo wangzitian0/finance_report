@@ -5,6 +5,9 @@ tmp/
 # MkDocs build output
 site/
 
+# E2E test artifacts
+tests/e2e/.auth/
+
 # Misc
 .DS_Store
 .vscode/
