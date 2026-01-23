@@ -9,12 +9,14 @@ from uuid import UUID
 from sqlalchemy import (
     Boolean,
     Date,
-    Enum as SQLEnum,
     ForeignKey,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
