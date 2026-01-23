@@ -76,6 +76,8 @@ jobs:
       - name: Deploy to Staging
         env:
           IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
         run: |
           bash scripts/dokploy_deploy.sh \
             "${{ env.STAGING_COMPOSE_ID }}" \
