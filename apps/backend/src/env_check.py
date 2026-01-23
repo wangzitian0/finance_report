@@ -130,6 +130,7 @@ def print_loaded_config(settings) -> None:
     print("Config loaded (DEBUG mode)")
     print("=" * 60)
 
+    # Safe fields - values can be displayed in full (non-sensitive)
     safe_fields = [
         "debug",
         "environment",
@@ -143,6 +144,7 @@ def print_loaded_config(settings) -> None:
         "otel_resource_attributes",
     ]
 
+    # Sensitive fields - only show "set"/"not set" status (credentials, keys)
     sensitive_fields = [
         "database_url",
         "redis_url",
@@ -192,13 +194,34 @@ def check_env_on_startup() -> None:
     vault_required = get_vault_managed_keys_from_env_example()
 
     if not vault_required:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "env_check: Parser returned no keys, using comprehensive fallback list",
+            extra={"fallback_count": 20},
+        )
         fallback_keys = [
             "DATABASE_URL",
-            "REDIS_URL",
+            "ENVIRONMENT",
+            "DEBUG",
+            "BASE_CURRENCY",
+            "OPENROUTER_API_KEY",
+            "PRIMARY_MODEL",
+            "FALLBACK_MODELS",
+            "OPENROUTER_DAILY_LIMIT_USD",
             "S3_ENDPOINT",
             "S3_ACCESS_KEY",
             "S3_SECRET_KEY",
             "S3_BUCKET",
+            "S3_REGION",
+            "S3_PRESIGN_EXPIRY_SECONDS",
+            "S3_PUBLIC_ENDPOINT",
+            "S3_PUBLIC_ACCESS_KEY",
+            "S3_PUBLIC_SECRET_KEY",
+            "S3_PUBLIC_BUCKET",
+            "REDIS_URL",
+            "SECRET_KEY",
         ]
         vault_required = fallback_keys
 
