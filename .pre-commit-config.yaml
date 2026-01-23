@@ -52,7 +52,7 @@ repos:
     hooks:
       - id: frontend-lint
         name: Frontend ESLint
-        entry: bash -c 'cd apps/frontend && npm run lint -- --max-warnings 0'
+        entry: bash -c 'set -e; cd apps/frontend && npm run lint -- --max-warnings 0'
         language: system
         files: ^apps/frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false

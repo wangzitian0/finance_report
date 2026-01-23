@@ -65,13 +65,26 @@ jobs:
         run: |
           cd apps/backend
           uv run ruff check src/ --fix --output-format=github
-          uv run ruff format src/ --check || echo "::warning::Files need formatting"
-          git diff --exit-code || {
-            echo "::warning::Ruff auto-fixed some issues. Consider installing pre-commit hooks."
-            echo "::warning::Run: pip install pre-commit && pre-commit install"
+          
+          # Check formatting
+          if ! uv run ruff format src/ --check; then
+            echo "::error::Code formatting required. Run: cd apps/backend && uv run ruff format src/"
+            exit 1
+          fi
+          
+          # Check if auto-fix modified any files
+          if ! git diff --exit-code; then
+            echo "::error::Ruff auto-fixed lint issues. You must run pre-commit locally."
+            echo "::error::Install: pip install pre-commit && pre-commit install"
+            echo "::error::Or manually: cd apps/backend && uv run ruff check src/ --fix"
+            echo ""
+            echo "=== Files changed ==="
+            git diff --stat
+            echo ""
+            echo "=== Detailed diff ==="
             git diff
             exit 1
-          }
+          fi
       
       - name: Test with coverage
         env:

@@ -51,7 +51,11 @@ lint:
 format:
 	cd apps/backend && uv run ruff check src/ --fix
 	cd apps/backend && uv run ruff format src/
-	cd apps/frontend && npm run lint -- --fix || true
+	@cd apps/frontend && npm run lint -- --fix || { \
+		echo ""; \
+		echo "⚠️  Some ESLint issues could not be auto-fixed"; \
+		echo "   Run 'npm run lint' in apps/frontend to see details"; \
+	}
 
 check: lint env-check
 	@echo "✅ All checks passed"

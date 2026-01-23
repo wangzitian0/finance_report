@@ -127,7 +127,14 @@ jobs:
         run: |
           # Try to find existing compose
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
+          curl_exit=$?
+          
+          if [ $curl_exit -ne 0 ]; then
+            echo "::warning::Failed to fetch environment (curl exit $curl_exit). Assuming compose doesn't exist."
+            echo "Response: $response"
+            response='{"compose":[]}'
+          fi
           
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
@@ -241,10 +248,17 @@ jobs:
           echo "compose_id=$COMPOSE_ID" >> "$GITHUB_OUTPUT"
           echo "Deploying compose: $COMPOSE_ID"
           
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          # Stop existing compose (best-effort, log but don't fail)
+          echo "Stopping existing compose..."
+          STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>/dev/null || true
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
+          
+          STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
+          if [[ "$STOP_HTTP" != "200" && "$STOP_HTTP" != "000" ]]; then
+            echo "::warning::compose.stop returned HTTP $STOP_HTTP (may be expected if already stopped)"
+          fi
           
           sleep 5
           
@@ -265,34 +279,53 @@ jobs:
           
           # Track the start time to detect stale error status
           START_TIME=$(date +%s)
+          LAST_STATUS=""
+          LAST_DEPLOY_STATUS=""
           
           for i in $(seq 1 60); do
             response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
-              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID")
+              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" 2>&1)
+            curl_exit=$?
+            
+            if [ $curl_exit -ne 0 ]; then
+              echo "::warning::Attempt $i/60: API request failed (curl exit $curl_exit)"
+              sleep 5
+              continue
+            fi
             
             status=$(echo "$response" | jq -r '.composeStatus // "unknown"')
+            LAST_STATUS="$status"
             
             # Get the latest deployment status and time
             latest_deploy=$(echo "$response" | jq -r '.deployments[-1] // {}')
             latest_status=$(echo "$latest_deploy" | jq -r '.status // "unknown"')
             latest_started=$(echo "$latest_deploy" | jq -r '.startedAt // ""')
+            LAST_DEPLOY_STATUS="$latest_status"
             
             echo "Attempt $i/60: composeStatus=$status, latestDeployment=$latest_status"
             
             # Check if latest deployment started after we triggered (within last 2 min)
-            if [ -n "$latest_started" ]; then
-              deploy_time=$(date -d "$latest_started" +%s 2>/dev/null || echo "0")
-              time_diff=$((START_TIME - deploy_time))
+            if [ -n "$latest_started" ] && [ "$latest_started" != "null" ]; then
+              # Try multiple date formats for ISO 8601 parsing
+              deploy_time=$(date -d "$latest_started" +%s 2>/dev/null || \
+                           date -d "${latest_started%.*}Z" +%s 2>/dev/null || \
+                           echo "")
               
-              # If latest deployment is recent (within 120s of our start)
-              if [ "$time_diff" -lt 120 ] && [ "$time_diff" -gt -300 ]; then
-                if [ "$latest_status" = "done" ]; then
-                  echo "✅ Latest deployment completed successfully"
-                  exit 0
-                elif [ "$latest_status" = "error" ]; then
-                  echo "::error::Latest deployment failed"
-                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
-                  exit 1
+              if [ -z "$deploy_time" ]; then
+                echo "::warning::Could not parse timestamp: $latest_started (using fallback)"
+              else
+                time_diff=$((START_TIME - deploy_time))
+                
+                # If latest deployment is recent (within 120s of our start)
+                if [ "$time_diff" -lt 120 ] && [ "$time_diff" -gt -300 ]; then
+                  if [ "$latest_status" = "done" ]; then
+                    echo "✅ Latest deployment completed successfully"
+                    exit 0
+                  elif [ "$latest_status" = "error" ]; then
+                    echo "::error::Latest deployment failed"
+                    echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
+                    exit 1
+                  fi
                 fi
               fi
             fi
@@ -308,7 +341,15 @@ jobs:
             sleep 5
           done
           
+          # Timeout - provide diagnostics
           echo "::error::Deployment did not complete within 5 minutes"
+          echo "=== FINAL STATE DIAGNOSTICS ==="
+          echo "Last composeStatus: $LAST_STATUS"
+          echo "Last deployment status: $LAST_DEPLOY_STATUS"
+          echo "Start time: $(date -d "@$START_TIME" 2>/dev/null || echo "$START_TIME")"
+          echo "API response (last 1000 chars):"
+          echo "$response" | tail -c 1000
+          echo "================================"
           exit 1
 
       - name: Wait for API readiness
@@ -379,12 +420,21 @@ jobs:
           COMPOSE_ID="${{ steps.deploy.outputs.compose_id }}"
           echo "::warning::E2E tests failed. Stopping compose to prevent broken deployment..."
           
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          # Best-effort stop, log result but don't fail the job
+          STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}" || true
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
           
-          echo "Compose stopped. Check logs for E2E failure details."
+          STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
+          if [[ "$STOP_HTTP" == "200" ]]; then
+            echo "✅ Compose stopped successfully"
+          else
+            echo "::warning::compose.stop returned HTTP $STOP_HTTP"
+            echo "Response: $(echo "$STOP_RESPONSE" | head -n -1)"
+          fi
+          
+          echo "Check logs for E2E failure details."
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -453,18 +503,30 @@ jobs:
           
           # Get environment to find compose
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
+          curl_exit=$?
+          
+          if [ $curl_exit -ne 0 ]; then
+            echo "::warning::Failed to fetch environment (curl exit $curl_exit). Response: $response"
+            response='{"compose":[]}'
+          fi
           
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
             echo "Found compose: $compose_id"
             
-            # Stop compose
-            curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            # Stop compose (best-effort with logging)
+            echo "Stopping compose..."
+            STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-              -d "{\"composeId\": \"$compose_id\"}" 2>/dev/null || true
+              -d "{\"composeId\": \"$compose_id\"}" 2>&1) || true
+            
+            STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
+            if [[ "$STOP_HTTP" != "200" ]]; then
+              echo "::warning::compose.stop returned HTTP $STOP_HTTP (continuing with deletion)"
+            fi
             
             sleep 15
             
