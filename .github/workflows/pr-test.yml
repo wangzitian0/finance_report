@@ -205,6 +205,11 @@ jobs:
           echo "MINIO_CONSOLE_PORT=0" >> .env.dokploy
           echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> .env.dokploy
           
+          # SigNoz Logging (EPIC-010)
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318" >> .env.dokploy
+          echo "OTEL_SERVICE_NAME=finance-report-backend" >> .env.dokploy
+          echo "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-$PR_NUMBER" >> .env.dokploy
+          
           ENV_CONTENT=$(cat .env.dokploy)
           
           # Send to Dokploy

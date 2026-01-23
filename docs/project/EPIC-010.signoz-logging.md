@@ -1,6 +1,6 @@
 # EPIC-010: SigNoz Logging Integration
 
-> **Status**: 🟡 In Progress
+> **Status**: ✅ Complete
 > **Owner**: Platform / Backend
 > **Phase**: 0
 > **Duration**: 1 week
@@ -92,8 +92,8 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | Standard | Verification | Status |
 |----------|--------------|--------|
 | Backend starts without SigNoz | Run app with no OTEL vars | ✅ |
-| Logs export to SigNoz | Set OTEL vars, logs visible in UI | ⏳ (image rebuild needed) |
-| No sensitive data in logs | Review log payloads | ⏳ |
+| Logs export to SigNoz | Set OTEL vars, logs visible in UI | ✅ |
+| No sensitive data in logs | Review log payloads | ✅ |
 
 ### 🚫 Not Acceptable
 
