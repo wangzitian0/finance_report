@@ -35,6 +35,52 @@ erDiagram
     BankStatement ||--|{ BankStatementTransaction : contains
     BankStatementTransaction ||--o{ ReconciliationMatch : matched_to
 
+    UploadedDocument ||--o{ AtomicTransaction : sources
+    UploadedDocument ||--o{ AtomicPosition : sources
+    
+    AtomicTransaction {
+        uuid id PK
+        uuid user_id FK
+        date txn_date
+        decimal amount
+        enum direction "IN|OUT"
+        string description
+        string reference
+        string currency
+        string dedup_hash UK
+        jsonb source_documents
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    AtomicPosition {
+        uuid id PK
+        uuid user_id FK
+        date snapshot_date
+        string asset_identifier
+        string broker
+        decimal quantity
+        decimal market_value
+        string currency
+        string dedup_hash UK
+        jsonb source_documents
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    UploadedDocument {
+        uuid id PK
+        uuid user_id FK
+        string file_path
+        string file_hash UK
+        string original_filename
+        enum document_type "bank_statement|brokerage|esop|appraisal"
+        enum status "uploaded|processing|completed|failed"
+        jsonb extraction_metadata
+        timestamp created_at
+        timestamp updated_at
+    }
+
     User {
         uuid id PK
         string email UK
@@ -314,12 +360,74 @@ Reconciliation match table.
 
 **Constraints**:
 - Each JournalEntry must have at least 2 JournalLines
-- `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
-- `JournalLine.amount > 0` (positive_amount check)
+    - `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
+    - `JournalLine.amount > 0` (positive_amount check)
 
----
+    ### Layer 1: UploadedDocuments (EPIC-011)
+    Immutable registry of all raw uploaded files.
 
-## 4. Design Constraints (Dos & Don'ts)
+    | Column | Type | Constraint | Description |
+    |--------|------|------------|-------------|
+    | id | UUID | PK | Primary key |
+    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
+    | file_path | VARCHAR(500) | NOT NULL | MinIO/S3 object key |
+    | file_hash | VARCHAR(64) | NOT NULL | SHA256 (User + Hash unique) |
+    | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
+    | document_type | ENUM | NOT NULL | bank_statement/brokerage_statement/esop_grant/property_appraisal |
+    | status | ENUM | NOT NULL | uploaded/processing/completed/failed |
+    | extraction_metadata | JSONB | | AI logs, confidence scores |
+    | created_at | TIMESTAMP | NOT NULL | Creation time |
+    | updated_at | TIMESTAMP | NOT NULL | Update time |
+
+    **Constraints**:
+    - `(user_id, file_hash)` unique to prevent duplicate uploads
+
+    ### Layer 2: AtomicTransactions (EPIC-011)
+    Deduplicated, immutable financial events from any source.
+
+    | Column | Type | Constraint | Description |
+    |--------|------|------------|-------------|
+    | id | UUID | PK | Primary key |
+    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
+    | txn_date | DATE | NOT NULL | Transaction date |
+    | amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
+    | direction | ENUM | NOT NULL | IN/OUT |
+    | description | TEXT | NOT NULL | Description |
+    | reference | VARCHAR(100) | | Reference ID |
+    | currency | CHAR(3) | NOT NULL | Currency code |
+    | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
+    | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
+    | created_at | TIMESTAMP | NOT NULL | Creation time |
+    | updated_at | TIMESTAMP | NOT NULL | Update time |
+
+    **Constraints**:
+    - `(user_id, dedup_hash)` unique
+    - Append-only `source_documents` array
+
+    ### Layer 2: AtomicPositions (EPIC-011)
+    Deduplicated, immutable asset snapshots.
+
+    | Column | Type | Constraint | Description |
+    |--------|------|------------|-------------|
+    | id | UUID | PK | Primary key |
+    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
+    | snapshot_date | DATE | NOT NULL | Snapshot date |
+    | asset_identifier | VARCHAR(255) | NOT NULL | Ticker/ISIN/Address |
+    | broker | VARCHAR(100) | | Broker/Custodian name |
+    | quantity | DECIMAL(18,6) | NOT NULL | Units held |
+    | market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
+    | currency | CHAR(3) | NOT NULL | Currency code |
+    | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
+    | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
+    | created_at | TIMESTAMP | NOT NULL | Creation time |
+    | updated_at | TIMESTAMP | NOT NULL | Update time |
+
+    **Constraints**:
+    - `(user_id, dedup_hash)` unique
+
+    ---
+
+    ## 4. Design Constraints (Dos & Don'ts)
 
 ### Naming Conventions
 
@@ -379,6 +487,16 @@ CREATE INDEX idx_recon_match_status ON reconciliation_matches(status);
 -- Dedup for statement imports
 CREATE UNIQUE INDEX idx_bank_statements_user_file_hash
     ON bank_statements(user_id, file_hash);
+
+-- Layer 1/2 Indexes (EPIC-011)
+CREATE UNIQUE INDEX idx_uploaded_documents_dedup ON uploaded_documents(user_id, file_hash);
+CREATE INDEX idx_uploaded_documents_status ON uploaded_documents(status);
+
+CREATE UNIQUE INDEX idx_atomic_transactions_dedup ON atomic_transactions(user_id, dedup_hash);
+CREATE INDEX idx_atomic_transactions_date ON atomic_transactions(txn_date);
+
+CREATE UNIQUE INDEX idx_atomic_positions_dedup ON atomic_positions(user_id, dedup_hash);
+CREATE INDEX idx_atomic_positions_date ON atomic_positions(snapshot_date);
 ```
 
 ---

@@ -21,11 +21,33 @@ flowchart TB
     F -->|≥85| G[Auto-Accept]
     F -->|60-84| H[Review Queue]
     F -->|<60| I[Manual Entry]
-    G --> J[(PostgreSQL)]
+    G --> J[(PostgreSQL: Layer 0)]
     H --> J
+    
+    %% EPIC-011 Dual Write
+    F -->|Dual Write| K[Layer 1: UploadedDocument]
+    F -->|Dual Write| L[Layer 2: AtomicTransaction]
+    K --> M[(PostgreSQL: Layer 1/2)]
+    L --> M
 ```
 
 ## Data Models
+
+### Layer 1 & 2 (EPIC-011 Migration)
+
+The system is currently migrating to a 4-layer architecture. During Phase 2, data is written to both the legacy `BankStatement` tables (Layer 0) and the new Layer 1/2 tables.
+
+**Layer 1: Raw Documents (`UploadedDocument`)**
+- Stores immutable metadata for every uploaded file
+- Maps to `DocumentType`: `bank_statement`, `brokerage_statement`, `esop_grant`, `property_appraisal`
+- Status tracking: `uploaded` → `processing` → `completed`
+
+**Layer 2: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
+- Deduplicated via SHA256 hash of core fields
+- `source_documents` (JSONB) tracks lineage (which files contributed this record)
+- Immutable once written (except for appending sources)
+
+### Layer 0 (Legacy)
 
 ### BankStatement
 
@@ -125,6 +147,10 @@ S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>
 S3_BUCKET=statements
 S3_REGION=us-east-1
 S3_PRESIGN_EXPIRY_SECONDS=900
+
+# EPIC-011 Migration Flags
+ENABLE_4_LAYER_WRITE=false  # Enable writing to Layer 1/2 tables
+ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 ```
 
 ## Parsing Resilience

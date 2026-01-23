@@ -9,6 +9,17 @@ from src.models.journal import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
+from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.models.layer3 import (
+    ClassificationRule,
+    ClassificationStatus,
+    ManagedPosition,
+    PositionStatus,
+    RuleType,
+    TransactionClassification,
+)
+from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.market_data import FxRate
 from src.models.ping_state import PingState
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
@@ -32,6 +43,8 @@ __all__ = [
     "AccountEvent",  # Alias for BankStatementTransaction
     "AccountEventStatus",  # Alias for BankStatementTransactionStatus
     "AccountType",
+    "AtomicPosition",
+    "AtomicTransaction",
     "ChatMessage",
     "ChatMessageRole",
     "ChatSession",
@@ -41,16 +54,28 @@ __all__ = [
     "BankStatementTransaction",
     "BankStatementTransactionStatus",
     "BankTransactionStatus",  # Alias for BankStatementTransactionStatus
+    "ClassificationRule",
+    "ClassificationStatus",
     "ConfidenceLevel",
     "Direction",
+    "DocumentStatus",
+    "DocumentType",
     "FxRate",
     "JournalEntry",
     "JournalEntrySourceType",
     "JournalEntryStatus",
     "JournalLine",
+    "ManagedPosition",
     "PingState",
+    "PositionStatus",
     "ReconciliationMatch",
     "ReconciliationStatus",
+    "ReportSnapshot",
+    "ReportType",
+    "RuleType",
     "Statement",  # Alias for BankStatement
+    "TransactionClassification",
+    "TransactionDirection",
+    "UploadedDocument",
     "User",
 ]

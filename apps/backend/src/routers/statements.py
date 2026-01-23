@@ -125,6 +125,7 @@ async def _parse_statement_background(
                 file_url=file_url,
                 original_filename=filename,
                 force_model=model,
+                db=session,
             )
         except ExtractionError as exc:
             await _handle_parse_failure(statement, session, message=str(exc))
@@ -138,10 +139,12 @@ async def _parse_statement_background(
             await session.delete(existing_tx)
         await session.flush()
 
-        for txn in transactions:
-            txn.statement = statement
+        # Phase 5: Stop writing to Layer 0 if flag is disabled
+        if settings.enable_layer_0_write:
+            for txn in transactions:
+                txn.statement = statement
+            statement.transactions = list(transactions)
 
-        statement.transactions = list(transactions)
         statement.account_last4 = parsed_statement.account_last4
         statement.currency = parsed_statement.currency
         statement.period_start = parsed_statement.period_start
