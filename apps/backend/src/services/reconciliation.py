@@ -624,9 +624,9 @@ async def execute_matching(
         return []
 
     # Phase 3: Dual Read Validation (Only runs if NOT in Phase 4 Read mode)
-    # If we are in Phase 4, we ARE reading Layer 2. So dual read validation against Layer 0 is tricky
-    # because we don't have statement_ids easily.
-    # Let's disable Phase 3 validation if Phase 4 read is enabled, as we are now trusting Layer 2.
+    # If we are in Phase 4, we ARE reading Layer 2.
+    # Dual read validation against Layer 0 is tricky because we don't have statement_ids easily.
+    # Let's disable Phase 3 validation if Phase 4 read is enabled, as we trust Layer 2.
     if not settings.enable_4_layer_read:
         stmt_ids = {txn.statement_id for txn in transactions if txn.statement_id}
         await _validate_layer_consistency(db, stmt_ids)

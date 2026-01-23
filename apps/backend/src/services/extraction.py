@@ -558,7 +558,7 @@ class ExtractionService:
                 layer0_transactions=len(transactions),
             )
 
-        except IntegrityError as e:
+        except IntegrityError:
             # Duplicate upload - acceptable silent failure
             logger.warning(
                 "Dual write skipped - document already exists",

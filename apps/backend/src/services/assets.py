@@ -1,7 +1,7 @@
 """Asset Management Service."""
 
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import select
