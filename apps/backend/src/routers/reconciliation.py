@@ -137,6 +137,8 @@ async def run_reconciliation(
         limit=payload.limit,
         user_id=user_id,
     )
+    await db.commit()
+
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
 
