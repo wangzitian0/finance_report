@@ -8,118 +8,41 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 
-def get_vault_managed_keys_from_env_example() -> list[str]:
+def get_vault_required_keys() -> list[str]:
     """
-    Parse .env.example to extract Vault-managed environment variable keys.
+    Return list of environment variables required in staging/production.
 
-    Identifies keys marked with [VAULT] comments by:
-    1. Finding lines with "[VAULT]" marker (must be in a comment)
-    2. Extracting optional prefix pattern from "All X_*" format
-    3. Collecting keys within 10-line window after marker
-    4. If prefix exists, filtering keys that match the pattern
+    These keys should be managed by Vault and rendered via secrets.ctmpl.
+    This list is validated by CI using scripts/check_env_keys.py.
 
     Returns:
-        List of environment variable keys that should be managed by Vault
-        in staging/production environments. Returns empty list if .env.example
-        not found or cannot be parsed.
-
-    Example .env.example format:
-        # [VAULT] All S3_* variables managed by Vault
-        S3_ENDPOINT=http://localhost:9000
-        S3_ACCESS_KEY=minio
-        S3_SECRET_KEY=local_secret
-
-        # [VAULT] Managed by Vault in production
-        DATABASE_URL=postgresql://...
+        List of environment variable keys that must be present in
+        staging/production environments.
     """
-    import logging
-
-    logger = logging.getLogger(__name__)
-    env_example_path = Path(__file__).parents[3] / ".env.example"
-
-    if not env_example_path.exists():
-        logger.warning(
-            "env_check: .env.example not found, using fallback keys",
-            extra={"expected_path": str(env_example_path)},
-        )
-        return []
-
-    try:
-        lines = env_example_path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError) as e:
-        logger.error(
-            "env_check: Failed to read .env.example",
-            extra={"error": str(e), "error_type": type(e).__name__, "path": str(env_example_path)},
-        )
-        return []
-
-    try:
-        required_keys = []
-        pending_vault_marker = None
-        vault_prefix_pattern = None
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-
-            if "[VAULT]" in stripped and stripped.startswith("#"):
-                pending_vault_marker = i
-
-                if "All " in stripped and "_*" in stripped:
-                    parts = stripped.split("All ")[1].split("_*")[0]
-                    vault_prefix_pattern = parts.strip() + "_"
-                else:
-                    vault_prefix_pattern = None
-                continue
-
-            if not stripped or stripped.startswith("#"):
-                # Reset state if we're past the 10-line window
-                if pending_vault_marker is not None and (i - pending_vault_marker) > 10:
-                    pending_vault_marker = None
-                    vault_prefix_pattern = None
-                continue
-
-            if "=" in stripped:
-                key = stripped.split("=")[0].strip()
-                if not key:
-                    continue
-
-                if pending_vault_marker is not None and (i - pending_vault_marker) <= 10:
-                    if vault_prefix_pattern and key.startswith(vault_prefix_pattern):
-                        required_keys.append(key)
-                    elif not vault_prefix_pattern:
-                        required_keys.append(key)
-                else:
-                    pending_vault_marker = None
-                    vault_prefix_pattern = None
-
-        if not required_keys:
-            logger.warning(
-                "env_check: Parser found 0 Vault-managed keys in .env.example",
-                extra={
-                    "vault_markers_found": sum(1 for line in lines if "[VAULT]" in line),
-                    "total_lines": len(lines),
-                },
-            )
-        else:
-            logger.debug(
-                "env_check: Parsed Vault-managed keys",
-                extra={"key_count": len(required_keys), "keys": required_keys},
-            )
-
-        return required_keys
-    except Exception as e:
-        logger.error(
-            "env_check: Parser failed while processing .env.example",
-            extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "line_count": len(lines) if "lines" in locals() else 0,
-            },
-        )
-        return []
+    return [
+        "DATABASE_URL",
+        "ENVIRONMENT",
+        "DEBUG",
+        "BASE_CURRENCY",
+        "OPENROUTER_API_KEY",
+        "PRIMARY_MODEL",
+        "FALLBACK_MODELS",
+        "OPENROUTER_DAILY_LIMIT_USD",
+        "S3_ENDPOINT",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY",
+        "S3_BUCKET",
+        "S3_REGION",
+        "S3_PRESIGN_EXPIRY_SECONDS",
+        "S3_PUBLIC_ENDPOINT",
+        "S3_PUBLIC_ACCESS_KEY",
+        "S3_PUBLIC_SECRET_KEY",
+        "S3_PUBLIC_BUCKET",
+        "REDIS_URL",
+        "SECRET_KEY",
+    ]
 
 
 def print_loaded_config(settings) -> None:
@@ -191,39 +114,7 @@ def check_env_on_startup() -> None:
     if not is_staging_or_prod:
         return
 
-    vault_required = get_vault_managed_keys_from_env_example()
-
-    if not vault_required:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(
-            "env_check: Parser returned no keys, using comprehensive fallback list",
-            extra={"fallback_count": 20},
-        )
-        fallback_keys = [
-            "DATABASE_URL",
-            "ENVIRONMENT",
-            "DEBUG",
-            "BASE_CURRENCY",
-            "OPENROUTER_API_KEY",
-            "PRIMARY_MODEL",
-            "FALLBACK_MODELS",
-            "OPENROUTER_DAILY_LIMIT_USD",
-            "S3_ENDPOINT",
-            "S3_ACCESS_KEY",
-            "S3_SECRET_KEY",
-            "S3_BUCKET",
-            "S3_REGION",
-            "S3_PRESIGN_EXPIRY_SECONDS",
-            "S3_PUBLIC_ENDPOINT",
-            "S3_PUBLIC_ACCESS_KEY",
-            "S3_PUBLIC_SECRET_KEY",
-            "S3_PUBLIC_BUCKET",
-            "REDIS_URL",
-            "SECRET_KEY",
-        ]
-        vault_required = fallback_keys
+    vault_required = get_vault_required_keys()
 
     missing = []
     found = []
