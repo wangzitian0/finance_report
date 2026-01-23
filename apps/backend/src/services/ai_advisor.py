@@ -13,7 +13,6 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +30,7 @@ from src.models import (
     ReconciliationStatus,
 )
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
+from src.services.openrouter_streaming import OpenRouterStreamError, stream_openrouter_chat
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -599,43 +599,17 @@ class AIAdvisorService:
             raise last_error
 
     async def _stream_model(self, model: str, messages: list[dict[str, str]]) -> AsyncIterator[str]:
-        payload = {
-            "model": model,
-            "stream": True,
-            "messages": messages,
-        }
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        timeout = httpx.Timeout(30.0, connect=5.0, read=30.0)
-
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
-                "POST",
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line:
-                        continue
-                    if line.startswith("data: "):
-                        data = line[len("data: ") :]
-                    else:
-                        data = line
-                    if data.strip() == "[DONE]":
-                        break
-                    try:
-                        payload = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    choice = payload.get("choices", [{}])[0]
-                    delta = choice.get("delta", {})
-                    content = delta.get("content")
-                    if content:
-                        yield content
+        try:
+            async for chunk in stream_openrouter_chat(
+                messages=messages,
+                model=model,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=30.0,
+            ):
+                yield chunk
+        except OpenRouterStreamError as e:
+            raise Exception(f"OpenRouter streaming error: {e}") from e
 
     def _format_money(self, amount: Decimal, currency: str) -> str:
         quantized = amount.quantize(Decimal("0.01"))
