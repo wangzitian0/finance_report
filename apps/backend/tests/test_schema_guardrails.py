@@ -62,7 +62,5 @@ def test_migration_filenames_length():
             violations.append(file.name)
 
     assert not violations, (
-        f"The following migration filenames are too long (>120 chars):\n"
-        f"{violations}\n"
-        f"Please rename them to be shorter."
+        f"The following migration filenames are too long (>120 chars):\n{violations}\nPlease rename them to be shorter."
     )

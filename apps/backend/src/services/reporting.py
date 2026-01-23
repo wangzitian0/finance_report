@@ -130,9 +130,7 @@ def _build_account_lines(
     ]
 
 
-async def _load_accounts(
-    db: AsyncSession, user_id: UUID, account_types: tuple[AccountType, ...]
-) -> list[Account]:
+async def _load_accounts(db: AsyncSession, user_id: UUID, account_types: tuple[AccountType, ...]) -> list[Account]:
     result = await db.execute(
         select(Account)
         .where(Account.user_id == user_id)
@@ -192,15 +190,9 @@ async def generate_balance_sheet(
     liabilities = _build_account_lines(accounts, balances, AccountType.LIABILITY)
     equity = _build_account_lines(accounts, balances, AccountType.EQUITY)
 
-    total_assets = _quantize_money(
-        sum((Decimal(str(line["amount"])) for line in assets), Decimal("0"))
-    )
-    total_liabilities = _quantize_money(
-        sum((Decimal(str(line["amount"])) for line in liabilities), Decimal("0"))
-    )
-    total_equity = _quantize_money(
-        sum((Decimal(str(line["amount"])) for line in equity), Decimal("0"))
-    )
+    total_assets = _quantize_money(sum((Decimal(str(line["amount"])) for line in assets), Decimal("0")))
+    total_liabilities = _quantize_money(sum((Decimal(str(line["amount"])) for line in liabilities), Decimal("0")))
+    total_equity = _quantize_money(sum((Decimal(str(line["amount"])) for line in equity), Decimal("0")))
 
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
     income_expense_stmt = (
@@ -354,9 +346,7 @@ async def generate_income_statement(
             # Monthly average need
             period_key = _month_start(entry.entry_date)
             month_end = _add_months(period_key, 1) - timedelta(days=1)
-            fx_needs.append(
-                (line.currency, target_currency, entry.entry_date, period_key, month_end)
-            )
+            fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
 
     # Batch pre-fetch all needed FX rates
     fx_rates = PrefetchedFxRates()
@@ -389,9 +379,7 @@ async def generate_income_statement(
 
         for line, account, entry in lines_and_accounts:
             # Use pre-fetched rates
-            rate_total = fx_rates.get_rate(
-                line.currency, target_currency, end_date, start_date, end_date
-            )
+            rate_total = fx_rates.get_rate(line.currency, target_currency, end_date, start_date, end_date)
             if rate_total is None:
                 # Fallback to slow path if not pre-fetched (should be rare)
                 try:
@@ -406,8 +394,7 @@ async def generate_income_statement(
                     )
                 except FxRateError as exc:
                     logger.warning(
-                        "Average FX rate unavailable for income statement, "
-                        "falling back to spot rate",
+                        "Average FX rate unavailable for income statement, falling back to spot rate",
                         error_id=ErrorIds.REPORT_FX_FALLBACK,
                         account_id=account.id,
                         currency=line.currency,
@@ -441,9 +428,7 @@ async def generate_income_statement(
             # For monthly trend buckets, use pre-fetched monthly average rate
             period_key = _month_start(entry.entry_date)
             month_end = _add_months(period_key, 1) - timedelta(days=1)
-            rate_monthly = fx_rates.get_rate(
-                line.currency, target_currency, entry.entry_date, period_key, month_end
-            )
+            rate_monthly = fx_rates.get_rate(line.currency, target_currency, entry.entry_date, period_key, month_end)
             if rate_monthly is None:
                 # Fallback to period total rate if monthly rate unavailable
                 logger.warning(
@@ -457,9 +442,7 @@ async def generate_income_statement(
                 converted_monthly = line.amount * rate_monthly
 
             signed_monthly = _signed_amount(account.type, line.direction, converted_monthly)
-            bucket = period_totals.setdefault(
-                period_key, {"income": Decimal("0"), "expense": Decimal("0")}
-            )
+            bucket = period_totals.setdefault(period_key, {"income": Decimal("0"), "expense": Decimal("0")})
             if account.type == AccountType.INCOME:
                 bucket["income"] += signed_monthly
             else:
@@ -468,12 +451,8 @@ async def generate_income_statement(
     income_lines = _build_account_lines(accounts, balances, AccountType.INCOME)
     expense_lines = _build_account_lines(accounts, balances, AccountType.EXPENSE)
 
-    total_income = _quantize_money(
-        sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0"))
-    )
-    total_expenses = _quantize_money(
-        sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0"))
-    )
+    total_income = _quantize_money(sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0")))
+    total_expenses = _quantize_money(sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0")))
     net_income = _quantize_money(total_income - total_expenses)
 
     # Calculate Unrealized FX Gain/Loss for the period
@@ -481,13 +460,10 @@ async def generate_income_statement(
     bs_start = await generate_balance_sheet(
         db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency
     )
-    bs_end = await generate_balance_sheet(
-        db, user_id, as_of_date=end_date, currency=target_currency
-    )
+    bs_end = await generate_balance_sheet(db, user_id, as_of_date=end_date, currency=target_currency)
 
     unrealized_fx_change = _quantize_money(
-        Decimal(str(bs_end["unrealized_fx_gain_loss"]))
-        - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
+        Decimal(str(bs_end["unrealized_fx_gain_loss"])) - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
     )
 
     trend_items: list[dict[str, Any]] = []
@@ -534,9 +510,7 @@ async def get_account_trend(
 ) -> dict[str, object]:
     """Get account trend data for a period granularity."""
     target_currency = _normalize_currency(currency)
-    account_result = await db.execute(
-        select(Account).where(Account.id == account_id).where(Account.user_id == user_id)
-    )
+    account_result = await db.execute(select(Account).where(Account.id == account_id).where(Account.user_id == user_id))
     account = account_result.scalar_one_or_none()
     if not account:
         raise ReportError("Account not found")
@@ -788,7 +762,7 @@ async def generate_cash_flow(
             balances_after[acc_id] += _signed_amount(account.type, line.direction, converted)
 
     movements: dict[UUID, Decimal] = {}
-    for acc_id in account_id_to_account.keys():
+    for acc_id in account_id_to_account:
         before = balances_before.get(acc_id, Decimal("0"))
         after = balances_after.get(acc_id, Decimal("0"))
         movements[acc_id] = after - before
@@ -845,15 +819,9 @@ async def generate_cash_flow(
     investing_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
     financing_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
 
-    operating_total = _quantize_money(
-        sum([Decimal(str(item["amount"])) for item in operating_items], Decimal("0"))
-    )
-    investing_total = _quantize_money(
-        sum([Decimal(str(item["amount"])) for item in investing_items], Decimal("0"))
-    )
-    financing_total = _quantize_money(
-        sum([Decimal(str(item["amount"])) for item in financing_items], Decimal("0"))
-    )
+    operating_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in operating_items], Decimal("0")))
+    investing_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in investing_items], Decimal("0")))
+    financing_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in financing_items], Decimal("0")))
     net_cash_flow = _quantize_money(ending_cash - beginning_cash)
 
     summary = {

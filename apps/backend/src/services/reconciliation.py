@@ -126,19 +126,13 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
                 config = ReconciliationConfig(
                     weight_amount=Decimal(str(weights.get("amount", config.weight_amount))),
                     weight_date=Decimal(str(weights.get("date", config.weight_date))),
-                    weight_description=Decimal(
-                        str(weights.get("description", config.weight_description))
-                    ),
+                    weight_description=Decimal(str(weights.get("description", config.weight_description))),
                     weight_business=Decimal(str(weights.get("business", config.weight_business))),
                     weight_history=Decimal(str(weights.get("history", config.weight_history))),
                     auto_accept=int(thresholds.get("auto_accept", config.auto_accept)),
                     pending_review=int(thresholds.get("pending_review", config.pending_review)),
-                    amount_percent=Decimal(
-                        str(tolerances.get("amount_percent", config.amount_percent))
-                    ),
-                    amount_absolute=Decimal(
-                        str(tolerances.get("amount_absolute", config.amount_absolute))
-                    ),
+                    amount_percent=Decimal(str(tolerances.get("amount_percent", config.amount_percent))),
+                    amount_absolute=Decimal(str(tolerances.get("amount_absolute", config.amount_absolute))),
                     date_days=int(tolerances.get("date_days", config.date_days)),
                 )
             except Exception as e:
@@ -337,11 +331,7 @@ async def score_pattern(
             ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
         )
         .where(BankStatement.user_id == user_id)
-        .where(
-            ReconciliationMatch.status.in_(
-                [ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]
-            )
-        )
+        .where(ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]))
         .where(BankStatementTransaction.description.ilike(pattern, escape="\\"))
         .order_by(BankStatementTransaction.txn_date.desc())
         .limit(10)
@@ -422,9 +412,7 @@ async def calculate_match_score(
     amount_score = score_amount(txn_amount, total_amount, config, is_multi=is_multi)
     date_score = max(score_date(transaction.txn_date, d, config) for d in entry_dates)
     description_score = score_description(transaction.description, entry_memo)
-    business_score = (
-        min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
-    )
+    business_score = min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
 
     if history_score_override is not None:
         history_score = history_score_override
@@ -519,9 +507,7 @@ async def _validate_layer_consistency(db: AsyncSession, statement_ids: set[UUID]
         res = await db.execute(l2_query)
         l2_txns = res.scalars().all()
 
-        l0_query = select(BankStatementTransaction).where(
-            BankStatementTransaction.statement_id == stmt.id
-        )
+        l0_query = select(BankStatementTransaction).where(BankStatementTransaction.statement_id == stmt.id)
         res = await db.execute(l0_query)
         l0_txns = res.scalars().all()
 
@@ -573,9 +559,7 @@ async def _get_pending_layer2_transactions(
     Pending means NOT present in reconciliation_matches table.
     """
     # Find IDs that are already matched
-    subquery = select(ReconciliationMatch.atomic_txn_id).where(
-        ReconciliationMatch.atomic_txn_id.isnot(None)
-    )
+    subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.isnot(None))
 
     query = (
         select(AtomicTransaction)
@@ -786,17 +770,9 @@ async def execute_matching(
                 best_match = candidate
 
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (
-                is_entry_balanced(entry_a)
-                and is_entry_balanced(entry_b)
-                and is_entry_balanced(entry_c)
-            ):
+            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
                 continue
-            combined = (
-                entry_total_amount(entry_a)
-                + entry_total_amount(entry_b)
-                + entry_total_amount(entry_c)
-            )
+            combined = entry_total_amount(entry_a) + entry_total_amount(entry_b) + entry_total_amount(entry_c)
             tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
             if abs(combined - txn.amount) > tolerance * 2:
                 continue
@@ -844,9 +820,7 @@ async def execute_matching(
             if best_match.journal_entry_ids:
                 entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]
                 result = await db.execute(
-                    select(JournalEntry)
-                    .where(JournalEntry.id.in_(entry_ids))
-                    .where(JournalEntry.user_id == user_id)
+                    select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
                 )
                 for entry in result.scalars():
                     if entry.status != JournalEntryStatus.VOID:

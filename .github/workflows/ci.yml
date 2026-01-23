@@ -61,10 +61,17 @@ jobs:
           echo "🔍 Checking secrets.ctmpl ↔ config.py consistency..."
           python scripts/check_env_keys.py --diff
       
-      - name: Lint
+      - name: Lint (with auto-fix)
         run: |
           cd apps/backend
-          uv run ruff check src/
+          uv run ruff check src/ --fix --output-format=github
+          uv run ruff format src/ --check || echo "::warning::Files need formatting"
+          git diff --exit-code || {
+            echo "::warning::Ruff auto-fixed some issues. Consider installing pre-commit hooks."
+            echo "::warning::Run: pip install pre-commit && pre-commit install"
+            git diff
+            exit 1
+          }
       
       - name: Test with coverage
         env:

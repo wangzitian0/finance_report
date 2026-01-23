@@ -71,40 +71,39 @@ async def _stream_openrouter_base(
 
     timeout_config = httpx.Timeout(timeout, connect=connect_timeout, read=timeout)
 
-    async with httpx.AsyncClient(timeout=timeout_config) as client:
-        async with aconnect_sse(
+    async with (
+        httpx.AsyncClient(timeout=timeout_config) as client,
+        aconnect_sse(
             client,
             "POST",
             f"{base_url}/chat/completions",
             headers=headers,
             json=payload,
-        ) as event_source:
-            if event_source.response.status_code != 200:
-                error_text = await event_source.response.aread()
-                error_message = (
-                    f"HTTP {event_source.response.status_code}: "
-                    f"{error_text.decode('utf-8', errors='replace')}"
+        ) as event_source,
+    ):
+        if event_source.response.status_code != 200:
+            error_text = await event_source.response.aread()
+            error_message = f"HTTP {event_source.response.status_code}: {error_text.decode('utf-8', errors='replace')}"
+            # Rate limits and service errors are retryable
+            retryable = event_source.response.status_code in (429, 500, 502, 503, 504)
+            raise OpenRouterStreamError(error_message, retryable=retryable)
+
+        async for event in event_source.aiter_sse():
+            if event.data == "[DONE]":
+                break
+
+            try:
+                chunk_data = json.loads(event.data)
+                delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+                content = delta.get("content", "")
+                if content:
+                    yield content
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Failed to parse JSON in SSE event ({mode_label})",
+                    data_preview=event.data[:200],
                 )
-                # Rate limits and service errors are retryable
-                retryable = event_source.response.status_code in (429, 500, 502, 503, 504)
-                raise OpenRouterStreamError(error_message, retryable=retryable)
-
-            async for event in event_source.aiter_sse():
-                if event.data == "[DONE]":
-                    break
-
-                try:
-                    chunk_data = json.loads(event.data)
-                    delta = chunk_data.get("choices", [{}])[0].get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield content
-                except json.JSONDecodeError:
-                    logger.warning(
-                        f"Failed to parse JSON in SSE event ({mode_label})",
-                        data_preview=event.data[:200],
-                    )
-                    continue
+                continue
 
 
 async def stream_openrouter_json(

@@ -62,9 +62,7 @@ async def list_users(
     count_result = await db.execute(select(func.count(User.id)))
     total = count_result.scalar_one()
 
-    result = await db.execute(
-        select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
-    )
+    result = await db.execute(select(User).order_by(User.created_at.desc()).limit(limit).offset(offset))
     users = result.scalars().all()
 
     return UserListResponse(
@@ -108,9 +106,7 @@ async def update_user(
         )
 
     if user_data.email is not None:
-        result = await db.execute(
-            select(User).where(User.email == user_data.email).where(User.id != user_id)
-        )
+        result = await db.execute(select(User).where(User.email == user_data.email).where(User.id != user_id))
         existing_user = result.scalar_one_or_none()
         if existing_user:
             raise HTTPException(

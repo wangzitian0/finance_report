@@ -79,9 +79,7 @@ async def test_export_csv_rows_coverage(client: AsyncClient):
         assert "Total Assets,,100.0" in resp.text
 
     # 2. Income Statement Export
-    with patch(
-        "src.routers.reports.generate_income_statement", new_callable=AsyncMock
-    ) as mock_func:
+    with patch("src.routers.reports.generate_income_statement", new_callable=AsyncMock) as mock_func:
         mock_func.return_value = mock_is
         params = {
             "report_type": "income-statement",

@@ -1,0 +1,64 @@
+# Pre-commit hooks for Finance Report
+# Install: pip install pre-commit && pre-commit install
+#
+# This prevents common CI failures:
+# 1. Ruff lint errors (auto-fixed locally)
+# 2. Environment variable sync issues (caught before push)
+# 3. Trailing whitespace / merge conflicts
+
+repos:
+  # Ruff - Fast Python linter & formatter (replaces flake8, isort, black)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.4
+    hooks:
+      # Run linter with auto-fix
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+      # Run formatter
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # General file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(.*\.md|.*\.snap)$
+      - id: end-of-file-fixer
+        exclude: ^(.*\.md|.*\.snap)$
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags in GitHub Actions
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  # Environment variable consistency check
+  - repo: local
+    hooks:
+      - id: check-env-keys
+        name: Check env var consistency
+        entry: python scripts/check_env_keys.py
+        language: python
+        pass_filenames: false
+        files: ^(apps/backend/src/config\.py|\.env\.example|repo/.*secrets\.ctmpl)$
+        # Only run when relevant files change
+
+  # Frontend lint (if changed)
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: Frontend ESLint
+        entry: bash -c 'cd apps/frontend && npm run lint -- --max-warnings 0'
+        language: system
+        files: ^apps/frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+# CI configuration
+ci:
+  autofix_prs: true
+  autofix_commit_msg: "style: auto-fix from pre-commit hooks"
+  autoupdate_schedule: monthly

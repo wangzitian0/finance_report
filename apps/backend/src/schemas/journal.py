@@ -59,9 +59,7 @@ class JournalEntryCreate(JournalEntryBase):
         total_credit = sum(line.amount for line in self.lines if line.direction == Direction.CREDIT)
 
         if abs(total_debit - total_credit) > Decimal("0.01"):
-            raise ValueError(
-                f"Journal entry not balanced: debit={total_debit}, credit={total_credit}"
-            )
+            raise ValueError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
 
         return self
 

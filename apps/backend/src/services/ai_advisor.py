@@ -118,8 +118,7 @@ REFUSAL_BY_REASON = {
     "sensitive": {
         "en": "For safety reasons, I cannot provide sensitive information.",
         "zh": (
-            "\u51fa\u4e8e\u5b89\u5168\u539f\u56e0\uff0c"
-            "\u6211\u65e0\u6cd5\u63d0\u4f9b\u654f\u611f\u4fe1\u606f\u3002"
+            "\u51fa\u4e8e\u5b89\u5168\u539f\u56e0\uff0c\u6211\u65e0\u6cd5\u63d0\u4f9b\u654f\u611f\u4fe1\u606f\u3002"
         ),
     },
     "non_financial": {
@@ -318,18 +317,14 @@ class AIAdvisorService:
             return self._cached_stream(session.id, refusal, model_name=None)
 
         context = await self.get_financial_context(db, user_id)
-        context_hash = hashlib.sha256(
-            json.dumps(context, sort_keys=True, default=str).encode("utf-8")
-        ).hexdigest()
+        context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
         model_key = model or self.primary_model
         cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
         _CACHE.prune()
         cached = _CACHE.get(cache_key)
         if cached:
             cached = ensure_disclaimer(cached, language)
-            await self._record_message(
-                db, session, ChatMessageRole.ASSISTANT, cached, model_name="cache"
-            )
+            await self._record_message(db, session, ChatMessageRole.ASSISTANT, cached, model_name="cache")
             return self._cached_stream(session.id, cached, model_name="cache")
 
         prompt = get_ai_advisor_prompt(context, language)
@@ -392,9 +387,7 @@ class AIAdvisorService:
                 currency=currency,
             )
             top_items = breakdown.get("items", [])[:3]
-            top_expenses = ", ".join(
-                f"{item['category_name']}: {currency} {item['total']}" for item in top_items
-            )
+            top_expenses = ", ".join(f"{item['category_name']}: {currency} {item['total']}" for item in top_items)
         except ReportError:
             top_expenses = "N/A"
 
@@ -405,14 +398,10 @@ class AIAdvisorService:
         )
         total_result = await db.execute(txn_base)
         matched_result = await db.execute(
-            txn_base.where(
-                BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED
-            )
+            txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED)
         )
         unmatched_result = await db.execute(
-            txn_base.where(
-                BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED
-            )
+            txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
         )
         pending_result = await db.execute(
             select(func.count(ReconciliationMatch.id))

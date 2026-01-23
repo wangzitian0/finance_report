@@ -57,9 +57,7 @@ class EnvironmentSmokeTest:
         """Test database connectivity and basic operations."""
         logger.info(
             "Starting database smoke test",
-            database_url_prefix=settings.database_url.split("@")[0]
-            if "@" in settings.database_url
-            else "***",
+            database_url_prefix=settings.database_url.split("@")[0] if "@" in settings.database_url else "***",
         )
         start = time.perf_counter()
         engine = None
@@ -92,9 +90,7 @@ class EnvironmentSmokeTest:
                 row = result.fetchone()
                 if not (row is not None and row[0] == "smoke_test"):
                     row_value = row[0] if row else None
-                    raise ValueError(
-                        f"Insert/Select validation failed: expected 'smoke_test', got {row_value!r}"
-                    )
+                    raise ValueError(f"Insert/Select validation failed: expected 'smoke_test', got {row_value!r}")
 
             duration_ms = (time.perf_counter() - start) * 1000
             return TestResult(
@@ -109,9 +105,7 @@ class EnvironmentSmokeTest:
                 "Database smoke test failed",
                 error=str(exc),
                 error_type=type(exc).__name__,
-                database_url_prefix=settings.database_url.split("@")[0]
-                if "@" in settings.database_url
-                else "***",
+                database_url_prefix=settings.database_url.split("@")[0] if "@" in settings.database_url else "***",
             )
             return TestResult(
                 service="database",
@@ -135,9 +129,7 @@ class EnvironmentSmokeTest:
 
         logger.info(
             "Starting Redis smoke test",
-            redis_url_prefix=settings.redis_url.split("@")[0]
-            if "@" in settings.redis_url
-            else "***",
+            redis_url_prefix=settings.redis_url.split("@")[0] if "@" in settings.redis_url else "***",
         )
         start = time.perf_counter()
         redis = None
@@ -155,9 +147,7 @@ class EnvironmentSmokeTest:
             await redis.set(test_key, test_value, ex=10)
             retrieved = await redis.get(test_key)
             if retrieved != test_value:
-                raise ValueError(
-                    f"Set/Get validation failed: expected {test_value!r}, got {retrieved!r}"
-                )
+                raise ValueError(f"Set/Get validation failed: expected {test_value!r}, got {retrieved!r}")
 
             await redis.delete(test_key)
             deleted = await redis.get(test_key)
@@ -186,9 +176,7 @@ class EnvironmentSmokeTest:
                 "Redis smoke test failed",
                 error=str(exc),
                 error_type=type(exc).__name__,
-                redis_url_prefix=settings.redis_url.split("@")[0]
-                if "@" in settings.redis_url
-                else "***",
+                redis_url_prefix=settings.redis_url.split("@")[0] if "@" in settings.redis_url else "***",
             )
             return TestResult(
                 service="redis",
@@ -221,9 +209,7 @@ class EnvironmentSmokeTest:
 
             await loop.run_in_executor(
                 None,
-                lambda: storage.upload_bytes(
-                    key=test_key, content=test_content, content_type="text/plain"
-                ),
+                lambda: storage.upload_bytes(key=test_key, content=test_content, content_type="text/plain"),
             )
 
             downloaded = await loop.run_in_executor(None, storage.get_object, test_key)
@@ -417,10 +403,7 @@ class EnvironmentSmokeTest:
         error_count = sum(1 for r in self.results if r.status == "error")
         skipped_count = sum(1 for r in self.results if r.status == "skipped")
 
-        print(
-            f"\nSummary: {ok_count} OK, {warning_count} warnings, "
-            f"{error_count} errors, {skipped_count} skipped"
-        )
+        print(f"\nSummary: {ok_count} OK, {warning_count} warnings, {error_count} errors, {skipped_count} skipped")
 
         if error_count > 0:
             print("\n⚠️  Critical services failed - application may not function correctly")
@@ -439,9 +422,7 @@ class EnvironmentSmokeTest:
 async def main() -> None:
     """Run smoke tests and exit with appropriate code."""
     parser = argparse.ArgumentParser(description="Environment smoke test")
-    parser.add_argument(
-        "--quick", action="store_true", help="Skip optional service tests (Redis, OpenRouter)"
-    )
+    parser.add_argument("--quick", action="store_true", help="Skip optional service tests (Redis, OpenRouter)")
     parser.add_argument(
         "--critical-only",
         action="store_true",
@@ -468,9 +449,7 @@ async def main() -> None:
 
     tester.print_results()
 
-    if tester.has_errors():
-        sys.exit(1)
-    elif args.fail_on_warning and any(r.status == "warning" for r in tester.results):
+    if tester.has_errors() or (args.fail_on_warning and any(r.status == "warning" for r in tester.results)):
         sys.exit(1)
     else:
         sys.exit(0)

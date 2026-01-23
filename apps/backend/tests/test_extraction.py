@@ -156,10 +156,7 @@ class TestFixtureData:
         opening = Decimal(stmt["opening_balance"])
         closing = Decimal(stmt["closing_balance"])
 
-        net = sum(
-            Decimal(e["amount"]) if e["direction"] == "IN" else -Decimal(e["amount"])
-            for e in events
-        )
+        net = sum(Decimal(e["amount"]) if e["direction"] == "IN" else -Decimal(e["amount"]) for e in events)
 
         expected_closing = opening + net
         diff = abs(closing - expected_closing)

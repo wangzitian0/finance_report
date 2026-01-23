@@ -90,9 +90,7 @@ async def get_account(db: AsyncSession, user_id: UUID, account_id: UUID) -> Acco
     Raises:
         AccountNotFoundError: If account not found
     """
-    result = await db.execute(
-        select(Account).where(Account.id == account_id).where(Account.user_id == user_id)
-    )
+    result = await db.execute(select(Account).where(Account.id == account_id).where(Account.user_id == user_id))
     account = result.scalar_one_or_none()
 
     if not account:
@@ -101,9 +99,7 @@ async def get_account(db: AsyncSession, user_id: UUID, account_id: UUID) -> Acco
     return account
 
 
-async def update_account(
-    db: AsyncSession, user_id: UUID, account_id: UUID, account_data: AccountUpdate
-) -> Account:
+async def update_account(db: AsyncSession, user_id: UUID, account_id: UUID, account_data: AccountUpdate) -> Account:
     """
     Update account details.
 

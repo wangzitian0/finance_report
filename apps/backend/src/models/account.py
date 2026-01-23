@@ -39,20 +39,14 @@ class Account(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    type: Mapped[AccountType] = mapped_column(
-        Enum(AccountType, name="account_type_enum"), nullable=False
-    )
+    type: Mapped[AccountType] = mapped_column(Enum(AccountType, name="account_type_enum"), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SGD")
-    parent_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True
-    )
+    parent_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     journal_lines: Mapped[list[JournalLine]] = relationship("JournalLine", back_populates="account")
-    parent: Mapped[Account | None] = relationship(
-        "Account", remote_side="Account.id", back_populates="children"
-    )
+    parent: Mapped[Account | None] = relationship("Account", remote_side="Account.id", back_populates="children")
     children: Mapped[list[Account]] = relationship("Account", back_populates="parent")
 
     def __repr__(self) -> str:

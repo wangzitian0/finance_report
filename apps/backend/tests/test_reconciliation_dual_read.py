@@ -47,9 +47,7 @@ def mock_ai_response():
 class TestReconciliationDualRead:
     """Tests for Phase 3 Dual Read validation in reconciliation."""
 
-    async def test_dual_read_validation_logs_consistency(
-        self, db, test_user, mock_ai_response, monkeypatch
-    ):
+    async def test_dual_read_validation_logs_consistency(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that consistent Layer 0/2 data is validated."""
         monkeypatch.setattr(settings, "enable_4_layer_write", True)
 
@@ -77,13 +75,9 @@ class TestReconciliationDualRead:
 
             info_calls = [str(call) for call in mock_info.call_args_list]
             assert any("Layer 0/2 Consistency Verified" in call for call in info_calls)
-            assert any(
-                "'count': 1" in call or "'count':1" in call.replace(" ", "") for call in info_calls
-            )
+            assert any("'count': 1" in call or "'count':1" in call.replace(" ", "") for call in info_calls)
 
-    async def test_dual_read_validation_detects_mismatch(
-        self, db, test_user, mock_ai_response, monkeypatch
-    ):
+    async def test_dual_read_validation_detects_mismatch(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that missing Layer 2 data triggers mismatch warning."""
         monkeypatch.setattr(settings, "enable_4_layer_write", True)
 
@@ -115,10 +109,8 @@ class TestReconciliationDualRead:
             warning_calls = [str(call) for call in mock_warning.call_args_list]
             assert any("Layer 0/2 Count Mismatch" in call for call in warning_calls)
             assert any(
-                "'layer0_count': 1" in call or "'layer0_count':1" in call.replace(" ", "")
-                for call in warning_calls
+                "'layer0_count': 1" in call or "'layer0_count':1" in call.replace(" ", "") for call in warning_calls
             )
             assert any(
-                "'layer2_count': 0" in call or "'layer2_count':0" in call.replace(" ", "")
-                for call in warning_calls
+                "'layer2_count': 0" in call or "'layer2_count':0" in call.replace(" ", "") for call in warning_calls
             )

@@ -251,16 +251,12 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
     assert listed.total == 1
     assert listed.items[0].id == statement_id
 
-    fetched = await statements_router.get_statement(
-        statement_id=statement_id, db=db, user_id=user_id
-    )
+    fetched = await statements_router.get_statement(statement_id=statement_id, db=db, user_id=user_id)
     assert fetched.id == statement_id
     assert len(fetched.transactions) == 1
     assert fetched.transactions[0].description == "Salary"
 
-    txns = await statements_router.list_statement_transactions(
-        statement_id=statement_id, db=db, user_id=user_id
-    )
+    txns = await statements_router.list_statement_transactions(statement_id=statement_id, db=db, user_id=user_id)
     assert txns.total == 1
     assert txns.items[0].description == "Salary"
 
@@ -720,9 +716,7 @@ async def test_upload_statement_with_invalid_model(db, test_user, storage_stub, 
 
 
 @pytest.mark.asyncio
-async def test_upload_statement_with_model_catalog_unavailable(
-    db, test_user, storage_stub, monkeypatch
-):
+async def test_upload_statement_with_model_catalog_unavailable(db, test_user, storage_stub, monkeypatch):
     """Test upload when model catalog is unavailable."""
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)

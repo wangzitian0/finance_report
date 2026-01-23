@@ -68,9 +68,7 @@ async def fx_rates(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_fx_unrealized_gain_calculation(
-    db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id
-):
+async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """Test that unrealized FX gain is correctly calculated in the balance sheet."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
 
@@ -107,9 +105,7 @@ async def test_fx_unrealized_gain_calculation(
     # Assets: 100 USD * 1.40 = 140 SGD
     # Equity: 130 SGD
     # Unrealized Gain = 140 - 130 = 10 SGD
-    report = await generate_balance_sheet(
-        db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD"
-    )
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
     assert report["total_assets"] == Decimal("140.00")
     assert report["total_equity"] == Decimal("130.00")
@@ -118,9 +114,7 @@ async def test_fx_unrealized_gain_calculation(
 
 
 @pytest.mark.asyncio
-async def test_income_statement_comprehensive_income(
-    db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id
-):
+async def test_income_statement_comprehensive_income(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """Test that income statement includes both net income and unrealized FX change."""
     sgd_cash, usd_savings, capital, salary, _ = multi_currency_accounts
 
@@ -195,14 +189,10 @@ async def test_income_statement_comprehensive_income(
 
 
 @pytest.mark.asyncio
-async def test_fx_liability_inversion(
-    db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id
-):
+async def test_fx_liability_inversion(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """Test that USD strengthening results in a LOSS for USD-denominated liabilities."""
     # Create a USD Liability account
-    usd_debt = Account(
-        user_id=test_user_id, name="USD Debt", type=AccountType.LIABILITY, currency="USD"
-    )
+    usd_debt = Account(user_id=test_user_id, name="USD Debt", type=AccountType.LIABILITY, currency="USD")
     db.add(usd_debt)
     sgd_cash = multi_currency_accounts[0]
     await db.commit()
@@ -245,9 +235,7 @@ async def test_fx_liability_inversion(
     # Assets = 130 SGD
     # Equation: 130 = 140 + 0 + 0 + Unrealized
     # Unrealized = 130 - 140 = -10 SGD (Loss)
-    report = await generate_balance_sheet(
-        db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD"
-    )
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
     assert report["total_assets"] == Decimal("130.00")
     assert report["total_liabilities"] == Decimal("140.00")
@@ -258,9 +246,7 @@ async def test_fx_liability_inversion(
 async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test aggregation of multiple foreign currencies (USD and EUR)."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
-    eur_savings = Account(
-        user_id=test_user_id, name="EUR Savings", type=AccountType.ASSET, currency="EUR"
-    )
+    eur_savings = Account(user_id=test_user_id, name="EUR Savings", type=AccountType.ASSET, currency="EUR")
     db.add(eur_savings)
 
     # Rates
@@ -319,9 +305,7 @@ async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accou
     )
     await db.commit()
 
-    report = await generate_balance_sheet(
-        db, test_user_id, as_of_date=date(2025, 1, 1), currency="SGD"
-    )
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 1), currency="SGD")
 
     # USD 100 * 1.3 = 130
     # EUR 100 * 1.5 = 150
@@ -332,9 +316,7 @@ async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accou
 
 
 @pytest.mark.asyncio
-async def test_historical_vs_average_discrepancy_bridge(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_currency_accounts, test_user_id):
     """
     Test that the system maintains A=L+E even when:
     - BS uses historical rates for Net Income (transaction date)
@@ -409,9 +391,7 @@ async def test_historical_vs_average_discrepancy_bridge(
     # Assets: 100 USD * 1.50 = 150 SGD
     # Net Income (Historical): 100 USD * 1.40 = 140 SGD
     # Unrealized Gain = 150 - 140 = 10 SGD
-    bs = await generate_balance_sheet(
-        db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD"
-    )
+    bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
     assert bs["total_assets"] == Decimal("150.00")
     assert bs["net_income"] == Decimal("140.00")
     assert bs["unrealized_fx_gain_loss"] == Decimal("10.00")

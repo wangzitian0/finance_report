@@ -97,9 +97,7 @@ class AssetService:
 
         await db.flush()
 
-    async def _get_or_create_broker_account(
-        self, db: AsyncSession, user_id: UUID, broker_name: str
-    ) -> Account:
+    async def _get_or_create_broker_account(self, db: AsyncSession, user_id: UUID, broker_name: str) -> Account:
         """Find or create an asset account for the broker."""
         query = (
             select(Account)

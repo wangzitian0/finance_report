@@ -62,9 +62,7 @@ class StorageService:
                         if settings.s3_region and settings.s3_region != "us-east-1":
                             self.client.create_bucket(
                                 Bucket=self.bucket,
-                                CreateBucketConfiguration={
-                                    "LocationConstraint": settings.s3_region
-                                },
+                                CreateBucketConfiguration={"LocationConstraint": settings.s3_region},
                             )
                         else:
                             self.client.create_bucket(Bucket=self.bucket)
@@ -122,9 +120,7 @@ class StorageService:
                 key=key,
             )
             # Halt if public URL is requested but cannot be generated via public endpoint
-            raise StorageError(
-                "Public storage client is not configured; cannot generate public presigned URL"
-            )
+            raise StorageError("Public storage client is not configured; cannot generate public presigned URL")
 
         client = self.public_client if use_public_client else self.client
         bucket = self.public_bucket if use_public_client else self.bucket

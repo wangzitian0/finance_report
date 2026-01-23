@@ -35,13 +35,9 @@ async def test_delete_account(client: AsyncClient, db: AsyncSession, test_user):
 
 
 @pytest.mark.asyncio
-async def test_delete_account_with_transactions_fails(
-    client: AsyncClient, db: AsyncSession, test_user
-):
+async def test_delete_account_with_transactions_fails(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create account and entry
-    acc = Account(
-        user_id=test_user.id, name="DelConstraint", type=AccountType.ASSET, currency="SGD"
-    )
+    acc = Account(user_id=test_user.id, name="DelConstraint", type=AccountType.ASSET, currency="SGD")
     db.add(acc)
     await db.flush()
 

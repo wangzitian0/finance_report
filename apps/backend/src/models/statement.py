@@ -6,8 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Date, Enum as SQLEnum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,13 +47,9 @@ class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Uploaded financial statement."""
 
     __tablename__ = "bank_statements"
-    __table_args__ = (
-        UniqueConstraint("user_id", "file_hash", name="uq_bank_statements_user_file_hash"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "file_hash", name="uq_bank_statements_user_file_hash"),)
 
-    account_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True
-    )
+    account_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True)
 
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
