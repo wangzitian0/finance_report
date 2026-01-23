@@ -20,6 +20,7 @@ export default function StatementDetailPage() {
     const [actionLoading, setActionLoading] = useState(false);
     const [retryLoading, setRetryLoading] = useState(false);
     const [polling, setPolling] = useState(false);
+    const [consecutiveErrors, setConsecutiveErrors] = useState(0);
     
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -30,15 +31,27 @@ export default function StatementDetailPage() {
             const data = await apiFetch<BankStatement>(`/api/statements/${statementId}`);
             setStatement(data);
             setError(null);
+            setConsecutiveErrors(0);
             
             // Enable polling if statement is still parsing
             setPolling(data.status === "parsing");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load statement");
+            const errorMessage = err instanceof Error ? err.message : "Failed to load statement";
+            
+            if (polling) {
+                setConsecutiveErrors(prev => prev + 1);
+                
+                if (consecutiveErrors + 1 >= 3) {
+                    setPolling(false);
+                    showToast("Stopped auto-refresh due to repeated errors", "error");
+                }
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
-    }, [statementId]);
+    }, [statementId, polling, consecutiveErrors, showToast]);
 
     useEffect(() => {
         fetchStatement();

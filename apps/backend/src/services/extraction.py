@@ -354,6 +354,9 @@ class ExtractionService:
 
                 content = await accumulate_stream(stream)
 
+                if not content or not content.strip():
+                    raise ExtractionError("Empty response from AI model")
+
                 if return_raw:
                     logger.info("AI extraction successful (raw)", model=model)
                     return {"choices": [{"message": {"content": content}}]}

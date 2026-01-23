@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 
@@ -18,7 +19,7 @@ class OpenRouterStreamError(Exception):
 
 
 async def stream_openrouter_json(
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],
     model: str,
     *,
     api_key: str | None = None,
@@ -68,6 +69,9 @@ async def stream_openrouter_json(
                     f"HTTP {response.status_code}: {error_text.decode('utf-8', errors='replace')}"
                 )
 
+            consecutive_failures = 0
+            max_consecutive_failures = 10
+
             async for line in response.aiter_lines():
                 if not line or not line.strip():
                     continue
@@ -83,14 +87,24 @@ async def stream_openrouter_json(
                     delta = chunk_data.get("choices", [{}])[0].get("delta", {})
                     content = delta.get("content", "")
                     if content:
+                        consecutive_failures = 0
                         yield content
                 except json.JSONDecodeError:
-                    logger.warning("Failed to parse SSE chunk", line=line)
+                    consecutive_failures += 1
+                    logger.warning(
+                        "Failed to parse SSE chunk (JSON mode)",
+                        line=line,
+                        consecutive_failures=consecutive_failures,
+                    )
+                    if consecutive_failures >= max_consecutive_failures:
+                        raise OpenRouterStreamError(
+                            f"Failed to parse {max_consecutive_failures} consecutive SSE chunks"
+                        )
                     continue
 
 
 async def stream_openrouter_chat(
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],
     model: str,
     *,
     api_key: str | None = None,
@@ -138,6 +152,9 @@ async def stream_openrouter_chat(
                     f"HTTP {response.status_code}: {error_text.decode('utf-8', errors='replace')}"
                 )
 
+            consecutive_failures = 0
+            max_consecutive_failures = 10
+
             async for line in response.aiter_lines():
                 if not line or not line.strip():
                     continue
@@ -153,9 +170,19 @@ async def stream_openrouter_chat(
                     delta = chunk_data.get("choices", [{}])[0].get("delta", {})
                     content = delta.get("content", "")
                     if content:
+                        consecutive_failures = 0
                         yield content
                 except json.JSONDecodeError:
-                    logger.warning("Failed to parse SSE chunk", line=line)
+                    consecutive_failures += 1
+                    logger.warning(
+                        "Failed to parse SSE chunk (chat mode)",
+                        line=line,
+                        consecutive_failures=consecutive_failures,
+                    )
+                    if consecutive_failures >= max_consecutive_failures:
+                        raise OpenRouterStreamError(
+                            f"Failed to parse {max_consecutive_failures} consecutive SSE chunks"
+                        )
                     continue
 
 

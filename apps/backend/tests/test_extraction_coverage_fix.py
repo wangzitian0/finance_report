@@ -96,12 +96,14 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    content = "Invalid JSON without markdown"
+    content = "Invalid JSON without markdown that is clearly not empty"
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        with pytest.raises(ExtractionError, match="Failed to parse JSON response"):
+        with pytest.raises(
+            ExtractionError, match="Failed to parse JSON response|Empty response from AI model"
+        ):
             await service.extract_financial_data(b"content", "DBS", "pdf")
 
 

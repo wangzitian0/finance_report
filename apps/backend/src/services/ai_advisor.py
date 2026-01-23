@@ -30,7 +30,7 @@ from src.models import (
     ReconciliationStatus,
 )
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
-from src.services.openrouter_streaming import OpenRouterStreamError, stream_openrouter_chat
+from src.services.openrouter_streaming import stream_openrouter_chat
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -599,17 +599,14 @@ class AIAdvisorService:
             raise last_error
 
     async def _stream_model(self, model: str, messages: list[dict[str, str]]) -> AsyncIterator[str]:
-        try:
-            async for chunk in stream_openrouter_chat(
-                messages=messages,
-                model=model,
-                api_key=self.api_key,
-                base_url=self.base_url,
-                timeout=30.0,
-            ):
-                yield chunk
-        except OpenRouterStreamError as e:
-            raise Exception(f"OpenRouter streaming error: {e}") from e
+        async for chunk in stream_openrouter_chat(
+            messages=messages,
+            model=model,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=30.0,
+        ):
+            yield chunk
 
     def _format_money(self, amount: Decimal, currency: str) -> str:
         quantized = amount.quantize(Decimal("0.01"))
