@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.logger import get_logger
 from src.models import (
     AccountType,
     BankStatement,
@@ -37,6 +38,8 @@ from src.services.reporting import (
     generate_income_statement,
     get_category_breakdown,
 )
+
+logger = get_logger(__name__)
 
 MAX_CONTEXT_MESSAGES = 20
 CACHE_TTL_SECONDS = 3600
@@ -581,21 +584,47 @@ class AIAdvisorService:
     async def _stream_openrouter(
         self, messages: list[dict[str, str]], preferred_model: str | None
     ) -> AsyncIterator[tuple[str, str]]:
+        from src.constants.error_ids import ErrorIds
+        from src.services.openrouter_streaming import OpenRouterStreamError
+
         models = [self.primary_model, *self.fallback_models]
         if preferred_model:
             models = [preferred_model, *models]
         last_error: Exception | None = None
 
-        for model in models:
+        for i, model in enumerate(models):
             try:
                 async for chunk in self._stream_model(model, messages):
                     yield chunk, model
                 return
-            except Exception as exc:
+            except OpenRouterStreamError as exc:
+                logger.warning(
+                    "AI model failed, trying fallback",
+                    error_id=ErrorIds.AI_STREAMING_FAILED,
+                    model=model,
+                    attempt=i + 1,
+                    total=len(models),
+                    error=str(exc),
+                    retryable=getattr(exc, "retryable", False),
+                )
                 last_error = exc
                 continue
+            except (ValueError, TypeError, KeyError, AttributeError) as exc:
+                logger.exception(
+                    "Programming error in AI streaming",
+                    error_id=ErrorIds.AI_STREAMING_FAILED,
+                    model=model,
+                    error_type=type(exc).__name__,
+                )
+                raise AIAdvisorError(f"Internal error: {type(exc).__name__}") from exc
 
         if last_error:
+            logger.error(
+                "All AI models failed",
+                error_id=ErrorIds.AI_ALL_MODELS_FAILED,
+                models_tried=len(models),
+                last_error=str(last_error),
+            )
             raise last_error
 
     async def _stream_model(self, model: str, messages: list[dict[str, str]]) -> AsyncIterator[str]:

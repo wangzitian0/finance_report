@@ -331,6 +331,7 @@ class ExtractionService:
             else [self.primary_model] + list(self.fallback_models or [])
         )
         last_error: ExtractionError | None = None
+        error_summary: dict[str, int] = {}
 
         for i, model in enumerate(models):
             if not model:
@@ -355,7 +356,24 @@ class ExtractionService:
                 content = await accumulate_stream(stream)
 
                 if not content or not content.strip():
-                    raise ExtractionError("Empty response from AI model")
+                    from src.constants.error_ids import ErrorIds
+
+                    logger.error(
+                        "AI returned empty response",
+                        error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE,
+                        model=model,
+                        institution=institution,
+                        file_type="pdf" if file_content else "url",
+                        prompt_length=len(prompt),
+                        has_content=bool(file_content),
+                        has_url=bool(file_url),
+                    )
+                    error_summary["empty_response"] = error_summary.get("empty_response", 0) + 1
+                    last_error = ExtractionError(
+                        f"Model {model} returned empty response. Possible causes: "
+                        f"quota limit, unsupported format, or content filtering."
+                    )
+                    continue
 
                 if return_raw:
                     logger.info("AI extraction successful (raw)", model=model)
@@ -366,33 +384,89 @@ class ExtractionService:
                     logger.info("AI extraction successful (streaming)", model=model)
                     return parsed
                 except json.JSONDecodeError as e:
+                    from src.constants.error_ids import ErrorIds
+
                     json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
                     if json_match:
                         parsed = json.loads(json_match.group(1))
                         logger.info("AI extraction successful (markdown fallback)", model=model)
                         return parsed
-                    logger.error("Failed to parse AI JSON response", model=model, error=str(e))
+
+                    logger.error(
+                        "Failed to parse AI JSON",
+                        error_id=ErrorIds.EXTRACTION_JSON_PARSE,
+                        model=model,
+                        error=str(e),
+                        error_position=getattr(e, "pos", None),
+                        raw_preview=content[:500],
+                        content_length=len(content),
+                        looks_like_html=content.strip().startswith("<"),
+                        looks_like_xml=content.strip().startswith("<?xml"),
+                    )
+                    error_summary["json_parse"] = error_summary.get("json_parse", 0) + 1
                     last_error = ExtractionError(f"Failed to parse JSON response: {e}")
                     continue
 
             except OpenRouterStreamError as e:
+                from src.constants.error_ids import ErrorIds
+
                 error_msg = str(e)
                 if "429" in error_msg or "quota" in error_msg.lower():
-                    logger.warning("AI extraction rate limited", model=model, attempt=i + 1)
+                    logger.warning(
+                        "AI extraction rate limited",
+                        error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
+                        model=model,
+                        attempt=i + 1,
+                        retryable=getattr(e, "retryable", False),
+                    )
+                    error_summary["rate_limit"] = error_summary.get("rate_limit", 0) + 1
                     last_error = ExtractionError(f"Model {model} rate limited: {error_msg}")
                 elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                    logger.warning("AI extraction timed out", model=model, attempt=i + 1)
+                    logger.warning(
+                        "AI extraction timed out",
+                        error_id=ErrorIds.OPENROUTER_TIMEOUT,
+                        model=model,
+                        attempt=i + 1,
+                    )
+                    error_summary["timeout"] = error_summary.get("timeout", 0) + 1
                     last_error = ExtractionError(f"Model {model} timed out: {error_msg}")
                 else:
-                    logger.warning("AI extraction HTTP error", model=model, error=error_msg)
+                    logger.warning(
+                        "AI extraction HTTP error",
+                        error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
+                        model=model,
+                        error=error_msg,
+                        retryable=getattr(e, "retryable", False),
+                    )
+                    error_summary["http_error"] = error_summary.get("http_error", 0) + 1
                     last_error = ExtractionError(f"Model {model} failed: {error_msg}")
                 continue
-            except Exception as e:
-                if isinstance(e, ExtractionError):
-                    raise
-                logger.exception("AI extraction unexpected error", model=model)
-                last_error = ExtractionError(str(e))
-                continue
+            except ExtractionError:
+                raise
+            except (ValueError, TypeError, KeyError, AttributeError) as e:
+                from src.constants.error_ids import ErrorIds
+
+                logger.exception(
+                    "Programming error in extraction",
+                    error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
+                    model=model,
+                    error_type=type(e).__name__,
+                )
+                raise ExtractionError(f"Internal error: {type(e).__name__}") from e
+
+        from src.constants.error_ids import ErrorIds
+
+        if error_summary:
+            breakdown = ", ".join(f"{ct} {et}" for et, ct in error_summary.items())
+            logger.error(
+                "All extraction models failed",
+                error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
+                models_tried=len(models),
+                error_breakdown=error_summary,
+            )
+            raise ExtractionError(
+                f"All {len(models)} models failed. Breakdown: {breakdown}. Last: {last_error}"
+            )
 
         raise last_error or ExtractionError("Extraction failed after all retries")
 

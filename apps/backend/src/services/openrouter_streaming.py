@@ -21,7 +21,9 @@ class OpenRouterStreamError(Exception):
 
         Args:
             message: Error description
-            retryable: Whether this error can be retried (e.g., rate limits, timeouts)
+            retryable: Whether this error can be retried (e.g., HTTP 429 rate limits,
+                       HTTP 5xx server errors). Network timeouts raise httpx exceptions
+                       directly and are not wrapped.
         """
         super().__init__(message)
         self.retryable = retryable
@@ -84,6 +86,9 @@ async def _stream_openrouter_base(
                 retryable = response.status_code in (429, 500, 502, 503, 504)
                 raise OpenRouterStreamError(error_message, retryable=retryable)
 
+            # Track consecutive JSON parse failures to detect malformed streams early.
+            # Threshold of 10 allows transient issues (e.g., incomplete chunks) while
+            # preventing infinite loops on persistently corrupt streams.
             consecutive_failures = 0
             max_consecutive_failures = 10
 
