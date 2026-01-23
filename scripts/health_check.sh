@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+# shellcheck source=scripts/lib/common.sh
+source "$(dirname "$0")/lib/common.sh"
+
 missing_args=()
 
 HEALTH_URL="${1:-}"
@@ -23,30 +26,26 @@ ENVIRONMENT="${2:-}"
 MAX_ATTEMPTS="${3:-24}"
 IMAGE_TAG="${4:-}"
 
-[ -z "$HEALTH_URL" ] && missing_args+=("health_url")
-[ -z "$ENVIRONMENT" ] && missing_args+=("environment")
+validate_non_empty "$HEALTH_URL" "health_url" 2>/dev/null || missing_args+=("health_url")
+validate_non_empty "$ENVIRONMENT" "environment" 2>/dev/null || missing_args+=("environment")
 
-if [ ${#missing_args[@]} -gt 0 ]; then
+if [[ ${#missing_args[@]} -gt 0 ]]; then
   echo "========================================="
   echo "ERROR: Missing Required Arguments"
   echo "========================================="
   echo ""
-  for arg in "${missing_args[@]}"; do
-    echo "  - $arg"
-  done
+  printf '  - %s\n' "${missing_args[@]}"
   echo ""
   echo "Usage: $0 <health_url> <environment> [max_attempts] [image_tag]"
   echo "========================================="
   exit 1
 fi
 
-# Extract domain from URL for troubleshooting messages
 DOMAIN=$(echo "$HEALTH_URL" | sed -E 's|https?://([^/]+).*|\1|')
 
-# Setup temp files for response/error capture
-HEALTH_RESPONSE_FILE=$(mktemp)
-HEALTH_ERROR_FILE=$(mktemp)
-trap 'rm -f "$HEALTH_RESPONSE_FILE" "$HEALTH_ERROR_FILE"' EXIT INT TERM
+response_file=$(mktemp)
+error_file=$(mktemp)
+register_cleanup "$response_file" "$error_file"
 
 echo "Starting health check for $ENVIRONMENT environment"
 echo "URL: $HEALTH_URL"
@@ -58,11 +57,9 @@ attempt=1
 while (( attempt <= MAX_ATTEMPTS )); do
   echo "[WAITING] Health check attempt $attempt/$MAX_ATTEMPTS..."
   
-  # Capture both HTTP status code and response body
-  http_code=$(curl -s -o "$HEALTH_RESPONSE_FILE" -w "%{http_code}" "$HEALTH_URL" 2>"$HEALTH_ERROR_FILE" || echo "000")
+  http_code=$(curl -s -o "$response_file" -w "%{http_code}" "$HEALTH_URL" 2>"$error_file" || echo "000")
   
-  # Check for connection errors (curl exit code != 0)
-  if [ "$http_code" = "000" ]; then
+  if [[ "$http_code" == "000" ]]; then
     echo "[WARNING] Connection failed (attempt $attempt/$MAX_ATTEMPTS)"
     
     if (( attempt == MAX_ATTEMPTS )); then
@@ -74,7 +71,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
       echo "URL: $HEALTH_URL"
       echo ""
       echo "Connection error:"
-      cat "$HEALTH_ERROR_FILE" 2>/dev/null || echo "(no error details)"
+      cat "$error_file" 2>/dev/null || echo "(no error details)"
       echo ""
       echo "Troubleshooting:"
       echo "1. Check DNS resolution: nslookup $DOMAIN"
@@ -91,8 +88,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
     continue
   fi
   
-  # Check for HTTP errors
-  if [ "$http_code" != "200" ]; then
+  if ! check_http_code "$http_code" "200" "Health check" 2>/dev/null; then
     echo "[WARNING] HTTP $http_code (attempt $attempt/$MAX_ATTEMPTS)"
     
     if (( attempt == MAX_ATTEMPTS )); then
@@ -103,7 +99,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
       echo "========================================="
       echo "URL: $HEALTH_URL"
       echo "Response:"
-      cat "$HEALTH_RESPONSE_FILE" 2>/dev/null || echo "(no response body)"
+      cat "$response_file" 2>/dev/null || echo "(no response body)"
       echo ""
       echo "Troubleshooting: Check SigNoz for application logs"
       echo "========================================="
@@ -115,15 +111,15 @@ while (( attempt <= MAX_ATTEMPTS )); do
     continue
   fi
   
-  # Check if response contains "healthy"
-  health_response=$(cat "$HEALTH_RESPONSE_FILE" 2>/dev/null || echo "")
-  if echo "$health_response" | grep -q '"status":"healthy"'; then
+  health_response=$(cat "$response_file" 2>/dev/null || echo "")
+  
+  if validate_health_response "$health_response"; then
     elapsed=$((attempt * 10))
     echo ""
     echo "========================================="
     echo "[SUCCESS] Deployment Successful ($elapsed seconds)"
     echo "========================================="
-    if [ -n "$IMAGE_TAG" ]; then
+    if [[ -n "$IMAGE_TAG" ]]; then
       echo "Version: $IMAGE_TAG"
     fi
     echo "Environment: $ENVIRONMENT"
@@ -136,7 +132,6 @@ while (( attempt <= MAX_ATTEMPTS )); do
     exit 0
   fi
   
-  # Response is 200 but not healthy
   echo "[WARNING] Backend is unhealthy (attempt $attempt/$MAX_ATTEMPTS)"
   echo "Response: $health_response"
   
