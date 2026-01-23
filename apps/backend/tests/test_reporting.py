@@ -18,6 +18,7 @@ from src.models import (
     JournalLine,
 )
 from src.services import reporting as reporting_service
+from src.services.fx import clear_fx_cache
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -26,6 +27,14 @@ from src.services.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
+
+
+@pytest.fixture(autouse=True)
+def cleanup_fx_cache():
+    """Clear FX cache before each test."""
+    clear_fx_cache()
+    yield
+    clear_fx_cache()
 
 
 @pytest.fixture
