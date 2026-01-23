@@ -16,36 +16,35 @@
 
 set -euo pipefail
 
+# shellcheck source=scripts/lib/common.sh
+source "$(dirname "$0")/lib/common.sh"
+
 ENV_ONLY=false
-if [ "${1:-}" = "--env-only" ]; then
-  ENV_ONLY=true
-fi
+[[ "${1:-}" == "--env-only" ]] && ENV_ONLY=true
 
 missing_envs=()
 missing_tools=()
 
-# Check required environment variables
-[ -z "${DOKPLOY_API_KEY:-}" ] && missing_envs+=("DOKPLOY_API_KEY")
-[ -z "${DOKPLOY_API_URL:-}" ] && missing_envs+=("DOKPLOY_API_URL")
+for var in DOKPLOY_API_KEY DOKPLOY_API_URL; do
+  if ! validate_non_empty "${!var:-}" "$var" 2>/dev/null; then
+    missing_envs+=("$var")
+  fi
+done
 
-# Check required tools (skip if --env-only)
-if [ "$ENV_ONLY" = false ]; then
+if [[ "$ENV_ONLY" == false ]]; then
   command -v curl >/dev/null 2>&1 || missing_tools+=("curl")
   command -v jq >/dev/null 2>&1 || missing_tools+=("jq")
 fi
 
-# Report all missing dependencies
-if [ ${#missing_envs[@]} -gt 0 ] || [ ${#missing_tools[@]} -gt 0 ]; then
+if [[ ${#missing_envs[@]} -gt 0 ]] || [[ ${#missing_tools[@]} -gt 0 ]]; then
   echo "========================================="
   echo "ERROR: Missing Deployment Dependencies"
   echo "========================================="
   
-  if [ ${#missing_envs[@]} -gt 0 ]; then
+  if [[ ${#missing_envs[@]} -gt 0 ]]; then
     echo ""
     echo "Missing Environment Variables:"
-    for env in "${missing_envs[@]}"; do
-      echo "  ❌ $env"
-    done
+    printf '  ❌ %s\n' "${missing_envs[@]}"
     echo ""
     echo "Fix: Add to workflow step 'env:' section"
     echo "Example:"
@@ -54,12 +53,10 @@ if [ ${#missing_envs[@]} -gt 0 ] || [ ${#missing_tools[@]} -gt 0 ]; then
     echo "    DOKPLOY_API_URL: \${{ env.DOKPLOY_API_URL }}"
   fi
   
-  if [ ${#missing_tools[@]} -gt 0 ]; then
+  if [[ ${#missing_tools[@]} -gt 0 ]]; then
     echo ""
     echo "Missing Tools:"
-    for tool in "${missing_tools[@]}"; do
-      echo "  ❌ $tool"
-    done
+    printf '  ❌ %s\n' "${missing_tools[@]}"
     echo ""
     echo "Fix: Install in workflow before deployment"
     echo "  apt-get install -y curl jq"
