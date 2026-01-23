@@ -30,10 +30,22 @@ export default function StatementUploader({
                 if (!active) return;
                 setModels(data.models);
                 const stored = typeof window !== "undefined" ? localStorage.getItem("statement_model_v1") : null;
-                let preferred = stored && data.models.some((m) => m.id === stored) ? stored : data.default_model;
+                
+                // IMPORTANT: Validate stored model ID against current catalog
+                // If stored ID is invalid/stale, fall back to default
+                const isStoredValid = stored && data.models.some((m) => m.id === stored);
+                let preferred = isStoredValid ? stored : data.default_model;
+                
+                // Double-check preferred model exists (defensive)
                 if (!data.models.some((m) => m.id === preferred)) {
                     preferred = data.models[0]?.id || "";
                 }
+                
+                // Clear invalid localStorage entry to prevent future issues
+                if (stored && !isStoredValid && typeof window !== "undefined") {
+                    localStorage.removeItem("statement_model_v1");
+                }
+                
                 setSelectedModel(preferred);
             } catch {
                 if (!active) return;

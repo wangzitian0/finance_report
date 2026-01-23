@@ -211,8 +211,21 @@ async def upload_statement(
                     None,
                 )
                 if not match:
+                    logger.warning(
+                        "User attempted invalid model selection",
+                        requested_model=model,
+                        user_id=str(user_id),
+                        available_models_count=len(models),
+                    )
                     raise_bad_request("Invalid model selection.")
                 if extension != "csv" and not model_matches_modality(match, "image"):
+                    logger.warning(
+                        "Model lacks required modality",
+                        requested_model=model,
+                        required_modality="image",
+                        file_type=extension,
+                        user_id=str(user_id),
+                    )
                     raise_bad_request("Selected model does not support image inputs.")
             except HTTPException:
                 raise
