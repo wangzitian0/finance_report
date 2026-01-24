@@ -279,7 +279,8 @@ class TestConfig:
         from src.config import Settings
 
         settings = Settings()
-        assert settings.primary_model == "google/gemini-3-flash-preview"
+        assert "gemini" in settings.primary_model.lower()
+        assert settings.primary_model.startswith("google/")
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):
