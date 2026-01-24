@@ -1,6 +1,6 @@
 """Backend tests."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -39,15 +39,30 @@ async def test_health_endpoint_structure(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_health_returns_503_on_database_failure(public_client: AsyncClient) -> None:
+async def test_health_returns_503_on_database_failure(public_client: AsyncClient, monkeypatch) -> None:
     """Test health endpoint returns 503 when database check fails."""
-    with patch("src.main.check_database", return_value=False):
-        response = await public_client.get("/health")
+    # The health check uses the db dependency directly.
+    # To mock its failure, we can mock the execute method of the session.
+    # However, it's easier to mock get_db to yield a session that fails.
+    from src.database import get_db
 
+    async def mock_get_db():
+        from unittest.mock import MagicMock
+        mock_session = MagicMock()
+        mock_session.execute.side_effect = Exception("DB Down")
+        yield mock_session
+
+    from src.main import app
+    app.dependency_overrides[get_db] = mock_get_db
+
+    try:
+        response = await public_client.get("/health")
         assert response.status_code == 503
         data = response.json()
         assert data["status"] == "unhealthy"
         assert data["checks"]["database"] is False
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -68,26 +83,38 @@ async def test_health_fails_when_redis_configured_but_unavailable(
 ) -> None:
     """Test health check fails when Redis is configured but unreachable."""
     monkeypatch.setattr("src.config.settings.redis_url", "redis://invalid:6379")
-    with patch("src.main.REDIS_AVAILABLE", True):
-        with patch("src.main.check_redis", return_value=False):
-            response = await public_client.get("/health")
 
-            assert response.status_code == 503
-            data = response.json()
-            assert data["checks"]["redis"] is False
+    from src.boot import Bootloader, ServiceStatus
+    monkeypatch.setattr(
+        Bootloader,
+        "_check_redis",
+        AsyncMock(return_value=ServiceStatus("redis", "error", "Connection refused")),
+    )
+
+    response = await public_client.get("/health")
+
+    assert response.status_code == 503
+    data = response.json()
+    assert data["checks"]["redis"] is False
 
 
 
 @pytest.mark.asyncio
-async def test_health_returns_503_on_s3_failure(public_client: AsyncClient) -> None:
+async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
     """Test health endpoint returns 503 when S3 check fails."""
-    with patch("src.main.check_s3", return_value=False):
-        response = await public_client.get("/health")
+    from src.boot import Bootloader, ServiceStatus
+    monkeypatch.setattr(
+        Bootloader,
+        "_check_s3",
+        AsyncMock(return_value=ServiceStatus("minio", "error", "Bucket missing")),
+    )
 
-        assert response.status_code == 503
-        data = response.json()
-        assert data["status"] == "unhealthy"
-        assert data["checks"]["s3"] is False
+    response = await public_client.get("/health")
+
+    assert response.status_code == 503
+    data = response.json()
+    assert data["status"] == "unhealthy"
+    assert data["checks"]["s3"] is False
 
 
 @pytest.mark.asyncio
