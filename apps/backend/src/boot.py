@@ -31,7 +31,7 @@ class BootMode(str, Enum):
 
 
 @dataclass
-class CheckResult:
+class ServiceStatus:
     service: str
     status: str  # 'ok', 'warning', 'error', 'skipped'
     message: str
@@ -177,7 +177,7 @@ class Bootloader:
             return False
 
     @staticmethod
-    async def _check_database() -> CheckResult:
+    async def _check_database() -> ServiceStatus:
         """Verify database connectivity (SELECT 1)."""
         start = time.perf_counter()
         engine = None
@@ -187,19 +187,19 @@ class Bootloader:
                 await conn.execute(text("SELECT 1"))
             
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("database", "ok", "Connection successful", duration_ms)
+            return ServiceStatus("database", "ok", "Connection successful", duration_ms)
             
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("database", "error", str(e), duration_ms)
+            return ServiceStatus("database", "error", str(e), duration_ms)
         finally:
             if engine:
                 await engine.dispose()
 
     @staticmethod
-    async def _check_redis() -> CheckResult:
+    async def _check_redis() -> ServiceStatus:
         if not settings.redis_url:
-            return CheckResult("redis", "skipped", "Not configured")
+            return ServiceStatus("redis", "skipped", "Not configured")
             
         start = time.perf_counter()
         try:
@@ -208,13 +208,13 @@ class Bootloader:
             await client.ping()
             await client.aclose()
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("redis", "ok", "Ping successful", duration_ms)
+            return ServiceStatus("redis", "ok", "Ping successful", duration_ms)
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("redis", "error", str(e), duration_ms)
+            return ServiceStatus("redis", "error", str(e), duration_ms)
 
     @staticmethod
-    async def _check_s3() -> CheckResult:
+    async def _check_s3() -> ServiceStatus:
         """HEAD bucket check."""
         import aioboto3
         from botocore.config import Config
@@ -233,16 +233,16 @@ class Bootloader:
                 await s3.head_bucket(Bucket=settings.s3_bucket)
             
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("minio", "ok", "Bucket accessible", duration_ms)
+            return ServiceStatus("minio", "ok", "Bucket accessible", duration_ms)
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("minio", "error", str(e), duration_ms)
+            return ServiceStatus("minio", "error", str(e), duration_ms)
 
     @staticmethod
-    async def _check_openrouter() -> CheckResult:
+    async def _check_openrouter() -> ServiceStatus:
         """Validate AI API key."""
         if not settings.openrouter_api_key:
-            return CheckResult("openrouter", "skipped", "Not configured")
+            return ServiceStatus("openrouter", "skipped", "Not configured")
 
         import httpx
         start = time.perf_counter()
@@ -260,10 +260,10 @@ class Bootloader:
                     msg = f"HTTP {resp.status_code}"
             
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("openrouter", status, msg, duration_ms)
+            return ServiceStatus("openrouter", status, msg, duration_ms)
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
-            return CheckResult("openrouter", "error", str(e), duration_ms)
+            return ServiceStatus("openrouter", "error", str(e), duration_ms)
 
 
 if __name__ == "__main__":
