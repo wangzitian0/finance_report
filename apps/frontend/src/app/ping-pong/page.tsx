@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+import { apiFetch } from "@/lib/api";
+
 interface PingState {
   state: "ping" | "pong";
   toggle_count: number;
   updated_at: string | null;
 }
-
-import { API_URL } from "@/lib/api";
 
 export default function PingPongPage() {
   const [pingState, setPingState] = useState<PingState | null>(null);
@@ -18,9 +18,8 @@ export default function PingPongPage() {
 
   const fetchState = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/ping`);
-      if (!res.ok) throw new Error("Failed to fetch state");
-      setPingState(await res.json());
+      const data = await apiFetch<PingState>("/api/ping");
+      setPingState(data);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -32,9 +31,8 @@ export default function PingPongPage() {
   const toggleState = async () => {
     setToggling(true);
     try {
-      const res = await fetch(`${API_URL}/api/ping/toggle`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to toggle state");
-      setPingState(await res.json());
+      const data = await apiFetch<PingState>("/api/ping/toggle", { method: "POST" });
+      setPingState(data);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
