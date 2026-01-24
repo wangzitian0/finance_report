@@ -145,8 +145,9 @@ class TestModelCatalogCaching:
 
     async def test_catalog_caching_reduces_api_calls(self):
         """Test that fetching catalog multiple times uses cache."""
-        from src.services.openrouter_models import fetch_model_catalog
         import time
+
+        from src.services.openrouter_models import fetch_model_catalog
 
         first = await fetch_model_catalog(force_refresh=True)
         start = time.time()
@@ -163,5 +164,12 @@ class TestModelCatalogCaching:
         first = await fetch_model_catalog(force_refresh=True)
         second = await fetch_model_catalog(force_refresh=True)
 
-        assert len(first) == len(second), "Refresh returned different catalog size"
-        assert all(m1["id"] == m2["id"] for m1, m2 in zip(first, second)), "Refresh returned different model IDs"
+        # Both should be valid catalogs with models
+        assert len(first) > 0, "First refresh returned empty catalog"
+        assert len(second) > 0, "Second refresh returned empty catalog"
+        # Compare by set of IDs since order may differ between API calls
+        first_ids = {m["id"] for m in first}
+        second_ids = {m["id"] for m in second}
+        # Allow small differences (API catalog may update between calls)
+        common = first_ids & second_ids
+        assert len(common) > len(first_ids) * 0.9, f"Less than 90% overlap: {len(common)}/{len(first_ids)}"
