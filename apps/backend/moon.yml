@@ -44,13 +44,16 @@ tasks:
     deps:
       - 'install'
 
-  test-integration:
-    command: 'uv run pytest -m integration tests/'
+  test-execution:
+    command: 'uv run pytest -v -m "not slow" --cov=src --cov-report=lcov --cov-report=term-missing'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'
     deps:
       - 'install'
+
+  test-integration:
+    command: 'uv run pytest -m integration tests/'
 
   test-e2e:
     command: 'uv run pytest -m e2e tests/e2e/'
@@ -67,7 +70,6 @@ tasks:
     local: true
     deps:
       - 'install'
-
   migrate:
     command: 'uv run alembic upgrade head'
     local: true

@@ -54,7 +54,9 @@ jobs:
       - name: Verify backend dependencies
         run: |
           cd apps/backend
-          uv run python -c "import email_validator; import bcrypt; print('All dependencies OK')"
+          # Dry-run check validates that all code (including dependencies) is importable
+          # and that the Bootcamp config logic is sound.
+          uv run python -m src.boot --mode dry-run
       
       - name: Check env keys consistency
         run: |
@@ -96,10 +98,8 @@ jobs:
           S3_BUCKET: statements
           # Redis is optional (only required for distributed rate limiting in production)
         run: |
-          cd apps/backend
-          # Run tests sequentially (removed -n 2) to ensure proper test isolation
-          # with the new CASCADE-based cleanup in conftest.py
-          uv run pytest -v -m "not slow" --cov=src --cov-report=lcov --cov-report=term-missing
+          # Run tests via Moon to ensure 1:1 parity with local env
+          moon run backend:test-execution
       
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2

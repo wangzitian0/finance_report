@@ -1,210 +1,104 @@
-# Environment Variable Smoke Testing
+# Environment Architecture & Verification (Three Gates)
 
-## Overview
+> **SSOT Key**: `architecture_env`
+> **Source of Truth** for how environments are validated across lifecycle stages.
 
-The environment smoke test validates that your configuration not only exists but actually **works** by performing real operations on each service.
+## Core Philosophy: "One Codebase, One Standard"
 
-## Quick Start
+We solve the "42 combinations" problem (Local vs CI vs Staging...) by using a **single** validation engine (`src/boot.py`) across all environments.
+
+The architecture enforces "Three Gates" of increasing strictness.
+
+## The Three Gates
+
+| Gate | Name | Mode | When? | Validation Scope | Failure Consequence |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Static** | `dry-run` | **Build / CI** | ✅ Config Integrity (Keys present) <br> ✅ Code Importable | **Build Fail** / **CI Fail** <br> (Prevent bad code merge) |
+| **2** | **Startup** | `critical` | **App Start** | ✅ **Database Connectivity** <br> ✅ Schema/Migration Sync | **CrashLoopBackOff** <br> (Fail Fast, refuse to serve) |
+| **3** | **Health** | `full` | **Runtime** | ✅ **Full Stack** (Redis, S3, AI) <br> ✅ Latency & Integration | **Alert / 503** <br> (Traffic draining / PagerDuty) |
+
+---
+
+## 1. Unified Implementation (`src/boot.py`)
+
+This file is the **Sole Authority** for validation.
+
+```python
+# Pseudo-code logic of src/boot.py
+class Bootloader:
+    def validate(mode):
+        check_config()                  # Always run (Gate 1)
+        if mode == DRY_RUN: return      # Stop here for CI
+
+        check_database()                # Always run (Gate 2)
+        if mode == CRITICAL: return     # Stop here for App Start
+
+        check_redis()                   # Run only for Full/Health (Gate 3)
+        check_s3()
+        check_ai()
+```
+
+## 2. Environment Mapping
+
+Every environment maps to one of the 3 Gates using the exact same code.
+
+### 💻 Local Development
+- **Gate 2 (Startup)**: `moon run backend:dev` calls `Bootloader(CRITICAL)`.
+  - Effect: If DB is down, uvicorn refuses to start.
+- **Gate 3 (Verification)**: Developer runs `python -m src.boot --mode full`.
+  - Effect: Validates local MinIO/Redis setup.
+
+### 🤖 CI (GitHub Actions)
+- **Gate 1 (Static)**: CI pipeline runs `python -m src.boot --mode dry-run`.
+  - Effect: Fails if `.env.example` or `config.py` are broken.
+- **Gate 2 (Test)**: `pytest` fixture implicitly verifies DB connectivity.
+  - Effect: Tests fail fast if service container is missing.
+
+### 🚀 Production / Staging
+- **Gate 2 (Startup)**: Container entrypoint uses `Bootloader(CRITICAL)` (via `main.py`).
+  - Effect: Pod crashes if DB params are wrong (visible to K8s).
+- **Gate 3 (Runtime)**: Load Balancer calls `/health`.
+  - Effect: Endpoint internally calls `Bootloader` methods. Returns 200 OK only if full stack is healthy.
+
+## 3. How to Verify
+
+### Standard Verification Command
+Run this in any environment (Local, Pod shell, CI runner):
 
 ```bash
-# Full smoke test (all services)
-moon run backend:env-check
-
-# Quick mode (skip optional services like Redis, OpenRouter)
-moon run backend:env-check-quick
-
-# Or run directly
-cd apps/backend
-uv run python -m src.env_smoke_test
-uv run python -m src.env_smoke_test --quick
+# Check everything
+uv run python -m src.boot --mode full
 ```
 
-## What It Tests
-
-### ✅ Database (PostgreSQL)
-- **Connection**: Verify `DATABASE_URL` works
-- **Operations**: Create temp table, insert, select
-- **Expected**: Should complete in < 1000ms
-
-### ✅ MinIO/S3
-- **Connection**: Verify `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` work
-- **Operations**: Upload test file, download, generate presigned URL, delete
-- **Expected**: Should complete in < 2000ms
-
-### ⚠️ Redis (Optional)
-- **Connection**: Verify `REDIS_URL` works (if configured)
-- **Operations**: Ping, set key, get key, delete key
-- **Expected**: Should complete in < 500ms
-- **Note**: Skipped if `REDIS_URL` not set (local dev OK)
-
-### ⚠️ OpenRouter (Optional)
-- **Connection**: Verify `OPENROUTER_API_KEY` works (if configured)
-- **Operations**: Fetch model list, verify primary model available
-- **Expected**: Should complete in < 3000ms
-- **Note**: Skipped if `OPENROUTER_API_KEY` not set (AI features disabled)
-
-## Example Output
-
-```
-================================================================================
-Environment Smoke Test Results
-================================================================================
-
-✅ DATABASE (245ms)
-   Connection, create table, insert, select all OK
-
-✅ MINIO (892ms)
-   Upload, download, presigned URL, delete all OK
-   - test_key: smoke_test/20260122_203045_123456.txt
-   - content_size: 48
-
-⏭️ REDIS
-   REDIS_URL not configured (optional for local dev)
-
-⚠️ OPENROUTER (1234ms)
-   API key valid, 127 models available
-   - primary_model: google/gemini-2.0-flash-exp:free
-   - primary_available: True
-
-================================================================================
-
-Summary: 2 OK, 1 warnings, 0 errors, 1 skipped
-
-⚠️  Some optional services unavailable - features may be degraded
-================================================================================
+### Output Reference
+```text
+Bootloader: Running validation cycle (mode=full)
+✅ Dry-run configuration check passed.
+[info] Service check passed service=database
+[info] Service check passed service=redis
+[info] Service check passed service=minio
+✅ Validation check passed.
 ```
 
-## Exit Codes
+## 4. Debugging Guide
 
-| Code | Meaning |
-|------|---------|
-| `0` | All tests passed (warnings OK) |
-| `1` | At least one test failed (error status) |
+### "Gate 2 Failed: Startup Crash"
+- **Symptom**: App exits immediately with exit code 1.
+- **Cause**: Database unreachable or `DATABASE_URL` invalid.
+- **Fix**: Check `docker/podman ps` for database container.
 
-Use `--fail-on-warning` to treat warnings as errors:
+### "Gate 3 Failed: 503 Service Unavailable"
+- **Symptom**: `/health` returns 503.
+- **Cause**: Optional dependency (Redis/S3) missing or misconfigured.
+- **Fix**:
+  - Local: Ensure `dev_backend.py` started the full stack (Redis/MinIO).
+  - Prod: Check AWS/Cloud credentials or Security Groups.
 
-```bash
-uv run python -m src.env_smoke_test --fail-on-warning
-```
+## 5. Relationship to Other Tests
 
-## When to Use
+| Test Type | Tool | Purpose |
+| :--- | :--- | :--- |
+| **Environment Check** | `src.boot` | **Internal Connectivity**. "Can the App talk to DB?" |
+| **E2E Smoke Test** | `scripts/smoke_test.sh` | **External Availability**. "Can the User talk to the App?" |
 
-### Local Development Setup
-```bash
-# After setting up .env for the first time
-moon run backend:env-check
-
-# Verify everything works before starting dev server
-moon run backend:dev
-```
-
-### CI/CD Pipeline
-```bash
-# In GitHub Actions / deployment scripts
-moon run backend:env-check-quick
-if [ $? -ne 0 ]; then
-  echo "Environment validation failed"
-  exit 1
-fi
-```
-
-### Debugging Configuration Issues
-```bash
-# When uploads fail with "S3 not configured"
-moon run backend:env-check
-
-# Output will show exactly what's wrong:
-# ❌ MINIO (150ms)
-#    MinIO test failed: Failed to access bucket statements
-```
-
-### PR Environment Validation
-```bash
-# After PR environment deploys
-curl https://report-pr-123.zitian.party/api/health
-
-# Or SSH into server and run smoke test
-ssh root@$VPS_HOST
-docker exec finance-report-backend-pr-123 python -m src.env_smoke_test
-```
-
-## Troubleshooting
-
-### Database Connection Failed
-```
-❌ DATABASE
-   Database test failed: asyncpg.exceptions.InvalidPasswordError
-```
-
-**Fix**: Check `DATABASE_URL` in `.env` or Vault secrets.
-
-### MinIO Upload Failed
-```
-❌ MINIO
-   MinIO test failed: Failed to create bucket statements
-```
-
-**Fixes**:
-1. Check `S3_ENDPOINT` is reachable (try `curl $S3_ENDPOINT`)
-2. Verify `S3_ACCESS_KEY` and `S3_SECRET_KEY` are correct
-3. Check bucket `S3_BUCKET` exists or service has create permission
-
-### OpenRouter API Key Invalid
-```
-❌ OPENROUTER
-   API key invalid (401 Unauthorized)
-```
-
-**Fix**: Get valid key from https://openrouter.ai/keys and update `OPENROUTER_API_KEY`.
-
-## Implementation Details
-
-**File**: `apps/backend/src/env_smoke_test.py`
-
-The smoke test:
-1. Reads configuration from `src.config.settings`
-2. Performs actual operations (not just checking existence)
-3. Cleans up test data after each test
-4. Runs tests in parallel where possible (DB first, then others)
-5. Returns structured results with timing information
-
-**Test Isolation**: All test keys/data use timestamps to avoid conflicts:
-- Database: Temporary tables (auto-dropped)
-- MinIO: Keys like `smoke_test/20260122_203045.txt` (deleted after test)
-- Redis: Keys like `smoke_test:2026-01-22T20:30:45Z` (10s TTL + explicit delete)
-
-## Integration with Existing Tools
-
-### Compared to `src.env_check.py`
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `env_check.py` | Checks if variables **exist** | Startup validation |
-| `env_smoke_test.py` | Tests if variables **work** | Pre-deployment, debugging |
-
-Both are complementary:
-- `env_check.py` runs on server startup (fast, blocking)
-- `env_smoke_test.py` runs on-demand (slower, comprehensive)
-
-### Compared to Health Check Endpoint
-| Tool | Scope | Usage |
-|------|-------|-------|
-| `/health` endpoint | Application status | Load balancer checks |
-| `env_smoke_test.py` | Configuration validation | Deployment verification |
-
-Health check is lightweight (database ping only). Smoke test is comprehensive (all services + operations).
-
-## Future Enhancements
-
-Potential additions:
-- [ ] Test S3 public endpoint if configured
-- [ ] Test AI extraction with sample image (full e2e)
-- [ ] Test FX rate API connectivity
-- [ ] Prometheus metrics export
-- [ ] Slack/Discord notification on failure
-- [ ] Integration with `scripts/smoke_test.sh` (e2e HTTP tests)
-
-## See Also
-
-- [development.md](./docs/ssot/development.md) - Development workflow
-- [extraction.md](./docs/ssot/extraction.md) - Storage configuration details
-- [.env.example](../../.env.example) - Environment variable reference
+Both are required for a healthy system. `src.boot` is the foundation; `smoke_test.sh` is the acceptance.

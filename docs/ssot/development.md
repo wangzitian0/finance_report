@@ -25,15 +25,19 @@
 
 ## Moon Commands (Primary Interface)
 
+
 ```bash
 # Development
-moon run backend:dev        # FastAPI on :8000
+moon run backend:dev        # Full Stack (App + DB + Redis + MinIO)
 moon run frontend:dev       # Next.js on :3000
 
 # Testing
 moon run :test              # All tests
 moon run backend:test       # Backend tests (auto-manages DB)
-moon run :smoke             # Smoke tests
+
+# Environment Verification
+# (See docs/ssot/env_smoke_test.md for full details)
+uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 
 # Code Quality
 moon run :lint              # Lint all
@@ -199,10 +203,11 @@ All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test li
 │ User runs: moon run backend:dev                                 │
 │ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
 │ │ Start   │ -> │ Server  │ -> │ Ctrl+C  │                      │
-│ │ DB      │    │ Runs    │    │ Cleanup │                      │
+│ │ Stack   │    │ Runs    │    │ Cleanup │                      │
 │ └─────────┘    └─────────┘    └─────────┘                      │
-│                                    │                            │
-│                              Stops: OUR uvicorn, OUR DB only    │
+│      │                               │                          │
+│  (DB,Redis,MinIO)              Stops: uvicorn (PID)             │
+│                                       (Containers persist)      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -212,7 +217,7 @@ Safe for multi-window development - won't kill other sessions' processes.
 **Resources managed by dev scripts:**
 | Script | Resources Started | Cleaned up on Ctrl+C |
 |--------|-------------------|---------------------|
-| `dev_backend.py` | uvicorn (PID tracked), dev DB (container ID tracked) | ✓ Only ours |
+| `dev_backend.py` | uvicorn (PID), **Full Stack Containers** | ✓ uvicorn only (Containers stay for speed) |
 | `dev_frontend.py` | Next.js (PID tracked) | ✓ Only ours |
 
 ### Test Lifecycle (`scripts/test_backend.sh`)

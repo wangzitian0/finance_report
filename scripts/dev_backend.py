@@ -54,7 +54,7 @@ def start_database(compose_cmd: list[str]) -> str | None:
 
     print("🐘 Starting development database...")
     subprocess.run(
-        [*compose_cmd, "-f", COMPOSE_FILE, "up", "-d", "postgres"],
+        [*compose_cmd, "-f", COMPOSE_FILE, "up", "-d", "postgres", "redis", "minio", "minio-init"],
         check=True,
     )
 
@@ -150,8 +150,11 @@ def main():
         "DATABASE_URL",
         "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report"
     )
+    os.environ.setdefault("S3_ENDPOINT", "http://localhost:9000")
     os.environ.setdefault("S3_ACCESS_KEY", "minio")
-    os.environ.setdefault("S3_SECRET_KEY", "minio123")
+    os.environ.setdefault("S3_SECRET_KEY", "minio_local_secret")
+    os.environ.setdefault("S3_BUCKET", "statements")
+    os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 
     print("🚀 Starting FastAPI dev server on http://localhost:8000")
     print("   Press Ctrl+C to stop")
