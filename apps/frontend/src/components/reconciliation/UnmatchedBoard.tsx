@@ -19,13 +19,40 @@ interface BankTransactionSummary {
 interface UnmatchedTransactionsResponse { items: BankTransactionSummary[]; total: number; }
 interface JournalEntrySummary { id: string; entry_date: string; memo?: string | null; status: string; total_amount: number; }
 
+const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
+
+function loadFlaggedFromStorage(): Set<string> {
+  try {
+    if (typeof window === "undefined") return new Set();
+    const stored = localStorage.getItem(FLAGGED_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed);
+      }
+    }
+  } catch (error) {
+    console.warn("[UnmatchedBoard] Failed to load flagged state:", error);
+  }
+  return new Set();
+}
+
+function saveFlaggedToStorage(flagged: Set<string>): void {
+  try {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(FLAGGED_STORAGE_KEY, JSON.stringify([...flagged]));
+  } catch (error) {
+    console.warn("[UnmatchedBoard] Failed to save flagged state:", error);
+  }
+}
+
 export default function UnmatchedBoard() {
   const [items, setItems] = useState<BankTransactionSummary[]>([]);
   const [selected, setSelected] = useState<BankTransactionSummary | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
   const [createdEntry, setCreatedEntry] = useState<JournalEntrySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [flagged, setFlagged] = useState<Set<string>>(() => loadFlaggedFromStorage());
 
   const refresh = useCallback(async () => {
     try {
@@ -60,6 +87,7 @@ export default function UnmatchedBoard() {
       } else {
         next.add(txnId);
       }
+      saveFlaggedToStorage(next);
       return next;
     });
   };

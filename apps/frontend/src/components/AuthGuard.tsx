@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 
 const PUBLIC_PATHS = ["/login", "/ping-pong"];
+const AUTH_TOKEN_KEY = "finance_access_token";
 
 function isPublicPath(pathname: string) {
     return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/"));
@@ -29,6 +30,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         } else {
             setAuthorized(true);
         }
+    }, [pathname, router]);
+
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key !== AUTH_TOKEN_KEY) return;
+            
+            if (e.newValue === null && !isPublicPath(pathname)) {
+                setAuthorized(false);
+                router.push("/login");
+            } else if (e.newValue !== null && pathname === "/login") {
+                router.push("/dashboard");
+            }
+        };
+
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
     }, [pathname, router]);
 
     // Show nothing while checking auth to prevent flash of content

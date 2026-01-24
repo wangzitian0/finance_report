@@ -71,6 +71,24 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         }
     }, [tabs, activeTabId, isHydrated]);
 
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key !== STORAGE_KEY || !e.newValue) return;
+            try {
+                const parsed = JSON.parse(e.newValue);
+                if (parsed.tabs) {
+                    setTabs(parsed.tabs);
+                    setActiveTabId(parsed.activeTabId || parsed.tabs[0]?.id || null);
+                }
+            } catch {
+                // Ignore parse errors from other tabs
+            }
+        };
+
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, []);
+
     const addTab = useCallback((tab: Omit<WorkspaceTab, "id">) => {
         setTabs((prev) => {
             const existing = prev.find((t) => t.href === tab.href);
