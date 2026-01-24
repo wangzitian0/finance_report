@@ -43,9 +43,4 @@ tasks:
     options:
       runInCI: false
 
-  # Run everything (Local CI)
-  ci:
-    command: 'echo "Local CI complete"'
-    deps:
-      - 'backend:verify'
-      # - 'frontend:verify' # TODO: Implement frontend verification
+

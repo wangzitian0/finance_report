@@ -95,3 +95,9 @@ tasks:
       - 'lint'
       - 'test-execution'
       - 'env-check'
+
+  ci:
+    command: 'echo "CI pipeline complete"'
+    local: true
+    deps:
+      - 'verify'
