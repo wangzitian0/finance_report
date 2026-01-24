@@ -1,10 +1,12 @@
 # EPIC-011: Asset Lifecycle Management
 
-**Status**: ⏳ Pending  
+**Status**: 🟡 In Progress (P0 Complete)  
 **Phase**: 5  
 **Duration**: 18 weeks (6 weeks asset features + 12 weeks 4-layer migration)  
 **Priority**: P2 (Medium Priority)  
 **Dependencies**: EPIC-002 (Double-Entry Core), EPIC-005 (Reporting)
+
+> **P0 MVP Complete** (2026-01-24): Basic asset position reconciliation API and frontend implemented. See Phase 0 section below for details.
 
 > **Note**: This EPIC includes both asset lifecycle features (6 weeks) and foundational 4-layer architecture migration (12 weeks). The 4-layer migration affects EPIC-003, EPIC-004, EPIC-005 and should be prioritized first.
 
@@ -1418,6 +1420,82 @@ Backend Logic:
 ---
 
 ## 🔨 Implementation Plan
+
+### Phase 0: P0 MVP - Asset Position Reconciliation (COMPLETED ✅)
+
+**Scope**: Minimal viable asset management - reconcile atomic snapshots into managed positions with API and frontend.
+
+**Completed Tasks**:
+
+#### Backend Router ✅
+- [x] **`GET /api/assets/positions`** - List all managed positions with optional status filter
+- [x] **`GET /api/assets/positions/{position_id}`** - Get single position details  
+- [x] **`POST /api/assets/reconcile`** - Trigger position reconciliation from atomic snapshots
+
+**Files Created/Modified**:
+- `apps/backend/src/routers/assets.py` - NEW - Complete router with 3 endpoints
+- `apps/backend/src/schemas/assets.py` - NEW - Pydantic schemas (ManagedPositionResponse, ReconcilePositionsResponse)
+- `apps/backend/src/routers/__init__.py` - Added assets export
+- `apps/backend/src/schemas/__init__.py` - Added assets schemas export
+- `apps/backend/src/main.py` - Registered assets router
+
+#### AssetService Fixes ✅
+- [x] **Fixed `cost_basis` calculation** - Now uses `market_value` from AtomicPosition as proxy (true cost basis requires lot tracking - future work)
+- [x] **Fixed `reconcile_positions` distinct logic** - Replaced flawed `distinct()` with proper `row_number() OVER (PARTITION BY ... ORDER BY ...)` subquery pattern
+
+**Files Modified**:
+- `apps/backend/src/services/assets.py` - Fixed both bugs
+
+#### Test Coverage ✅
+- [x] **AssetService unit tests** - Expanded from 3 to 10 tests:
+  - test_reconcile_creates_position
+  - test_reconcile_updates_position
+  - test_reconcile_disposes_position
+  - test_reconcile_cost_basis_uses_market_value
+  - test_reconcile_multiple_assets
+  - test_reconcile_multiple_brokers_same_asset
+  - test_reconcile_with_null_broker
+  - test_reconcile_reactivates_disposed_position
+  - test_get_positions_empty
+  - test_reconcile_no_snapshots
+
+- [x] **Assets Router integration tests** - NEW - 9 tests:
+  - test_list_positions_empty
+  - test_list_positions_with_data
+  - test_list_positions_filter_by_status
+  - test_get_position_success
+  - test_get_position_not_found
+  - test_get_position_wrong_user
+  - test_reconcile_positions_success
+  - test_reconcile_positions_empty
+  - test_list_positions_requires_auth
+
+**Files Created/Modified**:
+- `apps/backend/tests/test_asset_service.py` - Expanded to 10 tests
+- `apps/backend/tests/test_assets_router.py` - NEW - 9 integration tests
+
+#### Frontend Implementation ✅
+- [x] **Assets page** - `/assets` holdings list with:
+  - Status filter tabs (All/Active/Disposed)
+  - Positions grouped by broker
+  - Total value calculation
+  - Reconcile button with loading state
+  - Empty state with call-to-action
+  - Error handling with retry
+
+- [x] **Type definitions** - Added `ManagedPosition`, `ManagedPositionListResponse`, `ReconcilePositionsResponse`
+- [x] **Navigation** - Added Assets nav item to sidebar
+
+**Files Created/Modified**:
+- `apps/frontend/src/app/(main)/assets/page.tsx` - NEW - Complete holdings page
+- `apps/frontend/src/lib/types.ts` - Added ManagedPosition types
+- `apps/frontend/src/components/Sidebar.tsx` - Added Assets nav item
+
+#### Key Technical Decisions
+1. **cost_basis uses market_value** - True cost basis calculation requires lot tracking (FIFO/LIFO) which is out of scope for P0
+2. **Window function for "latest per group"** - The original `distinct()` pattern doesn't work correctly in async SQLAlchemy; used `row_number() OVER (PARTITION BY ... ORDER BY ...)` subquery pattern
+
+---
 
 ### Phase 1: Layer 2 Foundation (Week 1-2)
 

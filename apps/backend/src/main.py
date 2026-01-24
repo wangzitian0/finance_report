@@ -25,7 +25,7 @@ from src.env_check import check_env_on_startup, print_loaded_config
 from src.logger import configure_logging, get_logger
 from src.models import PingState
 from src.rate_limit import auth_rate_limiter, register_rate_limiter
-from src.routers import accounts, ai_models, auth, chat, journal, reports, statements, users
+from src.routers import accounts, ai_models, assets, auth, chat, journal, reports, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
@@ -151,6 +151,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(ai_models.router)
+app.include_router(assets.router)
 app.include_router(chat.router)
 app.include_router(journal.router)
 app.include_router(reports.router)

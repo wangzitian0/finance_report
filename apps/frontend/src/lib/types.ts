@@ -190,3 +190,34 @@ export interface ReconciliationMatchListResponse {
     items: ReconciliationMatchResponse[];
     total: number;
 }
+
+export interface ManagedPosition {
+    id: string;
+    user_id: string;
+    account_id: string;
+    asset_identifier: string;
+    quantity: string;
+    cost_basis: string;
+    acquisition_date: string;
+    disposal_date?: string | null;
+    status: "active" | "disposed";
+    currency: string;
+    position_metadata?: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+    account_name?: string | null;
+}
+
+export interface ManagedPositionListResponse {
+    items: ManagedPosition[];
+    total: number;
+}
+
+export interface ReconcilePositionsResponse {
+    message: string;
+    created: number;
+    updated: number;
+    disposed: number;
+    skipped: number;
+    skipped_assets: string[];
+}

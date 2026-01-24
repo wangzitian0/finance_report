@@ -3,6 +3,7 @@
 from src.routers import (
     accounts,
     ai_models,
+    assets,
     auth,
     chat,
     journal,
@@ -15,6 +16,7 @@ from src.routers import (
 __all__ = [
     "accounts",
     "ai_models",
+    "assets",
     "auth",
     "chat",
     "journal",
