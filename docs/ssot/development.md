@@ -31,6 +31,10 @@
 moon run backend:dev        # Full Stack (App + DB + Redis + MinIO)
 moon run frontend:dev       # Next.js on :3000
 
+# Local CI / Verification (Recommended)
+moon run :ci                # One-button check (Lint + Format + Test + Check)
+                            # Matches GitHub CI exactly.
+
 # Testing
 moon run :test              # All tests
 moon run backend:test       # Backend tests (auto-manages DB)
@@ -41,6 +45,7 @@ uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 
 # Code Quality
 moon run :lint              # Lint all
+moon run backend:format     # Format Python (auto-fix)
 moon run backend:format     # Format Python
 
 # Build

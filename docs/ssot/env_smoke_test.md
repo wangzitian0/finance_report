@@ -67,7 +67,7 @@ Run this in any environment (Local, Pod shell, CI runner):
 
 ```bash
 # Check everything
-uv run python -m src.boot --mode full
+moon run backend:env-check
 ```
 
 ### Output Reference
