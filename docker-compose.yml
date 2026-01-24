@@ -48,6 +48,11 @@ services:
       - internal
     # SECURITY: Only expose ports for local development, not in production/Dokploy
     # Set EXPOSE_PORTS=true to enable port exposure (default: no exposure)
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   redis:
     image: redis:7-alpine
@@ -63,6 +68,11 @@ services:
     networks:
       - internal
     # SECURITY: Only expose ports for local development, not in production/Dokploy
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   minio:
     image: minio/minio
@@ -84,6 +94,11 @@ services:
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   # Create MinIO bucket on startup
   minio-init:
@@ -111,6 +126,11 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
     environment:
       # Use explicit container name instead of generic 'postgres' to avoid collisions on shared Dokploy network
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@finance-report-db${ENV_SUFFIX:-}:5432/${POSTGRES_DB:-finance_report}
@@ -165,6 +185,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
