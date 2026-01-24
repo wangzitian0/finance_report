@@ -36,6 +36,11 @@ tasks:
     deps:
       - 'install'
 
+  format-check:
+    command: 'uv run ruff format src/ --check'
+    deps:
+      - 'install'
+
   test:
     command: 'bash ../../scripts/test_backend.sh'
     inputs:
@@ -93,6 +98,7 @@ tasks:
     local: true
     deps:
       - 'lint'
+      - 'format-check'
       - 'test-execution'
       - 'env-check'
 

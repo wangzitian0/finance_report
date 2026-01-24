@@ -44,11 +44,11 @@ class Bootloader:
     @staticmethod
     async def validate(mode: BootMode = BootMode.CRITICAL) -> bool:
         """Run validation checks. Returns True if passed, False if failed.
-        
+
         If mode is CRITICAL, this may call sys.exit(1) on failure.
         """
-        logger.info(f"Bootloader starting validation", mode=mode.value)
-        
+        logger.info("Bootloader starting validation", mode=mode.value)
+
         # 1. Static Configuration Check (Always run)
         if not Bootloader._check_static_config():
             if mode == BootMode.CRITICAL:
@@ -62,7 +62,7 @@ class Bootloader:
 
         # 2. Connectivity Checks
         results = []
-        
+
         # Database (Always checked in Critical/Full)
         results.append(await Bootloader._check_database())
 
@@ -78,24 +78,14 @@ class Bootloader:
             if res.status == "error":
                 passed = False
                 logger.error(
-                    f"Service check failed",
-                    service=res.service,
-                    error=res.message,
-                    duration_ms=res.duration_ms
+                    "Service check failed", service=res.service, error=res.message, duration_ms=res.duration_ms
                 )
             elif res.status == "warning":
                 logger.warning(
-                    f"Service check warning",
-                    service=res.service,
-                    message=res.message,
-                    duration_ms=res.duration_ms
+                    "Service check warning", service=res.service, message=res.message, duration_ms=res.duration_ms
                 )
             else:
-                logger.info(
-                    f"Service check passed",
-                    service=res.service,
-                    duration_ms=res.duration_ms
-                )
+                logger.info("Service check passed", service=res.service, duration_ms=res.duration_ms)
 
         if not passed:
             if mode == BootMode.CRITICAL:
@@ -185,10 +175,10 @@ class Bootloader:
             engine = create_async_engine(settings.database_url, echo=False)
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-            
+
             duration_ms = (time.perf_counter() - start) * 1000
             return ServiceStatus("database", "ok", "Connection successful", duration_ms)
-            
+
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
             return ServiceStatus("database", "error", str(e), duration_ms)
@@ -200,10 +190,11 @@ class Bootloader:
     async def _check_redis() -> ServiceStatus:
         if not settings.redis_url:
             return ServiceStatus("redis", "skipped", "Not configured")
-            
+
         start = time.perf_counter()
         try:
             import redis.asyncio as aioredis
+
             client = aioredis.from_url(settings.redis_url, decode_responses=True)
             await client.ping()
             await client.aclose()
@@ -218,7 +209,7 @@ class Bootloader:
         """HEAD bucket check."""
         import aioboto3
         from botocore.config import Config
-        
+
         start = time.perf_counter()
         try:
             session = aioboto3.Session()
@@ -231,7 +222,7 @@ class Bootloader:
                 config=Config(connect_timeout=5, read_timeout=5),
             ) as s3:
                 await s3.head_bucket(Bucket=settings.s3_bucket)
-            
+
             duration_ms = (time.perf_counter() - start) * 1000
             return ServiceStatus("minio", "ok", "Bucket accessible", duration_ms)
         except Exception as e:
@@ -245,12 +236,13 @@ class Bootloader:
             return ServiceStatus("openrouter", "skipped", "Not configured")
 
         import httpx
+
         start = time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
                     f"{settings.openrouter_base_url}/models",
-                    headers={"Authorization": f"Bearer {settings.openrouter_api_key}"}
+                    headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},
                 )
                 if resp.status_code == 200:
                     status = "ok"
@@ -258,7 +250,7 @@ class Bootloader:
                 else:
                     status = "error"
                     msg = f"HTTP {resp.status_code}"
-            
+
             duration_ms = (time.perf_counter() - start) * 1000
             return ServiceStatus("openrouter", status, msg, duration_ms)
         except Exception as e:
@@ -268,18 +260,19 @@ class Bootloader:
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, default="full", choices=["critical", "full", "dry-run"])
     args = parser.parse_args()
-    
+
     print(f"Bootloader: Running validation cycle (mode={args.mode})")
-    
+
     try:
         success = asyncio.run(Bootloader.validate(BootMode(args.mode)))
     except KeyboardInterrupt:
         print("\nAborted.")
         sys.exit(130)
-        
+
     if success:
         print("✅ Validation check passed.")
         sys.exit(0)

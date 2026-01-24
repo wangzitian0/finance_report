@@ -166,7 +166,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
         # Use Bootloader's internal check methods to ensure consistency
         # We don't use validate() here because we want granular report
         checks = {}
-        
+
         # DB (Use session from dependency for consistency with request scope)
         try:
             await db.execute(text("SELECT 1"))
@@ -176,11 +176,11 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
 
         # Redis
         redis_res = await Bootloader._check_redis()
-        checks["redis"] = (redis_res.status == "ok" or redis_res.status == "skipped")
-        
+        checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
+
         # S3
         s3_res = await Bootloader._check_s3()
-        checks["s3"] = (s3_res.status == "ok" or s3_res.status == "skipped")
+        checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
 
         all_healthy = all(checks.values())
         status_code = 200 if all_healthy else 503
