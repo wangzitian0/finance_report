@@ -100,6 +100,84 @@ export async function apiFetch<T>(
   return (await res.json()) as T;
 }
 
+export interface StreamResponse {
+  response: Response;
+  sessionId: string | null;
+}
+
+export async function apiStream(
+  path: string,
+  options: RequestInit = {}
+): Promise<StreamResponse> {
+  const token = getAccessToken();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      handle401Redirect();
+    }
+
+    const errorText = await res.text();
+    let message = `Request failed with ${res.status}`;
+    if (errorText) {
+      try {
+        const parsed = JSON.parse(errorText);
+        if (parsed && typeof parsed === "object") {
+          const detail = (parsed as { detail?: string }).detail;
+          message = detail || errorText;
+        } else {
+          message = errorText;
+        }
+      } catch {
+        message = errorText;
+      }
+    }
+    throw new Error(message);
+  }
+
+  return {
+    response: res,
+    sessionId: res.headers.get("X-Session-Id"),
+  };
+}
+
+export async function apiDelete(path: string): Promise<void> {
+  const token = getAccessToken();
+  const headers: HeadersInit = {};
+
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      handle401Redirect();
+    }
+    throw new Error(`Delete failed with ${res.status}`);
+  }
+}
+
 export async function apiUpload<T>(
   path: string,
   formData: FormData,

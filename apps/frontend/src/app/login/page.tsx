@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_URL } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { setUser } from "@/lib/auth";
 
 interface AuthResponse {
@@ -31,18 +31,11 @@ export default function LoginPage() {
                 ? "/api/auth/register"
                 : "/api/auth/login";
 
-            const res = await fetch(`${API_URL}${endpoint}`, {
+            const data = await apiFetch<AuthResponse>(endpoint, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
 
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.detail || "Authentication failed");
-            }
-
-            const data: AuthResponse = await res.json();
             setUser(data.id, data.email, data.access_token);
             router.push("/dashboard");
         } catch (err) {

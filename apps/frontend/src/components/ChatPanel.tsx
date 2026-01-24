@@ -3,8 +3,7 @@
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { API_URL, apiFetch } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { apiFetch, apiStream, apiDelete } from "@/lib/api";
 import { fetchAiModels } from "@/lib/aiModels";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
@@ -27,14 +26,6 @@ const splitDisclaimer = (content: string) => {
   return { body: content, disclaimer: "" };
 };
 const formatErrorMessage = (error: unknown) => error instanceof Error ? error.message : "Unable to send the message.";
-const buildAuthHeaders = (base: HeadersInit = {}) => {
-  const headers: HeadersInit = { ...base };
-  const token = getAccessToken();
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-  return headers;
-};
 
 export default function ChatPanel({ variant = "page", initialPrompt, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -143,32 +134,14 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     setIsStreaming(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/chat`, {
+      const { response: res, sessionId: newSessionId } = await apiStream("/api/chat", {
         method: "POST",
-        headers: buildAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           message: messageText,
           session_id: sessionId,
           model: selectedModel || undefined,
         }),
       });
-      if (!res.ok) {
-        const detailText = await res.text();
-        let detail = detailText || "AI service is unavailable.";
-        try {
-          const parsed = JSON.parse(detailText) as { detail?: string };
-          if (parsed.detail) {
-            detail = parsed.detail;
-          }
-        } catch {
-          // Ignore JSON parsing errors
-        }
-        updateMessage(assistantId, detail, false);
-        setError(detail);
-        setIsStreaming(false);
-        return;
-      }
-      const newSessionId = res.headers.get("X-Session-Id") || sessionId;
       if (newSessionId) {
         setSessionId(newSessionId);
         localStorage.setItem(SESSION_KEY, newSessionId);
@@ -180,7 +153,7 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
       updateMessage(assistantId, formatErrorMessage(err), false);
       setIsStreaming(false);
     }
-  }, [handleStream, input, isStreaming, sessionId, updateMessage]);
+  }, [handleStream, input, isStreaming, selectedModel, sessionId, updateMessage]);
 
   useEffect(() => {
     if (initialPromptHandled || !initialPrompt || loadingHistory) return;
@@ -192,11 +165,8 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const clearSession = async () => {
     if (sessionId) { 
       try { 
-        await fetch(`${API_URL}/api/chat/session/${sessionId}`, { 
-          method: "DELETE", 
-          headers: buildAuthHeaders() 
-        }); 
-      } catch { } 
+        await apiDelete(`/api/chat/session/${sessionId}`);
+      } catch { }
     }
     localStorage.removeItem(SESSION_KEY);
     setSessionId(null);
