@@ -106,4 +106,7 @@ tasks:
     command: 'echo "CI pipeline complete"'
     local: true
     deps:
-      - 'verify'
+      - 'lint'
+      - 'format-check'
+      - 'test-execution'
+      - 'env-check-quick'
