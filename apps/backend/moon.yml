@@ -44,6 +44,30 @@ tasks:
     deps:
       - 'install'
 
+  test-integration:
+    command: 'uv run pytest -m integration tests/'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - 'install'
+
+  test-e2e:
+    command: 'uv run pytest -m e2e tests/e2e/'
+    inputs:
+      - '@globs(sources)'
+      - 'tests/e2e/**/*.py'
+    deps:
+      - 'install'
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: '.playwright'
+
+  test-perf:
+    command: 'uv run locust -f tests/locustfile.py --host=http://localhost:8000 --users 10 --spawn-rate 2 --run-time 30s --headless --html=locust_report.html'
+    local: true
+    deps:
+      - 'install'
+
   migrate:
     command: 'uv run alembic upgrade head'
     local: true

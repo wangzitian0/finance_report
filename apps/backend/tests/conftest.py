@@ -8,10 +8,14 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from src.logger import get_logger
 from src.services.fx import clear_fx_cache
+
+logger = get_logger(__name__)
 
 
 # --- FX Cache Cleanup ---
@@ -73,8 +77,15 @@ async def ensure_database():
                 await conn.execute(text(f"CREATE DATABASE {db_name}"))
             else:
                 print(f"Test database {db_name} already exists")
-    except Exception as e:
+    except (SQLAlchemyError, Exception) as e:
+        if isinstance(e, (SQLAlchemyError,)):
+            logger.error(
+                f"Test database setup failed: {type(e).__name__}: {e}",
+                extra={"database": db_name, "error_type": type(e).__name__},
+            )
         print(f"Warning: Failed to ensure database exists: {e}")
+        if isinstance(e, SQLAlchemyError):
+            raise RuntimeError(f"Cannot proceed without test database: {e}") from e
     finally:
         await engine.dispose()
 

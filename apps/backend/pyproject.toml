@@ -39,6 +39,9 @@ dev = [
     "playwright>=1.40.0",
     "pytest-playwright>=0.4.0",
     "reportlab>=4.0.0",
+    "factory-boy>=3.3.0",
+    "faker>=33.0.0",
+    "locust>=2.20.0",
 ]
 
 [build-system]
@@ -71,6 +74,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "perf: marks tests requiring production-like performance validation",
     "integration: marks tests that hit external APIs (deselect with '-m \"not integration\"')",
+    "e2e: marks end-to-end tests with Playwright (deselect with '-m \"not e2e\"')",
 ]
 
 [tool.coverage.run]
