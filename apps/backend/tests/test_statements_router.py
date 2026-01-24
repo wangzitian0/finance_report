@@ -8,6 +8,7 @@ from decimal import Decimal
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from fastapi import HTTPException, UploadFile
 
@@ -851,3 +852,133 @@ async def test_retry_statement_with_unsupported_modality(db, test_user, monkeypa
 
     assert exc.value.status_code == 400
     assert "does not support image inputs" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_model_catalog_timeout(db, test_user, storage_stub, monkeypatch):
+    """Test upload when model catalog request times out returns 504."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content)
+
+    mock_fetch = AsyncMock(side_effect=httpx.TimeoutException("Connection timed out"))
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="any/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 504
+    assert "timed out" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_model_catalog_rate_limited(db, test_user, storage_stub, monkeypatch):
+    """Test upload when model catalog returns 429 rate limit."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 429
+    mock_response.text = "Rate limit exceeded"
+
+    mock_fetch = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            message="Rate limit exceeded",
+            request=MagicMock(),
+            response=mock_response,
+        )
+    )
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="any/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 429
+    assert "Rate limit" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_model_catalog_auth_failure(db, test_user, storage_stub, monkeypatch):
+    """Test upload when model catalog returns 401 auth failure."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+    mock_response.text = "Unauthorized"
+
+    mock_fetch = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            message="Unauthorized",
+            request=MagicMock(),
+            response=mock_response,
+        )
+    )
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="any/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 503
+    assert "authentication failed" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_upload_statement_model_catalog_server_error(db, test_user, storage_stub, monkeypatch):
+    """Test upload when model catalog returns 500 server error."""
+    content = b"some content"
+    upload_file = make_upload_file("statement.pdf", content)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_response.text = "Internal Server Error"
+
+    mock_fetch = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            message="Internal Server Error",
+            request=MagicMock(),
+            response=mock_response,
+        )
+    )
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+    monkeypatch.setattr(statements_router.settings, "primary_model", "default/model")
+    monkeypatch.setattr(statements_router.settings, "fallback_models", ["fallback/model"])
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            model="any/model",
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == 503
+    assert "returned an error" in exc.value.detail
