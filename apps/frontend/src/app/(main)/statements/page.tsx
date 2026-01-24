@@ -94,11 +94,19 @@ export default function StatementsPage() {
                 </div>
             )}
 
-            {/* Polling Indicator */}
+            {/* Parsing Progress */}
             {polling && (
-                <div className="mb-4 flex items-center gap-2 text-sm text-[var(--accent)]">
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Updating...</span>
+                <div className="mb-4 p-4 border border-[var(--accent)]/30 bg-[var(--accent-muted)] rounded-lg">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                        <div className="flex-1">
+                            <div className="text-sm font-medium text-[var(--accent)]">AI Parsing in Progress</div>
+                            <div className="text-xs text-muted">Extracting transactions from your statement...</div>
+                        </div>
+                    </div>
+                    <div className="h-1.5 bg-[var(--background-muted)] rounded-full overflow-hidden">
+                        <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{ width: '60%' }} />
+                    </div>
                 </div>
             )}
 
@@ -150,11 +158,20 @@ export default function StatementsPage() {
                                             <span className={`badge ${statement.status === "approved" ? "badge-success" :
                                                 statement.status === "rejected" ? "badge-error" :
                                                     statement.status === "parsed" ? "badge-warning" :
-                                                        "badge-muted"
+                                                        statement.status === "parsing" ? "badge-muted" :
+                                                            "badge-muted"
                                                 }`}>
+                                                {statement.status === "parsing" && (
+                                                    <span className="inline-block w-3 h-3 mr-1 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                                )}
                                                 {statement.status}
                                             </span>
                                         </div>
+                                        {statement.status === "rejected" && statement.validation_error && (
+                                            <div className="text-xs text-[var(--error)] mt-1 line-clamp-2">
+                                                {statement.validation_error}
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-3 text-xs text-muted">
                                             <span>{statement.institution}</span>
                                             <span>•</span>
