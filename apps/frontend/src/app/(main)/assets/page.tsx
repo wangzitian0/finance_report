@@ -29,14 +29,26 @@ export default function AssetsPage() {
 
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["positions", activeFilter],
-        queryFn: () => apiFetch<ManagedPositionListResponse>(`/api/assets/positions${statusParam}`),
+        queryFn: () => apiFetch<ManagedPositionListResponse>(`/assets/positions${statusParam}`),
     });
 
     const reconcileMutation = useMutation({
-        mutationFn: () => apiFetch<ReconcilePositionsResponse>("/api/assets/reconcile", { method: "POST" }),
+        mutationFn: () => apiFetch<ReconcilePositionsResponse>("/assets/reconcile", { method: "POST" }),
         onSuccess: (result) => {
             const total = result.created + result.updated + result.disposed;
-            showToast(`Reconciled ${total} positions (${result.created} created, ${result.updated} updated, ${result.disposed} disposed)`, "success");
+            if (result.skipped > 0) {
+                const skippedList = result.skipped_assets.slice(0, 3).join(", ");
+                const suffix = result.skipped_assets.length > 3 ? ` and ${result.skipped_assets.length - 3} more` : "";
+                showToast(
+                    `Reconciled ${total} positions. ⚠️ ${result.skipped} skipped due to incomplete data: ${skippedList}${suffix}`,
+                    "warning"
+                );
+            } else {
+                showToast(
+                    `Reconciled ${total} positions (${result.created} created, ${result.updated} updated, ${result.disposed} disposed)`,
+                    "success"
+                );
+            }
             queryClient.invalidateQueries({ queryKey: ["positions"] });
         },
         onError: (err: Error) => {

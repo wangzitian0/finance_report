@@ -218,4 +218,6 @@ export interface ReconcilePositionsResponse {
     created: number;
     updated: number;
     disposed: number;
+    skipped: number;
+    skipped_assets: string[];
 }

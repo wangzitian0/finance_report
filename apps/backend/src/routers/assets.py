@@ -15,7 +15,7 @@ from src.schemas.assets import (
 from src.services.assets import AssetService, AssetServiceError
 from src.utils import raise_not_found
 
-router = APIRouter(prefix="/api/assets", tags=["assets"])
+router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
 
 _service = AssetService()
@@ -101,10 +101,13 @@ async def reconcile_positions(
         created=result.created,
         updated=result.updated,
         disposed=result.disposed,
+        skipped=result.skipped,
     )
     return ReconcilePositionsResponse(
         message="Positions reconciled successfully",
         created=result.created,
         updated=result.updated,
         disposed=result.disposed,
+        skipped=result.skipped,
+        skipped_assets=result.skipped_assets,
     )

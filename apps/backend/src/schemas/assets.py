@@ -36,9 +36,11 @@ class ReconcilePositionsResponse(BaseModel):
     """Response for position reconciliation."""
 
     message: str
-    created: int
-    updated: int
-    disposed: int
+    created: int = Field(ge=0)
+    updated: int = Field(ge=0)
+    disposed: int = Field(ge=0)
+    skipped: int = Field(default=0, ge=0)
+    skipped_assets: list[str] = Field(default_factory=list)
 
 
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]

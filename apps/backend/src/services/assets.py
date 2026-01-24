@@ -1,7 +1,7 @@
 """Asset Management Service."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
 
@@ -30,6 +30,8 @@ class ReconcileResult:
     created: int = 0
     updated: int = 0
     disposed: int = 0
+    skipped: int = 0
+    skipped_assets: list[str] = field(default_factory=list)
 
 
 class AssetService:
@@ -120,13 +122,17 @@ class AssetService:
         latest_snapshots = db_result.scalars().all()
 
         for snap in latest_snapshots:
-            # Validate snapshot data
+            # Validate snapshot data - defensive check against corrupted/legacy data
             if snap.quantity is None or snap.market_value is None:
                 logger.warning(
-                    "Skipping snapshot with null data",
+                    "Skipping snapshot with null data - potential data integrity issue",
                     snapshot_id=str(snap.id),
                     asset=snap.asset_identifier,
+                    quantity_null=snap.quantity is None,
+                    market_value_null=snap.market_value is None,
                 )
+                result.skipped += 1
+                result.skipped_assets.append(snap.asset_identifier)
                 continue
 
             # Handle negative quantities (short positions) - treat as regular positions
@@ -198,6 +204,7 @@ class AssetService:
             created=result.created,
             updated=result.updated,
             disposed=result.disposed,
+            skipped=result.skipped,
         )
         return result
 
