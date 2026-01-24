@@ -121,7 +121,7 @@ class Settings(BaseSettings):
 
     # Observability (optional)
     otel_exporter_otlp_endpoint: str | None = Field(
-        default="https://signoz-staging.zitian.party",
+        default=None,
         validation_alias="OTEL_EXPORTER_OTLP_ENDPOINT",
     )
     otel_service_name: str = Field(
