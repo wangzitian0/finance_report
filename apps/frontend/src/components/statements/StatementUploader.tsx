@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchAiModels } from "@/lib/aiModels";
+import { useToast } from "@/components/ui/Toast";
 
 function getSafeStorage(key: string): string | null {
     try {
@@ -41,6 +42,7 @@ export default function StatementUploader({
     onUploadComplete,
     onError,
 }: StatementUploaderProps) {
+    const { showToast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [institution, setInstitution] = useState("");
@@ -150,6 +152,7 @@ export default function StatementUploader({
             const { apiUpload } = await import("@/lib/api");
             await apiUpload("/api/statements/upload", formData);
 
+            showToast("Statement uploaded! AI parsing in progress...", "success");
             setFile(null);
             setInstitution("");
             onUploadComplete?.();
