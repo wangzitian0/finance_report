@@ -7,6 +7,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
 import { useState, useEffect } from "react";
 
+// Hide dev routes in production
+const IS_DEV = process.env.NODE_ENV === "development";
+
 interface NavItem {
     icon: string;
     label: string;
@@ -119,19 +122,22 @@ export function Sidebar() {
                     </div>
                 )}
 
-                <Link
-                    href="/ping-pong"
-                    className={`
+                {/* Dev-only: Ping-Pong connectivity test */}
+                {IS_DEV && (
+                    <Link
+                        href="/ping-pong"
+                        className={`
             flex items-center gap-2.5 px-2.5 py-2 rounded-md
             text-[var(--foreground-muted)] hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]
             transition-colors text-sm
             ${isCollapsed ? "justify-center" : ""}
           `}
-                    title={isCollapsed ? "Ping-Pong Demo" : undefined}
-                >
-                    <span className="text-base flex-shrink-0">🏓</span>
-                    {!isCollapsed && <span className="font-medium">Ping-Pong</span>}
-                </Link>
+                        title={isCollapsed ? "Ping-Pong Demo" : undefined}
+                    >
+                        <span className="text-base flex-shrink-0">🏓</span>
+                        {!isCollapsed && <span className="font-medium">Ping-Pong</span>}
+                    </Link>
+                )}
 
                 {/* Logout Button */}
                 {isAuth && (
