@@ -464,9 +464,7 @@ async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts,
     await db.commit()
 
     # 1. Balance Sheet: Should NOT raise if prefetch fails but fallback works
-    bs = await generate_balance_sheet(
-        db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD"
-    )
+    bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
     # Assets: 100 USD * 1.50 = 150 SGD
     # Income: 100 USD * 1.50 (Fallback to spot) = 150 SGD
     # Unrealized = 150 - 150 = 0
@@ -486,9 +484,7 @@ async def test_reporting_error_cases(db: AsyncSession, test_user_id):
     """Test error handling and edge cases in reporting."""
     # Start > End
     with pytest.raises(ReportError, match="start_date must be before end_date"):
-        await generate_income_statement(
-            db, test_user_id, start_date=date(2025, 1, 31), end_date=date(2025, 1, 1)
-        )
+        await generate_income_statement(db, test_user_id, start_date=date(2025, 1, 31), end_date=date(2025, 1, 1))
 
     # Missing account for trend
     with pytest.raises(ReportError, match="Account not found"):
@@ -496,15 +492,11 @@ async def test_reporting_error_cases(db: AsyncSession, test_user_id):
 
     # Invalid period for breakdown
     with pytest.raises(ReportError, match="Unsupported period"):
-        await get_category_breakdown(
-            db, test_user_id, breakdown_type=AccountType.INCOME, period="invalid"
-        )
+        await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="invalid")
 
 
 @pytest.mark.asyncio
-async def test_additional_reports_basic_coverage(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_additional_reports_basic_coverage(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test trend, breakdown and cash flow reports for basic coverage."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
 
@@ -545,9 +537,7 @@ async def test_additional_reports_basic_coverage(
     await db.commit()
 
     # Trend
-    trend = await get_account_trend(
-        db, test_user_id, account_id=sgd_cash.id, period="monthly", currency="SGD"
-    )
+    trend = await get_account_trend(db, test_user_id, account_id=sgd_cash.id, period="monthly", currency="SGD")
     assert isinstance(trend["points"], list)
     assert len(trend["points"]) > 0
 
@@ -663,9 +653,7 @@ async def test_reporting_tags_filtering(db: AsyncSession, multi_currency_account
 
 
 @pytest.mark.asyncio
-async def test_reporting_fx_extreme_fallbacks(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_fx_extreme_fallbacks(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test when ALL FX fallbacks fail for BS and IS."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
 
@@ -729,9 +717,7 @@ async def test_reporting_trend_edge_cases(db: AsyncSession, multi_currency_accou
     assert len(trend_daily["points"]) > 0
 
     # Weekly trend
-    trend_weekly = await get_account_trend(
-        db, test_user_id, account_id=sgd_cash.id, period="weekly"
-    )
+    trend_weekly = await get_account_trend(db, test_user_id, account_id=sgd_cash.id, period="weekly")
     assert isinstance(trend_weekly["points"], list)
     assert len(trend_weekly["points"]) > 0
 
@@ -740,27 +726,19 @@ async def test_reporting_trend_edge_cases(db: AsyncSession, multi_currency_accou
 async def test_reporting_breakdown_income_expense_validation(db: AsyncSession, test_user_id):
     """Test that breakdown type must be income or expense."""
     with pytest.raises(ReportError, match="Breakdown type must be income or expense"):
-        await get_category_breakdown(
-            db, test_user_id, breakdown_type=AccountType.ASSET, period="monthly"
-        )
+        await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.ASSET, period="monthly")
 
 
 @pytest.mark.asyncio
-async def test_reporting_cash_flow_edge_cases(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow with investing/financing activities and FX errors."""
     sgd_bank, usd_savings, capital, salary, dining = multi_currency_accounts
     sgd_bank.name = "Bank account"
 
     # Investing activity (Non-cash asset)
-    equipment = Account(
-        user_id=test_user_id, name="Equipment", type=AccountType.ASSET, currency="SGD"
-    )
+    equipment = Account(user_id=test_user_id, name="Equipment", type=AccountType.ASSET, currency="SGD")
     # Financing activity (Liability)
-    loan = Account(
-        user_id=test_user_id, name="Bank Loan", type=AccountType.LIABILITY, currency="SGD"
-    )
+    loan = Account(user_id=test_user_id, name="Bank Loan", type=AccountType.LIABILITY, currency="SGD")
     db.add_all([equipment, loan, sgd_bank])
     await db.commit()
 
@@ -806,9 +784,7 @@ async def test_reporting_cash_flow_edge_cases(
     )
     await db.commit()
 
-    cf = await generate_cash_flow(
-        db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31)
-    )
+    cf = await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31))
     summary = cf["summary"]
     assert isinstance(summary, dict)
     assert summary["financing_activities"] == Decimal("5000.00")
@@ -817,9 +793,7 @@ async def test_reporting_cash_flow_edge_cases(
 
 
 @pytest.mark.asyncio
-async def test_reporting_remaining_branches(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Cover remaining small branches in reporting.py."""
     sgd_cash, _, _, salary, _ = multi_currency_accounts
 
@@ -845,18 +819,12 @@ async def test_reporting_remaining_branches(
     assert len(is_income_only["expenses"]) == 0
 
     # 4. Quarterly/Annual breakdowns
-    await get_category_breakdown(
-        db, test_user_id, breakdown_type=AccountType.INCOME, period="quarterly"
-    )
-    await get_category_breakdown(
-        db, test_user_id, breakdown_type=AccountType.INCOME, period="annual"
-    )
+    await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="quarterly")
+    await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="annual")
 
     # 5. Cash Flow start > end
     with pytest.raises(ReportError, match="start_date must be before end_date"):
-        await generate_cash_flow(
-            db, test_user_id, start_date=date(2025, 1, 31), end_date=date(2025, 1, 1)
-        )
+        await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 31), end_date=date(2025, 1, 1))
 
     # 6. Trend invalid period
     with pytest.raises(ReportError, match="Unsupported period"):
@@ -866,9 +834,7 @@ async def test_reporting_remaining_branches(
 
 
 @pytest.mark.asyncio
-async def test_reporting_cash_flow_before_fx_error(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow error when FX fails for 'before' period balances."""
     _, usd_savings, *_ = multi_currency_accounts
 
@@ -894,15 +860,11 @@ async def test_reporting_cash_flow_before_fx_error(
 
     # No rates in DB
     with pytest.raises(ReportError):
-        await generate_cash_flow(
-            db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31)
-        )
+        await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31))
 
 
 @pytest.mark.asyncio
-async def test_reporting_cash_flow_fx_error_handling(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow error handling for FX conversion."""
     sgd_bank, usd_savings, *_ = multi_currency_accounts
     sgd_bank.name = "Bank account"
@@ -928,15 +890,11 @@ async def test_reporting_cash_flow_fx_error_handling(
     await db.commit()
 
     with pytest.raises(ReportError):
-        await generate_cash_flow(
-            db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31)
-        )
+        await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31))
 
 
 @pytest.mark.asyncio
-async def test_reporting_breakdown_fx_error_handling(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test breakdown error handling for FX conversion."""
     _, _, _, salary, _ = multi_currency_accounts
 
@@ -961,15 +919,11 @@ async def test_reporting_breakdown_fx_error_handling(
     await db.commit()
 
     with pytest.raises(ReportError):
-        await get_category_breakdown(
-            db, test_user_id, breakdown_type=AccountType.INCOME, period="monthly"
-        )
+        await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="monthly")
 
 
 @pytest.mark.asyncio
-async def test_reporting_trend_fx_error_handling(
-    db: AsyncSession, multi_currency_accounts, test_user_id
-):
+async def test_reporting_trend_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test trend error handling for FX conversion."""
     _, usd_savings, *_ = multi_currency_accounts
 
