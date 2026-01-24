@@ -489,8 +489,268 @@ class ExtractionService:
         raise last_error or ExtractionError("Extraction failed after all retries")
 
     async def _parse_csv_content(self, file_content: bytes, institution: str) -> dict[str, Any]:
-        """Parse CSV content directly from bytes."""
-        return {}
+        """Parse CSV content directly from bytes.
+
+        Supports multiple bank formats with auto-detection and AI fallback.
+        """
+        import csv
+        import io
+        from datetime import datetime
+
+        text = file_content.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+
+        rows = list(reader)
+        if not rows:
+            raise ExtractionError("CSV file is empty or has no data rows")
+
+        headers = reader.fieldnames or []
+        headers_lower = [h.lower().strip() for h in headers]
+        institution_lower = institution.lower()
+
+        transactions: list[dict[str, Any]] = []
+        period_start: date | None = None
+        period_end: date | None = None
+
+        def parse_date(value: str) -> date | None:
+            """Try multiple date formats."""
+            formats = [
+                "%d %b %Y",
+                "%d/%m/%Y",
+                "%Y-%m-%d",
+                "%d-%m-%Y",
+                "%m/%d/%Y",
+                "%Y/%m/%d",
+                "%d %B %Y",
+            ]
+            value = value.strip()
+            for fmt in formats:
+                try:
+                    return datetime.strptime(value, fmt).date()
+                except ValueError:
+                    continue
+            return None
+
+        def parse_amount(value: str) -> Decimal | None:
+            """Parse amount string to Decimal."""
+            if not value or not value.strip():
+                return None
+            cleaned = value.strip().replace(",", "").replace("$", "").replace("SGD", "").replace("USD", "").strip()
+            if not cleaned or cleaned == "-":
+                return None
+            try:
+                return Decimal(cleaned)
+            except (ValueError, InvalidOperation):
+                return None
+
+        def find_header(candidates: list[str]) -> str | None:
+            for candidate in candidates:
+                if candidate.lower() in headers_lower:
+                    idx = headers_lower.index(candidate.lower())
+                    return headers[idx]
+            return None
+
+        if institution_lower in ("dbs", "posb"):
+            date_col = find_header(["Transaction Date", "Date", "Value Date"])
+            debit_col = find_header(["Debit Amount", "Withdrawal", "Debit"])
+            credit_col = find_header(["Credit Amount", "Deposit", "Credit"])
+            desc_cols = [
+                find_header(["Transaction Ref1", "Reference", "Description"]),
+                find_header(["Transaction Ref2", "Details"]),
+                find_header(["Transaction Ref3", "Particulars"]),
+            ]
+            ref_col = find_header(["Reference", "Transaction Reference", "Ref No"])
+
+            for row in rows:
+                txn_date = parse_date(row.get(date_col, "")) if date_col else None
+                if not txn_date:
+                    continue
+
+                debit = parse_amount(row.get(debit_col, "")) if debit_col else None
+                credit = parse_amount(row.get(credit_col, "")) if credit_col else None
+
+                if debit and debit > 0:
+                    amount = debit
+                    direction = "OUT"
+                elif credit and credit > 0:
+                    amount = credit
+                    direction = "IN"
+                else:
+                    continue
+
+                desc_parts = [row.get(col, "") for col in desc_cols if col and row.get(col)]
+                description = " ".join(desc_parts).strip() or "Transaction"
+
+                transactions.append(
+                    {
+                        "date": txn_date.isoformat(),
+                        "amount": str(amount),
+                        "direction": direction,
+                        "description": description,
+                        "reference": row.get(ref_col, "") if ref_col else None,
+                    }
+                )
+
+                if period_start is None or txn_date < period_start:
+                    period_start = txn_date
+                if period_end is None or txn_date > period_end:
+                    period_end = txn_date
+
+        elif institution_lower == "wise":
+            date_col = find_header(["Created on", "Date", "Finished on"])
+            amount_col = find_header(["Source amount (after fees)", "Amount", "Target amount (after fees)"])
+            direction_col = find_header(["Direction", "Type"])
+            desc_col = find_header(["Reference", "Description", "Target name", "Source name"])
+            ref_col = find_header(["ID", "Reference", "TransferWise ID"])
+
+            for row in rows:
+                date_str = row.get(date_col, "") if date_col else ""
+                if "T" in date_str:
+                    date_str = date_str.split("T")[0]
+                txn_date = parse_date(date_str)
+                if not txn_date:
+                    continue
+
+                amount = parse_amount(row.get(amount_col, "")) if amount_col else None
+                if not amount or amount <= 0:
+                    continue
+
+                direction_raw = row.get(direction_col, "").lower() if direction_col else ""
+                if "out" in direction_raw or "send" in direction_raw:
+                    direction = "OUT"
+                else:
+                    direction = "IN"
+
+                description = row.get(desc_col, "Wise Transfer") if desc_col else "Wise Transfer"
+
+                transactions.append(
+                    {
+                        "date": txn_date.isoformat(),
+                        "amount": str(amount),
+                        "direction": direction,
+                        "description": description,
+                        "reference": row.get(ref_col, "") if ref_col else None,
+                    }
+                )
+
+                if period_start is None or txn_date < period_start:
+                    period_start = txn_date
+                if period_end is None or txn_date > period_end:
+                    period_end = txn_date
+
+        elif institution_lower in ("ocbc", "uob", "standard chartered", "citibank"):
+            date_col = find_header(["Transaction Date", "Date", "Value Date", "Posting Date"])
+            debit_col = find_header(["Debit", "Withdrawal", "Debit Amount", "Withdrawals"])
+            credit_col = find_header(["Credit", "Deposit", "Credit Amount", "Deposits"])
+            desc_col = find_header(["Description", "Transaction Description", "Particulars", "Details"])
+            ref_col = find_header(["Reference", "Reference No", "Cheque No"])
+
+            for row in rows:
+                txn_date = parse_date(row.get(date_col, "")) if date_col else None
+                if not txn_date:
+                    continue
+
+                debit = parse_amount(row.get(debit_col, "")) if debit_col else None
+                credit = parse_amount(row.get(credit_col, "")) if credit_col else None
+
+                if debit and debit > 0:
+                    amount = debit
+                    direction = "OUT"
+                elif credit and credit > 0:
+                    amount = credit
+                    direction = "IN"
+                else:
+                    continue
+
+                description = row.get(desc_col, "Transaction") if desc_col else "Transaction"
+
+                transactions.append(
+                    {
+                        "date": txn_date.isoformat(),
+                        "amount": str(amount),
+                        "direction": direction,
+                        "description": description.strip(),
+                        "reference": row.get(ref_col, "") if ref_col else None,
+                    }
+                )
+
+                if period_start is None or txn_date < period_start:
+                    period_start = txn_date
+                if period_end is None or txn_date > period_end:
+                    period_end = txn_date
+
+        else:
+            date_col = find_header(["date", "transaction date", "value date", "posting date", "created on"])
+            amount_col = find_header(["amount", "value", "sum"])
+            debit_col = find_header(["debit", "withdrawal", "debit amount"])
+            credit_col = find_header(["credit", "deposit", "credit amount"])
+            desc_col = find_header(["description", "details", "particulars", "reference", "memo"])
+
+            for row in rows:
+                txn_date = parse_date(row.get(date_col, "")) if date_col else None
+                if not txn_date:
+                    continue
+
+                if amount_col and row.get(amount_col):
+                    amount = parse_amount(row.get(amount_col, ""))
+                    if amount is not None:
+                        direction = "OUT" if amount < 0 else "IN"
+                        amount = abs(amount)
+                    else:
+                        continue
+                elif debit_col or credit_col:
+                    debit = parse_amount(row.get(debit_col, "")) if debit_col else None
+                    credit = parse_amount(row.get(credit_col, "")) if credit_col else None
+                    if debit and debit > 0:
+                        amount = debit
+                        direction = "OUT"
+                    elif credit and credit > 0:
+                        amount = credit
+                        direction = "IN"
+                    else:
+                        continue
+                else:
+                    continue
+
+                description = row.get(desc_col, "Transaction") if desc_col else "Transaction"
+
+                transactions.append(
+                    {
+                        "date": txn_date.isoformat(),
+                        "amount": str(amount),
+                        "direction": direction,
+                        "description": description.strip() if description else "Transaction",
+                    }
+                )
+
+                if period_start is None or txn_date < period_start:
+                    period_start = txn_date
+                if period_end is None or txn_date > period_end:
+                    period_end = txn_date
+
+        if not transactions:
+            logger.warning(
+                "CSV parsing found no valid transactions",
+                institution=institution,
+                headers=headers,
+                row_count=len(rows),
+            )
+            raise ExtractionError(f"No valid transactions found in CSV for {institution}")
+
+        logger.info(
+            "CSV parsing completed",
+            institution=institution,
+            transactions_count=len(transactions),
+            period_start=period_start.isoformat() if period_start else None,
+            period_end=period_end.isoformat() if period_end else None,
+        )
+
+        return {
+            "currency": "SGD",
+            "period_start": period_start.isoformat() if period_start else None,
+            "period_end": period_end.isoformat() if period_end else None,
+            "transactions": transactions,
+        }
 
     async def _dual_write_layer2(
         self,
