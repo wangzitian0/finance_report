@@ -394,7 +394,7 @@ async def generate_income_statement(
                     )
                 except FxRateError as exc:
                     logger.warning(
-                        "Average FX rate unavailable for income statement, falling back to spot rate",
+                        "Average FX rate unavailable, falling back to spot",
                         error_id=ErrorIds.REPORT_FX_FALLBACK,
                         account_id=account.id,
                         currency=line.currency,
