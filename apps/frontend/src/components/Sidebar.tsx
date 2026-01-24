@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
     { icon: "🏦", label: "Accounts", href: "/accounts", protected: true },
     { icon: "📝", label: "Journal", href: "/journal", protected: true },
     { icon: "📄", label: "Statements", href: "/statements", protected: true },
+    { icon: "💰", label: "Assets", href: "/assets", protected: true },
     { icon: "📈", label: "Reports", href: "/reports", protected: true },
     { icon: "🔗", label: "Reconciliation", href: "/reconciliation", protected: true },
     { icon: "💬", label: "AI Advisor", href: "/chat", protected: true },

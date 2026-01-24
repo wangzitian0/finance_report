@@ -17,10 +17,10 @@ This section contains:
 - [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
 - [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation (Testing Pending)
 - [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
+- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 Complete)
 
 **TODO**
 - [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
-- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (Securities, Real Estate, Depreciation, ESOP)
 
 **Done**
 - [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
@@ -43,7 +43,7 @@ This section contains:
 | [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | ⏳ Pending | 0 | 2 weeks |
 | [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | 🟡 In Progress | 2 | 2-3 weeks |
 | [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | 🟡 In Progress | 0 | 1 week |
-| [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | ⏳ Pending | 5 | 4-5 weeks |
+| [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | 🟡 In Progress (P0 ✅) | 5 | 4-5 weeks |
 
 **Total Duration**: 21-25 weeks  
 **Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness
@@ -69,7 +69,7 @@ graph LR
     style E5 fill:#FFD700
     style E6 fill:#90EE90
     style E7 fill:#FFD700
-    style E11 fill:#D3D3D3
+    style E11 fill:#FFD700
 ```
 
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  

@@ -6,6 +6,11 @@ from src.schemas.account import (
     AccountResponse,
     AccountUpdate,
 )
+from src.schemas.assets import (
+    ManagedPositionListResponse,
+    ManagedPositionResponse,
+    ReconcilePositionsResponse,
+)
 from src.schemas.auth import (
     AuthResponse,
     LoginRequest,
@@ -113,8 +118,11 @@ __all__ = [
     "JournalLineCreate",
     "JournalLineResponse",
     "LoginRequest",
+    "ManagedPositionListResponse",
+    "ManagedPositionResponse",
     "ParsedStatementPreview",
     "PingStateResponse",
+    "ReconcilePositionsResponse",
     "ReconciliationMatchListResponse",
     "ReconciliationMatchResponse",
     "ReconciliationRunRequest",

@@ -508,6 +508,91 @@ CREATE INDEX idx_atomic_positions_date ON atomic_positions(snapshot_date);
 
 ---
 
+## 7. API Layer (Assets)
+
+Asset management endpoints for tracking managed positions reconciled from atomic snapshots.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/assets/positions` | List managed positions with optional status filter |
+| GET | `/api/assets/positions/{position_id}` | Get single position by ID |
+| POST | `/api/assets/reconcile` | Trigger position reconciliation from atomic snapshots |
+
+### Query Parameters
+
+**List Positions Filter**
+| Parameter | Type | Default | Values | Description |
+|-----------|------|---------|--------|-------------|
+| status | string | (all) | `active`, `disposed` | Filter by position status |
+
+### Request/Response Schemas
+
+**ManagedPositionResponse**
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "account_id": "uuid",
+  "asset_identifier": "AAPL",
+  "quantity": "100.000000",
+  "cost_basis": "15000.00",
+  "acquisition_date": "2024-01-15",
+  "disposal_date": null,
+  "status": "active",
+  "currency": "USD",
+  "position_metadata": {"broker": "Moomoo"},
+  "created_at": "2026-01-12T00:00:00Z",
+  "updated_at": "2026-01-12T00:00:00Z",
+  "account_name": "Moomoo Brokerage"
+}
+```
+
+**ManagedPositionListResponse (paginated)**
+```json
+{
+  "items": [...],
+  "total": 10
+}
+```
+
+**ReconcilePositionsResponse**
+```json
+{
+  "message": "Reconciled 5 positions from atomic snapshots",
+  "reconciled_count": 5
+}
+```
+
+### Reconciliation Logic
+
+The `POST /api/assets/reconcile` endpoint:
+
+1. **Fetches latest atomic snapshots** - Uses window function to get most recent `AtomicPosition` per `(asset_identifier, broker)` pair
+2. **Upserts managed positions** - Creates new `ManagedPosition` or updates existing based on `(user_id, account_id, asset_identifier)`
+3. **Handles disposals** - If an existing position has no matching atomic snapshot, marks it as `disposed`
+4. **Reactivates disposed positions** - If a disposed position has a matching atomic snapshot, reactivates it
+
+**Key Design Decision**: `cost_basis` uses `market_value` from `AtomicPosition` as a proxy. True cost basis calculation requires lot tracking (FIFO/LIFO) which is out of scope for P0.
+
+### Implementation
+
+| Dimension | Location |
+|-----------|----------|
+| Router | `apps/backend/src/routers/assets.py` |
+| Schemas | `apps/backend/src/schemas/assets.py` |
+| Service | `apps/backend/src/services/assets.py` |
+| Model | `apps/backend/src/models/managed_position.py` |
+
+### Related Tables
+
+- `atomic_positions` (Layer 2) - Source of truth for position snapshots
+- `managed_positions` (Layer 3) - Calculated positions from reconciliation
+- `accounts` - Optional link to brokerage account
+
+---
+
 ## 6. API Layer (Users)
 
 Users API endpoints for user management.
