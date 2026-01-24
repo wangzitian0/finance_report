@@ -51,9 +51,10 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_health_passes_when_redis_not_configured(public_client: AsyncClient) -> None:
+async def test_health_passes_when_redis_not_configured(public_client: AsyncClient, monkeypatch) -> None:
     """Test health check passes when Redis URL is not set."""
-    with patch("src.config.settings.redis_url", None):
+    monkeypatch.setattr("src.config.settings.redis_url", None)
+
         response = await public_client.get("/health")
 
         data = response.json()
@@ -65,14 +66,15 @@ async def test_health_fails_when_redis_configured_but_unavailable(
     public_client: AsyncClient,
 ) -> None:
     """Test health check fails when Redis is configured but unreachable."""
-    with patch("src.config.settings.redis_url", "redis://invalid:6379"):
-        with patch("src.main.REDIS_AVAILABLE", True):
-            with patch("src.main.check_redis", return_value=False):
-                response = await public_client.get("/health")
+    monkeypatch.setattr("src.config.settings.redis_url", "redis://invalid:6379")
+    with patch("src.main.REDIS_AVAILABLE", True):
+        with patch("src.main.check_redis", return_value=False):
+            response = await public_client.get("/health")
 
-                assert response.status_code == 503
-                data = response.json()
-                assert data["checks"]["redis"] is False
+            assert response.status_code == 503
+            data = response.json()
+            assert data["checks"]["redis"] is False
+
 
 
 @pytest.mark.asyncio

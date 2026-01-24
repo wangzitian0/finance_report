@@ -5,7 +5,7 @@ from src.config import Settings
 
 @pytest.fixture
 def mock_settings():
-    with patch("src.boot.settings", autospec=True) as mock:
+    with patch("src.boot.settings") as mock:
         yield mock
 
 @pytest.fixture

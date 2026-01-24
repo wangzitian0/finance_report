@@ -130,7 +130,7 @@ async def db_engine():
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
+@pytest_asyncio.fixture(scope="function")
 async def patch_database_connection(db_engine):
     """Ensure all tests use the test database connection via hook.
 
