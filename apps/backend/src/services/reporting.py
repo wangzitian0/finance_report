@@ -292,21 +292,84 @@ async def generate_balance_sheet(
     total_liabilities = _quantize_money(sum((Decimal(str(line["amount"])) for line in liabilities), Decimal("0")))
     total_equity = _quantize_money(sum((Decimal(str(line["amount"])) for line in equity), Decimal("0")))
 
-    try:
-        ie_balances = await _aggregate_balances_sql(
-            db, user_id, (AccountType.INCOME, AccountType.EXPENSE), target_currency, as_of_date
-        )
-    except ReportError:
-        raise
-    except Exception as exc:
-        logger.error(
-            "Net income aggregation failed",
-            error_id=ErrorIds.REPORT_GENERATION_FAILED,
-            error=str(exc),
-        )
-        raise ReportError(str(exc)) from exc
+    # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
+    # IMPORTANT: Use historical cost accounting - FX rate at entry_date, not as_of_date
+    income_expense_stmt = (
+        select(JournalLine, Account, JournalEntry)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    ie_result = await db.execute(income_expense_stmt)
+    ie_rows = ie_result.all()
 
-    net_income = _quantize_money(sum(ie_balances.values(), Decimal("0")))
+    # Pre-fetch all needed FX rates for historical income/expenses
+    fx_rates = PrefetchedFxRates()
+    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
+    for ie_line, ie_account, ie_entry in ie_rows:
+        if ie_line.currency.upper() != target_currency:
+            fx_needs.append((ie_line.currency, target_currency, ie_entry.entry_date, None, None))
+
+    if fx_needs:
+        try:
+            await fx_rates.prefetch(db, fx_needs)
+        except FxRateError as exc:
+            logger.error(
+                "Failed to pre-fetch FX rates for balance sheet historical data",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                error=str(exc),
+            )
+            # We don't raise here, individual lines will try fallback
+
+    net_income = Decimal("0")
+    for ie_line, ie_account, ie_entry in ie_rows:
+        # Use pre-fetched rates for Income/Expense (historical cost - entry_date rate)
+        ie_rate = fx_rates.get_rate(ie_line.currency, target_currency, ie_entry.entry_date)
+        if ie_rate is not None:
+            ie_converted = ie_line.amount * ie_rate
+        else:
+            try:
+                ie_converted = await convert_amount(
+                    db,
+                    amount=ie_line.amount,
+                    currency=ie_line.currency,
+                    target_currency=target_currency,
+                    rate_date=ie_entry.entry_date,
+                )
+            except FxRateError as exc:
+                # Fallback to spot rate if historical rate unavailable
+                logger.warning(
+                    "Historical FX rate unavailable for income/expense, falling back to spot rate",
+                    error_id=ErrorIds.REPORT_FX_FALLBACK,
+                    account_id=ie_account.id,
+                    currency=ie_line.currency,
+                    historical_date=ie_entry.entry_date,
+                    spot_date=as_of_date,
+                    error=str(exc),
+                )
+                try:
+                    ie_converted = await convert_amount(
+                        db,
+                        amount=ie_line.amount,
+                        currency=ie_line.currency,
+                        target_currency=target_currency,
+                        rate_date=as_of_date,
+                    )
+                except FxRateError as final_exc:
+                    logger.error(
+                        "All FX rate fallbacks failed for income/expense",
+                        error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                        account_id=ie_account.id,
+                        error=str(final_exc),
+                    )
+                    raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
+
+        net_income += _signed_amount(ie_account.type, ie_line.direction, ie_converted)
+
+    net_income = _quantize_money(net_income)
 
     # Unrealized FX Gain/Loss is the plug value that balances the equation
     # Assets = Liabilities + Equity + Net Income + Unrealized FX
