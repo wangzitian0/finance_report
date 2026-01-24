@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
+import httpx
 import structlog
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
@@ -223,6 +224,47 @@ async def upload_statement(
                     raise_bad_request("Selected model does not support image inputs.")
             except HTTPException:
                 raise
+            except httpx.TimeoutException as e:
+                logger.warning(
+                    "OpenRouter request timed out while validating model",
+                    model=model,
+                    user_id=str(user_id),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail="Model validation request timed out. Please try again.",
+                ) from e
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    logger.warning(
+                        "Rate limit exceeded while validating model",
+                        model=model,
+                        user_id=str(user_id),
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="Rate limit exceeded. Please wait before retrying.",
+                    ) from e
+                elif e.response.status_code == 401:
+                    logger.error(
+                        "OpenRouter authentication failed",
+                        model=model,
+                        status_code=e.response.status_code,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Model validation service authentication failed.",
+                    ) from e
+                else:
+                    logger.error(
+                        "OpenRouter returned error status",
+                        model=model,
+                        status_code=e.response.status_code,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Model validation service returned an error.",
+                    ) from e
             except Exception as e:
                 logger.exception("Failed to validate model catalog for model '%s'", model)
                 raise HTTPException(
