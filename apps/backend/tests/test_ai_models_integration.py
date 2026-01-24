@@ -53,11 +53,10 @@ class TestModelCatalogIntegration:
         if not settings.fallback_models:
             pytest.skip("No fallback models configured")
 
-        fallback_list = settings.fallback_models.split(",")
-        assert len(fallback_list) > 0, "FALLBACK_MODELS list is empty"
+        # fallback_models is already a list, no need to split
+        assert len(settings.fallback_models) > 0, "FALLBACK_MODELS list is empty"
 
-        for model_id in fallback_list:
-            model_id = model_id.strip()
+        for model_id in settings.fallback_models:
             assert "/" in model_id, f"Invalid fallback model format: {model_id}"
             assert len(model_id) > 5, f"Fallback model ID too short: {model_id}"
 
@@ -80,7 +79,11 @@ class TestModelValidationIntegration:
         """Test that uploading with invalid model returns 400."""
         response = await client.post(
             "/statements/upload",
-            data={"model": "invalid-model-that-does-not-exist-12345"},
+            data={
+                "model": "invalid-model-that-does-not-exist-12345",
+                "institution": "Test Bank",
+                "account_number": "1234567890",
+            },
             files={"file": ("test.pdf", b"%PDF-1.4\ntest", "application/pdf")},
         )
 
@@ -106,7 +109,11 @@ class TestModelValidationIntegration:
 
         response = await client.post(
             "/statements/upload",
-            data={"model": text_only_model},
+            data={
+                "model": text_only_model,
+                "institution": "Test Bank",
+                "account_number": "1234567890",
+            },
             files={"file": ("test.pdf", b"%PDF-1.4\ntest", "application/pdf")},
         )
 
@@ -119,12 +126,14 @@ class TestModelValidationIntegration:
 
         response = await client.post(
             "/statements/upload",
-            data={"model": settings.primary_model},
+            data={
+                "model": settings.primary_model,
+                "institution": "Test Bank",
+                "account_number": "1234567890",
+            },
             files={"file": ("test.pdf", b"%PDF-1.4\ntest", "application/pdf")},
         )
 
-        # Should fail on actual parsing (no MinIO), but model validation should pass
-        # Status code should NOT be 400 with "Invalid model" message
         if response.status_code == 400:
             detail = response.json().get("detail", "")
             assert "Invalid model" not in detail, f"Model validation failed for PRIMARY_MODEL: {detail}"
