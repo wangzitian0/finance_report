@@ -1,7 +1,7 @@
 $schema: 'https://moonrepo.dev/schemas/project.json'
 
 # Root project - defines shared tasks
-type: root
+type: tool
 
 tasks:
   # Install all dependencies
@@ -37,9 +37,15 @@ tasks:
     deps:
       - 'frontend:build'
 
-  # Smoke tests (local or remote)
   smoke:
     command: 'bash scripts/smoke_test.sh ${BASE_URL:-http://localhost:3000}'
     local: true
     options:
       runInCI: false
+
+  # Run everything (Local CI)
+  ci:
+    command: 'echo "Local CI complete"'
+    deps:
+      - 'backend:verify'
+      # - 'frontend:verify' # TODO: Implement frontend verification
