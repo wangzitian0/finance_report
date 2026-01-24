@@ -55,15 +55,16 @@ async def test_health_passes_when_redis_not_configured(public_client: AsyncClien
     """Test health check passes when Redis URL is not set."""
     monkeypatch.setattr("src.config.settings.redis_url", None)
 
-        response = await public_client.get("/health")
+    response = await public_client.get("/health")
 
-        data = response.json()
-        assert data["checks"]["redis"] is True
+    data = response.json()
+    assert data["checks"]["redis"] is True
 
 
 @pytest.mark.asyncio
 async def test_health_fails_when_redis_configured_but_unavailable(
     public_client: AsyncClient,
+    monkeypatch,
 ) -> None:
     """Test health check fails when Redis is configured but unreachable."""
     monkeypatch.setattr("src.config.settings.redis_url", "redis://invalid:6379")
