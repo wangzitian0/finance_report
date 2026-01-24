@@ -293,9 +293,7 @@ async def test_accounting_equation_holds_with_all_account_types(
 
 
 @pytest.mark.asyncio
-async def test_posted_entry_cannot_be_reposted(
-    db: AsyncSession, test_user_id, asset_account, income_account
-):
+async def test_posted_entry_cannot_be_reposted(db: AsyncSession, test_user_id, asset_account, income_account):
     """
     CRITICAL #2: Posted entries cannot be posted again.
 

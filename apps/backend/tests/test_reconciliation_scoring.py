@@ -254,9 +254,7 @@ def test_score_date_branches() -> None:
         ("OTHER", [AccountType.ASSET], 50.0),
     ],
 )
-def test_score_business_logic_variants(
-    direction: str, types: list[AccountType], expected: float
-) -> None:
+def test_score_business_logic_variants(direction: str, types: list[AccountType], expected: float) -> None:
     txn = AccountEvent(
         statement_id=uuid4(),
         txn_date=date.today(),

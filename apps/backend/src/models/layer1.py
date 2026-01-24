@@ -2,8 +2,7 @@
 
 from enum import Enum
 
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import String, UniqueConstraint
+from sqlalchemy import Enum as SQLEnum, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,17 +43,11 @@ class UploadedDocument(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "uploaded_documents"
-    __table_args__ = (
-        UniqueConstraint("user_id", "file_hash", name="uq_uploaded_documents_user_file_hash"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "file_hash", name="uq_uploaded_documents_user_file_hash"),)
 
     file_path: Mapped[str] = mapped_column(String(500), nullable=False, comment="MinIO object key")
-    file_hash: Mapped[str] = mapped_column(
-        String(64), nullable=False, comment="SHA256 for deduplication"
-    )
-    original_filename: Mapped[str] = mapped_column(
-        String(255), nullable=False, comment="User-provided filename"
-    )
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False, comment="SHA256 for deduplication")
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False, comment="User-provided filename")
 
     document_type: Mapped[DocumentType] = mapped_column(
         SQLEnum(

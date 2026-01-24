@@ -25,12 +25,8 @@ def test_data_setup_reports(db: AsyncSession, test_user):
     """Setup test data for reports."""
 
     async def _setup():
-        asset = Account(
-            user_id=test_user.id, name="Cash Test", type=AccountType.ASSET, currency="SGD"
-        )
-        income = Account(
-            user_id=test_user.id, name="Salary Test", type=AccountType.INCOME, currency="SGD"
-        )
+        asset = Account(user_id=test_user.id, name="Cash Test", type=AccountType.ASSET, currency="SGD")
+        income = Account(user_id=test_user.id, name="Salary Test", type=AccountType.INCOME, currency="SGD")
         db.add_all([asset, income])
         await db.commit()
         await db.refresh(asset)

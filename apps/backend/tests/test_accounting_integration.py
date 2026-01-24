@@ -77,9 +77,7 @@ async def expense_account(db: AsyncSession, test_user_id):
 
 
 @pytest.mark.asyncio
-async def test_calculate_balance_for_asset_account(
-    db: AsyncSession, bank_account, salary_account, test_user_id
-):
+async def test_calculate_balance_for_asset_account(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test balance calculation for asset account with salary income."""
     # Create and post journal entry: Debit Bank 5000, Credit Salary 5000
     entry = JournalEntry(
@@ -116,9 +114,7 @@ async def test_calculate_balance_for_asset_account(
 
 
 @pytest.mark.asyncio
-async def test_calculate_balance_for_income_account(
-    db: AsyncSession, bank_account, salary_account, test_user_id
-):
+async def test_calculate_balance_for_income_account(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test balance calculation for income account."""
     # Create and post journal entry
     entry = JournalEntry(
@@ -155,9 +151,7 @@ async def test_calculate_balance_for_income_account(
 
 
 @pytest.mark.asyncio
-async def test_post_journal_entry_success(
-    db: AsyncSession, bank_account, salary_account, test_user_id
-):
+async def test_post_journal_entry_success(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test posting a draft journal entry."""
     # Create draft entry
     entry = JournalEntry(
@@ -196,9 +190,7 @@ async def test_post_journal_entry_success(
 
 
 @pytest.mark.asyncio
-async def test_post_journal_entry_already_posted_fails(
-    db: AsyncSession, bank_account, salary_account, test_user_id
-):
+async def test_post_journal_entry_already_posted_fails(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that posting an already posted entry fails."""
     # Create already posted entry
     entry = JournalEntry(
@@ -235,9 +227,7 @@ async def test_post_journal_entry_already_posted_fails(
 
 
 @pytest.mark.asyncio
-async def test_void_journal_entry_creates_reversal(
-    db: AsyncSession, bank_account, salary_account, test_user_id
-):
+async def test_void_journal_entry_creates_reversal(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that voiding an entry creates a reversal entry."""
     # Create and post entry
     entry = JournalEntry(
@@ -289,9 +279,7 @@ async def test_void_journal_entry_creates_reversal(
 
 
 @pytest.mark.asyncio
-async def test_accounting_equation_holds(
-    db: AsyncSession, bank_account, salary_account, expense_account, test_user_id
-):
+async def test_accounting_equation_holds(db: AsyncSession, bank_account, salary_account, expense_account, test_user_id):
     """Test that the accounting equation holds after multiple transactions."""
     # Transaction 1: Salary income 5000
     entry1 = JournalEntry(
@@ -356,9 +344,7 @@ async def test_accounting_equation_holds(
 
 
 @pytest.mark.asyncio
-async def test_draft_entries_not_included_in_balance(
-    db: AsyncSession, bank_account, salary_account, test_user_id
-):
+async def test_draft_entries_not_included_in_balance(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that draft entries don't affect balance calculation."""
     # Create draft entry
     entry = JournalEntry(

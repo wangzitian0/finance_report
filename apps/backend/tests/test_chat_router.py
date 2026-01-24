@@ -71,9 +71,7 @@ async def test_chat_error_api_key_unavailable() -> None:
 
     with patch("src.routers.chat.AIAdvisorService") as MockService:
         mock_service = MagicMock()
-        mock_service.chat_stream = AsyncMock(
-            side_effect=AIAdvisorError("OpenRouter API key not configured")
-        )
+        mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError("OpenRouter API key not configured"))
         MockService.return_value = mock_service
 
         payload = MagicMock()
@@ -203,9 +201,7 @@ async def test_delete_session_not_found() -> None:
     from src.routers.chat import delete_session
 
     mock_db = MagicMock()
-    mock_db.execute = AsyncMock(
-        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
-    )
+    mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     mock_user_id = uuid4()
     session_id = uuid4()
 
@@ -224,9 +220,7 @@ async def test_delete_session_success() -> None:
 
     mock_session = MagicMock(spec=ChatSession)
     mock_db = MagicMock(spec=AsyncSession)
-    mock_db.execute = AsyncMock(
-        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_session))
-    )
+    mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_session)))
     mock_user_id = uuid4()
     session_id = uuid4()
 
@@ -278,9 +272,7 @@ async def test_chat_history_empty() -> None:
     from src.routers.chat import chat_history
 
     mock_db = MagicMock()
-    mock_db.execute = AsyncMock(
-        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
-    )
+    mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     mock_user_id = uuid4()
 
     response = await chat_history(session_id=None, limit=20, db=mock_db, user_id=mock_user_id)
@@ -344,9 +336,7 @@ async def test_chat_history_session_not_found() -> None:
     from src.routers.chat import chat_history
 
     mock_db = MagicMock()
-    mock_db.execute = AsyncMock(
-        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
-    )
+    mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
     mock_user_id = uuid4()
     session_id = uuid4()
 

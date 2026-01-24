@@ -137,9 +137,7 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_approve_statement_not_found(client: AsyncClient) -> None:
     """Test approving a non-existent statement."""
-    response = await client.post(
-        "/statements/00000000-0000-0000-0000-000000000000/approve", json={"notes": "ok"}
-    )
+    response = await client.post("/statements/00000000-0000-0000-0000-000000000000/approve", json={"notes": "ok"})
     assert response.status_code == 404
 
 
@@ -281,7 +279,8 @@ class TestConfig:
         from src.config import Settings
 
         settings = Settings()
-        assert settings.primary_model == "google/gemini-2.0-flash-exp:free"
+        assert "gemini" in settings.primary_model.lower()
+        assert settings.primary_model.startswith("google/")
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

@@ -102,8 +102,7 @@ async def accept_match(
         tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
         if abs(total_entry_amount - txn.amount) > tolerance:
             raise ValueError(
-                f"Amount mismatch: transaction={txn.amount}, "
-                f"entries={total_entry_amount}, tolerance={tolerance}"
+                f"Amount mismatch: transaction={txn.amount}, entries={total_entry_amount}, tolerance={tolerance}"
             )
 
     match.status = ReconciliationStatus.ACCEPTED
@@ -114,9 +113,7 @@ async def accept_match(
     if match.journal_entry_ids:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
         result = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.id.in_(entry_ids))
-            .where(JournalEntry.user_id == user_id)
+            select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
         )
         for entry in result.scalars():
             if entry.status != JournalEntryStatus.VOID:
@@ -208,9 +205,7 @@ async def batch_accept(
     entries_map = {}
     if all_entry_ids:
         entries_result = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.id.in_(all_entry_ids))
-            .where(JournalEntry.user_id == user_id)
+            select(JournalEntry).where(JournalEntry.id.in_(all_entry_ids)).where(JournalEntry.user_id == user_id)
         )
         entries_map = {entry.id: entry for entry in entries_result.scalars().all()}
 
@@ -278,9 +273,7 @@ async def create_entry_from_txn(
     """
     # Validate transaction belongs to user and get statement details
     statement_result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == txn.statement_id)
-        .where(BankStatement.user_id == user_id)
+        select(BankStatement).where(BankStatement.id == txn.statement_id).where(BankStatement.user_id == user_id)
     )
     statement = statement_result.scalar_one_or_none()
     if not statement:
@@ -292,9 +285,7 @@ async def create_entry_from_txn(
     bank_account: Account | None = None
     if statement.account_id:
         account_result = await db.execute(
-            select(Account)
-            .where(Account.id == statement.account_id)
-            .where(Account.user_id == user_id)
+            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
         )
         bank_account = account_result.scalar_one_or_none()
 

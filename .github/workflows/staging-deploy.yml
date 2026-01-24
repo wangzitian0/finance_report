@@ -34,7 +34,7 @@ jobs:
         id: get_sha
         run: |
           short_sha=$(git rev-parse --short HEAD)
-          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
 
       - name: Log in to Container registry

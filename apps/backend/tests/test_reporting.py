@@ -526,9 +526,7 @@ async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
 
 
 @pytest.mark.asyncio
-async def test_cash_flow_balances_before_period(
-    db: AsyncSession, chart_of_accounts, test_user_id
-) -> None:
+async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accounts, test_user_id) -> None:
     account = chart_of_accounts[0]
     entry = JournalEntry(
         user_id=test_user_id,
@@ -562,9 +560,7 @@ async def test_cash_flow_balances_before_period(
 
 
 @pytest.mark.asyncio
-async def test_account_trend_monthly(
-    db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch
-):
+async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Account trend should bucket entries by month."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
@@ -643,18 +639,13 @@ async def test_account_trend_monthly(
         ),
     )
 
-    points = {
-        point["period_start"]: point["amount"]
-        for point in cast(list[dict[str, Any]], report["points"])
-    }
+    points = {point["period_start"]: point["amount"] for point in cast(list[dict[str, Any]], report["points"])}
     assert points[FixedDate(2024, 12, 1)] == Decimal("100.00")
     assert points[FixedDate(2025, 2, 1)] == Decimal("-40.00")
 
 
 @pytest.mark.asyncio
-async def test_category_breakdown_quarterly(
-    db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch
-):
+async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Category breakdown should aggregate within the selected period."""
     cash, _liability, _equity, _income, expense = chart_of_accounts
 
@@ -833,9 +824,7 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     assert equity.name in financing_names, "Equity account should be in financing activities"
     # Cash accounts are excluded from activity categories - they ARE the cash flow
     # Their movements are reflected in beginning_cash and ending_cash
-    assert cash.name not in investing_names, (
-        "Cash account should NOT be in investing (it's the subject of the report)"
-    )
+    assert cash.name not in investing_names, "Cash account should NOT be in investing (it's the subject of the report)"
 
     summary: dict = report["summary"]
     assert "operating_activities" in summary
@@ -957,9 +946,7 @@ async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_acco
 
 
 @pytest.mark.asyncio
-async def test_income_statement_with_account_type_filter(
-    db: AsyncSession, chart_of_accounts, test_user_id
-):
+async def test_income_statement_with_account_type_filter(db: AsyncSession, chart_of_accounts, test_user_id):
     """Income statement should filter by account type when specified."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
@@ -1104,9 +1091,7 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
 
 
 @pytest.mark.asyncio
-async def test_income_statement_fallback_rate(
-    db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch
-):
+async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Test fallback to convert_amount when PrefetchedFxRates returns None."""
     from src.models import FxRate as FxRateModel
     from src.services.fx import PrefetchedFxRates

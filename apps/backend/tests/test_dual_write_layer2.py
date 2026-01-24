@@ -51,9 +51,7 @@ def sample_file_content():
 
 @pytest.mark.asyncio
 class TestDualWriteLayer2:
-    async def test_dual_write_disabled_by_default(
-        self, db, test_user, mock_ai_response, sample_file_content
-    ):
+    async def test_dual_write_disabled_by_default(self, db, test_user, mock_ai_response, sample_file_content):
         service = ExtractionService()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
@@ -70,15 +68,11 @@ class TestDualWriteLayer2:
         assert statement is not None
         assert len(transactions) == 2
 
-        result = await db.execute(
-            select(UploadedDocument).where(UploadedDocument.user_id == test_user.id)
-        )
+        result = await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
         uploaded_docs = result.scalars().all()
         assert len(uploaded_docs) == 0
 
-        result = await db.execute(
-            select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)
-        )
+        result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
         atomic_txns = result.scalars().all()
         assert len(atomic_txns) == 0
 
@@ -103,9 +97,7 @@ class TestDualWriteLayer2:
 
         await db.commit()
 
-        result = await db.execute(
-            select(UploadedDocument).where(UploadedDocument.user_id == test_user.id)
-        )
+        result = await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
         uploaded_doc = result.scalar_one()
 
         assert uploaded_doc.file_hash == file_hash
@@ -177,9 +169,7 @@ class TestDualWriteLayer2:
             )
             await db.commit()
 
-        result = await db.execute(
-            select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)
-        )
+        result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
         atomic_txns_before = result.scalars().all()
         assert len(atomic_txns_before) == 2
 
@@ -197,9 +187,7 @@ class TestDualWriteLayer2:
             )
             await db.commit()
 
-        result = await db.execute(
-            select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)
-        )
+        result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
         atomic_txns_after = result.scalars().all()
         assert len(atomic_txns_after) == 2
 

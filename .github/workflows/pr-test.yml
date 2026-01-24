@@ -44,23 +44,25 @@ jobs:
       - name: Determine Params
         id: info
         run: |
-          echo "internal_domain=${{ env.INTERNAL_DOMAIN }}" >> $GITHUB_OUTPUT
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})"
-            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
-            echo "compose_name=pr-${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
-            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
-          else
-            echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})"
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            echo "compose_name=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            
-            if [ "${{ github.event.action }}" == "closed" ]; then
-              echo "action=cleanup" >> $GITHUB_OUTPUT
+          {
+            echo "internal_domain=${{ env.INTERNAL_DOMAIN }}"
+            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+              echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})" >&2
+              echo "pr_number=${{ github.event.inputs.pr_number }}"
+              echo "compose_name=pr-${{ github.event.inputs.pr_number }}"
+              echo "action=${{ github.event.inputs.action }}"
             else
-              echo "action=deploy" >> $GITHUB_OUTPUT
+              echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})" >&2
+              echo "pr_number=${{ github.event.pull_request.number }}"
+              echo "compose_name=pr-${{ github.event.pull_request.number }}"
+              
+              if [ "${{ github.event.action }}" == "closed" ]; then
+                echo "action=cleanup"
+              else
+                echo "action=deploy"
+              fi
             fi
-          fi
+          } >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy Test Environment
@@ -125,16 +127,23 @@ jobs:
         run: |
           # Try to find existing compose
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
+          curl_exit=$?
+          
+          if [ $curl_exit -ne 0 ]; then
+            echo "::warning::Failed to fetch environment (curl exit $curl_exit). Assuming compose doesn't exist."
+            echo "Response: $response"
+            response='{"compose":[]}'
+          fi
           
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
             echo "Found existing compose: $compose_id"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Compose does not exist"
           fi
 
@@ -156,30 +165,35 @@ jobs:
             }")
           
           compose_id=$(echo "$response" | jq -r '.composeId')
-          echo "compose_id=$compose_id" >> $GITHUB_OUTPUT
+          echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
           echo "Created compose: $compose_id"
           
-          # Configure GitHub source
+          # Configure GitHub source using jq for proper JSON escaping
+          PAYLOAD=$(jq -n \
+            --arg id "$compose_id" \
+            --arg branch "$BRANCH_NAME" \
+            '{
+              composeId: $id,
+              sourceType: "github",
+              repository: "finance_report",
+              owner: "wangzitian0",
+              branch: $branch,
+              composePath: "docker-compose.yml",
+              githubId: "${{ env.GITHUB_INTEGRATION_ID }}"
+            }')
+          
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d '{ 
-              "composeId": "'$compose_id'",
-              "sourceType": "github",
-              "repository": "finance_report",
-              "owner": "wangzitian0",
-              "branch": "'$BRANCH_NAME'",
-              "composePath": "docker-compose.yml",
-              "githubId": "${{ env.GITHUB_INTEGRATION_ID }}"
-            }'
+            -d "$PAYLOAD"
 
       - name: Get compose ID
         id: compose
         run: |
           if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
-            echo "id=${{ steps.check.outputs.compose_id }}" >> $GITHUB_OUTPUT
+            echo "id=${{ steps.check.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
           else
-            echo "id=${{ steps.create.outputs.compose_id }}" >> $GITHUB_OUTPUT
+            echo "id=${{ steps.create.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure environment variables
@@ -189,26 +203,28 @@ jobs:
           DOMAIN="${{ needs.setup.outputs.internal_domain }}"
           
           # Construct environment variables in a temporary file to avoid indentation issues
-          echo "REGISTRY=${{ env.REGISTRY }}" > .env.dokploy
-          echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}" >> .env.dokploy
-          echo "IMAGE_TAG=pr-$PR_NUMBER" >> .env.dokploy
-          echo "ENV_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
-          echo "ENV_DOMAIN_SUFFIX=-pr-$PR_NUMBER" >> .env.dokploy
-          echo "INTERNAL_DOMAIN=$DOMAIN" >> .env.dokploy
-          echo "TRAEFIK_ENABLE=true" >> .env.dokploy
-          echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
-          echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN" >> .env.dokploy
-          echo "DEBUG=true" >> .env.dokploy
-          echo "POSTGRES_PORT=0" >> .env.dokploy
-          echo "REDIS_PORT=0" >> .env.dokploy
-          echo "MINIO_API_PORT=0" >> .env.dokploy
-          echo "MINIO_CONSOLE_PORT=0" >> .env.dokploy
-          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> .env.dokploy
-          
-          # SigNoz Logging (EPIC-010)
-          echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318" >> .env.dokploy
-          echo "OTEL_SERVICE_NAME=finance-report-backend" >> .env.dokploy
-          echo "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-$PR_NUMBER" >> .env.dokploy
+          {
+            echo "REGISTRY=${{ env.REGISTRY }}"
+            echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}"
+            echo "IMAGE_TAG=pr-$PR_NUMBER"
+            echo "ENV_SUFFIX=-pr-$PR_NUMBER"
+            echo "ENV_DOMAIN_SUFFIX=-pr-$PR_NUMBER"
+            echo "INTERNAL_DOMAIN=$DOMAIN"
+            echo "TRAEFIK_ENABLE=true"
+            echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
+            echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
+            echo "DEBUG=true"
+            echo "POSTGRES_PORT=0"
+            echo "REDIS_PORT=0"
+            echo "MINIO_API_PORT=0"
+            echo "MINIO_CONSOLE_PORT=0"
+            echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
+            
+            # SigNoz Logging (EPIC-010)
+            echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"
+            echo "OTEL_SERVICE_NAME=finance-report-backend"
+            echo "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-$PR_NUMBER"
+          } > .env.dokploy
           
           ENV_CONTENT=$(cat .env.dokploy)
           
@@ -224,63 +240,117 @@ jobs:
           echo "Environment variables configured"
 
       - name: Deploy compose
-        run: |
-          COMPOSE_ID="${{ steps.compose.outputs.id }}"
-          echo "Deploying compose: $COMPOSE_ID"
-          
-          # Stop if running
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>/dev/null || true
-          
-          sleep 10
-          
-          # Deploy
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}"
-          
-          echo "Deployment triggered. Waiting 120s for containers..."
-          sleep 120
-
-      - name: Validate Compose Status
+        id: deploy
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
-          echo "Checking compose status for $COMPOSE_ID..."
+          echo "compose_id=$COMPOSE_ID" >> "$GITHUB_OUTPUT"
+          echo "Deploying compose: $COMPOSE_ID"
           
-          status=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
-            "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" \
-            | jq -r '.composeStatus // "unknown"')
+          # Stop existing compose (best-effort, log but don't fail)
+          echo "Stopping existing compose..."
+          STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
           
-          echo "Compose status: $status"
-          
-          if [ "$status" = "error" ]; then
-            echo "::error::Compose deployment failed with status: $status"
-            # NEW: Log details
-            echo "Fetching deployment details..."
-            curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
-              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" \
-              | jq -r '.deployments[]? | "Date: \(.createdAt) Status: \(.status) Error: \(.errorMessage) Log: \(.logPath)"' || echo "Failed to fetch deployment details"
-            exit 1
-          elif [ "$status" = "done" ] || [ "$status" = "running" ]; then
-            echo "✅ Compose status is healthy: $status"
-          else
-            echo "::warning::Unexpected compose status: $status"
+          STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
+          if [[ "$STOP_HTTP" != "200" && "$STOP_HTTP" != "000" ]]; then
+            echo "::warning::compose.stop returned HTTP $STOP_HTTP (may be expected if already stopped)"
           fi
+          
+          sleep 5
+          
+          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -d "{\"composeId\": \"$COMPOSE_ID\"}"
+          
+          echo "Deployment triggered, waiting 10s for status to update..."
+          sleep 10
 
-      - name: Network Diagnosis
+      - name: Poll Deployment Status
         env:
-          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
-          DOMAIN=$(echo $APP_URL | sed 's|https://||')
-          echo "🔍 Diagnosing $DOMAIN"
-          host $DOMAIN || echo "⚠️ DNS Resolution failed"
-          ping -c 3 $DOMAIN || echo "⚠️ Ping failed"
-          curl -vI $APP_URL/api/health || echo "⚠️ Curl verbose failed"
+          COMPOSE_ID="${{ steps.compose.outputs.id }}"
+          echo "Polling deployment status for $COMPOSE_ID..."
+          
+          # Track the start time to detect stale error status
+          START_TIME=$(date +%s)
+          LAST_STATUS=""
+          LAST_DEPLOY_STATUS=""
+          
+          for i in $(seq 1 60); do
+            response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
+              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" 2>&1)
+            curl_exit=$?
+            
+            if [ $curl_exit -ne 0 ]; then
+              echo "::warning::Attempt $i/60: API request failed (curl exit $curl_exit)"
+              sleep 5
+              continue
+            fi
+            
+            status=$(echo "$response" | jq -r '.composeStatus // "unknown"')
+            LAST_STATUS="$status"
+            
+            # Get the latest deployment status and time
+            latest_deploy=$(echo "$response" | jq -r '.deployments[-1] // {}')
+            latest_status=$(echo "$latest_deploy" | jq -r '.status // "unknown"')
+            latest_started=$(echo "$latest_deploy" | jq -r '.startedAt // ""')
+            LAST_DEPLOY_STATUS="$latest_status"
+            
+            echo "Attempt $i/60: composeStatus=$status, latestDeployment=$latest_status"
+            
+            # Check if latest deployment started after we triggered (within last 2 min)
+            if [ -n "$latest_started" ] && [ "$latest_started" != "null" ]; then
+              # Try multiple date formats for ISO 8601 parsing
+              deploy_time=$(date -d "$latest_started" +%s 2>/dev/null || \
+                           date -d "${latest_started%.*}Z" +%s 2>/dev/null || \
+                           echo "")
+              
+              if [ -z "$deploy_time" ]; then
+                echo "::warning::Could not parse timestamp: $latest_started (using fallback)"
+              else
+                time_diff=$((START_TIME - deploy_time))
+                
+                # If latest deployment is recent (within 120s of our start)
+                if [ "$time_diff" -lt 120 ] && [ "$time_diff" -gt -300 ]; then
+                  if [ "$latest_status" = "done" ]; then
+                    echo "✅ Latest deployment completed successfully"
+                    exit 0
+                  elif [ "$latest_status" = "error" ]; then
+                    echo "::error::Latest deployment failed"
+                    echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
+                    exit 1
+                  fi
+                fi
+              fi
+            fi
+            
+            # Fallback: check compose-level status after a grace period
+            if [ "$i" -gt 5 ]; then
+              if [ "$status" = "done" ] || [ "$status" = "running" ]; then
+                echo "✅ Deployment completed with status: $status"
+                exit 0
+              fi
+            fi
+            
+            sleep 5
+          done
+          
+          # Timeout - provide diagnostics
+          echo "::error::Deployment did not complete within 5 minutes"
+          echo "=== FINAL STATE DIAGNOSTICS ==="
+          echo "Last composeStatus: $LAST_STATUS"
+          echo "Last deployment status: $LAST_DEPLOY_STATUS"
+          echo "Start time: $(date -d "@$START_TIME" 2>/dev/null || echo "$START_TIME")"
+          echo "API response (last 1000 chars):"
+          echo "$response" | tail -c 1000
+          echo "================================"
+          exit 1
 
       - name: Wait for API readiness
         env:
@@ -288,29 +358,34 @@ jobs:
         run: |
           python3 - << 'EOF'
           import urllib.request
+          import ssl
           import time
           import os
           import sys
-          import traceback
 
           url = os.environ["APP_URL"] + "/api/health"
           print(f"Waiting for API readiness at {url}")
           
-          for attempt in range(1, 41): # Increased to 40 attempts (200s)
-              try:
-                  with urllib.request.urlopen(url, timeout=10) as response:
-                      status = response.getcode()
-                      if 200 <= status < 400:
-                          print(f"✅ API ready (status {status})")
-                          sys.exit(0)
-                      else:
-                          print(f"⚠️ Attempt {attempt}/40: Received status {status}")
-              except Exception as e:
-                  print(f"❌ Attempt {attempt}/40: {type(e).__name__}: {e}")
-              
-              time.sleep(5)
+          ctx = ssl.create_default_context()
+          ctx.check_hostname = False
+          ctx.verify_mode = ssl.CERT_NONE
           
-          print("::error::API not ready after 40 attempts")
+          max_attempts = 30
+          for attempt in range(1, max_attempts + 1):
+              delay = min(5 + (attempt // 5) * 5, 30)
+              try:
+                  with urllib.request.urlopen(url, timeout=15, context=ctx) as response:
+                      if 200 <= response.getcode() < 400:
+                          print(f"✅ API ready (status {response.getcode()})")
+                          sys.exit(0)
+                      print(f"⚠️ Attempt {attempt}/{max_attempts}: status {response.getcode()}")
+              except Exception as e:
+                  print(f"❌ Attempt {attempt}/{max_attempts}: {type(e).__name__}: {e}")
+              
+              print(f"   Retrying in {delay}s...")
+              time.sleep(delay)
+          
+          print("::error::API not ready after all attempts")
           sys.exit(1)
           EOF
 
@@ -336,6 +411,30 @@ jobs:
           python scripts/check_critical_tests.py test-results.xml
           
           echo "✅ E2E Pipeline passed!"
+
+      - name: Rollback on E2E Failure
+        if: failure() && steps.e2e_tests.outcome == 'failure'
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          COMPOSE_ID="${{ steps.deploy.outputs.compose_id }}"
+          echo "::warning::E2E tests failed. Stopping compose to prevent broken deployment..."
+          
+          # Best-effort stop, log result but don't fail the job
+          STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
+          
+          STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
+          if [[ "$STOP_HTTP" == "200" ]]; then
+            echo "✅ Compose stopped successfully"
+          else
+            echo "::warning::compose.stop returned HTTP $STOP_HTTP"
+            echo "Response: $(echo "$STOP_RESPONSE" | head -n -1)"
+          fi
+          
+          echo "Check logs for E2E failure details."
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -389,6 +488,45 @@ jobs:
               });
             }
 
+  smoke-test:
+    name: Smoke Test PR Environment
+    runs-on: ubuntu-latest
+    needs: [setup, deploy]
+    if: needs.setup.outputs.action == 'deploy'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run smoke tests
+        env:
+          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+        run: |
+          echo "Running smoke tests against $APP_URL"
+          export SMOKE_READY_ATTEMPTS=60
+          export SMOKE_READY_SLEEP_SECONDS=5
+          bash scripts/smoke_test.sh "$APP_URL" "staging"
+
+      - name: Comment PR with smoke test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ needs.setup.outputs.pr_number }};
+            const appUrl = `https://report-pr-${prNumber}.${{ needs.setup.outputs.internal_domain }}`;
+            const status = '${{ job.status }}' === 'success' ? '✅ All checks passed' : '❌ Some checks failed';
+            
+            const body = `## 🧪 Smoke Test Results\n\n**Environment**: ${appUrl}\n\n**Status**: ${status}\n\nSee [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
+
   cleanup:
     name: Cleanup Test Environment
     if: needs.setup.outputs.action == 'cleanup'
@@ -404,18 +542,30 @@ jobs:
           
           # Get environment to find compose
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" || echo '{"compose":[]}')
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
+          curl_exit=$?
+          
+          if [ $curl_exit -ne 0 ]; then
+            echo "::warning::Failed to fetch environment (curl exit $curl_exit). Response: $response"
+            response='{"compose":[]}'
+          fi
           
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
           
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
             echo "Found compose: $compose_id"
             
-            # Stop compose
-            curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            # Stop compose (best-effort with logging)
+            echo "Stopping compose..."
+            STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-              -d "{\"composeId\": \"$compose_id\"}" 2>/dev/null || true
+              -d "{\"composeId\": \"$compose_id\"}" 2>&1) || true
+            
+            STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
+            if [[ "$STOP_HTTP" != "200" ]]; then
+              echo "::warning::compose.stop returned HTTP $STOP_HTTP (continuing with deletion)"
+            fi
             
             sleep 15
             

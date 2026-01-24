@@ -48,9 +48,7 @@ class TestExtractionServiceFlow:
         }
 
         # Mock extract_financial_data
-        with patch.object(
-            service, "extract_financial_data", new_callable=AsyncMock
-        ) as mock_extract:
+        with patch.object(service, "extract_financial_data", new_callable=AsyncMock) as mock_extract:
             mock_extract.return_value = mock_data
 
             stmt, events = await service.parse_document(
@@ -165,9 +163,7 @@ class TestExtractionServiceFlow:
         with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
-            await service.extract_financial_data(
-                file_content=content, file_url=url, institution="DBS", file_type="pdf"
-            )
+            await service.extract_financial_data(file_content=content, file_url=url, institution="DBS", file_type="pdf")
 
             call_args = mock_stream.call_args
             payload = call_args.kwargs["messages"]
@@ -188,9 +184,7 @@ class TestExtractionServiceFlow:
         with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(json_content)
 
-            await service.extract_financial_data(
-                file_content=None, file_url=url, institution="DBS", file_type="pdf"
-            )
+            await service.extract_financial_data(file_content=None, file_url=url, institution="DBS", file_type="pdf")
 
             call_args = mock_stream.call_args
             payload = call_args.kwargs["messages"]
@@ -204,6 +198,4 @@ class TestExtractionServiceFlow:
         url = "http://192.168.1.1/private.pdf"
 
         with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
-            await service.extract_financial_data(
-                file_content=None, file_url=url, institution="DBS", file_type="pdf"
-            )
+            await service.extract_financial_data(file_content=None, file_url=url, institution="DBS", file_type="pdf")

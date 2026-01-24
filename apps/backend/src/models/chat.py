@@ -62,9 +62,7 @@ class ChatMessage(Base, UUIDMixin):
         nullable=False,
         index=True,
     )
-    role: Mapped[ChatMessageRole] = mapped_column(
-        Enum(ChatMessageRole, name="chat_message_role_enum"), nullable=False
-    )
+    role: Mapped[ChatMessageRole] = mapped_column(Enum(ChatMessageRole, name="chat_message_role_enum"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)

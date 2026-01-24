@@ -24,4 +24,4 @@ from src.database import get_db
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
 
-__all__ = ["DbSession", "CurrentUserId"]
+__all__ = ["CurrentUserId", "DbSession"]

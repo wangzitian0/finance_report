@@ -67,9 +67,7 @@ async def ensure_database():
 
     try:
         async with engine.connect() as conn:
-            result = await conn.execute(
-                text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
-            )
+            result = await conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
             if not result.scalar():
                 print(f"Creating test database: {db_name}")
                 await conn.execute(text(f"CREATE DATABASE {db_name}"))

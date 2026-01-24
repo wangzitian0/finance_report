@@ -79,9 +79,7 @@ async def _parse_statement_background(
     request_id: str | None = None,
 ) -> None:
     # Bind request_id to context for this background task
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id, statement_id=statement_id, task="parse_statement"
-    )
+    structlog.contextvars.bind_contextvars(request_id=request_id, statement_id=statement_id, task="parse_statement")
 
     logger.info("Starting background parsing", filename=filename)
     start_time = time.perf_counter()
@@ -102,9 +100,7 @@ async def _parse_statement_background(
             # Generate public URL for AI service access
             # If S3_PUBLIC_ENDPOINT is not configured, file_url will remain None
             # and ExtractionService will use base64 content instead
-            file_url = await run_in_threadpool(
-                storage.generate_presigned_url, key=storage_key, public=True
-            )
+            file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key, public=True)
         except StorageError as exc:
             logger.warning(
                 "Could not generate public presigned URL, will use base64 content instead",
@@ -194,9 +190,7 @@ async def upload_statement(
 
     file_hash = hashlib.sha256(content).hexdigest()
     duplicate = await db.execute(
-        select(BankStatement.id)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.file_hash == file_hash)
+        select(BankStatement.id).where(BankStatement.user_id == user_id).where(BankStatement.file_hash == file_hash)
     )
     if duplicate.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
@@ -211,8 +205,21 @@ async def upload_statement(
                     None,
                 )
                 if not match:
+                    logger.warning(
+                        "User attempted invalid model selection",
+                        requested_model=model,
+                        user_id=str(user_id),
+                        available_models_count=len(models),
+                    )
                     raise_bad_request("Invalid model selection.")
                 if extension != "csv" and not model_matches_modality(match, "image"):
+                    logger.warning(
+                        "Model lacks required modality",
+                        requested_model=model,
+                        required_modality="image",
+                        file_type=extension,
+                        user_id=str(user_id),
+                    )
                     raise_bad_request("Selected model does not support image inputs.")
             except HTTPException:
                 raise
@@ -286,9 +293,7 @@ async def upload_statement(
     _track_task(task)
 
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .options(selectinload(BankStatement.transactions))
+        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -320,9 +325,7 @@ async def retry_statement_parsing(
         BankStatementStatus.REJECTED,
         BankStatementStatus.PARSING,
     ):
-        raise HTTPException(
-            400, "Can only retry parsing for parsed, rejected, or stuck parsing statements"
-        )
+        raise HTTPException(400, "Can only retry parsing for parsed, rejected, or stuck parsing statements")
 
     if not settings.fallback_models:
         raise_internal_error("No fallback models are configured for statement parsing")
@@ -385,9 +388,7 @@ async def retry_statement_parsing(
 
     # Re-fetch statement with transactions to avoid MissingGreenlet error during Pydantic validation
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement.id)
-        .options(selectinload(BankStatement.transactions))
+        select(BankStatement).where(BankStatement.id == statement.id).options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
 
@@ -521,9 +522,7 @@ async def approve_statement(
     await db.commit()
 
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .options(selectinload(BankStatement.transactions))
+        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -555,9 +554,7 @@ async def reject_statement(
     await db.commit()
 
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .options(selectinload(BankStatement.transactions))
+        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -571,9 +568,7 @@ async def delete_statement(
 ) -> None:
     """Delete a statement."""
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == user_id)
+        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
 

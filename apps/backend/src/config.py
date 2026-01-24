@@ -86,17 +86,13 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = Field(default="dev_secret_key_change_in_prod", validation_alias="SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(
-        default=60 * 24, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES"
-    )
+    access_token_expire_minutes: int = Field(default=60 * 24, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES")
 
     # AI API (empty = AI features disabled)
     openrouter_api_key: str = ""
 
     # App settings
-    environment: str = Field(
-        default="development", validation_alias=AliasChoices("ENVIRONMENT", "ENV")
-    )
+    environment: str = Field(default="development", validation_alias=AliasChoices("ENVIRONMENT", "ENV"))
     debug: bool = False
     base_currency: str = "SGD"
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
@@ -115,7 +111,7 @@ class Settings(BaseSettings):
 
     # OpenRouter settings
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    primary_model: str = "google/gemini-2.0-flash-exp:free"
+    primary_model: str = "google/gemini-3-flash-preview"
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
     openrouter_daily_limit_usd: int | None = 2
 
@@ -125,7 +121,7 @@ class Settings(BaseSettings):
 
     # Observability (optional)
     otel_exporter_otlp_endpoint: str | None = Field(
-        default="https://signoz-staging.zitian.party",
+        default=None,
         validation_alias="OTEL_EXPORTER_OTLP_ENDPOINT",
     )
     otel_service_name: str = Field(

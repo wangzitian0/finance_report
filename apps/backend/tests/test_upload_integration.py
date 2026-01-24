@@ -37,9 +37,7 @@ async def test_full_upload_to_db_flow(client, test_user):
         "period_end": "2025-01-31",
         "opening_balance": "1000.00",
         "closing_balance": "1500.00",
-        "transactions": [
-            {"date": "2025-01-15", "description": "Salary", "amount": "500.00", "direction": "IN"}
-        ],
+        "transactions": [{"date": "2025-01-15", "description": "Salary", "amount": "500.00", "direction": "IN"}],
     }
 
     with (

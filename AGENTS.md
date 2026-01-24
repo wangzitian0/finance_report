@@ -54,6 +54,22 @@
 - **Quality**: `moon run :lint` (Check all), `moon run backend:format` (Ruff)
 - **Proof**: `moon run :smoke` (E2E against local/remote)
 
+### Pre-commit Hooks (REQUIRED for contributors)
+
+Before your first commit, install pre-commit hooks to prevent CI failures:
+
+```bash
+make install          # Install deps + pre-commit hooks
+# OR manually:
+pip install pre-commit && pre-commit install
+```
+
+**What hooks do**:
+1. **Ruff lint + format** — Auto-fixes Python style issues
+2. **Env var consistency** — Validates `secrets.ctmpl` ↔ `config.py` ↔ `.env.example`
+3. **File hygiene** — Trailing whitespace, merge conflicts, large files
+4. **Branch protection** — Prevents direct commits to `main`
+
 *Reference: [docs/ssot/development.md](docs/ssot/development.md)*
 
 ---
@@ -95,9 +111,9 @@ python scripts/debug.py logs backend --env production --method signoz
 | Environment | Backend | Frontend | Postgres | Redis |
 |-------------|---------|----------|----------|-------|
 | Local/CI | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-redis` |
-| Staging | `finance-report-backend-staging` | `finance-report-frontend-staging` | `finance-report-db-staging` | `finance-report-redis-staging` |
-| Production | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-redis` |
-| PR (#47) | `finance-report-backend-pr-47` | `finance-report-frontend-pr-47` | `finance-report-db-pr-47` | `finance-report-redis-pr-47` |
+| Staging | `finance_report-backend-staging` | `finance_report-frontend-staging` | `finance_report-postgres-staging` | `finance_report-redis-staging` |
+| Production | `finance_report-backend` | `finance_report-frontend` | `finance_report-postgres` | `finance_report-redis` |
+| PR (#47) | `finance_report-backend-pr-47` | `finance_report-frontend-pr-47` | `finance_report-postgres-pr-47` | `finance_report-redis-pr-47` |
 
 ### SigNoz Integration
 
@@ -172,7 +188,7 @@ AI must use this cascade structure before processing tasks:
 - **Layer Assignment**: Assign tasks to appropriate layers:
   - **Backend**: `apps/backend/` (FastAPI, SQLAlchemy)
   - **Frontend**: `apps/frontend/` (Next.js, React)
-  - **Infrastructure**: `infra/` (Docker, deployment)
+  - **Infrastructure**: `repo/` submodule (Dokploy, Vault, deployment)
 
 ### 3. Actions (Execution Steps)
 - **Atomic Operations**: Define specific action sequence for each task.
@@ -246,7 +262,7 @@ AI must use this cascade structure before processing tasks:
 | **Project EPIC** | `docs/project/` | Task tracking, milestones | AI / Maintainers |
 | **Module README** | Each `apps/*/README.md` | Directory intro, design guide | Developers |
 | **SSOT** | `docs/ssot/` | Technical truth, authoritative reference | Everyone |
-| **User Manual** | `docs/onboarding/` (TODO) | User-facing guides | End Users |
+| **User Manual** | (planned) | User-facing guides | End Users |
 
 ### MECE Document Organization
 
@@ -263,8 +279,6 @@ docs/
 ├── project/              # EPIC & Task Tracking
 │   ├── README.md
 │   └── EPIC-001.phase0-setup.md
-└── onboarding/           # User Manual (TODO)
-    └── README.md
 ```
 
 ---

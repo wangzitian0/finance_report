@@ -147,9 +147,7 @@ async def category_breakdown(
     user_id: CurrentUserId = None,
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
-    account_type = (
-        AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
-    )
+    account_type = AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
     try:
         report = await get_category_breakdown(
             db,
