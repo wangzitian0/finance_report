@@ -18,7 +18,8 @@
 | `scripts/smoke_test.sh` | Unified smoke tests |
 | `docker-compose.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
-| `.github/workflows/docker-build.yml` | Build, Deploy, Smoke Test |
+| `.github/workflows/staging-deploy.yml` | Staging Build & Deploy |
+| `.github/workflows/production-release.yml` | Production Release |
 
 ---
 
@@ -389,13 +390,13 @@ git push origin v1.2.4
 │                                                                  │
 │   Local Dev        PR/Branch           Staging         Prod     │
 │   ┌─────────┐      ┌─────────┐      ┌─────────┐    ┌─────────┐ │
-│   │ docker  │  →   │ CI test │  →   │ Manual  │ →  │ Auto on │ │
-│   │ compose │      │ build   │      │ deploy  │    │ main    │ │
-│   │ integrat│      │ images  │      │ verify  │    │ merge   │ │
+│   │ docker  │  →   │ CI test │  →   │ Auto on │ →  │ Manual  │ │
+│   │ compose │      │ + PR    │      │ main    │    │ tag +   │ │
+│   │         │      │ preview │      │ merge   │    │ dispatch│ │
 │   └─────────┘      └─────────┘      └─────────┘    └─────────┘ │
 │                                                                  │
-│   docker-compose   GitHub Actions    workflow      push to      │
-│   .integration.yml                   _dispatch     main         │
+│   docker-compose   pr-test.yml      staging-       production-  │
+│   .yml             ci.yml           deploy.yml     release.yml  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -413,30 +414,42 @@ Before deploying schema changes:
 - Ensure backward-compatible migrations (for rollback)
 - Consider: existing data, indexes, constraints
 
-### Staging Deployment (Manual)
+### Staging Deployment (Automatic)
 
-```bash
-# Via GitHub Actions UI:
-# 1. Go to Actions → "Build and Deploy"
-# 2. Click "Run workflow"
-# 3. Select deploy_target: "staging"
-# 4. Run workflow
-
-# Or via gh CLI:
-gh workflow run docker-build.yml -f deploy_target=staging
-```
-
-### Production Deployment (Automatic)
-
-Production deploys automatically when:
+Staging deploys automatically when:
 1. Push to `main` branch
 2. Changes in `apps/backend/**` or `apps/frontend/**`
 
-The workflow:
-1. Builds images with SHA tag
-2. Updates Dokploy IMAGE_TAG env var
-3. Triggers compose redeploy
-4. Runs smoke tests
+The workflow (`staging-deploy.yml`):
+1. Builds images with commit SHA tag
+2. Pushes to GHCR
+3. Deploys to Dokploy staging
+4. Runs health check + E2E tests
+
+### Production Deployment (Manual)
+
+Production deployment is a two-step process:
+
+1. **Build**: Create a git tag (triggers `production-release.yml`)
+```bash
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+# → Builds images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
+```
+
+2. **Deploy**: Manual workflow dispatch
+```bash
+# Via GitHub Actions UI:
+# Actions → "Production Release" → Run workflow → Select tag
+
+# Or via gh CLI:
+gh workflow run production-release.yml
+```
+
+The deploy job:
+1. Verifies images exist in GHCR
+2. Deploys to Dokploy production
+3. Runs health check + smoke tests
 
 ### Database Migrations
 
@@ -455,7 +468,7 @@ entrypoint:
 ```
 
 **Important**: Before deploying schema changes:
-1. Test migration locally with `docker-compose.integration.yml`
+1. Test migration locally with `docker-compose.yml`
 2. Ensure migration is backward-compatible (for rollback)
 3. Consider: existing data, indexes, constraints
 
