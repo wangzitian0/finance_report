@@ -26,10 +26,10 @@
 | 4 | **Schema** | No Alembic migrations directory | Cannot track DB schema changes | ✅ Resolved |
 | 5 | **API** | PDF extraction sends full Base64 in JSON | Gateway 413 on large files (>5MB) | ⚠️ Mitigated by 10MB limit |
 | 6 | **Frontend** | `README.md` Quick Start uses wrong compose file | `docker-compose.ci.yml` doesn't exist | ✅ Fixed in PR #46 |
-| 7 | **Feature** | Cash Flow report unimplemented | Backend returns placeholder data | ❌ P1 |
+| 7 | **Feature** | Cash Flow report unimplemented | Backend returns placeholder data | ✅ Resolved (full impl exists) |
 | 8 | **Feature** | XLSX parsing listed but unimplemented | Feature advertised but broken | ❌ P1 |
 | 9 | **Security** | No PII consent for AI context | Sends financial data to OpenRouter | ⚠️ Legal risk |
-| 10 | **Testing** | Smoke tests cover only GET requests | POST/PUT/DELETE untested in E2E | ⚠️ Coverage gap |
+| 10 | **Testing** | Smoke tests cover only GET requests | POST/PUT/DELETE untested in E2E | ✅ Resolved (E2E API tests added) |
 
 ---
 
@@ -37,6 +37,8 @@
 
 | Issue | Resolution |
 |-------|------------|
+| Cash Flow report "unimplemented" | Full implementation exists in `src/services/reporting.py` (180+ lines) |
+| E2E tests missing mutation coverage | Added 8 API tests covering accounts, journals, reports, reconciliation, statements |
 | Hard-coded `MOCK_USER_ID` in core APIs | Replaced with `get_current_user_id()` from header |
 | Schema Mismatch (statements vs bank_statements) | ORM now uses `bank_statements` consistently |
 | Data Loss (temp file deleted after upload) | Files now stored in S3/MinIO |
@@ -52,7 +54,7 @@
 ## P1: High Priority (Core Features)
 
 - [ ] **Implement JWT-based authentication** — Replace `X-User-Id` header with proper tokens
-- [ ] **Complete Cash Flow report** — Backend logic is placeholder
+- [x] **Complete Cash Flow report** — ~~Backend logic is placeholder~~ Full implementation verified in `reporting.py`
 - [ ] **Add Alembic migrations** — Currently no schema version control
 - [ ] **Implement XLSX parsing** — Advertised but unimplemented
 - [ ] **Add PII consent flow** — Before sending data to AI
@@ -62,7 +64,7 @@
 - [x] **Fix README Quick Start** — References wrong compose file
 - [ ] **Add upload progress indicator** — PDF extraction can take >10s
 - [ ] **Clean up MOCK_USER_ID** — Dead code in users.py
-- [ ] **Add E2E tests for mutations** — Only GET requests tested
+- [x] **Add E2E tests for mutations** — API tests added for accounts, journals, reports, reconciliation
 - [ ] **Mobile responsiveness audit** — Unverified
 
 ---
