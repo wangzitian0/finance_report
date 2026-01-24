@@ -9,18 +9,15 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-import aioboto3
 import structlog
-from botocore.config import Config as BotoConfig
-from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
 from src.boot import Bootloader, BootMode
+from src.config import settings
 from src.database import get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
@@ -29,14 +26,6 @@ from src.routers import accounts, ai_models, assets, auth, chat, journal, report
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
-
-# Conditional import for Redis (optional dependency in production)
-try:
-    import redis.asyncio as redis
-
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
 
 # Initialize logging early
 configure_logging()

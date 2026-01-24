@@ -87,3 +87,11 @@ tasks:
     local: true
     deps:
       - 'install'
+
+  verify:
+    command: 'echo "✅ Verify complete. all systems go."'
+    local: true
+    deps:
+      - 'lint'
+      - 'test-execution'
+      - 'env-check'
