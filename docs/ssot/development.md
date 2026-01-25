@@ -14,7 +14,7 @@
 |------|---------|
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
-| `scripts/test_backend.sh` | Database lifecycle (reference counting) |
+| `scripts/test_lifecycle.py` | Database lifecycle (Python Context Manager) |
 | `scripts/smoke_test.sh` | Unified smoke tests |
 | `docker-compose.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
@@ -171,14 +171,15 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 
 ## Database Lifecycle
 
-### Reference Counting (scripts/test_backend.sh)
+### Database Management (Python Context Manager)
 
-```
-Terminal 1: moon run backend:test  → refcount=1 (start container)
-Terminal 2: moon run backend:test  → refcount=2
-Terminal 2 exits                   → refcount=1
-Terminal 1 exits                   → refcount=0 (stop container)
-```
+The `scripts/test_lifecycle.py` script uses a Python Context Manager (`@contextmanager`) to robustly handle the database lifecycle:
+
+1.  **Setup**: Checks for the container runtime (Podman/Docker), starts the `postgres` service via Docker Compose, and ensures the database is ready.
+2.  **Isolation**: Creates a dedicated `finance_report_test` database and runs migrations.
+3.  **Teardown**: Automatically stops the database container after tests complete, ensuring resources are freed.
+4.  **Signal Handling**: Catches `SIGINT` (Ctrl+C) and `SIGTERM` to perform cleanup even if the test run is interrupted.
+
 
 ### Local Test Isolation (Branch Suffix)
 
@@ -225,7 +226,7 @@ Safe for multi-window development - won't kill other sessions' processes.
 | `dev_backend.py` | uvicorn (PID), **Full Stack Containers** | ✓ uvicorn only (Containers stay for speed) |
 | `dev_frontend.py` | Next.js (PID tracked) | ✓ Only ours |
 
-### Test Lifecycle (`scripts/test_backend.sh`)
+### Test Lifecycle (`scripts/test_lifecycle.py`)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

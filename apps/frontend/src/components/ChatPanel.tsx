@@ -165,8 +165,10 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const clearSession = async () => {
     if (sessionId) { 
       try { 
-        await apiDelete(`/api/chat/session/${sessionId}`);
-      } catch { }
+await apiDelete(`/api/chat/session/${sessionId}`);
+      } catch {
+        // Session deletion is best-effort; ignore network errors
+      }
     }
     localStorage.removeItem(SESSION_KEY);
     setSessionId(null);

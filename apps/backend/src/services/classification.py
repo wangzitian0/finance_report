@@ -1,5 +1,6 @@
 """Layer 3: Classification Service."""
 
+import re
 from uuid import UUID
 
 from sqlalchemy import select
@@ -43,8 +44,15 @@ class ClassificationService:
             return any(k.lower() in desc for k in keywords)
 
         elif rule.rule_type == RuleType.REGEX_MATCH:
-            # TODO: Implement regex matching
-            pass
+            pattern = config.get("pattern", "")
+            if not pattern:
+                return False
+            try:
+                flags = re.IGNORECASE if config.get("case_insensitive", True) else 0
+                return bool(re.search(pattern, transaction.description, flags))
+            except re.error as e:
+                logger.warning(f"Invalid regex pattern in rule {rule.id}: {e}")
+                return False
 
         return False
 
