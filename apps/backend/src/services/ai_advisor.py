@@ -625,7 +625,7 @@ class AIAdvisorService:
             model=model,
             api_key=self.api_key,
             base_url=self.base_url,
-            timeout=30.0,
+            timeout=120.0,
         ):
             yield chunk
 

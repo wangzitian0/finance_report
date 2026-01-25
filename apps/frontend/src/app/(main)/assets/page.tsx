@@ -29,11 +29,11 @@ export default function AssetsPage() {
 
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["positions", activeFilter],
-        queryFn: () => apiFetch<ManagedPositionListResponse>(`/assets/positions${statusParam}`),
+        queryFn: () => apiFetch<ManagedPositionListResponse>(`/api/assets/positions${statusParam}`),
     });
 
     const reconcileMutation = useMutation({
-        mutationFn: () => apiFetch<ReconcilePositionsResponse>("/assets/reconcile", { method: "POST" }),
+        mutationFn: () => apiFetch<ReconcilePositionsResponse>("/api/assets/reconcile", { method: "POST" }),
         onSuccess: (result) => {
             const total = result.created + result.updated + result.disposed;
             if (result.skipped > 0) {
