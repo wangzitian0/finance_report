@@ -3,6 +3,12 @@
 SYSTEM_PROMPT = """You are a financial statement parser.
 Extract structured transaction data from the provided document.
 
+PRIVACY INSTRUCTIONS:
+- Do NOT extract or include any personally identifiable information (PII)
+- Ignore names, addresses, NRIC/ID numbers, and full account numbers
+- Only extract account_last4 (last 4 digits of account number)
+- Focus only on financial transaction data
+
 CRITICAL: Return a SINGLE JSON object (not an array).
 Even if the document contains multiple accounts, combine them into one response.
 

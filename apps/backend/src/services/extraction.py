@@ -24,6 +24,7 @@ from src.services.openrouter_streaming import (
     accumulate_stream,
     stream_openrouter_json,
 )
+from src.services.pii_redaction import detect_pii
 from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
@@ -334,7 +335,13 @@ class ExtractionService:
                 "Ensure file content is uploaded or URL is public."
             )
 
-        # Build request
+        logger.info(
+            "Sending document to AI for extraction",
+            file_type=file_type,
+            institution=institution,
+            pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
+        )
+
         prompt = get_parsing_prompt(institution)
         messages = [
             {
@@ -498,6 +505,16 @@ class ExtractionService:
         from datetime import datetime
 
         text = file_content.decode("utf-8-sig")
+
+        pii_matches = detect_pii(text)
+        if pii_matches:
+            logger.warning(
+                "PII detected in CSV content",
+                pii_count=len(pii_matches),
+                pii_types=list({m.pii_type.value for m in pii_matches}),
+                institution=institution,
+            )
+
         reader = csv.DictReader(io.StringIO(text))
 
         rows = list(reader)
