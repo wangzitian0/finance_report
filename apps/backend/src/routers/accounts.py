@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
+from src.logger import get_logger
 from src.models import AccountType, JournalLine
 from src.schemas import (
     AccountCreate,
@@ -21,6 +22,7 @@ from src.services import (
 )
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
+logger = get_logger(__name__)
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
@@ -78,6 +80,7 @@ async def get_account(
     try:
         account = await account_service.get_account(db, user_id, account_id)
     except AccountNotFoundError as e:
+        logger.debug("Account not found", account_id=str(account_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
@@ -101,6 +104,7 @@ async def update_account(
     try:
         account = await account_service.update_account(db, user_id, account_id, account_data)
     except AccountNotFoundError as e:
+        logger.debug("Account not found for update", account_id=str(account_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
@@ -120,16 +124,15 @@ async def delete_account(
     user_id: CurrentUserId,
 ) -> None:
     """Delete an account (if unused)."""
-    # Check if account exists
     try:
         account = await account_service.get_account(db, user_id, account_id)
     except AccountNotFoundError as e:
+        logger.debug("Account not found for deletion", account_id=str(account_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
 
-    # Check for usage in journal lines
     result = await db.execute(select(JournalLine).where(JournalLine.account_id == account_id).limit(1))
     if result.scalar_one_or_none():
         raise HTTPException(

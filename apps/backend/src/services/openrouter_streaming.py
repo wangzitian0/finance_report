@@ -1,6 +1,7 @@
 """OpenRouter streaming utilities for vision and chat models."""
 
 import json
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -70,6 +71,16 @@ async def _stream_openrouter_base(
     }
 
     timeout_config = httpx.Timeout(timeout, connect=connect_timeout, read=timeout)
+    start_time = time.perf_counter()
+    chunk_count = 0
+    total_chars = 0
+
+    logger.info(
+        "Starting OpenRouter streaming request",
+        model=model,
+        mode=mode_label,
+        timeout=timeout,
+    )
 
     async with (
         httpx.AsyncClient(timeout=timeout_config) as client,
@@ -97,6 +108,8 @@ async def _stream_openrouter_base(
                 delta = chunk_data.get("choices", [{}])[0].get("delta", {})
                 content = delta.get("content", "")
                 if content:
+                    chunk_count += 1
+                    total_chars += len(content)
                     yield content
             except json.JSONDecodeError:
                 logger.warning(
@@ -104,6 +117,16 @@ async def _stream_openrouter_base(
                     data_preview=event.data[:200],
                 )
                 continue
+
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    logger.info(
+        "OpenRouter streaming completed",
+        model=model,
+        mode=mode_label,
+        duration_ms=round(duration_ms, 2),
+        chunk_count=chunk_count,
+        total_chars=total_chars,
+    )
 
 
 async def stream_openrouter_json(

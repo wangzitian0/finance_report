@@ -148,3 +148,302 @@ def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
     for handler in list(root_logger.handlers):
         if handler not in previous_handlers:
             root_logger.removeHandler(handler)
+
+
+# =============================================================================
+# Timing Utilities Tests
+# =============================================================================
+
+
+def test_log_timing_basic(caplog) -> None:
+    """Test log_timing context manager logs operation with timing."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with caplog.at_level(logging.INFO):
+        with logger_module.log_timing("test_operation", logger=test_logger):
+            pass
+
+    assert "test_operation completed" in caplog.text
+    assert "duration_ms" in caplog.text
+
+
+def test_log_timing_with_context(caplog) -> None:
+    """Test log_timing includes additional context."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with caplog.at_level(logging.INFO):
+        with logger_module.log_timing("fetch_data", logger=test_logger, source="api"):
+            pass
+
+    assert "fetch_data completed" in caplog.text
+    assert "source" in caplog.text
+
+
+def test_log_timing_yields_mutable_dict(caplog) -> None:
+    """Test log_timing yields a dict that can be updated."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with caplog.at_level(logging.INFO):
+        with logger_module.log_timing("process", logger=test_logger) as ctx:
+            ctx["items_processed"] = 42
+
+    assert "items_processed" in caplog.text
+
+
+def test_log_timing_with_custom_level(caplog) -> None:
+    """Test log_timing respects custom log level."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with caplog.at_level(logging.DEBUG):
+        with logger_module.log_timing("debug_op", logger=test_logger, level="debug"):
+            pass
+
+    assert "debug_op completed" in caplog.text
+
+
+async def test_async_log_timing_basic(caplog) -> None:
+    """Test async_log_timing context manager logs operation with timing."""
+    import asyncio
+
+    test_logger = logger_module.get_logger("test_async_timing")
+
+    with caplog.at_level(logging.INFO):
+        async with logger_module.async_log_timing("async_operation", logger=test_logger):
+            await asyncio.sleep(0.001)
+
+    assert "async_operation completed" in caplog.text
+    assert "duration_ms" in caplog.text
+
+
+async def test_async_log_timing_with_context(caplog) -> None:
+    """Test async_log_timing includes additional context."""
+    test_logger = logger_module.get_logger("test_async_timing")
+
+    with caplog.at_level(logging.INFO):
+        async with logger_module.async_log_timing("db_query", logger=test_logger, table="users"):
+            pass
+
+    assert "db_query completed" in caplog.text
+    assert "table" in caplog.text
+
+
+def test_log_external_api_sync_success(caplog) -> None:
+    """Test log_external_api decorator with sync function success."""
+
+    @logger_module.log_external_api("test_service")
+    def sync_api_call():
+        return "success"
+
+    with caplog.at_level(logging.INFO):
+        result = sync_api_call()
+
+    assert result == "success"
+    assert "External API call to test_service" in caplog.text
+    assert "duration_ms" in caplog.text
+
+
+def test_log_external_api_sync_failure(caplog) -> None:
+    """Test log_external_api decorator with sync function failure."""
+
+    @logger_module.log_external_api("failing_service")
+    def failing_api_call():
+        raise ValueError("API error")
+
+    import pytest
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValueError, match="API error"):
+            failing_api_call()
+
+    assert "External API call to failing_service failed" in caplog.text
+    assert "ValueError" in caplog.text
+
+
+async def test_log_external_api_async_success(caplog) -> None:
+    """Test log_external_api decorator with async function success."""
+
+    @logger_module.log_external_api("async_service")
+    async def async_api_call():
+        return "async_success"
+
+    with caplog.at_level(logging.INFO):
+        result = await async_api_call()
+
+    assert result == "async_success"
+    assert "External API call to async_service" in caplog.text
+    assert "duration_ms" in caplog.text
+
+
+async def test_log_external_api_async_failure(caplog) -> None:
+    """Test log_external_api decorator with async function failure."""
+    import pytest
+
+    @logger_module.log_external_api("async_failing_service")
+    async def failing_async_api_call():
+        raise RuntimeError("Async API error")
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(RuntimeError, match="Async API error"):
+            await failing_async_api_call()
+
+    assert "External API call to async_failing_service failed" in caplog.text
+    assert "RuntimeError" in caplog.text
+
+
+def test_log_external_api_with_log_args(caplog) -> None:
+    """Test log_external_api with log_args=True."""
+
+    @logger_module.log_external_api("service_with_args", log_args=True)
+    def api_with_args(a, b, key=None):
+        return a + b
+
+    with caplog.at_level(logging.INFO):
+        result = api_with_args(1, 2, key="value")
+
+    assert result == 3
+    assert "args_count" in caplog.text
+    assert "kwargs_keys" in caplog.text
+
+
+def test_log_exception_basic(caplog) -> None:
+    """Test log_exception logs exception with context."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    with caplog.at_level(logging.ERROR):
+        try:
+            raise ValueError("Test error message")
+        except ValueError as exc:
+            logger_module.log_exception(test_logger, exc, "Failed to process")
+
+    assert "Failed to process" in caplog.text
+    assert "ValueError" in caplog.text
+    assert "Test error message" in caplog.text
+
+
+def test_log_exception_with_extra_context(caplog) -> None:
+    """Test log_exception includes extra context fields."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    with caplog.at_level(logging.ERROR):
+        try:
+            raise KeyError("missing_key")
+        except KeyError as exc:
+            logger_module.log_exception(test_logger, exc, "Key lookup failed", user_id="user123", operation="lookup")
+
+    assert "Key lookup failed" in caplog.text
+    assert "user_id" in caplog.text
+
+
+def test_log_exception_without_traceback(caplog) -> None:
+    """Test log_exception without traceback."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    with caplog.at_level(logging.ERROR):
+        try:
+            raise TypeError("Type mismatch")
+        except TypeError as exc:
+            logger_module.log_exception(test_logger, exc, "Type error", include_traceback=False)
+
+    assert "Type error" in caplog.text
+    assert "TypeError" in caplog.text
+
+
+def test_log_exception_custom_level(caplog) -> None:
+    """Test log_exception with custom log level."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    with caplog.at_level(logging.WARNING):
+        try:
+            raise RuntimeError("Warning level error")
+        except RuntimeError as exc:
+            logger_module.log_exception(test_logger, exc, "Non-critical error", level="warning")
+
+    assert "Non-critical error" in caplog.text
+
+
+# =============================================================================
+# Additional Coverage Tests
+# =============================================================================
+
+
+def test_build_processors_returns_list() -> None:
+    """Test _build_processors returns a list of processors."""
+    processors = logger_module._build_processors()
+    assert isinstance(processors, list)
+    assert len(processors) >= 4  # contextvars, log_level, exc_info, timestamper
+
+
+def test_configure_otel_logging_no_endpoint(monkeypatch) -> None:
+    """Test _configure_otel_logging returns early when endpoint is not set."""
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+    # Should not raise and should return early
+    logger_module._configure_otel_logging()
+
+
+def test_configure_logging_basic(monkeypatch) -> None:
+    """Test configure_logging sets up structlog correctly."""
+    import structlog
+
+    # Ensure no OTEL endpoint to avoid side effects
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+    monkeypatch.setattr(logger_module.settings, "debug", True)
+
+    # Save original config
+    original_config = structlog.get_config()
+
+    try:
+        logger_module.configure_logging()
+
+        # Verify structlog is configured
+        config = structlog.get_config()
+        assert config["logger_factory"] is not None
+    finally:
+        # Restore original config
+        structlog.configure(**original_config)
+
+
+def test_configure_logging_production_mode(monkeypatch) -> None:
+    """Test configure_logging in production mode (non-debug)."""
+    import structlog
+
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+    monkeypatch.setattr(logger_module.settings, "debug", False)
+
+    original_config = structlog.get_config()
+
+    try:
+        logger_module.configure_logging()
+        config = structlog.get_config()
+        assert config["logger_factory"] is not None
+    finally:
+        structlog.configure(**original_config)
+
+
+async def test_log_external_api_async_with_log_args(caplog) -> None:
+    """Test log_external_api with log_args=True for async functions."""
+
+    @logger_module.log_external_api("async_service_with_args", log_args=True)
+    async def async_api_with_args(a, b, key=None):
+        return a * b
+
+    with caplog.at_level(logging.INFO):
+        result = await async_api_with_args(3, 4, key="test")
+
+    assert result == 12
+    assert "args_count" in caplog.text
+    assert "kwargs_keys" in caplog.text
+
+
+async def test_log_external_api_async_failure_with_log_args(caplog) -> None:
+    """Test log_external_api async failure path with log_args=True."""
+    import pytest
+
+    @logger_module.log_external_api("async_failing_with_args", log_args=True)
+    async def failing_async_with_args(x, y):
+        raise ValueError("Async failure with args")
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValueError, match="Async failure with args"):
+            await failing_async_with_args(1, 2)
+
+    assert "args_count" in caplog.text
