@@ -42,7 +42,7 @@ tasks:
       - 'install'
 
   test:
-    command: 'bash ../../scripts/test_backend.sh'
+    command: 'python ../../scripts/test_lifecycle.py'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'
