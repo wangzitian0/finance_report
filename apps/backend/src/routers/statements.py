@@ -95,12 +95,15 @@ async def _parse_statement_background(
             logger.error("Statement not found in DB for background parsing")
             return
 
+        async def update_progress(progress: int) -> None:
+            statement.parsing_progress = progress
+            await session.commit()
+
+        await update_progress(5)
+
         storage = StorageService()
         file_url = None
         try:
-            # Generate public URL for AI service access
-            # If S3_PUBLIC_ENDPOINT is not configured, file_url will remain None
-            # and ExtractionService will use base64 content instead
             file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key, public=True)
         except StorageError as exc:
             logger.warning(
@@ -109,8 +112,11 @@ async def _parse_statement_background(
                 statement_id=statement_id,
             )
 
+        await update_progress(10)
+
         service = ExtractionService()
         try:
+            await update_progress(20)
             parsed_statement, transactions = await service.parse_document(
                 file_path=Path(filename),
                 institution=institution,
@@ -124,6 +130,7 @@ async def _parse_statement_background(
                 force_model=model,
                 db=session,
             )
+            await update_progress(70)
         except ExtractionError as exc:
             await _handle_parse_failure(statement, session, message=str(exc))
             return
@@ -132,15 +139,18 @@ async def _parse_statement_background(
             await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
             return
 
+        await update_progress(80)
+
         for existing_tx in list(statement.transactions):
             await session.delete(existing_tx)
         await session.flush()
 
-        # Phase 5: Stop writing to Layer 0 if flag is disabled
         if settings.enable_layer_0_write:
             for txn in transactions:
                 txn.statement = statement
             statement.transactions = list(transactions)
+
+        await update_progress(90)
 
         statement.account_last4 = parsed_statement.account_last4
         statement.currency = parsed_statement.currency
@@ -152,6 +162,7 @@ async def _parse_statement_background(
         statement.balance_validated = parsed_statement.balance_validated
         statement.validation_error = parsed_statement.validation_error
         statement.status = parsed_statement.status
+        statement.parsing_progress = 100
 
         await session.commit()
         duration = time.perf_counter() - start_time

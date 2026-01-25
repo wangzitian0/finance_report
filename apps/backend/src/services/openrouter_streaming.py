@@ -99,24 +99,80 @@ async def _stream_openrouter_base(
             retryable = event_source.response.status_code in (429, 500, 502, 503, 504)
             raise OpenRouterStreamError(error_message, retryable=retryable)
 
+        chunk_count = 0
+        content_count = 0
+
         async for event in event_source.aiter_sse():
+            # Ignore SSE comments (e.g., ": OPENROUTER PROCESSING")
+            if event.data.startswith(":") or not event.data.strip():
+                continue
+
             if event.data == "[DONE]":
                 break
 
+            chunk_count += 1
+
             try:
                 chunk_data = json.loads(event.data)
-                delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+
+                # Check for mid-stream errors (OpenRouter sends error in response body)
+                if "error" in chunk_data:
+                    error_info = chunk_data["error"]
+                    error_msg = error_info.get("message", str(error_info))
+                    error_code = error_info.get("code", "unknown")
+                    logger.error(
+                        f"OpenRouter mid-stream error ({mode_label})",
+                        error_code=error_code,
+                        error_message=error_msg,
+                        model=model,
+                    )
+                    raise OpenRouterStreamError(
+                        f"Mid-stream error: {error_msg}", retryable=error_code in ("server_error", "timeout")
+                    )
+
+                choices = chunk_data.get("choices", [])
+                if not choices:
+                    continue
+
+                choice = choices[0]
+
+                # Check for error finish_reason
+                finish_reason = choice.get("finish_reason")
+                if finish_reason == "error":
+                    logger.error(
+                        f"OpenRouter stream terminated with error ({mode_label})",
+                        model=model,
+                        chunk_data_preview=str(chunk_data)[:500],
+                    )
+                    raise OpenRouterStreamError("Stream terminated with error", retryable=True)
+
+                delta = choice.get("delta", {})
                 content = delta.get("content", "")
                 if content:
-                    chunk_count += 1
+                    content_count += 1
                     total_chars += len(content)
                     yield content
+
             except json.JSONDecodeError:
                 logger.warning(
                     f"Failed to parse JSON in SSE event ({mode_label})",
                     data_preview=event.data[:200],
                 )
                 continue
+
+        # Log summary for debugging empty responses
+        if chunk_count > 0 and content_count == 0:
+            logger.warning(
+                f"OpenRouter stream received chunks but no content ({mode_label})",
+                model=model,
+                chunk_count=chunk_count,
+                content_count=content_count,
+            )
+        elif chunk_count == 0:
+            logger.warning(
+                f"OpenRouter stream received no chunks ({mode_label})",
+                model=model,
+            )
 
     duration_ms = (time.perf_counter() - start_time) * 1000
     logger.info(
@@ -125,6 +181,7 @@ async def _stream_openrouter_base(
         mode=mode_label,
         duration_ms=round(duration_ms, 2),
         chunk_count=chunk_count,
+        content_count=content_count,
         total_chars=total_chars,
     )
 

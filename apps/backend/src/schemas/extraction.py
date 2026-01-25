@@ -97,6 +97,7 @@ class BankStatementResponse(BaseModel):
     closing_balance: Decimal | None
     status: BankStatementStatusEnum
     confidence_score: int | None
+    parsing_progress: int | None = 0
     balance_validated: bool | None
     validation_error: str | None
     created_at: datetime

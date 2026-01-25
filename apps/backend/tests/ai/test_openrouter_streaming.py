@@ -38,6 +38,58 @@ async def mock_stream_generator(chunks: list[str]):
         yield chunk
 
 
+class TestStreamApiKeyFallback:
+    """Tests for API key fallback to settings."""
+
+    @pytest.mark.asyncio
+    async def test_stream_uses_settings_api_key_when_not_provided(self):
+        """Test that stream uses settings.openrouter_api_key when api_key not provided."""
+        events = [
+            ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
+            ServerSentEvent(data="[DONE]"),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                with patch("src.services.openrouter_streaming.settings") as mock_settings:
+                    mock_settings.openrouter_api_key = "settings-api-key"
+                    mock_settings.openrouter_base_url = "https://test.openrouter.ai/api/v1"
+
+                    chunks = []
+                    async for chunk in stream_openrouter_chat(
+                        messages=[{"role": "user", "content": "Hi"}],
+                        model="test-model",
+                    ):
+                        chunks.append(chunk)
+
+                    assert chunks == ["Hello"]
+
+    @pytest.mark.asyncio
+    async def test_stream_raises_when_no_api_key_available(self):
+        """Test that stream raises error when no API key in settings or params."""
+        with patch("src.services.openrouter_streaming.settings") as mock_settings:
+            mock_settings.openrouter_api_key = None
+
+            with pytest.raises(OpenRouterStreamError) as exc_info:
+                async for _ in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "Hi"}],
+                    model="test-model",
+                ):
+                    pass
+
+            assert "API key not configured" in str(exc_info.value)
+            assert exc_info.value.retryable is False
+
+
 class TestStreamOpenRouterChat:
     """Tests for stream_openrouter_chat function."""
 
@@ -195,6 +247,231 @@ class TestStreamOpenRouterJson:
                     chunks.append(chunk)
 
                 assert chunks == ['{"result":', ' "success"}']
+
+
+class TestStreamErrorHandling:
+    """Tests for OpenRouter stream error handling."""
+
+    @pytest.mark.asyncio
+    async def test_stream_handles_mid_stream_error(self):
+        """Test handling of mid-stream error in response body."""
+        events = [
+            ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
+            ServerSentEvent(data='{"error":{"message":"Model overloaded","code":"server_error"}}'),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                with pytest.raises(OpenRouterStreamError) as exc_info:
+                    chunks = []
+                    async for chunk in stream_openrouter_chat(
+                        messages=[{"role": "user", "content": "Hi"}],
+                        model="test-model",
+                        api_key="test-key",
+                    ):
+                        chunks.append(chunk)
+
+                assert "Mid-stream error" in str(exc_info.value)
+                assert exc_info.value.retryable is True  # server_error is retryable
+
+    @pytest.mark.asyncio
+    async def test_stream_handles_mid_stream_error_not_retryable(self):
+        """Test mid-stream error with non-retryable code."""
+        events = [
+            ServerSentEvent(data='{"error":{"message":"Invalid request","code":"invalid_request"}}'),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                with pytest.raises(OpenRouterStreamError) as exc_info:
+                    async for _ in stream_openrouter_chat(
+                        messages=[{"role": "user", "content": "Hi"}],
+                        model="test-model",
+                        api_key="test-key",
+                    ):
+                        pass
+
+                assert exc_info.value.retryable is False  # invalid_request is not retryable
+
+    @pytest.mark.asyncio
+    async def test_stream_handles_finish_reason_error(self):
+        """Test handling of finish_reason: error."""
+        events = [
+            ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"},"finish_reason":"error"}]}'),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                with pytest.raises(OpenRouterStreamError) as exc_info:
+                    async for _ in stream_openrouter_chat(
+                        messages=[{"role": "user", "content": "Hi"}],
+                        model="test-model",
+                        api_key="test-key",
+                    ):
+                        pass
+
+                assert "terminated with error" in str(exc_info.value)
+                assert exc_info.value.retryable is True
+
+    @pytest.mark.asyncio
+    async def test_stream_ignores_sse_comments(self):
+        """Test that SSE comments (starting with :) are ignored."""
+        events = [
+            ServerSentEvent(data=": OPENROUTER PROCESSING"),
+            ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
+            ServerSentEvent(data="   "),  # Empty/whitespace data
+            ServerSentEvent(data='{"choices":[{"delta":{"content":" world"}}]}'),
+            ServerSentEvent(data="[DONE]"),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                chunks = []
+                async for chunk in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "Hi"}],
+                    model="test-model",
+                    api_key="test-key",
+                ):
+                    chunks.append(chunk)
+
+                # Should only get actual content, not comments
+                assert chunks == ["Hello", " world"]
+
+    @pytest.mark.asyncio
+    async def test_stream_logs_warning_chunks_but_no_content(self):
+        """Test warning is logged when chunks received but no content."""
+        # Chunks with empty choices (no content extracted)
+        events = [
+            ServerSentEvent(data='{"choices":[{"delta":{}}]}'),
+            ServerSentEvent(data='{"choices":[{"delta":{"role":"assistant"}}]}'),
+            ServerSentEvent(data="[DONE]"),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                with patch("src.services.openrouter_streaming.logger") as mock_logger:
+                    chunks = []
+                    async for chunk in stream_openrouter_chat(
+                        messages=[{"role": "user", "content": "Hi"}],
+                        model="test-model",
+                        api_key="test-key",
+                    ):
+                        chunks.append(chunk)
+
+                    assert chunks == []  # No content extracted
+
+                    # Verify warning was logged about empty content
+                    warning_calls = [call for call in mock_logger.warning.call_args_list]
+                    assert any("no content" in str(call).lower() for call in warning_calls)
+
+    @pytest.mark.asyncio
+    async def test_stream_logs_warning_no_chunks(self):
+        """Test warning is logged when no chunks received at all."""
+        events = [
+            ServerSentEvent(data="[DONE]"),  # Immediately done, no chunks
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                with patch("src.services.openrouter_streaming.logger") as mock_logger:
+                    chunks = []
+                    async for chunk in stream_openrouter_chat(
+                        messages=[{"role": "user", "content": "Hi"}],
+                        model="test-model",
+                        api_key="test-key",
+                    ):
+                        chunks.append(chunk)
+
+                    assert chunks == []
+
+                    # Verify warning was logged about no chunks
+                    warning_calls = [call for call in mock_logger.warning.call_args_list]
+                    assert any("no chunks" in str(call).lower() for call in warning_calls)
+
+    @pytest.mark.asyncio
+    async def test_stream_skips_empty_choices(self):
+        """Test that events with empty choices are skipped."""
+        events = [
+            ServerSentEvent(data='{"choices":[]}'),  # Empty choices
+            ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
+            ServerSentEvent(data="{}"),  # No choices key
+            ServerSentEvent(data="[DONE]"),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                chunks = []
+                async for chunk in stream_openrouter_chat(
+                    messages=[{"role": "user", "content": "Hi"}],
+                    model="test-model",
+                    api_key="test-key",
+                ):
+                    chunks.append(chunk)
+
+                assert chunks == ["Hello"]
 
 
 class TestAccumulateStream:
