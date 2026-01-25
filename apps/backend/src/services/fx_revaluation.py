@@ -14,6 +14,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -112,13 +113,9 @@ async def calculate_unrealized_fx_for_account(
             rate_date=revaluation_date,
         )
     except FxRateError as e:
-        logger.warning(
-            "Could not get FX rate for revaluation",
-            account_id=str(account.id),
-            currency=account.currency,
-            error=str(e),
-        )
-        return None
+        raise RevaluationError(
+            f"Missing FX rate for {account.currency}/{base_currency} on {revaluation_date}: {e}"
+        ) from e
 
     revalued_base = balance * current_rate
 
@@ -209,7 +206,10 @@ async def get_or_create_fx_gain_loss_account(
         description="System account for unrealized FX gains and losses from currency revaluation",
     )
     db.add(new_account)
-    await db.flush()
+    try:
+        await db.flush()
+    except SQLAlchemyError as e:
+        raise RevaluationError(f"Failed to create FX gain/loss account: {e}") from e
 
     logger.info(
         "Created FX gain/loss account",
@@ -234,14 +234,16 @@ async def create_revaluation_entry(
     - Debit/Credit each foreign currency account for the revaluation adjustment
     - Offsetting entry to the FX Gain/Loss equity account
     """
-    total_adjustment = sum(r.unrealized_gain_loss for r in revaluations)
+    material_revaluations = [r for r in revaluations if abs(r.unrealized_gain_loss) >= Decimal("0.01")]
 
-    if abs(total_adjustment) < Decimal("0.01"):
+    if not material_revaluations:
         logger.info(
             "No material FX revaluation needed",
             revaluation_date=revaluation_date.isoformat(),
         )
         return None
+
+    total_adjustment = sum(r.unrealized_gain_loss for r in material_revaluations)
 
     entry = JournalEntry(
         user_id=user_id,
@@ -255,16 +257,13 @@ async def create_revaluation_entry(
 
     base_currency = settings.base_currency.upper()
 
-    for reval in revaluations:
-        if abs(reval.unrealized_gain_loss) < Decimal("0.01"):
-            continue
-
-        # Gain: Credit the asset (reduce carrying value) / Debit FX account
-        # Loss: Debit the asset (increase carrying value) / Credit FX account
+    for reval in material_revaluations:
+        # FX Gain: Asset worth MORE in base currency → DEBIT asset, CREDIT FX account
+        # FX Loss: Asset worth LESS in base currency → CREDIT asset, DEBIT FX account
         if reval.unrealized_gain_loss > 0:
-            asset_direction = Direction.CREDIT
-        else:
             asset_direction = Direction.DEBIT
+        else:
+            asset_direction = Direction.CREDIT
 
         asset_line = JournalLine(
             journal_entry_id=entry.id,
@@ -278,11 +277,11 @@ async def create_revaluation_entry(
         )
         db.add(asset_line)
 
-    # Offsetting entry to FX Gain/Loss account
+    # Offsetting entry: opposite direction to net asset adjustments
     if total_adjustment > 0:
-        fx_direction = Direction.DEBIT
-    else:
         fx_direction = Direction.CREDIT
+    else:
+        fx_direction = Direction.DEBIT
 
     fx_line = JournalLine(
         journal_entry_id=entry.id,
@@ -296,16 +295,14 @@ async def create_revaluation_entry(
     )
     db.add(fx_line)
 
-    await db.commit()
+    await db.flush()
     await db.refresh(entry, ["lines"])
 
-    logger.info(
-        "Created FX revaluation entry",
-        entry_id=str(entry.id),
-        revaluation_date=revaluation_date.isoformat(),
-        total_adjustment=str(total_adjustment),
-        lines_count=len(entry.lines),
-    )
+    total_debits = sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
+    total_credits = sum(line.amount for line in entry.lines if line.direction == Direction.CREDIT)
+
+    if abs(total_debits - total_credits) >= Decimal("0.01"):
+        raise RevaluationError(f"Revaluation entry is unbalanced: debits={total_debits}, credits={total_credits}")
 
     return entry
 
