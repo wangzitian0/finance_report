@@ -10,7 +10,7 @@ import pytest
 from src.services.extraction import ExtractionError, ExtractionService
 
 # Get fixtures directory
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 class TestBalanceValidation:

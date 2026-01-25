@@ -2,6 +2,8 @@
 
 Test suite for the Finance Report backend, organized by domain.
 
+> **SSOT Alignment**: Test directories are named to match [SSOT domain documents](../../../docs/ssot/README.md#-module-mapping-cross-layer-alignment).
+
 ## Directory Structure
 
 ```
@@ -15,8 +17,8 @@ tests/
 ├── assets/              # Asset tracking and management
 ├── auth/                # Authentication, users, sessions
 ├── extraction/          # PDF parsing, statement upload, storage
-├── fx/                  # Foreign exchange rates
 ├── infra/               # Config, logging, rate limiting, migrations
+├── market_data/         # Foreign exchange rates, stock prices
 ├── reconciliation/      # Bank statement matching engine
 └── reporting/           # Financial reports (balance sheet, P&L)
 ```
@@ -37,19 +39,21 @@ uv run pytest tests/infra/ tests/ai/test_models_repr.py -v
 uv run pytest tests/ --cov=src --cov-report=term-missing
 ```
 
-## Domain Mapping
+## SSOT ↔ Code Mapping
 
-| Domain | Source Files | Key Concepts |
-|--------|-------------|--------------|
-| `accounting/` | `services/accounting.py`, `routers/journal.py` | Journal entries, account balances, double-entry |
-| `ai/` | `services/ai_advisor.py`, `routers/chat.py` | AI chat, OpenRouter, streaming |
-| `assets/` | `services/assets.py`, `routers/assets.py` | Asset tracking, valuation |
-| `auth/` | `auth.py`, `security.py`, `routers/auth.py` | JWT, sessions, user management |
-| `extraction/` | `services/extraction.py`, `routers/statements.py` | PDF parsing, S3 storage |
-| `fx/` | `services/fx.py` | Exchange rates, currency conversion |
-| `infra/` | `config.py`, `logger.py`, `rate_limit.py` | Infrastructure, configuration |
-| `reconciliation/` | `services/reconciliation.py` | Matching engine, scoring |
-| `reporting/` | `services/reporting.py`, `routers/reports.py` | Financial statements |
+Test directories are aligned with SSOT documents. When code paths differ from SSOT naming, this table shows the mapping:
+
+| Test Dir | SSOT Doc | Backend Router | Backend Service |
+|----------|----------|----------------|-----------------|
+| `accounting/` | [accounting.md](../../../docs/ssot/accounting.md) | `journal.py`, `accounts.py` | `accounting.py` |
+| `ai/` | [ai.md](../../../docs/ssot/ai.md) | `chat.py`, `ai_models.py` | `ai_advisor.py` |
+| `assets/` | *(planned)* | `assets.py` | `assets.py` |
+| `auth/` | [auth.md](../../../docs/ssot/auth.md) | `auth.py`, `users.py` | — |
+| `extraction/` | [extraction.md](../../../docs/ssot/extraction.md) | `statements.py` | `extraction.py` |
+| `infra/` | [development.md](../../../docs/ssot/development.md) | — | — |
+| `market_data/` | [market_data.md](../../../docs/ssot/market_data.md) | — | `fx.py` |
+| `reconciliation/` | [reconciliation.md](../../../docs/ssot/reconciliation.md) | `reconciliation.py` | `reconciliation.py` |
+| `reporting/` | [reporting.md](../../../docs/ssot/reporting.md) | `reports.py` | `reporting.py` |
 
 ## Fixtures
 
