@@ -1,6 +1,6 @@
-# AI Advisor SSOT
+# AI SSOT
 
-> **SSOT Key**: `ai_advisor`
+> **SSOT Key**: `ai`
 > **Core Definition**: Conversational financial advisor behavior, data scope, prompt policy, and safety controls.
 
 ---

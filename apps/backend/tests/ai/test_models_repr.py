@@ -85,13 +85,15 @@ def test_validation_route_by_threshold():
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
 
 
-def test_fx_service_to_float():
-    from src.services.openrouter_models import _to_float
+def test_to_decimal():
+    from decimal import Decimal
 
-    assert _to_float("1.5") == 1.5
-    assert _to_float("0") == 0.0
-    assert _to_float("invalid") is None
-    assert _to_float(None) is None
+    from src.services.openrouter_models import _to_decimal
+
+    assert _to_decimal("1.5") == Decimal("1.5")
+    assert _to_decimal("0") == Decimal("0")
+    assert _to_decimal("invalid") is None
+    assert _to_decimal(None) is None
 
 
 def test_openrouter_normalize_model_is_free():

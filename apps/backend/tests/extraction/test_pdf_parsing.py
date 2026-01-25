@@ -26,7 +26,7 @@ from src.services.validation import (
     validate_completeness,
 )
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:

@@ -4,8 +4,8 @@ import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-# Paths relative to this test file: apps/backend/tests/test_migrations.py
-BACKEND_DIR = Path(__file__).parent.parent
+# Paths relative to this test file: apps/backend/tests/infra/test_migrations.py
+BACKEND_DIR = Path(__file__).parent.parent.parent
 ALEMBIC_INI_PATH = BACKEND_DIR / "alembic.ini"
 SCRIPT_LOCATION = BACKEND_DIR / "migrations"
 
