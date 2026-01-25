@@ -127,10 +127,6 @@ async def db_engine():
 
     yield engine
 
-    # Drop all tables after test
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
     await engine.dispose()
 
 
