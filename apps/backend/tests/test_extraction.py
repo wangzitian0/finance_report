@@ -124,7 +124,6 @@ class TestFixtureData:
                 return json.load(f)
         return None  # Pass but no data
 
-
     @pytest.fixture
     def maribank_fixture(self):
         fixture_path = FIXTURES_DIR / "Apr2025_MariBank_e-Statement_parsed.json"
@@ -133,7 +132,6 @@ class TestFixtureData:
                 return json.load(f)
         return None  # Pass but no data
 
-
     @pytest.fixture
     def gxs_fixture(self):
         fixture_path = FIXTURES_DIR / "gxs-2506_parsed.json"
@@ -141,7 +139,6 @@ class TestFixtureData:
             with open(fixture_path) as f:
                 return json.load(f)
         return None  # Pass but no data
-
 
     def test_dbs_fixture_structure(self, dbs_fixture):
         """Test DBS fixture has correct structure."""

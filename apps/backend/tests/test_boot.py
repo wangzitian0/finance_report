@@ -1,35 +1,41 @@
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from src.boot import Bootloader, BootMode, ServiceStatus
-from src.config import Settings
+
 
 @pytest.fixture
 def mock_settings():
     with patch("src.boot.settings") as mock:
         yield mock
 
+
 @pytest.fixture
 def mock_logger():
     with patch("src.boot.logger") as mock:
         yield mock
+
 
 @pytest.fixture
 def mock_db_check():
     with patch("src.boot.Bootloader._check_database", new_callable=AsyncMock) as mock:
         yield mock
 
+
 @pytest.fixture
 def mock_redis_check():
     with patch("src.boot.Bootloader._check_redis", new_callable=AsyncMock) as mock:
         yield mock
+
 
 @pytest.fixture
 def mock_minio_check():
     with patch("src.boot.Bootloader._check_s3", new_callable=AsyncMock) as mock:
         yield mock
 
+
 class TestBootloader:
-    
     @pytest.mark.asyncio
     async def test_dry_run_passes(self, mock_settings):
         """Dry run should only check config."""
@@ -40,7 +46,7 @@ class TestBootloader:
     async def test_critical_check_database_failure(self, mock_db_check, mock_settings):
         """Critical check must exit if DB fails."""
         mock_db_check.return_value = ServiceStatus(service="database", status="error", message="Conn refused")
-        
+
         with pytest.raises(SystemExit):
             await Bootloader.validate(BootMode.CRITICAL)
 
@@ -48,7 +54,7 @@ class TestBootloader:
     async def test_critical_check_success(self, mock_db_check, mock_settings):
         """Critical check passes if DB is OK."""
         mock_db_check.return_value = ServiceStatus(service="database", status="ok", message="Connected", duration_ms=10)
-        
+
         await Bootloader.validate(BootMode.CRITICAL)
         mock_db_check.assert_called_once()
 
@@ -60,7 +66,7 @@ class TestBootloader:
         mock_minio_check.return_value = ServiceStatus(service="minio", status="ok", message="OK")
 
         await Bootloader.validate(BootMode.FULL)
-        
+
         mock_db_check.assert_called_once()
         mock_redis_check.assert_called_once()
         mock_minio_check.assert_called_once()
@@ -74,7 +80,7 @@ class TestBootloader:
 
         # Should not raise SystemExit
         await Bootloader.validate(BootMode.FULL)
-        
+
         mock_redis_check.assert_called_once()
 
     @pytest.mark.asyncio
@@ -91,16 +97,16 @@ class TestBootloader:
             # Mock the client context manager
             mock_client_ctx = AsyncMock()
             mock_client = AsyncMock()
-            
+
             # When client() is called, return ctx manager
             mock_session.return_value.client.return_value = mock_client_ctx
-            
+
             # When entering ctx manager, return the client
             mock_client_ctx.__aenter__.return_value = mock_client
-            
+
             # The actual call failing
             mock_client.head_bucket.side_effect = Exception("S3 Down")
-            
+
             status = await Bootloader._check_s3()
             assert status.status == "error"
             assert "S3 Down" in str(status.message)

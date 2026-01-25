@@ -53,7 +53,6 @@ class TestModelCatalogIntegration:
         if not settings.fallback_models:
             return
 
-
         # fallback_models is already a list, no need to split
         assert len(settings.fallback_models) > 0, "FALLBACK_MODELS list is empty"
 
@@ -105,7 +104,6 @@ class TestModelValidationIntegration:
 
         if not text_only_candidates:
             return
-
 
         text_only_model = text_only_candidates[0]
 

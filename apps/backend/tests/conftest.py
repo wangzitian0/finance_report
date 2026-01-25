@@ -1,6 +1,7 @@
 """Test fixtures and configuration."""
 
 import os
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -16,6 +17,20 @@ from src.logger import get_logger
 from src.services.fx import clear_fx_cache
 
 logger = get_logger(__name__)
+
+
+# --- Bootloader Mock ---
+# Prevent Bootloader from creating its own engine (causes event loop conflicts)
+@pytest.fixture(autouse=True)
+def mock_bootloader_db_check():
+    """Mock Bootloader._check_database to avoid event loop conflicts in tests."""
+    from src.boot import ServiceStatus
+
+    async def mock_check():
+        return ServiceStatus("database", "ok", "Mocked for tests", 0.0)
+
+    with patch("src.boot.Bootloader._check_database", new=mock_check):
+        yield
 
 
 # --- FX Cache Cleanup ---
@@ -130,7 +145,7 @@ async def db_engine():
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", autouse=True)
 async def patch_database_connection(db_engine):
     """Ensure all tests use the test database connection via hook.
 

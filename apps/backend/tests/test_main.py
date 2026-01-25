@@ -1,6 +1,6 @@
 """Backend tests."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
@@ -48,11 +48,13 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
 
     async def mock_get_db():
         from unittest.mock import MagicMock
+
         mock_session = MagicMock()
         mock_session.execute.side_effect = Exception("DB Down")
         yield mock_session
 
     from src.main import app
+
     app.dependency_overrides[get_db] = mock_get_db
 
     try:
@@ -85,6 +87,7 @@ async def test_health_fails_when_redis_configured_but_unavailable(
     monkeypatch.setattr("src.config.settings.redis_url", "redis://invalid:6379")
 
     from src.boot import Bootloader, ServiceStatus
+
     monkeypatch.setattr(
         Bootloader,
         "_check_redis",
@@ -98,11 +101,11 @@ async def test_health_fails_when_redis_configured_but_unavailable(
     assert data["checks"]["redis"] is False
 
 
-
 @pytest.mark.asyncio
 async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
     """Test health endpoint returns 503 when S3 check fails."""
     from src.boot import Bootloader, ServiceStatus
+
     monkeypatch.setattr(
         Bootloader,
         "_check_s3",

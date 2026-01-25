@@ -1,5 +1,3 @@
-import pytest
-
 from src.services.pii_redaction import (
     PIIType,
     detect_pii,
