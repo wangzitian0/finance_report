@@ -191,7 +191,7 @@ acquire_lock() {
     if [ -f "$lock_dir/pid" ]; then
       local lock_pid
       lock_pid="$(cat "$lock_dir/pid" 2>/dev/null || true)"
-      if [ -n "$lock_pid" ] && ! ps -p "$lock_pid" >/dev/null 2>&1; then
+      if [ -n "$lock_pid" ] && ! kill -0 "$lock_pid" >/dev/null 2>&1; then
         rm -rf "$lock_dir"
         continue
       fi
@@ -293,7 +293,7 @@ cleanup() {
     kill "$tunnel_pid" >/dev/null 2>&1 || true
   fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 acquire_lock
 managed="false"
