@@ -31,7 +31,8 @@ class TestConfigContract:
         """Ensure config.py default matches .env.example documentation."""
         from src.config import settings
 
-        env_example_path = Path(__file__).parent.parent.parent.parent / ".env.example"
+        # Go up to project root: tests/infra/ -> tests/ -> backend/ -> apps/ -> project_root
+        env_example_path = Path(__file__).parent.parent.parent.parent.parent / ".env.example"
         env_example = env_example_path.read_text()
 
         # Parse PRIMARY_MODEL from .env.example

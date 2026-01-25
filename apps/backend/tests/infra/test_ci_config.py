@@ -31,7 +31,8 @@ def test_docker_compose_integrity():
     """Verify project integrity by checking docker-compose contexts."""
     import yaml
 
-    compose_path = Path(__file__).parent.parent.parent.parent / "docker-compose.yml"
+    # Go up to project root: tests/infra/ -> tests/ -> backend/ -> apps/ -> project_root
+    compose_path = Path(__file__).parent.parent.parent.parent.parent / "docker-compose.yml"
 
     with open(compose_path) as f:
         config = yaml.safe_load(f)
