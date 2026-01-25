@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -50,19 +51,21 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
         _CACHE_LOCK.release()
 
 
-def _to_float(value: Any) -> float | None:
+def _to_decimal(value: Any) -> Decimal | None:
+    if value is None:
+        return None
     try:
-        return float(value)
-    except (TypeError, ValueError):
+        return Decimal(str(value))
+    except (TypeError, ValueError, InvalidOperation):
         return None
 
 
 def normalize_model_entry(model: dict[str, Any]) -> dict[str, Any]:
     """Normalize raw OpenRouter model metadata to a UI-friendly shape."""
     pricing = model.get("pricing") or {}
-    prompt = _to_float(pricing.get("prompt"))
-    completion = _to_float(pricing.get("completion"))
-    is_free = prompt == 0 and completion == 0
+    prompt = _to_decimal(pricing.get("prompt"))
+    completion = _to_decimal(pricing.get("completion"))
+    is_free = prompt == Decimal("0") and completion == Decimal("0")
     modalities = model.get("architecture", {}).get("input_modalities") or []
 
     return {
