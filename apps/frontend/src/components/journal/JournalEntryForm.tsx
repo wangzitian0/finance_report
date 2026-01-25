@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { apiFetch } from "@/lib/api";
 import { formatAmount, isAmountZero, parseAmount, sumAmounts } from "@/lib/currency";
-import { Account } from "@/lib/types";
+import { Account, JournalEntry } from "@/lib/types";
 
 interface JournalEntryFormProps {
     isOpen: boolean;
@@ -44,6 +44,7 @@ type JournalEntryForm = z.infer<typeof journalEntrySchema>;
 export default function JournalEntryForm({ isOpen, onClose, onSuccess }: JournalEntryFormProps) {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [postImmediately, setPostImmediately] = useState(false);
 
     const {
         register,
@@ -91,7 +92,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
         setError(null);
 
         try {
-            await apiFetch("/api/journal-entries", {
+            const createdEntry = await apiFetch<JournalEntry>("/api/journal-entries", {
                 method: "POST",
                 body: JSON.stringify({
                     entry_date: data.entry_date,
@@ -105,6 +106,12 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                     })),
                 }),
             });
+
+            if (postImmediately) {
+                await apiFetch(`/api/journal-entries/${createdEntry.id}/post`, {
+                    method: "POST",
+                });
+            }
 
             reset({
                 entry_date: new Date().toISOString().slice(0, 10),
@@ -180,11 +187,10 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                                     </select>
                                     <select
                                         {...register(`lines.${index}.direction`)}
-                                        className={`input w-24 text-sm ${
-                                            lines[index]?.direction === "DEBIT"
+                                        className={`input w-24 text-sm ${lines[index]?.direction === "DEBIT"
                                                 ? "text-[var(--info)]"
                                                 : "text-[var(--success)]"
-                                        }`}
+                                            }`}
                                     >
                                         <option value="DEBIT">Debit</option>
                                         <option value="CREDIT">Credit</option>
@@ -227,11 +233,10 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                     </div>
 
                     <div
-                        className={`p-3 rounded-md flex items-center justify-between ${
-                            isBalanced
+                        className={`p-3 rounded-md flex items-center justify-between ${isBalanced
                                 ? "bg-[var(--success-muted)] border border-[var(--success)]/30"
                                 : "bg-[var(--error-muted)] border border-[var(--error)]/30"
-                        }`}
+                            }`}
                     >
                         <div className="flex gap-6 text-sm">
                             <div>
@@ -244,15 +249,27 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             </div>
                         </div>
                         <span
-                            className={`text-sm font-medium ${
-                                isBalanced ? "text-[var(--success)]" : "text-[var(--error)]"
-                            }`}
+                            className={`text-sm font-medium ${isBalanced ? "text-[var(--success)]" : "text-[var(--error)]"
+                                }`}
                         >
                             {isBalanced ? "✓ Balanced" : "⚠ Unbalanced"}
                         </span>
                     </div>
 
                     {error && <div className="alert-error">{error}</div>}
+
+                    <div className="flex items-center gap-2 py-2">
+                        <input
+                            type="checkbox"
+                            id="postImmediately"
+                            checked={postImmediately}
+                            onChange={(e) => setPostImmediately(e.target.checked)}
+                            className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]"
+                        />
+                        <label htmlFor="postImmediately" className="text-sm cursor-pointer select-none">
+                            Post transaction immediately
+                        </label>
+                    </div>
 
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="btn-secondary flex-1">
@@ -263,7 +280,11 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             disabled={isSubmitting || !isBalanced}
                             className="btn-primary flex-1"
                         >
-                            {isSubmitting ? "Creating..." : "Create Entry"}
+                            {isSubmitting
+                                ? "Processing..."
+                                : postImmediately
+                                    ? "Create & Post"
+                                    : "Create Draft"}
                         </button>
                     </div>
                 </form>

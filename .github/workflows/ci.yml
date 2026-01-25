@@ -47,7 +47,6 @@ jobs:
       - name: Run CI Pipeline
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
-          # Use default MinIO credentials to match docker-compose configuration
           S3_ACCESS_KEY: minio
           S3_SECRET_KEY: minio_local_secret
           S3_ENDPOINT: http://127.0.0.1:9000
@@ -73,20 +72,8 @@ jobs:
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
       
-      - name: Install dependencies
-        run: |
-          cd apps/frontend
-          npm install
-      
-      - name: Lint
-        run: |
-          cd apps/frontend
-          npm run lint
-      
-      - name: Build
-        run: |
-          cd apps/frontend
-          npm run build
+      - name: Build Frontend (via Moon)
+        run: moon run frontend:build
 
   finish:
     needs: backend
