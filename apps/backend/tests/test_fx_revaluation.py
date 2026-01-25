@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -18,6 +19,7 @@ from src.models import (
     JournalLine,
 )
 from src.models.market_data import FxRate
+from src.services.fx import FxRateError
 from src.services.fx_revaluation import (
     AccountRevaluation,
     calculate_account_balance_in_currency,
@@ -152,6 +154,48 @@ class TestCalculateUnrealizedFxGains:
 
         assert result.accounts_revalued == []
         assert result.total_unrealized_gain_loss == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_calculates_gains_for_foreign_accounts_with_balance(
+        self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
+    ):
+        entry = JournalEntry(
+            user_id=test_user_id,
+            entry_date=date(2025, 1, 15),
+            memo="USD deposit",
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add(entry)
+        await db.flush()
+
+        lines = [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_asset_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000"),
+                currency="USD",
+                fx_rate=Decimal("1.30"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=sgd_asset_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1300"),
+                currency="SGD",
+                fx_rate=Decimal("1"),
+            ),
+        ]
+        db.add_all(lines)
+        await db.commit()
+
+        result = await calculate_unrealized_fx_gains(db, test_user_id, date(2025, 1, 31))
+
+        assert result.revaluation_date == date(2025, 1, 31)
+        assert result.base_currency == "SGD"
+        assert len(result.accounts_revalued) == 1
+        assert result.accounts_revalued[0].account_id == usd_asset_account.id
 
 
 class TestIsRevaluationEntry:
@@ -427,6 +471,49 @@ class TestCalculateUnrealizedFxForAccount:
         # No EUR/SGD rate exists, should return None
         result = await calculate_unrealized_fx_for_account(db, eur_account, date(2025, 1, 31), "SGD")
         assert result is None
+
+    @pytest.mark.asyncio
+    @patch("src.services.fx_revaluation.get_exchange_rate")
+    async def test_handles_fx_rate_error_exception(
+        self, mock_get_rate, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
+    ):
+        """Test that FxRateError exception is caught and returns None."""
+        mock_get_rate.side_effect = FxRateError("No rate found for USD/SGD")
+
+        entry = JournalEntry(
+            user_id=test_user_id,
+            entry_date=date(2025, 1, 15),
+            memo="USD deposit",
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add(entry)
+        await db.flush()
+
+        lines = [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_asset_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000"),
+                currency="USD",
+                fx_rate=Decimal("1.30"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=sgd_asset_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1300"),
+                currency="SGD",
+                fx_rate=Decimal("1"),
+            ),
+        ]
+        db.add_all(lines)
+        await db.commit()
+
+        result = await calculate_unrealized_fx_for_account(db, usd_asset_account, date(2025, 1, 31), "SGD")
+        assert result is None
+        mock_get_rate.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_calculates_revaluation_with_fx_rate(
