@@ -37,6 +37,25 @@ jobs:
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
 
+      - name: Install moon
+        uses: moonrepo/setup-toolchain@v0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Verify Codebase
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
+        run: |
+          # Ensure staging deploy is safe
+          moon run :ci
+          
+          # Clean up artifacts before build
+          rm -rf .venv
+
       - name: Log in to Container registry
         uses: docker/login-action@v3
         with:

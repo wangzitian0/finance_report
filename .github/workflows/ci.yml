@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -43,50 +44,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install dependencies
-        run: |
-          cd apps/backend
-          uv sync
-          cd ../..
-          cd apps/frontend
-          npm install
-
-      - name: Verify backend dependencies
-        run: |
-          cd apps/backend
-          uv run python -c "import email_validator; import bcrypt; print('All dependencies OK')"
-      
-      - name: Check env keys consistency
-        run: |
-          echo "🔍 Checking secrets.ctmpl ↔ config.py consistency..."
-          python scripts/check_env_keys.py --diff
-      
-      - name: Lint (with auto-fix)
-        run: |
-          cd apps/backend
-          uv run ruff check src/ --fix --output-format=github
-          
-          # Check formatting
-          if ! uv run ruff format src/ --check; then
-            echo "::error::Code formatting required. Run: cd apps/backend && uv run ruff format src/"
-            exit 1
-          fi
-          
-          # Check if auto-fix modified any files
-          if ! git diff --exit-code; then
-            echo "::error::Ruff auto-fixed lint issues. You must run pre-commit locally."
-            echo "::error::Install: pip install pre-commit && pre-commit install"
-            echo "::error::Or manually: cd apps/backend && uv run ruff check src/ --fix"
-            echo ""
-            echo "=== Files changed ==="
-            git diff --stat
-            echo ""
-            echo "=== Detailed diff ==="
-            git diff
-            exit 1
-          fi
-      
-      - name: Test with coverage
+      - name: Run CI Pipeline
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
           # Use default MinIO credentials to match docker-compose configuration
@@ -94,12 +52,7 @@ jobs:
           S3_SECRET_KEY: minio_local_secret
           S3_ENDPOINT: http://127.0.0.1:9000
           S3_BUCKET: statements
-          # Redis is optional (only required for distributed rate limiting in production)
-        run: |
-          cd apps/backend
-          # Run tests sequentially (removed -n 2) to ensure proper test isolation
-          # with the new CASCADE-based cleanup in conftest.py
-          uv run pytest -v -m "not slow" --cov=src --cov-report=lcov --cov-report=term-missing
+        run: moon run :ci
       
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2

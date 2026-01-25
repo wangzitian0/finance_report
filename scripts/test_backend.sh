@@ -464,5 +464,8 @@ export S3_SECRET_KEY="minio123"
 echo "Running database migrations on test database..."
 DATABASE_URL="$TEST_DATABASE_URL" uv run alembic upgrade head
 
-cd "$repo_root/apps/backend"
-uv run pytest "$@"
+# Set DATABASE_URL for the test execution
+export DATABASE_URL="${TEST_DATABASE_URL}"
+
+cd "$repo_root"
+moon run backend:test-execution -- "$@"

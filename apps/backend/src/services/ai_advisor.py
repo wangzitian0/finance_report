@@ -493,7 +493,10 @@ class AIAdvisorService:
             session.title = content[:60].strip() or None
         db.add(message)
         await db.commit()
-        await db.refresh(message)
+        try:
+            await db.refresh(message)
+        except Exception:
+            logger.warning("Failed to refresh message after commit", exc_info=True)
         return message
 
     async def _load_history(self, db: AsyncSession, session_id: UUID) -> list[dict[str, str]]:

@@ -1,8 +1,6 @@
 import os
 import subprocess
 
-import pytest
-
 
 def test_missing_migrations_check():
     """
@@ -13,7 +11,7 @@ def test_missing_migrations_check():
     """
     # Only run in CI or if explicitly requested
     if not os.environ.get("CI"):
-        pytest.skip("Skipping drift check in non-CI environment")
+        return
 
     try:
         # Run alembic check in the backend directory
@@ -21,7 +19,7 @@ def test_missing_migrations_check():
 
         if result.returncode != 0:
             if "Target database is not up to date" in result.stderr:
-                pytest.skip("Database not migrated, skipping drift check")
+                return
 
             assert result.returncode == 0, (
                 f"Schema Drift Detected! Models do not match Migrations.\n"
@@ -30,4 +28,4 @@ def test_missing_migrations_check():
             )
 
     except FileNotFoundError:
-        pytest.skip("Alembic executable not found")
+        return

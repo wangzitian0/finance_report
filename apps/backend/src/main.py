@@ -9,19 +9,16 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-import aioboto3
 import structlog
-from botocore.config import Config as BotoConfig
-from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.boot import Bootloader, BootMode
 from src.config import settings
 from src.database import get_db, init_db
-from src.env_check import check_env_on_startup, print_loaded_config
 from src.logger import configure_logging, get_logger
 from src.models import PingState
 from src.rate_limit import auth_rate_limiter, register_rate_limiter
@@ -29,14 +26,6 @@ from src.routers import accounts, ai_models, assets, auth, chat, journal, report
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
-
-# Conditional import for Redis (optional dependency in production)
-try:
-    import redis.asyncio as redis
-
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
 
 # Initialize logging early
 configure_logging()
@@ -47,8 +36,11 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan - init DB on startup."""
     # Environment variable check
-    check_env_on_startup()
-    print_loaded_config(settings)
+    # Bootloader check (Critical Only)
+    # This ensures we have DB connectivity before accepting traffic
+    # Will sys.exit(1) if critical checks fail
+    await Bootloader.validate(mode=BootMode.CRITICAL)
+    Bootloader.print_config()
 
     await init_db()
     stop_event = asyncio.Event()
@@ -163,98 +155,6 @@ app.include_router(users.router)
 # --- Health & Demo Endpoints ---
 
 
-async def check_database(db: AsyncSession) -> bool:
-    """Check database connectivity."""
-    try:
-        await db.execute(text("SELECT 1"))
-        return True
-    except (OSError, TimeoutError) as e:
-        logger.error(
-            "Health check: Database network error",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        return False
-    except Exception as e:
-        logger.error(
-            "Health check: Database unexpected error",
-            error=str(e),
-            error_type=type(e).__name__,
-            error_module=type(e).__module__,
-        )
-        return False
-
-
-async def check_redis() -> bool:
-    """Check Redis connectivity if configured."""
-    if not settings.redis_url or not REDIS_AVAILABLE:
-        return True
-
-    redis_client = None
-    try:
-        redis_client = redis.from_url(settings.redis_url, decode_responses=True)
-        await redis_client.ping()
-        return True
-    except (OSError, TimeoutError) as e:
-        logger.error(
-            "Health check: Redis network error",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        return False
-    except Exception as e:
-        logger.error(
-            "Health check: Redis unexpected error",
-            error=str(e),
-            error_type=type(e).__name__,
-            error_module=type(e).__module__,
-        )
-        return False
-    finally:
-        if redis_client:
-            await redis_client.aclose()
-
-
-async def check_s3() -> bool:
-    """Check S3/MinIO connectivity with short timeout."""
-    try:
-        session = aioboto3.Session()
-        async with session.client(
-            "s3",
-            endpoint_url=settings.s3_endpoint,
-            aws_access_key_id=settings.s3_access_key,
-            aws_secret_access_key=settings.s3_secret_key,
-            region_name=settings.s3_region,
-            config=BotoConfig(connect_timeout=5, read_timeout=5),
-        ) as s3_client:
-            await s3_client.head_bucket(Bucket=settings.s3_bucket)
-            return True
-    except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "Unknown")
-        logger.error(
-            "Health check: S3 client error",
-            error=str(e),
-            error_code=error_code,
-            bucket=settings.s3_bucket,
-        )
-        return False
-    except (BotoCoreError, OSError, TimeoutError) as e:
-        logger.error(
-            "Health check: S3 connection failed",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        return False
-    except Exception as e:
-        logger.error(
-            "Health check: S3 unexpected error",
-            error=str(e),
-            error_type=type(e).__name__,
-            error_module=type(e).__module__,
-        )
-        return False
-
-
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
     """Check application health status with dependency checks.
@@ -263,11 +163,24 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
     This endpoint is used by Docker healthcheck and deployment verification.
     """
     try:
-        checks = {
-            "database": await check_database(db),
-            "redis": await check_redis(),
-            "s3": await check_s3(),
-        }
+        # Use Bootloader's internal check methods to ensure consistency
+        # We don't use validate() here because we want granular report
+        checks = {}
+
+        # DB (Use session from dependency for consistency with request scope)
+        try:
+            await db.execute(text("SELECT 1"))
+            checks["database"] = True
+        except Exception:
+            checks["database"] = False
+
+        # Redis
+        redis_res = await Bootloader._check_redis()
+        checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
+
+        # S3
+        s3_res = await Bootloader._check_s3()
+        checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
 
         all_healthy = all(checks.values())
         status_code = 200 if all_healthy else 503

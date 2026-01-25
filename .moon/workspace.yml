@@ -9,6 +9,7 @@ vcs:
 projects:
   - 'apps/*'
   - 'infra'
+  - '.'
 
 # Task runner settings
 runner:
