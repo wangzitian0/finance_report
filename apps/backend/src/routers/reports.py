@@ -229,9 +229,7 @@ async def export_report(
                 for line in lines:
                     writer.writerow([section, line["name"], line["amount"], report["currency"]])
             writer.writerow(["Total Assets", "", report["total_assets"], report["currency"]])
-            writer.writerow(
-                ["Total Liabilities", "", report["total_liabilities"], report["currency"]]
-            )
+            writer.writerow(["Total Liabilities", "", report["total_liabilities"], report["currency"]])
             writer.writerow(["Total Equity", "", report["total_equity"], report["currency"]])
             filename = f"balance-sheet-{report['as_of_date']}.csv"
         elif report_type == ReportType.INCOME_STATEMENT:

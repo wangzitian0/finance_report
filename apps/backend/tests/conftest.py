@@ -1,11 +1,14 @@
 """Test fixtures and configuration."""
 
+import logging
 import os
+import sys
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+import structlog
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
@@ -72,6 +75,43 @@ if "REDIS_URL" in os.environ:
 
 # Set ENVIRONMENT for pydantic settings
 os.environ["ENVIRONMENT"] = "testing"
+
+
+# --- Structlog Configuration for Tests ---
+@pytest.fixture(autouse=True, scope="session")
+def configure_structlog_for_tests():
+    """Configure structlog for proper capsys capture in tests."""
+    processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.format_exc_info,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ]
+
+    structlog.configure(
+        processors=processors,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=False,
+    )
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        processor=structlog.dev.ConsoleRenderer(),
+        foreign_pre_chain=processors[:-1],
+    )
+
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
+    root_logger.setLevel(logging.DEBUG)
+
+    yield
+
+    structlog.reset_defaults()
 
 
 async def ensure_database():
