@@ -1,6 +1,6 @@
-# Authentication SSOT
+# Auth SSOT
 
-> **SSOT Key**: `authentication`
+> **SSOT Key**: `auth`
 > **Core Definition**: How API requests resolve the current user identity and how users register/login.
 
 ---
