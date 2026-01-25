@@ -139,12 +139,15 @@ async def stream_openrouter_chat(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
-    timeout: float = 30.0,
+    timeout: float = 120.0,
 ) -> AsyncIterator[str]:
     """
     Stream OpenRouter chat completions without JSON mode.
 
     Yields raw delta content chunks for plain text chat responses.
+
+    Note: timeout increased to 120s to handle AI model cold starts and
+    complex financial context processing which can take longer than typical API calls.
     """
     async for chunk in _stream_openrouter_base(
         messages=messages,
@@ -152,7 +155,7 @@ async def stream_openrouter_chat(
         api_key=api_key,
         base_url=base_url,
         timeout=timeout,
-        connect_timeout=5.0,
+        connect_timeout=10.0,
         response_format=None,
         mode_label="chat mode",
     ):
