@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import case, func, literal, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -256,6 +257,119 @@ async def _aggregate_balances_sql(
     return {row.account_id: Decimal(str(row.balance)) if row.balance else Decimal("0") for row in result.all()}
 
 
+async def _aggregate_net_income_sql(
+    db: AsyncSession,
+    user_id: UUID,
+    target_currency: str,
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+) -> Decimal:
+    """Aggregate net income (Income - Expenses) using SQL with FX conversion.
+
+    Uses historical cost accounting - FX rate at entry_date for each transaction.
+    """
+    # First, get distinct currencies and entry dates for FX rate lookup
+    currency_date_stmt = (
+        select(JournalLine.currency, JournalEntry.entry_date)
+        .distinct()
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    if start_date:
+        currency_date_stmt = currency_date_stmt.where(JournalEntry.entry_date >= start_date)
+
+    cd_result = await db.execute(currency_date_stmt)
+    currency_dates = cd_result.all()
+
+    if not currency_dates:
+        return Decimal("0")
+
+    # Build FX rate map: (currency, entry_date) -> rate
+    fx_rate_map: dict[tuple[str, date], Decimal] = {}
+    for currency, entry_date in currency_dates:
+        source = currency.upper()
+        if source == target_currency:
+            fx_rate_map[(source, entry_date)] = Decimal("1")
+            continue
+
+        # Get rate for this specific date (historical cost accounting)
+        stmt = (
+            select(FxRate.rate)
+            .where(FxRate.base_currency == source)
+            .where(FxRate.quote_currency == target_currency)
+            .where(FxRate.rate_date <= entry_date)
+            .order_by(FxRate.rate_date.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        rate = result.scalar_one_or_none()
+
+        if rate is None:
+            fallback_stmt = (
+                select(FxRate.rate)
+                .where(FxRate.base_currency == source)
+                .where(FxRate.quote_currency == target_currency)
+                .where(FxRate.rate_date <= as_of_date)
+                .order_by(FxRate.rate_date.desc())
+                .limit(1)
+            )
+            fallback_result = await db.execute(fallback_stmt)
+            rate = fallback_result.scalar_one_or_none()
+
+            if rate is None:
+                raise ReportError(f"No FX rate available for {source}/{target_currency} on {entry_date}")
+
+            logger.warning(
+                "Using fallback FX rate for net income calculation",
+                error_id=ErrorIds.REPORT_FX_FALLBACK,
+                currency=source,
+                entry_date=entry_date.isoformat(),
+                fallback_date=as_of_date.isoformat(),
+            )
+
+        fx_rate_map[(source, entry_date)] = Decimal(str(rate)) if not isinstance(rate, Decimal) else rate
+
+    agg_stmt = (
+        select(
+            JournalLine.currency,
+            JournalEntry.entry_date,
+            Account.type,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= as_of_date)
+        .group_by(JournalLine.currency, JournalEntry.entry_date, Account.type, JournalLine.direction)
+    )
+    if start_date:
+        agg_stmt = agg_stmt.where(JournalEntry.entry_date >= start_date)
+
+    result = await db.execute(agg_stmt)
+
+    net_income = Decimal("0")
+    for row in result.all():
+        currency_upper = row.currency.upper()
+        fx_rate = fx_rate_map.get((currency_upper, row.entry_date))
+        if fx_rate is None:
+            raise ReportError(
+                f"Missing FX rate for {currency_upper}/{target_currency} on {row.entry_date} - data consistency error"
+            )
+        converted = Decimal(str(row.total)) * fx_rate
+        signed = _signed_amount(row.type, row.direction, converted)
+        net_income += signed
+
+    return net_income
+
+
 async def generate_balance_sheet(
     db: AsyncSession,
     user_id: UUID,
@@ -272,7 +386,7 @@ async def generate_balance_sheet(
         balances = await _aggregate_balances_sql(db, user_id, account_types, target_currency, as_of_date)
     except ReportError:
         raise
-    except Exception as exc:
+    except SQLAlchemyError as exc:
         logger.error(
             "Balance sheet aggregation failed",
             error_id=ErrorIds.REPORT_GENERATION_FAILED,
@@ -293,81 +407,18 @@ async def generate_balance_sheet(
     total_equity = _quantize_money(sum((Decimal(str(line["amount"])) for line in equity), Decimal("0")))
 
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
-    # IMPORTANT: Use historical cost accounting - FX rate at entry_date, not as_of_date
-    income_expense_stmt = (
-        select(JournalLine, Account, JournalEntry)
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(Account.user_id == user_id)
-        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(JournalEntry.entry_date <= as_of_date)
-    )
-    ie_result = await db.execute(income_expense_stmt)
-    ie_rows = ie_result.all()
-
-    # Pre-fetch all needed FX rates for historical income/expenses
-    fx_rates = PrefetchedFxRates()
-    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
-    for ie_line, ie_account, ie_entry in ie_rows:
-        if ie_line.currency.upper() != target_currency:
-            fx_needs.append((ie_line.currency, target_currency, ie_entry.entry_date, None, None))
-
-    if fx_needs:
-        try:
-            await fx_rates.prefetch(db, fx_needs)
-        except FxRateError as exc:
-            logger.error(
-                "Failed to pre-fetch FX rates for balance sheet historical data",
-                error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                error=str(exc),
-            )
-            # We don't raise here, individual lines will try fallback
-
-    net_income = Decimal("0")
-    for ie_line, ie_account, ie_entry in ie_rows:
-        # Use pre-fetched rates for Income/Expense (historical cost - entry_date rate)
-        ie_rate = fx_rates.get_rate(ie_line.currency, target_currency, ie_entry.entry_date)
-        if ie_rate is not None:
-            ie_converted = ie_line.amount * ie_rate
-        else:
-            try:
-                ie_converted = await convert_amount(
-                    db,
-                    amount=ie_line.amount,
-                    currency=ie_line.currency,
-                    target_currency=target_currency,
-                    rate_date=ie_entry.entry_date,
-                )
-            except FxRateError as exc:
-                # Fallback to spot rate if historical rate unavailable
-                logger.warning(
-                    "Historical FX rate unavailable for income/expense, falling back to spot rate",
-                    error_id=ErrorIds.REPORT_FX_FALLBACK,
-                    account_id=ie_account.id,
-                    currency=ie_line.currency,
-                    historical_date=ie_entry.entry_date,
-                    spot_date=as_of_date,
-                    error=str(exc),
-                )
-                try:
-                    ie_converted = await convert_amount(
-                        db,
-                        amount=ie_line.amount,
-                        currency=ie_line.currency,
-                        target_currency=target_currency,
-                        rate_date=as_of_date,
-                    )
-                except FxRateError as final_exc:
-                    logger.error(
-                        "All FX rate fallbacks failed for income/expense",
-                        error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                        account_id=ie_account.id,
-                        error=str(final_exc),
-                    )
-                    raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
-
-        net_income += _signed_amount(ie_account.type, ie_line.direction, ie_converted)
+    # Uses SQL aggregation with historical cost accounting (FX rate at entry_date)
+    try:
+        net_income = await _aggregate_net_income_sql(db, user_id, target_currency, as_of_date)
+    except ReportError:
+        raise
+    except SQLAlchemyError as exc:
+        logger.error(
+            "Net income aggregation failed",
+            error_id=ErrorIds.REPORT_GENERATION_FAILED,
+            error=str(exc),
+        )
+        raise ReportError(str(exc)) from exc
 
     net_income = _quantize_money(net_income)
 
@@ -624,47 +675,64 @@ async def get_account_trend(
     else:
         raise ReportError(f"Unsupported period: {period}")
 
-    stmt = (
-        select(JournalLine, JournalEntry)
+    agg_stmt = (
+        select(
+            JournalLine.currency,
+            JournalEntry.entry_date,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == account_id)
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= today)
+        .group_by(JournalLine.currency, JournalEntry.entry_date, JournalLine.direction)
     )
-    result = await db.execute(stmt)
+    result = await db.execute(agg_stmt)
+    rows = result.all()
 
-    spans = _iter_periods(start_date, today, period)
-    totals = {span.start: Decimal("0") for span in spans}
+    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
+    for row in rows:
+        if row.currency.upper() != target_currency:
+            fx_needs.append((row.currency, target_currency, row.entry_date, None, None))
 
-    for line, entry in result.all():
+    fx_rates = PrefetchedFxRates()
+    if fx_needs:
         try:
-            converted = await convert_amount(
-                db,
-                amount=line.amount,
-                currency=line.currency,
-                target_currency=target_currency,
-                rate_date=entry.entry_date,
-            )
+            await fx_rates.prefetch(db, fx_needs)
         except FxRateError as exc:
             logger.error(
-                "FX conversion failed for balance sheet",
+                "FX pre-fetch failed for account trend",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
                 account_id=account.id,
-                currency=line.currency,
                 error=str(exc),
             )
             raise ReportError(str(exc)) from exc
 
+    spans = _iter_periods(start_date, today, period)
+    totals: dict[date, Decimal] = {span.start: Decimal("0") for span in spans}
+
+    for row in rows:
+        rate = fx_rates.get_rate(row.currency, target_currency, row.entry_date)
+        if rate is None:
+            if row.currency.upper() == target_currency:
+                rate = Decimal("1")
+            else:
+                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {row.entry_date}")
+
+        converted = Decimal(str(row.total)) * rate
+        signed = _signed_amount(account.type, row.direction, converted)
+
         key = (
-            entry.entry_date
+            row.entry_date
             if period == "daily"
-            else entry.entry_date - timedelta(days=entry.entry_date.weekday())
+            else row.entry_date - timedelta(days=row.entry_date.weekday())
             if period == "weekly"
-            else _month_start(entry.entry_date)
+            else _month_start(row.entry_date)
         )
         totals.setdefault(key, Decimal("0"))
-        totals[key] += _signed_amount(account.type, line.direction, converted)
+        totals[key] += signed
 
     points = [
         {
@@ -707,10 +775,16 @@ async def get_category_breakdown(
         raise ReportError(f"Unsupported period: {period}")
 
     accounts = await _load_accounts(db, user_id, (breakdown_type,))
+    account_map = {account.id: account for account in accounts}
     balances: dict[UUID, Decimal] = {account.id: Decimal("0") for account in accounts}
 
-    stmt = (
-        select(JournalLine, Account, JournalEntry)
+    agg_stmt = (
+        select(
+            Account.id.label("account_id"),
+            JournalLine.currency,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
@@ -718,31 +792,40 @@ async def get_category_breakdown(
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= today)
+        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
     )
-    result = await db.execute(stmt)
+    result = await db.execute(agg_stmt)
+    rows = result.all()
 
-    for line, account, _ in result.all():
+    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
+    for row in rows:
+        if row.currency.upper() != target_currency:
+            fx_needs.append((row.currency, target_currency, today, start_date, today))
+
+    fx_rates = PrefetchedFxRates()
+    if fx_needs:
         try:
-            converted = await convert_amount(
-                db,
-                amount=line.amount,
-                currency=line.currency,
-                target_currency=target_currency,
-                rate_date=today,
-                average_start=start_date,
-                average_end=today,
-            )
+            await fx_rates.prefetch(db, fx_needs)
         except FxRateError as exc:
             logger.error(
-                "FX conversion failed for category breakdown",
+                "FX pre-fetch failed for category breakdown",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                account_id=account.id,
-                currency=line.currency,
                 error=str(exc),
             )
             raise ReportError(str(exc)) from exc
 
-        balances[account.id] += _signed_amount(account.type, line.direction, converted)
+    for row in rows:
+        rate = fx_rates.get_rate(row.currency, target_currency, today, start_date, today)
+        if rate is None:
+            if row.currency.upper() == target_currency:
+                rate = Decimal("1")
+            else:
+                raise ReportError(f"No FX rate available for {row.currency}/{target_currency}")
+
+        converted = Decimal(str(row.total)) * rate
+        account = account_map.get(row.account_id)
+        if account:
+            balances[row.account_id] += _signed_amount(account.type, row.direction, converted)
 
     items = [
         {
@@ -790,75 +873,92 @@ async def generate_cash_flow(
 
     account_id_to_account = {a.id: a for a in all_accounts}
 
-    balances_before: dict[UUID, Decimal] = {}
-    balances_after: dict[UUID, Decimal] = {}
-
-    stmt_before = (
-        select(JournalLine, Account.id)
+    agg_stmt_before = (
+        select(
+            Account.id.label("account_id"),
+            JournalLine.currency,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date < start_date)
+        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
     )
-    result_before = await db.execute(stmt_before)
-    for line, acc_id in result_before.all():
-        if acc_id not in balances_before:
-            balances_before[acc_id] = Decimal("0")
-        try:
-            converted = await convert_amount(
-                db,
-                amount=line.amount,
-                currency=line.currency,
-                target_currency=target_currency,
-                rate_date=start_date,
-            )
-        except FxRateError as exc:
-            logger.error(
-                "FX conversion failed for cash flow (before)",
-                error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                account_id=acc_id,
-                currency=line.currency,
-                error=str(exc),
-            )
-            raise ReportError(str(exc)) from exc
-        account = account_id_to_account.get(acc_id)
-        if account:
-            balances_before[acc_id] += _signed_amount(account.type, line.direction, converted)
+    result_before = await db.execute(agg_stmt_before)
+    rows_before = result_before.all()
 
-    stmt_during = (
-        select(JournalLine, Account.id)
+    agg_stmt_during = (
+        select(
+            Account.id.label("account_id"),
+            JournalLine.currency,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= end_date)
+        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
     )
-    result_during = await db.execute(stmt_during)
-    for line, acc_id in result_during.all():
-        if acc_id not in balances_after:
-            balances_after[acc_id] = Decimal("0")
+    result_during = await db.execute(agg_stmt_during)
+    rows_during = result_during.all()
+
+    fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
+    for row in rows_before:
+        if row.currency.upper() != target_currency:
+            fx_needs.append((row.currency, target_currency, start_date, None, None))
+    for row in rows_during:
+        if row.currency.upper() != target_currency:
+            fx_needs.append((row.currency, target_currency, end_date, None, None))
+
+    fx_rates = PrefetchedFxRates()
+    if fx_needs:
         try:
-            converted = await convert_amount(
-                db,
-                amount=line.amount,
-                currency=line.currency,
-                target_currency=target_currency,
-                rate_date=end_date,
-            )
+            await fx_rates.prefetch(db, fx_needs)
         except FxRateError as exc:
             logger.error(
-                "FX conversion failed for cash flow (during)",
+                "FX pre-fetch failed for cash flow",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                account_id=acc_id,
-                currency=line.currency,
                 error=str(exc),
             )
             raise ReportError(str(exc)) from exc
-        account = account_id_to_account.get(acc_id)
+
+    balances_before: dict[UUID, Decimal] = {}
+    for row in rows_before:
+        rate = fx_rates.get_rate(row.currency, target_currency, start_date)
+        if rate is None:
+            if row.currency.upper() == target_currency:
+                rate = Decimal("1")
+            else:
+                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {start_date}")
+
+        converted = Decimal(str(row.total)) * rate
+        account = account_id_to_account.get(row.account_id)
         if account:
-            balances_after[acc_id] += _signed_amount(account.type, line.direction, converted)
+            if row.account_id not in balances_before:
+                balances_before[row.account_id] = Decimal("0")
+            balances_before[row.account_id] += _signed_amount(account.type, row.direction, converted)
+
+    balances_after: dict[UUID, Decimal] = {}
+    for row in rows_during:
+        rate = fx_rates.get_rate(row.currency, target_currency, end_date)
+        if rate is None:
+            if row.currency.upper() == target_currency:
+                rate = Decimal("1")
+            else:
+                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {end_date}")
+
+        converted = Decimal(str(row.total)) * rate
+        account = account_id_to_account.get(row.account_id)
+        if account:
+            if row.account_id not in balances_after:
+                balances_after[row.account_id] = Decimal("0")
+            balances_after[row.account_id] += _signed_amount(account.type, row.direction, converted)
 
     movements: dict[UUID, Decimal] = {}
     for acc_id in account_id_to_account:
@@ -868,19 +968,15 @@ async def generate_cash_flow(
 
     beginning_cash = Decimal("0")
     ending_cash = Decimal("0")
-    # Identify cash and cash-equivalent accounts by name patterns
-    # These should contribute to beginning/ending cash but NOT be categorized as Investing
     cash_keywords = ("cash", "bank", "checking", "savings", "money market", "petty cash")
 
     def is_cash_account(account: Account) -> bool:
-        """Check if account is a cash or cash-equivalent account."""
         if account.type != AccountType.ASSET:
             return False
         name_lower = account.name.lower()
         return any(keyword in name_lower for keyword in cash_keywords)
 
     for acc_id, account in account_id_to_account.items():
-        # Only cash accounts contribute to cash flow beginning/ending balances
         if is_cash_account(account):
             beginning_cash += balances_before.get(acc_id, Decimal("0"))
             ending_cash += balances_after.get(acc_id, Decimal("0"))
@@ -904,10 +1000,8 @@ async def generate_cash_flow(
             item["category"] = "Operating"
             operating_items.append(item)
         elif account.type == AccountType.ASSET:
-            # Cash accounts are excluded from activity categories (they ARE the cash flow)
-            # Non-cash assets (investments, equipment, etc.) go to Investing
             if is_cash_account(account):
-                continue  # Skip cash accounts - they're reflected in net cash flow
+                continue
             item["category"] = "Investing"
             investing_items.append(item)
         else:

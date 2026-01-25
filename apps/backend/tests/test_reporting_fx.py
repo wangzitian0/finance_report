@@ -994,3 +994,102 @@ async def test_reporting_income_statement_period_fx_fallback_to_spot(
         db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
     )
     assert report["total_income"] == Decimal("150.00")
+
+
+@pytest.mark.asyncio
+async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_currency_accounts, test_user_id):
+    """Test balance sheet uses FX fallback when entry_date has no rate but as_of_date does.
+
+    This covers the fallback path in _aggregate_net_income_sql (lines 312-333).
+    """
+    sgd_cash, _, _, salary, expense = multi_currency_accounts
+
+    # Only add FX rate at as_of_date (2025-01-31), NOT at entry_date (2025-01-10)
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.35"),
+            rate_date=date(2025, 1, 31),
+            source="test",
+        )
+    )
+    await db.commit()
+
+    # Create income entry on 2025-01-10 (no FX rate for this date)
+    income_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 10),
+        memo="USD Salary - no rate at entry date",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(income_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=sgd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    # Generate balance sheet at 2025-01-31 (has FX rate)
+    # Should fallback to as_of_date rate for the income calculation
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
+
+    # Net income should be 100 USD * 1.35 = 135 SGD
+    assert report["net_income"] == Decimal("135.00")
+
+
+@pytest.mark.asyncio
+async def test_balance_sheet_net_income_no_fx_rate_error(db: AsyncSession, multi_currency_accounts, test_user_id):
+    """Test balance sheet raises error when no FX rate available for income/expense.
+
+    This covers the error path in _aggregate_net_income_sql (line 324-325).
+    """
+    sgd_cash, _, _, salary, _ = multi_currency_accounts
+
+    # Create income entry with USD but NO FX rate at all
+    income_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 10),
+        memo="USD Salary - no FX rate",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(income_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=sgd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    # Should raise ReportError because no USD/SGD rate exists
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")

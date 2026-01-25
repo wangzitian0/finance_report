@@ -22,6 +22,7 @@ from src.models.market_data import FxRate
 from src.services.fx import FxRateError
 from src.services.fx_revaluation import (
     AccountRevaluation,
+    RevaluationError,
     calculate_account_balance_in_currency,
     calculate_unrealized_fx_for_account,
     calculate_unrealized_fx_gains,
@@ -313,9 +314,9 @@ class TestCreateRevaluationEntry:
         assert entry is not None
         assert len(entry.lines) == 2
 
-        # For a loss: asset is debited, FX account is credited
+        # For a loss: asset is credited (reduced), FX account is debited
         fx_line = next(line for line in entry.lines if line.account_id == fx_account.id)
-        assert fx_line.direction == Direction.CREDIT
+        assert fx_line.direction == Direction.DEBIT
         assert fx_line.amount == Decimal("50")
 
     @pytest.mark.asyncio
@@ -410,8 +411,8 @@ class TestCalculateUnrealizedFxForAccount:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_fx_rate_not_found(self, db: AsyncSession, test_user_id):
-        """Account with balance but no FX rate should return None."""
+    async def test_raises_error_when_fx_rate_not_found(self, db: AsyncSession, test_user_id):
+        """Account with balance but no FX rate should raise RevaluationError."""
         # Create EUR account (no FX rate will exist for EUR)
         eur_account = Account(
             user_id=test_user_id,
@@ -468,16 +469,16 @@ class TestCalculateUnrealizedFxForAccount:
         db.add_all(lines)
         await db.commit()
 
-        # No EUR/SGD rate exists, should return None
-        result = await calculate_unrealized_fx_for_account(db, eur_account, date(2025, 1, 31), "SGD")
-        assert result is None
+        # No EUR/SGD rate exists, should raise RevaluationError
+        with pytest.raises(RevaluationError, match="Missing FX rate for EUR/SGD"):
+            await calculate_unrealized_fx_for_account(db, eur_account, date(2025, 1, 31), "SGD")
 
     @pytest.mark.asyncio
     @patch("src.services.fx_revaluation.get_exchange_rate")
     async def test_handles_fx_rate_error_exception(
         self, mock_get_rate, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
     ):
-        """Test that FxRateError exception is caught and returns None."""
+        """Test that FxRateError exception is re-raised as RevaluationError."""
         mock_get_rate.side_effect = FxRateError("No rate found for USD/SGD")
 
         entry = JournalEntry(
@@ -511,8 +512,8 @@ class TestCalculateUnrealizedFxForAccount:
         db.add_all(lines)
         await db.commit()
 
-        result = await calculate_unrealized_fx_for_account(db, usd_asset_account, date(2025, 1, 31), "SGD")
-        assert result is None
+        with pytest.raises(RevaluationError, match="Missing FX rate for USD/SGD"):
+            await calculate_unrealized_fx_for_account(db, usd_asset_account, date(2025, 1, 31), "SGD")
         mock_get_rate.assert_called_once()
 
     @pytest.mark.asyncio
