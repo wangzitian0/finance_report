@@ -82,13 +82,13 @@ tasks:
       - 'install'
 
   env-check:
-    command: 'uv run python -m src.env_smoke_test'
+    command: 'uv run python -m src.boot --mode=full'
     local: true
     deps:
       - 'install'
 
   env-check-quick:
-    command: 'uv run python -m src.env_smoke_test --quick'
+    command: 'uv run python -m src.boot --mode=dry-run'
     local: true
     deps:
       - 'install'
