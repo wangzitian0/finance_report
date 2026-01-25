@@ -328,9 +328,7 @@ def test_log_exception_with_extra_context(caplog) -> None:
         try:
             raise KeyError("missing_key")
         except KeyError as exc:
-            logger_module.log_exception(
-                test_logger, exc, "Key lookup failed", user_id="user123", operation="lookup"
-            )
+            logger_module.log_exception(test_logger, exc, "Key lookup failed", user_id="user123", operation="lookup")
 
     assert "Key lookup failed" in caplog.text
     assert "user_id" in caplog.text
@@ -361,3 +359,91 @@ def test_log_exception_custom_level(caplog) -> None:
             logger_module.log_exception(test_logger, exc, "Non-critical error", level="warning")
 
     assert "Non-critical error" in caplog.text
+
+
+# =============================================================================
+# Additional Coverage Tests
+# =============================================================================
+
+
+def test_build_processors_returns_list() -> None:
+    """Test _build_processors returns a list of processors."""
+    processors = logger_module._build_processors()
+    assert isinstance(processors, list)
+    assert len(processors) >= 4  # contextvars, log_level, exc_info, timestamper
+
+
+def test_configure_otel_logging_no_endpoint(monkeypatch) -> None:
+    """Test _configure_otel_logging returns early when endpoint is not set."""
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+    # Should not raise and should return early
+    logger_module._configure_otel_logging()
+
+
+def test_configure_logging_basic(monkeypatch) -> None:
+    """Test configure_logging sets up structlog correctly."""
+    import structlog
+
+    # Ensure no OTEL endpoint to avoid side effects
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+    monkeypatch.setattr(logger_module.settings, "debug", True)
+
+    # Save original config
+    original_config = structlog.get_config()
+
+    try:
+        logger_module.configure_logging()
+
+        # Verify structlog is configured
+        config = structlog.get_config()
+        assert config["logger_factory"] is not None
+    finally:
+        # Restore original config
+        structlog.configure(**original_config)
+
+
+def test_configure_logging_production_mode(monkeypatch) -> None:
+    """Test configure_logging in production mode (non-debug)."""
+    import structlog
+
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+    monkeypatch.setattr(logger_module.settings, "debug", False)
+
+    original_config = structlog.get_config()
+
+    try:
+        logger_module.configure_logging()
+        config = structlog.get_config()
+        assert config["logger_factory"] is not None
+    finally:
+        structlog.configure(**original_config)
+
+
+async def test_log_external_api_async_with_log_args(caplog) -> None:
+    """Test log_external_api with log_args=True for async functions."""
+
+    @logger_module.log_external_api("async_service_with_args", log_args=True)
+    async def async_api_with_args(a, b, key=None):
+        return a * b
+
+    with caplog.at_level(logging.INFO):
+        result = await async_api_with_args(3, 4, key="test")
+
+    assert result == 12
+    assert "args_count" in caplog.text
+    assert "kwargs_keys" in caplog.text
+
+
+async def test_log_external_api_async_failure_with_log_args(caplog) -> None:
+    """Test log_external_api async failure path with log_args=True."""
+    import pytest
+
+    @logger_module.log_external_api("async_failing_with_args", log_args=True)
+    async def failing_async_with_args(x, y):
+        raise ValueError("Async failure with args")
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValueError, match="Async failure with args"):
+            await failing_async_with_args(1, 2)
+
+    assert "args_count" in caplog.text
