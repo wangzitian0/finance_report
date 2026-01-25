@@ -42,6 +42,7 @@ class JournalEntrySourceType(str, enum.Enum):
     MANUAL = "manual"
     BANK_STATEMENT = "bank_statement"
     SYSTEM = "system"
+    FX_REVALUATION = "fx_revaluation"
 
 
 class Direction(str, enum.Enum):
