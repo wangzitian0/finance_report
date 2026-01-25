@@ -127,7 +127,13 @@ class ExtractionService:
                 return False
 
             return True
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "URL validation failed",
+                url=url[:100] if url else None,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
             return False
 
     async def parse_document(

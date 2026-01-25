@@ -11,6 +11,9 @@ from typing import Any
 import httpx
 
 from src.config import settings
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 _CACHE_TTL_SECONDS = 600
 _MODEL_CACHE: dict[str, Any] = {
@@ -28,7 +31,6 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
 
     await asyncio.to_thread(_CACHE_LOCK.acquire)
     try:
-        # Double-check after acquiring lock
         now = time.time()
         if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
             return list(_MODEL_CACHE["models"])
@@ -38,14 +40,25 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
             headers["Authorization"] = f"Bearer {settings.openrouter_api_key}"
 
         timeout = httpx.Timeout(10.0, connect=5.0, read=10.0)
+        start_time = time.perf_counter()
+
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.get(f"{settings.openrouter_base_url}/models", headers=headers)
             response.raise_for_status()
             payload = response.json()
 
+        duration_ms = (time.perf_counter() - start_time) * 1000
         models = payload.get("data", []) if isinstance(payload, dict) else []
         _MODEL_CACHE["models"] = models
         _MODEL_CACHE["expires_at"] = time.time() + _CACHE_TTL_SECONDS
+
+        logger.info(
+            "Fetched OpenRouter model catalog",
+            model_count=len(models),
+            duration_ms=round(duration_ms, 2),
+            cache_ttl_seconds=_CACHE_TTL_SECONDS,
+        )
+
         return list(models)
     finally:
         _CACHE_LOCK.release()
@@ -94,7 +107,13 @@ async def get_model_info(model_id: str) -> dict[str, Any] | None:
     """Return normalized model info for a model id if available."""
     try:
         models = await fetch_model_catalog()
-    except Exception:
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "Failed to fetch model catalog for model info lookup",
+            model_id=model_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
         return None
     for model in models:
         if model.get("id") == model_id:

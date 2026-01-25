@@ -6,6 +6,9 @@ from typing import Any
 import jwt
 
 from src.config import settings
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
@@ -26,5 +29,13 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
         return payload
-    except jwt.PyJWTError:
+    except jwt.ExpiredSignatureError:
+        logger.debug("JWT token expired")
+        return None
+    except jwt.PyJWTError as exc:
+        logger.warning(
+            "JWT decode failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
         return None

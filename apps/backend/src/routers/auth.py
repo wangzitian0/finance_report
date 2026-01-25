@@ -9,12 +9,14 @@ from sqlalchemy.exc import IntegrityError
 
 from src.auth import oauth2_scheme
 from src.deps import CurrentUserId, DbSession
+from src.logger import get_logger
 from src.models import User
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 from src.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = get_logger(__name__)
 
 # SECURITY: Only trust X-Forwarded-For from known proxies
 # Set TRUST_PROXY=true when behind a trusted reverse proxy (nginx, cloudflare, etc.)
@@ -133,10 +135,20 @@ async def login(
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(data.password, user.hashed_password):
+        logger.warning(
+            "Failed login attempt",
+            client_ip=_get_client_ip(request),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+
+    logger.info(
+        "Successful login",
+        user_id=str(user.id),
+        client_ip=_get_client_ip(request),
+    )
 
     # Reset rate limit on successful login
     auth_rate_limiter.reset(_get_client_ip(request))

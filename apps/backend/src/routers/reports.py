@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from src.deps import CurrentUserId, DbSession
+from src.logger import get_logger
 from src.models import AccountType
 from src.schemas import (
     AccountTrendResponse,
@@ -33,6 +34,7 @@ from src.services.reporting import (
 )
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+logger = get_logger(__name__)
 
 
 class ExportFormat(str, Enum):
@@ -64,6 +66,12 @@ async def balance_sheet(
             currency=currency,
         )
     except ReportError as exc:
+        logger.warning(
+            "Balance sheet generation failed",
+            as_of_date=str(as_of_date),
+            currency=currency,
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return BalanceSheetResponse(**report)
 
@@ -90,6 +98,13 @@ async def income_statement(
             account_type=account_type,
         )
     except ReportError as exc:
+        logger.warning(
+            "Income statement generation failed",
+            start_date=str(start_date),
+            end_date=str(end_date),
+            currency=currency,
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return IncomeStatementResponse(**report)
 
@@ -112,6 +127,13 @@ async def cash_flow(
             currency=currency,
         )
     except ReportError as exc:
+        logger.warning(
+            "Cash flow generation failed",
+            start_date=str(start_date),
+            end_date=str(end_date),
+            currency=currency,
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CashFlowResponse(**report)
 
@@ -134,6 +156,13 @@ async def account_trend(
             currency=currency,
         )
     except ReportError as exc:
+        logger.warning(
+            "Account trend generation failed",
+            account_id=str(account_id),
+            period=period.value,
+            currency=currency,
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return AccountTrendResponse(**report)
 
@@ -157,6 +186,13 @@ async def category_breakdown(
             currency=currency,
         )
     except ReportError as exc:
+        logger.warning(
+            "Category breakdown generation failed",
+            breakdown_type=breakdown_type.value,
+            period=period.value,
+            currency=currency,
+            error=str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CategoryBreakdownResponse(**report)
 
@@ -176,51 +212,61 @@ async def export_report(
     output = StringIO()
     writer = csv.writer(output)
 
-    if report_type == ReportType.BALANCE_SHEET:
-        report = await generate_balance_sheet(
-            db,
-            user_id,
-            as_of_date=as_of_date or date.today(),
-            currency=currency,
-        )
-        writer.writerow(["section", "account", "amount", "currency"])
-        for section, lines in (
-            ("Assets", report["assets"]),
-            ("Liabilities", report["liabilities"]),
-            ("Equity", report["equity"]),
-        ):
-            for line in lines:
-                writer.writerow([section, line["name"], line["amount"], report["currency"]])
-        writer.writerow(["Total Assets", "", report["total_assets"], report["currency"]])
-        writer.writerow(["Total Liabilities", "", report["total_liabilities"], report["currency"]])
-        writer.writerow(["Total Equity", "", report["total_equity"], report["currency"]])
-        filename = f"balance-sheet-{report['as_of_date']}.csv"
-    elif report_type == ReportType.INCOME_STATEMENT:
-        if not start_date or not end_date:
+    try:
+        if report_type == ReportType.BALANCE_SHEET:
+            report = await generate_balance_sheet(
+                db,
+                user_id,
+                as_of_date=as_of_date or date.today(),
+                currency=currency,
+            )
+            writer.writerow(["section", "account", "amount", "currency"])
+            for section, lines in (
+                ("Assets", report["assets"]),
+                ("Liabilities", report["liabilities"]),
+                ("Equity", report["equity"]),
+            ):
+                for line in lines:
+                    writer.writerow([section, line["name"], line["amount"], report["currency"]])
+            writer.writerow(["Total Assets", "", report["total_assets"], report["currency"]])
+            writer.writerow(
+                ["Total Liabilities", "", report["total_liabilities"], report["currency"]]
+            )
+            writer.writerow(["Total Equity", "", report["total_equity"], report["currency"]])
+            filename = f"balance-sheet-{report['as_of_date']}.csv"
+        elif report_type == ReportType.INCOME_STATEMENT:
+            if not start_date or not end_date:
+                raise HTTPException(
+                    status_code=400,
+                    detail="start_date and end_date are required for income statement export",
+                )
+            report = await generate_income_statement(
+                db,
+                user_id,
+                start_date=start_date,
+                end_date=end_date,
+                currency=currency,
+            )
+            writer.writerow(["section", "account", "amount", "currency"])
+            for section, lines in (("Income", report["income"]), ("Expenses", report["expenses"])):
+                for line in lines:
+                    writer.writerow([section, line["name"], line["amount"], report["currency"]])
+            writer.writerow(["Total Income", "", report["total_income"], report["currency"]])
+            writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
+            writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
+            filename = f"income-statement-{start_date}-to-{end_date}.csv"
+        else:
             raise HTTPException(
                 status_code=400,
-                detail="start_date and end_date are required for income statement export",
+                detail="Unsupported report type",
             )
-        report = await generate_income_statement(
-            db,
-            user_id,
-            start_date=start_date,
-            end_date=end_date,
-            currency=currency,
+    except ReportError as exc:
+        logger.warning(
+            "Report export failed",
+            report_type=report_type.value,
+            error=str(exc),
         )
-        writer.writerow(["section", "account", "amount", "currency"])
-        for section, lines in (("Income", report["income"]), ("Expenses", report["expenses"])):
-            for line in lines:
-                writer.writerow([section, line["name"], line["amount"], report["currency"]])
-        writer.writerow(["Total Income", "", report["total_income"], report["currency"]])
-        writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
-        writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
-        filename = f"income-statement-{start_date}-to-{end_date}.csv"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Unsupported report type",
-        )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     content = output.getvalue()
     output.close()

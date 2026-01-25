@@ -148,3 +148,214 @@ def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
     for handler in list(root_logger.handlers):
         if handler not in previous_handlers:
             root_logger.removeHandler(handler)
+
+
+# =============================================================================
+# Timing Utilities Tests
+# =============================================================================
+
+
+def test_log_timing_basic(capsys) -> None:
+    """Test log_timing context manager logs operation with timing."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with logger_module.log_timing("test_operation", logger=test_logger):
+        pass
+
+    captured = capsys.readouterr()
+    assert "test_operation completed" in captured.out
+    assert "duration_ms" in captured.out
+
+
+def test_log_timing_with_context(capsys) -> None:
+    """Test log_timing includes additional context."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with logger_module.log_timing("fetch_data", logger=test_logger, source="api"):
+        pass
+
+    captured = capsys.readouterr()
+    assert "fetch_data completed" in captured.out
+    assert "source" in captured.out
+
+
+def test_log_timing_yields_mutable_dict(capsys) -> None:
+    """Test log_timing yields a dict that can be updated."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with logger_module.log_timing("process", logger=test_logger) as ctx:
+        ctx["items_processed"] = 42
+
+    captured = capsys.readouterr()
+    assert "items_processed" in captured.out
+
+
+def test_log_timing_with_custom_level(capsys) -> None:
+    """Test log_timing respects custom log level."""
+    test_logger = logger_module.get_logger("test_timing")
+
+    with logger_module.log_timing("debug_op", logger=test_logger, level="debug"):
+        pass
+
+    captured = capsys.readouterr()
+    assert "debug_op completed" in captured.out
+
+
+async def test_async_log_timing_basic(capsys) -> None:
+    """Test async_log_timing context manager logs operation with timing."""
+    import asyncio
+
+    test_logger = logger_module.get_logger("test_async_timing")
+
+    async with logger_module.async_log_timing("async_operation", logger=test_logger):
+        await asyncio.sleep(0.001)
+
+    captured = capsys.readouterr()
+    assert "async_operation completed" in captured.out
+    assert "duration_ms" in captured.out
+
+
+async def test_async_log_timing_with_context(capsys) -> None:
+    """Test async_log_timing includes additional context."""
+    test_logger = logger_module.get_logger("test_async_timing")
+
+    async with logger_module.async_log_timing("db_query", logger=test_logger, table="users"):
+        pass
+
+    captured = capsys.readouterr()
+    assert "db_query completed" in captured.out
+    assert "table" in captured.out
+
+
+def test_log_external_api_sync_success(capsys) -> None:
+    """Test log_external_api decorator with sync function success."""
+
+    @logger_module.log_external_api("test_service")
+    def sync_api_call():
+        return "success"
+
+    result = sync_api_call()
+    assert result == "success"
+
+    captured = capsys.readouterr()
+    assert "External API call to test_service" in captured.out
+    assert "duration_ms" in captured.out
+
+
+def test_log_external_api_sync_failure(capsys) -> None:
+    """Test log_external_api decorator with sync function failure."""
+
+    @logger_module.log_external_api("failing_service")
+    def failing_api_call():
+        raise ValueError("API error")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="API error"):
+        failing_api_call()
+
+    captured = capsys.readouterr()
+    assert "External API call to failing_service failed" in captured.out
+    assert "ValueError" in captured.out
+
+
+async def test_log_external_api_async_success(capsys) -> None:
+    """Test log_external_api decorator with async function success."""
+
+    @logger_module.log_external_api("async_service")
+    async def async_api_call():
+        return "async_success"
+
+    result = await async_api_call()
+    assert result == "async_success"
+
+    captured = capsys.readouterr()
+    assert "External API call to async_service" in captured.out
+    assert "duration_ms" in captured.out
+
+
+async def test_log_external_api_async_failure(capsys) -> None:
+    """Test log_external_api decorator with async function failure."""
+    import pytest
+
+    @logger_module.log_external_api("async_failing_service")
+    async def failing_async_api_call():
+        raise RuntimeError("Async API error")
+
+    with pytest.raises(RuntimeError, match="Async API error"):
+        await failing_async_api_call()
+
+    captured = capsys.readouterr()
+    assert "External API call to async_failing_service failed" in captured.out
+    assert "RuntimeError" in captured.out
+
+
+def test_log_external_api_with_log_args(capsys) -> None:
+    """Test log_external_api with log_args=True."""
+
+    @logger_module.log_external_api("service_with_args", log_args=True)
+    def api_with_args(a, b, key=None):
+        return a + b
+
+    result = api_with_args(1, 2, key="value")
+    assert result == 3
+
+    captured = capsys.readouterr()
+    assert "args_count" in captured.out
+    assert "kwargs_keys" in captured.out
+
+
+def test_log_exception_basic(capsys) -> None:
+    """Test log_exception logs exception with context."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    try:
+        raise ValueError("Test error message")
+    except ValueError as exc:
+        logger_module.log_exception(test_logger, exc, "Failed to process")
+
+    captured = capsys.readouterr()
+    assert "Failed to process" in captured.out
+    assert "ValueError" in captured.out
+    assert "Test error message" in captured.out
+
+
+def test_log_exception_with_extra_context(capsys) -> None:
+    """Test log_exception includes extra context fields."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    try:
+        raise KeyError("missing_key")
+    except KeyError as exc:
+        logger_module.log_exception(test_logger, exc, "Key lookup failed", user_id="user123", operation="lookup")
+
+    captured = capsys.readouterr()
+    assert "Key lookup failed" in captured.out
+    assert "user_id" in captured.out
+
+
+def test_log_exception_without_traceback(capsys) -> None:
+    """Test log_exception without traceback."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    try:
+        raise TypeError("Type mismatch")
+    except TypeError as exc:
+        logger_module.log_exception(test_logger, exc, "Type error", include_traceback=False)
+
+    captured = capsys.readouterr()
+    assert "Type error" in captured.out
+    assert "TypeError" in captured.out
+
+
+def test_log_exception_custom_level(capsys) -> None:
+    """Test log_exception with custom log level."""
+    test_logger = logger_module.get_logger("test_exception")
+
+    try:
+        raise RuntimeError("Warning level error")
+    except RuntimeError as exc:
+        logger_module.log_exception(test_logger, exc, "Non-critical error", level="warning")
+
+    captured = capsys.readouterr()
+    assert "Non-critical error" in captured.out
