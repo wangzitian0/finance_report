@@ -204,15 +204,15 @@ def view_remote_logs_signoz(service: Service, env: Environment) -> None:
     print("🔗 Open SigNoz UI:")
 
     internal_domain = os.getenv("INTERNAL_DOMAIN", "zitian.party")
-    if env == Environment.STAGING:
-        signoz_url = f"https://signoz-staging.{internal_domain}"
-    else:
-        signoz_url = f"https://signoz.{internal_domain}"
+    # All environments use the same SigNoz instance
+    signoz_url = f"https://signoz.{internal_domain}"
 
     print(f"   {signoz_url}")
     print()
     print("📝 Query:")
     print(f'   service_name = "finance-report-{service.value}"')
+    if env != Environment.PRODUCTION:
+        print(f'   deployment.environment = "{env.value}"')
     print()
     print("💡 Future: Direct SigNoz API integration")
 

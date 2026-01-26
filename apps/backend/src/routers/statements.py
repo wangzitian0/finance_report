@@ -57,7 +57,7 @@ async def _handle_parse_failure(
     *,
     message: str,
 ) -> None:
-    logger.error("Statement parsing failed", statement_id=statement.id, reason=message)
+    logger.error("Statement parsing failed", statement_id=str(statement.id), reason=message)
     statement.status = BankStatementStatus.REJECTED
     statement.validation_error = message
     statement.confidence_score = 0
@@ -80,7 +80,9 @@ async def _parse_statement_background(
     request_id: str | None = None,
 ) -> None:
     # Bind request_id to context for this background task
-    structlog.contextvars.bind_contextvars(request_id=request_id, statement_id=statement_id, task="parse_statement")
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id, statement_id=str(statement_id), task="parse_statement"
+    )
 
     logger.info("Starting background parsing", filename=filename)
     start_time = time.perf_counter()
@@ -106,7 +108,7 @@ async def _parse_statement_background(
             logger.warning(
                 "Could not generate public presigned URL, will use base64 content instead",
                 error=str(exc),
-                statement_id=statement_id,
+                statement_id=str(statement_id),
             )
 
         service = ExtractionService()
