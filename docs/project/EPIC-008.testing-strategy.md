@@ -1,8 +1,9 @@
 # EPIC-008: Comprehensive Testing Strategy (Smoke & E2E)
 
-> **Status**: Draft
+> **Status**: In Progress (Core Complete)
 > **Owner**: QA / DevOps
 > **Date**: 2026-01-16
+> **Updated**: 2026-01-27
 
 ## 1. Overview
 
@@ -46,10 +47,10 @@ To ensure deterministic and controllable tests for Phase 3 (Import/Parsing), we 
 These scenarios represent the "Vertical Slices" of user value.
 
 ### Phase 1: Onboarding & Account Structure (1-10)
-- [ ] **New User Registration**: User signs up with email/password, verifies email, and lands on dashboard.
+- [x] **New User Registration**: User signs up with email/password, verifies email, and lands on dashboard. *(test_e2e_flows.py::test_registration_flow)*
 - [ ] **Setup Base Currency**: User selects SGD as base currency during onboarding.
-- [ ] **Create Cash Account**: User creates a "Wallet" asset account (SGD).
-- [ ] **Create Bank Account**: User creates a "DBS Savings" asset account (SGD).
+- [x] **Create Cash Account**: User creates a "Wallet" asset account (SGD). *(test_core_journeys.py::test_accounts_crud_api)*
+- [x] **Create Bank Account**: User creates a "DBS Savings" asset account (SGD). *(covered by CRUD test)*
 - [ ] **Create Credit Card**: User creates a "Citi Rewards" liability account (SGD).
 - [ ] **Create Multi-currency Account**: User creates a "Wise USD" asset account (USD).
 - [ ] **Define Custom Expense Category**: User adds "Coffee Subscription" under "Expenses".
@@ -58,7 +59,7 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Reactivate Account**: User restores the "Student Account" for historical reference.
 
 ### Phase 2: Manual Journal Entries (11-30)
-- [ ] **Simple Expense**: User pays $5.00 for coffee using "Wallet" (Manual Entry).
+- [x] **Simple Expense**: User pays $5.00 for coffee using "Wallet" (Manual Entry). *(test_core_journeys.py::test_journal_entry_lifecycle_api)*
 - [ ] **Income Recording**: User records $5,000 salary deposit into "DBS Savings".
 - [ ] **Credit Card Spend**: User buys a laptop ($2,000) using "Citi Rewards".
 - [ ] **Credit Card Repayment**: User pays off "Citi Rewards" ($2,000) from "DBS Savings".
@@ -66,8 +67,8 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Split Transaction**: User spends $100 at supermarket: $80 "Groceries", $20 "Household" (1 Debit, 2 Credits).
 - [ ] **Refund Processing**: User receives $50 refund to "Citi Rewards" for returned item.
 - [ ] **Foreign Expense (Manual FX)**: User spends 10 USD on "Wise USD", records as 13.50 SGD equivalent.
-- [ ] **Void Entry**: User voids a duplicate coffee transaction (System generates reversal).
-- [ ] **Post Draft**: User saves a complex entry as "Draft", reviews later, and "Posts" it.
+- [x] **Void Entry**: User voids a duplicate coffee transaction (System generates reversal). *(test_core_journeys.py::test_journal_entry_lifecycle_api)*
+- [x] **Post Draft**: User saves a complex entry as "Draft", reviews later, and "Posts" it. *(test_core_journeys.py::test_journal_entry_lifecycle_api)*
 - [ ] **Recurring Subscription**: User sets up monthly $15 Netflix bill (Template/Copy).
 - [ ] **Asset Purchase**: User buys a car, recording asset increase and loan liability increase.
 - [ ] **Depreciation Entry**: User manually records monthly depreciation for the laptop.
@@ -117,7 +118,7 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Reconcile Period**: User "Locks" reconciliation up to Jan 31st.
 - [ ] **Modify Reconciled Entry**: User tries to edit amount of reconciled entry -> **Blocked/Warning**.
 - [ ] **Void Reconciled Entry**: User voids reconciled entry; system warns to unmatch first.
-- [ ] **Recon Progress Bar**: User sees "85% Reconciled" for Jan statement.
+- [x] **Recon Progress Bar**: User sees "85% Reconciled" for Jan statement. *(test_core_journeys.py::test_reconciliation_api - stats endpoint)*
 - [ ] **Filter Unreconciled**: User filters view to show only unmatched manual entries.
 - [ ] **Search Statement**: User searches "Starbucks" in statement lines.
 - [ ] **Review Low Confidence**: User reviews a 60% match score (wrong date?) and rejects it.
@@ -129,14 +130,14 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Force Match**: User manually links two totally different records (Admin override).
 
 ### Phase 5: Reporting & Visualization (76-90)
-- [ ] **View Balance Sheet**: User views BS as of today; sees Assets = Liab + Equity.
-- [ ] **View Income Statement**: User views P&L for "Last Month".
+- [x] **View Balance Sheet**: User views BS as of today; sees Assets = Liab + Equity. *(test_core_journeys.py::test_reports_api)*
+- [x] **View Income Statement**: User views P&L for "Last Month". *(test_core_journeys.py::test_reports_api)*
 - [ ] **Drill Down**: User clicks "Food" in P&L -> sees list of food transactions.
 - [ ] **Trend Analysis**: User views "6 Month Expense Trend" bar chart.
 - [ ] **Category Pie Chart**: User sees "Where my money went" breakdown.
 - [ ] **Net Worth Tracking**: User views line chart of Net Worth over 1 year.
 - [ ] **Savings Rate**: System calculates (Income - Expense) / Income %.
-- [ ] **Cash Flow Report**: User views Operating vs Investing vs Financing flows.
+- [x] **Cash Flow Report**: User views Operating vs Investing vs Financing flows. *(test_core_journeys.py::test_reports_api)*
 - [ ] **Multi-currency Report**: User views BS in SGD (USD assets converted at closing rate).
 - [ ] **Export PDF**: User downloads P&L as PDF.
 - [ ] **Export CSV**: User downloads raw transaction list for Excel.
@@ -171,3 +172,67 @@ These scenarios represent the "Vertical Slices" of user value.
 - **PR Check**: Run Unit + Integration + Phase 1-3 E2E subset.
 - **Staging Deploy**: Run Full E2E (All 100 scenarios if feasible, or critical 50).
 - **Prod Deploy**: Run Smoke Tests (Read-only).
+
+---
+
+## 5. Implementation Status (as of 2026-01-27)
+
+### 5.1 Implemented Test Files
+
+| File | Type | Coverage |
+|------|------|----------|
+| `tests/e2e/test_core_journeys.py` | API E2E | Health, accounts CRUD, journal entries, reports, reconciliation |
+| `tests/e2e/test_e2e_flows.py` | UI E2E | Navigation, registration, reports view |
+| `tests/e2e/test_auth_flows.py` | Auth E2E | Authentication flows |
+| `tests/e2e/conftest.py` | Fixtures | Shared session user, browser context, auth injection |
+| `scripts/smoke_test.sh` | Shell Smoke | 200+ lines of basic connectivity tests |
+
+### 5.2 Scenario Coverage (Issue #196 Requirements)
+
+| Requirement | Status | Test Location |
+|-------------|--------|---------------|
+| Health endpoint reachable | ✅ Done | `test_core_journeys.py::test_api_health_check` |
+| User can create account | ✅ Done | `test_core_journeys.py::test_accounts_crud_api` |
+| User can create journal entry | ✅ Done | `test_core_journeys.py::test_journal_entry_lifecycle_api` |
+| Statement upload triggers AI | ⚠️ Skipped | `test_e2e_flows.py::test_statement_upload_parsing_flow` (backend bug) |
+| Reconciliation engine runs | ✅ Done | `test_core_journeys.py::test_reconciliation_api` |
+| Unbalanced entry rejected | ✅ Done | `test_core_journeys.py::test_unbalanced_journal_entry_rejection` |
+| Reports API accessible | ✅ Done | `test_core_journeys.py::test_reports_api` |
+| Authentication validation | ✅ Done | `test_core_journeys.py::test_api_authentication_failures` |
+| User registration flow | ✅ Done | `test_e2e_flows.py::test_registration_flow` |
+
+### 5.3 CI/CD Integration Status
+
+- ✅ **PR Workflow**: `.github/workflows/pr-test.yml` runs E2E tests on every PR
+- ✅ **Smoke Tests**: `scripts/smoke_test.sh` integrated into PR pipeline
+- ✅ **Critical Test Check**: `scripts/check_critical_tests.py` validates test results
+- ✅ **Environment Isolation**: Each PR gets isolated DB/Redis/MinIO via Dokploy
+
+### 5.4 Known Gaps
+
+1. **Statement Upload Parsing** (`test_statement_upload_parsing_flow`):
+   - **Status**: Skipped
+   - **Reason**: Backend AI parsing returns 0 transactions instead of expected 15
+   - **Tracking**: PR #142 comments
+   - **Fix Required**: Backend team to investigate Gemini parsing flow
+
+2. **100 Scenario Coverage**:
+   - **Current**: ~15 core scenarios implemented
+   - **Gap**: 85 scenarios from Phase 1-6 not yet automated
+   - **Priority**: Low (core flows are covered, remaining are nice-to-have)
+
+### 5.5 Running Tests
+
+```bash
+# Run all E2E tests locally
+moon run :smoke
+
+# Run against specific environment
+APP_URL=https://report.zitian.party pytest tests/e2e -v -m "smoke or e2e"
+
+# Run smoke tests only (fast)
+bash scripts/smoke_test.sh http://localhost:3000 dev
+
+# Run with UI visible (debugging)
+HEADLESS=false pytest tests/e2e -v
+```

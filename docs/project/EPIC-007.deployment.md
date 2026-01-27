@@ -1,6 +1,6 @@
 # EPIC-007: Production Deployment
 
-> **Status**: 🟡 In Progress  
+> **Status**: ✅ Complete  
 > **Phase**: 0 (Infrastructure)  
 > **Duration**: 1 week  
 > **Dependencies**: EPIC-001, EPIC-002, EPIC-003  
@@ -55,43 +55,43 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 ### Phase 1: Infrastructure Setup
 
 - [x] Add infra2 as submodule at `repo/`
-- [ ] Create `repo/finance_report/finance_report/` directory structure
-- [ ] Create README.md for finance_report layer
+- [x] Create `repo/finance_report/finance_report/` directory structure
+- [x] Create README.md for finance_report layer
 
 ### Phase 2: Database Layer (01.postgres)
 
-- [ ] `compose.yaml` - PostgreSQL 16 with vault-agent sidecar
-- [ ] `deploy.py` - PostgresDeployer class
-- [ ] `shared_tasks.py` - Health check tasks
-- [ ] `vault-agent.hcl` - Vault agent configuration
-- [ ] `vault-policy.hcl` - Vault policy for postgres
-- [ ] `secrets.ctmpl` - Secrets template
-- [ ] `README.md` - Documentation
+- [x] `compose.yaml` - PostgreSQL 16 with vault-agent sidecar
+- [x] `deploy.py` - PostgresDeployer class
+- [x] `shared_tasks.py` - Health check tasks
+- [x] `vault-agent.hcl` - Vault agent configuration
+- [x] `vault-policy.hcl` - Vault policy for postgres
+- [x] `secrets.ctmpl` - Secrets template
+- [x] `README.md` - Documentation
 
 ### Phase 3: Cache Layer (02.redis)
 
-- [ ] `compose.yaml` - Redis with vault-agent sidecar
-- [ ] `deploy.py` - RedisDeployer class
-- [ ] `shared_tasks.py` - Health check tasks
-- [ ] `vault-agent.hcl` - Vault agent configuration
-- [ ] `vault-policy.hcl` - Vault policy for redis
-- [ ] `secrets.ctmpl` - Secrets template
-- [ ] `README.md` - Documentation
+- [x] `compose.yaml` - Redis with vault-agent sidecar
+- [x] `deploy.py` - RedisDeployer class
+- [x] `shared_tasks.py` - Health check tasks
+- [x] `vault-agent.hcl` - Vault agent configuration
+- [x] `vault-policy.hcl` - Vault policy for redis
+- [x] `secrets.ctmpl` - Secrets template
+- [x] `README.md` - Documentation
 
 ### Phase 4: Application Layer (10.app)
 
-- [ ] `compose.yaml` - Backend + Frontend with vault-agent sidecar
-- [ ] `deploy.py` - AppDeployer class
-- [ ] `shared_tasks.py` - Health check tasks
-- [ ] `vault-agent.hcl` - Vault agent configuration
-- [ ] `vault-policy.hcl` - Vault policy for app
-- [ ] `secrets.ctmpl` - Secrets template (DATABASE_URL, REDIS_URL, S3_*, OPENROUTER_API_KEY)
-- [ ] `README.md` - Documentation
-- [ ] Traefik labels for `report.${INTERNAL_DOMAIN}`
+- [x] `compose.yaml` - Backend + Frontend with vault-agent sidecar
+- [x] `deploy.py` - AppDeployer class
+- [x] `shared_tasks.py` - Health check tasks
+- [x] `vault-agent.hcl` - Vault agent configuration
+- [x] `vault-policy.hcl` - Vault policy for app
+- [x] `secrets.ctmpl` - Secrets template (DATABASE_URL, REDIS_URL, S3_*, OPENROUTER_API_KEY)
+- [x] `README.md` - Documentation
+- [x] Traefik labels for `report.${INTERNAL_DOMAIN}`
 
 ### Phase 5: Vault Secrets Setup
 
-- [ ] Write secrets to Vault:
+- [x] Write secrets to Vault:
   ```
   secret/data/finance_report/<env>/postgres
     - POSTGRES_PASSWORD
@@ -106,15 +106,15 @@ Deploy Finance Report application to production environment using Dokploy + vaul
     - S3_BUCKET
     - OPENROUTER_API_KEY
   ```
-- [ ] Generate service tokens via `invoke vault.setup-tokens`
+- [x] Generate service tokens via `invoke vault.setup-tokens`
 
 ### Phase 6: Deployment & Verification
 
-- [ ] Deploy postgres: `invoke finance_report.postgres.setup`
-- [ ] Deploy redis: `invoke finance_report.redis.setup`
-- [ ] Deploy app: `invoke finance_report.app.setup`
-- [ ] Verify health checks
-- [ ] Test `https://report.${INTERNAL_DOMAIN}`
+- [x] Deploy postgres: `invoke finance_report.postgres.setup`
+- [x] Deploy redis: `invoke finance_report.redis.setup`
+- [x] Deploy app: `invoke finance_report.app.setup`
+- [x] Verify health checks
+- [x] Test `https://report.${INTERNAL_DOMAIN}`
 
 ---
 
@@ -159,12 +159,12 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ## 🔗 Deliverables
 
-- [ ] `repo/finance_report/finance_report/README.md`
-- [ ] `repo/finance_report/finance_report/01.postgres/` (full deploy structure)
-- [ ] `repo/finance_report/finance_report/02.redis/` (full deploy structure)
-- [ ] `repo/finance_report/finance_report/10.app/` (full deploy structure)
-- [ ] Update `repo/finance_report/README.md` (if exists)
-- [ ] Link to Infra-009 in infra2 docs
+- [x] `repo/finance_report/finance_report/README.md`
+- [x] `repo/finance_report/finance_report/01.postgres/` (full deploy structure)
+- [x] `repo/finance_report/finance_report/02.redis/` (full deploy structure)
+- [x] `repo/finance_report/finance_report/10.app/` (full deploy structure)
+- [x] Update `repo/finance_report/README.md` (if exists)
+- [x] Link to Infra-009 in infra2 docs
 
 ---
 
@@ -194,4 +194,5 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | Date | Change |
 |------|--------|
 | 2026-01-10 | Project created, submodule added |
+| 2026-01-27 | All phases completed, production deployment verified |
 
