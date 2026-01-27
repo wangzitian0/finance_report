@@ -6,7 +6,6 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy.exc import SQLAlchemyError
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
@@ -18,7 +17,7 @@ from src.schemas.assets import (
     ReconcilePositionsResponse,
 )
 from src.services.assets import AssetService, AssetServiceError
-from src.utils import raise_internal_error, raise_not_found
+from src.utils import raise_bad_request, raise_internal_error, raise_not_found
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
@@ -92,12 +91,8 @@ async def reconcile_positions(
         logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
         await db.rollback()
         raise_internal_error(str(e), cause=e)
-    except SQLAlchemyError as e:
-        logger.error("Database error during reconciliation", error=str(e), user_id=str(user_id))
-        await db.rollback()
-        raise_internal_error("Reconciliation failed due to database error", cause=e)
     except Exception as e:
-        logger.exception("Unexpected error during reconciliation", user_id=str(user_id))
+        logger.error("Unexpected error during reconciliation", error=str(e), user_id=str(user_id))
         await db.rollback()
         raise_internal_error("Reconciliation failed unexpectedly", cause=e)
 
@@ -150,7 +145,7 @@ async def get_position_depreciation(
         )
     except AssetServiceError as e:
         logger.warning("Depreciation calculation failed", error=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise_bad_request(str(e))
 
     return DepreciationResponse(
         position_id=result.position_id,
