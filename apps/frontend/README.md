@@ -34,13 +34,13 @@ The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc)
 |-------|-------------|
 | `/` | Redirects to `/dashboard` |
 | `/dashboard` | Financial dashboard with charts |
-| `/accounts` | Chart of accounts (placeholder) |
-| `/journal` | Journal entries (placeholder) |
-| `/statements` | Bank statement upload (placeholder) |
+| `/accounts` | Chart of accounts with CRUD operations |
+| `/journal` | Journal entries with posting workflow |
+| `/statements` | Bank statement upload and AI parsing |
 | `/reports` | Reports index with Balance Sheet, Income Statement |
 | `/reports/balance-sheet` | Balance sheet report |
 | `/reports/income-statement` | Income statement report |
-| `/reports/cash-flow` | Cash flow statement (placeholder) |
+| `/reports/cash-flow` | Cash flow statement with Sankey chart |
 | `/reconciliation` | Reconciliation workbench UI |
 | `/reconciliation/unmatched` | Unmatched transaction triage |
 | `/chat` | AI Advisor chat interface |

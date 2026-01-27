@@ -47,19 +47,20 @@ export function PieChart({
               />
             );
           })}
-          <circle r="42" fill="#fffaf0" />
+          <circle r="42" fill="var(--background-card)" />
         </g>
         <text
           x="80"
           y="80"
           textAnchor="middle"
           dominantBaseline="middle"
-          className="fill-slate-700 text-xs font-semibold"
+          className="text-xs font-semibold"
+          style={{ fill: "var(--foreground)" }}
         >
           {centerLabel}
         </text>
       </svg>
-      <div className="grid w-full grid-cols-2 gap-2 text-xs text-slate-600">
+      <div className="grid w-full grid-cols-2 gap-2 text-xs text-[var(--foreground-muted)]">
         {filtered.map((segment) => (
           <div key={segment.label} className="flex items-center gap-2">
             <span

@@ -50,12 +50,12 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
       >
         <defs>
           <linearGradient id="trend-fill" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#0f766e" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="var(--chart-trend-start)" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="var(--chart-trend-end)" stopOpacity="0.05" />
           </linearGradient>
           <linearGradient id="trend-line" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#0f766e" />
-            <stop offset="100%" stopColor="#f59e0b" />
+            <stop offset="0%" stopColor="var(--chart-trend-start)" />
+            <stop offset="100%" stopColor="var(--chart-trend-end)" />
           </linearGradient>
         </defs>
         <path d={areaPath} fill="url(#trend-fill)" />
@@ -72,11 +72,11 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
             cx={point.x}
             cy={point.y}
             r="1.4"
-            fill="#0f766e"
+            fill="var(--chart-trend-start)"
           />
         ))}
       </svg>
-      <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+      <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--foreground-muted)]">
         {points.map((point, index) => (
           <span key={`${point.label}-${index}`} className="min-w-[3rem]">
             {point.label}
