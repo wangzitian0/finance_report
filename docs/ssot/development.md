@@ -389,6 +389,56 @@ git push origin v1.2.4
 | "Image not found" | Tag not built | `git push origin v1.2.3` to trigger build |
 | 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |
 
+### Vault Token Lifecycle
+
+Staging and production deployments use HashiCorp Vault for secrets management. The `vault-agent` sidecar renders secrets to `/secrets/.env` using an app token.
+
+#### Token Properties
+
+| Property | Value |
+|----------|-------|
+| Token TTL | 768 hours (~32 days) |
+| Secrets file path | `/secrets/.env` |
+| Staleness threshold | 1 hour (bootloader warning) |
+
+#### Check Token Status
+
+```bash
+# SSH into VPS
+ssh root@$VPS_HOST
+
+# Check vault-agent logs for token issues
+docker logs finance_report-vault-agent-staging 2>&1 | tail -20
+
+# Check if secrets file exists and when it was last modified
+docker exec finance_report-backend-staging ls -la /secrets/.env
+```
+
+#### Regenerate Tokens
+
+When a token expires, the vault-agent cannot refresh secrets, causing the backend to hang at "Waiting for secrets".
+
+```bash
+# From local machine with infra2 repo
+cd /path/to/infra2
+
+# Regenerate tokens (requires Vault root access)
+invoke vault.setup-tokens --project=finance_report
+
+# Restart vault-agent to pick up new token
+ssh root@$VPS_HOST "docker restart finance_report-vault-agent-staging"
+```
+
+#### Monitoring (Bootloader Check)
+
+The bootloader includes a `_check_vault_secrets()` method that runs in FULL mode:
+
+1. **Missing secrets file**: Warning with regeneration instructions
+2. **Stale secrets file** (>1 hour old): Warning that vault-agent may have stopped
+3. **Fresh secrets file**: OK status with last modified time
+
+This check runs during smoke tests (`moon run :smoke`) and provides early warning of token issues.
+
 ---
 
 ## Deployment Architecture

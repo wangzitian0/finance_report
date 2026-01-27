@@ -23,6 +23,9 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
+VAULT_SECRETS_FILE_PATH = "/secrets/.env"
+VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS = 3600
+
 
 class BootMode(str, Enum):
     CRITICAL = "critical"  # DB only (Fast fail for startup)
@@ -71,6 +74,7 @@ class Bootloader:
             results.append(await Bootloader._check_redis())
             results.append(await Bootloader._check_s3())
             results.append(await Bootloader._check_openrouter())
+            results.append(Bootloader._check_vault_secrets())
 
         # 3. Report Results
         passed = True
@@ -256,6 +260,48 @@ class Bootloader:
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
             return ServiceStatus("openrouter", "error", str(e), duration_ms)
+
+    @staticmethod
+    def _check_vault_secrets() -> ServiceStatus:
+        """Check if Vault secrets file exists and is fresh (staging/production only)."""
+        start = time.perf_counter()
+
+        if not os.path.exists(VAULT_SECRETS_FILE_PATH):
+            duration_ms = (time.perf_counter() - start) * 1000
+            return ServiceStatus(
+                "vault_secrets",
+                "warning",
+                f"Secrets file not found at {VAULT_SECRETS_FILE_PATH}. "
+                "If in staging/production, check if Vault token has expired. "
+                "Run: invoke vault.setup-tokens --project=finance_report",
+                duration_ms,
+            )
+
+        try:
+            stat = os.stat(VAULT_SECRETS_FILE_PATH)
+            file_age_seconds = time.time() - stat.st_mtime
+
+            if file_age_seconds > VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS:
+                duration_ms = (time.perf_counter() - start) * 1000
+                return ServiceStatus(
+                    "vault_secrets",
+                    "warning",
+                    f"Secrets file is {int(file_age_seconds / 3600)}h old. "
+                    "Vault-agent may have stopped refreshing. Check token expiry.",
+                    duration_ms,
+                )
+
+            duration_ms = (time.perf_counter() - start) * 1000
+            return ServiceStatus(
+                "vault_secrets",
+                "ok",
+                f"Secrets file exists, last modified {int(file_age_seconds)}s ago",
+                duration_ms,
+            )
+
+        except OSError as e:
+            duration_ms = (time.perf_counter() - start) * 1000
+            return ServiceStatus("vault_secrets", "error", str(e), duration_ms)
 
 
 if __name__ == "__main__":
