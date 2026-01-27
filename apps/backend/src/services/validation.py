@@ -8,7 +8,7 @@ from typing import Any
 
 from src.models.statement import BankStatementStatus
 
-BALANCE_TOLERANCE = Decimal("0.10")
+BALANCE_TOLERANCE = Decimal("0.01")
 
 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
