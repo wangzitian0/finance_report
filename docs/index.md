@@ -140,7 +140,6 @@ Project tracking and development guides:
 
 - [Project Overview](project/README.md) — EPIC tracking and roadmap
 - [Design Decisions](project/DECISIONS.md) — Key architectural decisions
-- [Code Audit Report](README.md) — Current status and action items
 - EPICs: [Setup](project/EPIC-001.phase0-setup.md) | [Double-Entry](project/EPIC-002.double-entry-core.md) | [Statement Parsing](project/EPIC-003.statement-parsing.md) | [Reconciliation](project/EPIC-004.reconciliation-engine.md) | [Reporting](project/EPIC-005.reporting-visualization.md) | [AI Advisor](project/EPIC-006.ai-advisor.md) | [Deployment](project/EPIC-007.deployment.md)
 
 ## 🏗️ System Architecture
@@ -182,7 +181,6 @@ Interested in contributing? Check out:
 
 - [Development Guide](ssot/development.md) — Setup your development environment
 - [Project Overview](project/README.md) — Understand the project structure and roadmap
-- [Code Audit Report](README.md) — Current priorities and action items
 
 ## 📄 License
 

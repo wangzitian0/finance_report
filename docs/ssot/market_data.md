@@ -195,6 +195,61 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 
 ---
 
+---
+
+## 10. FX Rate Seeding (Test Data)
+
+For testing FX gain/loss calculations, use the seeding script.
+
+### Script Usage
+
+```bash
+# Local development
+cd apps/backend
+uv run python ../../scripts/seed_fx_rates.py --env local
+
+# Staging (requires DATABASE_URL)
+DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/db \
+  python scripts/seed_fx_rates.py --env staging
+```
+
+### Test Data Seeded
+
+The script seeds FX rates for 2026-01-23:
+
+| Base | Quote | Rate | Description |
+|------|-------|------|-------------|
+| USD | USD | 1.000000 | Base rate |
+| SGD | SGD | 1.000000 | Base rate |
+| EUR | EUR | 1.000000 | Base rate |
+| USD | SGD | 1.280000 | 1 USD = 1.28 SGD |
+| USD | EUR | 0.852000 | 1 USD = 0.852 EUR |
+| SGD | USD | 0.781250 | 1 SGD = 1/1.28 USD |
+| EUR | USD | 1.173709 | 1 EUR = 1/0.852 USD |
+
+### Expected FX Calculation Example
+
+With test data:
+- **Historical cost**: 10,000 USD @ 1.25 = 12,500 SGD
+- **Current value**: 10,000 USD @ 1.28 = 12,800 SGD
+- **Unrealized FX gain**: 300 SGD
+
+### Verification
+
+```bash
+# Check database directly
+SELECT base_currency, quote_currency, rate, rate_date 
+FROM fx_rates 
+WHERE rate_date = '2026-01-23' 
+ORDER BY base_currency, quote_currency;
+
+# Via API
+curl -H "X-User-Id: $USER_ID" \
+     "http://localhost:8000/api/v1/market-data/fx-rates?date=2026-01-23"
+```
+
+---
+
 ## Used by
 
 - [reporting.md](./reporting.md)
