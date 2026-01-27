@@ -273,4 +273,57 @@ To rotate an API key:
 2. Update dependent systems to use new key
 3. Revoke old key via SigNoz UI: Settings → API Keys → Revoke
 
+---
 
+## 10. Cross-Repository Dependencies
+
+### 10.1 Architecture
+
+This application depends on infrastructure managed in the `infra2` repository (mounted as `repo/` submodule):
+
+```
+finance_report (this repo)
+    ↓ runtime depends on
+infra2/platform (repo submodule)
+    ├── Vault (secrets injection)
+    ├── SigNoz OTEL Collector (log shipping)
+    └── MinIO (file storage)
+```
+
+### 10.2 Dependency Health Matrix
+
+| Dependency | Health Check Location | Failure Mode |
+|------------|----------------------|--------------|
+| **Vault** | infra2: `invoke vault.status` | Container fails to start (no secrets) |
+| **SigNoz Collector** | infra2: `invoke signoz.shared.status` | Silent degradation (logs lost) |
+| **MinIO** | App: `/health` endpoint | 503 returned, uploads fail |
+| **PostgreSQL** | App: `/health` + Bootloader | Container won't start |
+| **Redis** | App: `/health` endpoint | 503 returned, rate limiting disabled |
+
+### 10.3 Known Gaps
+
+| Gap | Risk | Mitigation |
+|-----|------|------------|
+| **OTEL connectivity not verified at deploy** | Logs silently lost if collector unreachable | Manual SigNoz UI check post-deploy |
+| **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
+| **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `scripts/check_env_keys.py` + pre-commit |
+| **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
+
+### 10.4 Post-Deployment Verification
+
+After deploying to staging/production, verify observability:
+
+```bash
+# 1. Check logs are arriving in SigNoz (within 2 minutes)
+open https://signoz.zitian.party
+# Filter: deployment.environment = staging
+# Look for recent logs from finance-report-backend
+
+# 2. Verify OTEL endpoint is reachable from container
+ssh root@$VPS_HOST
+# For production:
+docker exec finance_report-backend curl -sf http://platform-signoz-otel-collector:4318/v1/logs
+# For staging:
+docker exec finance_report-backend-staging curl -sf http://platform-signoz-otel-collector:4318/v1/logs
+# Should return HTTP 405 (Method Not Allowed) - means endpoint is reachable
+```

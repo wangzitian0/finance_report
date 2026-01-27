@@ -119,12 +119,16 @@ python scripts/debug.py logs backend --env production --method signoz
 
 For staging/production, structured logs are shipped to SigNoz via OTLP:
 
-- **Staging**: `https://signoz-staging.zitian.party`
-- **Production**: `https://signoz.zitian.party`
+- **All Environments**: `https://signoz.zitian.party` (single instance, filter by `deployment.environment`)
+
+**Log Retention**:
+- **Docker logs**: 50MB per container (size-based rotation, short-term debugging only)
+- **SigNoz**: Long-term retention (centralized, queryable)
 
 Query logs by service name:
 ```
 service_name = "finance-report-backend"
+deployment.environment = "production"  # or "staging", "pr-47"
 ```
 
 See [docs/ssot/observability.md](docs/ssot/observability.md) for OTLP configuration details.
