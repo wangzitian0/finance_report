@@ -562,6 +562,14 @@ class TestCalculateUnrealizedFxForAccount:
         assert result.original_balance == Decimal("1000")
         assert result.fx_rate_used == Decimal("1.35")
 
+        # New assertions for historical cost logic
+        # Cost basis: 1000 * 1.30 = 1300
+        # Current value: 1000 * 1.35 = 1350
+        # Gain: 50
+        assert result.original_balance_base == Decimal("1300")
+        assert result.revalued_balance_base == Decimal("1350")
+        assert result.unrealized_gain_loss == Decimal("50")
+
 
 class TestRunPeriodEndRevaluation:
     @pytest.mark.asyncio

@@ -13,7 +13,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -89,6 +89,58 @@ async def calculate_account_balance_in_currency(
     return await calculate_account_balance(db, account.id, account.user_id)
 
 
+async def calculate_account_historical_cost(
+    db: AsyncSession,
+    account: Account,
+) -> Decimal:
+    """
+    Calculate account balance in base currency using historical FX rates.
+
+    Sums (line.amount * line.fx_rate) for all posted/reconciled entries.
+    If fx_rate is None, assumes 1.0 (base currency).
+    """
+    debit_query = (
+        select(
+            func.coalesce(
+                func.sum(JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1.0"))),
+                Decimal("0"),
+            )
+        )
+        .select_from(JournalLine)
+        .join(JournalEntry)
+        .where(JournalLine.account_id == account.id)
+        .where(JournalLine.direction == Direction.DEBIT)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+    )
+
+    credit_query = (
+        select(
+            func.coalesce(
+                func.sum(JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1.0"))),
+                Decimal("0"),
+            )
+        )
+        .select_from(JournalLine)
+        .join(JournalEntry)
+        .where(JournalLine.account_id == account.id)
+        .where(JournalLine.direction == Direction.CREDIT)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+    )
+
+    debit_result = await db.execute(debit_query)
+    credit_result = await db.execute(credit_query)
+
+    total_debit = debit_result.scalar() or Decimal("0")
+    total_credit = credit_result.scalar() or Decimal("0")
+
+    net_balance = total_debit - total_credit
+
+    if account.type in (AccountType.ASSET, AccountType.EXPENSE):
+        return net_balance
+    else:
+        return -net_balance
+
+
 async def calculate_unrealized_fx_for_account(
     db: AsyncSession,
     account: Account,
@@ -119,10 +171,8 @@ async def calculate_unrealized_fx_for_account(
 
     revalued_base = balance * current_rate
 
-    # Historical cost: For now, use the same rate (proper implementation needs
-    # to track original FX rate per transaction or use weighted average)
-    # TODO: Implement proper historical cost tracking per JournalLine
-    original_base = revalued_base  # Placeholder - no gain/loss yet
+    # Calculate historical cost basis from actual transactions
+    original_base = await calculate_account_historical_cost(db, account)
 
     unrealized = revalued_base - original_base
 
