@@ -19,6 +19,7 @@ from src.models import (
 from src.services.accounting import (
     ValidationError,
     calculate_account_balance,
+    create_journal_entry,
     post_journal_entry,
     verify_accounting_equation,
     void_journal_entry,
@@ -379,3 +380,216 @@ async def test_draft_entries_not_included_in_balance(db: AsyncSession, bank_acco
     # Balance should be zero (draft not counted)
     balance = await calculate_account_balance(db, bank_account.id, test_user_id)
     assert balance == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_basic(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test basic journal entry creation with balanced debit/credit."""
+    lines_data = [
+        {
+            "account_id": bank_account.id,
+            "direction": Direction.DEBIT,
+            "amount": Decimal("1500.00"),
+        },
+        {
+            "account_id": salary_account.id,
+            "direction": Direction.CREDIT,
+            "amount": Decimal("1500.00"),
+        },
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Test salary deposit",
+        lines_data=lines_data,
+    )
+
+    assert entry.id is not None
+    assert entry.user_id == test_user_id
+    assert entry.memo == "Test salary deposit"
+    assert entry.entry_date == date.today()
+    assert entry.status == JournalEntryStatus.DRAFT
+    assert len(entry.lines) == 2
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_default_source_type(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test that source_type defaults to MANUAL."""
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("100.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("100.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Test default source type",
+        lines_data=lines_data,
+    )
+
+    assert entry.source_type == JournalEntrySourceType.MANUAL
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_custom_source_type(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test journal entry with custom source_type and source_id."""
+    source_id = uuid4()
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("200.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("200.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Bank statement entry",
+        lines_data=lines_data,
+        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        source_id=source_id,
+    )
+
+    assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
+    assert entry.source_id == source_id
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test that line currency defaults to SGD when not specified."""
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("500.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("500.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Test default currency",
+        lines_data=lines_data,
+    )
+
+    for line in entry.lines:
+        assert line.currency == "SGD"
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_fx_rate_required_for_foreign_currency(
+    db: AsyncSession, bank_account, salary_account, test_user_id
+):
+    """Test that fx_rate is required for non-SGD currencies."""
+    lines_data = [
+        {
+            "account_id": bank_account.id,
+            "direction": Direction.DEBIT,
+            "amount": Decimal("100.00"),
+            "currency": "USD",
+        },
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("100.00")},
+    ]
+
+    with pytest.raises(ValidationError, match="fx_rate required for currency USD"):
+        await create_journal_entry(
+            db=db,
+            user_id=test_user_id,
+            entry_date=date.today(),
+            memo="Test FX validation",
+            lines_data=lines_data,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_with_fx_rate(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test journal entry with foreign currency and valid fx_rate."""
+    lines_data = [
+        {
+            "account_id": bank_account.id,
+            "direction": Direction.DEBIT,
+            "amount": Decimal("100.00"),
+            "currency": "USD",
+            "fx_rate": Decimal("1.35"),
+        },
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("100.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="USD transaction",
+        lines_data=lines_data,
+    )
+
+    usd_line = next(line for line in entry.lines if line.currency == "USD")
+    assert usd_line.fx_rate == Decimal("1.35")
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_with_optional_fields(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test journal entry with optional event_type and tags."""
+    lines_data = [
+        {
+            "account_id": bank_account.id,
+            "direction": Direction.DEBIT,
+            "amount": Decimal("300.00"),
+            "event_type": "DEPOSIT",
+            "tags": ["salary", "monthly"],
+        },
+        {
+            "account_id": salary_account.id,
+            "direction": Direction.CREDIT,
+            "amount": Decimal("300.00"),
+            "event_type": "INCOME",
+            "tags": ["employment"],
+        },
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Tagged entry",
+        lines_data=lines_data,
+    )
+
+    bank_line = next(line for line in entry.lines if line.account_id == bank_account.id)
+    salary_line = next(line for line in entry.lines if line.account_id == salary_account.id)
+
+    assert bank_line.event_type == "DEPOSIT"
+    assert bank_line.tags == ["salary", "monthly"]
+    assert salary_line.event_type == "INCOME"
+    assert salary_line.tags == ["employment"]
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_uses_flush_not_commit(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test that create_journal_entry uses flush() not commit() - allows transaction control."""
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("100.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("100.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Flush test",
+        lines_data=lines_data,
+    )
+
+    assert entry.id is not None
+    await db.rollback()
+
+    from sqlalchemy import select
+
+    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id))
+    assert result.scalar_one_or_none() is None

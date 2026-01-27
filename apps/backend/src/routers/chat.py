@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
@@ -22,6 +22,7 @@ from src.schemas.chat import (
 )
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
 from src.services.openrouter_models import is_model_known
+from src.utils import raise_bad_request, raise_not_found, raise_service_unavailable
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = get_logger(__name__)
@@ -43,12 +44,9 @@ async def chat_message(
                 allowed = await is_model_known(payload.model)
             except Exception as e:
                 logger.error("Failed to validate model", model=payload.model, error=str(e))
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Unable to validate requested model at this time.",
-                ) from e
+                raise_service_unavailable("Unable to validate requested model at this time.", cause=e)
         if not allowed:
-            raise HTTPException(status_code=400, detail="Invalid model selection.")
+            raise_bad_request("Invalid model selection.")
     try:
         stream = await service.chat_stream(
             db,
@@ -60,13 +58,10 @@ async def chat_message(
     except AIAdvisorError as exc:
         detail = str(exc)
         if "not found" in detail.lower():
-            raise HTTPException(status_code=404, detail=detail) from exc
+            raise_not_found("Chat session")
         if "api key" in detail.lower():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="AI service temporarily unavailable.",
-            ) from exc
-        raise HTTPException(status_code=400, detail=detail) from exc
+            raise_service_unavailable("AI service temporarily unavailable.", cause=exc)
+        raise_bad_request(detail)
 
     headers = {
         "X-Session-Id": str(stream.session_id),
@@ -98,7 +93,7 @@ async def chat_history(
         )
         session = session_result.scalar_one_or_none()
         if not session:
-            raise HTTPException(status_code=404, detail="Chat session not found")
+            raise_not_found("Chat session")
 
         messages_result = await db.execute(
             select(ChatMessage).where(ChatMessage.session_id == session.id).order_by(ChatMessage.created_at.asc())
@@ -204,7 +199,7 @@ async def delete_session(
     )
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=404, detail="Chat session not found")
+        raise_not_found("Chat session")
     session.status = ChatSessionStatus.DELETED
     await db.commit()
 

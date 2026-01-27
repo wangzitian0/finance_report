@@ -33,9 +33,9 @@ async def test_list_models_success():
 
         result = await list_models(modality=None, free_only=False)
 
-    assert "models" in result
-    assert "default_model" in result
-    assert len(result["models"]) == 2
+    assert result.models is not None
+    assert result.default_model is not None
+    assert len(result.models) == 2
 
 
 @pytest.mark.asyncio
@@ -61,8 +61,8 @@ async def test_list_models_filter_by_modality():
 
         result = await list_models(modality="image", free_only=False)
 
-    assert len(result["models"]) == 1
-    assert result["models"][0]["id"] == "vision/model"
+    assert len(result.models) == 1
+    assert result.models[0].id == "vision/model"
 
 
 @pytest.mark.asyncio
@@ -88,8 +88,8 @@ async def test_list_models_free_only():
 
         result = await list_models(modality=None, free_only=True)
 
-    assert len(result["models"]) == 1
-    assert result["models"][0]["id"] == "free/model"
+    assert len(result.models) == 1
+    assert result.models[0].id == "free/model"
 
 
 @pytest.mark.asyncio
@@ -128,6 +128,5 @@ async def test_list_models_sorted_free_first():
 
         result = await list_models(modality=None, free_only=False)
 
-    # Free model should be first
-    assert result["models"][0]["is_free"] is True
-    assert result["models"][1]["is_free"] is False
+    assert result.models[0].is_free is True
+    assert result.models[1].is_free is False

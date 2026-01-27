@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
@@ -20,6 +20,7 @@ from src.services import (
     calculate_account_balance,
     calculate_account_balances,
 )
+from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 logger = get_logger(__name__)
@@ -31,10 +32,9 @@ async def create_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountResponse:
-    """Create a new account."""
     account = await account_service.create_account(db, user_id, account_data)
+    await db.commit()
 
-    # Calculate balance
     balance = await calculate_account_balance(db, account.id, user_id)
 
     response = AccountResponse.model_validate(account)
@@ -47,14 +47,18 @@ async def list_accounts(
     account_type: AccountType | None = None,
     is_active: bool | None = None,
     include_balance: bool = Query(False, description="Include balance (slower)"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> AccountListResponse:
-    """List all accounts with optional filters.
+    """List all accounts with optional filters and pagination.
 
     Set include_balance=true to calculate balances (may be slower with many accounts).
     """
-    accounts = await account_service.list_accounts(db, user_id, account_type=account_type, is_active=is_active)
+    accounts, total = await account_service.list_accounts(
+        db, user_id, account_type=account_type, is_active=is_active, limit=limit, offset=offset
+    )
 
     balances = {}
     if include_balance:
@@ -67,7 +71,7 @@ async def list_accounts(
             response.balance = balances.get(account.id)
         items.append(response)
 
-    return AccountListResponse(items=items, total=len(items))
+    return AccountListResponse(items=items, total=total)
 
 
 @router.get("/{account_id}", response_model=AccountResponse)
@@ -76,15 +80,11 @@ async def get_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountResponse:
-    """Get account details with current balance."""
     try:
         account = await account_service.get_account(db, user_id, account_id)
-    except AccountNotFoundError as e:
+    except AccountNotFoundError:
         logger.debug("Account not found", account_id=str(account_id))
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
+        raise_not_found("Account")
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -100,15 +100,12 @@ async def update_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AccountResponse:
-    """Update account details."""
     try:
         account = await account_service.update_account(db, user_id, account_id, account_data)
-    except AccountNotFoundError as e:
+        await db.commit()
+    except AccountNotFoundError:
         logger.debug("Account not found for update", account_id=str(account_id))
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
+        raise_not_found("Account")
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -123,22 +120,15 @@ async def delete_account(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> None:
-    """Delete an account (if unused)."""
     try:
         account = await account_service.get_account(db, user_id, account_id)
-    except AccountNotFoundError as e:
+    except AccountNotFoundError:
         logger.debug("Account not found for deletion", account_id=str(account_id))
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
+        raise_not_found("Account")
 
     result = await db.execute(select(JournalLine).where(JournalLine.account_id == account_id).limit(1))
     if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete account with existing transactions. Archive it instead.",
-        )
+        raise_bad_request("Cannot delete account with existing transactions. Archive it instead.")
 
     await db.delete(account)
     await db.commit()

@@ -42,7 +42,7 @@ async def test_create_account(mock_db, user_id):
     assert account.type == AccountType.ASSET
 
     mock_db.add.assert_called_once()
-    mock_db.commit.assert_called_once()
+    mock_db.flush.assert_called_once()
     mock_db.refresh.assert_called_once_with(account)
 
 
@@ -101,7 +101,7 @@ async def test_update_account_success(mock_db, user_id):
     assert result.parent_id == parent_id
     assert result.is_active is False
 
-    mock_db.commit.assert_called_once()
+    mock_db.flush.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_account)
 
 
@@ -130,12 +130,17 @@ async def test_list_accounts(mock_db, user_id):
 
     mock_result = MagicMock()
     mock_result.scalars.return_value.all.return_value = mock_accounts
-    mock_db.execute.return_value = mock_result
 
-    results = await account_service.list_accounts(mock_db, user_id)
+    mock_count_result = MagicMock()
+    mock_count_result.scalar.return_value = 2
+
+    mock_db.execute.side_effect = [mock_count_result, mock_result]
+
+    results, total = await account_service.list_accounts(mock_db, user_id)
 
     assert len(results) == 2
     assert results == mock_accounts
+    assert total == 2
 
 
 @pytest.mark.asyncio
@@ -145,12 +150,18 @@ async def test_list_accounts_with_filters(mock_db, user_id):
 
     mock_result = MagicMock()
     mock_result.scalars.return_value.all.return_value = mock_accounts
-    mock_db.execute.return_value = mock_result
 
-    results = await account_service.list_accounts(mock_db, user_id, account_type=AccountType.ASSET, is_active=True)
+    mock_count_result = MagicMock()
+    mock_count_result.scalar.return_value = 1
+
+    mock_db.execute.side_effect = [mock_count_result, mock_result]
+
+    results, total = await account_service.list_accounts(
+        mock_db, user_id, account_type=AccountType.ASSET, is_active=True
+    )
 
     assert len(results) == 1
-    mock_db.execute.assert_called_once()
+    assert total == 1
 
 
 @pytest.mark.asyncio
@@ -181,4 +192,4 @@ async def test_update_account_clear_fields(mock_db, user_id):
     assert result.description is None
     assert result.parent_id is None
 
-    mock_db.commit.assert_called_once()
+    mock_db.flush.assert_called_once()

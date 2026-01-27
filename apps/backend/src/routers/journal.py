@@ -1,14 +1,12 @@
-"""Journal entry management API router."""
-
 from datetime import date as date_type
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
-from src.models import JournalEntry, JournalEntryStatus, JournalLine
+from src.models import JournalEntry, JournalEntryStatus
 from src.schemas import (
     JournalEntryCreate,
     JournalEntryListResponse,
@@ -17,62 +15,37 @@ from src.schemas import (
 )
 from src.services import (
     ValidationError,
+    create_journal_entry,
     post_journal_entry,
-    validate_fx_rates,
     void_journal_entry,
 )
+from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
 
 
 @router.post("", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
-async def create_journal_entry(
+async def create_entry(
     entry_data: JournalEntryCreate,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
-    """Create a new journal entry in draft status."""
-    # Create entry header
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=entry_data.entry_date,
-        memo=entry_data.memo,
-        source_type=entry_data.source_type,
-        source_id=entry_data.source_id,
-    )
-    db.add(entry)
-    await db.flush()
-
-    # Create journal lines
-    lines: list[JournalLine] = []
-    for line_data in entry_data.lines:
-        line = JournalLine(
-            journal_entry_id=entry.id,
-            account_id=line_data.account_id,
-            direction=line_data.direction,
-            amount=line_data.amount,
-            currency=line_data.currency,
-            fx_rate=line_data.fx_rate,
-            event_type=line_data.event_type,
-            tags=line_data.tags,
-        )
-        lines.append(line)
-
+    lines_data = [line.model_dump() for line in entry_data.lines]
     try:
-        validate_fx_rates(lines)
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+        entry = await create_journal_entry(
+            db=db,
+            user_id=user_id,
+            entry_date=entry_data.entry_date,
+            memo=entry_data.memo,
+            lines_data=lines_data,
+            source_type=entry_data.source_type,
+            source_id=entry_data.source_id,
         )
-
-    for line in lines:
-        db.add(line)
-
-    await db.commit()
-    await db.refresh(entry, ["lines"])
-
-    return JournalEntryResponse.model_validate(entry)
+        await db.commit()
+        await db.refresh(entry, ["lines"])
+        return JournalEntryResponse.model_validate(entry)
+    except ValidationError as e:
+        raise_bad_request(str(e))
 
 
 @router.get("", response_model=JournalEntryListResponse)
@@ -80,8 +53,8 @@ async def list_journal_entries(
     status_filter: JournalEntryStatus | None = None,
     start_date: date_type | None = None,
     end_date: date_type | None = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> JournalEntryListResponse:
@@ -104,8 +77,8 @@ async def list_journal_entries(
     query = (
         query.options(selectinload(JournalEntry.lines))
         .order_by(JournalEntry.entry_date.desc(), JournalEntry.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .offset(offset)
+        .limit(limit)
     )
 
     result = await db.execute(query)
@@ -121,7 +94,6 @@ async def get_journal_entry(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
-    """Get journal entry details."""
     result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.id == entry_id)
@@ -131,10 +103,7 @@ async def get_journal_entry(
     entry = result.scalar_one_or_none()
 
     if not entry:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Journal entry {entry_id} not found",
-        )
+        raise_not_found("Journal entry")
 
     return JournalEntryResponse.model_validate(entry)
 
@@ -145,16 +114,13 @@ async def post_entry(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
-    """Post a journal entry (draft → posted)."""
     try:
         entry = await post_journal_entry(db, entry_id, user_id)
+        await db.commit()
         await db.refresh(entry, ["lines"])
         return JournalEntryResponse.model_validate(entry)
     except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        raise_bad_request(str(e))
 
 
 @router.post("/{entry_id}/void", response_model=JournalEntryResponse)
@@ -164,15 +130,12 @@ async def void_entry(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
-    """Void a posted journal entry by creating a reversal entry."""
     try:
         reversal_entry = await void_journal_entry(db, entry_id, void_request.reason, user_id)
+        await db.commit()
         return JournalEntryResponse.model_validate(reversal_entry)
     except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        raise_bad_request(str(e))
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -181,23 +144,16 @@ async def delete_journal_entry(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> None:
-    """Delete a draft journal entry."""
     result = await db.execute(
         select(JournalEntry).where(JournalEntry.id == entry_id).where(JournalEntry.user_id == user_id)
     )
     entry = result.scalar_one_or_none()
 
     if not entry:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Journal entry {entry_id} not found",
-        )
+        raise_not_found("Journal entry")
 
     if entry.status != JournalEntryStatus.DRAFT:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only draft entries can be deleted",
-        )
+        raise_bad_request("Only draft entries can be deleted")
 
     await db.delete(entry)
     await db.commit()

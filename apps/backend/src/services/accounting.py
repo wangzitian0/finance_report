@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.models import (
@@ -218,6 +219,49 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     return abs(left_side - right_side) < Decimal("0.1")
 
 
+async def create_journal_entry(
+    db: AsyncSession,
+    user_id: UUID,
+    entry_date: date,
+    memo: str,
+    lines_data: list[dict],
+    source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
+    source_id: UUID | None = None,
+) -> JournalEntry:
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=entry_date,
+        memo=memo,
+        source_type=source_type,
+        source_id=source_id,
+    )
+    db.add(entry)
+    await db.flush()
+
+    lines: list[JournalLine] = []
+    for line_data in lines_data:
+        line = JournalLine(
+            journal_entry_id=entry.id,
+            account_id=line_data["account_id"],
+            direction=line_data["direction"],
+            amount=line_data["amount"],
+            currency=line_data.get("currency", "SGD"),
+            fx_rate=line_data.get("fx_rate"),
+            event_type=line_data.get("event_type"),
+            tags=line_data.get("tags"),
+        )
+        lines.append(line)
+
+    validate_fx_rates(lines)
+
+    for line in lines:
+        db.add(line)
+
+    await db.flush()
+    await db.refresh(entry, ["lines"])
+    return entry
+
+
 async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) -> JournalEntry:
     """
     Post a journal entry from draft to posted status.
@@ -233,8 +277,11 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     Raises:
         ValidationError: If entry cannot be posted
     """
-    # Get entry with lines
-    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id == entry_id)
+        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+    )
     entry = result.scalar_one_or_none()
 
     if not entry:
@@ -244,23 +291,16 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
 
-    # Load lines
-    await db.refresh(entry, ["lines"])
-
-    # Validate balance
     validate_journal_balance(entry.lines)
     validate_fx_rates(entry.lines)
 
-    # Validate all accounts are active
     for line in entry.lines:
-        await db.refresh(line, ["account"])
         if not line.account.is_active:
             raise ValidationError(f"Account {line.account.name} is not active")
 
-    # Post entry
     entry.status = JournalEntryStatus.POSTED
     entry.updated_at = datetime.now(UTC)
-    await db.commit()
+    await db.flush()
     await db.refresh(entry)
 
     return entry
@@ -328,7 +368,7 @@ async def void_journal_entry(db: AsyncSession, entry_id: UUID, reason: str, user
     entry.void_reversal_entry_id = reversal_entry.id
     entry.updated_at = datetime.now(UTC)
 
-    await db.commit()
+    await db.flush()
     await db.refresh(reversal_entry, ["lines"])
 
     return reversal_entry

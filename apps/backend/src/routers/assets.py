@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
@@ -13,7 +14,7 @@ from src.schemas.assets import (
     ReconcilePositionsResponse,
 )
 from src.services.assets import AssetService, AssetServiceError
-from src.utils import raise_not_found
+from src.utils import raise_internal_error, raise_not_found
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
@@ -26,21 +27,20 @@ async def list_positions(
     db: DbSession,
     user_id: CurrentUserId,
     status_filter: PositionStatus | None = None,
-    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> ManagedPositionListResponse:
     """List all managed positions for the current user with pagination."""
     logger.info(
         "Listing positions",
         user_id=str(user_id),
         status_filter=status_filter.value if status_filter else None,
-        page=page,
-        page_size=page_size,
+        limit=limit,
+        offset=offset,
     )
 
-    offset = (page - 1) * page_size
     positions, total = await _service.get_positions(
-        db, user_id, status_filter=status_filter, limit=page_size, offset=offset
+        db, user_id, status_filter=status_filter, limit=limit, offset=offset
     )
 
     items = []
@@ -87,14 +87,11 @@ async def reconcile_positions(
     except AssetServiceError as e:
         logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
-    except Exception as e:
-        logger.error("Unexpected error during reconciliation", error=str(e), user_id=str(user_id))
+        raise_internal_error(str(e))
+    except SQLAlchemyError as e:
+        logger.error("Database error during reconciliation", error=str(e), user_id=str(user_id))
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Reconciliation failed unexpectedly",
-        ) from e
+        raise_internal_error("Reconciliation failed due to database error")
 
     logger.info(
         "Reconciliation completed",

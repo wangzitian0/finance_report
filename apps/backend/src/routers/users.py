@@ -3,12 +3,13 @@
 from uuid import UUID
 
 import bcrypt
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 
 from src.deps import DbSession
 from src.models import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
+from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -36,10 +37,7 @@ async def create_user(
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid registration data",
-        )
+        raise_bad_request("Invalid registration data")
 
     user = User(
         email=user_data.email,
@@ -81,10 +79,7 @@ async def get_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        raise_not_found("User")
 
     return UserResponse.model_validate(user)
 
@@ -100,19 +95,13 @@ async def update_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        raise_not_found("User")
 
     if user_data.email is not None:
         result = await db.execute(select(User).where(User.email == user_data.email).where(User.id != user_id))
         existing_user = result.scalar_one_or_none()
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid update data",
-            )
+            raise_bad_request("Invalid update data")
         user.email = user_data.email
 
     await db.commit()

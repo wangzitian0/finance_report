@@ -8,7 +8,7 @@ from enum import Enum
 from io import StringIO
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from src.deps import CurrentUserId, DbSession
@@ -32,6 +32,7 @@ from src.services.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
+from src.utils import raise_bad_request
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
@@ -72,7 +73,7 @@ async def balance_sheet(
             currency=currency,
             error=str(exc),
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_bad_request(str(exc))
     return BalanceSheetResponse(**report)
 
 
@@ -105,7 +106,7 @@ async def income_statement(
             currency=currency,
             error=str(exc),
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_bad_request(str(exc))
     return IncomeStatementResponse(**report)
 
 
@@ -134,7 +135,7 @@ async def cash_flow(
             currency=currency,
             error=str(exc),
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_bad_request(str(exc))
     return CashFlowResponse(**report)
 
 
@@ -163,7 +164,7 @@ async def account_trend(
             currency=currency,
             error=str(exc),
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_bad_request(str(exc))
     return AccountTrendResponse(**report)
 
 
@@ -193,7 +194,7 @@ async def category_breakdown(
             currency=currency,
             error=str(exc),
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_bad_request(str(exc))
     return CategoryBreakdownResponse(**report)
 
 
@@ -234,10 +235,7 @@ async def export_report(
             filename = f"balance-sheet-{report['as_of_date']}.csv"
         elif report_type == ReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
-                raise HTTPException(
-                    status_code=400,
-                    detail="start_date and end_date are required for income statement export",
-                )
+                raise_bad_request("start_date and end_date are required for income statement export")
             report = await generate_income_statement(
                 db,
                 user_id,
@@ -254,17 +252,14 @@ async def export_report(
             writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
         else:
-            raise HTTPException(
-                status_code=400,
-                detail="Unsupported report type",
-            )
+            raise_bad_request("Unsupported report type")
     except ReportError as exc:
         logger.warning(
             "Report export failed",
             report_type=report_type.value,
             error=str(exc),
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_bad_request(str(exc))
 
     content = output.getvalue()
     output.close()

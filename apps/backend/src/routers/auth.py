@@ -3,7 +3,7 @@
 import os
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -14,6 +14,7 @@ from src.models import User
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 from src.security import create_access_token
+from src.utils import raise_bad_request, raise_not_found, raise_too_many_requests, raise_unauthorized
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger(__name__)
@@ -44,11 +45,7 @@ def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) ->
     client_ip = _get_client_ip(request)
     allowed, retry_after = limiter.is_allowed(client_ip)
     if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=error_msg,
-            headers={"Retry-After": str(retry_after)},
-        )
+        raise_too_many_requests(error_msg, retry_after=retry_after)
 
 
 def hash_password(password: str) -> str:
@@ -81,10 +78,7 @@ async def register(
     existing = result.scalar_one_or_none()
 
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
+        raise_bad_request("Email already registered")
 
     user = User(
         email=data.email,
@@ -97,10 +91,7 @@ async def register(
     except IntegrityError:
         # Handle race condition: another request created user with same email
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
+        raise_bad_request("Email already registered")
     await db.refresh(user)
 
     # Reset registration rate limit on success
@@ -139,10 +130,7 @@ async def login(
             "Failed login attempt",
             client_ip=_get_client_ip(request),
         )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
+        raise_unauthorized("Invalid email or password")
 
     logger.info(
         "Successful login",
@@ -175,10 +163,7 @@ async def get_me(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        raise_not_found("User")
 
     return AuthResponse(
         id=user.id,

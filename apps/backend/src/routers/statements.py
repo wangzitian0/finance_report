@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import structlog
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -35,7 +35,16 @@ from src.services.openrouter_models import (
     model_matches_modality,
     normalize_model_entry,
 )
-from src.utils import raise_bad_request, raise_internal_error, raise_not_found
+from src.utils import (
+    raise_bad_request,
+    raise_conflict,
+    raise_gateway_timeout,
+    raise_internal_error,
+    raise_not_found,
+    raise_service_unavailable,
+    raise_too_large,
+    raise_too_many_requests,
+)
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -199,17 +208,14 @@ async def upload_statement(
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File exceeds 10MB limit",
-        )
+        raise_too_large("File exceeds 10MB limit")
 
     file_hash = hashlib.sha256(content).hexdigest()
     duplicate = await db.execute(
         select(BankStatement.id).where(BankStatement.user_id == user_id).where(BankStatement.file_hash == file_hash)
     )
     if duplicate.scalar_one_or_none():
-        raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
+        raise_conflict("Duplicate statement upload")
 
     if model:
         allowed_models = {settings.primary_model} | set(settings.fallback_models)
@@ -245,10 +251,7 @@ async def upload_statement(
                     model=model,
                     user_id=str(user_id),
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="Model validation request timed out. Please try again.",
-                ) from e
+                raise_gateway_timeout("Model validation request timed out. Please try again.", cause=e)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429:
                     logger.warning(
@@ -256,36 +259,24 @@ async def upload_statement(
                         model=model,
                         user_id=str(user_id),
                     )
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="Rate limit exceeded. Please wait before retrying.",
-                    ) from e
+                    raise_too_many_requests("Rate limit exceeded. Please wait before retrying.")
                 elif e.response.status_code == 401:
                     logger.error(
                         "OpenRouter authentication failed",
                         model=model,
                         status_code=e.response.status_code,
                     )
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="Model validation service authentication failed.",
-                    ) from e
+                    raise_service_unavailable("Model validation service authentication failed.", cause=e)
                 else:
                     logger.error(
                         "OpenRouter returned error status",
                         model=model,
                         status_code=e.response.status_code,
                     )
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="Model validation service returned an error.",
-                    ) from e
+                    raise_service_unavailable("Model validation service returned an error.", cause=e)
             except Exception as e:
                 logger.exception("Failed to validate model catalog for model '%s'", model)
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Unable to validate the requested model at this time.",
-                ) from e
+                raise_service_unavailable("Unable to validate the requested model at this time.", cause=e)
 
     statement_id = uuid4()
     storage_key = f"statements/{user_id}/{statement_id}/{filename}"
@@ -300,7 +291,7 @@ async def upload_statement(
         )
     except StorageError as exc:
         logger.error("Failed to upload statement to storage", error=str(exc))
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
+        raise_service_unavailable(str(exc), cause=exc)
 
     statement = BankStatement(
         id=statement_id,
@@ -382,7 +373,7 @@ async def retry_statement_parsing(
         BankStatementStatus.REJECTED,
         BankStatementStatus.PARSING,
     ):
-        raise HTTPException(400, "Can only retry parsing for parsed, rejected, or stuck parsing statements")
+        raise_bad_request("Can only retry parsing for parsed, rejected, or stuck parsing statements")
 
     if not settings.fallback_models:
         raise_internal_error("No fallback models are configured for statement parsing")
@@ -404,10 +395,7 @@ async def retry_statement_parsing(
             raise
         except Exception as e:
             logger.exception("Failed to validate model catalog for model '%s'", selected_model)
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Unable to validate the requested model at this time.",
-            ) from e
+            raise_service_unavailable("Unable to validate the requested model at this time.", cause=e)
 
     # Reset status to PARSING before starting background task
     statement.status = BankStatementStatus.PARSING
@@ -424,7 +412,7 @@ async def retry_statement_parsing(
         storage = StorageService()
         content = await run_in_threadpool(storage.get_object, statement.file_path)
     except StorageError as exc:
-        raise HTTPException(503, f"Failed to fetch file from storage: {exc}")
+        raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 
     task = asyncio.create_task(
         _parse_statement_background(
@@ -456,13 +444,17 @@ async def retry_statement_parsing(
 async def list_statements(
     db: DbSession,
     user_id: CurrentUserId,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ) -> BankStatementListResponse:
-    """List all statements for the current user."""
+    """List all statements for the current user with pagination."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
         .order_by(BankStatement.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     statements = result.scalars().all()
 
@@ -481,6 +473,8 @@ async def list_statements(
 async def list_pending_review(
     db: DbSession,
     user_id: CurrentUserId,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ) -> BankStatementListResponse:
     """List statements pending human review (confidence 60-84)."""
     result = await db.execute(
@@ -491,6 +485,8 @@ async def list_pending_review(
         .where(BankStatement.confidence_score < 85)
         .options(selectinload(BankStatement.transactions))
         .order_by(BankStatement.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     statements = result.scalars().all()
 
