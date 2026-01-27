@@ -24,7 +24,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ## 🎯 Success Criteria
 
 ### Must Have (P0)
-- [ ] Distributed tracing with trace_id in all logs
+- [x] Distributed tracing with trace_id in all logs
 - [ ] Service-layer uses `flush()`, router-layer owns `commit()`
 - [ ] Connection pool size configurable via environment
 
@@ -34,9 +34,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 - [ ] Metrics endpoint for Prometheus
 
 ### Nice to Have (P2)
-- [ ] SigNoz API integration in debug.py
 - [ ] UUID auto-serialization structlog processor
-- [ ] Frontend global loading indicator
 
 ---
 
@@ -62,6 +60,9 @@ This EPIC addresses technical debt in the foundational libraries that all module
 1. Add OTEL instrumentation packages to `pyproject.toml`
 2. Initialize TracerProvider in `logger.py`
 3. Add structlog processor to inject trace context
+4. Auto-instrument FastAPI, SQLAlchemy, and HTTPX
+
+**Status**: ✅ Complete (PR pending)
 
 **Tracking**: [#181](https://github.com/wangzitian0/finance_report/issues/181)
 
@@ -74,16 +75,6 @@ This EPIC addresses technical debt in the foundational libraries that all module
 3. Consider `@transactional` decorator for complex cases
 
 **Tracking**: [#182](https://github.com/wangzitian0/finance_report/issues/182)
-
-### H3: Vault Token Lifecycle
-**Problem**: `VAULT_APP_TOKEN` requires manual regeneration via `invoke vault.setup-tokens`. If it expires, staging/production services fail to start.
-
-**Solution**:
-1. Document token TTL monitoring
-2. Add token expiry check to bootloader
-3. Consider automating renewal in CI/CD
-
-**Tracking**: [#183](https://github.com/wangzitian0/finance_report/issues/183)
 
 ---
 
@@ -117,26 +108,9 @@ This EPIC addresses technical debt in the foundational libraries that all module
 
 **Tracking**: [#187](https://github.com/wangzitian0/finance_report/issues/187)
 
-### M5: Frontend Global Loading
-**Problem**: No unified loading indicator. Each component handles loading locally.
-
-**Solution**: Add NProgress or similar top progress bar
-
-**Tracking**: [#188](https://github.com/wangzitian0/finance_report/issues/188)
-
 ---
 
 ## 🟢 Low Priority Issues
-
-### L1: S3 Lifecycle Policies
-**Problem**: No automated cleanup of expired/rejected statement files.
-
-**Solution**: Configure MinIO lifecycle rules
-
-### L2: SigNoz API Integration
-**Problem**: `debug.py` only prints SigNoz URL hints, doesn't query logs directly.
-
-**Solution**: Add SigNoz API client to fetch logs via CLI
 
 ### L3: UUID Auto-Serialization
 **Problem**: Must manually wrap UUIDs with `str()` in logger calls.
@@ -155,7 +129,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | Phase | Task | Status | PR |
 |-------|------|--------|-----|
 | 0 | Audit & Documentation | ✅ Complete | This EPIC |
-| 1 | Distributed Tracing (H1) | ⏳ Pending | - |
+| 1 | Distributed Tracing (H1) | ✅ Complete | Pending |
 | 2 | Transaction Boundaries (H2) | ⏳ Pending | - |
 | 3 | Connection Pool Config (M1) | ⏳ Pending | - |
 | 4 | Exception Hierarchy (M2) | ⏳ Pending | - |
