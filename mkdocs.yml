@@ -87,6 +87,7 @@ nav:
       - Statement Extraction: ssot/extraction.md
       - Reporting: ssot/reporting.md
       - AI Advisor: ssot/ai.md
+      - Authentication: ssot/auth.md
       - Database Schema: ssot/schema.md
       - Market Data: ssot/market_data.md
       - Deployment: ssot/deployment.md
@@ -110,14 +111,27 @@ nav:
           - "EPIC-004: Reconciliation":
               - Overview: project/EPIC-004.reconciliation-engine.md
               - Implementation Details: project/EPIC-004.reconciliation-engine-GENERATED.md
-          - "EPIC-005: Reporting": project/EPIC-005.reporting-visualization.md
+          - "EPIC-005: Reporting":
+              - Overview: project/EPIC-005.reporting-visualization.md
+              - Implementation Details: project/EPIC-005.reporting-visualization-GENERATED.md
           - "EPIC-006: AI Advisor":
               - Overview: project/EPIC-006.ai-advisor.md
               - Implementation Details: project/EPIC-006.ai-advisor-GENERATED.md
-          - "EPIC-007: Deployment": project/EPIC-007.deployment.md
+          - "EPIC-007: Deployment":
+              - Overview: project/EPIC-007.deployment.md
+              - Implementation Details: project/EPIC-007.deployment-GENERATED.md
           - "EPIC-008: Testing":
               - Strategy: project/EPIC-008.testing-strategy.md
               - Implementation Details: project/EPIC-008.testing-strategy-GENERATED.md
+          - "EPIC-009: PDF Fixtures":
+              - Overview: project/EPIC-009.pdf-fixture-generation.md
+              - Implementation Details: project/EPIC-009.pdf-fixture-generation-GENERATED.md
+          - "EPIC-010: SigNoz Logging":
+              - Overview: project/EPIC-010.signoz-logging.md
+              - Implementation Details: project/EPIC-010.signoz-logging-GENERATED.md
+          - "EPIC-011: Asset Lifecycle":
+              - Overview: project/EPIC-011.asset-lifecycle.md
+              - Implementation Details: project/EPIC-011.asset-lifecycle-GENERATED.md
 
 extra:
   social:
