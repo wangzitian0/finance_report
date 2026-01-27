@@ -371,7 +371,9 @@ class TestBootloaderFullMode:
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
         mock_openrouter_check.return_value = ServiceStatus("openrouter", "ok", "OK")
 
-        result = await Bootloader.validate(BootMode.FULL)
+        with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+            result = await Bootloader.validate(BootMode.FULL)
 
         assert result is True
         mock_openrouter_check.assert_called_once()
@@ -384,12 +386,62 @@ class TestBootloaderFullMode:
             patch.object(Bootloader, "_check_redis", new_callable=AsyncMock) as mock_redis,
             patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
             patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
+            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
             mock_redis.return_value = ServiceStatus("redis", "ok", "OK")
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
             mock_openrouter.return_value = ServiceStatus("openrouter", "ok", "OK")
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
 
             result = await Bootloader.validate(BootMode.FULL)
 
             assert result is True
             mock_logger.warning.assert_called()
+
+
+class TestBootloaderVaultSecrets:
+    def test_vault_secrets_file_not_found(self):
+        with patch("os.path.exists", return_value=False):
+            status = Bootloader._check_vault_secrets()
+
+        assert status.status == "warning"
+        assert status.service == "vault_secrets"
+        assert "not found" in status.message
+        assert "invoke vault.setup-tokens" in status.message
+
+    def test_vault_secrets_file_stale(self):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.stat") as mock_stat,
+            patch("time.time", return_value=10000),
+        ):
+            mock_stat.return_value.st_mtime = 10000 - 7200
+
+            status = Bootloader._check_vault_secrets()
+
+        assert status.status == "warning"
+        assert "old" in status.message
+        assert "Check token expiry" in status.message
+
+    def test_vault_secrets_file_fresh(self):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.stat") as mock_stat,
+            patch("time.time", return_value=10000),
+        ):
+            mock_stat.return_value.st_mtime = 10000 - 300
+
+            status = Bootloader._check_vault_secrets()
+
+        assert status.status == "ok"
+        assert "last modified" in status.message
+
+    def test_vault_secrets_os_error(self):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.stat", side_effect=OSError("Permission denied")),
+        ):
+            status = Bootloader._check_vault_secrets()
+
+        assert status.status == "error"
+        assert "Permission denied" in status.message
