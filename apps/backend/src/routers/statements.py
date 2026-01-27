@@ -69,7 +69,7 @@ async def _parse_statement_background(
     *,
     statement_id: UUID,
     filename: str,
-    institution: str,
+    institution: str | None,
     user_id: UUID,
     account_id: UUID | None,
     file_hash: str,
@@ -154,6 +154,7 @@ async def _parse_statement_background(
 
         await update_progress(90)
 
+        statement.institution = parsed_statement.institution
         statement.account_last4 = parsed_statement.account_last4
         statement.currency = parsed_statement.currency
         statement.period_start = parsed_statement.period_start
@@ -178,7 +179,7 @@ async def _parse_statement_background(
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
-    institution: Annotated[str, Form()] = ...,
+    institution: Annotated[str | None, Form()] = None,
     account_id: Annotated[UUID | None, Form()] = None,
     model: Annotated[str | None, Form()] = None,
     db: DbSession = None,
@@ -188,6 +189,7 @@ async def upload_statement(
     Upload a financial statement and enqueue parsing.
 
     Supported file types: PDF, CSV, PNG, JPG. Optional model override via form field.
+    Institution is optional - AI will auto-detect from document if not provided.
     """
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
@@ -307,7 +309,7 @@ async def upload_statement(
         file_path=storage_key,
         file_hash=file_hash,
         original_filename=filename,
-        institution=institution,
+        institution=institution or "Pending Detection",
         status=BankStatementStatus.PARSING,
         confidence_score=None,
         balance_validated=None,

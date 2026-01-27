@@ -133,8 +133,8 @@ export default function StatementUploader({
     }, [validateAndSetFile]);
 
     const handleUpload = async () => {
-        if (!file || !institution.trim()) {
-            setError("Please select a file and enter the institution name");
+        if (!file) {
+            setError("Please select a file");
             return;
         }
 
@@ -144,7 +144,9 @@ export default function StatementUploader({
         try {
             const formData = new FormData();
             formData.append("file", file);
-            formData.append("institution", institution.trim());
+            if (institution.trim()) {
+                formData.append("institution", institution.trim());
+            }
             if (selectedModel) {
                 formData.append("model", selectedModel);
             }
@@ -218,14 +220,14 @@ export default function StatementUploader({
             {/* Institution Input */}
             <div>
                 <label htmlFor="institution" className="block text-sm font-medium mb-1.5">
-                    Bank / Institution
+                    Bank / Institution <span className="text-muted font-normal">(optional)</span>
                 </label>
                 <input
                     type="text"
                     id="institution"
                     value={institution}
                     onChange={(e) => setInstitution(e.target.value)}
-                    placeholder="e.g., DBS, OCBC, UOB, Chase"
+                    placeholder="Auto-detected from document, or enter manually"
                     className="input"
                     list="banks-list"
                 />

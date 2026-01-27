@@ -89,6 +89,24 @@ class ExtractionService:
         """Wrapper for test compatibility."""
         return compute_confidence_score(extracted, balance_result)
 
+    def _build_media_payload(self, file_type: str, mime_type: str, data: str) -> dict[str, Any]:
+        """Build OpenRouter-compatible media payload based on file type.
+
+        PDFs use 'file' type (Universal PDF Support), images use 'image_url'.
+        """
+        if file_type == "pdf":
+            return {
+                "type": "file",
+                "file": {
+                    "filename": f"statement.{file_type}",
+                    "file_data": data,
+                },
+            }
+        return {
+            "type": "image_url",
+            "image_url": {"url": data},
+        }
+
     def _validate_external_url(self, url: str) -> bool:
         """Validate if a URL is accessible by external services (OpenRouter).
 
@@ -139,7 +157,7 @@ class ExtractionService:
     async def parse_document(
         self,
         file_path: Path,
-        institution: str,
+        institution: str | None,
         user_id: UUID,
         file_type: str = "pdf",
         account_id: UUID | None = None,
@@ -148,13 +166,13 @@ class ExtractionService:
         file_url: str | None = None,
         original_filename: str | None = None,
         force_model: str | None = None,
-        db: Any | None = None,  # AsyncSession, optional for dual write
+        db: Any | None = None,
     ) -> tuple[BankStatement, list[BankStatementTransaction]]:
         """Parse document using AI vision models or CSV parser."""
         model = force_model or self.primary_model
         logger.info(
             "Parsing document",
-            institution=institution,
+            institution=institution or "(auto-detect)",
             file_type=file_type,
             model=model,
             filename=original_filename or (file_path.name if file_path else "unknown"),
@@ -164,6 +182,8 @@ class ExtractionService:
             if file_type == "csv":
                 if not file_content:
                     raise ExtractionError("File content is required for CSV parsing")
+                if not institution:
+                    raise ExtractionError("Institution is required for CSV parsing")
                 extracted = await self._parse_csv_content(file_content, institution)
             elif file_type in ("pdf", "png", "jpg", "jpeg"):
                 extracted = await self.extract_financial_data(
@@ -176,14 +196,16 @@ class ExtractionService:
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
 
-            # Build models
+            detected_institution = extracted.get("institution")
+            final_institution = institution or detected_institution or "Unknown"
+
             statement = BankStatement(
                 user_id=user_id,
                 account_id=account_id,
                 file_path=str(file_path) if file_path else None,
                 file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
                 original_filename=original_filename or (file_path.name if file_path else "unknown"),
-                institution=institution,
+                institution=final_institution,
                 account_last4=extracted.get("account_last4"),
                 currency=extracted.get("currency", "SGD"),
                 period_start=self._safe_date(extracted.get("period_start")),
@@ -272,7 +294,7 @@ class ExtractionService:
                     file_path=file_path,
                     file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
                     original_filename=original_filename or (file_path.name if file_path else "unknown"),
-                    institution=institution,
+                    institution=final_institution,
                     transactions=transactions,
                 )
 
@@ -287,7 +309,7 @@ class ExtractionService:
     async def extract_financial_data(
         self,
         file_content: bytes | None,
-        institution: str,
+        institution: str | None,
         file_type: str,
         return_raw: bool = False,
         file_url: str | None = None,
@@ -310,28 +332,22 @@ class ExtractionService:
         }
         mime_type = mime_types.get(file_type, "application/pdf")
 
-        # FIX: OpenRouter/LLM services often cannot access presigned URLs generated
-        # in private networks (e.g. Docker internal or localhost).
-        # We prefer base64 encoding (file_content) if available to avoid this 400 error.
         media_payload = None
 
-        # 1. Try base64 content first (most reliable for internal deployments)
         if file_content:
             b64_content = base64.b64encode(file_content).decode("utf-8")
-            media_payload = {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:{mime_type};base64,{b64_content}",
-                },
-            }
-
-        # 2. Try URL if no content, but verify it's not internal/localhost
+            media_payload = self._build_media_payload(
+                file_type=file_type,
+                mime_type=mime_type,
+                data=f"data:{mime_type};base64,{b64_content}",
+            )
         elif file_url:
             if self._validate_external_url(file_url):
-                media_payload = {
-                    "type": "image_url",
-                    "image_url": {"url": file_url},
-                }
+                media_payload = self._build_media_payload(
+                    file_type=file_type,
+                    mime_type=mime_type,
+                    data=file_url,
+                )
             else:
                 logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
 
