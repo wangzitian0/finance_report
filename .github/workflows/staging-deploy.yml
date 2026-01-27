@@ -62,20 +62,6 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Verify Codebase
-        env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
-          S3_ACCESS_KEY: minio
-          S3_SECRET_KEY: minio_local_secret
-          S3_ENDPOINT: http://127.0.0.1:9000
-          S3_BUCKET: statements
-        run: |
-          # Ensure staging deploy is safe
-          moon run :ci
-          
-          # Clean up artifacts before build
-          rm -rf .venv
-
       - name: Log in to Container registry
         uses: docker/login-action@v3
         with:

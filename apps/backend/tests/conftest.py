@@ -52,16 +52,52 @@ def normalize_url(url: str | None) -> str | None:
     return url
 
 
-# Database setup
-TEST_DATABASE_URL = (
-    normalize_url(
-        os.environ.get(
-            "DATABASE_URL",
-            "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test",
+# --- pytest-xdist worker isolation ---
+@pytest.fixture(scope="session")
+def worker_id(request):
+    """Get pytest-xdist worker ID if running in parallel."""
+    if hasattr(request.config, "workerinput"):
+        return request.config.workerinput["workerid"]
+    return "master"
+
+
+def get_test_db_url(worker_id: str) -> str:
+    """Generate database URL specific to pytest-xdist worker.
+
+    Args:
+        worker_id: Worker identifier ('master' for serial, 'gw0'/'gw1'/... for parallel)
+
+    Returns:
+        Database URL with worker-specific database name for parallel execution
+    """
+    base_url = (
+        normalize_url(
+            os.environ.get(
+                "DATABASE_URL",
+                "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test",
+            )
         )
+        or "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test"
     )
-    or "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test"
-)
+
+    if worker_id != "master":
+        url_obj = make_url(base_url)
+        worker_db_name = f"{url_obj.database}_{worker_id}"
+        new_url = url_obj.set(database=worker_db_name)
+        return new_url.render_as_string(hide_password=False)
+
+    return base_url
+
+
+# Database setup - support pytest-xdist parallel execution
+@pytest.fixture(scope="session")
+def test_database_url(worker_id):
+    """Get worker-specific test database URL."""
+    return get_test_db_url(worker_id)
+
+
+# Maintain backward compatibility for fixtures that don't use worker_id
+TEST_DATABASE_URL = get_test_db_url("master")
 
 # S3 setup
 os.environ["S3_ENDPOINT"] = (
@@ -114,9 +150,13 @@ def configure_structlog_for_tests():
     structlog.reset_defaults()
 
 
-async def ensure_database():
-    """Ensure the test database exists."""
-    url = make_url(TEST_DATABASE_URL)
+async def ensure_database(db_url: str):
+    """Ensure the test database exists.
+
+    Args:
+        db_url: Full database URL including worker-specific database name
+    """
+    url = make_url(db_url)
     db_name = url.database
 
     # Connect to 'postgres' database to check/create test db
@@ -146,9 +186,9 @@ async def ensure_database():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_engine():
-    """Create a test database engine."""
-    await ensure_database()
+async def db_engine(test_database_url):
+    """Create a test database engine with worker-specific isolation."""
+    await ensure_database(test_database_url)
 
     from src.database import Base
     from src.models import (  # noqa: F401
@@ -166,7 +206,7 @@ async def db_engine():
     )
 
     engine = create_async_engine(
-        TEST_DATABASE_URL,
+        test_database_url,  # Use worker-specific URL
         echo=False,
         poolclass=NullPool,
     )
