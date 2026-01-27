@@ -248,7 +248,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
     statement_id = created.id
     db.expire_all()
 
-    listed = await statements_router.list_statements(db=db, user_id=user_id)
+    listed = await statements_router.list_statements(db=db, user_id=user_id, limit=50, offset=0)
     assert listed.total == 1
     assert listed.items[0].id == statement_id
 
@@ -311,7 +311,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
         created_ids.append(created.id)
     await wait_for_background_tasks()
 
-    pending = await statements_router.list_pending_review(db=db, user_id=test_user.id)
+    pending = await statements_router.list_pending_review(db=db, user_id=test_user.id, limit=50, offset=0)
     assert pending.total == 1
     # Pending list should contain only the lower-confidence statement.
     assert pending.items[0].id == created_ids[0]
