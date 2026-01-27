@@ -131,7 +131,7 @@ Single Source of Truth for technical decisions:
 - [Reconciliation Engine](ssot/reconciliation.md) — Matching algorithms
 - [Statement Extraction](ssot/extraction.md) — AI parsing pipeline
 - [Reporting](ssot/reporting.md) — Report generation logic
-- [AI Advisor](ssot/ai_advisor.md) — AI advisor implementation
+- [AI Advisor](ssot/ai.md) — AI advisor implementation
 - [Database Schema](ssot/schema.md) — Database design and migrations
 - [Development Guide](ssot/development.md) — Development environment setup
 

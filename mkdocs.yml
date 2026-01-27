@@ -85,7 +85,7 @@ nav:
       - Reconciliation Engine: ssot/reconciliation.md
       - Statement Extraction: ssot/extraction.md
       - Reporting: ssot/reporting.md
-      - AI Advisor: ssot/ai_advisor.md
+      - AI Advisor: ssot/ai.md
       - Database Schema: ssot/schema.md
       - Observability: ssot/observability.md
       - Development Guide: ssot/development.md
