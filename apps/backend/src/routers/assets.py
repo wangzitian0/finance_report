@@ -87,11 +87,15 @@ async def reconcile_positions(
     except AssetServiceError as e:
         logger.error("Reconciliation failed", error=str(e), user_id=str(user_id))
         await db.rollback()
-        raise_internal_error(str(e))
+        raise_internal_error(str(e), cause=e)
     except SQLAlchemyError as e:
         logger.error("Database error during reconciliation", error=str(e), user_id=str(user_id))
         await db.rollback()
-        raise_internal_error("Reconciliation failed due to database error")
+        raise_internal_error("Reconciliation failed due to database error", cause=e)
+    except Exception as e:
+        logger.exception("Unexpected error during reconciliation", user_id=str(user_id))
+        await db.rollback()
+        raise_internal_error("Reconciliation failed unexpectedly", cause=e)
 
     logger.info(
         "Reconciliation completed",

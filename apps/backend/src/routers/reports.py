@@ -73,7 +73,7 @@ async def balance_sheet(
             currency=currency,
             error=str(exc),
         )
-        raise_bad_request(str(exc))
+        raise_bad_request(str(exc), cause=exc)
     return BalanceSheetResponse(**report)
 
 
@@ -106,7 +106,7 @@ async def income_statement(
             currency=currency,
             error=str(exc),
         )
-        raise_bad_request(str(exc))
+        raise_bad_request(str(exc), cause=exc)
     return IncomeStatementResponse(**report)
 
 
@@ -135,7 +135,7 @@ async def cash_flow(
             currency=currency,
             error=str(exc),
         )
-        raise_bad_request(str(exc))
+        raise_bad_request(str(exc), cause=exc)
     return CashFlowResponse(**report)
 
 
@@ -164,7 +164,7 @@ async def account_trend(
             currency=currency,
             error=str(exc),
         )
-        raise_bad_request(str(exc))
+        raise_bad_request(str(exc), cause=exc)
     return AccountTrendResponse(**report)
 
 
@@ -194,7 +194,7 @@ async def category_breakdown(
             currency=currency,
             error=str(exc),
         )
-        raise_bad_request(str(exc))
+        raise_bad_request(str(exc), cause=exc)
     return CategoryBreakdownResponse(**report)
 
 
@@ -259,7 +259,7 @@ async def export_report(
             report_type=report_type.value,
             error=str(exc),
         )
-        raise_bad_request(str(exc))
+        raise_bad_request(str(exc), cause=exc)
 
     content = output.getvalue()
     output.close()

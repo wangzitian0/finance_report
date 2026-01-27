@@ -58,10 +58,10 @@ async def chat_message(
     except AIAdvisorError as exc:
         detail = str(exc)
         if "not found" in detail.lower():
-            raise_not_found("Chat session")
+            raise_not_found("Chat session", cause=exc)
         if "api key" in detail.lower():
             raise_service_unavailable("AI service temporarily unavailable.", cause=exc)
-        raise_bad_request(detail)
+        raise_bad_request(detail, cause=exc)
 
     headers = {
         "X-Session-Id": str(stream.session_id),

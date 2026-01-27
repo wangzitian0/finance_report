@@ -259,7 +259,7 @@ async def upload_statement(
                         model=model,
                         user_id=str(user_id),
                     )
-                    raise_too_many_requests("Rate limit exceeded. Please wait before retrying.")
+                    raise_too_many_requests("Rate limit exceeded. Please wait before retrying.", cause=e)
                 elif e.response.status_code == 401:
                     logger.error(
                         "OpenRouter authentication failed",

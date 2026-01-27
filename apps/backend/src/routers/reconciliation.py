@@ -273,7 +273,9 @@ async def reject_match(
         match = await reject_match_service(db, match_id, user_id=user_id)
         await db.commit()
     except ValueError as exc:
-        raise_not_found("Match", cause=exc)
+        if "not found" in str(exc).lower():
+            raise_not_found("Match", cause=exc)
+        raise_bad_request(str(exc), cause=exc)
     await db.refresh(match, ["transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(

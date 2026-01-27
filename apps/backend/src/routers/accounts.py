@@ -82,9 +82,9 @@ async def get_account(
 ) -> AccountResponse:
     try:
         account = await account_service.get_account(db, user_id, account_id)
-    except AccountNotFoundError:
+    except AccountNotFoundError as e:
         logger.debug("Account not found", account_id=str(account_id))
-        raise_not_found("Account")
+        raise_not_found("Account", cause=e)
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -103,9 +103,9 @@ async def update_account(
     try:
         account = await account_service.update_account(db, user_id, account_id, account_data)
         await db.commit()
-    except AccountNotFoundError:
+    except AccountNotFoundError as e:
         logger.debug("Account not found for update", account_id=str(account_id))
-        raise_not_found("Account")
+        raise_not_found("Account", cause=e)
 
     balance = await calculate_account_balance(db, account.id, user_id)
 
@@ -122,9 +122,9 @@ async def delete_account(
 ) -> None:
     try:
         account = await account_service.get_account(db, user_id, account_id)
-    except AccountNotFoundError:
+    except AccountNotFoundError as e:
         logger.debug("Account not found for deletion", account_id=str(account_id))
-        raise_not_found("Account")
+        raise_not_found("Account", cause=e)
 
     result = await db.execute(select(JournalLine).where(JournalLine.account_id == account_id).limit(1))
     if result.scalar_one_or_none():

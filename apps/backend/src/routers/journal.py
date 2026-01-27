@@ -45,7 +45,7 @@ async def create_entry(
         await db.refresh(entry, ["lines"])
         return JournalEntryResponse.model_validate(entry)
     except ValidationError as e:
-        raise_bad_request(str(e))
+        raise_bad_request(str(e), cause=e)
 
 
 @router.get("", response_model=JournalEntryListResponse)
@@ -120,7 +120,7 @@ async def post_entry(
         await db.refresh(entry, ["lines"])
         return JournalEntryResponse.model_validate(entry)
     except ValidationError as e:
-        raise_bad_request(str(e))
+        raise_bad_request(str(e), cause=e)
 
 
 @router.post("/{entry_id}/void", response_model=JournalEntryResponse)
@@ -135,7 +135,7 @@ async def void_entry(
         await db.commit()
         return JournalEntryResponse.model_validate(reversal_entry)
     except ValidationError as e:
-        raise_bad_request(str(e))
+        raise_bad_request(str(e), cause=e)
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

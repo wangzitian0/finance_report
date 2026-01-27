@@ -88,10 +88,10 @@ async def register(
     db.add(user)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         # Handle race condition: another request created user with same email
         await db.rollback()
-        raise_bad_request("Email already registered")
+        raise_bad_request("Email already registered", cause=e)
     await db.refresh(user)
 
     # Reset registration rate limit on success
