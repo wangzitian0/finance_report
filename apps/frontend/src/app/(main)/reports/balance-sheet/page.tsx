@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_URL, apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
+import { useCurrencies } from "@/hooks/useCurrencies";
 
 interface ReportLine {
   account_id: string;
@@ -56,6 +57,7 @@ export default function BalanceSheetPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { currencies } = useCurrencies();
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -120,7 +122,7 @@ export default function BalanceSheetPage() {
 
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">As of date</span><input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto"><option value="SGD">SGD</option><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
+        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
         <span className={`self-end badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span>
       </div>
 

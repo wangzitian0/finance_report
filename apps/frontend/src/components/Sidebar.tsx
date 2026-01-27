@@ -109,7 +109,7 @@ export function Sidebar() {
                             key={item.href}
                             href={item.href}
                             className={`
-                flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
+                flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
                 transition-colors text-sm
                 ${isActive
                                     ? "bg-[var(--accent-muted)] text-[var(--accent)]"
@@ -141,7 +141,7 @@ export function Sidebar() {
                     <Link
                         href="/ping-pong"
                         className={`
-            flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
+            flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
             text-[var(--foreground-muted)] hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]
             transition-colors text-sm
             ${isCollapsed ? "justify-center" : ""}
@@ -159,7 +159,7 @@ export function Sidebar() {
                     <button
                         onClick={handleLogout}
                         className={`
-                w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
+                w-full flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
                 text-red-500 hover:bg-red-500/10
                 transition-colors text-sm
                 ${isCollapsed ? "justify-center" : ""}
@@ -177,7 +177,7 @@ export function Sidebar() {
                     <Link
                         href="/login"
                         className={`
-                flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
+                flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
                 text-[var(--accent)] hover:bg-[var(--accent-muted)]
                 transition-colors text-sm
                 ${isCollapsed ? "justify-center" : ""}
