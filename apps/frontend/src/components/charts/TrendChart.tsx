@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 interface TrendPoint {
   label: string;
   value: number;
@@ -11,6 +13,10 @@ interface TrendChartProps {
 const DEFAULT_HEIGHT = 220;
 
 export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps) {
+  const id = useId();
+  const fillId = `trend-fill-${id}`;
+  const lineId = `trend-line-${id}`;
+
   const values = points.map((point) => point.value);
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
@@ -49,20 +55,20 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
         aria-label="Trend chart"
       >
         <defs>
-          <linearGradient id="trend-fill" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id={fillId} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="var(--chart-trend-start)" stopOpacity="0.35" />
             <stop offset="100%" stopColor="var(--chart-trend-end)" stopOpacity="0.05" />
           </linearGradient>
-          <linearGradient id="trend-line" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="var(--chart-trend-start)" />
             <stop offset="100%" stopColor="var(--chart-trend-end)" />
           </linearGradient>
         </defs>
-        <path d={areaPath} fill="url(#trend-fill)" />
+        <path d={areaPath} fill={`url(#${fillId})`} />
         <path
           d={linePath}
           fill="none"
-          stroke="url(#trend-line)"
+          stroke={`url(#${lineId})`}
           strokeWidth="1.5"
           strokeLinecap="round"
         />

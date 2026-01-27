@@ -19,6 +19,8 @@ import {
   UnmatchedTransactionsResponse
 } from "@/lib/types";
 
+const CHART_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
+
 const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
 const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
@@ -66,7 +68,8 @@ export default function DashboardPage() {
     try {
       const trendData = await apiFetch<TrendResponse>(`/api/reports/trend?account_id=${target.account_id}&period=monthly`);
       setTrend(trendData);
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch trend data:", err);
       setTrend(null);
     }
   }, [balanceSheet]);
@@ -79,8 +82,7 @@ export default function DashboardPage() {
   const incomeBars = useMemo(() => incomeStatement ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {
     if (!balanceSheet) return [];
-    const palette = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
-    return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: palette[i % palette.length] }));
+    return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: CHART_PALETTE[i % CHART_PALETTE.length] }));
   }, [balanceSheet]);
 
   if (loading) {

@@ -17,54 +17,42 @@ import {
     type LucideIcon,
 } from "lucide-react";
 
-type IconName = "dashboard" | "accounts" | "journal" | "statements" | "reports" | "reconciliation" | "chat" | "ping-pong" | "default";
+interface RouteConfig {
+    label: string;
+    Icon: LucideIcon;
+}
 
-const iconMap: Record<IconName, LucideIcon> = {
-    dashboard: LayoutDashboard,
-    accounts: Landmark,
-    journal: BookOpen,
-    statements: FileText,
-    reports: BarChart3,
-    reconciliation: Link2,
-    chat: MessageSquare,
-    "ping-pong": Zap,
-    default: FileText,
+const ROUTE_CONFIG: Record<string, RouteConfig> = {
+    "/dashboard": { label: "Dashboard", Icon: LayoutDashboard },
+    "/accounts": { label: "Accounts", Icon: Landmark },
+    "/journal": { label: "Journal", Icon: BookOpen },
+    "/statements": { label: "Statements", Icon: FileText },
+    "/assets": { label: "Assets", Icon: Landmark },
+    "/reports": { label: "Reports", Icon: BarChart3 },
+    "/reports/balance-sheet": { label: "Balance Sheet", Icon: BarChart3 },
+    "/reports/income-statement": { label: "Income Statement", Icon: BarChart3 },
+    "/reports/cash-flow": { label: "Cash Flow", Icon: BarChart3 },
+    "/reconciliation": { label: "Reconciliation", Icon: Link2 },
+    "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
+    "/chat": { label: "AI Advisor", Icon: MessageSquare },
+    "/ping-pong": { label: "Ping-Pong", Icon: Zap },
 };
 
-const routeInfo: Record<string, { label: string; iconName: IconName }> = {
-    "/dashboard": { label: "Dashboard", iconName: "dashboard" },
-    "/accounts": { label: "Accounts", iconName: "accounts" },
-    "/journal": { label: "Journal", iconName: "journal" },
-    "/statements": { label: "Statements", iconName: "statements" },
-    "/assets": { label: "Assets", iconName: "accounts" },
-    "/reports": { label: "Reports", iconName: "reports" },
-    "/reports/balance-sheet": { label: "Balance Sheet", iconName: "reports" },
-    "/reports/income-statement": { label: "Income Statement", iconName: "reports" },
-    "/reports/cash-flow": { label: "Cash Flow", iconName: "reports" },
-    "/reconciliation": { label: "Reconciliation", iconName: "reconciliation" },
-    "/reconciliation/unmatched": { label: "Unmatched", iconName: "reconciliation" },
-    "/chat": { label: "AI Advisor", iconName: "chat" },
-    "/ping-pong": { label: "Ping-Pong", iconName: "ping-pong" },
-};
+const DEFAULT_ICON = FileText;
 
-function getRouteInfo(pathname: string): { label: string; iconName: IconName } {
-    if (routeInfo[pathname]) return routeInfo[pathname];
+function getRouteConfig(pathname: string): RouteConfig {
+    if (ROUTE_CONFIG[pathname]) return ROUTE_CONFIG[pathname];
     const segments = pathname.split("/").filter(Boolean);
     while (segments.length > 0) {
         const parentPath = "/" + segments.join("/");
-        if (routeInfo[parentPath]) return routeInfo[parentPath];
+        if (ROUTE_CONFIG[parentPath]) return ROUTE_CONFIG[parentPath];
         segments.pop();
     }
     const derivedSegments = pathname.split("/").filter(Boolean);
     const lastSegment = derivedSegments[derivedSegments.length - 1];
     const rawLabel = lastSegment ?? "Page";
     const label = rawLabel.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    return { label, iconName: "default" };
-}
-
-function getIconComponent(iconName: string | undefined): LucideIcon {
-    if (!iconName) return iconMap.default;
-    return iconMap[iconName as IconName] ?? iconMap.default;
+    return { label, Icon: DEFAULT_ICON };
 }
 
 export function WorkspaceTabs() {
@@ -73,8 +61,8 @@ export function WorkspaceTabs() {
 
     useEffect(() => {
         if (pathname && pathname !== "/") {
-            const info = getRouteInfo(pathname);
-            addTab({ label: info.label, href: pathname, icon: info.iconName });
+            const config = getRouteConfig(pathname);
+            addTab({ label: config.label, href: pathname, icon: config.Icon.displayName ?? "default" });
         }
     }, [pathname, addTab]);
 
@@ -116,7 +104,8 @@ interface TabItemProps {
 }
 
 function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
-    const IconComponent = getIconComponent(tab.icon);
+    const config = ROUTE_CONFIG[tab.href];
+    const IconComponent = config?.Icon ?? DEFAULT_ICON;
 
     return (
         <div

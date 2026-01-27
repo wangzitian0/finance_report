@@ -1,19 +1,34 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 
-const ReactECharts = dynamic(() => import("echarts-for-react"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center text-muted" style={{ height: "400px" }}>
-      <div className="text-center">
-        <div className="inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-        <p className="text-sm">Loading chart...</p>
+const ReactECharts = dynamic(
+  () => import("echarts-for-react").catch(() => {
+    // Return a fallback component if chunk fails to load
+    return { default: () => <div className="text-sm text-muted text-center p-4">Failed to load chart. Please refresh.</div> };
+  }),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center text-muted" style={{ height: "400px" }}>
+        <div className="text-center">
+          <div className="inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
+          <p className="text-sm">Loading chart...</p>
+        </div>
       </div>
-    </div>
-  ),
-});
+    ),
+  }
+);
+
+/**
+ * Resolve CSS variable to computed color value.
+ * ECharts uses Canvas rendering and cannot interpret CSS variable strings.
+ */
+function getCSSVar(varName: string): string {
+  if (typeof window === "undefined") return "#888";
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || "#888";
+}
 
 interface SankeyItem {
   category: string;
@@ -43,7 +58,33 @@ export function SankeyChart({
   title = "Cash Flow",
   height = 400,
 }: SankeyChartProps) {
+  const [colorKey, setColorKey] = useState(0);
+
+  const handleThemeChange = useCallback(() => {
+    setColorKey((k) => k + 1);
+  }, []);
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === "class" || mutation.attributeName === "data-theme") {
+          handleThemeChange();
+          break;
+        }
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, [handleThemeChange]);
+
   const option = useMemo(() => {
+    const successColor = getCSSVar("--success");
+    const errorColor = getCSSVar("--error");
+    const accentColor = getCSSVar("--accent");
+    const warningColor = getCSSVar("--warning");
+    const foregroundColor = getCSSVar("--foreground");
+    const foregroundMutedColor = getCSSVar("--foreground-muted");
+
     const nodes: { name: string; itemStyle?: { color: string } }[] = [];
     const links: { source: string; target: string; value: number }[] = [];
 
@@ -54,12 +95,12 @@ export function SankeyChart({
       if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
       nodes.push({ name: prefix, itemStyle: { color } });
-      nodes.push({ name: `${prefix}-Inflows`, itemStyle: { color: "var(--success)" } });
-      nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: "var(--error)" } });
+      nodes.push({ name: `${prefix}-Inflows`, itemStyle: { color: successColor } });
+      nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: errorColor } });
 
       inflowItems.forEach((item) => {
         const amount = toNumber(item.amount);
-        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "var(--foreground-muted)" } });
+        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: foregroundMutedColor } });
         links.push({
           source: `${prefix}-Inflows`,
           target: `${prefix}-${item.subcategory}`,
@@ -70,7 +111,7 @@ export function SankeyChart({
       outflowItems.forEach((item) => {
         const rawValue = toNumber(item.amount);
         const amount = Math.abs(rawValue);
-        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "var(--foreground-muted)" } });
+        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: foregroundMutedColor } });
         links.push({
           source: `${prefix}-${item.subcategory}`,
           target: `${prefix}-Outflows`,
@@ -79,22 +120,22 @@ export function SankeyChart({
       });
     };
 
-    addCategory(operating, "var(--success)", "Operating");
-    addCategory(investing, "var(--accent)", "Investing");
-    addCategory(financing, "var(--warning)", "Financing");
+    addCategory(operating, successColor, "Operating");
+    addCategory(investing, accentColor, "Investing");
+    addCategory(financing, warningColor, "Financing");
 
     const hasData = nodes.length > 0;
 
     if (!hasData) {
       return {
-        title: { text: title, left: "center", textStyle: { color: "var(--foreground-muted)" } },
+        title: { text: title, left: "center", textStyle: { color: foregroundMutedColor } },
         graphic: {
           type: "text",
           left: "center",
           top: "middle",
           style: {
             text: "Add transaction data to see cash flow visualization",
-            fill: "var(--foreground-muted)",
+            fill: foregroundMutedColor,
             fontSize: 14,
           },
         },
@@ -102,7 +143,7 @@ export function SankeyChart({
     }
 
     return {
-      title: { text: title, left: "center", textStyle: { color: "var(--foreground)" } },
+      title: { text: title, left: "center", textStyle: { color: foregroundColor } },
       tooltip: {
         trigger: "item",
         triggerOn: "mousemove",
@@ -131,13 +172,14 @@ export function SankeyChart({
             curveness: 0.5,
           },
           label: {
-            color: "var(--foreground)",
+            color: foregroundColor,
             fontSize: 11,
           },
         },
       ],
     };
-  }, [operating, investing, financing, title]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colorKey triggers re-computation on theme change
+  }, [operating, investing, financing, title, colorKey]);
 
   return <ReactECharts option={option} style={{ height: `${height}px`, width: "100%" }} />;
 }
