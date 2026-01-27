@@ -456,6 +456,21 @@ class ExtractionService:
                     last_error = ExtractionError(f"Failed to parse JSON response: {e}")
                     continue
 
+            except httpx.TimeoutException as e:
+                # httpx timeout exceptions are raised directly, not wrapped by OpenRouterStreamError
+                from src.constants.error_ids import ErrorIds
+
+                logger.warning(
+                    "AI extraction network timeout",
+                    error_id=ErrorIds.OPENROUTER_TIMEOUT,
+                    model=model,
+                    attempt=i + 1,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                error_summary["timeout"] = error_summary.get("timeout", 0) + 1
+                last_error = ExtractionError(f"Model {model} network timeout: {type(e).__name__}")
+                continue
             except OpenRouterStreamError as e:
                 from src.constants.error_ids import ErrorIds
 

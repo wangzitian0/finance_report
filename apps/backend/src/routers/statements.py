@@ -87,93 +87,137 @@ async def _parse_statement_background(
     logger.info("Starting background parsing", filename=filename)
     start_time = time.perf_counter()
 
-    async with session_maker() as session:
-        statement = await session.get(
-            BankStatement,
-            statement_id,
-            options=[selectinload(BankStatement.transactions)],
+    # Top-level exception handler to ensure statement is never stuck in PARSING state
+    try:
+        async with session_maker() as session:
+            statement = await session.get(
+                BankStatement,
+                statement_id,
+                options=[selectinload(BankStatement.transactions)],
+            )
+            if not statement:
+                logger.error("Statement not found in DB for background parsing")
+                return
+
+            async def update_progress(progress: int) -> None:
+                statement.parsing_progress = progress
+                await session.commit()
+
+            await update_progress(5)
+
+            storage = StorageService()
+            file_url = None
+            try:
+                file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key, public=True)
+            except StorageError as exc:
+                logger.warning(
+                    "Could not generate public presigned URL, will use base64 content instead",
+                    error=str(exc),
+                    statement_id=str(statement_id),
+                )
+
+            await update_progress(10)
+
+            service = ExtractionService()
+            try:
+                await update_progress(20)
+                parsed_statement, transactions = await service.parse_document(
+                    file_path=Path(filename),
+                    institution=institution,
+                    user_id=user_id,
+                    file_type=filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf",
+                    account_id=account_id,
+                    file_content=content,
+                    file_hash=file_hash,
+                    file_url=file_url,
+                    original_filename=filename,
+                    force_model=model,
+                    db=session,
+                )
+                await update_progress(70)
+            except ExtractionError as exc:
+                await _handle_parse_failure(statement, session, message=str(exc))
+                return
+            except Exception as exc:
+                logger.exception("Background parsing failed unexpectedly")
+                await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
+                return
+
+            await update_progress(80)
+
+            for existing_tx in list(statement.transactions):
+                await session.delete(existing_tx)
+            await session.flush()
+
+            if settings.enable_layer_0_write:
+                for txn in transactions:
+                    txn.statement = statement
+                statement.transactions = list(transactions)
+
+            await update_progress(90)
+
+            statement.institution = parsed_statement.institution
+            statement.account_last4 = parsed_statement.account_last4
+            statement.currency = parsed_statement.currency
+            statement.period_start = parsed_statement.period_start
+            statement.period_end = parsed_statement.period_end
+            statement.opening_balance = parsed_statement.opening_balance
+            statement.closing_balance = parsed_statement.closing_balance
+            statement.confidence_score = parsed_statement.confidence_score
+            statement.balance_validated = parsed_statement.balance_validated
+            statement.validation_error = parsed_statement.validation_error
+            statement.status = parsed_statement.status
+            statement.parsing_progress = 100
+
+            # Wrap final commit in try-except to handle DB errors
+            try:
+                await session.commit()
+                duration = time.perf_counter() - start_time
+                logger.info(
+                    "Background parsing completed",
+                    duration_ms=round(duration * 1000, 2),
+                    transactions_count=len(transactions),
+                )
+            except Exception as commit_exc:
+                logger.exception(
+                    "Failed to commit parsed statement to database",
+                    statement_id=str(statement_id),
+                    error=str(commit_exc),
+                )
+                await session.rollback()
+                await _handle_parse_failure(
+                    statement,
+                    session,
+                    message=f"Database error while saving: {commit_exc}",
+                )
+    except Exception as exc:
+        # Top-level safety net: catch ANY exception to prevent stuck PARSING state
+        logger.exception(
+            "Unhandled exception in background parsing task",
+            statement_id=str(statement_id),
+            filename=filename,
+            error_type=type(exc).__name__,
         )
-        if not statement:
-            logger.error("Statement not found in DB for background parsing")
-            return
-
-        async def update_progress(progress: int) -> None:
-            statement.parsing_progress = progress
-            await session.commit()
-
-        await update_progress(5)
-
-        storage = StorageService()
-        file_url = None
+        # Try to update statement status in a new session
         try:
-            file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key, public=True)
-        except StorageError as exc:
-            logger.warning(
-                "Could not generate public presigned URL, will use base64 content instead",
-                error=str(exc),
+            async with session_maker() as recovery_session:
+                statement = await recovery_session.get(BankStatement, statement_id)
+                if statement and statement.status == BankStatementStatus.PARSING:
+                    statement.status = BankStatementStatus.REJECTED
+                    statement.validation_error = f"Internal error: {type(exc).__name__}"
+                    statement.confidence_score = 0
+                    statement.balance_validated = False
+                    await recovery_session.commit()
+                    logger.warning(
+                        "Recovered stuck parsing statement",
+                        statement_id=str(statement_id),
+                    )
+        except Exception as recovery_exc:
+            logger.exception(
+                "Failed to recover stuck parsing statement",
                 statement_id=str(statement_id),
+                recovery_error=str(recovery_exc),
             )
-
-        await update_progress(10)
-
-        service = ExtractionService()
-        try:
-            await update_progress(20)
-            parsed_statement, transactions = await service.parse_document(
-                file_path=Path(filename),
-                institution=institution,
-                user_id=user_id,
-                file_type=filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf",
-                account_id=account_id,
-                file_content=content,
-                file_hash=file_hash,
-                file_url=file_url,
-                original_filename=filename,
-                force_model=model,
-                db=session,
-            )
-            await update_progress(70)
-        except ExtractionError as exc:
-            await _handle_parse_failure(statement, session, message=str(exc))
-            return
-        except Exception as exc:
-            logger.exception("Background parsing failed unexpectedly")
-            await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
-            return
-
-        await update_progress(80)
-
-        for existing_tx in list(statement.transactions):
-            await session.delete(existing_tx)
-        await session.flush()
-
-        if settings.enable_layer_0_write:
-            for txn in transactions:
-                txn.statement = statement
-            statement.transactions = list(transactions)
-
-        await update_progress(90)
-
-        statement.institution = parsed_statement.institution
-        statement.account_last4 = parsed_statement.account_last4
-        statement.currency = parsed_statement.currency
-        statement.period_start = parsed_statement.period_start
-        statement.period_end = parsed_statement.period_end
-        statement.opening_balance = parsed_statement.opening_balance
-        statement.closing_balance = parsed_statement.closing_balance
-        statement.confidence_score = parsed_statement.confidence_score
-        statement.balance_validated = parsed_statement.balance_validated
-        statement.validation_error = parsed_statement.validation_error
-        statement.status = parsed_statement.status
-        statement.parsing_progress = 100
-
-        await session.commit()
-        duration = time.perf_counter() - start_time
-        logger.info(
-            "Background parsing completed",
-            duration_ms=round(duration * 1000, 2),
-            transactions_count=len(transactions),
-        )
 
 
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
