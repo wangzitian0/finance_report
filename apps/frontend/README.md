@@ -33,18 +33,18 @@ The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc)
 | Route | Description |
 |-------|-------------|
 | `/` | Redirects to `/dashboard` |
-| `/dashboard` | Financial dashboard with charts |
-| `/accounts` | Chart of accounts with CRUD operations |
-| `/journal` | Journal entries with posting workflow |
-| `/statements` | Bank statement upload and AI parsing |
-| `/reports` | Reports index with Balance Sheet, Income Statement |
-| `/reports/balance-sheet` | Balance sheet report |
-| `/reports/income-statement` | Income statement report |
-| `/reports/cash-flow` | Cash flow statement with Sankey chart |
-| `/reconciliation` | Reconciliation workbench UI |
-| `/reconciliation/unmatched` | Unmatched transaction triage |
-| `/chat` | AI Advisor chat interface |
-| `/ping-pong` | API connectivity demo |
+| `/dashboard` | Financial dashboard with KPIs, charts, and activity feed |
+| `/accounts` | Chart of accounts with create/edit/delete operations |
+| `/journal` | Journal entries with create, post, void, and reversal workflow |
+| `/statements` | Bank statement upload with AI-powered transaction parsing |
+| `/reports` | Reports index linking to Balance Sheet and Income Statement |
+| `/reports/balance-sheet` | Balance sheet report with asset/liability breakdown |
+| `/reports/income-statement` | Income statement with trend visualization |
+| `/reports/cash-flow` | Cash flow statement with interactive Sankey chart |
+| `/reconciliation` | Reconciliation workbench with fuzzy matching and review queue |
+| `/reconciliation/unmatched` | Unmatched transaction triage and manual matching |
+| `/chat` | AI Advisor chat interface for financial insights |
+| `/ping-pong` | API connectivity health check demo |
 
 ## Environment Variables
 
