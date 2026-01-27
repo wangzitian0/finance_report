@@ -207,7 +207,6 @@ def test_concurrent_matching():
 
 - [schema.md](../ssot/schema.md) - ReconciliationMatch table
 - [reconciliation.md](../ssot/reconciliation.md) - Reconciliation rules
-- [reconciler.md](../../.claude/skills/reconciler.md) - Matching algorithm design
 
 ---
 

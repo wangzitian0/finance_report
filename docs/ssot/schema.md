@@ -503,7 +503,7 @@ CREATE INDEX idx_atomic_positions_date ON atomic_positions(snapshot_date);
 
 ## Used by
 
-- [AGENTS.md](../../AGENTS.md)
+- [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
 - [accounting.md](./accounting.md)
 
 ---

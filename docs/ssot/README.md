@@ -7,7 +7,7 @@
 
 SSOT documents define the "why" and "how" of technical decisions before code is written. When code differs from SSOT, the documentation must be updated immediately to maintain truth.
 
-For the macro product direction and decision criteria, read [target.md](../../target.md) first.
+For the macro product direction and decision criteria, read [target.md](../target.md) first.
 
 ## 📚 Document Index
 
@@ -112,6 +112,6 @@ This table shows how domain concepts map across different layers. Use this to ma
 
 ## Quick Links
 
-- [AGENTS.md](../../AGENTS.md) — Agent behavioral guidelines
-- [target.md](../../target.md) — Project target and decision criteria
+- [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md) — Agent behavioral guidelines
+- [target.md](../target.md) — Project target and decision criteria
 - [Project Tracking](../project/README.md) — EPIC & tasks
