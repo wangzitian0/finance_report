@@ -18,6 +18,7 @@ This section contains:
 - [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation (Testing Pending)
 - [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
 - [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 Complete)
+- [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
 
 **TODO**
 - [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
@@ -44,9 +45,10 @@ This section contains:
 | [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | 🟡 In Progress | 2 | 2-3 weeks |
 | [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | 🟡 In Progress | 0 | 1 week |
 | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | 🟡 In Progress (P0 ✅) | 5 | 4-5 weeks |
+| [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation Libraries Enhancement | 🟡 In Progress | 0 | 2-3 weeks |
 
-**Total Duration**: 21-25 weeks  
-**Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness
+**Total Duration**: 23-28 weeks  
+**Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness and infrastructure hardening
 
 ## 🗺️ EPIC Dependencies
 
@@ -96,6 +98,7 @@ Check the relevant EPIC for your feature:
 - **Reconciliation**: [EPIC-004](./EPIC-004.reconciliation-engine.md)
 - **Reports**: [EPIC-005](./EPIC-005.reporting-visualization.md)
 - **AI Features**: [EPIC-006](./EPIC-006.ai-advisor.md)
+- **Infrastructure**: [EPIC-012](./EPIC-012.foundation-libs.md)
 - **Deployment**: [EPIC-007](./EPIC-007.deployment.md)
 - **Asset Management**: [EPIC-011](./EPIC-011.asset-lifecycle.md)
 
