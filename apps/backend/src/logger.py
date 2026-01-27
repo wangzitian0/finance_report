@@ -28,10 +28,37 @@ T = TypeVar("T")
 def _build_processors() -> list[Processor]:
     return [
         structlog.contextvars.merge_contextvars,
+        _add_trace_context,
         structlog.processors.add_log_level,
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="iso"),
     ]
+
+
+def _add_trace_context(
+    logger: logging.Logger,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Structlog processor to inject OTEL trace context into logs.
+
+    Extracts trace_id and span_id from the current OTEL span context
+    and adds them to the log event. This enables correlation between
+    logs and traces in SigNoz.
+    """
+    try:
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        ctx = span.get_span_context()
+        if ctx.is_valid:
+            # Format as 32-char hex for trace_id, 16-char hex for span_id
+            event_dict["trace_id"] = format(ctx.trace_id, "032x")
+            event_dict["span_id"] = format(ctx.span_id, "016x")
+    except Exception:
+        # OTEL not available or no active span - skip silently
+        pass
+    return event_dict
 
 
 def _select_renderer() -> Processor:
@@ -49,6 +76,49 @@ def _build_otlp_logs_endpoint(endpoint: str) -> str:
     return f"{trimmed}/v1/logs"
 
 
+def _build_otel_resource() -> Any:
+    """Build OTEL resource with service name and attributes."""
+    from opentelemetry.sdk.resources import Resource
+
+    resource_attributes = {"service.name": settings.otel_service_name}
+    resource_attributes.update(parse_key_value_pairs(settings.otel_resource_attributes))
+    return Resource.create(resource_attributes)
+
+
+def _configure_otel_tracing() -> None:
+    """Configure OpenTelemetry tracing with OTLP export.
+
+    Sets up TracerProvider with OTLP exporter to send traces to SigNoz.
+    This enables distributed tracing correlation with logs.
+    """
+    if not settings.otel_exporter_otlp_endpoint:
+        return
+
+    try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    except Exception:  # pragma: no cover - defensive import guard
+        logging.getLogger(__name__).warning(
+            "OTEL trace exporter not available",
+            exc_info=True,
+        )
+        return
+
+    resource = _build_otel_resource()
+    provider = TracerProvider(resource=resource)
+
+    # Build traces endpoint
+    endpoint = settings.otel_exporter_otlp_endpoint.rstrip("/")
+    if not endpoint.endswith("/v1/traces"):
+        endpoint = f"{endpoint}/v1/traces"
+
+    exporter = OTLPSpanExporter(endpoint=endpoint)
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+
+
 def _configure_otel_logging() -> None:
     if not settings.otel_exporter_otlp_endpoint:
         return
@@ -57,7 +127,6 @@ def _configure_otel_logging() -> None:
         from opentelemetry._logs import set_logger_provider
         from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-        from opentelemetry.sdk.resources import Resource
 
         # OTLP log exporter moved between modules across opentelemetry versions.
         try:
@@ -71,9 +140,7 @@ def _configure_otel_logging() -> None:
         )
         return
 
-    resource_attributes = {"service.name": settings.otel_service_name}
-    resource_attributes.update(parse_key_value_pairs(settings.otel_resource_attributes))
-    resource = Resource.create(resource_attributes)
+    resource = _build_otel_resource()
 
     provider = LoggerProvider(resource=resource)
     exporter = OTLPLogExporter(
@@ -88,6 +155,8 @@ def _configure_otel_logging() -> None:
 
 def configure_logging() -> None:
     """Configure structlog for structured logging and optional OTEL export."""
+    # Configure tracing first so trace context is available for logs
+    _configure_otel_tracing()
 
     processors = _build_processors()
     renderer = _select_renderer()

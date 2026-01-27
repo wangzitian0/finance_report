@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.boot import Bootloader, BootMode
 from src.config import settings
-from src.database import get_db, init_db
+from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
 from src.rate_limit import auth_rate_limiter, register_rate_limiter
@@ -30,6 +30,38 @@ from src.services.statement_parsing_supervisor import run_parsing_supervisor
 # Initialize logging early
 configure_logging()
 logger = get_logger(__name__)
+
+
+def _init_otel_instrumentation() -> None:
+    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX.
+
+    This enables distributed tracing across HTTP requests, database queries,
+    and outbound HTTP calls. Must be called after TracerProvider is configured.
+    """
+    if not settings.otel_exporter_otlp_endpoint:
+        return
+
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+        # Instrument FastAPI - will be applied to app after creation
+        FastAPIInstrumentor.instrument()
+
+        # Instrument SQLAlchemy with the async engine
+        SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
+
+        # Instrument HTTPX for outbound HTTP calls
+        HTTPXClientInstrumentor().instrument()
+
+        logger.info("OTEL instrumentation initialized", components=["fastapi", "sqlalchemy", "httpx"])
+    except Exception:  # pragma: no cover - defensive import guard
+        logger.warning("OTEL instrumentation not available", exc_info=True)
+
+
+# Initialize instrumentation after logging is configured
+_init_otel_instrumentation()
 
 
 @asynccontextmanager

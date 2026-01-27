@@ -24,6 +24,9 @@ dependencies = [
     "redis>=7.1.0",
     "opentelemetry-sdk>=1.24.0",
     "opentelemetry-exporter-otlp-proto-http>=1.24.0",
+    "opentelemetry-instrumentation-fastapi>=0.45b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.45b0",
+    "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",
     "httpx-sse>=0.4.3",
 ]
