@@ -65,16 +65,16 @@ CONTAINER_PATTERNS = {
         Service.REDIS: "finance-report-redis",
     },
     Environment.STAGING: {
-        Service.BACKEND: "finance-report-backend-staging",
-        Service.FRONTEND: "finance-report-frontend-staging",
-        Service.POSTGRES: "finance-report-db-staging",
-        Service.REDIS: "finance-report-redis-staging",
+        Service.BACKEND: "finance_report-backend-staging",
+        Service.FRONTEND: "finance_report-frontend-staging",
+        Service.POSTGRES: "finance_report-postgres-staging",
+        Service.REDIS: "finance_report-redis-staging",
     },
     Environment.PRODUCTION: {
-        Service.BACKEND: "finance-report-backend",
-        Service.FRONTEND: "finance-report-frontend",
-        Service.POSTGRES: "finance-report-db",
-        Service.REDIS: "finance-report-redis",
+        Service.BACKEND: "finance_report-backend",
+        Service.FRONTEND: "finance_report-frontend",
+        Service.POSTGRES: "finance_report-postgres",
+        Service.REDIS: "finance_report-redis",
     },
 }
 

@@ -14,7 +14,7 @@ from src.models import BankStatement, BankStatementStatus
 
 logger = get_logger(__name__)
 
-PARSING_STALE_THRESHOLD = timedelta(minutes=5)
+PARSING_STALE_THRESHOLD = timedelta(minutes=30)
 PARSING_SUPERVISOR_INTERVAL_SECONDS = 300
 
 

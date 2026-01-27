@@ -214,8 +214,8 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
         - totals[AccountType.EXPENSE]
     )
 
-    # Allow small tolerance for rounding errors
-    return abs(left_side - right_side) < Decimal("0.1")
+    # Allow small tolerance for rounding errors (must match AGENTS.md: < 0.01)
+    return abs(left_side - right_side) < Decimal("0.01")
 
 
 async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) -> JournalEntry:
