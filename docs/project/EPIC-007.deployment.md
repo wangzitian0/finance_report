@@ -150,10 +150,10 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ## 📚 SSOT References
 
-- [Infra2 AGENTS.md](../../repo/AGENTS.md) - AI behavior guidelines
-- [platform.domain.md](../../repo/docs/ssot/platform.domain.md) - Domain routing rules
-- [bootstrap.vars_and_secrets.md](../../repo/docs/ssot/bootstrap.vars_and_secrets.md) - Secrets management
-- [db.vault-integration.md](../../repo/docs/ssot/db.vault-integration.md) - Vault integration pattern
+- [Infra2 AGENTS.md](https://github.com/wangzitian0/infra2/blob/main/AGENTS.md) - AI behavior guidelines
+- [platform.domain.md](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/platform.domain.md) - Domain routing rules
+- [bootstrap.vars_and_secrets.md](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/bootstrap.vars_and_secrets.md) - Secrets management
+- [db.vault-integration.md](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/db.vault-integration.md) - Vault integration pattern
 
 ---
 
@@ -170,7 +170,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ## 🔗 Related Projects
 
-- **Infra2 Reference**: [Infra-009.finance_report_deploy.md](../../repo/docs/project/Infra-009.finance_report_deploy.md)
+- **Infra2 Reference**: [Infra-009.finance_report_deploy.md](https://github.com/wangzitian0/infra2/blob/main/docs/project/Infra-009.finance_report_deploy.md)
 
 ---
 

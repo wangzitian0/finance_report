@@ -8,7 +8,7 @@ This section contains:
 
 - **EPIC Tracking** — Major project milestones and their status
 - **Design Decisions** — Key architectural choices and rationale
-- **Repository Overview** — Current system orientation ([README.md](../README.md))
+- **Repository Overview** — Current system orientation ([README.md](https://github.com/wangzitian0/finance_report#readme))
 
 ## ✅ Status Snapshot
 
@@ -84,8 +84,8 @@ graph LR
 ### For New Developers
 Start with these documents in order:
 
-1. **[target.md](../../target.md)** — North Star goals and decision criteria
-2. **[README.md](../README.md)** — Tech stack and quick start
+1. **[target.md](../target.md)** — North Star goals and decision criteria
+2. **[README.md](https://github.com/wangzitian0/finance_report#readme)** — Tech stack and quick start
 3. **[EPIC-001: Setup](./EPIC-001.phase0-setup.md)** — Infrastructure and authentication
 4. **[EPIC-002: Double-Entry](./EPIC-002.double-entry-core.md)** — Core accounting system
 5. **[Design Decisions](./DECISIONS.md)** — Key architectural choices
@@ -124,7 +124,7 @@ Each EPIC document contains:
 
 - **Technical Specs**: [SSOT Documentation](../ssot/README.md)
 - **Development Setup**: [Development Guide](../ssot/development.md)
-- **North Star**: [target.md](../../target.md)
+- **North Star**: [target.md](../target.md)
 
 ---
 
@@ -132,6 +132,6 @@ Each EPIC document contains:
 
 ## Quick Links
 
-- [Project Target](../../target.md)
+- [Project Target](../target.md)
 - [SSOT Index](../ssot/README.md)
-- [AGENTS.md](../../AGENTS.md)
+- [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)

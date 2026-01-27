@@ -85,13 +85,12 @@ nav:
       - Reconciliation Engine: ssot/reconciliation.md
       - Statement Extraction: ssot/extraction.md
       - Reporting: ssot/reporting.md
-      - AI Advisor: ssot/ai_advisor.md
+      - AI Advisor: ssot/ai.md
       - Database Schema: ssot/schema.md
       - Observability: ssot/observability.md
       - Development Guide: ssot/development.md
   - Development:
       - Project Overview: project/README.md
-      - Audit & Roadmap: README.md
       - Design Decisions: project/DECISIONS.md
       - EPICs:
           - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md

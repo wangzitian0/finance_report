@@ -200,7 +200,6 @@ def test_many_lines_entry():
 
 - [schema.md](../ssot/schema.md) - Database table structure
 - [accounting.md](../ssot/accounting.md) - Accounting rules
-- [accountant.md](../../.claude/skills/accountant.md) - Typical journal entry mappings
 
 ---
 
@@ -219,7 +218,7 @@ def test_many_lines_entry():
 - [x] `apps/frontend/src/app/(main)/accounts/page.tsx` - Account management
 - [x] `apps/frontend/src/app/(main)/journal/page.tsx` - Journal entries
 
-**Implementation Summary**: See [EPIC-002-IMPLEMENTATION.md](./EPIC-002-IMPLEMENTATION.md)
+**Implementation Summary**: See [EPIC-002-IMPLEMENTATION.md](./archive/EPIC-002-IMPLEMENTATION.md)
 
 ---
 
