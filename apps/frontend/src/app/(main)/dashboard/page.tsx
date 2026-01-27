@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Landmark, FileText, BookOpen } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
@@ -102,15 +103,15 @@ export default function DashboardPage() {
           <p className="text-muted mb-4 text-sm">{error}</p>
           <div className="grid gap-3 sm:grid-cols-3 mb-6">
             <Link href="/accounts" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
-              <span className="text-2xl block mb-1">🏦</span>
+              <Landmark className="w-8 h-8 mx-auto mb-1 text-[var(--accent)]" aria-hidden="true" />
               <span className="text-sm font-medium">Accounts</span>
             </Link>
             <Link href="/statements" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
-              <span className="text-2xl block mb-1">📄</span>
+              <FileText className="w-8 h-8 mx-auto mb-1 text-[var(--accent)]" aria-hidden="true" />
               <span className="text-sm font-medium">Statements</span>
             </Link>
             <Link href="/journal" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
-              <span className="text-2xl block mb-1">📝</span>
+              <BookOpen className="w-8 h-8 mx-auto mb-1 text-[var(--accent)]" aria-hidden="true" />
               <span className="text-sm font-medium">Journal</span>
             </Link>
           </div>

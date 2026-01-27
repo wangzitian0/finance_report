@@ -1,7 +1,19 @@
 "use client";
 
-import ReactECharts from "echarts-for-react";
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
+
+const ReactECharts = dynamic(() => import("echarts-for-react"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center text-muted" style={{ height: "400px" }}>
+      <div className="text-center">
+        <div className="inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
+        <p className="text-sm">Loading chart...</p>
+      </div>
+    </div>
+  ),
+});
 
 interface SankeyItem {
   category: string;
@@ -42,12 +54,12 @@ export function SankeyChart({
       if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
       nodes.push({ name: prefix, itemStyle: { color } });
-      nodes.push({ name: `${prefix}-Inflows`, itemStyle: { color: "#22c55e" } });
-      nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: "#ef4444" } });
+      nodes.push({ name: `${prefix}-Inflows`, itemStyle: { color: "var(--success)" } });
+      nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: "var(--error)" } });
 
       inflowItems.forEach((item) => {
         const amount = toNumber(item.amount);
-        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "#64748b" } });
+        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "var(--foreground-muted)" } });
         links.push({
           source: `${prefix}-Inflows`,
           target: `${prefix}-${item.subcategory}`,
@@ -58,7 +70,7 @@ export function SankeyChart({
       outflowItems.forEach((item) => {
         const rawValue = toNumber(item.amount);
         const amount = Math.abs(rawValue);
-        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "#64748b" } });
+        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: "var(--foreground-muted)" } });
         links.push({
           source: `${prefix}-${item.subcategory}`,
           target: `${prefix}-Outflows`,
@@ -67,22 +79,22 @@ export function SankeyChart({
       });
     };
 
-    addCategory(operating, "#22c55e", "Operating");
-    addCategory(investing, "#8b5cf6", "Investing");
-    addCategory(financing, "#f59e0b", "Financing");
+    addCategory(operating, "var(--success)", "Operating");
+    addCategory(investing, "var(--accent)", "Investing");
+    addCategory(financing, "var(--warning)", "Financing");
 
     const hasData = nodes.length > 0;
 
     if (!hasData) {
       return {
-        title: { text: title, left: "center", textStyle: { color: "#64748b" } },
+        title: { text: title, left: "center", textStyle: { color: "var(--foreground-muted)" } },
         graphic: {
           type: "text",
           left: "center",
           top: "middle",
           style: {
             text: "Add transaction data to see cash flow visualization",
-            fill: "#94a3b8",
+            fill: "var(--foreground-muted)",
             fontSize: 14,
           },
         },
@@ -90,7 +102,7 @@ export function SankeyChart({
     }
 
     return {
-      title: { text: title, left: "center" },
+      title: { text: title, left: "center", textStyle: { color: "var(--foreground)" } },
       tooltip: {
         trigger: "item",
         triggerOn: "mousemove",
@@ -119,7 +131,7 @@ export function SankeyChart({
             curveness: 0.5,
           },
           label: {
-            color: "#1e293b",
+            color: "var(--foreground)",
             fontSize: 11,
           },
         },

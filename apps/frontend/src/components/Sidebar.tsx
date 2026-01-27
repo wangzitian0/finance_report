@@ -6,26 +6,40 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
 import { useState, useEffect } from "react";
+import {
+    LayoutDashboard,
+    Landmark,
+    BookOpen,
+    FileText,
+    Wallet,
+    BarChart3,
+    Link2,
+    MessageSquare,
+    Zap,
+    LogOut,
+    LogIn,
+    type LucideIcon,
+} from "lucide-react";
 
 // Hide dev routes in production
 const IS_DEV = process.env.NODE_ENV === "development";
 
 interface NavItem {
-    icon: string;
+    icon: LucideIcon;
     label: string;
     href: string;
     protected: boolean;
 }
 
 const navItems: NavItem[] = [
-    { icon: "📊", label: "Dashboard", href: "/dashboard", protected: true },
-    { icon: "🏦", label: "Accounts", href: "/accounts", protected: true },
-    { icon: "📝", label: "Journal", href: "/journal", protected: true },
-    { icon: "📄", label: "Statements", href: "/statements", protected: true },
-    { icon: "💰", label: "Assets", href: "/assets", protected: true },
-    { icon: "📈", label: "Reports", href: "/reports", protected: true },
-    { icon: "🔗", label: "Reconciliation", href: "/reconciliation", protected: true },
-    { icon: "💬", label: "AI Advisor", href: "/chat", protected: true },
+    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", protected: true },
+    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
+    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
+    { icon: FileText, label: "Statements", href: "/statements", protected: true },
+    { icon: Wallet, label: "Assets", href: "/assets", protected: true },
+    { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
+    { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
+    { icon: MessageSquare, label: "AI Advisor", href: "/chat", protected: true },
 ];
 
 export function Sidebar() {
@@ -89,12 +103,13 @@ export function Sidebar() {
             <nav className="p-2 space-y-0.5">
                 {navItems.filter(item => isAuth || !item.protected).map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                    const IconComponent = item.icon;
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
                             className={`
-                flex items-center gap-2.5 px-2.5 py-2 rounded-md
+                flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
                 transition-colors text-sm
                 ${isActive
                                     ? "bg-[var(--accent-muted)] text-[var(--accent)]"
@@ -103,10 +118,9 @@ export function Sidebar() {
                 ${isCollapsed ? "justify-center" : ""}
               `}
                             title={isCollapsed ? item.label : undefined}
+                            aria-label={isCollapsed ? item.label : undefined}
                         >
-                            <span className="text-base flex-shrink-0" role="img" aria-label={item.label}>
-                                {item.icon}
-                            </span>
+                            <IconComponent className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
                             {!isCollapsed && <span className="font-medium">{item.label}</span>}
                         </Link>
                     );
@@ -127,14 +141,15 @@ export function Sidebar() {
                     <Link
                         href="/ping-pong"
                         className={`
-            flex items-center gap-2.5 px-2.5 py-2 rounded-md
+            flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
             text-[var(--foreground-muted)] hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]
             transition-colors text-sm
             ${isCollapsed ? "justify-center" : ""}
           `}
                         title={isCollapsed ? "Ping-Pong Demo" : undefined}
+                        aria-label={isCollapsed ? "Ping-Pong Demo" : undefined}
                     >
-                        <span className="text-base flex-shrink-0">🏓</span>
+                        <Zap className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
                         {!isCollapsed && <span className="font-medium">Ping-Pong</span>}
                     </Link>
                 )}
@@ -144,16 +159,15 @@ export function Sidebar() {
                     <button
                         onClick={handleLogout}
                         className={`
-                w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md
+                w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
                 text-red-500 hover:bg-red-500/10
                 transition-colors text-sm
                 ${isCollapsed ? "justify-center" : ""}
               `}
                         title={isCollapsed ? "Logout" : undefined}
+                        aria-label={isCollapsed ? "Logout" : undefined}
                     >
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
+                        <LogOut className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
                         {!isCollapsed && <span className="font-medium">Logout</span>}
                     </button>
                 )}
@@ -163,16 +177,15 @@ export function Sidebar() {
                     <Link
                         href="/login"
                         className={`
-                flex items-center gap-2.5 px-2.5 py-2 rounded-md
+                flex items-center gap-2.5 px-2.5 py-2.5 rounded-md
                 text-[var(--accent)] hover:bg-[var(--accent-muted)]
                 transition-colors text-sm
                 ${isCollapsed ? "justify-center" : ""}
               `}
                         title={isCollapsed ? "Login" : undefined}
+                        aria-label={isCollapsed ? "Login" : undefined}
                     >
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                        </svg>
+                        <LogIn className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
                         {!isCollapsed && <span className="font-medium">Login</span>}
                     </Link>
                 )}
