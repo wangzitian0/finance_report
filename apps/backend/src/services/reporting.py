@@ -546,7 +546,7 @@ async def generate_income_statement(
                     logger.warning(
                         "Average FX rate unavailable, falling back to spot",
                         error_id=ErrorIds.REPORT_FX_FALLBACK,
-                        account_id=account.id,
+                        account_id=str(account.id),
                         currency=line.currency,
                         start_date=start_date,
                         end_date=end_date,
@@ -565,7 +565,7 @@ async def generate_income_statement(
                         logger.error(
                             "All FX rate fallbacks failed for income statement",
                             error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                            account_id=account.id,
+                            account_id=str(account.id),
                             error=str(final_exc),
                         )
                         raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
@@ -705,7 +705,7 @@ async def get_account_trend(
             logger.error(
                 "FX pre-fetch failed for account trend",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                account_id=account.id,
+                account_id=str(account.id),
                 error=str(exc),
             )
             raise ReportError(str(exc)) from exc
