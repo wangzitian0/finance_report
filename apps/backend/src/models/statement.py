@@ -72,6 +72,7 @@ class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         default=BankStatementStatus.UPLOADED,
     )
     confidence_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    parsing_progress: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
     balance_validated: Mapped[bool | None] = mapped_column(default=None, nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
