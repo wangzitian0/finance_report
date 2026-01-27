@@ -1,6 +1,8 @@
-# Finance Report Documentation
+# docs/ Directory Guide
 
-> **Modification Guide** — How to read and modify documentation in this directory.
+> **Authoritative definition**: See [README.md § Documentation System](../README.md#-documentation-system)
+
+This directory contains all project documentation organized by the 4-category system.
 
 ---
 
@@ -8,11 +10,11 @@
 
 ```
 docs/
-├── README.md              ← You are here (Modification Guide)
-├── target.md              ← North Star goals and decision criteria
-├── index.md               ← MkDocs homepage (auto-generated site entry)
+├── README.md              ← You are here (directory guide)
+├── index.md               ← MkDocs homepage (user-facing)
+├── target.md              ← Symlink to ../target.md (for MkDocs)
 │
-├── user-guide/            ← End-user documentation (MkDocs onboarding)
+├── user-guide/            ← Category 1: User Documentation (Onboarding)
 │   ├── getting-started.md
 │   ├── accounts.md
 │   ├── journal-entries.md
@@ -20,91 +22,39 @@ docs/
 │   ├── reports.md
 │   └── ai-advisor.md
 │
-├── reference/             ← API reference (MkDocs onboarding)
+├── reference/             ← Category 1: API Reference
 │   ├── api-overview.md
 │   ├── api-accounts.md
 │   ├── api-journal.md
 │   ├── api-reconciliation.md
 │   └── api-chat.md
 │
-├── ssot/                  ← Technical Truth (Single Source of Truth)
-│   └── README.md          ← SSOT modification guide
+├── ssot/                  ← Category 2: Technical Truth (SSOT)
+│   └── README.md          ← SSOT index and modification guide
 │
-└── project/               ← EPIC tracking and project management
-    └── README.md          ← Project modification guide
+└── project/               ← Category 3: Project Tracking
+    └── README.md          ← EPIC index and modification guide
 ```
-
----
-
-## 📖 Reading Guide
-
-### For Different Purposes
-
-| You want to... | Read |
-|----------------|------|
-| **Understand project goals** | [target.md](target.md) — North Star, decision criteria |
-| **Learn how to use the app** | [user-guide/](user-guide/getting-started.md) or [live docs](https://wangzitian0.github.io/finance_report/) |
-| **Integrate with the API** | [reference/](reference/api-overview.md) |
-| **Understand technical decisions** | [ssot/](ssot/README.md) — Technical truth |
-| **Track project progress** | [project/](project/README.md) — EPIC tracking |
-| **Set up development environment** | [ssot/development.md](ssot/development.md) |
-
-### For New Developers (10-minute Overview)
-
-1. **[target.md](target.md)** — Macro goals and decision criteria
-2. **[ssot/development.md](ssot/development.md)** — Environment setup, moon commands
-3. **[ssot/schema.md](ssot/schema.md)** — Database models
-4. **[project/README.md](project/README.md)** — Current EPICs and status
-
-### Onboarding Content (MkDocs Generated)
-
-The following directories are **user-facing onboarding documentation**, generated and served by MkDocs:
-
-- **`user-guide/`** — End-user guides (Getting Started, Accounts, Journal Entries, etc.)
-- **`reference/`** — API reference documentation
-
-Live site: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/)
 
 ---
 
 ## 📝 How to Modify This Directory
 
-### Three-Track Documentation System
+### Before Adding New Files
 
-| Track | Directory | Purpose | Audience |
-|-------|-----------|---------|----------|
-| **Technical Truth** | `ssot/` | How things work (authoritative) | Developers |
-| **Project Tracking** | `project/` | What we're building (EPIC progress) | Team |
-| **User Onboarding** | `user-guide/`, `reference/` | How to use the app | End Users |
+1. **Determine the category**: Which of the 4 categories does this belong to?
+2. **Read the target directory's README**: Each subdirectory has its own guide
+3. **Follow naming conventions**: See the relevant README for patterns
 
 ### Content Placement Rules
 
 | Content Type | Location |
 |--------------|----------|
-| Technical rules & constraints | `ssot/*.md` |
-| Database models, API contracts | `ssot/schema.md`, `ssot/*.md` |
-| EPIC goals & acceptance criteria | `project/EPIC-XXX.<name>.md` |
-| EPIC implementation details | `project/EPIC-XXX.<name>-GENERATED.md` |
-| User-facing how-to guides | `user-guide/*.md` |
+| User-facing guides (how to use) | `user-guide/*.md` |
 | API endpoint documentation | `reference/*.md` |
-| Architectural decisions | `ssot/*.md` or `project/DECISIONS.md` |
-
-### Documentation Principles
-
-1. **SSOT is authoritative** — When code differs from SSOT, update SSOT immediately
-2. **Project tracks work** — EPICs document goals and progress, not implementation details
-3. **User guides are for users** — Keep technical details in SSOT
-4. **API reference stays in sync** — Update when endpoints change
-5. **No orphan files** — Every document belongs to a category
-
-### EPIC File Convention
-
-Each EPIC has **two files**:
-
-| File Type | Naming | Author | Content |
-|-----------|--------|--------|---------|
-| **Human Review** | `EPIC-XXX.<name>.md` | Human/PM | Goals, acceptance criteria, Q&A |
-| **Machine Generated** | `EPIC-XXX.<name>-GENERATED.md` | AI/Automation | Implementation details, test results |
+| Technical rules & constraints | `ssot/*.md` |
+| EPIC goals & progress | `project/EPIC-XXX.<name>.md` |
+| Implementation details | `project/EPIC-XXX.<name>-GENERATED.md` |
 
 ### MkDocs Workflow
 
@@ -112,39 +62,35 @@ Each EPIC has **two files**:
 # Install dependencies
 pip install -r docs/requirements.txt
 
-# Serve locally with live reload
+# Serve locally with live reload (http://127.0.0.1:8000)
 mkdocs serve
 
 # Build static site (output: site/)
 mkdocs build
 ```
 
-**If adding new pages**: Update `mkdocs.yml` nav section.
+**If adding new pages**: Update `mkdocs.yml` nav section in project root.
+
+---
+
+## 📁 Loose Files
+
+| File | Status | Notes |
+|------|--------|-------|
+| `index.md` | ✅ Correct | MkDocs homepage |
+| `target.md` | ✅ Correct | Symlink for MkDocs nav |
+| `deployment-architecture.md` | ⚠️ Legacy | Superseded by `ssot/deployment.md` |
+| `FX_RATE_SEEDING.md` | ⚠️ Legacy | Superseded by `ssot/market_data.md` |
 
 ---
 
 ## 🔗 Quick Links
 
 - [📖 Live Documentation Site](https://wangzitian0.github.io/finance_report/)
-- [🏠 Project Root README](../README.md)
+- [🏠 Project Root README](../README.md) — **Documentation system definition**
+- [🎯 target.md](../target.md) — North Star goals
 - [🤖 AGENTS.md](../AGENTS.md) — AI agent guidelines
-- [🎯 target.md](target.md) — North Star goals
 
 ---
 
-## 📁 Loose Files in docs/
-
-The following files exist at `docs/` root level:
-
-| File | Status | Notes |
-|------|--------|-------|
-| `target.md` | ✅ Correct | Root-level (North Star) |
-| `index.md` | ✅ Correct | MkDocs homepage |
-| `deployment-architecture.md` | ⚠️ Legacy | Content moved to `ssot/deployment.md` |
-| `FX_RATE_SEEDING.md` | ⚠️ Legacy | Content moved to `ssot/market_data.md` Section 10 |
-
-> **Note**: Legacy files are kept for reference but `ssot/` versions are authoritative.
-
----
-
-*This file serves as the modification guide for the `docs/` directory. For technical truth, see [ssot/README.md](ssot/README.md). For project tracking, see [project/README.md](project/README.md).*
+*This file is the guide for the `docs/` directory. Read before modify, keep consistent after.*

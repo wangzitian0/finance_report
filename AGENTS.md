@@ -16,32 +16,26 @@
 
 ---
 
-## 🧭 Wiki Entry Map (Level 0/1)
+## 🧭 Documentation System
 
-**Level 0 Entry**: `AGENTS.md` (you are here)
+> **Authoritative definition**: See [README.md § Documentation System](README.md#-documentation-system)
 
-**Level 1 Entries (by purpose)**
-1. **Global Project Overview** → [README.md](README.md)
-2. **Project Target (North Star)** → [target.md](target.md)
-3. **Technical Truth / SSOT** → [docs/ssot/README.md](docs/ssot/README.md)
-4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md)
+**4-Category System**:
 
-**Supplementary Entries**
-- **Agent Skills** → [.opencode/skills/](.opencode/skills/)
-- **Copilot Instructions** → [.github/copilot-instructions.md](.github/copilot-instructions.md)
+| # | Category | Location | Purpose |
+|---|----------|----------|---------|
+| **0** | Project Entry | Root (`README.md`, `target.md`, `AGENTS.md`) | Goals, intro, AI guidelines |
+| **1** | User Docs | `docs/user-guide/`, `docs/reference/` | Product usage, API |
+| **2** | SSOT | `docs/ssot/` | Technical truth, constraints |
+| **3** | Project | `docs/project/` | EPIC tracking |
 
-**Reading Order (10-minute overview)**
-1. [target.md](target.md) — Macro goals and decision criteria
-2. [README.md](README.md) — Tech stack, quick start commands
-3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [schema.md](docs/ssot/schema.md)
-4. [.opencode/oh-my-opencode.json](.opencode/oh-my-opencode.json) — Agent configurations
+**Quick Navigation**:
+- Business logic → [target.md](target.md)
+- Environment setup → [docs/ssot/development.md](docs/ssot/development.md)
+- Data models → [docs/ssot/schema.md](docs/ssot/schema.md)
+- Current work → [docs/project/README.md](docs/project/README.md)
 
-**Routing Rules (where to go when)**
-- Need to understand business logic → [target.md](target.md)
-- **Need environment setup / moon commands** → [docs/ssot/development.md](docs/ssot/development.md)
-- Need to write code → [.opencode/skills/](.opencode/skills/) + SSOT files
-- Need data model reference → [docs/ssot/](docs/ssot/)
-- Need to track current work → [docs/project/](docs/project/)
+**Meta Rule**: Every `README.md` is the guide for its directory. Read before modify, keep consistent after.
 
 ---
 
@@ -261,12 +255,13 @@ AI must use this cascade structure before processing tasks:
 
 ## 📁 Documentation Hierarchy
 
-| Category | Path | Purpose | Audience |
-|----------|------|---------|----------|
-| **Project EPIC** | `docs/project/` | Task tracking, milestones | AI / Maintainers |
-| **Module README** | Each `apps/*/README.md` | Directory intro, design guide | Developers |
-| **SSOT** | `docs/ssot/` | Technical truth, authoritative reference | Everyone |
-| **User Manual** | (planned) | User-facing guides | End Users |
+> **See [README.md § Documentation System](README.md#-documentation-system) for authoritative definition.**
+
+Key points:
+- **SSOT** (`docs/ssot/`) — Technical truth, authoritative reference
+- **Project** (`docs/project/`) — EPIC tracking, milestones
+- **User Docs** (`docs/user-guide/`, `docs/reference/`) — End-user onboarding
+- **Module READMEs** (each `apps/*/README.md`) — Directory intro, design guide
 
 ### MECE Document Organization
 

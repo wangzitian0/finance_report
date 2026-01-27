@@ -69,33 +69,61 @@ See [development.md](docs/ssot/development.md) for detailed workflows.
 User-scoped endpoints require an `X-User-Id` header (UUID). See
 [authentication.md](docs/ssot/authentication.md) for details.
 
-## 📚 Documentation
+## 📚 Documentation System
 
-| Resource | Description |
-|----------|-------------|
-| [📖 **Documentation Site**](https://wangzitian0.github.io/finance_report/) | **Complete documentation** — User guides, API reference, and technical docs |
-| [target.md](./target.md) | Project target and decision criteria |
-| [docs/ssot/](./docs/ssot/) | Technical SSOT (Single Source of Truth) |
-| [AGENTS.md](./AGENTS.md) | AI agent guidelines |
+This project uses a **4-category documentation system**. Each category serves a distinct purpose:
+
+| # | Category | Location | Purpose | Audience |
+|---|----------|----------|---------|----------|
+| **0** | **Project Entry** | Root directory | Project intro, goals, AI guidelines | Everyone |
+| **1** | **User Docs (Onboarding)** | `docs/user-guide/`, `docs/reference/` | Product usage, API reference | End Users |
+| **2** | **Technical Truth (SSOT)** | `docs/ssot/` | Core concepts, constraints, design decisions | Developers |
+| **3** | **Project Tracking** | `docs/project/` | EPIC progress, decisions | Team |
+
+### Category 0: Project Entry (Root Directory)
+
+| File | Purpose |
+|------|---------|
+| [README.md](./README.md) | Project overview, quick start, **documentation system definition** |
+| [target.md](./target.md) | North Star goals, decision criteria, acceptance standards |
+| [AGENTS.md](./AGENTS.md) | AI agent behavioral guidelines, red lines, coding standards |
+
+### Category 1: User Documentation (Onboarding)
+
+**Live Site**: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/)
+
+- [User Guide](./docs/user-guide/) — Getting started, accounts, journal entries, reconciliation
+- [API Reference](./docs/reference/) — REST API documentation
+
+### Category 2: Technical Truth (SSOT)
+
+**Entry Point**: [docs/ssot/README.md](./docs/ssot/README.md)
+
+Single Source of Truth for all technical and business concepts. Key documents:
+- [development.md](./docs/ssot/development.md) — Environment setup, moon commands
+- [schema.md](./docs/ssot/schema.md) — Database models, migrations
+- [accounting.md](./docs/ssot/accounting.md) — Double-entry bookkeeping rules
+- [reconciliation.md](./docs/ssot/reconciliation.md) — Matching algorithm, thresholds
+
+### Category 3: Project Tracking
+
+**Entry Point**: [docs/project/README.md](./docs/project/README.md)
+
+EPIC-based project management. Each feature has two files:
+- `EPIC-XXX.<name>.md` — Goals, acceptance criteria (human-authored)
+- `EPIC-XXX.<name>-GENERATED.md` — Implementation details (AI-generated)
+
+---
+
+### Meta Rule: Directory READMEs
+
+> **Every directory's `README.md` is the guide for that directory.**
+> - **Before modifying**: Read the README first
+> - **After modifying**: Keep README consistent with changes
+
+---
 
 > 💡 **Documentation is automatically deployed** to [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/) via GitHub Pages on every push to `main`.
-
-### Build Documentation Locally
-
-The project uses [MkDocs](https://www.mkdocs.org/) with Material theme for documentation:
-
-```bash
-# Install dependencies
-pip install -r docs/requirements.txt
-
-# Serve docs locally with live reload (http://127.0.0.1:8000)
-mkdocs serve
-
-# Build static site (output: site/)
-mkdocs build
-```
-
-The generated documentation is output to the `site/` directory.
 
 ## 🏗️ Architecture
 
