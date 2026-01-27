@@ -228,6 +228,43 @@ async def test_post_journal_entry_already_posted_fails(db: AsyncSession, bank_ac
 
 
 @pytest.mark.asyncio
+async def test_post_unbalanced_journal_entry_fails(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """Test that posting an unbalanced journal entry fails with ValidationError."""
+    # Create draft entry with unbalanced lines (debit 1000 != credit 500)
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Unbalanced entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    line1 = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=bank_account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("1000.00"),
+        currency="SGD",
+    )
+    line2 = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=salary_account.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("500.00"),  # Intentionally unbalanced
+        currency="SGD",
+    )
+    db.add(line1)
+    db.add(line2)
+    await db.commit()
+
+    # Try to post - should fail due to unbalanced entry
+    with pytest.raises(ValidationError, match="Journal entry not balanced"):
+        await post_journal_entry(db, entry.id, test_user_id)
+
+
+@pytest.mark.asyncio
 async def test_void_journal_entry_creates_reversal(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that voiding an entry creates a reversal entry."""
     # Create and post entry
