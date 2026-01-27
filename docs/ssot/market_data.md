@@ -195,8 +195,6 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 
 ---
 
----
-
 ## 10. FX Rate Seeding (Test Data)
 
 For testing FX gain/loss calculations, use the seeding script.
@@ -236,16 +234,12 @@ With test data:
 
 ### Verification
 
-```bash
-# Check database directly
+```sql
+-- Check database directly (via psql or DB client)
 SELECT base_currency, quote_currency, rate, rate_date 
 FROM fx_rates 
 WHERE rate_date = '2026-01-23' 
 ORDER BY base_currency, quote_currency;
-
-# Via API
-curl -H "X-User-Id: $USER_ID" \
-     "http://localhost:8000/api/v1/market-data/fx-rates?date=2026-01-23"
 ```
 
 ---

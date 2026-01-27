@@ -219,7 +219,7 @@ def test_many_lines_entry():
 - [x] `apps/frontend/src/app/(main)/accounts/page.tsx` - Account management
 - [x] `apps/frontend/src/app/(main)/journal/page.tsx` - Journal entries
 
-**Implementation Summary**: See [EPIC-002-IMPLEMENTATION.md](./EPIC-002-IMPLEMENTATION.md)
+**Implementation Summary**: See [EPIC-002-IMPLEMENTATION.md](./archive/EPIC-002-IMPLEMENTATION.md)
 
 ---
 
