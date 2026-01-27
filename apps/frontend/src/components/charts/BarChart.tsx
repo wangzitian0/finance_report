@@ -34,17 +34,17 @@ export function BarChart({
             <div key={item.label} className="flex flex-1 flex-col items-center gap-3">
               <div className="flex h-full w-full items-end justify-center gap-2">
                 <div
-                  className="w-3 rounded-full bg-emerald-400/80 shadow-[0_0_14px_rgba(16,185,129,0.35)]"
-                  style={{ height: incomeHeight }}
+                  className="w-3 rounded-full"
+                  style={{ height: incomeHeight, backgroundColor: "var(--success)", opacity: 0.8, boxShadow: "0 0 14px color-mix(in srgb, var(--success) 35%, transparent)" }}
                   title={`Income ${formatAmount(item.income, 0)}`}
                 />
                 <div
-                  className="w-3 rounded-full bg-rose-400/80 shadow-[0_0_14px_rgba(244,63,94,0.35)]"
-                  style={{ height: expenseHeight }}
+                  className="w-3 rounded-full"
+                  style={{ height: expenseHeight, backgroundColor: "var(--error)", opacity: 0.8, boxShadow: "0 0 14px color-mix(in srgb, var(--error) 35%, transparent)" }}
                   title={`Expense ${formatAmount(item.expense, 0)}`}
                 />
               </div>
-              <span className="text-xs text-slate-500">{item.label}</span>
+              <span className="text-xs text-[var(--foreground-muted)]">{item.label}</span>
             </div>
           );
         })}

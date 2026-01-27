@@ -24,6 +24,14 @@
   --error-muted: rgba(220, 38, 38, 0.1);
   --info: #2563eb;
   --info-muted: rgba(37, 99, 235, 0.1);
+  /* Chart palette */
+  --chart-1: #7c3aed;
+  --chart-2: #8b5cf6;
+  --chart-3: #a78bfa;
+  --chart-4: #c4b5fd;
+  --chart-5: #ddd6fe;
+  --chart-trend-start: #0f766e;
+  --chart-trend-end: #f59e0b;
 }
 
 /* Dark theme */
@@ -46,6 +54,13 @@
   --error-muted: rgba(239, 68, 68, 0.15);
   --info: #3b82f6;
   --info-muted: rgba(59, 130, 246, 0.15);
+  --chart-1: #8b5cf6;
+  --chart-2: #a78bfa;
+  --chart-3: #c4b5fd;
+  --chart-4: #ddd6fe;
+  --chart-5: #ede9fe;
+  --chart-trend-start: #14b8a6;
+  --chart-trend-end: #fbbf24;
 }
 
 * {

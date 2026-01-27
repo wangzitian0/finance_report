@@ -19,6 +19,8 @@ import {
   UnmatchedTransactionsResponse
 } from "@/lib/types";
 
+const CHART_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
+
 const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
 const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
@@ -32,11 +34,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const today = useMemo(() => new Date(), []);
-  const incomeStart = useMemo(() => formatDateInput(new Date(today.getFullYear(), today.getMonth() - 11, 1)), [today]);
-  const incomeEnd = useMemo(() => formatDateInput(today), [today]);
-
   const fetchData = useCallback(async () => {
+    const today = new Date();
+    const incomeStart = formatDateInput(new Date(today.getFullYear(), today.getMonth() - 11, 1));
+    const incomeEnd = formatDateInput(today);
     setLoading(true);
     try {
       const [balanceData, incomeData, statsData, unmatchedData, journalData] = await Promise.all([
@@ -57,7 +58,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [incomeEnd, incomeStart]);
+  }, []);
 
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet) return;
@@ -67,7 +68,8 @@ export default function DashboardPage() {
     try {
       const trendData = await apiFetch<TrendResponse>(`/api/reports/trend?account_id=${target.account_id}&period=monthly`);
       setTrend(trendData);
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch trend data:", err);
       setTrend(null);
     }
   }, [balanceSheet]);
@@ -80,8 +82,7 @@ export default function DashboardPage() {
   const incomeBars = useMemo(() => incomeStatement ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {
     if (!balanceSheet) return [];
-    const palette = ["#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe"];
-    return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: palette[i % palette.length] }));
+    return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: CHART_PALETTE[i % CHART_PALETTE.length] }));
   }, [balanceSheet]);
 
   if (loading) {
