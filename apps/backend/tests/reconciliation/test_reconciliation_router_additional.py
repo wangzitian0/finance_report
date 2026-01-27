@@ -217,7 +217,7 @@ async def test_list_matches_filters_by_status(db: AsyncSession, test_user) -> No
     from src.routers import reconciliation as reconciliation_router
 
     response = await reconciliation_router.list_matches(
-        status=ReconciliationStatusEnum.PENDING_REVIEW,
+        status_filter=ReconciliationStatusEnum.PENDING_REVIEW,
         limit=50,
         offset=0,
         db=db,

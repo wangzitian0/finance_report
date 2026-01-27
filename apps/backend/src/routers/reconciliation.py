@@ -3,12 +3,13 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
+from src.logger import get_logger
 from src.models import (
     BankStatement,
     BankStatementTransaction,
@@ -39,8 +40,10 @@ from src.services.review_queue import (
     get_pending_items,
     reject_match as reject_match_service,
 )
+from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
+logger = get_logger(__name__)
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
@@ -95,6 +98,11 @@ async def _load_entry_summaries(
             try:
                 entry_ids.add(UUID(entry_id))
             except ValueError:
+                logger.warning(
+                    "Invalid UUID in journal_entry_ids",
+                    match_id=str(match.id),
+                    invalid_entry_id=entry_id,
+                )
                 continue
 
     if not entry_ids:
@@ -115,7 +123,6 @@ async def run_reconciliation(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> ReconciliationRunResponse:
-    # Verify statement belongs to user if provided
     if payload.statement_id:
         stmt_result = await db.execute(
             select(BankStatement.id)
@@ -123,7 +130,7 @@ async def run_reconciliation(
             .where(BankStatement.user_id == user_id)
         )
         if not stmt_result.scalar_one_or_none():
-            raise HTTPException(status_code=404, detail="Statement not found")
+            raise_not_found("Statement")
 
     matches = await execute_matching(
         db,
@@ -158,7 +165,7 @@ async def run_reconciliation(
 
 @router.get("/matches", response_model=ReconciliationMatchListResponse)
 async def list_matches(
-    status: ReconciliationStatusEnum | None = Query(default=None),
+    status_filter: ReconciliationStatusEnum | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: DbSession = None,
@@ -171,8 +178,8 @@ async def list_matches(
         .where(BankStatement.user_id == user_id)
         .options(selectinload(ReconciliationMatch.transaction).selectinload(BankStatementTransaction.statement))
     )
-    if status:
-        query = query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
+    if status_filter:
+        query = query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
     query = query.order_by(ReconciliationMatch.created_at.desc()).limit(limit).offset(offset)
 
     result = await db.execute(query)
@@ -193,8 +200,8 @@ async def list_matches(
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
     )
-    if status:
-        total_query = total_query.where(ReconciliationMatch.status == ReconciliationStatus(status.value))
+    if status_filter:
+        total_query = total_query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
     total_result = await db.execute(total_query)
     total = total_result.scalar_one()
 
@@ -241,8 +248,11 @@ async def accept_match(
 ) -> ReconciliationMatchResponse:
     try:
         match = await accept_match_service(db, match_id, user_id=user_id)
+        await db.commit()
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        if "not found" in str(exc).lower():
+            raise_not_found("Match", cause=exc)
+        raise_bad_request(str(exc), cause=exc)
     await db.refresh(match, ["transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
@@ -261,8 +271,11 @@ async def reject_match(
 ) -> ReconciliationMatchResponse:
     try:
         match = await reject_match_service(db, match_id, user_id=user_id)
+        await db.commit()
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        if "not found" in str(exc).lower():
+            raise_not_found("Match", cause=exc)
+        raise_bad_request(str(exc), cause=exc)
     await db.refresh(match, ["transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
@@ -280,6 +293,7 @@ async def batch_accept(
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
+    await db.commit()
     if not matches:
         return ReconciliationMatchListResponse(items=[], total=0)
 
@@ -420,8 +434,9 @@ async def create_entry(
     )
     txn = result.scalar_one_or_none()
     if not txn:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise_not_found("Transaction")
     entry = await create_entry_from_txn(db, txn, user_id=user_id)
+    await db.commit()
     return _build_entry_summary(entry)
 
 
@@ -440,6 +455,6 @@ async def list_anomalies(
     )
     txn = result.scalar_one_or_none()
     if not txn:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise_not_found("Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     return [AnomalyResponse(**anomaly.__dict__) for anomaly in anomalies]

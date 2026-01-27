@@ -16,7 +16,7 @@ from src.routers.accounts import (
     update_account,
 )
 from src.routers.journal import (
-    create_journal_entry,
+    create_entry,
     get_journal_entry,
     list_journal_entries,
     post_entry,
@@ -39,15 +39,17 @@ async def test_account_router_direct(db: AsyncSession, test_user) -> None:
     )
     assert created.balance is not None
 
-    listed = await list_accounts(include_balance=False, db=db, user_id=user_id)
+    listed = await list_accounts(include_balance=False, limit=100, offset=0, db=db, user_id=user_id)
     assert listed.total >= 1
 
-    listed_with_balance = await list_accounts(include_balance=True, db=db, user_id=user_id)
+    listed_with_balance = await list_accounts(include_balance=True, limit=100, offset=0, db=db, user_id=user_id)
     assert listed_with_balance.items[0].balance is not None
 
     filtered = await list_accounts(
         account_type=AccountType.ASSET,
         is_active=True,
+        limit=100,
+        offset=0,
         db=db,
         user_id=user_id,
     )
@@ -114,7 +116,7 @@ async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
             ),
         ],
     )
-    created = await create_journal_entry(entry_data, db, user_id=user_id)
+    created = await create_entry(entry_data, db, user_id=user_id)
     assert created.status == JournalEntryStatus.DRAFT
 
     older_entry_data = JournalEntryCreate(
@@ -135,13 +137,13 @@ async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
             ),
         ],
     )
-    older = await create_journal_entry(older_entry_data, db, user_id=user_id)
+    older = await create_entry(older_entry_data, db, user_id=user_id)
 
     listed = await list_journal_entries(
         status_filter=JournalEntryStatus.DRAFT,
         start_date=date.today(),
-        page=1,
-        page_size=50,
+        limit=50,
+        offset=0,
         db=db,
         user_id=user_id,
     )
@@ -150,8 +152,8 @@ async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
 
     older_list = await list_journal_entries(
         end_date=older.entry_date,
-        page=1,
-        page_size=50,
+        limit=50,
+        offset=0,
         db=db,
         user_id=user_id,
     )

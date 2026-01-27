@@ -119,7 +119,7 @@ async def accept_match(
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
 
-    await db.commit()
+    await db.flush()
     return match
 
 
@@ -152,7 +152,7 @@ async def reject_match(
     if txn:
         txn.status = BankStatementTransactionStatus.UNMATCHED
 
-    await db.commit()
+    await db.flush()
     return match
 
 
@@ -225,7 +225,7 @@ async def batch_accept(
                 if entry and entry.status != JournalEntryStatus.VOID:
                     entry.status = JournalEntryStatus.RECONCILED
 
-    await db.commit()
+    await db.flush()
     return accepted
 
 
@@ -256,7 +256,7 @@ async def get_or_create_account(
         currency=currency,
     )
     db.add(account)
-    await db.commit()
+    await db.flush()
     await db.refresh(account)
     return account
 
@@ -354,6 +354,6 @@ async def create_entry_from_txn(
 
     txn.status = BankStatementTransactionStatus.PENDING
     db.add(entry)
-    await db.commit()
+    await db.flush()
     await db.refresh(entry, ["lines"])
     return entry
