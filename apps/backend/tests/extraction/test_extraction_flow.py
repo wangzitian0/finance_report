@@ -170,8 +170,8 @@ class TestExtractionServiceFlow:
             message_content = payload[0]["content"]
             media_part = message_content[1]
 
-            assert "data:application/pdf;base64," in media_part["image_url"]["url"]
-            assert media_part["image_url"]["url"].startswith("data:")
+            assert "data:application/pdf;base64," in media_part["file"]["file_data"]
+            assert media_part["type"] == "file"
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_valid_public_url(self, service):
@@ -189,7 +189,8 @@ class TestExtractionServiceFlow:
             call_args = mock_stream.call_args
             payload = call_args.kwargs["messages"]
             media_part = payload[0]["content"][1]
-            assert media_part["image_url"]["url"] == url
+            assert media_part["type"] == "file"
+            assert media_part["file"]["file_data"] == url
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_rejects_private_url(self, service):
