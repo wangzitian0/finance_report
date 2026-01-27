@@ -10,10 +10,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select, union
 
+from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import AccountType
+from src.models import AccountType, FxRate
 from src.schemas import (
     AccountTrendResponse,
     BalanceSheetResponse,
@@ -36,6 +38,23 @@ from src.utils import raise_bad_request
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
+
+
+@router.get("/currencies", response_model=list[str])
+async def get_available_currencies(
+    db: DbSession = None,
+) -> list[str]:
+    """Get list of currencies with FX data available."""
+    base_stmt = select(FxRate.base_currency).distinct()
+    quote_stmt = select(FxRate.quote_currency).distinct()
+    combined = union(base_stmt, quote_stmt).subquery()
+    result = await db.execute(select(combined.c.base_currency).order_by(combined.c.base_currency))
+    currencies = [row[0] for row in result.fetchall()]
+
+    if settings.base_currency not in currencies:
+        currencies = [settings.base_currency] + currencies
+
+    return currencies
 
 
 class ExportFormat(str, Enum):

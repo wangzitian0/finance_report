@@ -575,6 +575,28 @@ async def _get_pending_layer2_transactions(
     return result.scalars().all()
 
 
+async def _get_existing_active_match(
+    db: AsyncSession,
+    txn_id: UUID,
+    is_layer2: bool,
+) -> ReconciliationMatch | None:
+    """Get existing active (non-superseded) match for a transaction."""
+    if is_layer2:
+        query = select(ReconciliationMatch).where(
+            ReconciliationMatch.atomic_txn_id == txn_id,
+            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+    else:
+        query = select(ReconciliationMatch).where(
+            ReconciliationMatch.bank_txn_id == txn_id,
+            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
 async def execute_matching(
     db: AsyncSession,
     *,
@@ -697,6 +719,15 @@ async def execute_matching(
                 else ReconciliationStatus.PENDING_REVIEW
             )
             for txn in group:
+                existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
+                if existing_match:
+                    existing_je_ids = set(existing_match.journal_entry_ids or [])
+                    new_je_ids = set(best_candidate.journal_entry_ids or [])
+                    if existing_je_ids == new_je_ids:
+                        matched_txn_ids.add(txn.id)
+                        continue
+                    existing_match.status = ReconciliationStatus.SUPERSEDED
+
                 match_kwargs = {
                     "journal_entry_ids": best_candidate.journal_entry_ids,
                     "match_score": best_candidate.score,
@@ -710,6 +741,11 @@ async def execute_matching(
 
                 match = ReconciliationMatch(**match_kwargs)
                 db.add(match)
+
+                if existing_match:
+                    await db.flush()
+                    existing_match.superseded_by_id = match.id
+
                 matches.append(match)
                 matched_txn_ids.add(txn.id)
                 if status == ReconciliationStatus.AUTO_ACCEPTED:
@@ -794,6 +830,14 @@ async def execute_matching(
                 txn.status = BankStatementTransactionStatus.UNMATCHED
             continue
 
+        existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
+        if existing_match:
+            existing_je_ids = set(existing_match.journal_entry_ids or [])
+            new_je_ids = set(best_match.journal_entry_ids or [])
+            if existing_je_ids == new_je_ids:
+                continue
+            existing_match.status = ReconciliationStatus.SUPERSEDED
+
         status = (
             ReconciliationStatus.AUTO_ACCEPTED
             if best_match.score >= config.auto_accept
@@ -812,6 +856,11 @@ async def execute_matching(
 
         match = ReconciliationMatch(**match_kwargs)
         db.add(match)
+
+        if existing_match:
+            await db.flush()
+            existing_match.superseded_by_id = match.id
+
         matches.append(match)
 
         if status == ReconciliationStatus.AUTO_ACCEPTED:

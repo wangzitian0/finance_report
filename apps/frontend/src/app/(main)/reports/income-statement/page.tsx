@@ -7,6 +7,7 @@ import { API_URL, apiFetch } from "@/lib/api";
 import { BarChart } from "@/components/charts/BarChart";
 import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
+import { useCurrencies } from "@/hooks/useCurrencies";
 
 interface ReportLine {
   account_id: string;
@@ -73,6 +74,7 @@ export default function IncomeStatementPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { currencies } = useCurrencies();
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -132,7 +134,7 @@ export default function IncomeStatementPage() {
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Start date</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input w-auto" /></label>
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">End date</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto"><option value="SGD">SGD</option><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
+        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Account type</span><select value={accountTypeFilter} onChange={(e) => setAccountTypeFilter(e.target.value)} className="input w-auto">
           {ACCOUNT_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select></label>

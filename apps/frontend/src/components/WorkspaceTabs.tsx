@@ -110,7 +110,7 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
     return (
         <div
             className={`
-        group flex items-center gap-1.5 px-2.5 py-2 rounded-md
+        group flex items-center gap-1.5 px-3 py-2.5 rounded-md min-h-[44px]
         transition-colors cursor-pointer select-none text-sm
         ${isActive
                     ? "bg-[var(--accent-muted)] text-[var(--accent)]"
@@ -125,7 +125,7 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
             </Link>
             <button
                 onClick={(e) => { e.stopPropagation(); onClose(); }}
-                className={`p-1 -m-0.5 rounded hover:bg-[var(--background-muted)] transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                className={`p-2 -m-1 rounded hover:bg-[var(--background-muted)] transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                 aria-label={`Close ${tab.label} tab`}
             >
                 <X className="w-3 h-3" aria-hidden="true" />

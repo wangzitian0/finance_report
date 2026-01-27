@@ -43,4 +43,17 @@ class ReconcilePositionsResponse(BaseModel):
     skipped_assets: list[str] = Field(default_factory=list)
 
 
+class DepreciationResponse(BaseModel):
+    """Response for depreciation calculation."""
+
+    position_id: UUID
+    asset_identifier: str
+    period_depreciation: Annotated[Decimal, Field(decimal_places=2)]
+    accumulated_depreciation: Annotated[Decimal, Field(decimal_places=2)]
+    book_value: Annotated[Decimal, Field(decimal_places=2)]
+    method: str
+    useful_life_years: int
+    salvage_value: Annotated[Decimal, Field(decimal_places=2)]
+
+
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]
