@@ -257,6 +257,94 @@ class TestPromptGeneration:
         assert "MariBank" in prompt
 
 
+class TestMediaPayloadBuilder:
+    """Tests for _build_media_payload method."""
+
+    def setup_method(self):
+        from src.services.extraction import ExtractionService
+
+        self.service = ExtractionService()
+
+    def test_pdf_uses_file_type(self):
+        """Test that PDFs use OpenRouter 'file' type."""
+        data = "data:application/pdf;base64,JVBERi0xLjQ="
+        payload = self.service._build_media_payload("pdf", "application/pdf", data)
+
+        assert payload["type"] == "file"
+        assert "file" in payload
+        assert payload["file"]["filename"] == "statement.pdf"
+        assert payload["file"]["file_data"] == data
+
+    def test_png_uses_image_url_type(self):
+        """Test that PNG images use 'image_url' type."""
+        data = "data:image/png;base64,iVBORw0KGgo="
+        payload = self.service._build_media_payload("png", "image/png", data)
+
+        assert payload["type"] == "image_url"
+        assert "image_url" in payload
+        assert payload["image_url"]["url"] == data
+
+    def test_jpg_uses_image_url_type(self):
+        """Test that JPG images use 'image_url' type."""
+        data = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+        payload = self.service._build_media_payload("jpg", "image/jpeg", data)
+
+        assert payload["type"] == "image_url"
+        assert payload["image_url"]["url"] == data
+
+    def test_jpeg_uses_image_url_type(self):
+        """Test that JPEG images use 'image_url' type."""
+        data = "https://example.com/statement.jpeg"
+        payload = self.service._build_media_payload("jpeg", "image/jpeg", data)
+
+        assert payload["type"] == "image_url"
+        assert payload["image_url"]["url"] == data
+
+
+class TestInstitutionDetection:
+    """Tests for institution auto-detection in parse_document."""
+
+    def setup_method(self):
+        from src.services.extraction import ExtractionService
+
+        self.service = ExtractionService()
+
+    @pytest.mark.asyncio
+    async def test_csv_requires_institution(self):
+        """Test that CSV parsing raises error when institution is None."""
+        from src.services.extraction import ExtractionError
+
+        with pytest.raises(ExtractionError, match="Institution is required for CSV"):
+            await self.service.parse_document(
+                file_path=None,
+                institution=None,
+                user_id=uuid4(),
+                file_type="csv",
+                account_id=None,
+                file_content=b"date,amount\n2025-01-01,100",
+                file_hash=None,
+                file_url=None,
+                original_filename="test.csv",
+            )
+
+    @pytest.mark.asyncio
+    async def test_parse_document_accepts_none_institution_for_pdf(self):
+        """Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
+        with pytest.raises(Exception) as exc_info:
+            await self.service.parse_document(
+                file_path=None,
+                institution=None,
+                user_id=uuid4(),
+                file_type="pdf",
+                account_id=None,
+                file_content=b"fake pdf content",
+                file_hash=None,
+                file_url=None,
+                original_filename="test.pdf",
+            )
+        assert "Institution is required" not in str(exc_info.value)
+
+
 class TestExtractionServiceHelpers:
     """Tests for extraction service helper methods."""
 
