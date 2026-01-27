@@ -1,23 +1,29 @@
-# Financial Reporting SSOT
+# Financial Reporting (Source of Truth)
 
 > **SSOT Key**: `reporting`
-> **Core Definition**: Financial report generation logic, report types, and calculation rules.
+> **Purpose**: Financial report generation logic, report types, and calculation rules.
 
 ---
 
 ## 1. Source of Truth
 
-| Dimension | Physical Location (SSOT) | Description |
-|-----------|--------------------------|-------------|
-| **Report Logic** | `apps/backend/src/services/reporting.py` | Report generation |
-| **Report Templates** | `apps/frontend/src/app/reports/` | Report pages and layouts |
-| **Visual Components** | `apps/frontend/src/components/charts/` | Chart components |
+### Physical File Locations
+
+| File | Purpose |
+|------|---------|
+| `apps/backend/src/services/reporting.py` | Core report generation logic |
+| `apps/backend/src/services/reporting_snapshot.py` | Report caching and snapshots |
+| `apps/backend/src/routers/reports.py` | Report API endpoints |
+| `apps/frontend/app/(main)/reports/` | Report pages and layouts |
+| `apps/frontend/components/charts/` | Chart components |
 
 ---
 
-## 2. Report Types
+## 2. Architecture Model
 
-### 2.1 Balance Sheet (Statement of Financial Position)
+### Report Types
+
+#### Balance Sheet (Statement of Financial Position)
 
 Shows assets, liabilities, and equity at a specific point in time.
 
@@ -53,7 +59,7 @@ Shows assets, liabilities, and equity at a specific point in time.
 
 **Validation**: `Total Assets = Total Liabilities + Total Equity`
 
-### 2.2 Income Statement (Profit & Loss)
+#### Income Statement (Profit & Loss)
 
 Shows income and expenses over a period.
 
@@ -79,7 +85,7 @@ Shows income and expenses over a period.
 └─────────────────────────────────────────────┘
 ```
 
-### 2.3 Cash Flow Statement
+#### Cash Flow Statement
 
 Shows cash movements by category.
 
@@ -109,14 +115,14 @@ Shows cash movements by category.
 └─────────────────────────────────────────────┘
 ```
 
----
+### Multi-Currency Consolidation
 
-## 3. Multi-Currency Consolidation
+#### Base Currency
 
-### Base Currency
 Reports are generated in a single base currency (user configurable, default: SGD).
 
-### FX Rate Application
+#### FX Rate Application
+
 - Use **period-end rate** for balance sheet items
 - Use **average rate** for income statement items
 - Record unrealized FX gains/losses separately
@@ -129,24 +135,103 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
     return (amount * rate).quantize(Decimal("0.01"))
 ```
 
----
+### API Endpoints
 
-## 4. Design Constraints
-
-### ✅ Recommended Patterns
-- **Pattern A**: Report generation is read-only, never modifies ledger
-- **Pattern B**: Always validate accounting equation before rendering
-- **Pattern C**: Cache report results with date-based invalidation
-- **Pattern D (Performance)**: Pre-fetch all necessary FX rates in bulk before starting report calculation to avoid N+1 queries.
-- **Pattern E (Reliability)**: Cap trend data points at 366 (one year of daily data) to prevent memory issues with unbounded queries.
-
-### ⛔ Prohibited Patterns
-- **Anti-pattern A**: **NEVER** hardcode account codes in report logic
-- **Anti-pattern B**: **NEVER** generate reports without FX rate data
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/reports/balance-sheet` | Balance sheet as of date |
+| GET | `/api/reports/income-statement` | Income statement for period |
+| GET | `/api/reports/cash-flow` | Cash flow statement for period |
+| GET | `/api/reports/trend` | Account balance trend over time |
+| GET | `/api/reports/category-breakdown` | Breakdown by category |
 
 ---
 
-## 5. Verification
+## 3. Design Constraints
+
+### Recommended Patterns
+
+| Pattern | Description |
+|---------|-------------|
+| **Read-Only** | Report generation never modifies ledger |
+| **Equation Validation** | Always validate accounting equation before rendering |
+| **Date-Based Cache** | Cache report results with date-based invalidation |
+| **Bulk FX Fetch** | Pre-fetch all necessary FX rates in bulk to avoid N+1 queries |
+| **Trend Data Cap** | Cap trend data points at 366 (one year daily) to prevent memory issues |
+
+### Hard Rules
+
+| Rule | Description |
+|------|-------------|
+| **No Hardcoded Codes** | **NEVER** hardcode account codes in report logic |
+| **FX Required** | **NEVER** generate reports without FX rate data |
+| **Decimal Precision** | All amounts use `Decimal` with 2 decimal places |
+| **Equation Must Hold** | Balance sheet must satisfy `Assets = Liabilities + Equity` |
+
+### Prohibited Patterns
+
+- Hardcoding account codes in report logic
+- Generating reports without FX rate data for multi-currency accounts
+- Using `float` for monetary calculations
+
+---
+
+## 4. Playbooks (SOP)
+
+### Generate Balance Sheet
+
+```bash
+# API call for balance sheet as of specific date
+curl "http://localhost:8000/api/reports/balance-sheet?as_of=2026-01-27" \
+  -H "X-User-Id: <user-uuid>"
+```
+
+### Generate Income Statement
+
+```bash
+# API call for income statement over period
+curl "http://localhost:8000/api/reports/income-statement?start_date=2026-01-01&end_date=2026-01-31" \
+  -H "X-User-Id: <user-uuid>"
+```
+
+### Generate Account Trend
+
+```bash
+# Get monthly trend for an account
+curl "http://localhost:8000/api/reports/trend?account_id=<account-uuid>&period=monthly&start_date=2025-01-01&end_date=2026-01-01" \
+  -H "X-User-Id: <user-uuid>"
+```
+
+### Filter by Tags
+
+```bash
+# Income statement filtered by tags
+curl "http://localhost:8000/api/reports/income-statement?start_date=2026-01-01&end_date=2026-01-31&tags=business,travel" \
+  -H "X-User-Id: <user-uuid>"
+```
+
+### Debugging Report Issues
+
+1. **Balance Sheet Doesn't Balance**
+   - Check for orphaned journal lines
+   - Verify all entries have balanced debits/credits
+   - Run accounting equation check
+
+2. **Missing FX Rates**
+   - Check `fx_rates` table for required currency pairs and dates
+   - Verify FX sync job is running
+   - Use fallback rate if historical rate unavailable
+
+3. **Trend Data Empty**
+   - Verify journal entries exist in the date range
+   - Check account_id is valid
+   - Ensure period parameter is valid (daily, weekly, monthly, quarterly)
+
+---
+
+## 5. Verification (The Proof)
+
+### Test Coverage
 
 | Behavior | Test Method | Status |
 |----------|-------------|--------|
@@ -159,9 +244,45 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 | Tag filtering | `test_income_statement_with_tags_filter` | ✅ Implemented |
 | Account type filtering | `test_income_statement_with_account_type_filter` | ✅ Implemented |
 
+### Run Report Tests
+
+```bash
+# Run all reporting tests
+moon run backend:test -- -k reporting
+
+# Run with coverage
+moon run backend:test -- -k reporting --cov=src/services/reporting
+```
+
+### API Verification
+
+```bash
+# Verify balance sheet endpoint
+curl -s "http://localhost:8000/api/reports/balance-sheet" \
+  -H "X-User-Id: <user-uuid>" | jq '.total_assets, .total_liabilities_equity'
+
+# Expected: total_assets == total_liabilities_equity
+```
+
+### Equation Check
+
+```bash
+# Quick balance check via Python
+uv run python -c "
+from src.services.reporting import validate_accounting_equation
+result = validate_accounting_equation(user_id='<user-uuid>')
+print('Equation valid:', result)
+"
+```
+
 ---
 
 ## Used by
 
-- [schema.md](./schema.md)
-- [accounting.md](./accounting.md)
+- [schema.md](./schema.md) — Database models for accounts and journal entries
+- [accounting.md](./accounting.md) — Double-entry bookkeeping rules
+- [market_data.md](./market_data.md) — FX rates for multi-currency consolidation
+
+---
+
+*Last updated: 2026-01-27*

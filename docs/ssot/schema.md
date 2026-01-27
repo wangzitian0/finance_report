@@ -1,23 +1,27 @@
-# Database Schema SSOT
+# Database Schema (Source of Truth)
 
 > **SSOT Key**: `schema`
-> **Core Definition**: PostgreSQL core table structures and relationships.
+> **Purpose**: PostgreSQL core table structures, relationships, and migration patterns.
 
 ---
 
 ## 1. Source of Truth
 
-| Dimension | Physical Location (SSOT) | Description |
-|-----------|--------------------------|-------------|
-| **Model Definition** | `apps/backend/src/models/` | SQLAlchemy ORM |
-| **Migrations** | `apps/backend/migrations/` | Alembic |
-| **Schema Validation** | `apps/backend/src/schemas/` | Pydantic |
+### Physical File Locations
+
+| File | Purpose |
+|------|---------|
+| `apps/backend/src/models/` | SQLAlchemy ORM models |
+| `apps/backend/migrations/` | Alembic migration files |
+| `apps/backend/src/schemas/` | Pydantic validation schemas |
 
 > **Note**: Local dev currently calls `init_db()` to create tables; production should apply Alembic migrations.
 
 ---
 
-## 2. ER Model
+## 2. Architecture Model
+
+### ER Diagram
 
 ```mermaid
 erDiagram
@@ -204,12 +208,9 @@ erDiagram
     }
 ```
 
----
+### Core Tables
 
-## 3. Core Table Specifications
-
-### Users
-User table, supports single-user scenario.
+#### Users
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -219,8 +220,7 @@ User table, supports single-user scenario.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-### Accounts
-Chart of accounts table, five types.
+#### Accounts
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -236,8 +236,7 @@ Chart of accounts table, five types.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-### JournalEntries
-Journal entry header table.
+#### JournalEntries
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -253,8 +252,7 @@ Journal entry header table.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-### JournalLines
-Journal entry line table.
+#### JournalLines
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -268,35 +266,12 @@ Journal entry line table.
 | event_type | VARCHAR(100) | | Event type |
 | tags | JSONB | | Tags |
 
-### ChatSessions
-Chat session header table.
+**Constraints**:
+- Each JournalEntry must have at least 2 JournalLines
+- `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
+- `JournalLine.amount > 0` (positive_amount check)
 
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| title | VARCHAR(200) | | Optional session title |
-| status | ENUM | NOT NULL | active/deleted |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-| last_active_at | TIMESTAMP | | Last message activity |
-
-### ChatMessages
-Individual chat messages.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| session_id | UUID | FK -> ChatSessions, NOT NULL | Parent session |
-| role | ENUM | NOT NULL | user/assistant/system |
-| content | TEXT | NOT NULL | Message content |
-| tokens_in | INTEGER | | Estimated prompt tokens |
-| tokens_out | INTEGER | | Estimated completion tokens |
-| model_name | VARCHAR(100) | | Model identifier |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-
-### BankStatements
-Statement header table for imported statements.
+#### BankStatements
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -308,23 +283,21 @@ Statement header table for imported statements.
 | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
 | institution | VARCHAR(100) | NOT NULL | Bank/broker name |
 | account_last4 | VARCHAR(4) | | Last 4 digits |
-| currency | CHAR(3) |  | Currency (nullable while parsing) |
-| period_start | DATE |  | Statement start (nullable while parsing) |
-| period_end | DATE |  | Statement end (nullable while parsing) |
-| opening_balance | DECIMAL(18,2) |  | Opening balance (nullable while parsing) |
-| closing_balance | DECIMAL(18,2) |  | Closing balance (nullable while parsing) |
+| currency | CHAR(3) | | Currency (nullable while parsing) |
+| period_start | DATE | | Statement start (nullable while parsing) |
+| period_end | DATE | | Statement end (nullable while parsing) |
+| opening_balance | DECIMAL(18,2) | | Opening balance (nullable while parsing) |
+| closing_balance | DECIMAL(18,2) | | Closing balance (nullable while parsing) |
 | status | ENUM | NOT NULL | uploaded/parsing/parsed/approved/rejected |
-| confidence_score | INT |  | Extraction confidence (nullable while parsing) |
-| balance_validated | BOOLEAN |  | Balance check result (nullable while parsing) |
+| confidence_score | INT | | Extraction confidence (nullable while parsing) |
+| balance_validated | BOOLEAN | | Balance check result (nullable while parsing) |
 | validation_error | TEXT | | Validation notes |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-**Constraints**:
-- `(user_id, file_hash)` unique to prevent duplicate imports
+**Constraints**: `(user_id, file_hash)` unique to prevent duplicate imports
 
-### BankStatementTransactions
-Statement transaction table (reconciliation input).
+#### BankStatementTransactions
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -342,8 +315,7 @@ Statement transaction table (reconciliation input).
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-### ReconciliationMatches
-Reconciliation match table.
+#### ReconciliationMatches
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
@@ -358,116 +330,97 @@ Reconciliation match table.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-**Constraints**:
-- Each JournalEntry must have at least 2 JournalLines
-    - `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
-    - `JournalLine.amount > 0` (positive_amount check)
+#### ChatSessions & ChatMessages
 
-    ### Layer 1: UploadedDocuments (EPIC-011)
-    Immutable registry of all raw uploaded files.
+**ChatSessions**
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | file_path | VARCHAR(500) | NOT NULL | MinIO/S3 object key |
-    | file_hash | VARCHAR(64) | NOT NULL | SHA256 (User + Hash unique) |
-    | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
-    | document_type | ENUM | NOT NULL | bank_statement/brokerage_statement/esop_grant/property_appraisal |
-    | status | ENUM | NOT NULL | uploaded/processing/completed/failed |
-    | extraction_metadata | JSONB | | AI logs, confidence scores |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| title | VARCHAR(200) | | Optional session title |
+| status | ENUM | NOT NULL | active/deleted |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
+| last_active_at | TIMESTAMP | | Last message activity |
 
-    **Constraints**:
-    - `(user_id, file_hash)` unique to prevent duplicate uploads
+**ChatMessages**
 
-    ### Layer 2: AtomicTransactions (EPIC-011)
-    Deduplicated, immutable financial events from any source.
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| session_id | UUID | FK -> ChatSessions, NOT NULL | Parent session |
+| role | ENUM | NOT NULL | user/assistant/system |
+| content | TEXT | NOT NULL | Message content |
+| tokens_in | INTEGER | | Estimated prompt tokens |
+| tokens_out | INTEGER | | Estimated completion tokens |
+| model_name | VARCHAR(100) | | Model identifier |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | txn_date | DATE | NOT NULL | Transaction date |
-    | amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
-    | direction | ENUM | NOT NULL | IN/OUT |
-    | description | TEXT | NOT NULL | Description |
-    | reference | VARCHAR(100) | | Reference ID |
-    | currency | CHAR(3) | NOT NULL | Currency code |
-    | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
-    | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+### Layer 1 & 2 Tables (EPIC-011)
 
-    **Constraints**:
-    - `(user_id, dedup_hash)` unique
-    - Append-only `source_documents` array
+#### UploadedDocuments (Layer 1)
 
-    ### Layer 2: AtomicPositions (EPIC-011)
-    Deduplicated, immutable asset snapshots.
+Immutable registry of all raw uploaded files.
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | snapshot_date | DATE | NOT NULL | Snapshot date |
-    | asset_identifier | VARCHAR(255) | NOT NULL | Ticker/ISIN/Address |
-    | broker | VARCHAR(100) | | Broker/Custodian name |
-    | quantity | DECIMAL(18,6) | NOT NULL | Units held |
-    | market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
-    | currency | CHAR(3) | NOT NULL | Currency code |
-    | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
-    | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| file_path | VARCHAR(500) | NOT NULL | MinIO/S3 object key |
+| file_hash | VARCHAR(64) | NOT NULL | SHA256 (User + Hash unique) |
+| original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
+| document_type | ENUM | NOT NULL | bank_statement/brokerage_statement/esop_grant/property_appraisal |
+| status | ENUM | NOT NULL | uploaded/processing/completed/failed |
+| extraction_metadata | JSONB | | AI logs, confidence scores |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-    **Constraints**:
-    - `(user_id, dedup_hash)` unique
+**Constraints**: `(user_id, file_hash)` unique to prevent duplicate uploads
 
-    ---
+#### AtomicTransactions (Layer 2)
 
-    ## 4. Design Constraints (Dos & Don'ts)
+Deduplicated, immutable financial events from any source.
 
-### Naming Conventions
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| txn_date | DATE | NOT NULL | Transaction date |
+| amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
+| direction | ENUM | NOT NULL | IN/OUT |
+| description | TEXT | NOT NULL | Description |
+| reference | VARCHAR(100) | | Reference ID |
+| currency | CHAR(3) | NOT NULL | Currency code |
+| dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
+| source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-- **Explicit Enums**: **ALWAYS** provide a `name` parameter to SQLAlchemy `Enum` types (e.g., `Enum(MyEnum, name="my_enum_type")`). This prevents SQLAlchemy from generating inconsistent default names (like `myenum`) which conflict with Alembic migrations and cause `UndefinedFunctionError` in Postgres.
-- **Migration Length**: Keep Alembic migration descriptions concise. File names exceeding 100 characters may fail on certain file systems or Docker volumes.
-- **Migration Revision ID**: Must be manually set to a short string (max 12 chars) if auto-generated IDs are too long or collide.
+**Constraints**: `(user_id, dedup_hash)` unique; Append-only `source_documents` array
 
-### Migration Guardrails (Automated Checks)
+#### AtomicPositions (Layer 2)
 
-CI pipelines enforce the following rules via `tests/test_schema_guardrails.py`:
+Deduplicated, immutable asset snapshots.
 
-1.  **Strict Enum Naming**: All `sa.Enum` fields in models MUST have `name="..."` explicitly defined.
-    -   ❌ Bad: `sa.Column(sa.Enum(Status))` -> Postgres type: `status` (implicit)
-    -   ✅ Good: `sa.Column(sa.Enum(Status, name="journal_entry_status"))` -> Postgres type: `journal_entry_status`
-2.  **Revision ID Length**: Alembic revision file names must not have insanely long prefixes.
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| snapshot_date | DATE | NOT NULL | Snapshot date |
+| asset_identifier | VARCHAR(255) | NOT NULL | Ticker/ISIN/Address |
+| broker | VARCHAR(100) | | Broker/Custodian name |
+| quantity | DECIMAL(18,6) | NOT NULL | Units held |
+| market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
+| currency | CHAR(3) | NOT NULL | Currency code |
+| dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
+| source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-### Async Session Management
+**Constraints**: `(user_id, dedup_hash)` unique
 
-To prevent connection leaks and data race conditions:
-
-1.  **Dependency Injection**: Use the `get_db` FastAPI dependency for routers.
-2.  **Transaction Boundary**:
-    *   Routers should handle the high-level transaction (commit/rollback).
-    *   Services should use `flush()` if they need to generate IDs, but avoid `commit()` unless they are designed as a "Closed Loop" transaction.
-3.  **No Leaks**: Ensure every session is closed (handled by `get_db` generator).
-
-### Recommended Patterns
-
-- **Pattern A**: Use `DECIMAL(18,2)` for amounts, avoid float precision issues
-- **Pattern B**: Use `created_at`/`updated_at` audit fields on mutable records
-- **Pattern C**: Use UUID primary keys for distributed compatibility
-
-### Prohibited Patterns
-
-- **Anti-pattern A**: **NEVER** use FLOAT to store monetary amounts
-- **Anti-pattern B**: **NEVER** directly delete posted entries, only void
-
----
-
-## 5. Index Strategy
+### Index Strategy
 
 ```sql
 -- User query optimization
@@ -501,103 +454,188 @@ CREATE INDEX idx_atomic_positions_date ON atomic_positions(snapshot_date);
 
 ---
 
-## Used by
+## 3. Design Constraints
 
-- [AGENTS.md](../../AGENTS.md)
-- [accounting.md](./accounting.md)
+### Naming Conventions
+
+| Rule | Description |
+|------|-------------|
+| **Explicit Enums** | **ALWAYS** provide a `name` parameter to SQLAlchemy `Enum` types |
+| **Migration Length** | Keep Alembic migration descriptions concise (< 100 chars) |
+| **Revision ID** | Must be manually set to short string (max 12 chars) if auto-generated IDs collide |
+
+**Enum Example**:
+```python
+# ✅ Good
+status = sa.Column(sa.Enum(Status, name="journal_entry_status"))
+
+# ❌ Bad - Implicit name causes migration issues
+status = sa.Column(sa.Enum(Status))
+```
+
+### Async Session Management
+
+| Rule | Description |
+|------|-------------|
+| **Dependency Injection** | Use the `get_db` FastAPI dependency for routers |
+| **Transaction Boundary** | Routers handle commit/rollback; Services use `flush()` for ID generation |
+| **No Leaks** | Every session is closed (handled by `get_db` generator) |
+
+### Hard Rules
+
+| Rule | Description |
+|------|-------------|
+| **No FLOAT for Money** | **NEVER** use FLOAT to store monetary amounts — use `DECIMAL(18,2)` |
+| **No Direct Deletes** | **NEVER** directly delete posted entries — only void |
+| **UUID Primary Keys** | Use UUID primary keys for distributed compatibility |
+| **Audit Fields** | Use `created_at`/`updated_at` on mutable records |
+
+### Migration Guardrails (Automated)
+
+CI pipelines enforce via `tests/test_schema_guardrails.py`:
+
+1. **Strict Enum Naming**: All `sa.Enum` fields must have `name="..."` explicitly defined
+2. **Revision ID Length**: Alembic revision file names must not have excessively long prefixes
 
 ---
 
-## 7. API Layer (Assets)
+## 4. Playbooks (SOP)
 
-Asset management endpoints for tracking managed positions reconciled from atomic snapshots.
+### Create a New Migration
 
-### Endpoints
+```bash
+# Generate migration
+cd apps/backend
+alembic revision --autogenerate -m "add_new_table"
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/assets/positions` | List managed positions with optional status filter |
-| GET | `/api/assets/positions/{position_id}` | Get single position by ID |
-| POST | `/api/assets/reconcile` | Trigger position reconciliation from atomic snapshots |
+# Review generated migration
+cat migrations/versions/*_add_new_table.py
 
-### Query Parameters
-
-**List Positions Filter**
-| Parameter | Type | Default | Values | Description |
-|-----------|------|---------|--------|-------------|
-| status | string | (all) | `active`, `disposed` | Filter by position status |
-
-### Request/Response Schemas
-
-**ManagedPositionResponse**
-```json
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "account_id": "uuid",
-  "asset_identifier": "AAPL",
-  "quantity": "100.000000",
-  "cost_basis": "15000.00",
-  "acquisition_date": "2024-01-15",
-  "disposal_date": null,
-  "status": "active",
-  "currency": "USD",
-  "position_metadata": {"broker": "Moomoo"},
-  "created_at": "2026-01-12T00:00:00Z",
-  "updated_at": "2026-01-12T00:00:00Z",
-  "account_name": "Moomoo Brokerage"
-}
+# Apply migration
+alembic upgrade head
 ```
 
-**ManagedPositionListResponse (paginated)**
-```json
-{
-  "items": [...],
-  "total": 10
-}
+### Add a New Table
+
+1. Create model in `src/models/new_model.py`
+2. Add to `src/models/__init__.py`
+3. Generate migration
+4. Apply migration
+
+```python
+# src/models/new_model.py
+from sqlalchemy import Column, String, Enum
+from src.models.base import Base
+import uuid
+from sqlalchemy.dialects.postgresql import UUID
+
+class NewModel(Base):
+    __tablename__ = "new_models"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    status = Column(Enum("active", "inactive", name="new_model_status"), nullable=False)
 ```
 
-**ReconcilePositionsResponse**
-```json
-{
-  "message": "Reconciled 5 positions from atomic snapshots",
-  "reconciled_count": 5
-}
+### Add a New Enum Field
+
+```python
+# ALWAYS use explicit name parameter
+from enum import Enum as PyEnum
+
+class MyStatus(str, PyEnum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+# In model
+status = Column(
+    sa.Enum(MyStatus, name="my_status_enum"),  # ← Explicit name REQUIRED
+    nullable=False
+)
 ```
 
-### Reconciliation Logic
+### Check Migration Status
 
-The `POST /api/assets/reconcile` endpoint:
+```bash
+# View current revision
+alembic current
 
-1. **Fetches latest atomic snapshots** - Uses window function to get most recent `AtomicPosition` per `(asset_identifier, broker)` pair
-2. **Upserts managed positions** - Creates new `ManagedPosition` or updates existing based on `(user_id, account_id, asset_identifier)`
-3. **Handles disposals** - If an existing position has no matching atomic snapshot, marks it as `disposed`
-4. **Reactivates disposed positions** - If a disposed position has a matching atomic snapshot, reactivates it
+# View migration history
+alembic history
 
-**Key Design Decision**: `cost_basis` uses `market_value` from `AtomicPosition` as a proxy. True cost basis calculation requires lot tracking (FIFO/LIFO) which is out of scope for P0.
+# Check pending migrations
+alembic heads
+```
 
-### Implementation
+### Rollback Migration
 
-| Dimension | Location |
-|-----------|----------|
-| Router | `apps/backend/src/routers/assets.py` |
-| Schemas | `apps/backend/src/schemas/assets.py` |
-| Service | `apps/backend/src/services/assets.py` |
-| Model | `apps/backend/src/models/managed_position.py` |
+```bash
+# Rollback one step
+alembic downgrade -1
 
-### Related Tables
-
-- `atomic_positions` (Layer 2) - Source of truth for position snapshots
-- `managed_positions` (Layer 3) - Calculated positions from reconciliation
-- `accounts` - Optional link to brokerage account
+# Rollback to specific revision
+alembic downgrade <revision_id>
+```
 
 ---
 
-## 6. API Layer (Users)
+## 5. Verification (The Proof)
 
-Users API endpoints for user management.
+### Run Schema Tests
 
-### Endpoints
+```bash
+# Run all schema/model tests
+moon run backend:test -- -k schema
+
+# Run guardrail tests specifically
+moon run backend:test -- -k test_schema_guardrails
+```
+
+### Verify Enum Naming
+
+```bash
+# Check all enums have explicit names
+grep -r "sa.Enum" apps/backend/src/models/ | grep -v "name="
+# Expected: No output (all enums should have name=)
+```
+
+### Verify Migration Applies Cleanly
+
+```bash
+# Fresh database with all migrations
+cd apps/backend
+alembic downgrade base
+alembic upgrade head
+```
+
+### Check Table Structure
+
+```bash
+# Connect to database and inspect
+psql $DATABASE_URL -c "\d+ accounts"
+psql $DATABASE_URL -c "\d+ journal_entries"
+```
+
+### Verify Constraints
+
+```sql
+-- Check journal balance constraint
+SELECT je.id, 
+       SUM(CASE WHEN jl.direction = 'DEBIT' THEN jl.amount ELSE 0 END) as debits,
+       SUM(CASE WHEN jl.direction = 'CREDIT' THEN jl.amount ELSE 0 END) as credits
+FROM journal_entries je
+JOIN journal_lines jl ON je.id = jl.journal_entry_id
+GROUP BY je.id
+HAVING SUM(CASE WHEN jl.direction = 'DEBIT' THEN jl.amount ELSE 0 END) !=
+       SUM(CASE WHEN jl.direction = 'CREDIT' THEN jl.amount ELSE 0 END);
+-- Expected: No rows (all entries balanced)
+```
+
+---
+
+## 6. API Layer Reference
+
+### Users API
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -606,52 +644,25 @@ Users API endpoints for user management.
 | GET | `/api/users/{user_id}` | Get user by ID |
 | PUT | `/api/users/{user_id}` | Update user |
 
-### Query Parameters
+### Assets API
 
-**List Users Pagination**
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| limit | int | 50 | 1-100 | Max items to return |
-| offset | int | 0 | >=0 | Number of items to skip |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/assets/positions` | List managed positions |
+| GET | `/api/assets/positions/{position_id}` | Get single position |
+| POST | `/api/assets/reconcile` | Trigger position reconciliation |
 
-### Request/Response Schemas
+See [assets.md](./assets.md) for detailed asset management documentation.
 
-**UserCreate**
-```json
-{
-  "email": "user@example.com",
-  "password": "securepassword123"
-}
-```
+---
 
-**UserResponse**
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "created_at": "2026-01-12T00:00:00Z",
-  "updated_at": "2026-01-12T00:00:00Z"
-}
-```
+## Used by
 
-**UserListResponse (paginated)**
-```json
-{
-  "items": [...],
-  "total": 100
-}
-```
+- [AGENTS.md](../../AGENTS.md) — Agent behavioral guidelines
+- [accounting.md](./accounting.md) — Double-entry bookkeeping rules
+- [extraction.md](./extraction.md) — Statement parsing models
+- [reconciliation.md](./reconciliation.md) — Matching engine models
 
-### Security Considerations
+---
 
-- **User Enumeration Prevention**: Error messages are generic ("Invalid registration data") to prevent email enumeration
-- **Email Validation**: Uses `EmailStr` for format validation
-- **Password Storage**: Passwords are hashed with bcrypt before storage
-
-### Implementation
-
-| Dimension | Location |
-|-----------|----------|
-| Router | `apps/backend/src/routers/users.py` |
-| Schemas | `apps/backend/src/schemas/user.py` |
-| Model | `apps/backend/src/models/user.py` |
+*Last updated: 2026-01-27*

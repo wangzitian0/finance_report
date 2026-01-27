@@ -82,25 +82,42 @@ nav:
   - Technical Docs:
       - Architecture: ssot/README.md
       - Accounting Model: ssot/accounting.md
+      - Asset Management: ssot/assets.md
       - Reconciliation Engine: ssot/reconciliation.md
       - Statement Extraction: ssot/extraction.md
       - Reporting: ssot/reporting.md
-      - AI Advisor: ssot/ai_advisor.md
+      - AI Advisor: ssot/ai.md
       - Database Schema: ssot/schema.md
+      - Market Data: ssot/market_data.md
+      - Deployment: ssot/deployment.md
       - Observability: ssot/observability.md
       - Development Guide: ssot/development.md
   - Development:
       - Project Overview: project/README.md
-      - Audit & Roadmap: README.md
       - Design Decisions: project/DECISIONS.md
+      - Audit Reports:
+          - "Audit 2026-01-13": project/AUDIT-20260113.md
       - EPICs:
-          - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md
-          - "EPIC-002: Double-Entry": project/EPIC-002.double-entry-core.md
-          - "EPIC-003: Statement Parsing": project/EPIC-003.statement-parsing.md
-          - "EPIC-004: Reconciliation": project/EPIC-004.reconciliation-engine.md
+          - "EPIC-001: Setup":
+              - Overview: project/EPIC-001.phase0-setup.md
+              - Implementation Details: project/EPIC-001.phase0-setup-GENERATED.md
+          - "EPIC-002: Double-Entry":
+              - Overview: project/EPIC-002.double-entry-core.md
+              - Implementation Details: project/EPIC-002.double-entry-core-GENERATED.md
+          - "EPIC-003: Statement Parsing":
+              - Overview: project/EPIC-003.statement-parsing.md
+              - Implementation Details: project/EPIC-003.statement-parsing-GENERATED.md
+          - "EPIC-004: Reconciliation":
+              - Overview: project/EPIC-004.reconciliation-engine.md
+              - Implementation Details: project/EPIC-004.reconciliation-engine-GENERATED.md
           - "EPIC-005: Reporting": project/EPIC-005.reporting-visualization.md
-          - "EPIC-006: AI Advisor": project/EPIC-006.ai-advisor.md
+          - "EPIC-006: AI Advisor":
+              - Overview: project/EPIC-006.ai-advisor.md
+              - Implementation Details: project/EPIC-006.ai-advisor-GENERATED.md
           - "EPIC-007: Deployment": project/EPIC-007.deployment.md
+          - "EPIC-008: Testing":
+              - Strategy: project/EPIC-008.testing-strategy.md
+              - Implementation Details: project/EPIC-008.testing-strategy-GENERATED.md
 
 extra:
   social:

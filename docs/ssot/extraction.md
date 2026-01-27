@@ -1,12 +1,35 @@
-# Document Extraction SSOT
+# Document Extraction (Source of Truth)
 
-This document defines the Single Source of Truth for the document extraction feature.
+> **SSOT Key**: `extraction`
+> **Purpose**: Statement parsing using AI vision models, transaction extraction, and confidence scoring.
 
-## Overview
+---
+
+## 1. Source of Truth
+
+### Physical File Locations
+
+| File | Purpose |
+|------|---------|
+| `src/models/statement.py` | SQLAlchemy models (BankStatement, BankStatementTransaction) |
+| `src/schemas/extraction.py` | Pydantic schemas |
+| `src/services/extraction.py` | Core extraction logic |
+| `src/services/validation.py` | Validation and confidence scoring |
+| `src/services/storage.py` | Object storage uploads + presigned URLs |
+| `src/prompts/statement.py` | Parsing prompt templates |
+| `tests/fixtures/*.json` | Parsed test data |
+| `scripts/generate_fixtures.py` | Parse docs with caching |
+| `scripts/sanitize_fixtures.py` | Mask PII |
+
+### Overview
 
 The extraction pipeline parses financial statements (PDFs, images, CSVs) using OpenRouter vision models (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
-## Data Flow
+---
+
+## 2. Architecture Model
+
+### Data Flow
 
 ```mermaid
 flowchart TB
@@ -31,9 +54,9 @@ flowchart TB
     L --> M
 ```
 
-## Data Models
+### Data Models
 
-### Layer 1 & 2 (EPIC-011 Migration)
+#### Layer 1 & 2 (EPIC-011 Migration)
 
 The system is currently migrating to a 4-layer architecture. During Phase 2, data is written to both the legacy `BankStatement` tables (Layer 0) and the new Layer 1/2 tables.
 
@@ -47,9 +70,9 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 - `source_documents` (JSONB) tracks lineage (which files contributed this record)
 - Immutable once written (except for appending sources)
 
-### Layer 0 (Legacy)
+#### Layer 0 (Legacy)
 
-### BankStatement
+**BankStatement**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -74,7 +97,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 **Parsing state note**: `currency`, `period_start`, `period_end`, `opening_balance`, `closing_balance`,
 `confidence_score`, and `balance_validated` are nullable while status is `parsing`.
 
-### BankStatementTransaction
+**BankStatementTransaction**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -91,7 +114,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | `raw_text` | str | Original OCR text |
 | `updated_at` | datetime | Update time |
 
-## Confidence Scoring
+### Confidence Scoring
 
 | Factor | Weight | Criteria |
 |--------|--------|----------|
@@ -105,7 +128,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 - 60-84: Review queue
 - <60: Manual entry required
 
-## API Endpoints
+### API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -118,7 +141,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | POST | `/api/statements/{id}/reject` | Reject statement |
 | GET | `/api/ai/models` | OpenRouter model catalog for UI selection |
 
-## Supported Institutions
+### Supported Institutions
 
 | Institution | Format | Tier | Notes |
 |-------------|--------|------|-------|
@@ -133,9 +156,50 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | GXS | PDF | Extended | Digital bank |
 | Futu (Futu Holdings) | PDF | Extended | HK brokerage |
 
-## Configuration
+---
+
+## 3. Design Constraints
+
+### Data Integrity & Typing
+
+To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
+
+| Rule | Description |
+|------|-------------|
+| **Float Ban** | **NEVER** use `float` for `amount` fields — CI rejects `float` for currency |
+| **Decimal Required** | **MUST** use `Decimal` with strict mode or string coercion |
+| **Database Storage** | Stored as `DECIMAL(18,2)` |
+| **AI Output** | LLM prompt must request monetary values as numbers or strings |
+
+**Pydantic Example**:
+```python
+amount: Decimal = Field(decimal_places=2)
+```
+
+### Hard Rules
+
+| Rule | Description |
+|------|-------------|
+| **Bucket Auto-Create** | Storage ensures the bucket exists before upload |
+| **Orphan Cleanup** | If DB persistence fails after upload, the uploaded object is deleted |
+| **Stuck Job Supervisor** | Statements stuck in `parsing` > 30 minutes are marked `rejected` |
+| **Balance Tolerance** | 0.1 USD tolerance for balance validation |
+
+### Model Selection
+
+- **Default**: Uses `PRIMARY_MODEL` for parsing.
+- **Override**: `/api/statements/upload` accepts a `model` form field to select a specific OpenRouter model.
+- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter.
+- **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
+
+---
+
+## 4. Playbooks (SOP)
+
+### Configuration
 
 Required environment variables:
+
 ```bash
 OPENROUTER_API_KEY=<YOUR_OPENROUTER_API_KEY>
 PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
@@ -153,43 +217,110 @@ ENABLE_4_LAYER_WRITE=false  # Enable writing to Layer 1/2 tables
 ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 ```
 
-## Parsing Resilience
+### Upload a Statement
 
-- **Bucket auto-create**: storage ensures the bucket exists before upload.
-- **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
-- **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
-  with a validation error so users can retry.
+```bash
+# Upload PDF
+curl -X POST http://localhost:8000/api/statements/upload \
+  -H "X-User-Id: <user-uuid>" \
+  -F "file=@statement.pdf"
 
-## Model Selection
+# Response: 202 Accepted with statement ID
+```
 
-- **Default**: Uses `PRIMARY_MODEL` for parsing.
-- **Override**: `/api/statements/upload` accepts a `model` form field to select a specific OpenRouter model.
-- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter.
-- **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
+### Check Parsing Status
 
-## Data Integrity & Typing
+```bash
+# Get statement with transactions
+curl http://localhost:8000/api/statements/{id} \
+  -H "X-User-Id: <user-uuid>"
+```
 
-To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
+### Retry Failed Parsing
 
-1.  **AI Output**: The LLM prompt must request monetary values as numbers or strings.
-2.  **Pydantic Validation**:
-    -   **NEVER** use `float` for `amount` fields.
-    -   **MUST** use `Decimal` with strict mode or string coercion.
-    -   Example: `amount: Decimal = Field(decimal_places=2)`
-3.  **Database Storage**: Stored as `DECIMAL(18,2)`.
+```bash
+# Retry with different model
+curl -X POST "http://localhost:8000/api/statements/{id}/retry?model=google/gemini-flash-1.5-8b:free" \
+  -H "X-User-Id: <user-uuid>"
+```
 
-> **Float Ban**: Any code found using `float` for currency calculation will be rejected by CI.
+### Generate Test Fixtures
 
-## Files
+```bash
+# Parse real documents and cache results
+python scripts/generate_fixtures.py --input docs/ --output tests/fixtures/
 
-| File | Purpose |
-|------|---------|
-| `src/models/statement.py` | SQLAlchemy models |
-| `src/schemas/extraction.py` | Pydantic schemas |
-| `src/services/extraction.py` | Core extraction logic |
-| `src/services/validation.py` | Validation and confidence scoring |
-| `src/services/storage.py` | Object storage uploads + presigned URLs |
-| `src/prompts/statement.py` | Parsing prompt templates |
-| `tests/fixtures/*.json` | Parsed test data |
-| `scripts/generate_fixtures.py` | Parse docs with caching |
-| `scripts/sanitize_fixtures.py` | Mask PII |
+# Sanitize PII from fixtures
+python scripts/sanitize_fixtures.py tests/fixtures/
+```
+
+### Handling Stuck Jobs
+
+Statements stuck in `parsing` status for > 30 minutes are automatically marked as `rejected` by the supervisor. To manually check:
+
+```bash
+# Find stuck statements
+SELECT id, original_filename, created_at 
+FROM bank_statements 
+WHERE status = 'parsing' 
+  AND created_at < NOW() - INTERVAL '30 minutes';
+```
+
+---
+
+## 5. Verification (The Proof)
+
+### Upload Verification
+
+```bash
+# Upload a test statement
+curl -X POST http://localhost:8000/api/statements/upload \
+  -H "X-User-Id: test-user-uuid" \
+  -F "file=@tests/fixtures/sample_statement.pdf"
+
+# Expected: 202 Accepted
+# Verify status changes from 'parsing' to 'parsed'
+```
+
+### Confidence Score Verification
+
+```bash
+# Check statement confidence
+curl http://localhost:8000/api/statements/{id} \
+  -H "X-User-Id: test-user-uuid" | jq '.confidence_score'
+
+# Expected: 0-100 integer
+```
+
+### Balance Validation Verification
+
+```bash
+# Check balance validation
+curl http://localhost:8000/api/statements/{id} \
+  -H "X-User-Id: test-user-uuid" | jq '.balance_validated'
+
+# Expected: true (if opening + transactions ≈ closing)
+```
+
+### Test Commands
+
+```bash
+# Run extraction tests
+moon run backend:test -- -k extraction
+
+# Test with coverage
+moon run backend:test -- -k extraction --cov=src/services/extraction
+```
+
+### MinIO Health Check
+
+```bash
+# Verify MinIO is accessible
+curl http://localhost:9000/minio/health/live
+
+# Expected: HTTP 200
+```
+
+---
+
+*Last updated: 2026-01-27*

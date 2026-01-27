@@ -1,76 +1,150 @@
-# Finance Report - Audit & Roadmap (Jan 2026)
+# Finance Report Documentation
 
-> **Current System Status** — Comprehensive audit identifying critical issues, priorities, and next steps.
-
-**Last Updated**: 2026-01-13  
-**Anchor Document**: [`docs/project/EPIC-005.reporting-visualization.md`](project/EPIC-005.reporting-visualization.md)
-
-> **Note**: This is a point-in-time audit snapshot. SSOT documents remain the authoritative technical truth.
-
-## 🧭 Navigation
-
-- **[Project Overview](project/README.md)** — EPIC tracking and roadmap
-- **[Technical Docs](ssot/README.md)** — Single Source of Truth (SSOT)
-- **[Development Guide](ssot/development.md)** — Setup and development workflow
-- **[Project Target](target.md)** — North Star goals and decision criteria
+> **Modification Guide** — How to read and modify documentation in this directory.
 
 ---
 
-## 🔴 Top 10 High-Priority Blockers
+## 📂 Directory Structure
 
-| # | Category | Issue | Impact | Status |
-|---|----------|-------|--------|--------|
-| 1 | **Security** | No JWT auth - uses `X-User-Id` header | Anyone can impersonate any user | ⚠️ MVP intentional |
-| 2 | **Security** | No HTTPS enforcement in local dev | Credentials sent in plaintext locally | ⚠️ Acceptable for dev |
-| 3 | **Data** | `MOCK_USER_ID` in `users.py` | Legacy code path bypasses real auth | 🔧 Needs cleanup |
-| 4 | **Schema** | No Alembic migrations directory | Cannot track DB schema changes | ✅ Resolved |
-| 5 | **API** | PDF extraction sends full Base64 in JSON | Gateway 413 on large files (>5MB) | ⚠️ Mitigated by 10MB limit |
-| 6 | **Frontend** | `README.md` Quick Start uses wrong compose file | `docker-compose.ci.yml` doesn't exist | ✅ Fixed in PR #46 |
-| 7 | **Feature** | Cash Flow report unimplemented | Backend returns placeholder data | ✅ Resolved (full impl exists) |
-| 8 | **Feature** | XLSX parsing listed but unimplemented | Feature advertised but broken | ❌ P1 |
-| 9 | **Security** | No PII consent for AI context | Sends financial data to OpenRouter | ⚠️ Legal risk |
-| 10 | **Testing** | Smoke tests cover only GET requests | POST/PUT/DELETE untested in E2E | ✅ Resolved (E2E API tests added) |
-
----
-
-## ✅ Recently Resolved (Jan 2026)
-
-| Issue | Resolution |
-|-------|------------|
-| Cash Flow report "unimplemented" | Full implementation exists in `src/services/reporting.py` (180+ lines) |
-| E2E tests missing mutation coverage | Added 8 API tests covering accounts, journals, reports, reconciliation, statements |
-| Hard-coded `MOCK_USER_ID` in core APIs | Replaced with `get_current_user_id()` from header |
-| Schema Mismatch (statements vs bank_statements) | ORM now uses `bank_statements` consistently |
-| Data Loss (temp file deleted after upload) | Files now stored in S3/MinIO |
-| Missing Auth Router | Added `/auth/register`, `/auth/login`, `/auth/me` |
-| Docker Compose CI file missing | Unified to `docker-compose.yml` |
-| Frontend API URL hardcoded to localhost | Changed to relative path with Next.js rewrites |
-| CORS blocking PR deployments | Added `cors_origin_regex` for dynamic subdomains |
-| Backend `/api` prefix mismatch | Removed prefix, Traefik strips `/api` |
-| Nullability Mismatch (e.g. `user_id`) | Verified `nullable=False` in migration and ORM |
+```
+docs/
+├── README.md              ← You are here (Modification Guide)
+├── target.md              ← North Star goals and decision criteria
+├── index.md               ← MkDocs homepage (auto-generated site entry)
+│
+├── user-guide/            ← End-user documentation (MkDocs onboarding)
+│   ├── getting-started.md
+│   ├── accounts.md
+│   ├── journal-entries.md
+│   ├── reconciliation.md
+│   ├── reports.md
+│   └── ai-advisor.md
+│
+├── reference/             ← API reference (MkDocs onboarding)
+│   ├── api-overview.md
+│   ├── api-accounts.md
+│   ├── api-journal.md
+│   ├── api-reconciliation.md
+│   └── api-chat.md
+│
+├── ssot/                  ← Technical Truth (Single Source of Truth)
+│   └── README.md          ← SSOT modification guide
+│
+└── project/               ← EPIC tracking and project management
+    └── README.md          ← Project modification guide
+```
 
 ---
 
-## P1: High Priority (Core Features)
+## 📖 Reading Guide
 
-- [ ] **Implement JWT-based authentication** — Replace `X-User-Id` header with proper tokens
-- [x] **Complete Cash Flow report** — ~~Backend logic is placeholder~~ Full implementation verified in `reporting.py`
-- [ ] **Add Alembic migrations** — Currently no schema version control
-- [ ] **Implement XLSX parsing** — Advertised but unimplemented
-- [ ] **Add PII consent flow** — Before sending data to AI
+### For Different Purposes
 
-## P2: Medium Priority (Polish)
+| You want to... | Read |
+|----------------|------|
+| **Understand project goals** | [target.md](target.md) — North Star, decision criteria |
+| **Learn how to use the app** | [user-guide/](user-guide/getting-started.md) or [live docs](https://wangzitian0.github.io/finance_report/) |
+| **Integrate with the API** | [reference/](reference/api-overview.md) |
+| **Understand technical decisions** | [ssot/](ssot/README.md) — Technical truth |
+| **Track project progress** | [project/](project/README.md) — EPIC tracking |
+| **Set up development environment** | [ssot/development.md](ssot/development.md) |
 
-- [x] **Fix README Quick Start** — References wrong compose file
-- [ ] **Add upload progress indicator** — PDF extraction can take >10s
-- [ ] **Clean up MOCK_USER_ID** — Dead code in users.py
-- [x] **Add E2E tests for mutations** — API tests added for accounts, journals, reports, reconciliation
-- [ ] **Mobile responsiveness audit** — Unverified
+### For New Developers (10-minute Overview)
+
+1. **[target.md](target.md)** — Macro goals and decision criteria
+2. **[ssot/development.md](ssot/development.md)** — Environment setup, moon commands
+3. **[ssot/schema.md](ssot/schema.md)** — Database models
+4. **[project/README.md](project/README.md)** — Current EPICs and status
+
+### Onboarding Content (MkDocs Generated)
+
+The following directories are **user-facing onboarding documentation**, generated and served by MkDocs:
+
+- **`user-guide/`** — End-user guides (Getting Started, Accounts, Journal Entries, etc.)
+- **`reference/`** — API reference documentation
+
+Live site: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/)
 
 ---
 
-## Open Decisions
+## 📝 How to Modify This Directory
 
-1. **Auto-Approval**: Should ≥85 score auto-approve directly, or require confirmation?
-2. **JWT Strategy**: Use FastAPI-Users or custom implementation?
-3. **i18n**: Frontend lacks internationalization - needed for multi-language support
+### Three-Track Documentation System
+
+| Track | Directory | Purpose | Audience |
+|-------|-----------|---------|----------|
+| **Technical Truth** | `ssot/` | How things work (authoritative) | Developers |
+| **Project Tracking** | `project/` | What we're building (EPIC progress) | Team |
+| **User Onboarding** | `user-guide/`, `reference/` | How to use the app | End Users |
+
+### Content Placement Rules
+
+| Content Type | Location |
+|--------------|----------|
+| Technical rules & constraints | `ssot/*.md` |
+| Database models, API contracts | `ssot/schema.md`, `ssot/*.md` |
+| EPIC goals & acceptance criteria | `project/EPIC-XXX.<name>.md` |
+| EPIC implementation details | `project/EPIC-XXX.<name>-GENERATED.md` |
+| User-facing how-to guides | `user-guide/*.md` |
+| API endpoint documentation | `reference/*.md` |
+| Architectural decisions | `ssot/*.md` or `project/DECISIONS.md` |
+
+### Documentation Principles
+
+1. **SSOT is authoritative** — When code differs from SSOT, update SSOT immediately
+2. **Project tracks work** — EPICs document goals and progress, not implementation details
+3. **User guides are for users** — Keep technical details in SSOT
+4. **API reference stays in sync** — Update when endpoints change
+5. **No orphan files** — Every document belongs to a category
+
+### EPIC File Convention
+
+Each EPIC has **two files**:
+
+| File Type | Naming | Author | Content |
+|-----------|--------|--------|---------|
+| **Human Review** | `EPIC-XXX.<name>.md` | Human/PM | Goals, acceptance criteria, Q&A |
+| **Machine Generated** | `EPIC-XXX.<name>-GENERATED.md` | AI/Automation | Implementation details, test results |
+
+### MkDocs Workflow
+
+```bash
+# Install dependencies
+pip install -r docs/requirements.txt
+
+# Serve locally with live reload
+mkdocs serve
+
+# Build static site (output: site/)
+mkdocs build
+```
+
+**If adding new pages**: Update `mkdocs.yml` nav section.
+
+---
+
+## 🔗 Quick Links
+
+- [📖 Live Documentation Site](https://wangzitian0.github.io/finance_report/)
+- [🏠 Project Root README](../README.md)
+- [🤖 AGENTS.md](../AGENTS.md) — AI agent guidelines
+- [🎯 target.md](target.md) — North Star goals
+
+---
+
+## 📁 Loose Files in docs/
+
+The following files exist at `docs/` root level:
+
+| File | Status | Notes |
+|------|--------|-------|
+| `target.md` | ✅ Correct | Root-level (North Star) |
+| `index.md` | ✅ Correct | MkDocs homepage |
+| `deployment-architecture.md` | ⚠️ Legacy | Content moved to `ssot/deployment.md` |
+| `FX_RATE_SEEDING.md` | ⚠️ Legacy | Content moved to `ssot/market_data.md` Section 10 |
+
+> **Note**: Legacy files are kept for reference but `ssot/` versions are authoritative.
+
+---
+
+*This file serves as the modification guide for the `docs/` directory. For technical truth, see [ssot/README.md](ssot/README.md). For project tracking, see [project/README.md](project/README.md).*

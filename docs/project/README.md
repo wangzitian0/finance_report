@@ -1,42 +1,192 @@
 # Project EPIC & Task Tracking
 
-> **Project Management Hub** — Track project milestones, active tasks, and development progress.
+> **Modification Guide** — How to read, create, and modify EPIC documents.
 
-## 📋 Quick Overview
+---
 
-This section contains:
+## 📖 Reading Guide
 
-- **EPIC Tracking** — Major project milestones and their status
-- **Design Decisions** — Key architectural choices and rationale
-- **Repository Overview** — Current system orientation ([README.md](../README.md))
+### For New Developers
+
+1. **[../target.md](../target.md)** — North Star goals and decision criteria
+2. **[../ssot/development.md](../ssot/development.md)** — Environment setup
+3. **[EPIC-001](./EPIC-001.phase0-setup.md)** — Infrastructure and authentication
+4. **[EPIC-002](./EPIC-002.double-entry-core.md)** — Core accounting system
+5. **[DECISIONS.md](./DECISIONS.md)** — Key architectural choices
+
+### EPIC by Feature Area
+
+| Feature Area | EPIC |
+|--------------|------|
+| Infrastructure | [EPIC-001](./EPIC-001.phase0-setup.md), [EPIC-007](./EPIC-007.deployment.md) |
+| Accounting | [EPIC-002](./EPIC-002.double-entry-core.md) |
+| Statement Import | [EPIC-003](./EPIC-003.statement-parsing.md) |
+| Reconciliation | [EPIC-004](./EPIC-004.reconciliation-engine.md) |
+| Reports | [EPIC-005](./EPIC-005.reporting-visualization.md) |
+| AI Features | [EPIC-006](./EPIC-006.ai-advisor.md) |
+| Testing | [EPIC-008](./EPIC-008.testing-strategy.md) |
+| Asset Management | [EPIC-011](./EPIC-011.asset-lifecycle.md) |
+
+---
+
+## 📝 How to Modify This Directory
+
+### EPIC Document Convention (Two Files Per Feature)
+
+Each major feature/EPIC has **two files**:
+
+| File Type | Naming | Purpose | Author |
+|-----------|--------|---------|--------|
+| **Human Review** | `EPIC-XXX.<name>.md` | Goals, acceptance criteria, Q&A decisions | Human/PM |
+| **Machine Generated** | `EPIC-XXX.<name>-GENERATED.md` | Implementation details, test results, API docs | AI/Automation |
+
+### File Categories
+
+| Category | Pattern | Examples |
+|----------|---------|----------|
+| **EPIC specs** | `EPIC-XXX.<name>.md` | `EPIC-002.double-entry-core.md` |
+| **Generated docs** | `EPIC-XXX.<name>-GENERATED.md` | Implementation summaries, test results |
+| **Decisions** | `DECISIONS.md`, `DECISIONS_ZH.md` | Cross-EPIC architectural decisions |
+| **Audit reports** | `AUDIT-YYYYMMDD.md` | Point-in-time system audits |
+| **QA reports** | `QA_REPORT_YYYYMMDD.md` | Quality assurance snapshots |
+
+---
+
+## 📋 EPIC Template (Human Review Version)
+
+```markdown
+# EPIC-XXX: [Feature Name]
+
+> **Status**: ⏳ Pending | 🟡 In Progress | ✅ Complete | 🔴 Blocked
+> **Phase**: [0-5]
+> **Duration**: [X weeks]
+> **Dependencies**: [EPIC-YYY, EPIC-ZZZ]
+
+---
+
+## 🎯 Objective
+
+What we're building and why.
+
+---
+
+## ✅ Task Checklist
+
+### [Layer Name] (Backend/Frontend/Infrastructure)
+
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+
+---
+
+## 📏 Acceptance Criteria
+
+### 🟢 Must Have
+
+| Standard | Verification | Weight |
+|----------|--------------|--------|
+| Criterion 1 | How to verify | 🔴 Critical |
+| Criterion 2 | How to verify | Required |
+
+### 🌟 Nice to Have
+
+| Standard | Verification | Status |
+|----------|--------------|--------|
+| Enhancement 1 | How to verify | ⏳ |
+
+### 🚫 Not Acceptable Signals
+
+- Failure condition 1
+- Failure condition 2
+
+---
+
+## 🧪 Test Scenarios
+
+### [Test Category]
+
+```python
+def test_scenario_name():
+    """Description of what this tests"""
+```
+
+---
+
+## 📚 SSOT References
+
+- [schema.md](../ssot/schema.md) — Related tables
+- [domain.md](../ssot/domain.md) — Domain rules
+
+---
+
+## 🔗 Deliverables
+
+- [ ] `path/to/file.py`
+- [ ] `path/to/component.tsx`
+- [ ] Update `docs/ssot/domain.md`
+
+---
+
+## 📝 Technical Debt
+
+| Item | Priority | Planned Resolution |
+|------|----------|-------------------|
+| Debt 1 | P2 | v2.0 |
+
+---
+
+## ❓ Q&A (Clarification Required)
+
+### Q1: [Question]
+> **Question**: Full question text
+
+**✅ Your Answer**: [Decision made]
+
+**Decision**: [Explanation of decision and rationale]
+
+---
+
+## 📅 Timeline
+
+| Phase | Content | Estimated Hours |
+|-------|---------|-----------------|
+| Week 1 | ... | Xh |
+
+**Total estimate**: X hours
+```
+
+---
 
 ## ✅ Status Snapshot
 
-**In Progress**
+### In Progress
 - [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization
 - [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
-- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation (Testing Pending)
+- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
 - [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
 - [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 Complete)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
 
-**TODO**
+### Pending
 - [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
 
-**Done**
+### Complete
 - [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
 - [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
 - [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing
 - [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching
 - [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
 
+---
+
 ## 🎯 Active Projects (EPICs)
 
 | ID | Project | Status | Phase | Duration |
 |----|---------|--------|-------|----------|
 | [EPIC-001](./EPIC-001.phase0-setup.md) | Infrastructure & Authentication | ✅ Complete | 0 | 2 weeks |
-| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-Entry Bookkeeping Core | ✅ Complete (Backend) | 1 | 3 weeks |
-| [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | ✅ Complete (Backend) | 2 | 4 weeks |
+| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-Entry Bookkeeping Core | ✅ Complete | 1 | 3 weeks |
+| [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | ✅ Complete | 2 | 4 weeks |
 | [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | ✅ Complete | 3 | 5 weeks |
 | [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | 🟡 In Progress | 4 | 3 weeks |
 | [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | ✅ Complete | 4 | 2 weeks |
@@ -47,8 +197,10 @@ This section contains:
 | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | 🟡 In Progress (P0 ✅) | 5 | 4-5 weeks |
 | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation Libraries Enhancement | 🟡 In Progress | 0 | 2-3 weeks |
 
-**Total Duration**: 23-28 weeks  
+**Total Duration**: 23-28 weeks
 **Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness and infrastructure hardening
+
+---
 
 ## 🗺️ EPIC Dependencies
 
@@ -74,10 +226,9 @@ graph LR
     style E11 fill:#FFD700
 ```
 
-**Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
-**Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
-**Infrastructure Path**: EPIC-007 deploys completed features to production  
-**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting)
+**Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004
+**Parallel Path**: EPIC-005 can start after EPIC-002
+**Infrastructure Path**: EPIC-007 deploys completed features
 
 ## 📖 Reading Guide
 
@@ -102,6 +253,8 @@ Check the relevant EPIC for your feature:
 - **Deployment**: [EPIC-007](./EPIC-007.deployment.md)
 - **Asset Management**: [EPIC-011](./EPIC-011.asset-lifecycle.md)
 
+---
+
 ## 📊 Quality Standards
 
 Each EPIC document contains:
@@ -111,27 +264,51 @@ Each EPIC document contains:
 - 🚫 **Not Acceptable**: Issues requiring immediate fix
 - ❓ **Q&A**: Questions requiring clarification
 
-## 🗂️ Project File Conventions
+## 🗂️ Status Icons
 
-- **Naming**: `EPIC-XXX.<project_name>.md`
-- **Status Icons**: 
-  - 🔴 Blocked — Cannot proceed
-  - 🟡 In Progress — Currently working
-  - ✅ Complete — Done
-  - ⏳ Pending — Not started
-
-## 🔗 Related Documentation
-
-- **Technical Specs**: [SSOT Documentation](../ssot/README.md)
-- **Development Setup**: [Development Guide](../ssot/development.md)
-- **North Star**: [target.md](../../target.md)
+| Icon | Meaning |
+|------|---------|
+| ⏳ | Pending — Not started |
+| 🟡 | In Progress — Currently working |
+| ✅ | Complete — Done |
+| 🔴 | Blocked — Cannot proceed |
 
 ---
 
-*Last updated: January 2026*
+## 📁 Archive Directory
 
-## Quick Links
+Consolidated sub-documents are moved to `archive/` for reference (no deletion policy).
 
-- [Project Target](../../target.md)
-- [SSOT Index](../ssot/README.md)
+### archive/ Contents
+
+| File | Consolidated Into | Original Purpose |
+|------|-------------------|------------------|
+| `EPIC-002-IMPLEMENTATION.md` | EPIC-002-GENERATED | Implementation summary |
+| `EPIC-002-DECISIONS.md` | EPIC-002-GENERATED | Architectural decisions |
+| `EPIC-002-API-TESTING.md` | EPIC-002-GENERATED | API testing guide |
+| `EPIC-002-SUMMARY-ZH.md` | EPIC-002-GENERATED | Chinese summary |
+| `EPIC-004.reconciliation-accuracy-report.md` | EPIC-004-GENERATED | Accuracy baseline report |
+| `testing-implementation.md` | EPIC-008-GENERATED | P1 implementation summary |
+| `testing-gap-analysis.md` | EPIC-008-GENERATED | Gap analysis and priorities |
+| `EPIC-QA-Standardization.md` | EPIC-008-GENERATED | QA standardization plan |
+| `QA_REPORT_20260121.md` | EPIC-008-GENERATED | QA report snapshot |
+
+### Point-in-Time Reports (Keep at root)
+
+| File | Purpose |
+|------|---------|
+| `AUDIT-20260113.md` | System audit snapshot |
+
+---
+
+## 🔗 Quick Links
+
+- [Technical Specs (SSOT)](../ssot/README.md)
+- [Development Guide](../ssot/development.md)
+- [Project Target](../target.md)
 - [AGENTS.md](../../AGENTS.md)
+- [docs/ Navigation](../README.md)
+
+---
+
+*This file serves as both index and modification guide for the `docs/project/` directory.*
