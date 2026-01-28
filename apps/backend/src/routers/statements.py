@@ -8,9 +8,8 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
-import httpx
 import structlog
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -30,21 +29,8 @@ from src.schemas import (
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
-from src.services.openrouter_models import (
-    fetch_model_catalog,
-    model_matches_modality,
-    normalize_model_entry,
-)
-from src.utils import (
-    raise_bad_request,
-    raise_conflict,
-    raise_gateway_timeout,
-    raise_internal_error,
-    raise_not_found,
-    raise_service_unavailable,
-    raise_too_large,
-    raise_too_many_requests,
-)
+from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
+from src.utils import raise_bad_request, raise_internal_error, raise_not_found, raise_service_unavailable
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -118,12 +104,21 @@ async def _parse_statement_background(
             file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key, public=True)
         except StorageError as exc:
             logger.warning(
-                "Could not generate public presigned URL, will use base64 content instead",
+                "Could not generate public presigned URL",
                 error=str(exc),
                 statement_id=str(statement_id),
             )
 
         await update_progress(10)
+
+        file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
+        if file_type == "pdf" and not file_url:
+            await _handle_parse_failure(
+                statement,
+                session,
+                message="PDF extraction requires a public URL. Ensure the file is externally accessible.",
+            )
+            return
 
         service = ExtractionService()
         try:
@@ -132,7 +127,7 @@ async def _parse_statement_background(
                 file_path=Path(filename),
                 institution=institution,
                 user_id=user_id,
-                file_type=filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf",
+                file_type=file_type,
                 account_id=account_id,
                 file_content=content,
                 file_hash=file_hash,
@@ -150,6 +145,16 @@ async def _parse_statement_background(
             await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
             return
 
+        statement.institution = parsed_statement.institution
+        statement.account_last4 = parsed_statement.account_last4
+        statement.currency = parsed_statement.currency
+        statement.period_start = parsed_statement.period_start
+        statement.period_end = parsed_statement.period_end
+        statement.opening_balance = parsed_statement.opening_balance
+        statement.closing_balance = parsed_statement.closing_balance
+        statement.parsing_progress = 80
+        await session.commit()
+
         await update_progress(80)
 
         for existing_tx in list(statement.transactions):
@@ -163,13 +168,6 @@ async def _parse_statement_background(
 
         await update_progress(90)
 
-        statement.institution = parsed_statement.institution
-        statement.account_last4 = parsed_statement.account_last4
-        statement.currency = parsed_statement.currency
-        statement.period_start = parsed_statement.period_start
-        statement.period_end = parsed_statement.period_end
-        statement.opening_balance = parsed_statement.opening_balance
-        statement.closing_balance = parsed_statement.closing_balance
         statement.confidence_score = parsed_statement.confidence_score
         statement.balance_validated = parsed_statement.balance_validated
         statement.validation_error = parsed_statement.validation_error
@@ -197,7 +195,7 @@ async def upload_statement(
     """
     Upload a financial statement and enqueue parsing.
 
-    Supported file types: PDF, CSV, PNG, JPG. Optional model override via form field.
+    Supported file types: PDF, CSV, PNG, JPG. Model is required for PDF/image uploads.
     Institution is optional - AI will auto-detect from document if not provided.
     """
     filename = Path(file.filename or "unknown").name or "unknown"
@@ -208,75 +206,30 @@ async def upload_statement(
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
-        raise_too_large("File exceeds 10MB limit")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File exceeds 10MB limit",
+        )
 
     file_hash = hashlib.sha256(content).hexdigest()
     duplicate = await db.execute(
         select(BankStatement.id).where(BankStatement.user_id == user_id).where(BankStatement.file_hash == file_hash)
     )
     if duplicate.scalar_one_or_none():
-        raise_conflict("Duplicate statement upload")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
 
-    if model:
-        allowed_models = {settings.primary_model} | set(settings.fallback_models)
-        if model not in allowed_models:
-            try:
-                models = await fetch_model_catalog()
-                match = next(
-                    (normalize_model_entry(m) for m in models if m.get("id") == model),
-                    None,
-                )
-                if not match:
-                    logger.warning(
-                        "User attempted invalid model selection",
-                        requested_model=model,
-                        user_id=str(user_id),
-                        available_models_count=len(models),
-                    )
-                    raise_bad_request("Invalid model selection.")
-                if extension != "csv" and not model_matches_modality(match, "image"):
-                    logger.warning(
-                        "Model lacks required modality",
-                        requested_model=model,
-                        required_modality="image",
-                        file_type=extension,
-                        user_id=str(user_id),
-                    )
-                    raise_bad_request("Selected model does not support image inputs.")
-            except HTTPException:
-                raise
-            except httpx.TimeoutException as e:
-                logger.warning(
-                    "OpenRouter request timed out while validating model",
-                    model=model,
-                    user_id=str(user_id),
-                )
-                raise_gateway_timeout("Model validation request timed out. Please try again.", cause=e)
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429:
-                    logger.warning(
-                        "Rate limit exceeded while validating model",
-                        model=model,
-                        user_id=str(user_id),
-                    )
-                    raise_too_many_requests("Rate limit exceeded. Please wait before retrying.", cause=e)
-                elif e.response.status_code == 401:
-                    logger.error(
-                        "OpenRouter authentication failed",
-                        model=model,
-                        status_code=e.response.status_code,
-                    )
-                    raise_service_unavailable("Model validation service authentication failed.", cause=e)
-                else:
-                    logger.error(
-                        "OpenRouter returned error status",
-                        model=model,
-                        status_code=e.response.status_code,
-                    )
-                    raise_service_unavailable("Model validation service returned an error.", cause=e)
-            except Exception as e:
-                logger.exception("Failed to validate model catalog for model '%s'", model)
-                raise_service_unavailable("Unable to validate the requested model at this time.", cause=e)
+    if extension != "csv":
+        if not model:
+            raise_bad_request("AI model is required for PDF/image uploads.")
+
+        try:
+            model_info = await get_model_info(model)
+        except ModelCatalogError as exc:
+            raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
+        if not model_info:
+            raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
+        if not model_matches_modality(model_info, "image"):
+            raise_bad_request("Selected model does not support image/PDF inputs.")
 
     statement_id = uuid4()
     storage_key = f"statements/{user_id}/{statement_id}/{filename}"
@@ -291,7 +244,7 @@ async def upload_statement(
         )
     except StorageError as exc:
         logger.error("Failed to upload statement to storage", error=str(exc))
-        raise_service_unavailable(str(exc), cause=exc)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
 
     statement = BankStatement(
         id=statement_id,
@@ -373,29 +326,19 @@ async def retry_statement_parsing(
         BankStatementStatus.REJECTED,
         BankStatementStatus.PARSING,
     ):
-        raise_bad_request("Can only retry parsing for parsed, rejected, or stuck parsing statements")
+        raise HTTPException(400, "Can only retry parsing for parsed, rejected, or stuck parsing statements")
 
-    if not settings.fallback_models:
-        raise_internal_error("No fallback models are configured for statement parsing")
+    selected_model = model_override or settings.primary_model
 
-    selected_model = model_override or settings.fallback_models[0]
-    allowed_models = {settings.primary_model} | set(settings.fallback_models)
-    if selected_model not in allowed_models:
+    if model_override:
         try:
-            models = await fetch_model_catalog()
-            match = next(
-                (normalize_model_entry(m) for m in models if m.get("id") == selected_model),
-                None,
-            )
-            if not match:
-                raise_bad_request("Invalid model selection.")
-            if not model_matches_modality(match, "image"):
-                raise_bad_request("Selected model does not support image inputs.")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.exception("Failed to validate model catalog for model '%s'", selected_model)
-            raise_service_unavailable("Unable to validate the requested model at this time.", cause=e)
+            model_info = await get_model_info(model_override)
+        except ModelCatalogError as exc:
+            raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
+        if not model_info:
+            raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
+        if not model_matches_modality(model_info, "image"):
+            raise_bad_request("Selected model does not support image/PDF inputs.")
 
     # Reset status to PARSING before starting background task
     statement.status = BankStatementStatus.PARSING
@@ -412,7 +355,7 @@ async def retry_statement_parsing(
         storage = StorageService()
         content = await run_in_threadpool(storage.get_object, statement.file_path)
     except StorageError as exc:
-        raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
+        raise HTTPException(503, f"Failed to fetch file from storage: {exc}")
 
     task = asyncio.create_task(
         _parse_statement_background(
@@ -444,17 +387,13 @@ async def retry_statement_parsing(
 async def list_statements(
     db: DbSession,
     user_id: CurrentUserId,
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
 ) -> BankStatementListResponse:
-    """List all statements for the current user with pagination."""
+    """List all statements for the current user."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.user_id == user_id)
         .options(selectinload(BankStatement.transactions))
         .order_by(BankStatement.created_at.desc())
-        .limit(limit)
-        .offset(offset)
     )
     statements = result.scalars().all()
 
@@ -473,8 +412,6 @@ async def list_statements(
 async def list_pending_review(
     db: DbSession,
     user_id: CurrentUserId,
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
 ) -> BankStatementListResponse:
     """List statements pending human review (confidence 60-84)."""
     result = await db.execute(
@@ -485,8 +422,6 @@ async def list_pending_review(
         .where(BankStatement.confidence_score < 85)
         .options(selectinload(BankStatement.transactions))
         .order_by(BankStatement.created_at.desc())
-        .limit(limit)
-        .offset(offset)
     )
     statements = result.scalars().all()
 

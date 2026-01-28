@@ -256,9 +256,7 @@ async def test_parse_statement_background_error_paths(db, test_user):
     session_maker = create_session_maker_from_db(db)
 
     # 1. StorageError in background (presigned URL failure)
-    # After PR #117: Presigned URL StorageError is logged but doesn't stop processing.
-    # Processing continues with base64 fallback, then fails at extraction
-    # due to missing OPENROUTER_API_KEY in test environment.
+    # Presigned URL failure now rejects PDFs without a public URL.
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.side_effect = StorageError("S3 Fail")
@@ -280,7 +278,7 @@ async def test_parse_statement_background_error_paths(db, test_user):
         assert statement.status == BankStatementStatus.REJECTED
         # Flexible check for failure reason
         error_msg = statement.validation_error.lower()
-        assert any(term in error_msg for term in ["failed", "not configured", "no valid file"])
+        assert "public url" in error_msg
 
     # 2. ExtractionError in background
     statement.status = BankStatementStatus.PARSING
