@@ -219,6 +219,13 @@ jobs:
           PR_NUMBER="${{ needs.setup.outputs.pr_number }}"
           DOMAIN="${{ needs.setup.outputs.internal_domain }}"
           
+          # Calculate unique ports based on PR number to avoid conflicts
+          # Range: 30000-34000 (Supports PRs up to ~9999)
+          DB_PORT=$((30000 + PR_NUMBER))
+          REDIS_PORT=$((31000 + PR_NUMBER))
+          MINIO_API_PORT=$((32000 + PR_NUMBER))
+          MINIO_CONSOLE_PORT=$((33000 + PR_NUMBER))
+          
           # Construct environment variables in a temporary file to avoid indentation issues
           {
             echo "GIT_COMMIT_SHA=${{ github.sha }}"
@@ -232,10 +239,13 @@ jobs:
             echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
             echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
             echo "DEBUG=true"
-            echo "DB_PORTS=127.0.0.1:0:5432"
-            echo "REDIS_PORTS=127.0.0.1:0:6379"
-            echo "MINIO_API_PORTS=127.0.0.1:0:9000"
-            echo "MINIO_CONSOLE_PORTS=127.0.0.1:0:9001"
+            
+            # Host binding: 127.0.0.1 to avoid exposing to public internet
+            echo "DB_PORTS=127.0.0.1:$DB_PORT:5432"
+            echo "REDIS_PORTS=127.0.0.1:$REDIS_PORT:6379"
+            echo "MINIO_API_PORTS=127.0.0.1:$MINIO_API_PORT:9000"
+            echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
+            
             echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
             echo "COMPOSE_PROFILES=infra,app"
             
