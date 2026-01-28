@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using OpenRouter vision models (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDF/image files are uploaded to object storage and sent to the models via URLs. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using a single OpenRouter vision model (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDFs are sent to the model via public URLs (no base64), while images can use URLs or inline data when necessary. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 
@@ -138,15 +138,15 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 Required environment variables:
 ```bash
 OPENROUTER_API_KEY=<YOUR_OPENROUTER_API_KEY>
-PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
-FALLBACK_MODELS=google/gemini-flash-1.5-8b:free,mistralai/pixtral-12b:free
+PRIMARY_MODEL=google/gemini-3-flash-preview
+FALLBACK_MODELS=qwen/qwen-2.5-vl-7b-instruct:free,nvidia/nemotron-nano-12b-v2-vl:free
 OPENROUTER_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
 S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>
 S3_BUCKET=statements
 S3_REGION=us-east-1
-S3_PRESIGN_EXPIRY_SECONDS=900
+S3_PRESIGN_EXPIRY_SECONDS=300
 
 # EPIC-011 Migration Flags
 ENABLE_4_LAYER_WRITE=false  # Enable writing to Layer 1/2 tables
@@ -163,15 +163,16 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 ## Model Selection
 
 - **Default**: Uses `PRIMARY_MODEL` for parsing.
-- **Override**: `/api/statements/upload` accepts a `model` form field to select a specific OpenRouter model.
-- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter.
+- **Upload requirement**: `/api/statements/upload` requires a `model` form field for PDF/image uploads; the selected model is always used as-is.
+- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter (always used as-is).
 - **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
+- **Fallback models**: `FALLBACK_MODELS` are for manual selection only; parsing does not automatically retry other models.
 
 ## Data Integrity & Typing
 
 To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces strict typing:
 
-1.  **AI Output**: The LLM prompt must request monetary values as numbers or strings.
+1.  **AI Output**: The LLM prompt must request a strict JSON object (no markdown or extra text).
 2.  **Pydantic Validation**:
     -   **NEVER** use `float` for `amount` fields.
     -   Use `Decimal` with strict mode or string coercion. See: `apps/backend/tests/accounting/test_decimal_safety.py`

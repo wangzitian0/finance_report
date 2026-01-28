@@ -195,10 +195,15 @@ async def stream_openrouter_json(
     timeout: float = 180.0,
 ) -> AsyncIterator[str]:
     """
-    Stream OpenRouter chat completions with JSON mode.
+    Stream OpenRouter chat completions for JSON extraction.
 
     Yields raw delta content chunks. For vision models, this includes
     the full JSON response as it's generated.
+
+    Note: We intentionally do NOT set response_format={"type": "json_object"}
+    because many providers (e.g., ModelRun for qwen-free models) do not support
+    this parameter with multimodal/PDF inputs, returning HTTP 400 "Value error".
+    The prompt already instructs the AI to return valid JSON.
     """
     async for chunk in _stream_openrouter_base(
         messages=messages,
@@ -207,8 +212,8 @@ async def stream_openrouter_json(
         base_url=base_url,
         timeout=timeout,
         connect_timeout=10.0,
-        response_format={"type": "json_object"},
-        mode_label="JSON mode",
+        response_format=None,
+        mode_label="JSON extraction",
     ):
         yield chunk
 

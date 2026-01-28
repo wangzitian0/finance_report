@@ -9,6 +9,7 @@ import pytest
 
 from src.services.openrouter_models import (
     _MODEL_CACHE,
+    ModelCatalogError,
     fetch_model_catalog,
     get_model_info,
     is_model_known,
@@ -208,7 +209,7 @@ async def test_get_model_info_not_found():
 
 @pytest.mark.asyncio
 async def test_get_model_info_fetch_error():
-    """Should return None if fetching the catalog fails."""
+    """Should raise ModelCatalogError if fetching the catalog fails."""
     with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")
@@ -216,5 +217,5 @@ async def test_get_model_info_fetch_error():
         mock_instance.__aexit__.return_value = None
         mock_client.return_value = mock_instance
 
-        info = await get_model_info("any/model")
-    assert info is None
+        with pytest.raises(ModelCatalogError, match="Model catalog unavailable"):
+            await get_model_info("any/model")
