@@ -83,6 +83,7 @@ mask_secrets "$current_env"
 
 new_env="$current_env"
 new_env=$(update_env_var "$new_env" "IMAGE_TAG" "$IMAGE_TAG")
+new_env=$(update_env_var "$new_env" "GIT_COMMIT_SHA" "$IMAGE_TAG")
 new_env=$(update_env_var "$new_env" "NEXT_PUBLIC_APP_URL" "$APP_URL")
 new_env=$(update_env_var "$new_env" "COMPOSE_PROFILES" "app")
 

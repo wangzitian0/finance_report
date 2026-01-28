@@ -221,6 +221,7 @@ jobs:
           
           # Construct environment variables in a temporary file to avoid indentation issues
           {
+            echo "GIT_COMMIT_SHA=${{ github.sha }}"
             echo "REGISTRY=${{ env.REGISTRY }}"
             echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}"
             echo "IMAGE_TAG=pr-$PR_NUMBER"
