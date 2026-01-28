@@ -2,7 +2,6 @@ import base64
 import hashlib
 import ipaddress
 import json
-import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -59,12 +58,16 @@ class ExtractionService:
         except (ValueError, TypeError):
             raise ValueError(f"Invalid date format: {value}")
 
-    def _safe_decimal(self, value: str | None, default: str = "0.00") -> Decimal:
+    def _safe_decimal(self, value: str | None, default: str | None = None) -> Decimal:
         """Safely convert string to Decimal."""
+        if value is None:
+            if default is None:
+                raise ValueError("Decimal value is required")
+            value = default
         try:
-            return Decimal(str(value or default))
-        except (ValueError, TypeError, InvalidOperation):
-            return Decimal(default)
+            return Decimal(str(value))
+        except (ValueError, TypeError, InvalidOperation) as exc:
+            raise ValueError(f"Invalid decimal value: {value}") from exc
 
     def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevel:
         """Heuristic confidence for a single transaction."""
@@ -217,9 +220,8 @@ class ExtractionService:
             transactions = []
             net_transactions = Decimal("0.00")
             for txn in extracted.get("transactions", []):
-                # Skip transactions with missing required fields
                 if not txn.get("date") or txn.get("amount") is None:
-                    continue
+                    raise ExtractionError("Transaction missing required fields: date or amount")
 
                 # Handle case where the model returns date as non-string
                 txn_date_val = txn["date"]
@@ -232,17 +234,13 @@ class ExtractionService:
 
                 try:
                     parsed_date = date.fromisoformat(txn_date_val)
-                except ValueError:
-                    logger.warning(
-                        "Skipping transaction with invalid date format",
-                        raw_date=txn_date_val,
-                        description=txn.get("description", "N/A"),
-                        amount=txn.get("amount"),
-                        statement_file=original_filename or "unknown",
-                    )
-                    continue  # Skip invalid date formats
+                except ValueError as exc:
+                    raise ExtractionError(f"Invalid transaction date format: {txn_date_val}") from exc
 
-                amount = Decimal(str(txn["amount"]))
+                try:
+                    amount = Decimal(str(txn["amount"]))
+                except (ValueError, TypeError, InvalidOperation) as exc:
+                    raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
                 direction = txn.get("direction", "IN")
                 if direction == "IN":
                     net_transactions += amount
@@ -334,28 +332,44 @@ class ExtractionService:
 
         media_payload = None
 
-        if file_content:
-            b64_content = base64.b64encode(file_content).decode("utf-8")
-            media_payload = self._build_media_payload(
-                file_type=file_type,
-                mime_type=mime_type,
-                data=f"data:{mime_type};base64,{b64_content}",
-            )
-        elif file_url:
-            if self._validate_external_url(file_url):
+        if file_type == "pdf":
+            if file_url:
+                if self._validate_external_url(file_url):
+                    media_payload = self._build_media_payload(
+                        file_type=file_type,
+                        mime_type=mime_type,
+                        data=file_url,
+                    )
+                else:
+                    logger.warning("Rejected internal/private file URL for PDF extraction", url=file_url)
+
+            if not media_payload:
+                raise ExtractionError(
+                    "PDF extraction requires a public URL. Ensure the uploaded file is accessible externally."
+                )
+        else:
+            if file_content:
+                b64_content = base64.b64encode(file_content).decode("utf-8")
                 media_payload = self._build_media_payload(
                     file_type=file_type,
                     mime_type=mime_type,
-                    data=file_url,
+                    data=f"data:{mime_type};base64,{b64_content}",
                 )
-            else:
-                logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
+            elif file_url:
+                if self._validate_external_url(file_url):
+                    media_payload = self._build_media_payload(
+                        file_type=file_type,
+                        mime_type=mime_type,
+                        data=file_url,
+                    )
+                else:
+                    logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
 
-        if not media_payload:
-            raise ExtractionError(
-                "No valid file content or accessible URL provided for AI extraction. "
-                "Ensure file content is uploaded or URL is public."
-            )
+            if not media_payload:
+                raise ExtractionError(
+                    "No valid file content or accessible URL provided for AI extraction. "
+                    "Ensure file content is uploaded or URL is public."
+                )
 
         logger.info(
             "Sending document to AI for extraction",
@@ -378,7 +392,10 @@ class ExtractionService:
             }
         ]
 
-        models = [force_model] if force_model else [self.primary_model] + list(self.fallback_models or [])
+        if force_model:
+            models = [force_model]
+        else:
+            models = [self.primary_model]
         last_error: ExtractionError | None = None
         error_summary: dict[str, int] = {}
 
@@ -419,8 +436,7 @@ class ExtractionService:
                     )
                     error_summary["empty_response"] = error_summary.get("empty_response", 0) + 1
                     last_error = ExtractionError(
-                        f"Model {model} returned empty response. Possible causes: "
-                        f"quota limit, unsupported format, or content filtering."
+                        f"Model {model} returned empty response. Please retry with a different model."
                     )
                     continue
 
@@ -430,16 +446,12 @@ class ExtractionService:
 
                 try:
                     parsed = json.loads(content)
+                    if not isinstance(parsed, dict):
+                        raise ExtractionError("AI response must be a strict JSON object (no arrays).")
                     logger.info("AI extraction successful (streaming)", model=model)
                     return parsed
                 except json.JSONDecodeError as e:
                     from src.constants.error_ids import ErrorIds
-
-                    json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-                    if json_match:
-                        parsed = json.loads(json_match.group(1))
-                        logger.info("AI extraction successful (markdown fallback)", model=model)
-                        return parsed
 
                     logger.error(
                         "Failed to parse AI JSON",
@@ -453,7 +465,10 @@ class ExtractionService:
                         looks_like_xml=content.strip().startswith("<?xml"),
                     )
                     error_summary["json_parse"] = error_summary.get("json_parse", 0) + 1
-                    last_error = ExtractionError(f"Failed to parse JSON response: {e}")
+                    last_error = ExtractionError(
+                        "AI response must be a strict JSON object (no markdown or extra text). "
+                        "Please retry with a different model."
+                    )
                     continue
 
             except OpenRouterStreamError as e:

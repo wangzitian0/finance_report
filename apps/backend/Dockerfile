@@ -9,6 +9,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM python:3.12-slim
 WORKDIR /app
 
+# Build arguments
+ARG GIT_COMMIT_SHA=unknown
+
 # 安装必要的运行时库：curl (健康检查) 和 libpq5 (psycopg2 依赖)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -19,7 +22,6 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Inject Git SHA for runtime verification
-ARG GIT_COMMIT_SHA
 ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
 
 # 复制业务代码和数据库迁移配置

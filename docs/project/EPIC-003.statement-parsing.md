@@ -18,7 +18,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🏗️ **Architect** | Decoupled Design | AI only handles parsing, does not write directly to ledger, errors filtered through validation layer |
-| 💻 **Developer** | API Integration | Gemini 2.0 Flash (free) call wrapper with retry, fallback, and cost control |
+| 💻 **Developer** | API Integration | Gemini 2.0 Flash (free) single-model parsing; user retry selects a different model |
 | 📊 **Accountant** | Data Integrity | Opening + Transactions ≈ Closing, reject if validation fails |
 | 🔗 **Reconciler** | Downstream Dependencies | Parsing results must be structured for matching algorithms |
 | 🧪 **Tester** | Parsing Accuracy | Multi-bank, multi-format coverage testing, target ≥ 95% |
@@ -167,8 +167,8 @@ def test_upload_and_parse_flow():
 def test_duplicate_upload_detection():
     """Duplicate file upload should trigger warning"""
 
-def test_free_model_retry_on_timeout():
-    """AI retry should trigger on failure"""
+def test_user_retry_on_failure():
+    """User retry should trigger after a parsing failure"""
 ```
 
 ### Sample Coverage (Required)
@@ -216,7 +216,7 @@ def test_free_model_retry_on_timeout():
 ## Issues & Gaps
 
 - [x] Align BankStatement and BankStatementTransaction fields with SSOT extraction (file_hash, confidence_score, balance_validated, etc.).
-- [x] Align model/config with SSOT (Gemini 2.0 Flash (free) + fallback models and OpenRouter limits).
+- [x] Align model/config with SSOT (Gemini 2.0 Flash (free) with manual model selection).
 - [x] Add confidence scoring and review queue routing (`/api/statements/pending-review`) to tasks and acceptance criteria.
 - [x] Standardize institution/template scope across checklist, Q5 decision, and SSOT supported institutions.
 - [x] Enforce balance validation routing (invalid balances route to manual entry and capture validation_error).
@@ -259,7 +259,7 @@ def test_free_model_retry_on_timeout():
 - Call Gemini 2.0 Flash (free) through OpenRouter (not direct Google API)
 - OpenRouter has daily quota management, automatically returns 429 error when exceeded
 - Application layer does not need to implement call limits, but must gracefully handle API quota exhaustion
-- When OpenRouter returns quota exhaustion, fallback to local rule-based parsing or notify user
+- When OpenRouter returns quota exhaustion, notify the user and require a manual retry
 - Environment variables: `OPENROUTER_API_KEY`, `OPENROUTER_DAILY_LIMIT_USD=2`
 
 ### Q7: Parsing Failure Handling
@@ -267,24 +267,10 @@ def test_free_model_retry_on_timeout():
 
 **✅ Your Answer**: C - Support retry + manual editing. Prioritize upgrading to stronger model on retry.
 
-**Decision**: Layered fallback strategy to improve parsing success rate
-- **Layer 1**: Gemini 2.0 Flash (free) (fast, cheap)
-- **Layer 2**: Upgrade to Gemini 2.0 Flash (free) or stronger model on retry (available through OpenRouter)
-- **Layer 3**: Show partial parsing results, allow user to edit and supplement
-- **Layer 4**: Manual entry (complete form)
-- Flow:
-  ```
-  Upload PDF
-  ├─ Try Gemini 2.0 Flash (free)
-  │  ├─ ✅ Success → Show results
-  │  └─ ❌ Fail → Offer "Retry with stronger model"
-  │     ├─ Try Gemini 2.0 Flash (free) / GPT-4
-  │     ├─ ✅ Success → Show results
-  │     └─ ❌ Fail → Show partial results + Edit form
-  └─ User can always manually add/edit transactions
-  ```
-- Environment variables: `PRIMARY_MODEL=nvidia/llama-3.1-nemotron-70b-instruct:free`, `FALLBACK_MODELS=xiaomi/mimo-v2-flash:free,openai/gpt-oss-120b:free`
-- UI displays retry progress and current model in use
+**Decision**: Manual retry with explicit model selection
+- Use a single model for parsing by default
+- On failure, user retries with a selected model from the catalog
+- UI displays retry progress and the selected model
 
 ### Q8: Statement-Account Linking
 > **Question**: How to link statement to specific account on upload?
@@ -336,7 +322,7 @@ def test_free_model_retry_on_timeout():
 - **Queue implementation**:
   - Use Redis queue or Celery (depending on deployment environment)
   - Support task priority (single file has highest priority)
-  - Task retry strategy (auto-retry 3 times on failure)
+- Task retry strategy (manual retry only)
 - **UI**:
   - Redirect to "Task Queue" page after upload
   - Display progress bar, status, error messages for each task
@@ -352,6 +338,6 @@ def test_free_model_retry_on_timeout():
 | Week 1 | Data Model + Gemini integration | 16h |
 | Week 2 | Validation layer + API + Prompt tuning | 20h |
 | Week 3 | Frontend UI + Multi-bank testing | 16h |
-| Week 4 | ETL queue + Layered retry + Integration | 16h |
+| Week 4 | ETL queue + Manual retry + Integration | 16h |
 
 **Total estimate**: 68 hours (4 weeks)

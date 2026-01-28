@@ -346,7 +346,12 @@ class TestParsingTimeout:
             mock_stream.side_effect = OpenRouterStreamError("Connection timed out")
 
             with pytest.raises(ExtractionError):
-                await service.extract_financial_data(b"content", "DBS", "pdf")
+                await service.extract_financial_data(
+                    b"content",
+                    "DBS",
+                    "pdf",
+                    file_url="https://example.com/file.pdf",
+                )
 
 
 # =============================================================================
@@ -374,7 +379,12 @@ class TestGeminiRetry:
             mock_stream.side_effect = OpenRouterStreamError("HTTP 429: Rate limit exceeded")
 
             with pytest.raises(ExtractionError, match="429"):
-                await service.extract_financial_data(b"content", "DBS", "pdf")
+                await service.extract_financial_data(
+                    b"content",
+                    "DBS",
+                    "pdf",
+                    file_url="https://example.com/file.pdf",
+                )
 
     @pytest.mark.asyncio
     async def test_api_key_required(self, service):
@@ -384,7 +394,7 @@ class TestGeminiRetry:
         service.api_key = None
 
         with pytest.raises(ExtractionError, match="API key not configured"):
-            await service.extract_financial_data(b"content", "DBS", "pdf")
+            await service.extract_financial_data(b"content", "DBS", "png")
 
 
 # =============================================================================
