@@ -109,6 +109,25 @@ FAILED=0
 echo "--- Readiness Check ---"
 wait_for_endpoint "API Health" "$BASE_URL/api/health" || FAILED=1
 
+# --- Version/Deploy Verification ---
+if [ -n "${EXPECTED_SHA:-}" ]; then
+    echo "--- Version Verification ---"
+    echo "Checking deployed version against source ($EXPECTED_SHA)..."
+    # Extract git_sha from health endpoint
+    # Use python for parsing if jq is not guaranteed, or simple grep/sed
+    HEALTH_RESP=$(curl -sS "$BASE_URL/api/health")
+    ACTUAL_SHA=$(echo "$HEALTH_RESP" | grep -o '"git_sha":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+    
+    if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
+        echo "✓ Git SHA matches: $ACTUAL_SHA"
+    else
+        echo "✗ Git SHA Mismatch!"
+        echo "  Expected: $EXPECTED_SHA"
+        echo "  Got:      $ACTUAL_SHA"
+        FAILED=1
+    fi
+fi
+
 # --- SRE / Environment Parity Checks ---
 echo "--- SRE Consistency Checks ---"
 

@@ -1,6 +1,7 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
+import os
 import time
 import traceback
 from collections.abc import AsyncIterator
@@ -222,6 +223,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             content={
                 "status": "healthy" if all_healthy else "unhealthy",
                 "timestamp": datetime.now(UTC).isoformat(),
+                "git_sha": os.getenv("GIT_COMMIT_SHA", "unknown"),
                 "checks": checks,
             },
         )

@@ -67,6 +67,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
+          build-args: |
+            GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -77,6 +79,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
           build-args: |
+            GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
             NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
 
@@ -112,6 +115,7 @@ jobs:
           APP_URL: https://report-staging.zitian.party
           TEST_ENV: staging
           SKIP_UI_TESTS: false
+          EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           

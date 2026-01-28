@@ -105,6 +105,8 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
     container_name: finance-report-backend${ENV_SUFFIX:-}
     restart: ${RESTART_POLICY:-unless-stopped}
     # Dependencies depend on profile! 

@@ -115,6 +115,7 @@ jobs:
             type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            GIT_COMMIT_SHA=${{ github.sha }}
             ${{ matrix.app == 'frontend' && format('NEXT_PUBLIC_API_URL=https://report-pr-{0}.{1}', needs.setup.outputs.pr_number, needs.setup.outputs.internal_domain) || '' }}
             ${{ matrix.app == 'frontend' && format('NEXT_PUBLIC_APP_URL=https://report-pr-{0}.{1}', needs.setup.outputs.pr_number, needs.setup.outputs.internal_domain) || '' }}
 
@@ -218,8 +219,17 @@ jobs:
           PR_NUMBER="${{ needs.setup.outputs.pr_number }}"
           DOMAIN="${{ needs.setup.outputs.internal_domain }}"
           
+          # Calculate unique ports based on PR number to avoid conflicts
+          # Range: 30000-34000 (Modulo 1000 to keep within range)
+          PR_MOD=$((PR_NUMBER % 1000))
+          DB_PORT=$((30000 + PR_MOD))
+          REDIS_PORT=$((31000 + PR_MOD))
+          MINIO_API_PORT=$((32000 + PR_MOD))
+          MINIO_CONSOLE_PORT=$((33000 + PR_MOD))
+          
           # Construct environment variables in a temporary file to avoid indentation issues
           {
+            echo "GIT_COMMIT_SHA=${{ github.sha }}"
             echo "REGISTRY=${{ env.REGISTRY }}"
             echo "IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}"
             echo "IMAGE_TAG=pr-$PR_NUMBER"
@@ -230,10 +240,13 @@ jobs:
             echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
             echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
             echo "DEBUG=true"
-            echo "POSTGRES_PORT=0"
-            echo "REDIS_PORT=0"
-            echo "MINIO_API_PORT=0"
-            echo "MINIO_CONSOLE_PORT=0"
+            
+            # Host binding: 127.0.0.1 to avoid exposing to public internet
+            echo "DB_PORTS=127.0.0.1:$DB_PORT:5432"
+            echo "REDIS_PORTS=127.0.0.1:$REDIS_PORT:6379"
+            echo "MINIO_API_PORTS=127.0.0.1:$MINIO_API_PORT:9000"
+            echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
+            
             echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
             echo "COMPOSE_PROFILES=infra,app"
             
@@ -421,6 +434,7 @@ jobs:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
           TEST_ENV: staging
           SKIP_UI_TESTS: false
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
