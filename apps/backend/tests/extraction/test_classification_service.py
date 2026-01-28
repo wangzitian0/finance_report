@@ -408,3 +408,120 @@ class TestClassificationService:
 
         # 5. Verify - no matches
         assert len(results) == 0
+
+    async def test_apply_keyword_rule_empty_keywords(self, db, test_user):
+        """Test that keyword rule with empty keywords list returns no matches."""
+        service = ClassificationService()
+
+        # 1. Create Account
+        account = Account(
+            user_id=test_user.id,
+            name="Empty Keywords Test",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6700",
+        )
+        db.add(account)
+        await db.flush()
+
+        # 2. Create Keyword Rule with empty keywords list
+        rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Empty Keywords Rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": []},  # Empty keywords list
+            default_account_id=account.id,
+            created_by=test_user.id,
+        )
+        db.add(rule)
+        await db.flush()
+
+        # 3. Create Transaction
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("50.00"),
+            direction=TransactionDirection.OUT,
+            description="NTUC FAIRPRICE",
+            currency="SGD",
+            dedup_hash="hash_empty_kw",
+            source_documents=[],
+        )
+        db.add(txn)
+        await db.flush()
+
+        # 4. Apply Rules - should not match due to empty keywords
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        # 5. Verify - no matches
+        assert len(results) == 0
+
+    async def test_apply_no_active_rules(self, db, test_user):
+        """Test that apply_rules returns empty list when no active rules exist."""
+        service = ClassificationService()
+
+        # 1. Create Transaction (but no rules)
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("50.00"),
+            direction=TransactionDirection.OUT,
+            description="Some Transaction",
+            currency="SGD",
+            dedup_hash="hash_no_rules",
+            source_documents=[],
+        )
+        db.add(txn)
+        await db.flush()
+
+        # 2. Apply Rules - should return empty list since no rules exist
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        # 3. Verify - empty results
+        assert len(results) == 0
+
+    async def test_apply_no_matching_keywords(self, db, test_user):
+        """Test that rules with non-matching keywords return no results."""
+        service = ClassificationService()
+
+        account = Account(
+            user_id=test_user.id,
+            name="No Match Test",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6800",
+        )
+        db.add(account)
+        await db.flush()
+
+        rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Non-matching Rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["NONEXISTENT_KEYWORD_ZZZ"]},
+            default_account_id=account.id,
+            created_by=test_user.id,
+        )
+        db.add(rule)
+        await db.flush()
+
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("50.00"),
+            direction=TransactionDirection.OUT,
+            description="Some Transaction UNKNOWN",
+            currency="SGD",
+            dedup_hash="hash_unknown",
+            source_documents=[],
+        )
+        db.add(txn)
+        await db.flush()
+
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        assert len(results) == 0

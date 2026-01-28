@@ -5,7 +5,12 @@ import { apiFetch } from "@/lib/api";
 
 const DEFAULT_CURRENCIES = ["SGD", "USD", "EUR"];
 
-export function useCurrencies() {
+type UseCurrenciesResult = {
+    currencies: string[];
+    loading: boolean;
+};
+
+export function useCurrencies(): UseCurrenciesResult {
     const [currencies, setCurrencies] = useState<string[]>(DEFAULT_CURRENCIES);
     const [loading, setLoading] = useState(true);
 
@@ -16,8 +21,8 @@ export function useCurrencies() {
                     setCurrencies(data);
                 }
             })
-            .catch(() => {
-                // Fallback to defaults on error
+            .catch((error) => {
+                console.error("[useCurrencies] Failed to load currencies", error);
             })
             .finally(() => setLoading(false));
     }, []);

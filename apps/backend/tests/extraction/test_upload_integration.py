@@ -44,6 +44,7 @@ async def test_full_upload_to_db_flow(client, test_user):
         patch("src.routers.statements.StorageService") as MockStorage,
         patch("src.services.extraction.stream_openrouter_json") as mock_stream,
         patch("src.services.extraction.settings") as mock_settings,
+        patch("src.routers.statements.get_model_info") as mock_get_model_info,
     ):
         storage_instance = MockStorage.return_value
         storage_instance.upload_bytes = MagicMock()
@@ -52,11 +53,18 @@ async def test_full_upload_to_db_flow(client, test_user):
         mock_stream.return_value = mock_stream_generator(json.dumps(mock_ai_response))
 
         mock_settings.openrouter_api_key = "mock-key"
+        mock_get_model_info.return_value = {
+            "id": "google/gemini-3-flash-preview",
+            "input_modalities": ["image"],
+        }
 
         response = await client.post(
             "/statements/upload",
             files={"file": ("test.pdf", BytesIO(content), "application/pdf")},
-            data={"institution": "DBS"},
+            data={
+                "institution": "DBS",
+                "model": "google/gemini-3-flash-preview",
+            },
         )
         await statements_router.wait_for_parse_tasks()
 

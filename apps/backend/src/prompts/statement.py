@@ -10,6 +10,8 @@ PRIVACY INSTRUCTIONS:
 - Focus only on financial transaction data
 
 CRITICAL: Return a SINGLE JSON object (not an array).
+Do NOT wrap the JSON in markdown or code fences.
+Do NOT include any extra text before or after the JSON.
 Even if the document contains multiple accounts, combine them into one response.
 
 Output format (JSON object - NOT an array):
@@ -34,7 +36,7 @@ Output format (JSON object - NOT an array):
 }
 
 Important Rules:
-1. Output MUST be a single JSON object starting with `{`, NOT an array `[`
+1. Output MUST be a single JSON object starting with `{`, NOT an array `[`, and no markdown
 2. All amounts as strings with 2 decimal places, no commas (e.g., "10000.00")
 3. Dates in YYYY-MM-DD format
 4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals
@@ -50,7 +52,7 @@ VALIDATION_PROMPT = """Verify the extracted data:
 2. Date check: All transaction dates should be within period_start and period_end
 3. Completeness: No missing required fields
 
-Return JSON:
+Return JSON only, no markdown or extra text:
 {
   "balance_valid": true/false,
   "expected_closing": "12500.00",
