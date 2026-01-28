@@ -26,6 +26,7 @@ class TestConfig:
 
     APP_URL = os.getenv("APP_URL", "http://localhost:3000")
     TEST_ENV = os.getenv("TEST_ENV", "staging").lower()
+    EXPECTED_SHA = os.getenv("EXPECTED_SHA")
 
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
     TIMEOUT_MS = int(os.getenv("TIMEOUT_MS", "30000"))
