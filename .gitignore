@@ -23,3 +23,6 @@ __pycache__/
 # PDF Fixtures: Input and Output directories
 scripts/pdf_fixtures/input/
 scripts/pdf_fixtures/output/
+
+# AI Agent work files
+.sisyphus/
