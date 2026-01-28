@@ -87,22 +87,18 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 
 ## Six Scenarios
 
-> **Core Principle**: Only Staging needs comprehensive testing.  
-> Other environments prioritize **speed** (Local/CI) or **stability** (Production).
+> **Core Principle**: "Shift Left" for speed (Code Runtime), "Shift Right" for stability (Infrastructure).
 
 ### Strategy Overview
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  SPEED ←─────────────────────────────────────────→ THOROUGHNESS  │
-│                                                                   │
-│  Local      CI         PR Test       Staging        Production   │
-│  ─────      ──         ───────       ───────        ──────────   │
-│  Unit+Int   Unit+Int   Health        Smoke+Perf     Health       │
-│  < 30s      < 2min     Check         FULL TEST      Check        │
-│                        (deploy ok?)  (pre-prod)     (stable?)    │
-└──────────────────────────────────────────────────────────────────┘
-```
+| Environment | **1. Code Runtime** | **2. Infrastructure** (DB/Redis/S3) | **3. Compose File** | **4. Lifecycle** | **5. Responsibility** |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Local Dev** | **Source (Host)**<br>*(uvicorn / next dev)* | **Docker Container**<br>*(Singleton)* | `docker-compose.yml`<br>*(Profile: infra)* | **Persistent**<br>*(Manual start/stop)* | Developer<br>`moon run :infra` |
+| **Local CI** | **Source (Host)**<br>*(pytest)* | **Docker Container**<br>*(Reuse Local Dev)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Test data reset)* | Developer<br>`moon run :test` |
+| **Github CI** | **Source (Runner)**<br>*(pytest)* | **Docker Container**<br>*(Ephemeral Service)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Job duration)* | CI Pipeline<br>`ci.yml` |
+| **Github PR** | **Source Build**<br>*(Docker build .)* | **Docker Container**<br>*(Per PR Isolated)* | `docker-compose.yml`<br>*(Profile: infra+app)* | **Ephemeral**<br>*(Destroy on PR close)* | Dokploy<br>(Preview) |
+| **Staging** | **Docker Image**<br>*(GHCR Pull)* | **External / Managed**<br>*(RDS / ElastiCache)* | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Staging) |
+| **Production**| **Docker Image**<br>*(GHCR Pull)* | **External / Managed**<br>*(RDS / ElastiCache)* | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Production) |
 
 ### Test Categories
 

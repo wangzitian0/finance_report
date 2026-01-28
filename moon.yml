@@ -11,10 +11,16 @@ tasks:
       - 'backend:install'
       - 'frontend:install'
 
+  # Infrastructure (Postgres, Redis, MinIO)
+  # Run this in a dedicated terminal
+  infra:
+    command: 'bash scripts/infra.sh'
+    local: true
+
   # Development servers
   # Note: Run these in separate terminals as they block indefinitely
   dev:
-    command: 'echo "Run \"moon run backend:dev\" and \"moon run frontend:dev\" in separate terminals"'
+    command: 'echo "1. Run \"moon run :infra\" in a separate terminal.\n2. Run \"moon run backend:dev\" and \"moon run frontend:dev\" in their own terminals."'
     local: true
 
   # Lint all projects
@@ -36,6 +42,11 @@ tasks:
     command: 'echo "Build complete"'
     deps:
       - 'frontend:build'
+
+  # Clean up development resources
+  clean:
+    command: 'bash scripts/cleanup_dev_resources.sh'
+    local: true
 
   smoke:
     command: 'bash scripts/smoke_test.sh ${BASE_URL:-http://localhost:3000}'

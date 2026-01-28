@@ -24,7 +24,7 @@ COMPOSE_FILE = os.environ.get("COMPOSE_FILE", str(REPO_ROOT / "docker-compose.ym
 # Track resources started by THIS script
 _started_resources: dict = {
     "uvicorn_proc": None,
-    "db_container_id": None,
+    "stack_started": False,
 }
 
 
@@ -46,91 +46,52 @@ def get_compose_cmd() -> list[str]:
     return []
 
 
-def start_database(compose_cmd: list[str]) -> str | None:
-    """Start the development database, return container ID."""
-    if not compose_cmd:
-        print("⚠️  No compose command found, skipping database")
-        return None
-
-    print("🐘 Starting development database...")
-    subprocess.run(
-        [*compose_cmd, "-f", COMPOSE_FILE, "up", "-d", "postgres", "redis", "minio", "minio-init"],
-        check=True,
-    )
-
-    # Get container ID
-    result = subprocess.run(
-        [compose_cmd[0], "ps", "-a", "--filter", "name=finance-report-db", "--format", "{{.ID}}"],
-        capture_output=True,
-        text=True,
-    )
-    container_id = result.stdout.strip().split("\n")[0] if result.stdout.strip() else None
-
-    # Wait for database to be ready
-    for _ in range(30):
-        try:
-            subprocess.run(
-                [*compose_cmd, "-f", COMPOSE_FILE, "exec", "-T", "postgres", "pg_isready", "-U", "postgres"],
-                capture_output=True,
-                check=True,
-            )
-            print("  ✓ Database ready")
-            
-            # --- 新增：自动运行迁移 ---
-            print("  🚀 Running migrations for development...")
-            subprocess.run(
-                ["uv", "run", "alembic", "upgrade", "head"],
-                cwd=REPO_ROOT / "apps" / "backend",
-                check=True,
-            )
-            print("  ✓ Migrations completed")
-            
-            return container_id
-        except subprocess.CalledProcessError:
-            time.sleep(1)
-
-
-    print("  ⚠️  Database may not be ready")
-    return container_id
-
-
-def stop_database(compose_cmd: list[str], container_id: str | None):
-    """Stop the database container we started."""
-    if not container_id or not compose_cmd:
-        return
-
-    print("  ✓ Stopping dev database...")
+def check_database_ready() -> bool:
+    """Check if the database is accessible and run migrations."""
+    print("🐘 Checking database connection...")
+    
+    # We use a simple socket check or pg_isready via shell if available
+    # But since we want to run migrations, let's just try to run alembic check/upgrade
+    # If that works, the DB is ready.
+    
     try:
-        subprocess.run(
-            [compose_cmd[0], "stop", container_id],
-            capture_output=True,
-            timeout=10,
-        )
+        # Check connectivity first to fail fast with a good message
+        # (Optional: could use socket here, but alembic is the ultimate test)
+        pass 
     except Exception:
         pass
 
+    # Try running migrations
+    print("  🚀 Running migrations...")
+    try:
+        subprocess.run(
+            ["uv", "run", "alembic", "upgrade", "head"],
+            cwd=REPO_ROOT / "apps" / "backend",
+            check=True,
+            capture_output=True # Capture output to avoid noise if it fails
+        )
+        print("  ✓ Migrations completed (Database is ready)")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ Error connecting to database or running migrations.")
+        print(f"   Stderr: {e.stderr.decode().strip() if e.stderr else 'Unknown error'}")
+        print("\n💡 TIP: Did you forget to run the infrastructure?")
+        print("   👉 Run 'moon run :infra' in a separate terminal first.")
+        return False
+
 
 def cleanup(signum=None, frame=None):
-    """Clean up only the resources WE started."""
-    print("\n🧹 Cleaning up dev resources...")
-
-    # Stop uvicorn process (only ours)
+    """Clean up resources."""
+    print("\n🧹 Stopping uvicorn...")
+    
     proc = _started_resources.get("uvicorn_proc")
     if proc and proc.poll() is None:
-        print("  ✓ Stopping uvicorn...")
         proc.terminate()
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
 
-    # Stop database (only if we started it)
-    compose_cmd = get_compose_cmd()
-    container_id = _started_resources.get("db_container_id")
-    if container_id:
-        stop_database(compose_cmd, container_id)
-
-    print("✅ Cleanup complete")
     sys.exit(0)
 
 
@@ -139,13 +100,7 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    compose_cmd = get_compose_cmd()
-
-    # Start database and track container ID
-    container_id = start_database(compose_cmd)
-    _started_resources["db_container_id"] = container_id
-
-    # Set environment
+    # Set environment defaults (Localhost)
     os.environ.setdefault(
         "DATABASE_URL",
         "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report"
@@ -156,11 +111,15 @@ def main():
     os.environ.setdefault("S3_BUCKET", "statements")
     os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 
-    print("🚀 Starting FastAPI dev server on http://localhost:8000")
-    print("   Press Ctrl+C to stop")
+    # Check dependencies
+    if not check_database_ready():
+        sys.exit(1)
+
+    print("\n🚀 Starting FastAPI dev server on http://localhost:8000")
+    print("   Press Ctrl+C to stop (Infrastructure will keep running)")
     print()
 
-    # Start uvicorn and track the process
+    # Start uvicorn
     backend_dir = REPO_ROOT / "apps" / "backend"
     proc = subprocess.Popen(
         ["uv", "run", "uvicorn", "src.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],

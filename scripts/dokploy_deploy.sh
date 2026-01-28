@@ -84,6 +84,7 @@ mask_secrets "$current_env"
 new_env="$current_env"
 new_env=$(update_env_var "$new_env" "IMAGE_TAG" "$IMAGE_TAG")
 new_env=$(update_env_var "$new_env" "NEXT_PUBLIC_APP_URL" "$APP_URL")
+new_env=$(update_env_var "$new_env" "COMPOSE_PROFILES" "app")
 
 payload=$(safe_jq_build --arg id "$COMPOSE_ID" --arg env "$new_env" '{composeId: $id, env: $env}') || exit 1
 dokploy_api_call "POST" "compose.update" "$payload" "$update_response_file" "Environment update"

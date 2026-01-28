@@ -99,7 +99,7 @@ tasks:
     deps:
       - 'lint'
       - 'format-check'
-      - 'test-execution'
+      - 'test'
       - 'env-check'
 
   ci:

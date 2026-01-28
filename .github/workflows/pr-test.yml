@@ -219,6 +219,13 @@ jobs:
             echo "MINIO_API_PORT=0"
             echo "MINIO_CONSOLE_PORT=0"
             echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
+            echo "COMPOSE_PROFILES=infra,app"
+            
+            # CRITICAL: Use unique hostnames in Dokploy shared network
+            # Container names with ENV_SUFFIX are used as hostnames
+            echo "DB_HOST=finance-report-db-pr-$PR_NUMBER"
+            echo "REDIS_HOST=finance-report-redis-pr-$PR_NUMBER"
+            echo "S3_HOST=finance-report-minio-pr-$PR_NUMBER"
             
             # SigNoz Logging (EPIC-010)
             echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"

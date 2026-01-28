@@ -9,8 +9,8 @@ set -u
 echo "🧹 Starting cleanup of Finance Report dev resources..."
 
 # 1. Clean up containers
-CONTAINER_NAME="finance-report-db"
-echo "🐳 Checking for lingering containers ($CONTAINER_NAME)..."
+SERVICES=("finance-report-db" "finance-report-redis" "finance-report-minio" "finance-report-minio-init")
+echo "🐳 Checking for lingering containers (${SERVICES[*]})..."
 
 if command -v docker >/dev/null 2>&1; then
     RUNTIME="docker"
@@ -22,21 +22,20 @@ else
 fi
 
 if [ -n "$RUNTIME" ]; then
-    # Find all containers matching the name prefix
-    CONTAINERS=$($RUNTIME ps -a --filter "name=${CONTAINER_NAME}" --format "{{.ID}}")
-    if [ -n "$CONTAINERS" ]; then
-        echo "   Found $(echo "$CONTAINERS" | wc -l | xargs) containers. Removing..."
-        echo "$CONTAINERS" | xargs $RUNTIME rm -f
-        echo "   ✅ Containers removed."
-    else
-        echo "   No containers found."
-    fi
+    for SERVICE in "${SERVICES[@]}"; do
+        # Find all containers matching the name prefix (handling ENV_SUFFIX)
+        CONTAINERS=$($RUNTIME ps -a --filter "name=${SERVICE}" --format "{{.ID}}")
+        if [ -n "$CONTAINERS" ]; then
+            echo "   Found containers for $SERVICE. Removing..."
+            echo "$CONTAINERS" | xargs $RUNTIME rm -f
+        fi
+    done
+    echo "   ✅ Containers cleaned."
     
     # Clean up volumes (optional, maybe user wants to keep data? But this is for leaks)
-    # We won't delete volumes by default to be safe, unless user passes --all
     if [[ "${1:-}" == "--all" ]]; then
         echo "   Removing volumes..."
-        $RUNTIME volume rm finance-report_postgres_data 2>/dev/null || true
+        $RUNTIME volume ls --format "{{.Name}}" | grep "finance-report" | xargs $RUNTIME volume rm 2>/dev/null || true
     fi
 fi
 
