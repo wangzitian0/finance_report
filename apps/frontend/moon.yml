@@ -27,6 +27,13 @@ tasks:
     command: 'npm run build'
     inputs:
       - '@globs(sources)'
+      - 'public/**/*'
+      - 'package.json'
+      - 'next.config.mjs'
+      - 'tailwind.config.ts'
+      - 'postcss.config.js'
+      - 'components.json'
+      - 'tsconfig.json'
     outputs:
       - '.next'
     deps:
