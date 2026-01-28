@@ -97,8 +97,21 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 | **Local CI** | **Source (Host)**<br>*(pytest)* | **Docker Container**<br>*(Reuse Local Dev)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Test data reset)* | Developer<br>`moon run :test` |
 | **Github CI** | **Source (Runner)**<br>*(pytest)* | **Docker Container**<br>*(Ephemeral Service)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Job duration)* | CI Pipeline<br>`ci.yml` |
 | **Github PR** | **Source Build**<br>*(Docker build .)* | **Docker Container**<br>*(Per PR Isolated)* | `docker-compose.yml`<br>*(Profile: infra+app)* | **Ephemeral**<br>*(Destroy on PR close)* | Dokploy<br>(Preview) |
-| **Staging** | **Docker Image**<br>*(GHCR Pull)* | **External / Managed**<br>*(RDS / ElastiCache)* | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Staging) |
-| **Production**| **Docker Image**<br>*(GHCR Pull)* | **External / Managed**<br>*(RDS / ElastiCache)* | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Production) |
+| **Staging** | **Docker Image**<br>*(GHCR Pull)* | **Shared Platform (Prod)**<br>*(SigNoz/MinIO)*<br>+ **Dedicated DB/Redis** | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Staging) |
+| **Production**| **Docker Image**<br>*(GHCR Pull)* | **Shared Platform (Prod)**<br>*(SigNoz/MinIO)*<br>+ **Dedicated DB/Redis** | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Production) |
+
+### Shared Platform Strategy (Singleton)
+
+To reduce resource overhead, the **Platform** layer (SigNoz, MinIO, Traefik) runs as a **Singleton** in Production. Non-production environments (Staging, PRs) connect to these shared services with strict **Logical Isolation**.
+
+| Service | Scope | Isolation Strategy | Config |
+|---------|-------|--------------------|--------|
+| **SigNoz** | Singleton (Prod) | `deployment.environment` tag | `OTEL_RESOURCE_ATTRIBUTES` |
+| **MinIO** | Singleton (Prod) | Separate Buckets | `S3_BUCKET=finance-report-staging` |
+| **Postgres** | Dedicated | Separate Instance/Container | Managed by `infra2` |
+| **Redis** | Dedicated | Separate Instance/Container | Managed by `infra2` |
+
+> **Note**: PR Environments spin up their own ephemeral MinIO/DB/Redis to allow destructive testing, but send logs to Shared SigNoz.
 
 ### Test Categories
 
