@@ -219,7 +219,7 @@ jobs:
             echo "MINIO_API_PORT=0"
             echo "MINIO_CONSOLE_PORT=0"
             echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
-            echo "COMPOSE_PROFILES=app"
+            echo "COMPOSE_PROFILES=infra,app"
             
             # SigNoz Logging (EPIC-010)
             echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"
