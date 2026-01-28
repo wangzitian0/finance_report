@@ -533,7 +533,39 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      packages: write
     steps:
+      - name: Delete PR Images from GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          for app in backend frontend; do
+            PACKAGE_NAME="finance_report-$app"
+            echo "Searching for versions of $PACKAGE_NAME with tag pr-$PR_NUMBER..."
+
+            # Get version IDs for the tag
+            # Note: We use user namespace since this is a user-owned repo
+            VERSION_IDS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/users/$OWNER/packages/container/$PACKAGE_NAME/versions" \
+              | jq -r ".[] | select(.metadata.container.tags[] == \"pr-$PR_NUMBER\") | .id")
+
+            if [ -z "$VERSION_IDS" ] || [ "$VERSION_IDS" == "null" ]; then
+              echo "No images found for $PACKAGE_NAME tag pr-$PR_NUMBER"
+              continue
+            fi
+
+            for id in $VERSION_IDS; do
+              echo "Deleting version $id for $PACKAGE_NAME..."
+              curl -s -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/users/$OWNER/packages/container/$PACKAGE_NAME/versions/$id"
+              echo "Deleted version $id"
+            done
+          done
+
       - name: Find and remove compose
         run: |
           echo "Looking for compose: ${{ needs.setup.outputs.compose_name }}"
@@ -587,11 +619,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const body = `## 🧹 Test Environment Cleaned Up
+            const body = `## 🧹 PR Resources Released
             
-            The test environment for this PR has been removed.
+            All temporary resources for this PR have been released.
             
-            - Compose: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted`;
+            - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
+            - **GHCR Images**: \`pr-${{ needs.setup.outputs.pr_number }}\` ✓ deleted from registry
+            
+            _Note: VPS disk space will be reclaimed by the next automated system prune._`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
