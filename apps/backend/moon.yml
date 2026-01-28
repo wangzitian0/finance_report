@@ -108,5 +108,5 @@ tasks:
     deps:
       - 'lint'
       - 'format-check'
-      - 'test'
+      - 'test-execution'
       - 'env-check-quick'
