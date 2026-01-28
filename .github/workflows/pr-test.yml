@@ -220,11 +220,12 @@ jobs:
           DOMAIN="${{ needs.setup.outputs.internal_domain }}"
           
           # Calculate unique ports based on PR number to avoid conflicts
-          # Range: 30000-34000 (Supports PRs up to ~9999)
-          DB_PORT=$((30000 + PR_NUMBER))
-          REDIS_PORT=$((31000 + PR_NUMBER))
-          MINIO_API_PORT=$((32000 + PR_NUMBER))
-          MINIO_CONSOLE_PORT=$((33000 + PR_NUMBER))
+          # Range: 30000-34000 (Modulo 1000 to keep within range)
+          PR_MOD=$((PR_NUMBER % 1000))
+          DB_PORT=$((30000 + PR_MOD))
+          REDIS_PORT=$((31000 + PR_MOD))
+          MINIO_API_PORT=$((32000 + PR_MOD))
+          MINIO_CONSOLE_PORT=$((33000 + PR_MOD))
           
           # Construct environment variables in a temporary file to avoid indentation issues
           {
