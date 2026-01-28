@@ -135,7 +135,9 @@ def test_database():
         "SELECT 1 FROM pg_database WHERE datname='finance_report_test'",
     ]
     res = subprocess.run(create_db_cmd, capture_output=True, text=True)
-    if "1" not in res.stdout:
+    if "1" in res.stdout:
+        # Drop existing test database to ensure a clean slate
+        log("   Dropping existing 'finance_report_test' database...", YELLOW)
         subprocess.run(
             [
                 runtime,
@@ -145,13 +147,25 @@ def test_database():
                 "-U",
                 "postgres",
                 "-c",
-                "CREATE DATABASE finance_report_test;",
+                "DROP DATABASE finance_report_test;",
             ],
             check=True,
         )
-        log("   Created 'finance_report_test' database.", GREEN)
-    else:
-        log("   'finance_report_test' database exists.", GREEN)
+
+    subprocess.run(
+        [
+            runtime,
+            "exec",
+            container_name,
+            "psql",
+            "-U",
+            "postgres",
+            "-c",
+            "CREATE DATABASE finance_report_test;",
+        ],
+        check=True,
+    )
+    log("   Created 'finance_report_test' database.", GREEN)
 
     # Run Migrations on Test DB
     # We need to run alembic against the TEST database.

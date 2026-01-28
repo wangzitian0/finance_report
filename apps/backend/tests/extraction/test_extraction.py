@@ -426,17 +426,17 @@ class TestExtractionServiceHelpers:
 
     def test_safe_decimal_invalid(self):
         """Test _safe_decimal with invalid input."""
-        d = self.service._safe_decimal("abc")
-        from decimal import Decimal
+        import pytest
 
-        assert d == Decimal("0.00")
+        with pytest.raises(ValueError, match="Invalid decimal value"):
+            self.service._safe_decimal("abc")
 
     def test_safe_decimal_none(self):
         """Test _safe_decimal with None."""
-        d = self.service._safe_decimal(None)
-        from decimal import Decimal
+        import pytest
 
-        assert d == Decimal("0.00")
+        with pytest.raises(ValueError, match="Decimal value is required"):
+            self.service._safe_decimal(None)
 
     def test_compute_confidence_missing_transactions(self):
         """Test confidence with missing transactions key."""

@@ -225,6 +225,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
                 "timestamp": datetime.now(UTC).isoformat(),
                 "git_sha": os.getenv("GIT_COMMIT_SHA", "unknown"),
                 "checks": checks,
+                "version": settings.git_commit_sha,
             },
         )
     except Exception as e:

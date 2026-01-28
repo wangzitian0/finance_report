@@ -333,6 +333,13 @@ Examples:
         service = Service(args.service)
         env = Environment(args.env) if args.env else detect_environment()
 
+        if args.method == "signoz":
+            view_remote_logs_signoz(service, env)
+        elif env in (Environment.LOCAL, Environment.CI):
+            view_local_logs(service, tail=args.tail, follow=args.follow)
+        else:
+            view_remote_logs_docker(service, env, tail=args.tail, follow=args.follow)
+
     elif args.command == "status":
         service = Service(args.service)
         env = Environment(args.env) if args.env else detect_environment()
