@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Inject Git SHA for runtime verification
+ARG GIT_COMMIT_SHA
+ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
+
 # 复制业务代码和数据库迁移配置
 COPY src ./src
 COPY migrations ./migrations

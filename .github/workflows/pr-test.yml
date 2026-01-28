@@ -115,6 +115,7 @@ jobs:
             type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            GIT_COMMIT_SHA=${{ github.sha }}
             ${{ matrix.app == 'frontend' && format('NEXT_PUBLIC_API_URL=https://report-pr-{0}.{1}', needs.setup.outputs.pr_number, needs.setup.outputs.internal_domain) || '' }}
             ${{ matrix.app == 'frontend' && format('NEXT_PUBLIC_APP_URL=https://report-pr-{0}.{1}', needs.setup.outputs.pr_number, needs.setup.outputs.internal_domain) || '' }}
 
@@ -421,6 +422,7 @@ jobs:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
           TEST_ENV: staging
           SKIP_UI_TESTS: false
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
