@@ -36,20 +36,7 @@ async_session_maker = async_sessionmaker(
 _test_session_maker = None
 
 
-# Cache for test engine to avoid recreating it
-_test_engine: AsyncEngine | None = None
-
-
 def set_test_session_maker(maker: async_sessionmaker[AsyncSession] | None) -> None:
-    """Set a test session maker to override the default one."""
-    global _test_session_maker
-    _test_session_maker = maker
-
-
-def set_test_engine(engine: AsyncEngine) -> None:
-    """Set a test engine for use in get_db()."""
-    global _test_engine
-    _test_engine = engine
     """Set a test session maker to override the default one."""
     global _test_session_maker
     _test_session_maker = maker
@@ -64,10 +51,16 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
     """
     bind = db.bind or db.get_bind()
     if isinstance(bind, AsyncEngine):
+        # For SQLAlchemy 2.0, check pool to get underlying engine
+        pool = getattr(bind, "pool", None)
+        if pool:
+            async_engine = pool._creator
+        else:
+            async_engine = getattr(bind, "sync_engine", None)
+    elif isinstance(bind, Engine):
         async_engine = bind
     else:
-        # For test sessions, get engine from bind or module-level test engine
-        async_engine = bind.sync_engine if isinstance(bind, Engine) else (_test_engine or engine)
+        async_engine = getattr(bind, "sync_engine", None)
 
     if not isinstance(async_engine, AsyncEngine):
         raise RuntimeError("Async engine unavailable for session maker creation")
@@ -80,9 +73,24 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for database session."""
-    # Use test engine if set, otherwise fall back to default
-    maker = _test_session_maker or async_session_maker
+    """Dependency for database session.
+
+    Creates a test session maker if _test_session_maker is set, ensuring test
+    DATABASE_URL is used instead of the production database_url.
+    """
+    global _test_session_maker
+    if _test_session_maker:
+        # Create a new session maker from test session's bind to get correct engine
+        from sqlalchemy.engine.url import make_url
+        from src.config import settings
+
+        # Read DATABASE_URL from environment (set by client fixture)
+        test_url = make_url(settings.database_url)
+        engine = create_async_engine(test_url, echo=False, pool_pre_ping=True)
+        maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    else:
+        maker = async_session_maker
+
     async with maker() as session:
         try:
             yield session
