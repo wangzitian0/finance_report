@@ -49,6 +49,7 @@ class ExtractionService:
         self.base_url = settings.openrouter_base_url
         self.primary_model = settings.primary_model
         self.fallback_models = settings.fallback_models
+        self.storage_service = DeduplicationService()
 
     def _safe_date(self, value: str | None) -> date:
         """Safely parse date from string."""

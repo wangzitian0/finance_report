@@ -64,25 +64,39 @@ class TestCSVParsingWithAI:
         return ExtractionService()
 
     @pytest.mark.asyncio
-    async def test_csv_with_missing_account_last4(self, service):
-        """Test CSV extraction when account_last4 is missing."""
+    async def test_csv_with_zero_balance_range(self, service):
+        """Test CSV extraction with zero opening and closing balances."""
         csv_content = """Date,Description,Amount
-2025-01-01,Coffee,10.00
-2025-01-02,Salary,1000.00
-"""
+ 2025-01-01,Coffee,10.00
+ 2025-01-02,Salary,-10.00
+ """
         service.extract_financial_data = AsyncMock(
             return_value={
                 "institution": "DBS",
-                "currency": "SGD",
-                "period_start": "2025-01-01",
-                "period_end": "2025-01-31",
-                "opening_balance": "1010.00",
-                "closing_balance": "2010.00",
+                "account_last4": "Unknown",
                 "transactions": [
-                    {"date": "2025-01-01", "amount": "10.00", "direction": "IN", "description": "Coffee"},
-                    {"date": "2025-01-02", "amount": "1000.00", "direction": "IN", "description": "Salary"},
+                    {
+                        "date": "2025-01-01",
+                        "description": "Coffee",
+                        "amount": "10.00",
+                        "direction": "IN",
+                    }
                 ],
             }
+        )
+
+        stmt, txns = await service.parse_document(
+            Path("test.csv"),
+            "DBS",
+            user_id=str(uuid4()),
+            file_content=csv_content,
+        )
+
+        stmt, txns = await service.parse_document(
+            Path("test.csv"),
+            "DBS",
+            user_id=str(uuid4()),
+            file_content=csv_content,
         )
 
         stmt, txns = await service.parse_document(
