@@ -1,7 +1,23 @@
 """Tests for external URL validation and AI extraction timeout/retry logic."""
 
 import pytest
-from src.services.extraction import ExtractionService
+from unittest.mock import patch, AsyncMock
+
+from src.services.extraction import ExtractionService, ExtractionError
+
+
+def mock_stream_generator(status: str):
+    """Generate mock stream responses for testing."""
+
+    async def generator():
+        if status == "timeout":
+            yield b'data: {"error": "timeout"}\n\n'
+        elif status == "connection_error":
+            yield b'data: {"error": "connection error"}\n\n'
+        else:
+            yield b'data: {"institution": "TEST"}\n\n'
+
+    return generator()
 
 
 class TestURLValidationEdgeCases:
@@ -62,7 +78,8 @@ class TestAExtractionTimeoutRetry:
     def service(self):
         return ExtractionService()
 
-    def test_extract_with_timeout_on_last_model(self, service):
+    @pytest.mark.asyncio
+    async def test_extract_with_timeout_on_last_model(self, service):
         """Test extraction continues after timeout on second-to-last model."""
         from unittest.mock import patch
 
@@ -98,7 +115,8 @@ class TestAExtractionTimeoutRetry:
                         "pdf",
                     )
 
-    def test_extract_with_connection_error(self, service):
+    @pytest.mark.asyncio
+    async def test_extract_with_connection_error(self, service):
         """Test extraction handles connection errors gracefully."""
         from unittest.mock import patch
 
