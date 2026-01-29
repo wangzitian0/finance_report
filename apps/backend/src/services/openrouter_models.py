@@ -13,6 +13,11 @@ import httpx
 from src.config import settings
 from src.logger import get_logger
 
+
+class ModelCatalogError(Exception):
+    """Raised when the OpenRouter model catalog cannot be fetched."""
+
+
 logger = get_logger(__name__)
 
 _CACHE_TTL_SECONDS = 600
@@ -114,7 +119,7 @@ async def get_model_info(model_id: str) -> dict[str, Any] | None:
             error=str(exc),
             error_type=type(exc).__name__,
         )
-        return None
+        raise ModelCatalogError("Model catalog unavailable") from exc
     for model in models:
         if model.get("id") == model_id:
             return normalize_model_entry(model)

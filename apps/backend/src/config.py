@@ -117,7 +117,7 @@ class Settings(BaseSettings):
 
     # S3 optional settings
     s3_region: str = "us-east-1"
-    s3_presign_expiry_seconds: int = 900
+    s3_presign_expiry_seconds: int = 300
 
     # Observability (optional)
     otel_exporter_otlp_endpoint: str | None = Field(
@@ -145,6 +145,12 @@ class Settings(BaseSettings):
     enable_layer_0_write: bool = Field(
         default=True,
         validation_alias="ENABLE_LAYER_0_WRITE",
+    )
+
+    # Deployment metadata
+    git_commit_sha: str = Field(
+        default="unknown",
+        validation_alias="GIT_COMMIT_SHA",
     )
 
     @cached_property

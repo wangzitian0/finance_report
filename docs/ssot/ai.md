@@ -111,7 +111,7 @@ The advisor only reads summarized, posted/reconciled data:
 
 1. UI pulls available models from `/api/ai/models`.
 2. Client sends the selected `model` in `POST /api/chat`.
-3. If omitted, the service uses `PRIMARY_MODEL` with fallbacks.
+3. If omitted, the service uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS` for chat responses.
 
 ### SOP-003: Cached Common Q&A
 

@@ -118,7 +118,7 @@ class TestModelValidationIntegration:
         )
 
         assert response.status_code == 400
-        assert "does not support image inputs" in response.json()["detail"]
+        assert "does not support image/PDF inputs" in response.json()["detail"]
 
     async def test_valid_model_accepted_in_upload_validation(self, client, test_user):
         """Test that PRIMARY_MODEL passes validation in upload endpoint."""
