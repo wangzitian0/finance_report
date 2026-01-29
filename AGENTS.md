@@ -346,6 +346,25 @@ Delegation happens ONLY for:
 3. **Image/PDF analysis** → `multimodal-looker`
 4. **Architecture decisions** → `oracle` (expensive, use sparingly)
 
+### 🚨 Branch Management Constraints (CRITICAL)
+
+**MUST** follow these rules for Git operations:
+
+1. **NO commits to `main`**: Never commit directly to the `main` branch. All changes must go through branches.
+
+2. **NO new branches while PR is open**: Do NOT create a new branch until the current PR is merged. This prevents:
+   - Branch proliferation
+   - Context switching
+   - Merge conflicts
+   - Lost work
+
+3. **Explicit permission required**: Only create a new branch when:
+   - Current PR is merged
+   - User explicitly requests new work
+   - Previous task is explicitly completed
+
+4. **Work on ONE branch at a time**: Focus on completing the current PR before starting new work.
+
 ### Skill Categories
 
 Skills are organized in `.opencode/skills/` by category:
