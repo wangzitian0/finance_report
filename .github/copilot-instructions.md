@@ -2,6 +2,19 @@
 
 > Project-level instructions to enhance GitHub Copilot behavior for this repository.
 
+## 🚨 IMPORTANT: Read AGENTS.md First
+
+**MUST READ**: [AGENTS.md](../AGENTS.md) before working on this repository.
+AGENTS.md contains:
+- Agent behavior guidelines and constraints
+- Security red lines
+- Code standards and patterns
+- Project-specific workflows
+
+**NEVER** start working without understanding AGENTS.md requirements.
+
+---
+
 ## Project Overview
 
 Finance Report is a personal financial management system built with:
