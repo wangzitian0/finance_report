@@ -174,7 +174,7 @@ To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces 
 1.  **AI Output**: The LLM prompt must request monetary values as numbers or strings.
 2.  **Pydantic Validation**:
     -   **NEVER** use `float` for `amount` fields.
-    -   **MUST** use `Decimal` with strict mode or string coercion.
+    -   Use `Decimal` with strict mode or string coercion. See: `apps/backend/tests/accounting/test_decimal_safety.py`
     -   Example: `amount: Decimal = Field(decimal_places=2)`
 3.  **Database Storage**: Stored as `DECIMAL(18,2)`.
 

@@ -609,12 +609,12 @@ flowchart TD
 
 1.  **Frontend (Next.js)**:
     *   Variables prefixed with `NEXT_PUBLIC_` are "baked" into the static JS bundle during `npm run build`.
-    *   **Requirement**: These MUST be defined as `ARG` in `apps/frontend/Dockerfile`.
+    *   **Requirement**: These must be defined as `ARG` in `apps/frontend/Dockerfile`. See: `apps/frontend/Dockerfile`
     *   **Requirement**: They must also be passed in `docker-compose.yml` under `args`.
 2.  **Backend (FastAPI)**:
     *   Variables are loaded at runtime via Pydantic Settings.
-    *   **Requirement**: All variables must have a type and default in `apps/backend/src/config.py`.
-    *   **Requirement**: Must be documented in `.env.example`.
+    *   **Requirement**: All variables must have a type and default in `apps/backend/src/config.py`. See: `apps/backend/src/config.py`
+    *   **Requirement**: Must be documented in `.env.example`. See: `.env.example`
 3.  **Production (Vault)**:
     *   Secrets are stored in Vault and rendered by `vault-agent` using `secrets.ctmpl`.
     *   **Consistency**: CI runs `scripts/check_env_keys.py` to ensure `secrets.ctmpl`, `config.py`, and `.env.example` are aligned.
