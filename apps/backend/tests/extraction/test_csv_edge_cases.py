@@ -1,7 +1,8 @@
 """Tests for CSV parsing edge cases - malformed rows, duplicates, and format issues."""
 
 import pytest
-from src.services.extraction import ExtractionService
+from unittest.mock import AsyncMock
+from src.services.extraction import ExtractionError, ExtractionService
 
 
 class TestCSVMalformedRowHandling:

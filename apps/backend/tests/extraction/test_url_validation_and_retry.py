@@ -1,7 +1,12 @@
 """Tests for external URL validation and AI extraction timeout/retry logic."""
 
 import pytest
-from src.services.extraction import ExtractionService
+from src.services.extraction import ExtractionError, ExtractionService
+
+
+async def mock_stream_generator(content: str):
+    """Helper to create async generator for streaming mock."""
+    yield content
 
 
 class TestURLValidationEdgeCases:
@@ -62,7 +67,7 @@ class TestAExtractionTimeoutRetry:
     def service(self):
         return ExtractionService()
 
-    def test_extract_with_timeout_on_last_model(self, service):
+    async def test_extract_with_timeout_on_last_model(self, service):
         """Test extraction continues after timeout on second-to-last model."""
         from unittest.mock import patch
 
@@ -98,7 +103,7 @@ class TestAExtractionTimeoutRetry:
                         "pdf",
                     )
 
-    def test_extract_with_connection_error(self, service):
+    async def test_extract_with_connection_error(self, service):
         """Test extraction handles connection errors gracefully."""
         from unittest.mock import patch
 

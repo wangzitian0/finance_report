@@ -226,27 +226,6 @@ async def db_engine(test_database_url):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def patch_database_connection(db_engine):
-    """Ensure all tests use the test database connection via hook.
-
-    This handles tests that manually instantiate the app/client without using
-    the client fixture.
-    """
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-    from src import database
-
-    test_maker = async_sessionmaker(
-        db_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    database.set_test_session_maker(test_maker)
-    yield
-    database.set_test_session_maker(None)
-
-
-@pytest_asyncio.fixture(scope="function")
 async def db(db_engine):
     """Create a test database session.
 
@@ -285,8 +264,6 @@ async def client(db_engine, test_user):
     """Create async test client with database initialized."""
     # Override the database URL for the app
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-
-    # Database connection is handled by patch_database_connection autouse fixture
 
     # Import app after setting env var
     from src.main import app
