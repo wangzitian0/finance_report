@@ -11,7 +11,7 @@
 - **NEVER** use float for monetary amounts (**MUST** use `Decimal`). See: `apps/backend/tests/accounting/test_decimal_safety.py`
 - **NEVER** commit sensitive files (`.env`, `*.pem`, credentials). Enforced by pre-commit hooks: `.pre-commit-config.yaml`
 - **NEVER** skip entry balance validation or post entries without accounting equation check. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`
-- **NEVER** use direct `fetch()` in frontend; **MUST** use `lib/api.ts` wrapper. See: `apps/frontend/lib/api.ts`
+- **NEVER** use direct `fetch()` in frontend; **MUST** use `lib/api.ts` wrapper. See: `apps/frontend/src/lib/api.ts`
 - **NEVER** create `sa.Enum` without an explicit `name="..."` parameter. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
 
 ---
