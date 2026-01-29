@@ -1,0 +1,39 @@
+name: Branch Naming Enforcement
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  push:
+
+jobs:
+  validate-branch-name:
+    name: Validate Branch Name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Branch Name
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          # 提取分支名（去掉 refs/heads/ 前缀）
+          BRANCH_NAME="${HEAD_REF#refs/heads/}"
+
+          echo "Checking branch: $BRANCH_NAME"
+
+          # 允许的分支命名模式
+          # feat/, fix/, chore/, docs/, refactor/, test/, perf/
+          # 不允许: pr-XX, temp-*, random-name
+          if [[ ! "$BRANCH_NAME" =~ ^(feat|fix|chore|docs|refactor|test|perf)/.+ ]]; then
+            echo "::error::Branch name must follow convention: (feat|fix|chore|docs|refactor|test|perf)/<description>"
+            echo "::error::Invalid branch: $BRANCH_NAME"
+            echo "::error::Examples: feat/user-auth, fix/login-bug, chore/update-deps"
+            exit 1
+          fi
+
+          # 禁止使用 pr-XX 模式（避免混淆）
+          if [[ "$BRANCH_NAME" =~ ^pr-[0-9]+$ ]]; then
+            echo "::error::Branch names like 'pr-XX' are forbidden to avoid confusion with PR numbers."
+            echo "::error::Use descriptive names like 'fix/issue-62' or 'feat/new-feature'"
+            exit 1
+          fi
+
+          echo "✅ Branch name follows convention"

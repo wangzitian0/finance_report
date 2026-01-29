@@ -17,7 +17,8 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
-| [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, and building documentation |
+| [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, TDD workflow, and building documentation |
+| [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 97% coverage goal |
 | [observability.md](./observability.md) | `observability` | Logging and SigNoz OTLP export configuration |
 | [auth.md](./auth.md) | `auth` | API user identity, registration/login flow, and frontend integration |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | React/Next.js SSR handling, theme system, and API patterns |
@@ -40,21 +41,23 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 For new developers joining the project:
 
 1. **[development.md](./development.md)** — Setup your environment and understand the build/test workflow
-2. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
-3. **[schema.md](./schema.md)** — Understand the database structure
-4. **[auth.md](./auth.md)** — Learn how auth and registration works
-5. **[frontend-patterns.md](./frontend-patterns.md)** — React/Next.js patterns and SSR handling
-6. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
-7. **[extraction.md](./extraction.md)** — See how bank statements are parsed
-8. **[reconciliation.md](./reconciliation.md)** — Understand the matching engine
-9. **[reporting.md](./reporting.md)** — Learn how reports are generated
-10. **[ai.md](./ai.md)** — Understand the AI advisor implementation
+2. **[tdd.md](./tdd.md)** — Learn Test-Driven Development workflow and coverage requirements (97%)
+3. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
+4. **[schema.md](./schema.md)** — Understand the database structure
+5. **[auth.md](./auth.md)** — Learn how auth and registration works
+6. **[frontend-patterns.md](./frontend-patterns.md)** — React/Next.js patterns and SSR handling
+7. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
+8. **[extraction.md](./extraction.md)** — See how bank statements are parsed
+9. **[reconciliation.md](./reconciliation.md)** — Understand the matching engine
+10. **[reporting.md](./reporting.md)** — Learn how reports are generated
+11. **[ai.md](./ai.md)** — Understand the AI advisor implementation
 
 ## 📊 Document Dependency Graph
 
 ```mermaid
 flowchart TD
-    development[development.md<br/>Development Setup] --> schema[schema.md<br/>Database Schema]
+    development[development.md<br/>Development Setup] --> tdd[tdd.md<br/>TDD Workflow]
+    tdd --> schema[schema.md<br/>Database Schema]
     schema --> auth[auth.md<br/>Authentication]
     schema --> accounting[accounting.md<br/>Accounting Rules]
     schema --> extraction[extraction.md<br/>Statement Parsing]
@@ -70,6 +73,7 @@ flowchart TD
     reconciliation --> ai
     
     style development fill:#e1f5ff
+    style tdd fill:#ffe0b2
     style schema fill:#fff3e0
     style accounting fill:#f3e5f5
 ```
