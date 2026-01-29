@@ -145,7 +145,9 @@ To reduce resource overhead, the **Platform** layer (SigNoz, MinIO, Traefik) run
 
 ### Coverage Gate
 
-- Backend line coverage must be **>= 95%** (`pytest-cov` enforces via `--cov-fail-under=95`).
+- Backend line coverage must be **>= 97%** (`pytest-cov` enforces via `--cov-fail-under=97`).
+- Branch coverage also enforced via `--cov-branch` flag for stricter quality.
+- See [TDD Transformation Plan](./tdd.md) for detailed testing workflow.
 
 ### Workflow Diagram
 
