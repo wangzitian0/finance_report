@@ -262,11 +262,11 @@ async def test_user(db: AsyncSession):
 @pytest_asyncio.fixture(scope="function")
 async def client(db_engine, test_database_url, test_user):
     """Create async test client with database initialized."""
-    # Override the database URL for the app
-    os.environ["DATABASE_URL"] = test_database_url
-
-    # Import app after setting env var
+    # Import app BEFORE setting env var to ensure database module uses correct URL
+    # Then override the database URL for the app
     from src.main import app
+
+    os.environ["DATABASE_URL"] = test_database_url
     from src.security import create_access_token
 
     token = create_access_token(data={"sub": str(test_user.id)})
