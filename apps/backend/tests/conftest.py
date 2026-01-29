@@ -260,10 +260,10 @@ async def test_user(db: AsyncSession):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_engine, test_user):
+async def client(db_engine, test_database_url, test_user):
     """Create async test client with database initialized."""
     # Override the database URL for the app
-    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+    os.environ["DATABASE_URL"] = test_database_url
 
     # Import app after setting env var
     from src.main import app
