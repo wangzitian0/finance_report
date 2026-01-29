@@ -18,15 +18,15 @@
       "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
     },
     "explore": {
-      "model": "google/antigravity-gemini-3-flash",
+      "model": "zai-coding-plan/glm-4.7-flash",
       "description": "Blazing fast codebase exploration (use as parallel grep)"
     },
     "librarian": {
-      "model": "google/antigravity-gemini-3-flash",
+      "model": "zai-coding-plan/glm-4.7",
       "description": "External documentation and OSS exploration"
     },
     "frontend-ui-ux-engineer": {
-      "model": "google/antigravity-gemini-3-pro-high",
+      "model": "openai/codex-5.2",
       "skills": [
         "professional/frontend-react",
         "professional/ui-ux-design"
