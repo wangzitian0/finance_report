@@ -28,7 +28,7 @@ class TestExtractionServiceFlow:
         service = ExtractionService()
         service.extract_financial_data = AsyncMock(side_effect=RuntimeError("Boom"))
         stmt, events = await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+            Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
         )
         assert stmt is not None
         assert events[0].amount == Decimal("100.00")
