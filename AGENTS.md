@@ -8,10 +8,10 @@
 
 ## 🚨 Security & Red Lines (CRITICAL)
 
-- **NEVER** use float for monetary amounts. See: `apps/backend/tests/accounting/test_decimal_safety.py`
-- **NEVER** commit sensitive files (`.env`, `*.pem`, credentials).
-- **NEVER** skip entry balance validation or post entries without accounting equation check.
-- **NEVER** use direct `fetch()` in frontend; use `lib/api.ts` wrapper.
+- **NEVER** use float for monetary amounts (**MUST** use `Decimal`). See: `apps/backend/tests/accounting/test_decimal_safety.py`
+- **NEVER** commit sensitive files (`.env`, `*.pem`, credentials). Enforced by pre-commit hooks: `.pre-commit-config.yaml`
+- **NEVER** skip entry balance validation or post entries without accounting equation check. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`
+- **NEVER** use direct `fetch()` in frontend; **MUST** use `lib/api.ts` wrapper. See: `apps/frontend/lib/api.ts`
 - **NEVER** create `sa.Enum` without an explicit `name="..."` parameter. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
 
 ---
@@ -164,7 +164,7 @@ docker restart finance-report-backend
 ```
 Assets = Liabilities + Equity + (Income - Expenses)
 ```
-See: `apps/backend/tests/accounting/test_accounting.py`
+See: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_holds_with_all_account_types`
 
 ### Reconciliation Thresholds
 | Score | Action |
@@ -223,16 +223,16 @@ AI must use this cascade structure before processing tasks:
 3. **No hidden drift**: When code differs from SSOT, sync immediately. Never let SSOT rot.
 
 ### Engineering Integrity
-4. **Explicit Enum Naming**: All database enums must have an explicit `name` parameter in SQLAlchemy. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
+4. **Explicit Enum Naming**: All database enums **MUST** have an explicit `name` parameter in SQLAlchemy. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
 5. **Environment Lifecycle**:
-    - `NEXT_PUBLIC_` variables must be defined in `Dockerfile` as `ARG` and `ENV`. See: `apps/frontend/Dockerfile`
-    - Backend variables must be documented in `.env.example` and `config.py`. See: `apps/backend/src/config.py`
+    - `NEXT_PUBLIC_` variables **MUST** be defined in `Dockerfile` as `ARG` and `ENV`. See: `apps/frontend/Dockerfile`
+    - Backend variables **MUST** be documented in `.env.example` and `config.py`. See: `apps/backend/tests/infra/test_config_contract.py::test_config_sync_with_env_example`
 6. **Cross-Repo Sync**: Changes to production configuration (Vault/Compose) **REQUIRE** a corresponding PR in the `repo` submodule (`infra2`).
-7. **Async Transaction Boundary**: Routers handle `commit()`; Services use `flush()` or internal logic.
+7. **Async Transaction Boundary**: Routers handle `commit()`; Services use `flush()` or internal logic. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_create_journal_entry_uses_flush_not_commit`
 
 ### Accounting Integrity
-8. **Entries must balance**: Every JournalEntry must have balanced debits and credits. See: `apps/backend/tests/accounting/test_accounting.py::test_decimal_precision`
-9. **Equation must hold**: At any point, the accounting equation must be satisfied. See: `apps/backend/tests/accounting/`
+8. **Entries must balance**: Every JournalEntry must have balanced debits and credits. See: `apps/backend/tests/accounting/test_accounting.py::test_balanced_entry_passes`
+9. **Equation must hold**: At any point, the accounting equation must be satisfied. See: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_violation_detected`
 
 ### Delivery
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars. If Dokploy is not enough to debug, use `ssh root@$VPS_HOST`, **You can only read, not modify**.

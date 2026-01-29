@@ -630,3 +630,92 @@ async def test_create_journal_entry_uses_flush_not_commit(db: AsyncSession, bank
 
     result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id))
     assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_post_unbalanced_entry_rejected(db: AsyncSession, bank_account, salary_account, test_user_id):
+    """
+    CRITICAL: Verify that posting an unbalanced entry is rejected.
+
+    This test ensures the constraint:
+    "NEVER skip entry balance validation or post entries without accounting equation check"
+
+    The system MUST reject posting entries with unbalanced debit/credit amounts.
+    """
+    # Create an entry with unbalanced amounts: DEBIT 100, CREDIT 90
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Unbalanced entry should be rejected",
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=bank_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=salary_account.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("90.00"),  # Intentionally unbalanced
+            currency="SGD",
+        )
+    )
+    await db.commit()
+
+    # Attempting to post an unbalanced entry should fail with ValidationError
+    with pytest.raises(ValidationError, match="not balanced"):
+        await post_journal_entry(db, entry.id, test_user_id)
+
+    # Verify entry remains in DRAFT status
+    await db.refresh(entry)
+    assert entry.status == JournalEntryStatus.DRAFT
+
+
+@pytest.mark.asyncio
+async def test_post_single_line_entry_rejected(db: AsyncSession, bank_account, test_user_id):
+    """
+    CRITICAL: Verify that posting a single-line entry is rejected.
+
+    This test ensures the constraint:
+    "NEVER skip entry balance validation or post entries without accounting equation check"
+
+    Double-entry bookkeeping requires at least 2 lines (one debit, one credit).
+    """
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Single line entry should be rejected",
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+
+    # Only add a single DEBIT line
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=bank_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    )
+    await db.commit()
+
+    # Attempting to post a single-line entry should fail
+    with pytest.raises(ValidationError, match="at least 2 lines"):
+        await post_journal_entry(db, entry.id, test_user_id)
+
+    # Verify entry remains in DRAFT status
+    await db.refresh(entry)
+    assert entry.status == JournalEntryStatus.DRAFT
