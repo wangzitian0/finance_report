@@ -54,7 +54,7 @@
 - **Quality**: `moon run :lint` (Check all), `moon run backend:format` (Ruff)
 - **Proof**: `moon run :smoke` (E2E against local/remote)
 
-### Pre-commit Hooks (REQUIRED for contributors)
+### Pre-commit Hooks (Recommended for contributors)
 
 Before your first commit, install pre-commit hooks to prevent CI failures:
 
@@ -227,7 +227,7 @@ AI must use this cascade structure before processing tasks:
 5. **Environment Lifecycle**:
     - `NEXT_PUBLIC_` variables must be defined in `Dockerfile` as `ARG` and `ENV`. See: `apps/frontend/Dockerfile`
     - Backend variables must be documented in `.env.example` and `config.py`. See: `apps/backend/src/config.py`
-6. **Cross-Repo Sync**: Changes to production configuration (Vault/Compose) **REQUIRE** a corresponding PR in the `repo` submodule (`infra2`).
+6. **Cross-Repo Sync**: Changes to production configuration (Vault/Compose) require a corresponding PR in the `repo` submodule (`infra2`).
 7. **Async Transaction Boundary**: Routers handle `commit()`; Services use `flush()` or internal logic.
 
 ### Accounting Integrity
