@@ -2,6 +2,7 @@ import base64
 import hashlib
 import ipaddress
 import json
+import re  # noqa: F401 (used in regex patterns)
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -52,11 +53,17 @@ class ExtractionService:
     def _safe_date(self, value: str | None) -> date:
         """Safely parse date from string."""
         if not value:
+            logger.error("Date is required but was None or empty", value=value)
             raise ValueError("Date is required")
         try:
             return date.fromisoformat(str(value))
-        except (ValueError, TypeError):
-            raise ValueError(f"Invalid date format: {value}")
+        except (ValueError, TypeError) as exc:
+            logger.error(
+                "Failed to parse date",
+                value=value,
+                error_type=type(exc).__name__,
+            )
+            raise ValueError(f"Invalid date format: {value}") from exc
 
     def _safe_decimal(self, value: str | None, default: str | None = None) -> Decimal:
         """Safely convert string to Decimal."""
@@ -230,6 +237,13 @@ class ExtractionService:
 
                 # Skip if date is still invalid
                 if txn_date_val in ("None", "", "null"):
+                    logger.warning(
+                        "Transaction skipped due to invalid date",
+                        raw_date=txn["date"],
+                        description=txn.get("description", "N/A"),
+                        amount=txn.get("amount"),
+                        statement_file=original_filename or "unknown",
+                    )
                     continue
 
                 try:
@@ -553,7 +567,7 @@ class ExtractionService:
         import io
         from datetime import datetime
 
-        text = file_content.decode("utf-8-sig")
+        text = file_content.decode(encoding="utf-8", errors="ignore")
 
         pii_matches = detect_pii(text)
         if pii_matches:
@@ -630,6 +644,12 @@ class ExtractionService:
             for row in rows:
                 txn_date = parse_date(row.get(date_col, "")) if date_col else None
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=row.get(date_col, ""),
+                        description=row.get(desc_cols[0] if desc_cols else None, ""),
+                    )
                     continue
 
                 debit = parse_amount(row.get(debit_col, "")) if debit_col else None
@@ -642,6 +662,13 @@ class ExtractionService:
                     amount = credit
                     direction = "IN"
                 else:
+                    logger.warning(
+                        "CSV transaction skipped - no valid amount",
+                        institution=institution,
+                        debit=debit,
+                        credit=credit,
+                        description=row.get(desc_cols[0] if desc_cols else None, ""),
+                    )
                     continue
 
                 desc_parts = [row.get(col, "") for col in desc_cols if col and row.get(col)]
@@ -675,10 +702,22 @@ class ExtractionService:
                     date_str = date_str.split("T")[0]
                 txn_date = parse_date(date_str)
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=date_str,
+                        description=row.get(desc_col, "Wise Transfer"),
+                    )
                     continue
 
                 amount = parse_amount(row.get(amount_col, "")) if amount_col else None
                 if not amount or amount <= 0:
+                    logger.warning(
+                        "CSV transaction skipped - no valid amount",
+                        institution=institution,
+                        amount_raw=row.get(amount_col, ""),
+                        description=row.get(desc_col, "Wise Transfer"),
+                    )
                     continue
 
                 direction_raw = row.get(direction_col, "").lower() if direction_col else ""
@@ -714,6 +753,12 @@ class ExtractionService:
             for row in rows:
                 txn_date = parse_date(row.get(date_col, "")) if date_col else None
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=row.get(date_col, ""),
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 debit = parse_amount(row.get(debit_col, "")) if debit_col else None
@@ -726,6 +771,13 @@ class ExtractionService:
                     amount = credit
                     direction = "IN"
                 else:
+                    logger.warning(
+                        "CSV transaction skipped - no valid amount",
+                        institution=institution,
+                        debit=debit,
+                        credit=credit,
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 description = row.get(desc_col, "Transaction") if desc_col else "Transaction"
@@ -755,6 +807,12 @@ class ExtractionService:
             for row in rows:
                 txn_date = parse_date(row.get(date_col, "")) if date_col else None
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=row.get(date_col, ""),
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 if amount_col and row.get(amount_col):
@@ -763,6 +821,12 @@ class ExtractionService:
                         direction = "OUT" if amount < 0 else "IN"
                         amount = abs(amount)
                     else:
+                        logger.warning(
+                            "CSV transaction skipped - no valid amount",
+                            institution=institution,
+                            amount_raw=row.get(amount_col, ""),
+                            description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                        )
                         continue
                 elif debit_col or credit_col:
                     debit = parse_amount(row.get(debit_col, "")) if debit_col else None
@@ -774,8 +838,20 @@ class ExtractionService:
                         amount = credit
                         direction = "IN"
                     else:
+                        logger.warning(
+                            "CSV transaction skipped - no valid amount",
+                            institution=institution,
+                            debit=debit,
+                            credit=credit,
+                            description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                        )
                         continue
                 else:
+                    logger.warning(
+                        "CSV transaction skipped - no amount columns found",
+                        institution=institution,
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 description = row.get(desc_col, "Transaction") if desc_col else "Transaction"

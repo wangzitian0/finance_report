@@ -31,7 +31,13 @@ from src.schemas import (
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
-from src.utils import raise_bad_request, raise_internal_error, raise_not_found, raise_service_unavailable
+from src.utils import (
+    raise_bad_request,
+    raise_internal_error,
+    raise_not_found,
+    raise_service_unavailable,
+    raise_too_large,
+)
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -211,10 +217,7 @@ async def upload_statement(
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File exceeds 10MB limit",
-        )
+        raise_too_large("File exceeds 10MB limit")
 
     file_hash = hashlib.sha256(content).hexdigest()
     duplicate = await db.execute(
@@ -249,7 +252,7 @@ async def upload_statement(
         )
     except StorageError as exc:
         logger.error("Failed to upload statement to storage", error=str(exc))
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
+        raise_service_unavailable(str(exc), cause=exc)
 
     statement = BankStatement(
         id=statement_id,
@@ -335,7 +338,7 @@ async def retry_statement_parsing(
         BankStatementStatus.REJECTED,
         BankStatementStatus.PARSING,
     ):
-        raise HTTPException(400, "Can only retry parsing for parsed, rejected, or stuck parsing statements")
+        raise_bad_request("Can only retry parsing for parsed, rejected, or stuck parsing statements")
 
     selected_model = model_override or settings.primary_model
 
@@ -364,7 +367,7 @@ async def retry_statement_parsing(
         storage = StorageService()
         content = await run_in_threadpool(storage.get_object, statement.file_path)
     except StorageError as exc:
-        raise HTTPException(503, f"Failed to fetch file from storage: {exc}")
+        raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 
     task = asyncio.create_task(
         _parse_statement_background(
