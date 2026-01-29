@@ -439,7 +439,8 @@ Reconciliation match table.
 
 CI pipelines enforce the following rules via `tests/test_schema_guardrails.py`:
 
-1.  **Strict Enum Naming**: All `sa.Enum` fields in models MUST have `name="..."` explicitly defined.
+1.  **Strict Enum Naming**: All `sa.Enum` fields in models must have `name="..."` explicitly defined.
+    See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
     -   ❌ Bad: `sa.Column(sa.Enum(Status))` -> Postgres type: `status` (implicit)
     -   ✅ Good: `sa.Column(sa.Enum(Status, name="journal_entry_status"))` -> Postgres type: `journal_entry_status`
 2.  **Revision ID Length**: Alembic revision file names must not have insanely long prefixes.
@@ -462,7 +463,7 @@ To prevent connection leaks and data race conditions:
 
 ### Prohibited Patterns
 
-- **Anti-pattern A**: **NEVER** use FLOAT to store monetary amounts
+- **Anti-pattern A**: **NEVER** use FLOAT to store monetary amounts. See: `apps/backend/tests/accounting/test_decimal_safety.py`
 - **Anti-pattern B**: **NEVER** directly delete posted entries, only void
 
 ---
