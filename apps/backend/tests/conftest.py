@@ -285,36 +285,3 @@ async def client(db_engine, test_database_url, test_user):
             yield client
     finally:
         pass
-
-
-@pytest_asyncio.fixture(scope="function")
-async def public_client(db_engine):
-    """Create async test client without auth headers."""
-    # Override the database URL for the app
-    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-
-    # Create test session maker bound to test engine
-    test_maker = async_sessionmaker(
-        db_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    # Inject test session maker via explicit hook
-    from src import database
-
-    database.set_test_session_maker(test_maker)
-
-    # Import app after setting env var
-    from src.main import app
-
-    try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport,
-            base_url="http://test",
-        ) as client:
-            yield client
-    finally:
-        # Reset session maker
-        database.set_test_session_maker(None)
