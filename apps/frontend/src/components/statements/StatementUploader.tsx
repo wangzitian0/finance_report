@@ -7,6 +7,9 @@ import { useToast } from "@/components/ui/Toast";
 
 const STORAGE_KEY = "statement_model_v1";
 
+// Track if we've already shown the toast to avoid spamming
+let storageWarningShown = false;
+
 type AiModelOption = {
     id: string;
     name?: string;
@@ -23,12 +26,20 @@ function getSafeStorage(key: string): string | null {
     }
 }
 
-function setSafeStorage(key: string, value: string): void {
+function setSafeStorage(key: string, value: string, showToastFn?: (msg: string, type: "success" | "error" | "warning" | "info") => void): void {
     try {
         if (typeof window === "undefined") return;
         localStorage.setItem(key, value);
     } catch (error) {
         console.warn(`[Storage] Failed to write ${key}:`, error);
+        // Show user-facing notification once to inform them their preference wasn't saved
+        if (!storageWarningShown && showToastFn) {
+            showToastFn(
+                "Unable to save your model preference. Your selection is temporary for this session.",
+                "warning"
+            );
+            storageWarningShown = true;
+        }
     }
 }
 
@@ -284,7 +295,7 @@ export default function StatementUploader({
                         const next = e.target.value;
                         setSelectedModel(next);
                         if (next) {
-                            setSafeStorage(STORAGE_KEY, next);
+                            setSafeStorage(STORAGE_KEY, next, showToast);
                         }
                     }}
                     disabled={modelLoading}
