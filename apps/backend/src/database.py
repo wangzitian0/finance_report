@@ -86,9 +86,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
         # Read DATABASE_URL from environment (set by client fixture)
         test_url = make_url(settings.database_url)
+        print(f"get_db: Creating test engine from DATABASE_URL: {test_url}")
         engine = create_async_engine(test_url, echo=False, pool_pre_ping=True)
         maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     else:
+        print(f"get_db: Using default async_session_maker")
         maker = async_session_maker
 
     async with maker() as session:
