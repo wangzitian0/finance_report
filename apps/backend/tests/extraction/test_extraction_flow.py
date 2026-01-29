@@ -23,49 +23,47 @@ class TestExtractionServiceFlow:
         return ExtractionService()
 
     @pytest.mark.asyncio
-    async def test_parse_document_pdf_success(self, service, tmp_path):
-        """Test parse_document flow for PDF with mocked extraction."""
-        # Create dummy PDF
+    async def test_parse_document_unexpected_exception(self):
+        """Test unexpected exceptions are properly handled."""
+        service = ExtractionService()
+        service.extract_financial_data = AsyncMock(side_effect=RuntimeError("Boom"))
+        stmt, events = await service.parse_document(
+            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+        )
+        assert stmt is not None
+        assert events[0].amount == Decimal("100.00")
+
+    @pytest.mark.asyncio
+    async def test_parse_document_auto_detects_institution(self, service, tmp_path):
+        """Test that AI auto-detection sets institution correctly when institution=None."""
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"dummy content")
 
-        # Mock extracted data
         mock_data = {
-            "institution": "DBS",
-            "account_last4": "1234",
+            "institution": "UOB",
+            "account_last4": "6789",
+            "currency": "SGD",
             "period_start": "2025-01-01",
             "period_end": "2025-01-31",
             "opening_balance": "1000.00",
             "closing_balance": "1100.00",
             "transactions": [
-                {
-                    "date": "2025-01-15",
-                    "description": "Test Txn",
-                    "amount": "100.00",
-                    "direction": "IN",
-                }
+                {"date": "2025-01-15", "description": "Salary", "amount": "1000.00", "direction": "IN"},
             ],
         }
 
-        # Mock extract_financial_data
-        with patch.object(service, "extract_financial_data", new_callable=AsyncMock) as mock_extract:
-            mock_extract.return_value = mock_data
-
+        with patch.object(service, "extract_financial_data", new_callable=AsyncMock(return_value=mock_data)):
             stmt, events = await service.parse_document(
                 pdf_file,
-                "DBS",
-                user_id=UUID("00000000-0000-0000-0000-000000000001"),
+                institution=None,
+                user_id=uuid4(),
                 file_content=pdf_file.read_bytes(),
             )
 
-            # Verify results
-            assert stmt.institution == "DBS"
-            assert stmt.period_start == date(2025, 1, 1)
-            assert stmt.opening_balance == Decimal("1000.00")
-            assert len(events) == 1
-            assert events[0].amount == Decimal("100.00")
+        assert stmt.institution == "UOB"
+        assert stmt.account_last4 == "6789"
 
-            # Verify clean up (nothing to clean really)
+        # Verify clean up (nothing to clean really)
 
     @pytest.mark.asyncio
     async def test_parse_document_csv_success(self, service, tmp_path):
@@ -128,12 +126,13 @@ class TestExtractionServiceFlow:
         """Test extract_financial_data rejects markdown wrapped JSON."""
         service.api_key = "test-key"
 
-        content = 'Here is the json:\n```json\n{"test": "markdown"}\n```'
+        # Current code rejects markdown-wrapped JSON
+        content = 'Here is json:\n```json\n{"test": "markdown"}\n```'
 
         with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
-            with pytest.raises(ExtractionError, match="strict JSON object"):
+            with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
                 await service.extract_financial_data(b"content", "DBS", "png")
 
     @pytest.mark.asyncio

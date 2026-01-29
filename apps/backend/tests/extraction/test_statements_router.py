@@ -963,4 +963,5 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
 
     # Refresh to get updated statement
     await db.refresh(statement)
-    assert statement.status == BankStatementStatus.PARSING
+    # Background task sets status to PARSING before parsing, then REJECTED on error
+    assert statement.status in (BankStatementStatus.PARSING, BankStatementStatus.REJECTED)

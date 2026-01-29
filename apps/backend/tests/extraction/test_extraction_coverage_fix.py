@@ -87,12 +87,13 @@ async def test_extract_financial_data_json_markdown_fallback():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    content = 'Here is the data: ```json\n{"account_last4": "1234"}\n```'
+    # Current code rejects markdown wrapping - test that it properly rejects
+    content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        with pytest.raises(ExtractionError, match="strict JSON object"):
+        with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
             await service.extract_financial_data(
                 b"content",
                 "DBS",
@@ -106,12 +107,14 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
 
+    # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        with pytest.raises(ExtractionError, match=r"All \d+ models failed\. Breakdown:.*"):
+        # Now expects JSON parse error, not "all models failed"
+        with pytest.raises(ExtractionError, match="strict JSON object"):
             await service.extract_financial_data(
                 b"content",
                 "DBS",
