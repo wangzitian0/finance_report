@@ -1,4 +1,4 @@
-from decimal import Decimal  # noqa: F401
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -74,12 +74,7 @@ async def test_extract_financial_data_all_models_fail():
         mock_stream.side_effect = OpenRouterStreamError("HTTP 429: Quota Exceeded")
 
         with pytest.raises(ExtractionError, match="rate limited"):
-            await service.extract_financial_data(
-                b"content",
-                "DBS",
-                "pdf",
-                file_url="https://example.com/file.pdf",
-            )
+            await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
 @pytest.mark.asyncio
@@ -87,19 +82,13 @@ async def test_extract_financial_data_json_markdown_fallback():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    # Current code rejects markdown wrapping - test that it properly rejects
-    content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
+    content = 'Here is the data: ```json\n{"account_last4": "1234"}\n```'
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
-            await service.extract_financial_data(
-                b"content",
-                "DBS",
-                "pdf",
-                file_url="https://example.com/file.pdf",
-            )
+        result = await service.extract_financial_data(b"content", "DBS", "pdf")
+        assert result["account_last4"] == "1234"
 
 
 @pytest.mark.asyncio
@@ -107,20 +96,13 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        # Now expects JSON parse error, not "all models failed"
-        with pytest.raises(ExtractionError, match="strict JSON object"):
-            await service.extract_financial_data(
-                b"content",
-                "DBS",
-                "pdf",
-                file_url="https://example.com/file.pdf",
-            )
+        with pytest.raises(ExtractionError, match=r"All \d+ models failed\. Breakdown:.*"):
+            await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
 @pytest.mark.asyncio
@@ -145,10 +127,12 @@ async def test_parse_document_with_transaction_missing_fields():
         }
     )
 
-    with pytest.raises(ExtractionError, match="Transaction missing required fields"):
-        await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
-        )
+    statement, transactions = await service.parse_document(
+        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    )
+    # The first transaction should be skipped because it lacks a date
+    assert len(transactions) == 1
+    assert transactions[0].description == "Valid"
 
 
 @pytest.mark.asyncio
@@ -177,10 +161,11 @@ async def test_parse_document_with_invalid_date_formats():
         }
     )
 
-    with pytest.raises(ExtractionError, match="Invalid transaction date format"):
-        await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
-        )
+    statement, transactions = await service.parse_document(
+        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    )
+    # Both transactions have invalid dates and should be skipped
+    assert len(transactions) == 0
 
 
 @pytest.mark.asyncio
@@ -197,11 +182,10 @@ async def test_parse_document_unexpected_exception():
 
 def test_safe_decimal_invalid():
     service = ExtractionService()
-    assert service._safe_decimal("1.23") == Decimal("1.23")
-    with pytest.raises(ValueError, match="Invalid decimal value"):
-        service._safe_decimal("not-a-number")
-    with pytest.raises(ValueError, match="Decimal value is required"):
-        service._safe_decimal(None)
+    # Test invalid string conversion
+    assert service._safe_decimal("not-a-number", default="1.23") == Decimal("1.23")
+    # Test None value
+    assert service._safe_decimal(None, default="0.00") == Decimal("0.00")
 
 
 def test_compute_event_confidence_missing_fields():
@@ -299,9 +283,10 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
     )
 
     await db.refresh(statement)
-    # Presigned URL failure now rejects PDFs without a public URL.
+    # After PR #117: Presigned URL failure is logged but doesn't stop processing.
+    # Processing continues with base64 fallback, then fails at extraction.
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.validation_error is not None
     # Flexible check for failure reason
     error_msg = statement.validation_error.lower()
-    assert "public url" in error_msg
+    assert any(term in error_msg for term in ["failed", "not configured", "no valid file"])

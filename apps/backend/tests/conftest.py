@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from src.logger import get_logger
+from src.models import User
 from src.services.fx import clear_fx_cache
 
 logger = get_logger(__name__)
@@ -247,9 +248,6 @@ async def db(db_engine):
 @pytest_asyncio.fixture(scope="function")
 async def test_user(db: AsyncSession):
     """Create a test user for authenticated requests."""
-    from src.models import User
-    from sqlalchemy import text
-
     # Clean up any existing test users to avoid conflicts
     await db.execute(text("DELETE FROM users WHERE email LIKE 'test-%@example.com'"))
     await db.commit()

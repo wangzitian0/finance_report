@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -81,16 +82,13 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     global _test_session_maker
     if _test_session_maker:
         # Create a new session maker from test session's bind to get correct engine
-        from sqlalchemy.engine.url import make_url
-        from src.config import settings
-
         # Read DATABASE_URL from environment (set by client fixture)
         test_url = make_url(settings.database_url)
         print(f"get_db: Creating test engine from DATABASE_URL: {test_url}")
         engine = create_async_engine(test_url, echo=False, pool_pre_ping=True)
         maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     else:
-        print(f"get_db: Using default async_session_maker")
+        print("get_db: Using default async_session_maker")
         maker = async_session_maker
 
     async with maker() as session:
