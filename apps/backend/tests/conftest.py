@@ -248,6 +248,11 @@ async def db(db_engine):
 async def test_user(db: AsyncSession):
     """Create a test user for authenticated requests."""
     from src.models import User
+    from sqlalchemy import text
+
+    # Clean up any existing test users to avoid conflicts
+    await db.execute(text("DELETE FROM users WHERE email LIKE 'test-%@example.com'"))
+    await db.commit()
 
     user = User(
         email=f"test-{uuid4()}@example.com",
