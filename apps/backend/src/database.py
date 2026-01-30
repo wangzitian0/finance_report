@@ -3,7 +3,6 @@
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.engine import Engine
-from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -74,23 +73,8 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for database session.
-
-    Creates a test session maker if _test_session_maker is set, ensuring test
-    DATABASE_URL is used instead of the production database_url.
-    """
-    global _test_session_maker
-    if _test_session_maker:
-        # Create a new session maker from test session's bind to get correct engine
-        # Read DATABASE_URL from environment (set by client fixture)
-        test_url = make_url(settings.database_url)
-        print(f"get_db: Creating test engine from DATABASE_URL: {test_url}")
-        engine = create_async_engine(test_url, echo=False, pool_pre_ping=True)
-        maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    else:
-        print("get_db: Using default async_session_maker")
-        maker = async_session_maker
-
+    """Dependency for database session."""
+    maker = _test_session_maker or async_session_maker
     async with maker() as session:
         try:
             yield session

@@ -310,7 +310,6 @@ async def client(db_engine, test_user, worker_id):
 async def public_client(db_engine, worker_id):
     """Create async test client without auth headers."""
     test_db_url = get_test_db_url(worker_id)
-    test_db_url = get_test_db_url(worker_id)
     os.environ["DATABASE_URL"] = test_db_url
 
     # Create test session maker bound to test engine

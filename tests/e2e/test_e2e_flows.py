@@ -11,11 +11,12 @@ Covers:
 """
 
 import os
+import subprocess
 import sys
 import uuid
-import pytest
-import subprocess
 from pathlib import Path
+
+import pytest
 from playwright.async_api import Page, expect
 
 # --- Configuration ---
@@ -61,7 +62,7 @@ async def test_full_navigation(page: Page):
         # Wait a moment for potential AuthGuard redirect
         try:
             await page.wait_for_url("**/login", timeout=3000)
-        except:
+        except Exception:
             pass
 
         # Since we are not logged in, we expect either the page or a redirect to login
@@ -79,9 +80,6 @@ async def test_full_navigation(page: Page):
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(
-    reason="AI parsing backend issue: statements being rejected instead of parsed (0 txns). See PR #142 comments. Needs separate backend fix."
-)
 async def test_statement_upload_parsing_flow(authenticated_page: Page, tmp_path):
     """
     [Scenario 2] Upload a statement, wait for parsing, and then delete it.
@@ -165,7 +163,7 @@ async def test_reports_view(page: Page):
     # Wait a moment for potential AuthGuard redirect
     try:
         await page.wait_for_url("**/login", timeout=3000)
-    except:
+    except Exception:
         pass
 
     if "/login" in page.url:
@@ -184,7 +182,7 @@ async def test_account_deletion_constraint(page: Page):
     # Wait for redirect if not logged in
     try:
         await page.wait_for_url("**/login", timeout=3000)
-    except:
+    except Exception:
         pass
 
     if "/login" in page.url:
