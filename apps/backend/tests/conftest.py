@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from src.logger import get_logger
-from src.models import User
 from src.services.fx import clear_fx_cache
 
 logger = get_logger(__name__)
@@ -226,6 +225,27 @@ async def db_engine(test_database_url):
     await engine.dispose()
 
 
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def patch_database_connection(db_engine):
+    """Ensure all tests use the test database connection via hook.
+
+    This handles tests that manually instantiate the app/client without using
+    the client fixture.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from src import database
+
+    test_maker = async_sessionmaker(
+        db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    database.set_test_session_maker(test_maker)
+    yield
+    database.set_test_session_maker(None)
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db(db_engine):
     """Create a test database session.
@@ -248,9 +268,7 @@ async def db(db_engine):
 @pytest_asyncio.fixture(scope="function")
 async def test_user(db: AsyncSession):
     """Create a test user for authenticated requests."""
-    # Clean up any existing test users to avoid conflicts
-    await db.execute(text("DELETE FROM users WHERE email LIKE 'test-%@example.com'"))
-    await db.commit()
+    from src.models import User
 
     user = User(
         email=f"test-{uuid4()}@example.com",
@@ -263,13 +281,15 @@ async def test_user(db: AsyncSession):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_engine, test_database_url, test_user):
+async def client(db_engine, test_user):
     """Create async test client with database initialized."""
-    # Import app BEFORE setting env var to ensure database module uses correct URL
-    # Then override the database URL for the app
-    from src.main import app
+    # Override the database URL for the app
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-    os.environ["DATABASE_URL"] = test_database_url
+    # Database connection is handled by patch_database_connection autouse fixture
+
+    # Import app after setting env var
+    from src.main import app
     from src.security import create_access_token
 
     token = create_access_token(data={"sub": str(test_user.id)})
@@ -283,3 +303,36 @@ async def client(db_engine, test_database_url, test_user):
             yield client
     finally:
         pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def public_client(db_engine):
+    """Create async test client without auth headers."""
+    # Override the database URL for the app
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+    # Create test session maker bound to test engine
+    test_maker = async_sessionmaker(
+        db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    # Inject test session maker via explicit hook
+    from src import database
+
+    database.set_test_session_maker(test_maker)
+
+    # Import app after setting env var
+    from src.main import app
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as client:
+            yield client
+    finally:
+        # Reset session maker
+        database.set_test_session_maker(None)
