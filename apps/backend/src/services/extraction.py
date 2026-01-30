@@ -559,8 +559,8 @@ class ExtractionService:
 
         raise last_error or ExtractionError("Extraction failed after all retries")
 
-    async def _parse_csv_content(self, file_content: bytes, institution: str) -> dict[str, Any]:
-        """Parse CSV content directly from bytes.
+    async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
+        """Parse CSV content directly from bytes or string.
 
         Supports multiple bank formats with auto-detection and AI fallback.
         """
@@ -568,7 +568,10 @@ class ExtractionService:
         import io
         from datetime import datetime
 
-        text = file_content.decode(encoding="utf-8", errors="ignore")
+        if isinstance(file_content, bytes):
+            text = file_content.decode(encoding="utf-8", errors="ignore")
+        else:
+            text = file_content
 
         pii_matches = detect_pii(text)
         if pii_matches:

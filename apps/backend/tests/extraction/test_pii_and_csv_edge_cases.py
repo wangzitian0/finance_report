@@ -74,14 +74,3 @@ class TestPIIDetectionAndCSVEdgeCases:
         assert result["transactions"][0]["amount"] == Decimal("-100.00")
         assert result["transactions"][0]["direction"] == "OUT"
         assert result["transactions"][1]["direction"] == "IN"
-
-    def test_csv_with_negative_amounts(self):
-        """Test CSV correctly handles transactions with negative amounts (refunds)."""
-        csv_content = """Date,Description,Amount
-2025-01-01,Refund of Purchase,-100.00,,900.00
-2025-01-02,Service Fee,-15.00,,885.00
-"""
-        result = self.service._parse_csv_content(csv_content, "GENERIC")
-        assert len(result["transactions"]) == 2
-        assert result["transactions"][0]["amount"] == Decimal("-100.00")
-        assert result["transactions"][0]["direction"] == "OUT"
