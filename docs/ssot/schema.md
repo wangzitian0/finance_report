@@ -463,7 +463,7 @@ To prevent connection leaks and data race conditions:
 
 ### Prohibited Patterns
 
-- **Anti-pattern A**: **NEVER** use FLOAT to store monetary amounts
+- **Anti-pattern A**: **NEVER** use FLOAT to store monetary amounts. See: `apps/backend/tests/accounting/test_decimal_safety.py`
 - **Anti-pattern B**: **NEVER** directly delete posted entries, only void
 
 ---

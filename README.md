@@ -54,13 +54,27 @@ docker compose up -d postgres minio
 This project uses [Moonrepo](https://moonrepo.dev/) for task orchestration:
 
 ```bash
+# Development
 moon run backend:dev        # Start backend
 moon run frontend:dev       # Start frontend
+
+# Local CI / Verification (Recommended)
+moon run :ci                # One-button check (Lint + Format + Test + Check)
+                             # Matches GitHub CI exactly.
+
+# Testing
+moon run :test              # All tests
 moon run backend:test       # Run tests (auto-manages DB)
 moon run backend:env-check  # Smoke test environment variables
+
+# Code Quality
 moon run :lint              # Lint all
+moon run backend:format     # Format Python (auto-fix)
+
+# Build
+moon run :build             # Build all
 ```
-Backend tests enforce **>= 95%** line coverage; see `docs/ssot/development.md` for details.
+Backend tests enforce **>= 97%** line coverage with branch coverage; see `docs/ssot/tdd.md` for TDD workflow and `docs/ssot/development.md` for details.
 For isolated local test DBs, set `BRANCH_NAME=<branch_name>` (and optionally `WORKSPACE_ID=<id>`) before running `backend:test`.
 See [development.md](docs/ssot/development.md) for detailed workflows.
 
