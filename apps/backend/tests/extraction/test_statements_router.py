@@ -100,7 +100,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
@@ -117,7 +117,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
         file=upload_file,
         institution="DBS",
         account_id=None,
-        model=None,
+        model="google/gemini-flash",
         db=db,
         user_id=test_user.id,
     )
@@ -132,7 +132,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, test_us
             file=upload_file_dup,
             institution="DBS",
             account_id=None,
-            model=None,
+            model="google/gemini-flash",
             db=db,
             user_id=user_id,
         )
@@ -161,7 +161,7 @@ async def test_upload_storage_failure(db, monkeypatch, test_user):
             file=upload_file,
             institution="DBS",
             account_id=None,
-            model=None,
+            model="google/gemini-flash",
             db=db,
             user_id=test_user.id,
         )
@@ -182,7 +182,7 @@ async def test_upload_invalid_extension(db, test_user):
             file=upload_file,
             institution="DBS",
             account_id=None,
-            model=None,
+            model="google/gemini-flash",
             db=db,
             user_id=test_user.id,
         )
@@ -209,7 +209,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
@@ -238,7 +238,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, test_us
         file=upload_file,
         institution="DBS",
         account_id=None,
-        model=None,
+        model="google/gemini-flash",
         db=db,
         user_id=test_user.id,
     )
@@ -283,7 +283,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         score = score_by_hash[file_hash or ""]
@@ -303,7 +303,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, test_
             file=upload_file,
             institution="DBS",
             account_id=None,
-            model=None,
+            model="google/gemini-flash",
             db=db,
             user_id=test_user.id,
         )
@@ -363,7 +363,7 @@ async def test_upload_file_too_large(db, test_user):
             file=upload_file,
             institution="DBS",
             account_id=None,
-            model=None,
+            model="google/gemini-flash",
             db=db,
             user_id=test_user.id,
         )
@@ -395,7 +395,7 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         raise statements_router.ExtractionError("Failed to parse PDF")
@@ -411,7 +411,7 @@ async def test_upload_extraction_failure(db, monkeypatch, test_user):
         file=upload_file,
         institution="DBS",
         account_id=None,
-        model=None,
+        model="google/gemini-flash",
         db=db,
         user_id=test_user.id,
     )
@@ -439,7 +439,7 @@ async def test_retry_statement_not_found(db, test_user):
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            request=RetryParsingRequest(model=None),
+            request=RetryParsingRequest(model="google/gemini-flash"),
             db=db,
             user_id=test_user.id,
         )
@@ -464,7 +464,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
@@ -482,7 +482,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
         file=upload_file,
         institution="DBS",
         account_id=None,
-        model=None,
+        model="google/gemini-flash",
         db=db,
         user_id=test_user.id,
     )
@@ -498,7 +498,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, tes
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
             statement_id=created.id,
-            request=RetryParsingRequest(model=None),
+            request=RetryParsingRequest(model="google/gemini-flash"),
             db=db,
             user_id=test_user.id,
         )
@@ -533,7 +533,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
 
         resp = await statements_router.retry_statement_parsing(
             statement_id=sid,
-            request=RetryParsingRequest(model=None),
+            request=RetryParsingRequest(model="google/gemini-flash"),
             db=db,
             user_id=test_user.id,
         )
@@ -558,7 +558,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=95)
@@ -577,7 +577,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, test_user)
         file=upload_file,
         institution="DBS",
         account_id=None,
-        model=None,
+        model="google/gemini-flash",
         db=db,
         user_id=test_user.id,
     )
@@ -628,7 +628,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
         db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
@@ -646,7 +646,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         file=upload_file,
         institution="DBS",
         account_id=None,
-        model=None,
+        model="google/gemini-flash",
         db=db,
         user_id=test_user.id,
     )
@@ -672,7 +672,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         file_hash=None,
         file_url=None,
         original_filename=None,
-        force_model=None,
+        force_model="google/gemini-flash",
     ):
         raise statements_router.ExtractionError("Retry failed")
 
