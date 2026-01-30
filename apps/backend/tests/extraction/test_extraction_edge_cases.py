@@ -71,7 +71,7 @@ class TestExtractionEdgeCases:
             "transactions": [],
         }
 
-        with patch.object(service, "extract_financial_data", new_callable=AsyncMock(return_value=mock_data)):
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
             stmt, txns = await service.parse_document(
                 Path("test.pdf"),
                 "DBS",
@@ -93,7 +93,7 @@ class TestExtractionEdgeCases:
             "period_end": "2025-01-31",
         }
 
-        with patch.object(service, "extract_financial_data", new_callable=AsyncMock(return_value=mock_data)):
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
             with pytest.raises(ExtractionError, match="Missing required field"):
                 await service.parse_document(
                     Path("test.pdf"),
