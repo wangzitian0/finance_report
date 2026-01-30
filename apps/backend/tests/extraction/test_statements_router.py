@@ -690,5 +690,3 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     )
     assert resp.status == BankStatementStatus.PARSING
 
-
-@pytest.mark.asyncio
