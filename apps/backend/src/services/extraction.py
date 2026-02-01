@@ -466,18 +466,6 @@ class ExtractionService:
                     logger.info("AI extraction successful (streaming)", model=model)
                     return parsed
                 except json.JSONDecodeError as e:
-                    # Markdown fallback for models that wrap JSON in ```json ... ```
-                    json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-                    if json_match:
-                        try:
-                            parsed = json.loads(json_match.group(1))
-                            if not isinstance(parsed, dict):
-                                raise ExtractionError("AI response (markdown) must be a strict JSON object.")
-                            logger.info("AI extraction successful (markdown fallback)", model=model)
-                            return parsed
-                        except json.JSONDecodeError:
-                            pass  # Fall through to original error handling
-
                     from src.constants.error_ids import ErrorIds
 
                     logger.error(
@@ -569,9 +557,9 @@ class ExtractionService:
         from datetime import datetime
 
         if isinstance(file_content, bytes):
-            text = file_content.decode(encoding="utf-8", errors="ignore")
+            text = file_content.decode(encoding="utf-8-sig", errors="ignore")
         else:
-            text = file_content
+            text = file_content.lstrip("\ufeff")
 
         pii_matches = detect_pii(text)
         if pii_matches:
@@ -588,7 +576,7 @@ class ExtractionService:
         if not rows:
             raise ExtractionError("CSV file is empty or has no data rows")
 
-        headers = reader.fieldnames or []
+        headers = list(reader.fieldnames or [])
         headers_lower = [h.lower().strip() for h in headers]
         institution_lower = institution.lower()
 

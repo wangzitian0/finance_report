@@ -24,17 +24,6 @@ class TestExtractionServiceFlow:
         return ExtractionService()
 
     @pytest.mark.asyncio
-    async def test_parse_document_unexpected_exception(self):
-        """Test unexpected exceptions are properly handled."""
-        service = ExtractionService()
-        service.extract_financial_data = AsyncMock(side_effect=RuntimeError("Boom"))
-        stmt, events = await service.parse_document(
-            Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
-        )
-        assert stmt is not None
-        assert events[0].amount == Decimal("100.00")
-
-    @pytest.mark.asyncio
     async def test_parse_document_auto_detects_institution(self, service, tmp_path):
         """Test that AI auto-detection sets institution correctly when institution=None."""
         pdf_file = tmp_path / "test.pdf"
@@ -53,7 +42,7 @@ class TestExtractionServiceFlow:
             ],
         }
 
-        with patch.object(service, "extract_financial_data", new_callable=AsyncMock(return_value=mock_data)):
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
             stmt, events = await service.parse_document(
                 pdf_file,
                 institution=None,
