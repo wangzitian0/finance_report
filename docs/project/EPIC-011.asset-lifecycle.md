@@ -98,7 +98,7 @@ flowchart TD
 | **Layer 3** | Mutable | Frequent changes | **Version number required** |
 | **Layer 4** | Ephemeral (cached) | Follows Layer 3 | **Tied to rule version** |
 
-**Key Insight**: Layer 2 schema is **designed once, stable forever**. Layer 3 rules change frequently (account mappings, classification logic), so every operation in Layer 3/4 **MUST** reference a `rule_version_id`.
+**Key Insight**: Layer 2 schema is **designed once, stable forever**. Layer 3 rules change frequently (account mappings, classification logic). Operations in Layer 3/4 reference a `rule_version_id` to enable historical replay and version comparison.
 
 ---
 
@@ -213,7 +213,7 @@ def calculate_dedup_hash(user_id, txn_date, amount, direction, description, refe
 
 ### Layer 3: Business Logic (Versioned, Mutable)
 
-**Design Constraint**: Layer 3 rules change frequently. Every table in Layer 3 **MUST** have a `rule_version_id` foreign key to enable:
+**Design Pattern**: Layer 3 rules change frequently. Tables in Layer 3 include a `rule_version_id` foreign key to enable:
 1. **Historical replay**: Reprocess old transactions with new rules
 2. **A/B comparison**: Compare results from different rule versions
 3. **Audit trail**: Track which rules generated which classifications
@@ -989,7 +989,7 @@ validate_consistency(old_txns, new_txns)
 **Constraints**:
 - `(user_id, account_id, asset_identifier, acquisition_date)` unique for active positions
 
-**Important**: All `ENUM` types **MUST** have explicit `name="..."` parameter in SQLAlchemy to prevent migration conflicts.
+**Important**: SQLAlchemy ENUM types use explicit `name="..."` parameters to prevent migration conflicts. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
 
 ---
 

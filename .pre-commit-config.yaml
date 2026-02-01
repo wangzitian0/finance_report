@@ -19,6 +19,18 @@ repos:
       - id: ruff-format
         types_or: [python, pyi]
 
+  # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.7.0
+          - sqlalchemy>=2.0.30
+          - types-redis
+        args: [--warn-unused-ignores, --ignore-missing-imports]
+        files: ^apps/backend/src/
+
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -45,6 +57,17 @@ repos:
         language: python
         pass_filenames: false
         files: ^(apps/backend/src/config\.py|\.env\.example|repo/.*secrets\.ctmpl)$
+        # Only run when relevant files change
+
+  # Schema validation
+  - repo: local
+    hooks:
+      - id: validate-schemas
+        name: Validate Pydantic schemas
+        entry: python scripts/validate_schemas.py
+        language: python
+        pass_filenames: false
+        files: ^(apps/backend/src/config\.py|apps/backend/src/schemas/.*\.py)$
         # Only run when relevant files change
 
   # Frontend lint (if changed)

@@ -780,6 +780,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         raise statements_router.ExtractionError("Retry failed")
 
