@@ -137,6 +137,7 @@ def check_schemas_directory(dir_path: Path) -> dict:
     """Validate all schema files."""
     issues = []
     all_fields = []
+    files_checked = 0
 
     schema_files = list(dir_path.glob("*.py"))
 
@@ -144,12 +145,11 @@ def check_schemas_directory(dir_path: Path) -> dict:
         if file_path.name.startswith("__"):
             continue
 
+        files_checked += 1
         visitor = parse_file_for_schemas(file_path)
         all_fields.extend(visitor.fields)
 
-        # Check all schema fields have descriptions
         for field in visitor.fields:
-            # Skip if not a Field() call (might be a regular annotation)
             if not field["has_field"]:
                 continue
 
@@ -165,7 +165,7 @@ def check_schemas_directory(dir_path: Path) -> dict:
                 )
 
     return {
-        "files_checked": len(schema_files),
+        "files_checked": files_checked,
         "issues": issues,
         "total_fields": len(all_fields),
     }
@@ -225,7 +225,11 @@ def generate_fix_suggestions(config_result: dict, schemas_result: dict) -> None:
         by_file[file_path].append(issue)
 
     for file_path, issues in by_file.items():
-        print(f"File: {Path(file_path).relative_to(get_project_root())}")
+        try:
+            relative_path = Path(file_path).relative_to(get_project_root())
+            print(f"File: {relative_path}")
+        except ValueError:
+            print(f"File: {file_path}")
         print("-" * 60)
 
         for issue in issues:

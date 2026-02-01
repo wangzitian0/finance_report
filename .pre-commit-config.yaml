@@ -28,9 +28,8 @@ repos:
           - pydantic>=2.7.0
           - sqlalchemy>=2.0.30
           - types-redis
-        args: [--warn-unused-ignores, --ignore-missing-imports]
-        pass_filenames: false  # Run from apps/backend directory
-        entry: bash -c 'cd apps/backend && mypy src/'
+        args: [--warn-unused-ignores, --ignore-missing-imports, apps/backend/src/]
+        pass_filenames: false
 
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
