@@ -5,16 +5,15 @@ WHEN: Creating/upserting atomic transactions and positions
 THEN: Hash-based deduplication works correctly with source document tracking
 """
 
-import hashlib
 from datetime import date
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
 from src.models.layer1 import DocumentType
-from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.deduplication import DeduplicationService
 
 
@@ -435,3 +434,83 @@ class TestDeduplicationService:
         # Verify different records created
         assert txn1.id != txn2.id
         assert txn1.dedup_hash != txn2.dedup_hash
+
+    @pytest.mark.asyncio
+    async def test_concurrent_upsert_same_hash_no_duplicates(self, db_engine, test_user):
+        """GIVEN: Two concurrent upserts with identical transaction data in separate sessions
+        WHEN: Both execute simultaneously
+        THEN: Database constraint prevents duplicate records (race condition protection)
+
+        This test verifies database-level race condition protection.
+        The service has a check-then-act pattern (lines 87-127 in deduplication.py)
+        which is vulnerable to race conditions. Protection relies on the database
+        unique constraint on (user_id, dedup_hash).
+
+        NOTE: If this test fails with IntegrityError, it means the database constraint
+        is working correctly. If it passes by creating one record, protection is working.
+        If it creates two records, the race condition vulnerability is exposed.
+        """
+        import asyncio
+
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        service = DeduplicationService()
+        doc1_id = uuid4()
+        doc2_id = uuid4()
+
+        # Create two separate sessions to simulate concurrent requests
+        async def upsert_in_session(doc_id):
+            async with AsyncSession(db_engine) as session:
+                async with session.begin():
+                    txn = await service.upsert_atomic_transaction(
+                        db=session,
+                        user_id=test_user.id,
+                        txn_date=date(2024, 1, 15),
+                        amount=Decimal("100.50"),
+                        direction=TransactionDirection.IN,
+                        description="Concurrent Test",
+                        currency="USD",
+                        source_doc_id=doc_id,
+                        source_doc_type=DocumentType.BANK_STATEMENT,
+                        reference="CONCURRENT",
+                    )
+                    # Extract data before session closes to avoid detached instance access
+                    return {
+                        "id": txn.id,
+                        "dedup_hash": txn.dedup_hash,
+                        "source_count": len(txn.source_documents),
+                    }
+
+        # Execute concurrent upserts with separate sessions
+        results = await asyncio.gather(
+            upsert_in_session(doc1_id),
+            upsert_in_session(doc2_id),
+            return_exceptions=True,  # Capture IntegrityError if constraint works
+        )
+
+        # Check if database constraint prevented race condition
+        # Case 1: Constraint worked - one succeeds, one fails with IntegrityError
+        has_integrity_error = any(isinstance(r, Exception) and "unique constraint" in str(r).lower() for r in results)
+
+        # Case 2: One transaction succeeded (check-then-act won the race)
+        successful_results: list[dict] = [r for r in results if not isinstance(r, Exception)]  # type: ignore[misc]
+
+        if has_integrity_error:
+            # Database constraint prevented duplicate - this is expected behavior
+            assert len(successful_results) == 1, "Constraint should allow exactly one record"
+            # The successful record should have ONE source (the first to insert)
+            assert successful_results[0]["source_count"] == 1
+        else:
+            # Both succeeded - verify they returned the same record ID
+            assert len(successful_results) == 2, f"Expected 2 results, got {len(successful_results)}"
+            assert successful_results[0]["id"] == successful_results[1]["id"], (
+                "Race condition: different IDs mean duplicate records created"
+            )
+
+            # Verify database has only one record
+            async with AsyncSession(db_engine) as session:
+                result = await session.execute(
+                    select(AtomicTransaction).where(AtomicTransaction.dedup_hash == successful_results[0]["dedup_hash"])
+                )
+                all_records = result.scalars().all()
+                assert len(all_records) == 1, f"Race condition: {len(all_records)} duplicate records in database"

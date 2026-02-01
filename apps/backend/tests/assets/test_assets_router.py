@@ -341,3 +341,53 @@ class TestAssetsRouter:
             },
         )
         assert response.status_code == 422
+
+    async def test_get_position_user_isolation(self, client, db, test_user):
+        """Verify position queries are isolated by user_id (security boundary test).
+
+        This test documents that the service layer correctly filters positions by user_id.
+        A position belonging to another user will not be found even if the ID is known.
+        This prevents unauthorized access at the data layer.
+        """
+        from src.models import User
+
+        # Create user A's position (test_user)
+        account = Account(
+            user_id=test_user.id,
+            name="Test Broker",
+            type=AccountType.ASSET,
+            currency="USD",
+        )
+        db.add(account)
+        await db.flush()
+
+        position = ManagedPosition(
+            user_id=test_user.id,
+            account_id=account.id,
+            asset_identifier="AAPL",
+            quantity=Decimal("100.0"),
+            cost_basis=Decimal("10000.00"),
+            acquisition_date=date(2024, 1, 1),
+            status=PositionStatus.ACTIVE,
+            currency="USD",
+        )
+        db.add(position)
+        await db.commit()
+        await db.refresh(position)
+
+        # Create user B
+        other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
+        db.add(other_user)
+        await db.commit()
+
+        # Verify: Service layer prevents cross-user access
+        from src.services.assets import AssetService
+
+        service = AssetService()
+        result = await service.get_position(db, other_user.id, position.id)
+
+        # Position should NOT be found when queried by different user
+        assert result is None, (
+            "Security vulnerability: Position accessible across user boundary. "
+            "The service should filter by user_id to prevent unauthorized access."
+        )
