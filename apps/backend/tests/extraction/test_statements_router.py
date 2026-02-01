@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import hashlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock
 
-import httpx
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models.statement import BankStatement, BankStatementStatus
 from src.routers import statements as statements_router
-from src.schemas import StatementDecisionRequest
 
 
 class DummyStorage:
@@ -84,6 +80,7 @@ async def wait_for_background_tasks() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_nonexistent_statement(db, test_user):
     """Missing statement returns 404."""
     with pytest.raises(HTTPException) as exc:
         await statements_router.get_statement(
@@ -116,6 +113,7 @@ async def test_upload_file_too_large(db, test_user):
 
 
 @pytest.mark.asyncio
+async def test_retry_nonexistent_statement(db, test_user):
     """Retry on missing statement returns 404."""
     from src.schemas import RetryParsingRequest
 
@@ -127,6 +125,3 @@ async def test_upload_file_too_large(db, test_user):
             user_id=test_user.id,
         )
     assert exc.value.status_code == 404
-
-
-@pytest.mark.asyncio
