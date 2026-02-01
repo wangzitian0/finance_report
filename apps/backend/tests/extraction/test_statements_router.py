@@ -709,6 +709,27 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
     mock_statement = build_statement(test_user.id, "", confidence_score=95)
     mock_parse.return_value = (mock_statement, [])
 
+    mock_fetch = AsyncMock(
+        return_value=[{"id": "google/gemini-2.0-flash-exp:free", "context_length": 1000000, "modalities": ["image"]}]
+    )
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+
+    await statements_router.retry_statement_parsing(
+        statement_id=created.id,
+        request=RetryParsingRequest(model="google/gemini-2.0-flash-exp:free"),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    mock_statement = build_statement(test_user.id, "", confidence_score=95)
+    mock_parse.return_value = (mock_statement, [])
+
+    # Mock fetch_model_catalog to include the test model
+    mock_fetch = AsyncMock(
+        return_value=[{"id": "google/gemini-2.0-flash-exp:free", "context_length": 1000000, "modalities": ["image"]}]
+    )
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+
     await statements_router.retry_statement_parsing(
         statement_id=created.id,
         request=RetryParsingRequest(model="google/gemini-2.0-flash-exp:free"),
@@ -780,6 +801,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         file_url=None,
         original_filename=None,
         force_model=None,
+        db=None,
     ):
         raise statements_router.ExtractionError("Retry failed")
 
@@ -787,6 +809,18 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         statements_router.ExtractionService,
         "parse_document",
         fake_retry_fail,
+    )
+
+    mock_fetch = AsyncMock(
+        return_value=[{"id": "google/gemini-2.0-flash-exp:free", "context_length": 1000000, "modalities": ["image"]}]
+    )
+    monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
+
+    resp = await statements_router.retry_statement_parsing(
+        statement_id=created.id,
+        request=RetryParsingRequest(model="google/gemini-2.0-flash-exp:free"),
+        db=db,
+        user_id=test_user.id,
     )
 
     resp = await statements_router.retry_statement_parsing(
