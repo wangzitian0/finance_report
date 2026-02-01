@@ -224,3 +224,120 @@ class TestAssetsRouter:
         """POST /assets/reconcile requires authentication."""
         response = await public_client.post("/assets/reconcile")
         assert response.status_code == 401
+
+    async def test_get_position_depreciation_success(self, client, db, test_user):
+        """GET /assets/positions/{id}/depreciation returns depreciation schedule."""
+        account = Account(
+            user_id=test_user.id,
+            name="Test Broker",
+            type=AccountType.ASSET,
+            currency="USD",
+        )
+        db.add(account)
+        await db.flush()
+
+        position = ManagedPosition(
+            user_id=test_user.id,
+            account_id=account.id,
+            asset_identifier="AAPL",
+            quantity=Decimal("10.0"),
+            cost_basis=Decimal("1000.00"),
+            acquisition_date=date(2024, 1, 1),
+            status=PositionStatus.ACTIVE,
+            currency="USD",
+        )
+        db.add(position)
+        await db.commit()
+        await db.refresh(position)
+
+        response = await client.get(
+            f"/assets/positions/{position.id}/depreciation",
+            params={
+                "method": "straight-line",
+                "useful_life_years": 5,
+                "salvage_value": "100.00",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["position_id"] == str(position.id)
+        assert data["asset_identifier"] == "AAPL"
+        assert data["method"] == "straight-line"
+        assert data["useful_life_years"] == 5
+
+    async def test_get_position_depreciation_not_found(self, client):
+        """GET /assets/positions/{id}/depreciation returns 400 for non-existent position."""
+        fake_id = uuid4()
+        response = await client.get(
+            f"/assets/positions/{fake_id}/depreciation",
+            params={"method": "straight-line", "useful_life_years": 5},
+        )
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"].lower()
+
+    async def test_get_position_depreciation_disposed_position(self, client, db, test_user):
+        """GET /assets/positions/{id}/depreciation returns 400 for disposed position."""
+        account = Account(
+            user_id=test_user.id,
+            name="Test Broker",
+            type=AccountType.ASSET,
+            currency="USD",
+        )
+        db.add(account)
+        await db.flush()
+
+        position = ManagedPosition(
+            user_id=test_user.id,
+            account_id=account.id,
+            asset_identifier="AAPL",
+            quantity=Decimal("0.0"),
+            cost_basis=Decimal("0.00"),
+            acquisition_date=date(2024, 1, 1),
+            disposal_date=date(2024, 6, 1),
+            status=PositionStatus.DISPOSED,
+            currency="USD",
+        )
+        db.add(position)
+        await db.commit()
+        await db.refresh(position)
+
+        response = await client.get(
+            f"/assets/positions/{position.id}/depreciation",
+            params={"method": "straight-line", "useful_life_years": 5},
+        )
+        assert response.status_code == 400
+        assert "disposed" in response.json()["detail"].lower()
+
+    async def test_get_position_depreciation_invalid_params(self, client, db, test_user):
+        """GET /assets/positions/{id}/depreciation returns 400 for invalid params."""
+        account = Account(
+            user_id=test_user.id,
+            name="Test Broker",
+            type=AccountType.ASSET,
+            currency="USD",
+        )
+        db.add(account)
+        await db.flush()
+
+        position = ManagedPosition(
+            user_id=test_user.id,
+            account_id=account.id,
+            asset_identifier="AAPL",
+            quantity=Decimal("10.0"),
+            cost_basis=Decimal("1000.00"),
+            acquisition_date=date(2024, 1, 1),
+            status=PositionStatus.ACTIVE,
+            currency="USD",
+        )
+        db.add(position)
+        await db.commit()
+        await db.refresh(position)
+
+        response = await client.get(
+            f"/assets/positions/{position.id}/depreciation",
+            params={
+                "method": "straight-line",
+                "useful_life_years": 0,  # Invalid: must be >= 1
+            },
+        )
+        assert response.status_code == 422
