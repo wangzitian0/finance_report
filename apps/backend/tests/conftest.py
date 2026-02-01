@@ -278,13 +278,23 @@ async def db_engine(test_database_url, tmp_path_factory, worker_id):
     try:
         lock_file.touch(exist_ok=False)
     except FileExistsError:
-        for _ in range(30):
-            time.sleep(1)
+        for i in range(10):
+            time.sleep(0.5)
             if not lock_file.exists():
                 break
         else:
-            raise RuntimeError(f"Worker {worker_id}: Schema setup lock timed out")
+            logger.error(
+                "Schema setup lock timeout",
+                worker_id=worker_id,
+                lock_file=str(lock_file),
+                waited_seconds=5,
+            )
+            raise RuntimeError(
+                f"Worker {worker_id}: Schema setup lock timed out after 5s. "
+                f"Another worker may have crashed during setup."
+            )
 
+    engine = None
     try:
         engine = create_async_engine(
             test_database_url,
@@ -292,21 +302,25 @@ async def db_engine(test_database_url, tmp_path_factory, worker_id):
             poolclass=NullPool,
         )
 
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(text("DROP SCHEMA public CASCADE"))
-                await conn.execute(text("CREATE SCHEMA public"))
-                await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
-                await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
-                await conn.run_sync(Base.metadata.create_all)
-        except Exception as e:
-            logger.error(
-                "Schema setup failed",
-                worker_id=worker_id,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            raise
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+            await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+            await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        logger.error(
+            "Schema setup failed",
+            worker_id=worker_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        if engine:
+            try:
+                await engine.dispose()
+            except Exception:
+                pass
+        raise
     finally:
         lock_file.unlink(missing_ok=True)
 
