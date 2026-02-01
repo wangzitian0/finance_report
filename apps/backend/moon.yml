@@ -50,7 +50,7 @@ tasks:
       - 'install'
 
   test-execution:
-    command: 'uv run pytest -n auto --dist worksteal -v -m "not slow and not e2e and not integration" --cov=src --cov-report=lcov --cov-report=term-missing --cov-branch --cov-fail-under=92'
+    command: 'uv run pytest -v -m "not slow and not e2e and not integration" --cov=src --cov-report=lcov --cov-report=term-missing --cov-branch --cov-fail-under=92'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'
