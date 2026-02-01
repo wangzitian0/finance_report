@@ -256,10 +256,10 @@ The above analysis is for reference only.
 
 **✅ Your Answer**: A - Display error message, wait for recovery
 
-**Decision**: Graceful error handling, no fallback mechanism
+**Decision**: Graceful error handling with fallback models when configured
 - When OpenRouter returns quota exceeded or timeout:
-  - Catch exceptions: `OpenRouterQuotaExceeded`, `APITimeout`, etc.
-  - Return user-friendly error message:
+  - Attempt fallback models (if configured)
+  - If all fail, return user-friendly error message:
     ```json
     {
       "error": "AI service temporarily unavailable, please try again later",

@@ -2,7 +2,7 @@ import base64
 import hashlib
 import ipaddress
 import json
-import re
+import re  # noqa: F401 (used in regex patterns)
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -49,22 +49,33 @@ class ExtractionService:
         self.base_url = settings.openrouter_base_url
         self.primary_model = settings.primary_model
         self.fallback_models = settings.fallback_models
+        self.deduplication_service = DeduplicationService()
 
     def _safe_date(self, value: str | None) -> date:
         """Safely parse date from string."""
         if not value:
+            logger.error("Date is required but was None or empty", value=value)
             raise ValueError("Date is required")
         try:
             return date.fromisoformat(str(value))
-        except (ValueError, TypeError):
-            raise ValueError(f"Invalid date format: {value}")
+        except (ValueError, TypeError) as exc:
+            logger.error(
+                "Failed to parse date",
+                value=value,
+                error_type=type(exc).__name__,
+            )
+            raise ValueError(f"Invalid date format: {value}") from exc
 
-    def _safe_decimal(self, value: str | None, default: str = "0.00") -> Decimal:
+    def _safe_decimal(self, value: str | None, default: str | None = None) -> Decimal:
         """Safely convert string to Decimal."""
+        if value is None:
+            if default is None:
+                raise ValueError("Decimal value is required")
+            value = default
         try:
-            return Decimal(str(value or default))
-        except (ValueError, TypeError, InvalidOperation):
-            return Decimal(default)
+            return Decimal(str(value))
+        except (ValueError, TypeError, InvalidOperation) as exc:
+            raise ValueError(f"Invalid decimal value: {value}") from exc
 
     def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevel:
         """Heuristic confidence for a single transaction."""
@@ -217,9 +228,8 @@ class ExtractionService:
             transactions = []
             net_transactions = Decimal("0.00")
             for txn in extracted.get("transactions", []):
-                # Skip transactions with missing required fields
                 if not txn.get("date") or txn.get("amount") is None:
-                    continue
+                    raise ExtractionError("Transaction missing required fields: date or amount")
 
                 # Handle case where the model returns date as non-string
                 txn_date_val = txn["date"]
@@ -228,21 +238,24 @@ class ExtractionService:
 
                 # Skip if date is still invalid
                 if txn_date_val in ("None", "", "null"):
-                    continue
-
-                try:
-                    parsed_date = date.fromisoformat(txn_date_val)
-                except ValueError:
                     logger.warning(
-                        "Skipping transaction with invalid date format",
-                        raw_date=txn_date_val,
+                        "Transaction skipped due to invalid date",
+                        raw_date=txn["date"],
                         description=txn.get("description", "N/A"),
                         amount=txn.get("amount"),
                         statement_file=original_filename or "unknown",
                     )
-                    continue  # Skip invalid date formats
+                    continue
 
-                amount = Decimal(str(txn["amount"]))
+                try:
+                    parsed_date = date.fromisoformat(txn_date_val)
+                except ValueError as exc:
+                    raise ExtractionError(f"Invalid transaction date format: {txn_date_val}") from exc
+
+                try:
+                    amount = Decimal(str(txn["amount"]))
+                except (ValueError, TypeError, InvalidOperation) as exc:
+                    raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
                 direction = txn.get("direction", "IN")
                 if direction == "IN":
                     net_transactions += amount
@@ -334,28 +347,44 @@ class ExtractionService:
 
         media_payload = None
 
-        if file_content:
-            b64_content = base64.b64encode(file_content).decode("utf-8")
-            media_payload = self._build_media_payload(
-                file_type=file_type,
-                mime_type=mime_type,
-                data=f"data:{mime_type};base64,{b64_content}",
-            )
-        elif file_url:
-            if self._validate_external_url(file_url):
+        if file_type == "pdf":
+            if file_url:
+                if self._validate_external_url(file_url):
+                    media_payload = self._build_media_payload(
+                        file_type=file_type,
+                        mime_type=mime_type,
+                        data=file_url,
+                    )
+                else:
+                    logger.warning("Rejected internal/private file URL for PDF extraction", url=file_url)
+
+            if not media_payload:
+                raise ExtractionError(
+                    "PDF extraction requires a public URL. Ensure the uploaded file is accessible externally."
+                )
+        else:
+            if file_content:
+                b64_content = base64.b64encode(file_content).decode("utf-8")
                 media_payload = self._build_media_payload(
                     file_type=file_type,
                     mime_type=mime_type,
-                    data=file_url,
+                    data=f"data:{mime_type};base64,{b64_content}",
                 )
-            else:
-                logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
+            elif file_url:
+                if self._validate_external_url(file_url):
+                    media_payload = self._build_media_payload(
+                        file_type=file_type,
+                        mime_type=mime_type,
+                        data=file_url,
+                    )
+                else:
+                    logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
 
-        if not media_payload:
-            raise ExtractionError(
-                "No valid file content or accessible URL provided for AI extraction. "
-                "Ensure file content is uploaded or URL is public."
-            )
+            if not media_payload:
+                raise ExtractionError(
+                    "No valid file content or accessible URL provided for AI extraction. "
+                    "Ensure file content is uploaded or URL is public."
+                )
 
         logger.info(
             "Sending document to AI for extraction",
@@ -378,7 +407,10 @@ class ExtractionService:
             }
         ]
 
-        models = [force_model] if force_model else [self.primary_model] + list(self.fallback_models or [])
+        if force_model:
+            models = [force_model]
+        else:
+            models = [self.primary_model]
         last_error: ExtractionError | None = None
         error_summary: dict[str, int] = {}
 
@@ -419,8 +451,7 @@ class ExtractionService:
                     )
                     error_summary["empty_response"] = error_summary.get("empty_response", 0) + 1
                     last_error = ExtractionError(
-                        f"Model {model} returned empty response. Possible causes: "
-                        f"quota limit, unsupported format, or content filtering."
+                        f"Model {model} returned empty response. Please retry with a different model."
                     )
                     continue
 
@@ -430,16 +461,12 @@ class ExtractionService:
 
                 try:
                     parsed = json.loads(content)
+                    if not isinstance(parsed, dict):
+                        raise ExtractionError("AI response must be a strict JSON object (no arrays).")
                     logger.info("AI extraction successful (streaming)", model=model)
                     return parsed
                 except json.JSONDecodeError as e:
                     from src.constants.error_ids import ErrorIds
-
-                    json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-                    if json_match:
-                        parsed = json.loads(json_match.group(1))
-                        logger.info("AI extraction successful (markdown fallback)", model=model)
-                        return parsed
 
                     logger.error(
                         "Failed to parse AI JSON",
@@ -453,7 +480,10 @@ class ExtractionService:
                         looks_like_xml=content.strip().startswith("<?xml"),
                     )
                     error_summary["json_parse"] = error_summary.get("json_parse", 0) + 1
-                    last_error = ExtractionError(f"Failed to parse JSON response: {e}")
+                    last_error = ExtractionError(
+                        "AI response must be a strict JSON object (no markdown or extra text). "
+                        "Please retry with a different model."
+                    )
                     continue
 
             except OpenRouterStreamError as e:
@@ -517,8 +547,8 @@ class ExtractionService:
 
         raise last_error or ExtractionError("Extraction failed after all retries")
 
-    async def _parse_csv_content(self, file_content: bytes, institution: str) -> dict[str, Any]:
-        """Parse CSV content directly from bytes.
+    async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
+        """Parse CSV content directly from bytes or string.
 
         Supports multiple bank formats with auto-detection and AI fallback.
         """
@@ -526,7 +556,10 @@ class ExtractionService:
         import io
         from datetime import datetime
 
-        text = file_content.decode("utf-8-sig")
+        if isinstance(file_content, bytes):
+            text = file_content.decode(encoding="utf-8-sig", errors="ignore")
+        else:
+            text = file_content.lstrip("\ufeff")
 
         pii_matches = detect_pii(text)
         if pii_matches:
@@ -543,7 +576,7 @@ class ExtractionService:
         if not rows:
             raise ExtractionError("CSV file is empty or has no data rows")
 
-        headers = reader.fieldnames or []
+        headers = list(reader.fieldnames or [])
         headers_lower = [h.lower().strip() for h in headers]
         institution_lower = institution.lower()
 
@@ -603,6 +636,12 @@ class ExtractionService:
             for row in rows:
                 txn_date = parse_date(row.get(date_col, "")) if date_col else None
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=row.get(date_col, ""),
+                        description=row.get(desc_cols[0] if desc_cols else None, ""),
+                    )
                     continue
 
                 debit = parse_amount(row.get(debit_col, "")) if debit_col else None
@@ -615,6 +654,13 @@ class ExtractionService:
                     amount = credit
                     direction = "IN"
                 else:
+                    logger.warning(
+                        "CSV transaction skipped - no valid amount",
+                        institution=institution,
+                        debit=debit,
+                        credit=credit,
+                        description=row.get(desc_cols[0] if desc_cols else None, ""),
+                    )
                     continue
 
                 desc_parts = [row.get(col, "") for col in desc_cols if col and row.get(col)]
@@ -648,10 +694,22 @@ class ExtractionService:
                     date_str = date_str.split("T")[0]
                 txn_date = parse_date(date_str)
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=date_str,
+                        description=row.get(desc_col, "Wise Transfer"),
+                    )
                     continue
 
                 amount = parse_amount(row.get(amount_col, "")) if amount_col else None
                 if not amount or amount <= 0:
+                    logger.warning(
+                        "CSV transaction skipped - no valid amount",
+                        institution=institution,
+                        amount_raw=row.get(amount_col, ""),
+                        description=row.get(desc_col, "Wise Transfer"),
+                    )
                     continue
 
                 direction_raw = row.get(direction_col, "").lower() if direction_col else ""
@@ -687,6 +745,12 @@ class ExtractionService:
             for row in rows:
                 txn_date = parse_date(row.get(date_col, "")) if date_col else None
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=row.get(date_col, ""),
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 debit = parse_amount(row.get(debit_col, "")) if debit_col else None
@@ -699,6 +763,13 @@ class ExtractionService:
                     amount = credit
                     direction = "IN"
                 else:
+                    logger.warning(
+                        "CSV transaction skipped - no valid amount",
+                        institution=institution,
+                        debit=debit,
+                        credit=credit,
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 description = row.get(desc_col, "Transaction") if desc_col else "Transaction"
@@ -728,6 +799,12 @@ class ExtractionService:
             for row in rows:
                 txn_date = parse_date(row.get(date_col, "")) if date_col else None
                 if not txn_date:
+                    logger.warning(
+                        "CSV transaction skipped - invalid date",
+                        institution=institution,
+                        date_raw=row.get(date_col, ""),
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 if amount_col and row.get(amount_col):
@@ -736,6 +813,12 @@ class ExtractionService:
                         direction = "OUT" if amount < 0 else "IN"
                         amount = abs(amount)
                     else:
+                        logger.warning(
+                            "CSV transaction skipped - no valid amount",
+                            institution=institution,
+                            amount_raw=row.get(amount_col, ""),
+                            description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                        )
                         continue
                 elif debit_col or credit_col:
                     debit = parse_amount(row.get(debit_col, "")) if debit_col else None
@@ -747,8 +830,20 @@ class ExtractionService:
                         amount = credit
                         direction = "IN"
                     else:
+                        logger.warning(
+                            "CSV transaction skipped - no valid amount",
+                            institution=institution,
+                            debit=debit,
+                            credit=credit,
+                            description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                        )
                         continue
                 else:
+                    logger.warning(
+                        "CSV transaction skipped - no amount columns found",
+                        institution=institution,
+                        description=row.get(desc_col, "Transaction") if desc_col else "Transaction",
+                    )
                     continue
 
                 description = row.get(desc_col, "Transaction") if desc_col else "Transaction"

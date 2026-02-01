@@ -5,6 +5,17 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchAiModels } from "@/lib/aiModels";
 import { useToast } from "@/components/ui/Toast";
 
+const STORAGE_KEY = "statement_model_v1";
+
+// Track if we've already shown the toast to avoid spamming
+let storageWarningShown = false;
+
+type AiModelOption = {
+    id: string;
+    name?: string;
+    is_free: boolean;
+};
+
 function getSafeStorage(key: string): string | null {
     try {
         if (typeof window === "undefined") return null;
@@ -15,12 +26,20 @@ function getSafeStorage(key: string): string | null {
     }
 }
 
-function setSafeStorage(key: string, value: string): void {
+function setSafeStorage(key: string, value: string, showToastFn?: (msg: string, type: "success" | "error" | "warning" | "info") => void): void {
     try {
         if (typeof window === "undefined") return;
         localStorage.setItem(key, value);
     } catch (error) {
         console.warn(`[Storage] Failed to write ${key}:`, error);
+        // Show user-facing notification once to inform them their preference wasn't saved
+        if (!storageWarningShown && showToastFn) {
+            showToastFn(
+                "Unable to save your model preference. Your selection is temporary for this session.",
+                "warning"
+            );
+            storageWarningShown = true;
+        }
     }
 }
 
@@ -41,65 +60,68 @@ interface StatementUploaderProps {
 export default function StatementUploader({
     onUploadComplete,
     onError,
-}: StatementUploaderProps) {
+}: StatementUploaderProps): JSX.Element {
     const { showToast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [institution, setInstitution] = useState("");
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [models, setModels] = useState<{ id: string; name?: string; is_free: boolean }[]>([]);
+    const [models, setModels] = useState<AiModelOption[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [modelLoading, setModelLoading] = useState(true);
 
     useEffect(() => {
         let active = true;
-        const loadModels = async () => {
+        async function loadModels(): Promise<void> {
             try {
                 const data = await fetchAiModels({ modality: "image" });
                 if (!active) return;
                 setModels(data.models);
-                const stored = getSafeStorage("statement_model_v1");
-                
+                const stored = getSafeStorage(STORAGE_KEY);
+
                 // IMPORTANT: Validate stored model ID against current catalog
                 // OpenRouter periodically removes models (e.g., Gemini 2.0 → 3.0 upgrade)
-                // If stored ID is invalid/stale, fall back to default to prevent parsing failures
                 const isStoredValid = stored && data.models.some((m) => m.id === stored);
-                let preferred = isStoredValid ? stored : data.default_model;
-                
-                // Double-check preferred model exists (handles race: default_model not in filtered catalog)
-                if (!data.models.some((m) => m.id === preferred)) {
-                    preferred = data.models[0]?.id || "";
-                }
-                
-                // Clear invalid localStorage entry to prevent future issues
-                // User will see the new default model selected on next page load
+                const isDefaultValid = data.models.some((m) => m.id === data.default_model);
+
                 if (stored && !isStoredValid) {
-                    removeSafeStorage("statement_model_v1");
+                    removeSafeStorage(STORAGE_KEY);
                 }
-                
-                setSelectedModel(preferred);
+
+                if (isStoredValid) {
+                    setSelectedModel(stored);
+                    return;
+                }
+
+                if (!isDefaultValid) {
+                    setError("We couldn't find a default AI model. Refresh and try again.");
+                    setSelectedModel("");
+                    return;
+                }
+
+                setSelectedModel(data.default_model);
             } catch (error) {
                 if (!active) return;
                 console.error("[StatementUploader] Failed to load AI models:", error);
-                setError("Unable to load AI models. Using server default.");
+                setError("Unable to load AI models. Please try again.");
                 setModels([]);
                 setSelectedModel("");
             } finally {
                 if (active) setModelLoading(false);
             }
-        };
+        }
         void loadModels();
         return () => {
             active = false;
         };
     }, []);
 
-    const validateAndSetFile = useCallback((f: File) => {
-        const validExtensions = ["pdf", "csv", "png", "jpg", "jpeg"];
-        const ext = f.name.split(".").pop()?.toLowerCase() || "";
-        if (!validExtensions.includes(ext)) {
-            setError(`Invalid file type: .${ext}. Allowed: PDF, CSV, PNG, JPG`);
+    const validateAndSetFile = useCallback(function validateAndSetFile(f: File): void {
+        const validExtensions = new Set(["pdf", "csv", "png", "jpg", "jpeg"]);
+        const extension = f.name.split(".").pop()?.toLowerCase() || "";
+        if (!validExtensions.has(extension)) {
+            setError(`Invalid file type: .${extension}. Allowed: PDF, CSV, PNG, JPG`);
             return;
         }
         if (f.size > 10 * 1024 * 1024) {
@@ -110,29 +132,31 @@ export default function StatementUploader({
         setError(null);
     }, []);
 
-    const handleDragOver = useCallback((e: React.DragEvent) => {
+    const handleDragOver = useCallback(function handleDragOver(e: React.DragEvent): void {
         e.preventDefault();
         setIsDragging(true);
     }, []);
 
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const handleDragLeave = useCallback(function handleDragLeave(e: React.DragEvent): void {
         e.preventDefault();
         setIsDragging(false);
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
+    const handleDrop = useCallback(function handleDrop(e: React.DragEvent): void {
         e.preventDefault();
         setIsDragging(false);
         const droppedFile = e.dataTransfer.files[0];
         if (droppedFile) validateAndSetFile(droppedFile);
     }, [validateAndSetFile]);
 
-    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = useCallback(function handleFileChange(
+        e: React.ChangeEvent<HTMLInputElement>
+    ): void {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) validateAndSetFile(selectedFile);
     }, [validateAndSetFile]);
 
-    const handleUpload = async () => {
+    async function handleUpload(): Promise<void> {
         if (!file) {
             setError("Please select a file");
             return;
@@ -147,9 +171,11 @@ export default function StatementUploader({
             if (institution.trim()) {
                 formData.append("institution", institution.trim());
             }
-            if (selectedModel) {
-                formData.append("model", selectedModel);
+            if (!selectedModel) {
+                setError("Please select an AI model");
+                return;
             }
+            formData.append("model", selectedModel);
 
             const { apiUpload } = await import("@/lib/api");
             await apiUpload("/api/statements/upload", formData);
@@ -165,7 +191,17 @@ export default function StatementUploader({
         } finally {
             setUploading(false);
         }
-    };
+    }
+
+    let dropZoneTone = "hover:border-[var(--border-hover)]";
+    if (file) {
+        dropZoneTone = "border-[var(--success)] bg-[var(--success-muted)]";
+    }
+    if (isDragging) {
+        dropZoneTone = "border-[var(--accent)] bg-[var(--accent-muted)]";
+    }
+
+    const iconTone = file ? "bg-[var(--success-muted)]" : "bg-[var(--background-muted)]";
 
     return (
         <div className="space-y-4">
@@ -174,12 +210,7 @@ export default function StatementUploader({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`card p-6 text-center cursor-pointer transition-colors ${isDragging
-                    ? "border-[var(--accent)] bg-[var(--accent-muted)]"
-                    : file
-                        ? "border-[var(--success)] bg-[var(--success-muted)]"
-                        : "hover:border-[var(--border-hover)]"
-                    }`}
+                className={`card p-6 text-center cursor-pointer transition-colors ${dropZoneTone}`}
             >
                 <input
                     type="file"
@@ -190,8 +221,7 @@ export default function StatementUploader({
                 />
                 <label htmlFor="file-upload" className="cursor-pointer block">
                     <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${file ? "bg-[var(--success-muted)]" : "bg-[var(--background-muted)]"
-                            }`}>
+                        <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${iconTone}`}>
                             {file ? (
                                 <svg className="w-5 h-5 text-[var(--success)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -265,14 +295,14 @@ export default function StatementUploader({
                         const next = e.target.value;
                         setSelectedModel(next);
                         if (next) {
-                            setSafeStorage("statement_model_v1", next);
+                            setSafeStorage(STORAGE_KEY, next, showToast);
                         }
                     }}
                     disabled={modelLoading}
                     aria-label="AI model"
                 >
                     {models.length === 0 ? (
-                        <option value="">Default (server)</option>
+                        <option value="">No models available</option>
                     ) : (
                         models.map((model) => (
                             <option key={model.id} value={model.id}>
