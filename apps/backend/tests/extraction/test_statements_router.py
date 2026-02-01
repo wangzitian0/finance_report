@@ -711,7 +711,11 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
     mock_fetch = AsyncMock(
         return_value=[
-            {"id": "google/gemini-2.0-flash-exp:free", "context_length": 1000000, "input_modalities": ["image"]}
+            {
+                "id": "google/gemini-2.0-flash-exp:free",
+                "context_length": 1000000,
+                "architecture": {"input_modalities": ["image"]},
+            }
         ]
     )
     monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
@@ -729,7 +733,11 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
     # Mock fetch_model_catalog to include the test model
     mock_fetch = AsyncMock(
         return_value=[
-            {"id": "google/gemini-2.0-flash-exp:free", "context_length": 1000000, "input_modalities": ["image"]}
+            {
+                "id": "google/gemini-2.0-flash-exp:free",
+                "context_length": 1000000,
+                "architecture": {"input_modalities": ["image"]},
+            }
         ]
     )
     monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
@@ -817,7 +825,11 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
 
     mock_fetch = AsyncMock(
         return_value=[
-            {"id": "google/gemini-2.0-flash-exp:free", "context_length": 1000000, "input_modalities": ["image"]}
+            {
+                "id": "google/gemini-2.0-flash-exp:free",
+                "context_length": 1000000,
+                "architecture": {"input_modalities": ["image"]},
+            }
         ]
     )
     monkeypatch.setattr(statements_router, "fetch_model_catalog", mock_fetch)
