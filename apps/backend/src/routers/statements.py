@@ -29,8 +29,7 @@ from src.schemas import (
     StatementDecisionRequest,
 )
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
-from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
-from src.utils import raise_bad_request, raise_internal_error, raise_not_found, raise_service_unavailable
+from src.utils import raise_bad_request, raise_internal_error, raise_not_found
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
@@ -218,18 +217,8 @@ async def upload_statement(
     if duplicate.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
 
-    if extension != "csv":
-        if not model:
-            raise_bad_request("AI model is required for PDF/image uploads.")
-
-        try:
-            model_info = await get_model_info(model)
-        except ModelCatalogError as exc:
-            raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
-        if not model_info:
-            raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
-        if not model_matches_modality(model_info, "image"):
-            raise_bad_request("Selected model does not support image/PDF inputs.")
+    if extension != "csv" and not model:
+        raise_bad_request("AI model is required for PDF/image uploads.")
 
     statement_id = uuid4()
     storage_key = f"statements/{user_id}/{statement_id}/{filename}"
@@ -329,16 +318,6 @@ async def retry_statement_parsing(
         raise HTTPException(400, "Can only retry parsing for parsed, rejected, or stuck parsing statements")
 
     selected_model = model_override or settings.primary_model
-
-    if model_override:
-        try:
-            model_info = await get_model_info(model_override)
-        except ModelCatalogError as exc:
-            raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
-        if not model_info:
-            raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
-        if not model_matches_modality(model_info, "image"):
-            raise_bad_request("Selected model does not support image/PDF inputs.")
 
     # Reset status to PARSING before starting background task
     statement.status = BankStatementStatus.PARSING

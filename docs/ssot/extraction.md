@@ -163,9 +163,12 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 ## Model Selection
 
 - **Default**: Uses `PRIMARY_MODEL` for parsing.
-- **Upload requirement**: `/api/statements/upload` requires a `model` form field for PDF/image uploads; the selected model is always used as-is.
-- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter (always used as-is).
-- **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
+- **Upload requirement**: `/api/statements/upload` requires a `model` form field for PDF/image uploads.
+  - **No validation at upload**: Model is accepted as-is without checking against OpenRouter catalog.
+  - **Validation happens during parsing**: If model is invalid or unavailable, the parsing task fails (statement marked `REJECTED`).
+  - **Rationale**: Avoids upload failures due to external API (OpenRouter) downtime or rate limits.
+- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter (always used as-is, no validation).
+- **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (for model selection only).
 - **Fallback models**: `FALLBACK_MODELS` are for manual selection only; parsing does not automatically retry other models.
 
 ## Data Integrity & Typing
