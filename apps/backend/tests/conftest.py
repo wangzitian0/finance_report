@@ -272,17 +272,29 @@ async def db_engine(test_database_url, tmp_path_factory, worker_id):
         User,
     )
 
+    # Each worker gets its own database, so no locking needed across workers.
+    # The lock file is ONLY for protecting against concurrent pytest-xdist
+    # workers trying to create the SAME database (shouldn't happen with worker_id
+    # in the database name, but kept as defensive programming).
     root_tmp_dir = tmp_path_factory.getbasetemp().parent
     lock_file = root_tmp_dir / f"db_setup_{worker_id}.lock"
 
+    # Acquire lock ONLY during schema creation
+    lock_acquired = False
     try:
         lock_file.touch(exist_ok=False)
+        lock_acquired = True
     except FileExistsError:
         for i in range(10):
             time.sleep(0.5)
             if not lock_file.exists():
-                break
-        else:
+                try:
+                    lock_file.touch(exist_ok=False)
+                    lock_acquired = True
+                    break
+                except FileExistsError:
+                    continue
+        if not lock_acquired:
             logger.error(
                 "Schema setup lock timeout",
                 worker_id=worker_id,
@@ -322,7 +334,9 @@ async def db_engine(test_database_url, tmp_path_factory, worker_id):
                 pass
         raise
     finally:
-        lock_file.unlink(missing_ok=True)
+        # Release lock IMMEDIATELY after schema creation
+        if lock_acquired:
+            lock_file.unlink(missing_ok=True)
 
     yield engine
 
