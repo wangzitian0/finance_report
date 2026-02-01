@@ -58,6 +58,8 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
         async_engine = getattr(bind, "async_engine", None)
 
     if not isinstance(async_engine, AsyncEngine):
+        if _test_session_maker is not None:
+            return _test_session_maker
         raise RuntimeError("Async engine unavailable for session maker creation")
 
     return async_sessionmaker(

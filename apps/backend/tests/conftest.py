@@ -371,19 +371,11 @@ async def db_engine(test_database_url, tmp_path_factory, worker_id):
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def patch_database_connection(db_engine):
-    """Override global database session maker to use test engine for all tests.
+    """Override global database session maker to use test engine.
 
-    Ensures the get_db() dependency in src/database.py returns sessions bound
-    to the test database engine (db_engine fixture) rather than the production
-    database. This is critical for test isolation — without it, tests would
-    connect to the wrong database.
-
-    Runs automatically for all tests (autouse=True) to prevent accidental
-    production database access during testing.
-
-    Note: This creates a new session maker bound to db_engine, but these sessions
-    are NOT transaction-bound. For transaction rollback isolation, tests should
-    use the db fixture which creates transaction-bound sessions.
+    Ensures API handlers use test database. For tests using the db fixture,
+    the session maker will be further overridden to bind to the test
+    transaction connection (see db fixture implementation).
     """
     from src import database
 
@@ -492,32 +484,61 @@ async def db(db_engine, request):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_user(db: AsyncSession, request):
-    """Create a test user for authenticated requests."""
+async def test_user(db_engine, request):
+    """Create a test user for authenticated requests.
+
+    Creates user by committing directly to database (not within test transaction).
+    This is necessary because:
+    - API handlers spawn background tasks with separate database sessions
+    - Background tasks can't share transaction-bound connections (asyncpg limitation)
+    - User must be visible to all sessions, not just within a transaction
+
+    Cleanup: Explicitly deletes user after test to ensure test isolation.
+    """
     from src.models import User
 
     test_name = request.node.name
 
-    user = User(
-        email=f"test-{uuid4()}@example.com",
-        hashed_password="hashed",
-    )
-    db.add(user)
-
-    try:
-        await db.flush()
-        await db.refresh(user)
-    except Exception as e:
-        logger.error(
-            "Failed to create test user",
-            test_name=test_name,
-            error=str(e),
-            error_type=type(e).__name__,
+    # Create user with separate engine-bound session (commits to DB)
+    async with AsyncSession(db_engine, expire_on_commit=False) as user_session:
+        user = User(
+            email=f"test-{uuid4()}@example.com",
+            hashed_password="hashed",
         )
-        await db.rollback()
-        raise RuntimeError(f"Test setup failed: cannot create test user: {e}") from e
+        user_session.add(user)
 
-    return user
+        try:
+            await user_session.commit()
+            await user_session.refresh(user)
+            user_id = user.id  # Capture ID before session closes
+        except Exception as e:
+            logger.error(
+                "Failed to create test user",
+                test_name=test_name,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            await user_session.rollback()
+            raise RuntimeError(f"Test setup failed: cannot create test user: {e}") from e
+
+    yield user
+
+    # Cleanup: Delete user explicitly to ensure test isolation
+    async with AsyncSession(db_engine, expire_on_commit=False) as cleanup_session:
+        try:
+            from sqlalchemy import delete
+            from src.models import User
+
+            await cleanup_session.execute(delete(User).where(User.id == user_id))
+            await cleanup_session.commit()
+        except Exception as e:
+            logger.warning(
+                "Test user cleanup failed",
+                test_name=test_name,
+                user_id=str(user_id),
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
 
 @pytest_asyncio.fixture(scope="function")
