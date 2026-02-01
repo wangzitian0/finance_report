@@ -160,7 +160,6 @@ async def _parse_statement_background(
             statement.period_end = parsed_statement.period_end
             statement.opening_balance = parsed_statement.opening_balance
             statement.closing_balance = parsed_statement.closing_balance
-            statement.parsing_progress = 80
             await session.commit()
 
             await update_progress(80)
@@ -180,9 +179,8 @@ async def _parse_statement_background(
             statement.balance_validated = parsed_statement.balance_validated
             statement.validation_error = parsed_statement.validation_error
             statement.status = parsed_statement.status
-            statement.parsing_progress = 100
 
-            await session.commit()
+            await update_progress(100)
             duration = time.perf_counter() - start_time
             logger.info(
                 "Background parsing completed",

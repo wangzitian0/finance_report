@@ -10,6 +10,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Build arguments
+# NOTE: Build args must be declared before they are referenced in ENV,
+# so keep this ARG above any ENV instructions that use GIT_COMMIT_SHA.
 ARG GIT_COMMIT_SHA=unknown
 
 # 安装必要的运行时库：curl (健康检查) 和 libpq5 (psycopg2 依赖)
