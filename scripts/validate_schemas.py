@@ -145,7 +145,7 @@ def check_schemas_directory(dir_path: Path) -> dict:
         if file_path.name.startswith("__"):
             continue
 
-        files_checked += 1
+        files_checked += 1  # Only count non-skipped files
         visitor = parse_file_for_schemas(file_path)
         all_fields.extend(visitor.fields)
 
@@ -228,7 +228,8 @@ def generate_fix_suggestions(config_result: dict, schemas_result: dict) -> None:
         try:
             relative_path = Path(file_path).relative_to(get_project_root())
             print(f"File: {relative_path}")
-        except ValueError:
+        except (ValueError, TypeError):
+            # Fall back to absolute path if not under project root or invalid
             print(f"File: {file_path}")
         print("-" * 60)
 
