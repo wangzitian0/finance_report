@@ -498,6 +498,7 @@ async def test_user(db_engine, request):
     from src.models import User
 
     test_name = request.node.name
+    user_id = None  # Initialize to None for cleanup
 
     # Create user with separate engine-bound session (commits to DB)
     async with AsyncSession(db_engine, expire_on_commit=False) as user_session:
@@ -524,21 +525,22 @@ async def test_user(db_engine, request):
     yield user
 
     # Cleanup: Delete user explicitly to ensure test isolation
-    async with AsyncSession(db_engine, expire_on_commit=False) as cleanup_session:
-        try:
-            from sqlalchemy import delete
-            from src.models import User
+    if user_id is not None:
+        async with AsyncSession(db_engine, expire_on_commit=False) as cleanup_session:
+            try:
+                from sqlalchemy import delete
+                from src.models import User
 
-            await cleanup_session.execute(delete(User).where(User.id == user_id))
-            await cleanup_session.commit()
-        except Exception as e:
-            logger.warning(
-                "Test user cleanup failed",
-                test_name=test_name,
-                user_id=str(user_id),
-                error=str(e),
-                error_type=type(e).__name__,
-            )
+                await cleanup_session.execute(delete(User).where(User.id == user_id))
+                await cleanup_session.commit()
+            except Exception as e:
+                logger.warning(
+                    "Test user cleanup failed",
+                    test_name=test_name,
+                    user_id=str(user_id),
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
 
 
 @pytest_asyncio.fixture(scope="function")
