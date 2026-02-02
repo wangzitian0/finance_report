@@ -66,7 +66,7 @@ async def test_create_session_maker_variants():
 
     from src import database
 
-    original_test_maker = database._test_session_maker
+    original_test_maker = database.get_test_session_maker()
     database.set_test_session_maker(None)
     try:
         with pytest.raises(RuntimeError, match="Async engine unavailable"):

@@ -36,10 +36,30 @@ async_session_maker = async_sessionmaker(
 _test_session_maker = None
 
 
-def set_test_session_maker(maker: async_sessionmaker[AsyncSession] | None) -> None:
-    """Set a test session maker to override the default one."""
+def set_test_session_maker(
+    maker: async_sessionmaker[AsyncSession] | None,
+) -> async_sessionmaker[AsyncSession] | None:
+    """Set test session maker and return the previous value.
+
+    Args:
+        maker: New session maker to use for tests, or None to clear
+
+    Returns:
+        Previous session maker value
+    """
     global _test_session_maker
+    previous = _test_session_maker
     _test_session_maker = maker
+    return previous
+
+
+def get_test_session_maker() -> async_sessionmaker[AsyncSession] | None:
+    """Get current test session maker.
+
+    Returns:
+        Current test session maker, or None if not set
+    """
+    return _test_session_maker
 
 
 def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSession]:
@@ -59,6 +79,11 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
 
     if not isinstance(async_engine, AsyncEngine):
         if _test_session_maker is not None:
+            # Test-only fallback: When background tasks spawn during tests and can't
+            # extract engine from the transaction-bound test session, use the test
+            # session maker that was set up by conftest fixtures. This ensures
+            # background tasks access the same test database.
+            # Production code never sets _test_session_maker, so this path is unused.
             return _test_session_maker
         raise RuntimeError("Async engine unavailable for session maker creation")
 

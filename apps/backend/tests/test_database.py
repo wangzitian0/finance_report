@@ -132,7 +132,7 @@ async def test_create_session_maker_invalid_bind():
     mock_bind.async_engine = "not-an-async-engine"
     mock_session.get_bind = Mock(return_value=mock_bind)
 
-    original_test_maker = database._test_session_maker
+    original_test_maker = database.get_test_session_maker()
     database.set_test_session_maker(None)
     try:
         with pytest.raises(RuntimeError, match="Async engine unavailable"):
