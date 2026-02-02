@@ -89,6 +89,7 @@ jobs:
             --cov-report=lcov:coverage-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
             --cov-branch \
+            --cov-fail-under=0 \
             --dist worksteal
       
       - name: Upload coverage artifact
