@@ -96,12 +96,12 @@ class TestAssetDepreciation:
             as_of_date=date(2025, 1, 1),
         )
 
-        rate = Decimal("2") / 5
-        year1_depreciation = Decimal("10000.00") * rate
+        rate = Decimal("2") / Decimal("5")
+        year1_depreciation = position.cost_basis * rate
 
         assert result.method == "declining-balance"
-        assert result.accumulated_depreciation > Decimal("0")
-        assert result.book_value < Decimal("10000.00")
+        assert result.accumulated_depreciation == year1_depreciation
+        assert result.book_value == position.cost_basis - year1_depreciation
 
     async def test_calculate_depreciation_with_salvage_value(self, db, test_user):
         """GIVEN: A position with salvage value
@@ -313,3 +313,13 @@ class TestAssetDepreciation:
         assert result.position_id == position.id
         assert result.asset_identifier == "EQUIP-007"
         assert result.period_depreciation > Decimal("0")
+
+
+# NOTE: Previously removed tests `test_reconcile_skips_null_quantity` and
+# `test_reconcile_skips_null_market_value` attempted to insert AtomicPosition rows
+# with null values for `quantity` and `market_value`. However, the schema defines
+# these columns as `nullable=False` (see migration 0008_add_layer1_layer2_tables.py),
+# so `await db.flush()` would always raise an integrity error. The defensive null
+# checks in `AssetService.reconcile_positions()` (lines 142-152 in assets.py) are
+# already covered by reconciliation integration tests. Corrupted rows with nulls,
+# if needed for testing, must be simulated via mocking rather than real inserts.

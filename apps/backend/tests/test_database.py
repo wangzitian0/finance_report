@@ -1,7 +1,6 @@
 """Tests for database session management and utilities."""
 
 import pytest
-from sqlalchemy import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import (
@@ -51,7 +50,7 @@ async def test_set_test_session_maker_override(public_client):
     custom_called = False
 
     class MockSessionMaker:
-        def __call__(self):
+        def __call__(self) -> AsyncSession:
             nonlocal custom_called
             custom_called = True
             return AsyncSession(bind=None)
@@ -64,7 +63,7 @@ async def test_set_test_session_maker_override(public_client):
 
     original_maker = None
     try:
-        set_test_session_maker(MockSessionMaker())
+        set_test_session_maker(MockSessionMaker())  # type: ignore[arg-type]
 
         async for _ in get_db():
             break
@@ -106,11 +105,11 @@ async def test_create_session_maker_handles_engine_attribute(db):
 
 
 @pytest.mark.asyncio
-async def test_init_db_logs_message():
+async def test_init_db_runs_without_error():
     """
     GIVEN the database initialization function
     WHEN init_db is called
-    THEN it should log initialization message
+    THEN it should complete successfully without raising an exception
     """
     await init_db()
 

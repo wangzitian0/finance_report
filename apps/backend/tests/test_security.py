@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import jwt
-import pytest
 
 from src.config import settings
 from src.security import create_access_token, decode_access_token
@@ -86,7 +85,7 @@ def test_decode_access_token_invalid_signature():
     THEN it should return None and log warning
     """
     data = {"sub": "user999"}
-    token = jwt.encode(data, "wrong-secret", algorithm="HS256")
+    token = jwt.encode(data, "wrong-secret", algorithm=settings.jwt_algorithm)
 
     with patch("src.security.logger.warning") as mock_warning:
         payload = decode_access_token(token)

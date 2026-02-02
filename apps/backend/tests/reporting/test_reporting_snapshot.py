@@ -53,6 +53,7 @@ class TestReportingSnapshotService:
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=as_of_date,
         )
+        assert fetched is not None
         assert fetched.id == snapshot.id
 
         # 4. Create Newer Snapshot (Versioning)
@@ -77,6 +78,7 @@ class TestReportingSnapshotService:
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=as_of_date,
         )
+        assert fetched_latest is not None
         assert fetched_latest.id == snapshot2.id
 
     async def test_get_snapshot_with_specific_rule_version(self, db, test_user):
@@ -119,7 +121,7 @@ class TestReportingSnapshotService:
             report_data={"version": 1},
         )
 
-        snapshot2 = await service.create_snapshot(
+        await service.create_snapshot(
             db,
             user_id=test_user.id,
             report_type=ReportType.BALANCE_SHEET,
@@ -136,6 +138,7 @@ class TestReportingSnapshotService:
             rule_version_id=rule1.id,
         )
 
+        assert fetched_specific is not None
         assert fetched_specific.id == snapshot1.id
         assert fetched_specific.report_data == {"version": 1}
 
@@ -146,7 +149,6 @@ class TestReportingSnapshotService:
         THEN it should log error details and re-raise the exception
         """
         from unittest.mock import AsyncMock, patch
-        from uuid import uuid4
 
         service = ReportingSnapshotService()
 
