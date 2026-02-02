@@ -98,10 +98,11 @@ Risk: Integration bugs from spec interpretation differences
 ```typescript
 // Current approach
 const result = await task({
-  agent: "sisyphus",
-  prompt: "Implement reconciliation feature",
-  skills: ["domain/reconciliation", "professional/backend-development", "professional/qa-testing"]
+  agent: "Sisyphus",
+  prompt: "Implement reconciliation feature"
 })
+
+// Skills are configured in oh-my-opencode.json
 // Sisyphus maintains context across backend → frontend → tests
 
 Cost: 1 API call
@@ -245,14 +246,17 @@ Skills are automatically loaded by agents based on `oh-my-opencode.json` configu
 {
   "agents": {
     "Sisyphus": {
-      "skills": [
-        "domain/development",      // Loaded automatically
-        "domain/schema",
-        "domain/accounting",
-        "professional/backend-development",
-        "meta/skill-writer"
-      ]
+      "model": "anthropic/claude-opus-4-5"
     }
+  },
+  "skills": {
+    "enable": [
+      "domain/development",      // Loaded automatically
+      "domain/schema",
+      "domain/accounting",
+      "professional/backend-development",
+      "meta/skill-writer"
+    ]
   }
 }
 ```
