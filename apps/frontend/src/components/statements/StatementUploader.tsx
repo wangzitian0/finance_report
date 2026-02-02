@@ -90,16 +90,37 @@ export default function StatementUploader({
                 }
 
                 if (isStoredValid) {
+                    console.log("[StatementUploader] Model selection:", {
+                        source: "localStorage",
+                        storedModel: stored,
+                        defaultModel: data.default_model,
+                        selectedModel: stored,
+                        availableModels: data.models.map((m) => m.id),
+                        timestamp: new Date().toISOString(),
+                    });
                     setSelectedModel(stored);
                     return;
                 }
 
                 if (!isDefaultValid) {
+                    console.error("[StatementUploader] Default model validation failed:", {
+                        defaultModel: data.default_model,
+                        availableModels: data.models.map((m) => m.id),
+                    });
                     setError("We couldn't find a default AI model. Refresh and try again.");
                     setSelectedModel("");
                     return;
                 }
 
+                console.log("[StatementUploader] Model selection:", {
+                    source: "backend_default",
+                    storedModel: stored,
+                    storedValid: isStoredValid,
+                    defaultModel: data.default_model,
+                    selectedModel: data.default_model,
+                    availableModels: data.models.map((m) => m.id),
+                    timestamp: new Date().toISOString(),
+                });
                 setSelectedModel(data.default_model);
             } catch (error) {
                 if (!active) return;
@@ -176,6 +197,17 @@ export default function StatementUploader({
                 return;
             }
             formData.append("model", selectedModel);
+
+            console.log("[StatementUploader] Uploading statement:", {
+                filename: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                institution: institution.trim() || "(auto-detect)",
+                selectedModel,
+                modelIsInCatalog: models.some((m) => m.id === selectedModel),
+                availableModels: models.map((m) => m.id),
+                timestamp: new Date().toISOString(),
+            });
 
             const { apiUpload } = await import("@/lib/api");
             await apiUpload("/api/statements/upload", formData);

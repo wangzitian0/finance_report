@@ -130,6 +130,7 @@ class TestStreamOpenRouterChat:
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 500
         mock_response.aread = AsyncMock(return_value=b"Internal Server Error")
+        mock_response.headers = {"content-type": "text/plain"}
 
         mock_event_source = MagicMock()
         mock_event_source.response = mock_response

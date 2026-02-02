@@ -319,6 +319,10 @@ class ExtractionService:
                 raise ExtractionError(f"Failed to parse document: {e}") from e
             raise
 
+    def _extract_status_code(self, error_msg: str) -> str | None:
+        match = re.search(r"HTTP (\d{3})", error_msg)
+        return match.group(1) if match else None
+
     async def extract_financial_data(
         self,
         file_content: bytes | None,
@@ -411,6 +415,16 @@ class ExtractionService:
             models = [force_model]
         else:
             models = [self.primary_model]
+
+        logger.info(
+            "Model selection for extraction",
+            force_model=force_model,
+            primary_model=self.primary_model,
+            fallback_models=self.fallback_models,
+            will_use=models[0] if models else None,
+            has_fallback=bool(self.fallback_models),
+        )
+
         last_error: ExtractionError | None = None
         error_summary: dict[str, int] = {}
 
@@ -510,12 +524,15 @@ class ExtractionService:
                     error_summary["timeout"] = error_summary.get("timeout", 0) + 1
                     last_error = ExtractionError(f"Model {model} timed out: {error_msg}")
                 else:
-                    logger.warning(
+                    logger.error(
                         "AI extraction HTTP error",
                         error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
                         model=model,
                         error=error_msg,
+                        error_type=type(e).__name__,
                         retryable=getattr(e, "retryable", False),
+                        http_status=self._extract_status_code(error_msg),
+                        attempt=i + 1,
                     )
                     error_summary["http_error"] = error_summary.get("http_error", 0) + 1
                     last_error = ExtractionError(f"Model {model} failed: {error_msg}")
