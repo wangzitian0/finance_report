@@ -281,11 +281,10 @@ async def test_user(db: AsyncSession):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(db_engine, test_user, worker_id):
+async def client(db_engine, test_user, test_database_url):
     """Create async test client with database initialized."""
 
-    test_db_url = get_test_db_url(worker_id)
-    os.environ["DATABASE_URL"] = test_db_url
+    os.environ["DATABASE_URL"] = test_database_url
 
     # Database connection is handled by patch_database_connection autouse fixture
 
@@ -307,10 +306,9 @@ async def client(db_engine, test_user, worker_id):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def public_client(db_engine, worker_id):
+async def public_client(db_engine, test_database_url):
     """Create async test client without auth headers."""
-    test_db_url = get_test_db_url(worker_id)
-    os.environ["DATABASE_URL"] = test_db_url
+    os.environ["DATABASE_URL"] = test_database_url
 
     # Create test session maker bound to test engine
     test_maker = async_sessionmaker(

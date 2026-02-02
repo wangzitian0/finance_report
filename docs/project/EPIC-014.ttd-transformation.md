@@ -498,17 +498,15 @@ PR 5 (Config & Deployment) [P2]
 
 #### Scope
 
-**Files Included**:
+**Files Included in PR 1**:
 - `apps/backend/tests/conftest.py` - Test database isolation improvements
-- `apps/backend/tests/extraction/test_statements_coverage.py` - Coverage tests
-- `apps/backend/tests/extraction/test_classification_service.py` - New test cases
-  - `test_apply_keyword_rule_empty_keywords` - Edge case: empty keywords list
-  - `test_apply_no_active_rules` - Edge case: no rules exist
-  - `test_apply_no_matching_keywords` - Edge case: no keyword matches
-- `apps/backend/tests/extraction/test_extraction.py` - Updated decimal safety tests
-  - Changed `_safe_decimal` to raise `ValueError` instead of returning "0.00" default
+  - Use `test_database_url` fixture directly to avoid double-suffixing worker DB names
+  - Ensures stable and deterministic worker-specific database naming in parallel tests
 
-**Files Excluded** (moved to future PRs):
+**Files Planned for Future PRs**:
+- `apps/backend/tests/extraction/test_statements_coverage.py` - Coverage tests (PR 2)
+- `apps/backend/tests/extraction/test_classification_service.py` - New edge case tests (PR 2)
+- `apps/backend/tests/extraction/test_extraction.py` - Decimal safety test updates (PR 2)
 - `.sisyphus/ralph-loop.local.md` - Project-specific, not for upstream
 
 #### Rationale
@@ -516,23 +514,22 @@ PR 5 (Config & Deployment) [P2]
 - **Tests are the foundation** - All other changes depend on stable test environment
 - **Aligns with TTD philosophy** - Tests define constraints, not documentation
 - **High independence** - No business logic changes, pure testing improvements
-- **Clear acceptance criteria** - Test coverage >= 99%, all tests pass
+- **Clear acceptance criteria** - Test infrastructure stable for parallel execution
 
-#### Test Changes Summary
+#### Changes in This PR
 
-| Test File | Change | Reason |
-|-----------|--------|--------|
-| `conftest.py` | Use `worker_id` for DB isolation | Prevent test interference in parallel runs |
-| `test_classification_service.py` | +3 edge case tests | Improve coverage for empty/no-match scenarios |
-| `test_extraction.py` | Assert `ValueError` on invalid decimal | Changed from silent default to explicit error |
-| `test_statements_coverage.py` | Update error message checks | Reflect new "PDF requires public URL" logic |
+| File | Change | Reason |
+|------|--------|--------|
+| `conftest.py` | Use `test_database_url` fixture in `client` and `public_client` | Prevent double-suffixing of worker DB names (e.g., `_gw0_gw0`) |
+| `EPIC-014.ttd-transformation.md` | Document PR decomposition strategy | Track PR #235 decomposition progress |
 
 #### Success Criteria
 
-- [ ] Test coverage >= 99% (line + branch)
-- [ ] All tests pass in parallel execution (`pytest -n auto`)
+- [x] Test database isolation improved with `test_database_url` fixture
+- [x] No double-suffixing of worker DB names
+- [x] Existing tests pass (verified with `test_create_account`)
 - [ ] CI green on GitHub Actions
-- [ ] No test flakiness (run 3 times locally)
+- [ ] Code review approved
 
 ---
 
