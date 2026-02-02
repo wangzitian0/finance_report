@@ -41,6 +41,8 @@ flowchart LR
 
 !!! info "Single Instance, Multi-Environment"
     SigNoz runs as a **single global instance**. All environments share the same SigNoz deployment. Use `deployment.environment` attribute filter in the UI to view specific environment logs (e.g., `deployment.environment=production`).
+    
+    See [Six Environments (SSOT)](../development.md#six-environments-ssot) for complete environment details.
 
 ### 3.2 Credentials
 

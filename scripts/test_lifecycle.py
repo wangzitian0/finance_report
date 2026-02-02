@@ -22,6 +22,9 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from isolation_utils import get_namespace, get_s3_bucket, get_test_db_name  # noqa: E402
+
 # Constants
 REPO_ROOT = Path(__file__).parent.parent.absolute()
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
@@ -61,23 +64,86 @@ def is_db_ready(runtime, container_name):
         return False
 
 
+def cleanup_worker_databases(runtime, container_name, namespace):
+    """Clean up pytest-xdist worker databases after test run."""
+    log("🧹 Cleaning up worker databases...", YELLOW)
+
+    # Validate namespace to prevent SQL injection (defense in depth)
+    if not namespace.replace("_", "").replace("-", "").isalnum():
+        log(f"   WARNING: Invalid namespace '{namespace}', skipping cleanup", YELLOW)
+        return
+
+    # Verify container is running before attempting cleanup
+    check_cmd = [runtime, "ps", "-q", "-f", f"name={container_name}"]
+    try:
+        container_check = subprocess.run(check_cmd, capture_output=True, check=True)
+        if not container_check.stdout.strip():
+            log(
+                f"   Container '{container_name}' not running, skipping cleanup", YELLOW
+            )
+            return
+    except subprocess.CalledProcessError:
+        log(f"   Cannot verify container '{container_name}', skipping cleanup", YELLOW)
+        return
+
+    pattern = f"finance_report_test_{namespace}_gw%"
+    list_cmd = [
+        runtime,
+        "exec",
+        container_name,
+        "psql",
+        "-U",
+        "postgres",
+        "-t",
+        "-c",
+        f"SELECT datname FROM pg_database WHERE datname LIKE '{pattern}'",
+    ]
+
+    try:
+        result = subprocess.run(list_cmd, capture_output=True, text=True, check=True)
+        databases = [
+            db.strip() for db in result.stdout.strip().split("\n") if db.strip()
+        ]
+
+        if not databases:
+            log("   No worker databases to clean.", YELLOW)
+            return
+
+        for db_name in databases:
+            log(f"   Dropping {db_name}...", YELLOW)
+            subprocess.run(
+                [
+                    runtime,
+                    "exec",
+                    container_name,
+                    "psql",
+                    "-U",
+                    "postgres",
+                    "-c",
+                    f"DROP DATABASE IF EXISTS {db_name};",
+                ],
+                capture_output=True,
+            )
+
+        log(f"   Cleaned {len(databases)} worker database(s).", GREEN)
+    except subprocess.CalledProcessError as e:
+        log(f"   Warning: Failed to clean worker databases: {e}", YELLOW)
+
+
 @contextmanager
 def test_database():
-    """Context manager to spin up and tear down the test database."""
+    """Context manager to spin up and tear down the test database with namespace isolation."""
     runtime = get_container_runtime()
     if not runtime:
         log("❌ No container runtime (docker/podman) found.", RED)
         sys.exit(1)
 
-    # Use a unique suffix for CI/Test isolation if needed, or default to standard
-    # For local testing, we might want to reuse 'finance-report-db' or use a test-specific one.
-    # To match 'test_backend.sh' behavior (which tried to reuse), let's keep it simple first:
-    # We will start the standard dev environment DB if not running, or use a dedicated test one?
-    # The original script used a complex locking mechanism to share the DB.
-    # To Simplify: Let's use the standard docker-compose service 'postgres'.
+    namespace = get_namespace()
+    test_db_name = get_test_db_name(namespace)
 
-    # Check if already running
-    # We use 'docker compose' to manage the service 'postgres'
+    log(f"🔧 Test namespace: {namespace}", YELLOW)
+    log(f"🔧 Test database: {test_db_name}", YELLOW)
+
     compose_cmd = [runtime, "compose", "-f", str(COMPOSE_FILE)]
 
     log("🐘 Ensuring infrastructure is up...", YELLOW)
@@ -122,7 +188,6 @@ def test_database():
         # But for 'dev' usage, maybe not.
         raise Exception("Database not ready")
 
-    # Create Test Database if it doesn't exist
     log("🛠  Setting up test database...", YELLOW)
     create_db_cmd = [
         runtime,
@@ -132,12 +197,11 @@ def test_database():
         "-U",
         "postgres",
         "-tc",
-        "SELECT 1 FROM pg_database WHERE datname='finance_report_test'",
+        f"SELECT 1 FROM pg_database WHERE datname='{test_db_name}'",
     ]
     res = subprocess.run(create_db_cmd, capture_output=True, text=True)
     if "1" in res.stdout:
-        # Drop existing test database to ensure a clean slate
-        log("   Dropping existing 'finance_report_test' database...", YELLOW)
+        log(f"   Dropping existing '{test_db_name}' database...", YELLOW)
         subprocess.run(
             [
                 runtime,
@@ -147,7 +211,7 @@ def test_database():
                 "-U",
                 "postgres",
                 "-c",
-                "DROP DATABASE finance_report_test;",
+                f"DROP DATABASE {test_db_name};",
             ],
             check=True,
         )
@@ -161,33 +225,27 @@ def test_database():
             "-U",
             "postgres",
             "-c",
-            "CREATE DATABASE finance_report_test;",
+            f"CREATE DATABASE {test_db_name};",
         ],
         check=True,
     )
-    log("   Created 'finance_report_test' database.", GREEN)
+    log(f"   Created '{test_db_name}' database.", GREEN)
 
-    # Run Migrations on Test DB
-    # We need to run alembic against the TEST database.
-    # We can use 'uv run alembic' from backend dir.
-    # But we need to override DATABASE_URL.
-
-    # Determine the port
-    # 'docker compose port' can tell us the host port
     port_res = subprocess.run(
         [*compose_cmd, "port", "postgres", "5432"], capture_output=True, text=True
     )
     host_port = "5432"
     if port_res.stdout.strip():
-        # output is like "0.0.0.0:5432"
         host_port = port_res.stdout.strip().split(":")[-1]
 
-    # On macOS/Seatbelt/Podman, sometimes localhost mapping is tricky, but let's assume standard behavior first.
-    test_db_url = f"postgresql+asyncpg://postgres:postgres@localhost:{host_port}/finance_report_test"
+    test_db_url = (
+        f"postgresql+asyncpg://postgres:postgres@localhost:{host_port}/{test_db_name}"
+    )
 
     log(f"   Running migrations on {test_db_url}...", YELLOW)
     env = os.environ.copy()
     env["DATABASE_URL"] = test_db_url
+    env["TEST_NAMESPACE"] = namespace
 
     try:
         subprocess.run(
@@ -203,35 +261,14 @@ def test_database():
         raise
 
     try:
-        yield test_db_url
+        yield (test_db_url, namespace)
     finally:
-        # Cleanup Logic
-        # For 'test', we might WANT to shut down the DB if we started it.
-        # But if it's 'dev' and we are just running tests alongside, we might want to keep it.
-        # User said: "Local CI, runs and releases".
-        # So we should probably shut it down if we are in "CI mode".
-        # But for local dev iteration, keeping it up is faster.
-        # Let's verify if user passed a flag or if we just leave it up.
-        # The Shell script had complex logic for "managed" vs "started_existing".
-        # Let's simplify: If we are in CI (env var) or explicit flag, we down.
-        # Otherwise, we leave it running for faster subsequent tests?
-        # NO, user explicitly complained about "resource leaks".
-        # So default behavior should probably be CLEANUP for a test runner.
-        # Unless we implement the "shared" logic again.
+        cleanup_worker_databases(runtime, container_name, namespace)
 
-        # Let's try to be safe: Stop what we started?
-        # Docker Compose is idempotent.
-        # If we run 'down', it kills everything.
-
-        # Let's assume for this "Test Runner", we want isolation.
-        # So we should probably tear down.
         log("🧹 Tearing down infrastructure...", YELLOW)
         subprocess.run(
             [*compose_cmd, "--profile", "infra", "stop"], stderr=subprocess.DEVNULL
         )
-        # We don't remove volumes to preserve cache/speed? Or remove?
-        # For CI, we might want fresh.
-        # Let's just 'stop' for now to release ports/resources.
         log("   Database stopped.", GREEN)
 
 
@@ -251,16 +288,16 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        with test_database() as db_url:
+        with test_database() as (db_url, namespace):
             log("🚀 Starting Tests...", GREEN)
 
-            # Prepare Environment
             env = os.environ.copy()
             env["DATABASE_URL"] = db_url
+            env["TEST_NAMESPACE"] = namespace
             env["S3_ACCESS_KEY"] = "minio"
             env["S3_SECRET_KEY"] = "minio_local_secret"
-            env["S3_ENDPOINT"] = "http://localhost:9000"  # Assumptions
-            env["S3_BUCKET"] = "statements"
+            env["S3_ENDPOINT"] = "http://localhost:9000"
+            env["S3_BUCKET"] = get_s3_bucket(namespace)
 
             # Run Pytest (via uv)
             # We call the 'moon' defined test command, OR directly pytest?

@@ -85,98 +85,134 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 
 ---
 
-## Six Scenarios
+## Six Environments (SSOT)
 
-> **Core Principle**: "Shift Left" for speed (Code Runtime), "Shift Right" for stability (Infrastructure).
+> **Core Principle**: "One Codebase, Multiple Environments" - Local uses containers + namespace isolation, CI emphasizes consistency, Production uses image deployment.
 
-### Strategy Overview
+### Environment Overview
 
-| Environment | **1. Code Runtime** | **2. Infrastructure** (DB/Redis/S3) | **3. Compose File** | **4. Lifecycle** | **5. Responsibility** |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Local Dev** | **Source (Host)**<br>*(uvicorn / next dev)* | **Docker Container**<br>*(Singleton)* | `docker-compose.yml`<br>*(Profile: infra)* | **Persistent**<br>*(Manual start/stop)* | Developer<br>`moon run :infra` |
-| **Local CI** | **Source (Host)**<br>*(pytest)* | **Docker Container**<br>*(Reuse Local Dev)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Test data reset)* | Developer<br>`moon run :test` |
-| **Github CI** | **Source (Runner)**<br>*(pytest)* | **Docker Container**<br>*(Ephemeral Service)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Job duration)* | CI Pipeline<br>`ci.yml` |
-| **Github PR** | **Source (Repo)**<br>*(Dokploy Git deploy)* | **Docker Container**<br>*(Per PR Isolated)* | `docker-compose.yml`<br>*(Profile: infra+app)* | **Ephemeral**<br>*(Destroy on PR close)* | Dokploy<br>(Preview) |
-| **Staging** | **Docker Image**<br>*(GHCR Pull)* | **Shared Platform (Prod)**<br>*(SigNoz/MinIO)*<br>+ **Dedicated DB/Redis** | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Staging) |
-| **Production**| **Docker Image**<br>*(GHCR Pull)* | **Shared Platform (Prod)**<br>*(SigNoz/MinIO)*<br>+ **Dedicated DB/Redis** | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Production) |
+| # | Environment | URL | Trigger | Code Runtime | Infrastructure | Database | Isolation |
+|---|-------------|-----|---------|--------------|----------------|----------|-----------|
+| **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run backend:dev` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
+| **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :ci` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
+| **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
+| **4** | **PR Preview** | `report-pr-123.zitian.party` | PR opened<br>`pr-test.yml` | **Docker Images**<br>(GHCR) | Dedicated Containers<br>(Per PR) | Dedicated DB/Redis/MinIO | Container suffix<br>`-pr-123` |
+| **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
+| **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
-### Shared Platform Strategy (Singleton)
+### Key Differences
 
-To reduce resource overhead, the **Platform** layer (SigNoz, MinIO, Traefik) runs as a **Singleton** in Production. Non-production environments (Staging, PRs) connect to these shared services with strict **Logical Isolation**.
+#### Local Environments (Dev + CI)
 
-| Service | Scope | Isolation Strategy | Config |
-|---------|-------|--------------------|--------|
-| **SigNoz** | Singleton (Prod) | `deployment.environment` tag | `OTEL_RESOURCE_ATTRIBUTES` |
-| **MinIO** | Singleton (Prod) | Separate Buckets | `S3_BUCKET=finance-report-staging` |
-| **Postgres** | Dedicated | Separate Instance/Container | Managed by `infra2` |
-| **Redis** | Dedicated | Separate Instance/Container | Managed by `infra2` |
+**Local Dev** - One shared set of containers, isolated by **different database names**:
+- Uses `docker-compose.yml` (Profile: `infra`)
+- **Persistent**: Manually started, data preserved across runs
+- Isolation: Multiple repo copies use **namespace-aware DB names** (`finance_report`, `finance_report_dev_branch_a`, etc.)
+- S3: Shared local MinIO with namespace-aware buckets (`statements`, `statements-branch-a`)
+- Command: `moon run backend:dev` (or `moon run :infra` + manual uvicorn)
 
-> **Note**: PR Environments spin up their own ephemeral MinIO/DB/Redis to allow destructive testing, but send logs to Shared SigNoz.
+**Local CI** - Reuses Local Dev containers, creates **temporary test databases**:
+- Uses same `docker-compose.yml` (Profile: `infra`)
+- **Ephemeral data**: Test DB reset before each run, worker DBs auto-cleaned
+- Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.)
+- Command: `moon run :ci` (includes `moon run backend:test`)
+- **Matches GitHub CI command exactly** (`moon run :ci`)
 
-### Test Categories
+#### GitHub Environments
 
-| Category | Where | Purpose |
-|----------|-------|---------|
-| **Unit + Integration** | Local, CI | Fast feedback and quality gate |
-| **Health Check** | PR Test, Prod | Verify service availability |
-| **Smoke Test** | Staging | End-to-end functional validation |
-| **Performance** | Staging | API response time baseline |
+**GitHub CI** - Temporary services, runs same commands as Local CI:
+- Uses GitHub Actions `services:` (ephemeral Postgres container)
+- **Completely ephemeral**: Destroyed after job finishes
+- Command: `moon run :ci` (**identical to Local CI**)
+- Database: `finance_report_test` (no namespace needed, job-isolated)
 
-### Scenario Matrix
+**PR Preview** - Full deployment with code changes:
+- **Builds Docker images** from PR branch
+- Deploys to Dokploy with unique URLs (`report-pr-123.zitian.party`)
+- **Ephemeral**: Destroyed when PR closes
+- Database/Redis/MinIO: Dedicated per-PR instances
+- Isolation: Container name suffix `-pr-123`
 
-| # | Scenario | Trigger | Tests | Goal |
-|---|----------|---------|-------|------|
-| 1 | **Local Dev** | Manual | None | Iteration speed |
-| 2 | **Local Test** | `moon run backend:test` | Unit+Integration | < 30s feedback |
-| 3 | **Remote CI** | PR / Push | Unit+Integration | Quality gate |
-| 4 | **PR Test** | PR opened | **Health Check** | Deployment validation |
-| 5 | **Staging** | Push to main | **Smoke + Perf** | Full validation |
-| 6 | **Production** | Manual dispatch | **Health Check** | Minimal validation |
+#### Production Environments (Staging + Production)
 
-### pytest Markers
+**Staging** - Tracks latest `main` branch:
+- **Image deployment**: Built from latest `main` commit after merge
+- Deployed to Dokploy automatically on push to main
+- Persistent data, stable environment for QA
+- Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
 
-| Marker | Description | Where |
-|--------|-------------|-------|
-| (none) | Standard tests | Local, CI |
-| `@pytest.mark.slow` | Performance tests | Manual only |
+**Production** - Manual release process:
+- **Image deployment**: Built from version tags (`v1.2.3`)
+- Manual trigger after Staging validation
+- Most stable environment, persistent data
+- Uses dedicated DB/Redis + shared Platform
 
-> **Note:** Slow tests are skipped by default via `-m 'not slow'` in `pyproject.toml`.
-> Run all tests: `uv run pytest -m ""`
+### Container/Database Naming Patterns
 
-### Coverage Gate
+| Environment | Backend Container | Frontend Container | Database | S3 Bucket |
+|-------------|-------------------|---------------------|----------|-----------|
+| **Local Dev** | `finance-report-backend` | `finance-report-frontend` | `finance_report` | `statements` |
+| **Local CI** | *(uses Local Dev containers)* | *(uses Local Dev containers)* | `finance_report_test_{namespace}` | `statements-{namespace}` |
+| **GitHub CI** | *(GitHub Services)* | *(N/A)* | `finance_report_test` | `statements` (mock) |
+| **PR Preview** | `finance_report-backend-pr-123` | `finance_report-frontend-pr-123` | `finance_report_postgres-pr-123` | *(dedicated MinIO)* |
+| **Staging** | `finance_report-backend-staging` | `finance_report-frontend-staging` | `finance_report-postgres-staging` | `finance-report-staging` |
+| **Production** | `finance_report-backend` | `finance_report-frontend` | `finance_report-postgres` | `finance-report-production` |
 
-- Backend line coverage must be **>= 95%** (`pytest-cov` enforces via `--cov-fail-under=95`).
-- **Long-term target: 97%** (see [TDD Transformation Plan](./tdd.md) - will be enforced once coverage improves)
-- Branch coverage also enforced via `--cov-branch` flag for stricter quality.
-- Current threshold: 95% (temporary), Target: 97% (long-term goal)
+See [AGENTS.md](../../AGENTS.md#container-naming-patterns) for debugging container names.
 
-### Workflow Diagram
+### Workflow Files Reference
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Scenario 1-3: Local/CI                                          │
-│ ┌─────────┐    ┌─────────┐                                     │
-│ │ DB auto │ -> │ pytest  │  (Unit+Integration, fast)           │
-│ └─────────┘    └─────────┘                                     │
-├─────────────────────────────────────────────────────────────────┤
-│ Scenario 4: PR Test                                             │
-│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
-│ │ Build   │ -> │ Deploy  │ -> │ Health  │  (deployment check)  │
-│ │ source  │    │ Dokploy │    │ Check   │                      │
-│ └─────────┘    └─────────┘    └─────────┘                      │
-├─────────────────────────────────────────────────────────────────┤
-│ Scenario 5: Staging (FULL VALIDATION)                           │
-│ ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
-│ │ Build   │ -> │ Deploy  │ -> │ Smoke   │ -> │ Perf    │      │
-│ │ images  │    │ Dokploy │    │ Test    │    │ Bench   │      │
-│ └─────────┘    └─────────┘    └─────────┘    └─────────┘      │
-├─────────────────────────────────────────────────────────────────┤
-│ Scenario 6: Production (MINIMAL RISK)                           │
-│ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
-│ │ Verify  │ -> │ Deploy  │ -> │ Health  │  (availability only) │
-│ │ image   │    │ Dokploy │    │ Check   │                      │
-│ └─────────┘    └─────────┘    └─────────┘                      │
-└─────────────────────────────────────────────────────────────────┘
+| Workflow File | Environment | Trigger | Actions |
+|---------------|-------------|---------|---------|
+| `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run `moon run :ci`, upload coverage |
+| `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
+| `.github/workflows/staging-deploy.yml` | Staging | Push to main | Build images (`:staging` tag), deploy |
+| `.github/workflows/production-release.yml` | Production | Tag `v*.*.*` or manual | Build release images, deploy on manual trigger |
+
+### Shared Platform Resources
+
+The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** services. Staging and PR environments use **logical isolation**:
+
+| Service | Scope | Isolation Method | Example |
+|---------|-------|------------------|---------|
+| **SigNoz** | Singleton | `deployment.environment` tag | `staging`, `production`, `pr-47` |
+| **MinIO** (Prod) | Singleton | Separate buckets | `finance-report-staging`, `finance-report-production` |
+| **Postgres** | Dedicated | Separate containers/instances | One per environment |
+| **Redis** | Dedicated | Separate containers/instances | One per environment |
+
+**Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared SigNoz.
+
+### Test Strategy by Environment
+
+| Environment | Tests Run | Purpose | Duration |
+|-------------|-----------|---------|----------|
+| **Local Dev** | None (manual testing) | Fast iteration | - |
+| **Local CI** | Unit + Integration (92% coverage, target 97%) | Pre-push validation | ~30s |
+| **GitHub CI** | Unit + Integration (92% coverage, target 97%) | Quality gate | ~2min |
+| **PR Preview** | Health check only | Deployment validation | ~30s |
+| **Staging** | Smoke + Performance | Full validation | ~5min |
+| **Production** | Health check only | Availability check | ~10s |
+
+### Coverage Requirements
+
+- Backend line coverage: **>= 97%** (enforced by `pytest-cov`)
+- Branch coverage: Required (via `--cov-branch`)
+- See [TDD Transformation Plan](./tdd.md) for details
+
+### Common Commands
+
+```bash
+# Local Development
+moon run :infra                    # Start containers (Postgres/Redis/MinIO)
+moon run backend:dev               # Start backend dev server
+moon run frontend:dev              # Start frontend dev server
+
+# Local CI (matches GitHub CI exactly)
+moon run :ci                       # Lint + Format + Test + Build
+
+# Isolated testing (multiple repo copies)
+BRANCH_NAME=feature-auth moon run backend:test
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
 ```
 
 ---
@@ -193,20 +229,142 @@ The `scripts/test_lifecycle.py` script uses a Python Context Manager (`@contextm
 4.  **Signal Handling**: Catches `SIGINT` (Ctrl+C) and `SIGTERM` to perform cleanup even if the test run is interrupted.
 
 
-### Local Test Isolation (Branch Suffix)
+### Local Test Isolation (Namespace-Based)
 
-- Set `BRANCH_NAME=<branch_name>` to namespace test resources for local runs.
-- Use `WORKSPACE_ID=<id>` to isolate multiple working copies on the same branch (defaults to the last 8 characters of a repo-path checksum if omitted, so collisions are still possible).
-- The test DB container name and lock/state files include the branch suffix (and workspace id when set).
-- If `POSTGRES_PORT` is not set, a deterministic port is derived from the branch suffix (range: 5400-5999).
-- Test runs track whether the DB container was created or just started, and only remove containers they created.
-- The postgres service binds to `127.0.0.1:${POSTGRES_PORT:-5432}`; ensure unique ports when running multiple repos in parallel.
+**Purpose**: Enable multiple repo copies (or branches) to run tests in parallel without conflicts.
+
+**How It Works**:
+
+1. **Namespace Generation** (priority order):
+   - `BRANCH_NAME` (explicit) + `WORKSPACE_ID` (optional) → e.g., `feature_auth_abc123`
+   - Git branch + repo path hash → e.g., `feature_payments_beeba6ed`
+   - "default" (with warning if neither is set)
+
+2. **Isolated Resources**:
+   - **Test Database**: `finance_report_test_{namespace}`
+   - **Worker Databases**: `finance_report_test_{namespace}_gw0`, `gw1`, etc. (pytest-xdist)
+   - **S3 Buckets**: `statements-{namespace}`
+
+3. **Usage Examples**:
+   ```bash
+   # Explicit namespace (recommended for parallel development)
+   BRANCH_NAME=feature-auth moon run backend:test
+   
+   # With workspace ID (multiple copies of same branch)
+   BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
+   BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
+   
+   # Auto-detect from git branch (adds repo path hash)
+   moon run backend:test  # Uses current git branch
+   ```
+
+4. **Automatic Cleanup**:
+   - Worker databases (`_gw0`, `_gw1`, etc.) are automatically cleaned up after test runs
+   - Prevents database pollution from parallel test execution
+   - See `scripts/test_lifecycle.py` → `cleanup_worker_databases()`
+
+**Implementation Details**:
+- Shared Podman containers (no port conflicts)
+- Namespace-aware database and bucket names only
+- See `scripts/isolation_utils.py` for namespace logic
+- Integration tests: `apps/backend/tests/infra/test_isolation.py`
 
 ### Key Features
 
 1. **Auto-detect runtime**: podman compose / docker compose
 2. **Lock file**: `~/.cache/finance_report/db.lock`
 3. **Auto-cleanup**: Last runner stops container
+
+---
+
+## Isolation Utilities (`scripts/isolation_utils.py`)
+
+**Purpose**: Support parallel test execution across multiple repo copies without resource conflicts.
+
+### Namespace Generation
+
+The `get_namespace()` function generates a unique identifier for test resources based on:
+
+```python
+# Priority 1: Explicit environment variables
+BRANCH_NAME=feature-auth           # → "feature_auth"
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice  # → "feature_auth_alice"
+
+# Priority 2: Git branch + repo path hash (auto-detect)
+# On branch "feature-payments" at /path/to/repo
+# → "feature_payments_beeba6ed"
+
+# Priority 3: Fallback (with warning)
+# → "default"
+```
+
+### Resource Naming Functions
+
+| Function | Input | Output | Purpose |
+|----------|-------|--------|---------|
+| `get_test_db_name(namespace)` | `"feature_auth"` | `"finance_report_test_feature_auth"` | Test database name |
+| `get_s3_bucket(namespace)` | `"feature_auth"` | `"statements-feature_auth"` | S3 bucket name |
+| `get_env_suffix(namespace)` | `"feature_auth"` | `"-feature_auth"` | Docker Compose suffix (future use) |
+| `sanitize_namespace(name)` | `"feature/auth-v2"` | `"feature_auth_v2"` | Convert branch names to safe identifiers |
+
+### Integration Points
+
+1. **`scripts/test_lifecycle.py`**:
+   - Calls `get_namespace()` at test start
+   - Sets `TEST_NAMESPACE` environment variable
+   - Creates namespace-specific test database
+   - Overrides `S3_BUCKET` with namespace-aware bucket
+   - Cleans up worker databases (`_gw0`, `_gw1`, etc.) after tests
+
+2. **`apps/backend/tests/conftest.py`**:
+   - Reads `TEST_NAMESPACE` from environment
+   - Generates worker-specific database URLs:
+     - Master: `finance_report_test_{namespace}`
+     - Worker 0: `finance_report_test_{namespace}_gw0`
+     - Worker 1: `finance_report_test_{namespace}_gw1`
+     - etc.
+
+3. **Contract Tests** (`apps/backend/tests/infra/test_isolation.py`):
+   - 15 tests verifying isolation behavior
+   - Tests namespace generation, database naming, S3 buckets
+   - Verifies conftest integration
+
+### Practical Examples
+
+**Scenario 1: Single developer, multiple feature branches**
+```bash
+# Terminal 1 (feature-auth branch)
+cd ~/repos/finance_report
+BRANCH_NAME=feature-auth moon run backend:test
+# Uses: finance_report_test_feature_auth
+
+# Terminal 2 (feature-payments branch)
+cd ~/repos/finance_report
+BRANCH_NAME=feature-payments moon run backend:test
+# Uses: finance_report_test_feature_payments
+```
+
+**Scenario 2: Multiple developers, same branch**
+```bash
+# Alice's terminal
+cd ~/repos/finance_report_alice
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
+# Uses: finance_report_test_feature_auth_alice
+
+# Bob's terminal
+cd ~/repos/finance_report_bob
+BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
+# Uses: finance_report_test_feature_auth_bob
+```
+
+**Scenario 3: Auto-detection from git**
+```bash
+cd ~/repos/finance_report
+git checkout feature-payments
+moon run backend:test
+# Auto-detects: finance_report_test_feature_payments_<hash>
+# Hash prevents collisions across different repo copies
+```
 
 ---
 

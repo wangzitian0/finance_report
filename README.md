@@ -74,8 +74,22 @@ moon run backend:format     # Format Python (auto-fix)
 # Build
 moon run :build             # Build all
 ```
-Backend tests enforce **>= 97%** line coverage with branch coverage; see `docs/ssot/tdd.md` for TDD workflow and `docs/ssot/development.md` for details.
-For isolated local test DBs, set `BRANCH_NAME=<branch_name>` (and optionally `WORKSPACE_ID=<id>`) before running `backend:test`.
+Backend tests enforce **>= 92%** line coverage with branch coverage (target: 97%). See [TDD workflow](docs/ssot/tdd.md) for testing patterns and [Six Environments](docs/ssot/development.md#six-environments-ssot) for local/CI/production environment details.
+
+**Multi-Repo Isolation**: Run tests in parallel across multiple repo copies without conflicts:
+
+```bash
+# Recommended: Set explicit namespace
+BRANCH_NAME=feature-auth moon run backend:test
+
+# Multiple developers on same branch
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
+BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
+
+# Auto-detect from git branch (adds repo path hash for uniqueness)
+moon run backend:test
+```
+
 See [development.md](docs/ssot/development.md) for detailed workflows.
 
 ## API Auth (MVP)
