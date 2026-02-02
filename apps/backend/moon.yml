@@ -50,7 +50,31 @@ tasks:
       - 'install'
 
   test-execution:
-    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=lcov --cov-report=term-missing --cov-branch --cov-fail-under=94 --dist loadfile'
+    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=lcov --cov-report=term-missing --cov-branch --cov-fail-under=94 --dist worksteal'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - 'install'
+
+  test-execution-fast:
+    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=term --cov-branch --cov-fail-under=94 --dist worksteal --tb=short'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - 'install'
+
+  test-smart:
+    command: 'python ../../scripts/smart_test.py'
+    inputs:
+      - '@globs(sources)'
+      - '@globs(tests)'
+    deps:
+      - 'install'
+
+  test-no-cov:
+    command: 'python ../../scripts/fast_test.py'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'
