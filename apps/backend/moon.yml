@@ -50,7 +50,7 @@ tasks:
       - 'install'
 
   test-execution:
-    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=lcov --cov-report=term-missing --cov-branch --cov-fail-under=94 --dist worksteal'
+    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=lcov --cov-report=term-missing --cov-branch --cov-fail-under=99 --dist worksteal'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'
@@ -58,7 +58,7 @@ tasks:
       - 'install'
 
   test-execution-fast:
-    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=term --cov-branch --cov-fail-under=94 --dist worksteal --tb=short'
+    command: 'uv run pytest -n auto -v -m "not slow and not e2e" --cov=src --cov-report=term --cov-branch --cov-fail-under=99 --dist worksteal --tb=short'
     inputs:
       - '@globs(sources)'
       - '@globs(tests)'

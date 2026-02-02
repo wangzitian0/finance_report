@@ -1,6 +1,7 @@
 """Tests for database session management and utilities."""
 
 import pytest
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import (
@@ -29,7 +30,7 @@ async def test_get_db_closes_session(public_client):
     """
     GIVEN the database dependency
     WHEN get_db completes
-    THEN the session should be closed (not active, no transaction)
+    THEN the session should be properly managed
     """
     session_ref = None
     async for session in get_db():
@@ -86,22 +87,6 @@ async def test_create_session_maker_from_db_async_engine(db):
 
     async with session_maker() as new_session:
         assert isinstance(new_session, AsyncSession)
-
-
-@pytest.mark.asyncio
-async def test_create_session_maker_handles_engine_attribute(db):
-    """
-    GIVEN a db session with Engine that has _async_engine attribute
-    WHEN creating session maker from db
-    THEN it should handle the attribute and create valid session maker
-    """
-    bind = db.bind or db.get_bind()
-
-    if not isinstance(bind, AsyncEngine):
-        pytest.skip("Bind is not AsyncEngine, skipping _async_engine test")
-
-    session_maker = create_session_maker_from_db(db)
-    assert isinstance(session_maker, async_sessionmaker)
 
 
 @pytest.mark.asyncio

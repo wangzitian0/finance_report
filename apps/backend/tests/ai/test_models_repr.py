@@ -137,3 +137,126 @@ def test_validation_confidence_with_invalid_amount():
     score = compute_confidence_score(extracted_data, balance_result)
     assert isinstance(score, int)
     assert 0 <= score <= 100
+
+
+def test_account_repr():
+    """
+    GIVEN an Account instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with name and type
+    """
+    from src.models.account import Account, AccountType
+
+    account = Account(
+        id=uuid4(),
+        name="Cash",
+        type=AccountType.ASSET,
+        code="1000",
+        currency="USD",
+        user_id=uuid4(),
+    )
+    result = repr(account)
+    assert result == "<Account Cash (ASSET)>"
+
+
+def test_journal_entry_repr():
+    """
+    GIVEN a JournalEntry instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with date and truncated memo
+    """
+    from src.models.journal import JournalEntry, JournalEntryStatus
+
+    entry = JournalEntry(
+        id=uuid4(),
+        user_id=uuid4(),
+        entry_date=date(2024, 1, 15),
+        memo="This is a very long memo that should be truncated in the repr",
+        status=JournalEntryStatus.DRAFT,
+    )
+    result = repr(entry)
+    # memo[:30] = "This is a very long memo that " (30 chars, ends with space)
+    assert result == "<JournalEntry 2024-01-15 - This is a very long memo that >"
+
+
+def test_journal_line_repr():
+    """
+    GIVEN a JournalLine instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with direction, amount and currency
+    """
+    from src.models.journal import Direction, JournalLine
+
+    line = JournalLine(
+        id=uuid4(),
+        journal_entry_id=uuid4(),
+        account_id=uuid4(),
+        direction=Direction.DEBIT,
+        amount="1000.00",
+        currency="USD",
+    )
+    result = repr(line)
+    assert result == "<JournalLine DEBIT 1000.00 USD>"
+
+
+def test_uploaded_document_repr():
+    """
+    GIVEN an UploadedDocument instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with filename and document type
+    """
+    from src.models.layer1 import DocumentType, UploadedDocument
+
+    document = UploadedDocument(
+        id=uuid4(),
+        user_id=uuid4(),
+        original_filename="statement.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+        file_path="uploads/statement.pdf",
+        file_hash="abc123",
+    )
+    result = repr(document)
+    # DocumentType.BANK_STATEMENT.value = "bank_statement" (lowercase with underscore)
+    assert result == "<UploadedDocument statement.pdf (bank_statement)>"
+
+
+def test_atomic_transaction_repr():
+    """
+    GIVEN an AtomicTransaction instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with date, direction, amount and currency
+    """
+    from src.models.layer2 import AtomicTransaction, TransactionDirection
+
+    transaction = AtomicTransaction(
+        id=uuid4(),
+        user_id=uuid4(),
+        txn_date=date(2024, 1, 15),
+        direction=TransactionDirection.IN,
+        amount="500.00",
+        currency="SGD",
+        description="Test transaction",
+    )
+    result = repr(transaction)
+    assert result == "<AtomicTransaction 2024-01-15 IN 500.00 SGD>"
+
+
+def test_atomic_position_repr():
+    """
+    GIVEN an AtomicPosition instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with date, asset, quantity, value and currency
+    """
+    from src.models.layer2 import AtomicPosition
+
+    position = AtomicPosition(
+        id=uuid4(),
+        user_id=uuid4(),
+        snapshot_date=date(2024, 1, 15),
+        asset_identifier="AAPL",
+        quantity="100",
+        market_value="15000.00",
+        currency="USD",
+    )
+    result = repr(position)
+    assert result == "<AtomicPosition 2024-01-15 AAPL 100 @ 15000.00 USD>"

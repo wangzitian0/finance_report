@@ -9,6 +9,9 @@ from src.config import settings
 from src.security import create_access_token, decode_access_token
 
 
+from freezegun import freeze_time
+
+
 def test_create_access_token_with_custom_expiry():
     """
     GIVEN a data payload and custom expiry delta
@@ -25,6 +28,7 @@ def test_create_access_token_with_custom_expiry():
     assert "exp" in decoded
 
 
+@freeze_time("2024-01-01 00:00:00")
 def test_create_access_token_with_default_expiry():
     """
     GIVEN a data payload without custom expiry
@@ -32,17 +36,18 @@ def test_create_access_token_with_default_expiry():
     THEN the token should use default expiry from settings
     """
     data = {"sub": "user456"}
-
     token = create_access_token(data)
 
-    decoded = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+    options = {"verify_exp": False}
+    decoded = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm], options=options)
     assert decoded["sub"] == "user456"
     assert "exp" in decoded
 
+    fixed_now = datetime(2024, 1, 1, tzinfo=UTC)
     exp_datetime = datetime.fromtimestamp(decoded["exp"], tz=UTC)
-    expected_exp = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
+    expected_exp = fixed_now + timedelta(minutes=settings.access_token_expire_minutes)
 
-    assert abs((exp_datetime - expected_exp).total_seconds()) < 2
+    assert abs((exp_datetime - expected_exp).total_seconds()) < 1
 
 
 def test_decode_access_token_valid():
@@ -92,8 +97,8 @@ def test_decode_access_token_invalid_signature():
 
     assert payload is None
     mock_warning.assert_called_once()
-    call_args = mock_warning.call_args
-    assert "JWT decode failed" in str(call_args)
+    first_arg = mock_warning.call_args[0][0]
+    assert first_arg == "JWT decode failed"
 
 
 def test_decode_access_token_malformed():
