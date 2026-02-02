@@ -468,6 +468,94 @@ Before marking a doc as "Complete", verify:
 
 ---
 
+## 🔄 Active Work: PR #235 Decomposition
+
+### Background
+
+PR #235 contains 31 files with 5711 additions and 2980 deletions - too large for effective review. Following EPIC-014's "minimal change principle", we are decomposing it into focused PRs.
+
+### Decomposition Strategy
+
+Based on TTD principles (Tests = Truth, Documentation = Guidance), the PR is split into 5 independent PRs with clear dependencies:
+
+```
+PR 1 (Test Infrastructure) [P0 - CURRENT]
+  ↓ merge
+PR 2 (Error Handling) + PR 3 (API Refactor) [P0 - Parallel]
+  ↓ merge
+PR 4 (Prompt Improvements) [P1]
+  ↓ optional
+PR 5 (Config & Deployment) [P2]
+```
+
+---
+
+### 📦 PR 1: Test Infrastructure Improvements (P0 - IN PROGRESS)
+
+**Status**: 🟡 In Progress  
+**Branch**: `pr-235-test-infra`  
+**Target**: Improve test coverage to 99% and enhance CI stability
+
+#### Scope
+
+**Files Included**:
+- `apps/backend/tests/conftest.py` - Test database isolation improvements
+- `apps/backend/tests/extraction/test_statements_coverage.py` - Coverage tests
+- `apps/backend/tests/extraction/test_classification_service.py` - New test cases
+  - `test_apply_keyword_rule_empty_keywords` - Edge case: empty keywords list
+  - `test_apply_no_active_rules` - Edge case: no rules exist
+  - `test_apply_no_matching_keywords` - Edge case: no keyword matches
+- `apps/backend/tests/extraction/test_extraction.py` - Updated decimal safety tests
+  - Changed `_safe_decimal` to raise `ValueError` instead of returning "0.00" default
+
+**Files Excluded** (moved to future PRs):
+- `.sisyphus/ralph-loop.local.md` - Project-specific, not for upstream
+
+#### Rationale
+
+- **Tests are the foundation** - All other changes depend on stable test environment
+- **Aligns with TTD philosophy** - Tests define constraints, not documentation
+- **High independence** - No business logic changes, pure testing improvements
+- **Clear acceptance criteria** - Test coverage >= 99%, all tests pass
+
+#### Test Changes Summary
+
+| Test File | Change | Reason |
+|-----------|--------|--------|
+| `conftest.py` | Use `worker_id` for DB isolation | Prevent test interference in parallel runs |
+| `test_classification_service.py` | +3 edge case tests | Improve coverage for empty/no-match scenarios |
+| `test_extraction.py` | Assert `ValueError` on invalid decimal | Changed from silent default to explicit error |
+| `test_statements_coverage.py` | Update error message checks | Reflect new "PDF requires public URL" logic |
+
+#### Success Criteria
+
+- [ ] Test coverage >= 99% (line + branch)
+- [ ] All tests pass in parallel execution (`pytest -n auto`)
+- [ ] CI green on GitHub Actions
+- [ ] No test flakiness (run 3 times locally)
+
+---
+
+### 📦 PR 2-5: Future PRs (Planned)
+
+**PR 2: Error Handling Enhancement (P0)**
+- `src/services/extraction.py` - Error handling improvements
+- `src/services/openrouter_models.py` - New `ModelCatalogError`
+- Related tests
+
+**PR 3: API Route Optimization (P0)**
+- `src/routers/statements.py` - Model validation refactor, remove pagination
+- Related tests
+
+**PR 4: Prompt & JSON Parsing (P1)**
+- `src/prompts/statement.py` - Emphasize no markdown wrapping
+- JSON parsing logic improvements
+
+**PR 5: Config & Deployment (P2)**
+- `Dockerfile`, `config.py`, `main.py` - Infrastructure improvements
+
+---
+
 ## 📝 Change Log
 
 | Date | Change | Author |
@@ -477,7 +565,9 @@ Before marking a doc as "Complete", verify:
 | 2026-01-30 | Documented current state analysis | AI (Sisyphus) |
 | 2026-01-30 | Created success metrics | AI (Sisyphus) |
 | 2026-01-30 | Completed Phase 1 & 2 (P0 requirements) | AI (Sisyphus) |
+| 2026-02-02 | Added PR #235 decomposition strategy | AI (Sisyphus) |
+| 2026-02-02 | Documented PR 1 scope and test changes | AI (Sisyphus) |
 
 ---
 
-*Last updated: January 30, 2026*
+*Last updated: February 2, 2026*
