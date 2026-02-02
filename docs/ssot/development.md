@@ -792,3 +792,77 @@ The `repo/` directory is a submodule pointing to `infra2`.
     3.  Commit changes to `repo/finance_report/finance_report/10.app/`.
     4.  Push and create a PR in `infra2`.
     5.  Once merged, update the submodule pointer in the Main Repo PR.
+
+---
+
+## CI Performance & Test Strategy
+
+### Current Metrics (2025-02-02)
+
+**CI Pipeline:**
+- Total duration: **6m 24s** (Backend: 5m 52s, Frontend: 1m 30s)
+- Test execution: 893 tests in 4m 47s (**320ms avg** - excellent)
+- Caching: UV ✅ (2.9s), Next.js ✅, venv ✅
+
+**Test Coverage:**
+- Overall: **94.51%** (exceeds 94% requirement)
+- **Critical gap:** Service layer **28%** (high production risk)
+  - `reporting.py`: 7%, `reconciliation.py`: 9%, `review_queue.py`: 9%
+  - Root cause: Tests focus on happy paths via routers, not direct service calls
+
+**Test Organization:**
+- SSOT-aligned structure (73 files across domains)
+- pytest-xdist with 2 workers (1.7x speedup)
+- Minimal slow tests (only 1 marked)
+
+### Backend Test Parallelization
+
+**Current setup (pytest-xdist):**
+```bash
+# In pyproject.toml
+[tool.pytest.ini_options]
+addopts = "-n 2"  # 2 workers for parallel execution
+```
+
+**Further parallelization options:**
+
+1. **Increase worker count** (limited by CPU cores)
+   ```bash
+   pytest -n auto  # Auto-detect CPU count
+   pytest -n 4     # 4 workers (if 4+ cores available)
+   ```
+   - Current: 2 workers (~1.7x speedup)
+   - Potential: 4 workers on 4-core CI runners (~2.5-3x speedup)
+   - Diminishing returns beyond CPU count
+
+2. **Split tests in CI** (GitHub Actions parallel jobs)
+   ```yaml
+   backend-unit:  # Fast unit tests (~2m)
+     run: pytest tests/infra/ tests/api/ tests/auth/
+   
+   backend-integration:  # Slower integration tests (~3m)
+     run: pytest tests/accounting/ tests/reconciliation/
+   ```
+   - Benefit: True parallel execution (not limited by single runner)
+   - Drawback: Need separate DB instances per job
+
+3. **Current bottlenecks:**
+   - DB setup: ~35s (unavoidable for integration tests)
+   - Large test files: Some tests >1s (acceptable for integration)
+   - Coverage calculation: ~3s (minimal impact)
+
+**Recommendation:** 
+- **Quick win:** Increase to `-n 4` workers (~30s savings)
+- **Long-term:** Split into 2-3 parallel CI jobs (~1-2m savings)
+
+### Priority Actions
+
+1. **Address service coverage gaps** 🔴 (highest production risk)
+   - Add error path tests for core services
+   - Target: 80% service coverage (from 28%)
+
+2. **Increase pytest workers** ⚡ (quick win)
+   - Change `-n 2` to `-n 4` in pyproject.toml
+
+3. **Split CI jobs** 🟡 (medium effort, 1-2m savings)
+   - Separate unit vs integration tests in GitHub Actions

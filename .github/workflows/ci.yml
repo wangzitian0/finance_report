@@ -50,6 +50,14 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: apps/backend/.venv
+          key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
       - name: Run CI Pipeline
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
@@ -79,6 +87,15 @@ jobs:
         uses: moonrepo/setup-toolchain@v0
         with:
           cache: true
+
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: apps/frontend/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-${{ hashFiles('apps/frontend/**/*.ts', 'apps/frontend/**/*.tsx') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-
+            nextjs-${{ runner.os }}-
 
       - name: Build Frontend (via Moon)
         run: moon run frontend:build
