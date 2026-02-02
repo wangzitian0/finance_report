@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # scripts/cleanup_dev_resources.sh
 # 
-# Use this script to clean up development resources (containers, processes, locks)
+# Use this script to clean up development resources (containers, processes, locks, data)
 # when "make clean" is not enough or when CI/Tests are stuck.
+#
+# Usage:
+#   ./scripts/cleanup_dev_resources.sh           # Clean containers and locks only
+#   ./scripts/cleanup_dev_resources.sh --all     # Also clean volumes (data loss!)
+#   ./scripts/cleanup_dev_resources.sh --force   # Force kill processes
 
 set -u
 
@@ -23,7 +28,6 @@ fi
 
 if [ -n "$RUNTIME" ]; then
     for SERVICE in "${SERVICES[@]}"; do
-        # Find all containers matching the name prefix (handling ENV_SUFFIX)
         CONTAINERS=$($RUNTIME ps -a --filter "name=${SERVICE}" --format "{{.ID}}")
         if [ -n "$CONTAINERS" ]; then
             echo "   Found containers for $SERVICE. Removing..."
@@ -32,41 +36,45 @@ if [ -n "$RUNTIME" ]; then
     done
     echo "   ✅ Containers cleaned."
     
-    # Clean up volumes (optional, maybe user wants to keep data? But this is for leaks)
     if [[ "${1:-}" == "--all" ]]; then
-        echo "   Removing volumes..."
-        $RUNTIME volume ls --format "{{.Name}}" | grep "finance-report" | xargs $RUNTIME volume rm 2>/dev/null || true
+        echo "   🗑️  Removing volumes (THIS WILL DELETE ALL DATA)..."
+        $RUNTIME volume ls --format "{{.Name}}" | grep "finance.*report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
+        echo "   ✅ Volumes removed."
+        
+        echo "   🗑️  Cleaning MinIO data via mc (MinIO Client)..."
+        MINIO_RUNNING=$($RUNTIME ps -q -f "name=finance-report-minio" 2>/dev/null || true)
+        if [ -n "$MINIO_RUNNING" ]; then
+            $RUNTIME exec finance-report-minio sh -c '
+                mc alias set local http://localhost:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} 2>/dev/null || true
+                mc rm --recursive --force local/statements* 2>/dev/null || echo "No MinIO buckets to clean"
+            ' 2>/dev/null || echo "   ⚠️  MinIO cleanup skipped (container not accessible)"
+            echo "   ✅ MinIO data cleaned."
+        else
+            echo "   ℹ️  MinIO not running, skipping data cleanup."
+        fi
     fi
 fi
 
 # 2. Clean up processes
 echo "🔪 Checking for lingering Python/Node processes..."
-# Find processes related to this project's backend/frontend
-# We use pgrep with full command line matching
 
-# Backend (uvicorn serving src.main:app)
 PIDS=$(pgrep -f "uvicorn src.main:app" || true)
 if [ -n "$PIDS" ]; then
     echo "   Killing backend servers: $PIDS"
     kill $PIDS 2>/dev/null || true
 fi
 
-# Tests (pytest running in this repo)
-# Be careful not to kill other pytests
-# We look for pytest processes that have 'finance_report' in their CWD or args
-# Since we can't easily check CWD with pgrep, we rely on user running this in the root.
 PIDS=$(pgrep -f "pytest" | grep -v $$ || true)
 if [ -n "$PIDS" ]; then
     echo "   ⚠️  Found pytest processes: $PIDS"
     echo "       Only kill these if you are sure they are stuck."
-    # We don't auto-kill generic pytest to be safe, unless forceful
     if [[ "${1:-}" == "--force" ]]; then
         kill $PIDS 2>/dev/null || true
         echo "       Killed."
     fi
 fi
 
-# 3. Clean up lock files
+# 3. Clean up lock files and cache
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/finance_report"
 if [ -d "$CACHE_DIR" ]; then
     echo "🔒 Cleaning up lock files in $CACHE_DIR..."
@@ -74,4 +82,9 @@ if [ -d "$CACHE_DIR" ]; then
     echo "   ✅ Removed lock files."
 fi
 
+echo ""
 echo "✨ Cleanup complete. Try running your tests/CI again."
+echo ""
+if [[ "${1:-}" == "--all" ]]; then
+    echo "⚠️  Note: ALL DATA WAS DELETED. You'll need to re-run migrations on next dev server start."
+fi

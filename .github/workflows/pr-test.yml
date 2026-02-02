@@ -517,12 +517,7 @@ jobs:
             
             sleep 15
             
-            # Clean postgres volume (prevents password issues in future PRs)
-            # Dokploy API doesn't expose volume management, so we use Dokploy's compose delete
-            # which should clean up associated resources
-            echo "Volume cleanup will be handled by compose deletion"
-            
-            # Delete compose
+            # Delete compose (removes containers but may leave volumes)
             curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.delete" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
@@ -533,17 +528,106 @@ jobs:
             echo "Compose not found, nothing to cleanup"
           fi
 
+      - name: Clean up Docker volumes (SSH)
+        env:
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          VPS_HOST: cloud.zitian.party
+        run: |
+          echo "🧹 Cleaning Docker volumes for PR #$PR_NUMBER..."
+          
+          # Use GitHub's built-in SSH key if available, or skip volume cleanup
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "::warning::VPS_SSH_KEY not configured. Skipping volume cleanup."
+            echo "Volumes will be cleaned by scheduled system prune."
+            exit 0
+          fi
+          
+          # Setup SSH key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # List and remove PR volumes
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=accept-new root@"$VPS_HOST" << 'EOF'
+            PR_SUFFIX="-pr-${{ needs.setup.outputs.pr_number }}"
+            
+            echo "Searching for volumes matching pattern: *${PR_SUFFIX}"
+            VOLUMES=$(docker volume ls --format "{{.Name}}" | grep "${PR_SUFFIX}" || true)
+            
+            if [ -z "$VOLUMES" ]; then
+              echo "No volumes found for this PR"
+            else
+              echo "Found volumes:"
+              echo "$VOLUMES"
+              
+              echo "Removing volumes..."
+              echo "$VOLUMES" | xargs -r docker volume rm 2>&1 || {
+                echo "::warning::Some volumes may still be in use or already deleted"
+              }
+              
+              echo "✅ Volume cleanup complete"
+            fi
+          EOF
+          
+          # Cleanup SSH key
+          rm -f ~/.ssh/vps_key
+
+      - name: Delete GHCR images
+        continue-on-error: true
+        env:
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🗑️  Deleting PR images from GitHub Container Registry..."
+          
+          for service in backend frontend; do
+            IMAGE_NAME="finance_report-${service}"
+            TAG="pr-${PR_NUMBER}"
+            
+            echo "Searching for ${IMAGE_NAME}:${TAG}..."
+            
+            # Get package version ID for this tag
+            VERSION_ID=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions" \
+              --jq ".[] | select(.metadata.container.tags[] | contains(\"${TAG}\")) | .id" \
+              2>/dev/null || echo "")
+            
+            if [ -z "$VERSION_ID" ]; then
+              echo "  Image ${IMAGE_NAME}:${TAG} not found (may be already deleted)"
+              continue
+            fi
+            
+            echo "  Found version ID: $VERSION_ID"
+            echo "  Deleting..."
+            
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions/${VERSION_ID}" \
+              2>&1 || {
+                echo "::warning::Failed to delete ${IMAGE_NAME}:${TAG} (may require org admin permissions)"
+              }
+            
+            echo "  ✅ Deleted ${IMAGE_NAME}:${TAG}"
+          done
+          
+          echo "GHCR cleanup complete"
+
       - name: Comment cleanup notice
         uses: actions/github-script@v7
         with:
           script: |
             const body = `## 🧹 PR Resources Released
             
-            All temporary resources for this PR have been released.
+            All temporary resources for this PR have been released:
             
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
+            - **Docker Volumes**: Cleaned (postgres_data, redis_data, minio_data)
+            - **GHCR Images**: Deleted (backend:pr-${{ needs.setup.outputs.pr_number }}, frontend:pr-${{ needs.setup.outputs.pr_number }})
             
-            _Note: VPS disk space will be reclaimed by the next automated system prune._`;
+            _Cleanup completed successfully._`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,

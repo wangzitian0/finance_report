@@ -735,6 +735,96 @@ podman ps | grep finance_report
 
 ---
 
+## Resource Cleanup
+
+### Automatic Cleanup (Recommended)
+
+Install the post-push hook to automatically clean orphaned test databases after every `git push`:
+
+```bash
+./scripts/install_git_hooks.sh
+```
+
+This hook safely removes:
+- ✅ Test databases from interrupted test runs (e.g., Ctrl+C)
+- ✅ Worker databases left by pytest-xdist crashes
+- ❌ Does NOT touch development data or running tests
+
+### Manual Cleanup
+
+#### Clean Orphaned Test Databases
+
+After interrupted test runs (Ctrl+C, SIGKILL, OOM):
+
+```bash
+# Preview what would be deleted
+python scripts/cleanup_orphaned_dbs.py --dry-run
+
+# Clean orphaned databases only (safe)
+python scripts/cleanup_orphaned_dbs.py
+
+# Clean ALL test databases (use with caution)
+python scripts/cleanup_orphaned_dbs.py --all
+```
+
+#### Clean All Development Resources
+
+**⚠️ WARNING: This deletes ALL local data!**
+
+```bash
+# Clean containers and locks only (safe)
+./scripts/cleanup_dev_resources.sh
+
+# Clean EVERYTHING including volumes and MinIO data (data loss!)
+./scripts/cleanup_dev_resources.sh --all
+```
+
+#### Monitor Resource Leaks
+
+Run weekly to detect accumulated leaks across all 6 environments:
+
+```bash
+# Quick check
+./scripts/check_resource_leaks.sh
+
+# Detailed report with listings
+./scripts/check_resource_leaks.sh --verbose
+
+# Include VPS PR volume check (requires SSH access)
+VPS_HOST=cloud.zitian.party ./scripts/check_resource_leaks.sh
+```
+
+The monitoring script checks:
+1. **Local Worker Databases** - Orphaned `_gw*` databases
+2. **Local Docker Volumes** - Total count and size
+3. **Local MinIO Data** - Storage usage
+4. **VPS PR Volumes** - Orphaned `-pr-*` volumes (requires SSH)
+5. **GHCR PR Images** - Orphaned `pr-*` tags (requires `gh` CLI)
+6. **Cache Files** - Active namespace tracker state
+
+### PR Preview Cleanup (Automated)
+
+When a PR is closed, GitHub Actions automatically cleans:
+- ✅ Dokploy stack on VPS
+- ✅ Docker volumes (`postgres_data`, `redis_data`, `minio_data`)
+- ✅ GHCR container images (`backend:pr-{number}`, `frontend:pr-{number}`)
+
+To enable VPS volume cleanup, add the `VPS_SSH_KEY` secret to your GitHub repository:
+```bash
+# Generate SSH key pair (if not exists)
+ssh-keygen -t ed25519 -f ~/.ssh/finance_report_vps -N ""
+
+# Add public key to VPS
+ssh-copy-id -i ~/.ssh/finance_report_vps.pub root@cloud.zitian.party
+
+# Add private key to GitHub Secrets
+# Settings → Secrets → Actions → New repository secret
+# Name: VPS_SSH_KEY
+# Value: (paste content of ~/.ssh/finance_report_vps)
+```
+
+---
+
 ## Engineering Standards
 
 ### Environment Variable Lifecycle
