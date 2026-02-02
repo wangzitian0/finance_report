@@ -1,49 +1,49 @@
-# 测试执行优化指南
+# Test Execution Optimization Guide
 
-## 🐌 当前问题
-- 912 个测试，执行时间过长
-- 使用 `--dist loadfile` 策略可能不够高效
-- 生成多个覆盖率报告（lcov + term-missing）增加开销
+## 🐌 Current Problem
+- 912 tests, execution time too long
+- Using `--dist loadfile` strategy may not be efficient enough
+- Generating multiple coverage reports (lcov + term-missing) adds overhead
 
-## 🚀 优化方案
+## 🚀 Optimization Solutions
 
-### 方案 1: 使用 worksteal 分发策略（已应用）
-**改进**: 将 `--dist loadfile` 改为 `--dist worksteal`
+### Solution 1: Use worksteal Distribution Strategy (Applied)
+**Improvement**: Change `--dist loadfile` to `--dist worksteal`
 
 ```bash
-# 原来的命令
+# Original command
 pytest -n auto --dist loadfile
 
-# 优化后的命令
+# Optimized command
 pytest -n auto --dist worksteal
 ```
 
-**效果**: `worksteal` 动态分配测试到空闲的 worker，比 `loadfile`（按文件分配）更均衡，**预计提速 20-30%**
+**Effect**: `worksteal` dynamically assigns tests to idle workers, more balanced than `loadfile` (assigns by file), **estimated 20-30% speedup**
 
 ---
 
-### 方案 2: 新增快速测试任务（已添加）
-**用途**: 开发时快速验证，跳过详细的覆盖率报告
+### Solution 2: Add Fast Test Task (Added)
+**Purpose**: Quick validation during development, skip detailed coverage reports
 
 ```bash
-# 原来 - 生成详细报告
+# Original - generates detailed reports
 moon run backend:test-execution
 
-# 快速模式 - 只显示简要覆盖率
+# Fast mode - only shows brief coverage
 moon run backend:test-execution-fast
 ```
 
-**改进点**:
-- 移除 `--cov-report=lcov` 和 `--cov-report=term-missing`
-- 只保留 `--cov-report=term`（简要统计）
-- 添加 `--tb=short`（简化错误输出）
+**Improvements**:
+- Remove `--cov-report=lcov` and `--cov-report=term-missing`
+- Keep only `--cov-report=term` (brief statistics)
+- Add `--tb=short` (simplified error output)
 
-**预计提速**: **10-15%**
+**Estimated speedup**: **10-15%**
 
 ---
 
-### 方案 3: 使用 pytest-xdist 的智能缓存
-**配置**: 在 `pyproject.toml` 中启用缓存
+### Solution 3: Use pytest-xdist Smart Cache
+**Configuration**: Enable cache in `pyproject.toml`
 
 ```toml
 [tool.pytest.ini_options]
@@ -59,26 +59,26 @@ addopts = """
 """
 ```
 
-**新增参数**:
-- `--maxfail=10`: 失败 10 个测试后停止（快速失败）
+**New parameters**:
+- `--maxfail=10`: Stop after 10 test failures (fast fail)
 
 ---
 
-### 方案 4: 分层测试执行
-**思路**: 将测试分为多个级别，按需执行
+### Solution 4: Layered Test Execution
+**Concept**: Separate tests into multiple levels, execute as needed
 
 ```bash
-# 1. 超快速烟雾测试（核心功能，<30s）
+# 1. Ultra-fast smoke test (core features, <30s)
 moon run backend:test-smoke
 
-# 2. 快速测试（跳过慢测试，<2min）
+# 2. Fast test (skip slow tests, <2min)
 moon run backend:test-execution-fast
 
-# 3. 完整测试（包含详细报告，CI 使用）
+# 3. Full test (includes detailed reports, for CI)
 moon run backend:test-execution
 ```
 
-新增 `test-smoke` 任务：
+Add `test-smoke` task:
 ```yaml
 test-smoke:
   command: 'uv run pytest -n auto -m smoke -x --tb=short'
@@ -87,132 +87,132 @@ test-smoke:
 
 ---
 
-### 方案 5: 跳过覆盖率检查（开发时）
-**场景**: 快速迭代时不需要覆盖率
+### Solution 5: Skip Coverage Check (During Development)
+**Scenario**: No coverage needed during rapid iteration
 
 ```bash
-# 跳过覆盖率，纯测试执行
+# Skip coverage, pure test execution
 cd apps/backend
 uv run pytest -n auto -v -m "not slow and not e2e" --tb=short
 ```
 
-**预计提速**: **30-40%**（覆盖率收集有显著开销）
+**Estimated speedup**: **30-40%** (coverage collection has significant overhead)
 
 ---
 
-### 方案 6: 增加并行度（硬件充足时）
-**当前**: `-n auto`（自动检测 CPU 核心数）
+### Solution 6: Increase Parallelism (When Hardware is Sufficient)
+**Current**: `-n auto` (auto-detect CPU cores)
 
-**优化**: 显式指定更多 worker
+**Optimization**: Explicitly specify more workers
 
 ```bash
-# 查看当前 CPU 核心数
+# Check current CPU cores
 sysctl -n hw.ncpu
 
-# 假设有 8 核，可以尝试
-pytest -n 12 ...  # 使用更多 worker（超线程）
+# Assume 8 cores, can try
+pytest -n 12 ...  # Use more workers (hyperthreading)
 ```
 
-⚠️ **注意**: 过多 worker 可能因数据库连接竞争而变慢
+⚠️ **Note**: Too many workers may slow down due to database connection competition
 
 ---
 
-### 方案 7: 使用内存数据库（最激进）
-**改进**: 测试时使用 SQLite 内存数据库代替 PostgreSQL
+### Solution 7: Use In-Memory Database (Most Aggressive)
+**Improvement**: Use SQLite in-memory database instead of PostgreSQL during testing
 
 ```python
 # tests/conftest.py
 @pytest.fixture
 async def db_session():
-    # 开发时用 SQLite
+    # Use SQLite for development
     if os.getenv("FAST_TEST"):
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     else:
-        # CI 用真实 PostgreSQL
+        # Use real PostgreSQL for CI
         engine = create_async_engine(settings.DATABASE_URL)
 ```
 
-**使用**:
+**Usage**:
 ```bash
 FAST_TEST=1 moon run backend:test-execution-fast
 ```
 
-**预计提速**: **50-70%**（但可能错过 PostgreSQL 特定 bug）
+**Estimated speedup**: **50-70%** (but may miss PostgreSQL-specific bugs)
 
 ---
 
-## 📊 性能对比（预估）
+## 📊 Performance Comparison (Estimated)
 
-| 方案 | 执行时间 | 覆盖率 | 适用场景 |
-|------|---------|--------|---------|
-| 原配置 (loadfile) | 100% (基准) | ✅ 完整 | CI |
-| Worksteal (方案1) | **~75%** | ✅ 完整 | CI |
-| Fast模式 (方案2) | **~65%** | ✅ 简要 | 开发 |
-| 无覆盖率 (方案5) | **~35%** | ❌ 无 | 快速验证 |
-| 内存DB (方案7) | **~25%** | ✅ 完整 | 开发 |
+| Solution | Execution Time | Coverage | Use Case |
+|----------|----------------|----------|----------|
+| Original (loadfile) | 100% (baseline) | ✅ Full | CI |
+| Worksteal (Solution 1) | **~75%** | ✅ Full | CI |
+| Fast mode (Solution 2) | **~65%** | ✅ Brief | Development |
+| No coverage (Solution 5) | **~35%** | ❌ None | Quick validation |
+| In-memory DB (Solution 7) | **~25%** | ✅ Full | Development |
 
 ---
 
-## 🎯 推荐策略
+## 🎯 Recommended Strategy
 
-### 日常开发（最快）
+### Daily Development (Fastest)
 ```bash
-# 快速验证改动
+# Quick validate changes
 moon run backend:test-execution-fast
 
-# 或者不要覆盖率
+# Or no coverage
 cd apps/backend && uv run pytest -n auto -x --tb=line
 ```
 
-### 提交前检查
+### Pre-commit Check
 ```bash
-# 完整验证
+# Full validation
 moon run backend:test-execution
 ```
 
-### CI 流水线
+### CI Pipeline
 ```bash
-# 保持现有配置（worksteal 已优化）
+# Keep current configuration (worksteal already optimized)
 moon run backend:ci
 ```
 
 ---
 
-## 🛠️ 已应用的改进
+## 🛠️ Applied Improvements
 
-1. ✅ `test-execution`: 使用 `--dist worksteal`（替换 loadfile）
-2. ✅ `test-execution-fast`: 新增快速测试任务
-3. ⏳ `test-smoke`: 待添加（需要给核心测试打 `@pytest.mark.smoke` 标记）
+1. ✅ `test-execution`: Using `--dist worksteal` (replacing loadfile)
+2. ✅ `test-execution-fast`: Added fast test task
+3. ⏳ `test-smoke`: To be added (need to mark core tests with `@pytest.mark.smoke`)
 
 ---
 
-## 📝 下一步
+## 📝 Next Steps
 
-### 立即可用
+### Ready to Use
 ```bash
-# 试试新的 worksteal 配置
+# Try new worksteal configuration
 moon run backend:test-execution
 
-# 或者用快速模式
+# Or use fast mode
 moon run backend:test-execution-fast
 ```
 
-### 进一步优化（可选）
-1. 给核心测试打 `@pytest.mark.smoke` 标记，创建超快烟雾测试套件
-2. 评估是否需要在开发时使用内存数据库
-3. 分析哪些测试最慢，考虑标记为 `@pytest.mark.slow`
+### Further Optimization (Optional)
+1. Mark core tests with `@pytest.mark.smoke` to create ultra-fast smoke test suite
+2. Evaluate if in-memory database should be used during development
+3. Analyze which tests are slowest, consider marking as `@pytest.mark.slow`
 
 ---
 
-## 🔍 诊断慢测试
+## 🔍 Diagnose Slow Tests
 
-找出最慢的 10 个测试：
+Find slowest 10 tests:
 ```bash
 cd apps/backend
 uv run pytest --durations=10 -m "not slow and not e2e"
 ```
 
-找出所有 > 1s 的测试：
+Find all tests >1s:
 ```bash
 uv run pytest --durations=0 -m "not slow and not e2e" | grep -E "^\d+\.\d+s" | sort -rn
 ```

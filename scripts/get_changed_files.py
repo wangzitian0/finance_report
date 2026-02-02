@@ -10,36 +10,45 @@ Returns pytest --cov flag for changed files only.
 
 import argparse
 import subprocess
-import sys
 from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).parent.parent.absolute()
 
 
 def get_changed_files(base_branch: str = "main") -> list[str]:
     try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base_branch}...HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        files_set: set[str] = set()
 
-        if not result.stdout.strip():
+        diff_commands: list[list[str]] = [
+            ["git", "diff", "--name-status", f"{base_branch}...HEAD"],
+            ["git", "diff", "--name-status", "HEAD"],
+            ["git", "diff", "--name-status", "--cached"],
+        ]
+
+        for cmd in diff_commands:
             result = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
+                cmd,
                 capture_output=True,
                 text=True,
                 check=True,
             )
+            stdout = result.stdout.strip()
+            if not stdout:
+                continue
+            for line in stdout.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(maxsplit=1)
+                if len(parts) != 2:
+                    continue
+                status, filepath = parts
+                if status == "D":
+                    continue
+                files_set.add(filepath)
 
-        if not result.stdout.strip():
-            result = subprocess.run(
-                ["git", "diff", "--name-only", "--cached"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-        files = result.stdout.strip().split("\n")
+        files = sorted(files_set)
 
         changed_py_files = [
             f for f in files if f.startswith("apps/backend/src/") and f.endswith(".py")
@@ -47,6 +56,10 @@ def get_changed_files(base_branch: str = "main") -> list[str]:
 
         modules = []
         for file in changed_py_files:
+            file_path = REPO_ROOT / file
+            if not file_path.exists():
+                continue
+
             rel_path = file.replace("apps/backend/", "").replace(".py", "")
             module = rel_path.replace("/", ".")
             modules.append(module)
