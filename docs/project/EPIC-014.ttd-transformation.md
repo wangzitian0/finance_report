@@ -468,66 +468,49 @@ Before marking a doc as "Complete", verify:
 
 ---
 
-## 🔄 Active Work: PR #235 Decomposition
+## 🔀 Active Work: PR #235 Decomposition
 
-### Background
-
-PR #235 contains 31 files with 5711 additions and 2980 deletions - too large for effective review. Following EPIC-014's "minimal change principle", we are decomposing it into focused PRs.
+**Context**: PR #235 (31 files, 5711 additions, 2980 deletions) is being decomposed into smaller, focused PRs following TTD principles.
 
 ### Decomposition Strategy
 
-Based on TTD principles (Tests = Truth, Documentation = Guidance), the PR is split into 5 independent PRs with clear dependencies:
+| PR | Title | Status | Files | Priority | Description |
+|----|-------|--------|-------|----------|-------------|
+| [#254](https://github.com/wangzitian0/finance_report/pull/254) | Test Infrastructure | ✅ **MERGED** | 2 | P0 | Worker-specific database isolation |
+| ~~#255~~ | ~~PDF Base64 Fallback~~ | ❌ **CLOSED** | 2 | - | Rejected by user |
+| [#256](https://github.com/wangzitian0/finance_report/pull/256) | Logging Cleanup | 🟡 **OPEN** | 3 | P1 | Remove excessive logging from AI services |
+| TBD | Config & Health Endpoint | ⏳ Planned | ~3 | P2 | Add GIT_COMMIT_SHA to health |
+| TBD | Test Coverage & Cleanup | ⏳ Planned | ~20 | P1 | New classification tests, cleanup obsolete tests |
 
-```
-PR 1 (Test Infrastructure) [P0 - CURRENT]
-  ↓ merge
-PR 2 (Error Handling) + PR 3 (API Refactor) [P0 - Parallel]
-  ↓ merge
-PR 4 (Prompt Improvements) [P1]
-  ↓ optional
-PR 5 (Config & Deployment) [P2]
-```
+### Files Included in PR 1 (#254) ✅ MERGED
+- `apps/backend/tests/conftest.py` - Fixed client fixtures to use `test_database_url`
+- `docs/project/EPIC-014.ttd-transformation.md` - Added decomposition tracking
+
+### Files Included in PR 2 (#256) 🟡 OPEN
+- `apps/backend/src/services/extraction.py` - Remove model selection logging, simplify HTTP error logging
+- `apps/backend/src/services/openrouter_models.py` - Remove cache age and model lookup logging
+- `apps/backend/src/services/openrouter_streaming.py` - Simplify HTTP error logging
+
+### Files Planned for PR 3 (Config & Health)
+- `apps/backend/Dockerfile` - Add GIT_COMMIT_SHA build arg
+- `apps/backend/src/config.py` - Add GIT_COMMIT_SHA config
+- `apps/backend/src/main.py` - Add commit SHA to health endpoint
+
+### Files Planned for PR 4 (Test Coverage)
+- `apps/backend/tests/extraction/test_classification_service.py` - New file (117 lines)
+- `apps/backend/tests/extraction/test_extraction.py` - Coverage improvements
+- `apps/backend/tests/extraction/test_pdf_parsing.py` - Coverage improvements
+- `apps/backend/tests/ai/test_openrouter_models.py` - Remove obsolete catalog tests
+- Frontend test updates (StatementUploader.test.tsx, etc.)
+
+### Success Criteria for Decomposition
+1. ✅ Each PR has < 5 files changed
+2. ✅ Each PR has a single, clear purpose
+3. ⏳ All PRs merge successfully into main
+4. ⏳ Original PR #235 can be closed after all child PRs merge
+5. ⏳ No functionality is lost in decomposition
 
 ---
-
-### 📦 PR 1: Test Infrastructure Improvements (P0 - IN PROGRESS)
-
-**Status**: 🟡 In Progress  
-**Branch**: `pr-235-test-infra`  
-**Target**: Improve test coverage to 99% and enhance CI stability
-
-#### Scope
-
-**Files Included in PR 1**:
-- `apps/backend/tests/conftest.py` - Test database isolation improvements
-  - Use `test_database_url` fixture directly to avoid double-suffixing worker DB names
-  - Ensures stable and deterministic worker-specific database naming in parallel tests
-
-**Files Planned for Future PRs**:
-- `apps/backend/tests/extraction/test_statements_coverage.py` - Coverage tests (PR 2)
-- `apps/backend/tests/extraction/test_classification_service.py` - New edge case tests (PR 2)
-- `apps/backend/tests/extraction/test_extraction.py` - Decimal safety test updates (PR 2)
-- `.sisyphus/ralph-loop.local.md` - Project-specific, not for upstream
-
-#### Rationale
-
-- **Tests are the foundation** - All other changes depend on stable test environment
-- **Aligns with TTD philosophy** - Tests define constraints, not documentation
-- **High independence** - No business logic changes, pure testing improvements
-- **Clear acceptance criteria** - Test infrastructure stable for parallel execution
-
-#### Changes in This PR
-
-| File | Change | Reason |
-|------|--------|--------|
-| `conftest.py` | Use `test_database_url` fixture in `client` and `public_client` | Prevent double-suffixing of worker DB names (e.g., `_gw0_gw0`) |
-| `EPIC-014.ttd-transformation.md` | Document PR decomposition strategy | Track PR #235 decomposition progress |
-
-#### Success Criteria
-
-- [x] Test database isolation improved with `test_database_url` fixture
-- [x] No double-suffixing of worker DB names
-- [x] Existing tests pass (verified with `test_create_account`)
 - [ ] CI green on GitHub Actions
 - [ ] Code review approved
 
@@ -544,14 +527,6 @@ PR 5 (Config & Deployment) [P2]
 - `src/routers/statements.py` - Model validation refactor, remove pagination
 - Related tests
 
-**PR 4: Prompt & JSON Parsing (P1)**
-- `src/prompts/statement.py` - Emphasize no markdown wrapping
-- JSON parsing logic improvements
-
-**PR 5: Config & Deployment (P2)**
-- `Dockerfile`, `config.py`, `main.py` - Infrastructure improvements
-
----
 
 ## 📝 Change Log
 
@@ -564,6 +539,7 @@ PR 5 (Config & Deployment) [P2]
 | 2026-01-30 | Completed Phase 1 & 2 (P0 requirements) | AI (Sisyphus) |
 | 2026-02-02 | Added PR #235 decomposition strategy | AI (Sisyphus) |
 | 2026-02-02 | Documented PR 1 scope and test changes | AI (Sisyphus) |
+| 2026-02-02 | Updated decomposition: PR #254 merged, PR #256 open | AI (Build) |
 
 ---
 
