@@ -29,9 +29,15 @@ _CACHE_LOCK = threading.Lock()
 
 
 async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any]]:
-    """Fetch OpenRouter model list with a short-lived cache."""
     now = time.time()
     if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
+        cache_age_seconds = round(now - (_MODEL_CACHE["expires_at"] - _CACHE_TTL_SECONDS), 1)
+        logger.debug(
+            "Using cached model catalog",
+            model_count=len(_MODEL_CACHE["models"]),
+            cache_age_seconds=cache_age_seconds,
+            ttl_remaining=round(_MODEL_CACHE["expires_at"] - now, 1),
+        )
         return list(_MODEL_CACHE["models"])
 
     await asyncio.to_thread(_CACHE_LOCK.acquire)
@@ -109,7 +115,8 @@ async def is_model_known(model_id: str) -> bool:
 
 
 async def get_model_info(model_id: str) -> dict[str, Any] | None:
-    """Return normalized model info for a model id if available."""
+    logger.debug("Looking up model info", model_id=model_id)
+
     try:
         models = await fetch_model_catalog()
     except httpx.HTTPError as exc:
@@ -120,7 +127,22 @@ async def get_model_info(model_id: str) -> dict[str, Any] | None:
             error_type=type(exc).__name__,
         )
         raise ModelCatalogError("Model catalog unavailable") from exc
+
     for model in models:
         if model.get("id") == model_id:
-            return normalize_model_entry(model)
+            normalized = normalize_model_entry(model)
+            logger.info(
+                "Model info found",
+                model_id=model_id,
+                model_name=normalized.get("name"),
+                is_free=normalized.get("is_free"),
+                modalities=normalized.get("input_modalities"),
+            )
+            return normalized
+
+    logger.warning(
+        "Model not found in catalog",
+        model_id=model_id,
+        catalog_size=len(models),
+    )
     return None

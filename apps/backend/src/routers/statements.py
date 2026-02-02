@@ -143,6 +143,13 @@ async def _parse_statement_background(
                 force_model=model,
                 db=session,
             )
+            logger.info(
+                "Background task enqueued for statement parsing",
+                statement_id=str(statement_id),
+                model_to_use=model,
+                will_use_force_model=bool(model),
+                file_type=file_type,
+            )
             await update_progress(70)
         except ExtractionError as exc:
             await _handle_parse_failure(statement, session, message=str(exc))
@@ -209,6 +216,16 @@ async def upload_statement(
     """
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
+
+    logger.info(
+        "Statement upload request received",
+        user_id=str(user_id),
+        filename=filename,
+        file_type=extension,
+        institution=institution or "(auto-detect)",
+        model_requested=model,
+        has_account_id=account_id is not None,
+    )
 
     if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
         raise_bad_request(f"Unsupported file type: {extension}")
