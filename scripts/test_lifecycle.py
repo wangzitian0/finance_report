@@ -366,8 +366,6 @@ def main():
                 "run",
                 "pytest",
                 "-v",
-                "--cov=src",
-                "--cov-report=term-missing",
             ] + pytest_args
 
             log(f"   Command: {' '.join(cmd)}", YELLOW)
