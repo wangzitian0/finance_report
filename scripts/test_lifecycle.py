@@ -9,11 +9,13 @@ Key Features:
 - Manages Docker container lifecycle (Postgres) using context managers.
 - Ensures cleanup on both success, failure, and interrupts (Ctrl+C).
 - Integrates with 'moon' and 'pytest'.
+- Tracks active namespaces for orphaned resource cleanup.
 
 Usage:
     python scripts/test_lifecycle.py [pytest_args]
 """
 
+import json
 import os
 import signal
 import subprocess
@@ -30,6 +32,8 @@ REPO_ROOT = Path(__file__).parent.parent.absolute()
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"
 DB_CONTAINER_PREFIX = "finance-report-db"
+CACHE_DIR = Path.home() / ".cache" / "finance_report"
+ACTIVE_NAMESPACES_FILE = CACHE_DIR / "active_namespaces.json"
 
 # ANSI Colors
 GREEN = "\033[92m"
@@ -40,6 +44,45 @@ RESET = "\033[0m"
 
 def log(msg, color=RESET):
     print(f"{color}{msg}{RESET}")
+
+
+def load_active_namespaces():
+    """Load list of active namespaces from persistent storage."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if not ACTIVE_NAMESPACES_FILE.exists():
+        return []
+    try:
+        return json.loads(ACTIVE_NAMESPACES_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        log("⚠️  Warning: Corrupted active namespaces file, resetting...", YELLOW)
+        return []
+
+
+def save_active_namespaces(namespaces):
+    """Save list of active namespaces to persistent storage."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        ACTIVE_NAMESPACES_FILE.write_text(json.dumps(namespaces, indent=2))
+    except OSError as e:
+        log(f"⚠️  Warning: Failed to save active namespaces: {e}", YELLOW)
+
+
+def register_namespace(namespace):
+    """Register a namespace as active."""
+    namespaces = load_active_namespaces()
+    if namespace not in namespaces:
+        namespaces.append(namespace)
+        save_active_namespaces(namespaces)
+        log(f"   Registered namespace: {namespace}", YELLOW)
+
+
+def unregister_namespace(namespace):
+    """Unregister a namespace (cleanup complete)."""
+    namespaces = load_active_namespaces()
+    if namespace in namespaces:
+        namespaces.remove(namespace)
+        save_active_namespaces(namespaces)
+        log(f"   Unregistered namespace: {namespace}", YELLOW)
 
 
 def get_container_runtime():
@@ -152,6 +195,9 @@ def test_database():
     log(f"🔧 Test namespace: {namespace}", YELLOW)
     log(f"🔧 Test database: {test_db_name}", YELLOW)
 
+    # Register namespace for orphan cleanup tracking
+    register_namespace(namespace)
+
     compose_cmd = [runtime, "compose", "-f", str(COMPOSE_FILE)]
 
     log("🐘 Ensuring infrastructure is up...", YELLOW)
@@ -159,6 +205,7 @@ def test_database():
         subprocess.run([*compose_cmd, "--profile", "infra", "up", "-d"], check=True)
     except subprocess.CalledProcessError:
         log("❌ Failed to start database.", RED)
+        unregister_namespace(namespace)
         raise
 
     # Find the actual container name (in case of compose project name variations)
@@ -191,9 +238,7 @@ def test_database():
 
     if not ready:
         log("❌ Database failed to become ready.", RED)
-        # We don't tear down here if it was already running?
-        # Actually, if we just started it, maybe we should.
-        # But for 'dev' usage, maybe not.
+        unregister_namespace(namespace)
         raise Exception("Database not ready")
 
     log("🛠  Setting up test database...", YELLOW)
@@ -266,6 +311,7 @@ def test_database():
         log("   Migrations applied.", GREEN)
     except subprocess.CalledProcessError as e:
         log(f"❌ Migration failed:\n{e.stderr.decode()}", RED)
+        unregister_namespace(namespace)
         raise
 
     try:
@@ -278,6 +324,9 @@ def test_database():
             [*compose_cmd, "--profile", "infra", "stop"], stderr=subprocess.DEVNULL
         )
         log("   Database stopped.", GREEN)
+
+        # Unregister namespace after successful cleanup
+        unregister_namespace(namespace)
 
 
 def main():

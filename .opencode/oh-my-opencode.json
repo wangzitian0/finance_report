@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/v3.2.1/assets/oh-my-opencode.schema.json",
   "google_auth": true,
   "agents": {
-    "Sisyphus": {
+    "sisyphus": {
       "model": "copilot/claude-sonnet-4.5",
       "description": "Main orchestrator with full domain knowledge and documentation skills",
       "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
