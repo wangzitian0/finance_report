@@ -94,20 +94,8 @@ async def _stream_openrouter_base(
     ):
         if event_source.response.status_code != 200:
             error_text = await event_source.response.aread()
-            error_body = error_text.decode("utf-8", errors="replace")
-            error_message = f"HTTP {event_source.response.status_code}: {error_body}"
+            error_message = f"HTTP {event_source.response.status_code}: {error_text.decode('utf-8', errors='replace')}"
             retryable = event_source.response.status_code in (429, 500, 502, 503, 504)
-
-            logger.error(
-                "OpenRouter API HTTP error",
-                model=model,
-                status_code=event_source.response.status_code,
-                error_body=error_body[:500],
-                retryable=retryable,
-                mode=mode_label,
-                headers=dict(event_source.response.headers),
-            )
-
             raise OpenRouterStreamError(error_message, retryable=retryable)
 
         chunk_count = 0

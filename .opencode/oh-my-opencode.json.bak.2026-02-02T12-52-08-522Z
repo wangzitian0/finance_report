@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/v3.2.1/assets/oh-my-opencode.schema.json",
+  "google_auth": true,
+  "agents": {
+    "Sisyphus": {
+      "model": "copilot/claude-sonnet-4.5",
+      "description": "Main orchestrator with full domain knowledge and documentation skills",
+      "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
+    },
+    "explore": {
+      "model": "zai-coding-plan/glm-4.7-flash",
+      "description": "Blazing fast codebase exploration (use as parallel grep)"
+    },
+    "librarian": {
+      "model": "zai-coding-plan/glm-4.7",
+      "description": "External documentation and OSS exploration"
+    },
+    "frontend-ui-ux-engineer": {
+      "model": "copilot/claude-sonnet-4.5",
+      "description": "UI/UX design and visual implementation (mandatory for styling)"
+    },
+    "multimodal-looker": {
+      "model": "zai-coding-plan/glm-4.6v",
+      "description": "Image and multimodal content analysis"
+    }
+  },
+  "categories": {
+    "quick": {
+      "model": "zai-coding-plan/glm-4.7-flash"
+    },
+    "unspecified-low": {
+      "model": "zai-coding-plan/glm-4.7"
+    },
+    "visual-engineering": {
+      "model": "copilot/claude-sonnet-4.5"
+    }
+  },
+  "skills": {
+    "enable": [
+      "domain/development",
+      "domain/schema",
+      "domain/accounting",
+      "domain/reconciliation",
+      "domain/infra-operations",
+      "domain/secrets-management",
+      "professional/backend-development",
+      "professional/frontend-react",
+      "professional/ui-ux-design",
+      "meta/skill-writer"
+    ]
+  }
+}
