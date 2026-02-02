@@ -79,9 +79,6 @@ async def test_full_navigation(page: Page):
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(
-    reason="AI parsing backend issue: statements being rejected instead of parsed (0 txns). See PR #142 comments. Needs separate backend fix."
-)
 async def test_statement_upload_parsing_flow(authenticated_page: Page, tmp_path):
     """
     [Scenario 2] Upload a statement, wait for parsing, and then delete it.

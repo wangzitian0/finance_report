@@ -352,19 +352,24 @@ class ExtractionService:
         media_payload = None
 
         if file_type == "pdf":
-            if file_url:
-                if self._validate_external_url(file_url):
-                    media_payload = self._build_media_payload(
-                        file_type=file_type,
-                        mime_type=mime_type,
-                        data=file_url,
-                    )
-                else:
-                    logger.warning("Rejected internal/private file URL for PDF extraction", url=file_url)
+            if file_content:
+                b64_content = base64.b64encode(file_content).decode("utf-8")
+                media_payload = self._build_media_payload(
+                    file_type=file_type,
+                    mime_type=mime_type,
+                    data=f"data:{mime_type};base64,{b64_content}",
+                )
+            elif file_url and self._validate_external_url(file_url):
+                media_payload = self._build_media_payload(
+                    file_type=file_type,
+                    mime_type=mime_type,
+                    data=file_url,
+                )
 
             if not media_payload:
                 raise ExtractionError(
-                    "PDF extraction requires a public URL. Ensure the uploaded file is accessible externally."
+                    "No valid file content or accessible URL provided for AI extraction. "
+                    "Ensure file content is uploaded or URL is public."
                 )
         else:
             if file_content:
