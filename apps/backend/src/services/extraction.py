@@ -320,8 +320,6 @@ class ExtractionService:
             raise
 
     def _extract_status_code(self, error_msg: str) -> str | None:
-        import re
-
         match = re.search(r"HTTP (\d{3})", error_msg)
         return match.group(1) if match else None
 
