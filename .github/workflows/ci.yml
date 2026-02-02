@@ -104,6 +104,10 @@ jobs:
     needs: backend
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
       - name: Download all coverage artifacts
         uses: actions/download-artifact@v4
         with:
@@ -124,6 +128,7 @@ jobs:
         with:
           file: coverage.lcov
           flag-name: backend
+          base-path: apps/backend
 
   frontend:
     name: Frontend Build
