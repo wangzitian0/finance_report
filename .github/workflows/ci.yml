@@ -83,8 +83,8 @@ jobs:
           cd apps/backend
           uv run pytest -n auto -v \
             -m "not slow and not e2e" \
-            --shard-id=${{ matrix.shard }} \
-            --num-shards=4 \
+            --splits 4 \
+            --group ${{ matrix.shard }} \
             --cov=src \
             --cov-report=lcov:coverage-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
