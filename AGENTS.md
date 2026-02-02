@@ -109,6 +109,8 @@ python scripts/debug.py logs backend --env production --method signoz
 
 ### Container Naming Patterns
 
+> See [Six Environments (SSOT)](docs/ssot/development.md#six-environments-ssot) for complete environment details, isolation mechanisms, and workflow configurations.
+
 | Environment | Backend | Frontend | Postgres | Redis |
 |-------------|---------|----------|----------|-------|
 | Local/CI | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-redis` |

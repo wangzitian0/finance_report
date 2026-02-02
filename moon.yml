@@ -54,4 +54,11 @@ tasks:
     options:
       runInCI: false
 
+  # CI pipeline - matches GitHub CI exactly
+  ci:
+    command: 'echo "CI pipeline complete"'
+    deps:
+      - 'backend:ci'
+      - 'frontend:build'
+
 

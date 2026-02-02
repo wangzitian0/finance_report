@@ -62,22 +62,29 @@ def worker_id(request):
 
 
 def get_test_db_url(worker_id: str) -> str:
-    """Generate database URL specific to pytest-xdist worker.
+    """Generate database URL specific to pytest-xdist worker with namespace isolation.
 
     Args:
         worker_id: Worker identifier ('master' for serial, 'gw0'/'gw1'/... for parallel)
 
     Returns:
-        Database URL with worker-specific database name for parallel execution
+        Database URL with namespace and worker-specific database name for parallel execution
     """
+    # Get namespace from environment (set by test_lifecycle.py)
+    namespace = os.environ.get("TEST_NAMESPACE", "default")
+
+    # Build base database name with namespace
+    base_db_name = f"finance_report_test_{namespace}"
+
+    # Construct URL with namespace-aware database name
     base_url = (
         normalize_url(
             os.environ.get(
                 "DATABASE_URL",
-                "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test",
+                f"postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}",
             )
         )
-        or "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test"
+        or f"postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}"
     )
 
     if worker_id != "master":
