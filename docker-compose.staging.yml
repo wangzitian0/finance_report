@@ -1,0 +1,42 @@
+version: '3.8'
+
+# Staging Environment Override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.staging.yml up
+#
+# This file extends the base docker-compose.yml with staging-specific configuration.
+# It hardcodes Traefik routing variables that would otherwise need environment substitution.
+
+services:
+  backend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.finance-report-api-staging.rule=Host(`report-staging.zitian.party`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.finance-report-api-staging.entrypoints=websecure"
+      - "traefik.http.routers.finance-report-api-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.finance-report-api-staging.service=finance-report-api-staging"
+      - "traefik.http.services.finance-report-api-staging.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.finance-report-api-strip-staging.stripprefix.prefixes=/api"
+      - "traefik.http.routers.finance-report-api-staging.middlewares=finance-report-api-strip-staging@docker"
+    container_name: finance-report-backend-staging
+    environment:
+      - NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
+      - ENVIRONMENT=staging
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=staging
+
+  frontend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.finance-report-web-staging.rule=Host(`report-staging.zitian.party`)"
+      - "traefik.http.routers.finance-report-web-staging.entrypoints=websecure"
+      - "traefik.http.routers.finance-report-web-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.finance-report-web-staging.service=finance-report-web-staging"
+      - "traefik.http.services.finance-report-web-staging.loadbalancer.server.port=3000"
+    container_name: finance-report-frontend-staging
+    environment:
+      - NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
+
+networks:
+  internal:
+    name: finance-report-internal-staging

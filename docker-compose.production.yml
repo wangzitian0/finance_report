@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.finance-report-api.rule=Host(`report.zitian.party`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.finance-report-api.entrypoints=websecure"
+      - "traefik.http.routers.finance-report-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.finance-report-api.service=finance-report-api"
+      - "traefik.http.services.finance-report-api.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.finance-report-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.finance-report-api.middlewares=finance-report-api-strip@docker"
+    container_name: finance-report-backend
+    environment:
+      - NEXT_PUBLIC_APP_URL=https://report.zitian.party
+      - ENVIRONMENT=production
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
+
+  frontend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.finance-report-web.rule=Host(`report.zitian.party`)"
+      - "traefik.http.routers.finance-report-web.entrypoints=websecure"
+      - "traefik.http.routers.finance-report-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.finance-report-web.service=finance-report-web"
+      - "traefik.http.services.finance-report-web.loadbalancer.server.port=3000"
+    container_name: finance-report-frontend
+    environment:
+      - NEXT_PUBLIC_APP_URL=https://report.zitian.party
+
+networks:
+  internal:
+    name: finance-report-internal
