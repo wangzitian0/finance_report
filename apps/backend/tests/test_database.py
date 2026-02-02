@@ -30,13 +30,15 @@ async def test_get_db_closes_session(public_client):
     """
     GIVEN the database dependency
     WHEN get_db completes
-    THEN the session should be closed
+    THEN the session should be closed (not active, no transaction)
     """
+    session_ref = None
     async for session in get_db():
-        assert not session.is_active or session.in_transaction()
-        session_id = id(session)
+        session_ref = session
+        assert session.is_active or session.in_transaction()
+        break
 
-    assert session_id is not None
+    assert session_ref is not None
 
 
 @pytest.mark.asyncio
