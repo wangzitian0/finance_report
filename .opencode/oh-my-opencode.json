@@ -1,19 +1,9 @@
 {
-  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/v0.1.0/assets/oh-my-opencode.schema.json",
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/v3.2.1/assets/oh-my-opencode.schema.json",
   "google_auth": true,
   "agents": {
-    "sisyphus": {
+    "Sisyphus": {
       "model": "copilot/claude-sonnet-4.5",
-      "skills": [
-        "domain/development",
-        "domain/schema",
-        "domain/accounting",
-        "domain/reconciliation",
-        "domain/infra-operations",
-        "domain/secrets-management",
-        "professional/backend-development",
-        "meta/skill-writer"
-      ],
       "description": "Main orchestrator with full domain knowledge and documentation skills",
       "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
     },
@@ -26,16 +16,37 @@
       "description": "External documentation and OSS exploration"
     },
     "frontend-ui-ux-engineer": {
-      "model": "openai/codex-5.2",
-      "skills": [
-        "professional/frontend-react",
-        "professional/ui-ux-design"
-      ],
+      "model": "copilot/claude-sonnet-4.5",
       "description": "UI/UX design and visual implementation (mandatory for styling)"
     },
     "multimodal-looker": {
-      "model": "google/antigravity-gemini-3-pro-high",
+      "model": "zai-coding-plan/glm-4.6v",
       "description": "Image and multimodal content analysis"
     }
+  },
+  "categories": {
+    "quick": {
+      "model": "zai-coding-plan/glm-4.7-flash"
+    },
+    "unspecified-low": {
+      "model": "zai-coding-plan/glm-4.7"
+    },
+    "visual-engineering": {
+      "model": "copilot/claude-sonnet-4.5"
+    }
+  },
+  "skills": {
+    "enable": [
+      "domain/development",
+      "domain/schema",
+      "domain/accounting",
+      "domain/reconciliation",
+      "domain/infra-operations",
+      "domain/secrets-management",
+      "professional/backend-development",
+      "professional/frontend-react",
+      "professional/ui-ux-design",
+      "meta/skill-writer"
+    ]
   }
 }

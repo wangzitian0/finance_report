@@ -68,61 +68,10 @@ jobs:
             fi
           } >> "$GITHUB_OUTPUT"
 
-  # Build images in parallel using matrix strategy
-  build:
-    name: Build ${{ matrix.app }} Image
-    if: needs.setup.outputs.action == 'deploy'
-    needs: setup
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        app: [backend, frontend]
-        include:
-          - app: backend
-            context: ./apps/backend
-            build_args: ""
-          - app: frontend
-            context: ./apps/frontend
-            # build_args set dynamically in step
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Log in to Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push ${{ matrix.app }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.app }}:pr-${{ needs.setup.outputs.pr_number }}
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.app }}:staging
-            type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            GIT_COMMIT_SHA=${{ github.sha }}
-            ${{ matrix.app == 'frontend' && format('NEXT_PUBLIC_API_URL=https://report-pr-{0}.{1}', needs.setup.outputs.pr_number, needs.setup.outputs.internal_domain) || '' }}
-            ${{ matrix.app == 'frontend' && format('NEXT_PUBLIC_APP_URL=https://report-pr-{0}.{1}', needs.setup.outputs.pr_number, needs.setup.outputs.internal_domain) || '' }}
-
   deploy:
     name: Deploy Test Environment
     if: needs.setup.outputs.action == 'deploy'
-    needs: [setup, build]
+    needs: setup
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -535,37 +484,6 @@ jobs:
       pull-requests: write
       packages: write
     steps:
-      - name: Delete PR Images from GHCR
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          OWNER: ${{ github.repository_owner }}
-        run: |
-          for app in backend frontend; do
-            PACKAGE_NAME="finance_report-$app"
-            echo "Searching for versions of $PACKAGE_NAME with tag pr-$PR_NUMBER..."
-
-            # Get version IDs for the tag
-            # Note: We use user namespace since this is a user-owned repo
-            VERSION_IDS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/users/$OWNER/packages/container/$PACKAGE_NAME/versions" \
-              | jq -r ".[] | select(.metadata.container.tags[] == \"pr-$PR_NUMBER\") | .id")
-
-            if [ -z "$VERSION_IDS" ] || [ "$VERSION_IDS" == "null" ]; then
-              echo "No images found for $PACKAGE_NAME tag pr-$PR_NUMBER"
-              continue
-            fi
-
-            for id in $VERSION_IDS; do
-              echo "Deleting version $id for $PACKAGE_NAME..."
-              curl -s -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/users/$OWNER/packages/container/$PACKAGE_NAME/versions/$id"
-              echo "Deleted version $id"
-            done
-          done
-
       - name: Find and remove compose
         run: |
           echo "Looking for compose: ${{ needs.setup.outputs.compose_name }}"
@@ -624,7 +542,6 @@ jobs:
             All temporary resources for this PR have been released.
             
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
-            - **GHCR Images**: \`pr-${{ needs.setup.outputs.pr_number }}\` ✓ deleted from registry
             
             _Note: VPS disk space will be reclaimed by the next automated system prune._`;
             

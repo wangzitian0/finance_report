@@ -96,7 +96,7 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 | **Local Dev** | **Source (Host)**<br>*(uvicorn / next dev)* | **Docker Container**<br>*(Singleton)* | `docker-compose.yml`<br>*(Profile: infra)* | **Persistent**<br>*(Manual start/stop)* | Developer<br>`moon run :infra` |
 | **Local CI** | **Source (Host)**<br>*(pytest)* | **Docker Container**<br>*(Reuse Local Dev)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Test data reset)* | Developer<br>`moon run :test` |
 | **Github CI** | **Source (Runner)**<br>*(pytest)* | **Docker Container**<br>*(Ephemeral Service)* | `docker-compose.yml`<br>*(Profile: infra)* | **Ephemeral**<br>*(Job duration)* | CI Pipeline<br>`ci.yml` |
-| **Github PR** | **Source Build**<br>*(Docker build .)* | **Docker Container**<br>*(Per PR Isolated)* | `docker-compose.yml`<br>*(Profile: infra+app)* | **Ephemeral**<br>*(Destroy on PR close)* | Dokploy<br>(Preview) |
+| **Github PR** | **Source (Repo)**<br>*(Dokploy Git deploy)* | **Docker Container**<br>*(Per PR Isolated)* | `docker-compose.yml`<br>*(Profile: infra+app)* | **Ephemeral**<br>*(Destroy on PR close)* | Dokploy<br>(Preview) |
 | **Staging** | **Docker Image**<br>*(GHCR Pull)* | **Shared Platform (Prod)**<br>*(SigNoz/MinIO)*<br>+ **Dedicated DB/Redis** | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Staging) |
 | **Production**| **Docker Image**<br>*(GHCR Pull)* | **Shared Platform (Prod)**<br>*(SigNoz/MinIO)*<br>+ **Dedicated DB/Redis** | `docker-compose.yml`<br>*(Profile: app)* | **Persistent**<br>*(Stable Env)* | Ops / Dokploy<br>(Production) |
 
