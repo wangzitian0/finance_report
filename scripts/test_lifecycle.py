@@ -109,7 +109,15 @@ def cleanup_worker_databases(runtime, container_name, namespace):
             log("   No worker databases to clean.", YELLOW)
             return
 
+        import re
+
+        db_pattern = re.compile(r"^finance_report_test_[\w]+(_gw\d+)?$")
+
         for db_name in databases:
+            if not db_pattern.match(db_name):
+                log(f"   Skipping invalid database name: {db_name}", YELLOW)
+                continue
+
             log(f"   Dropping {db_name}...", YELLOW)
             subprocess.run(
                 [

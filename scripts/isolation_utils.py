@@ -30,7 +30,15 @@ def get_namespace() -> str:
     if branch:
         namespace = sanitize_namespace(branch)
         if workspace:
-            namespace = f"{namespace}_{workspace}"
+            # Sanitize workspace ID to prevent special characters
+            try:
+                workspace_safe = sanitize_namespace(workspace)
+                namespace = f"{namespace}_{workspace_safe}"
+            except ValueError:
+                print(
+                    f"⚠️  WARNING: Ignoring invalid WORKSPACE_ID '{workspace}' "
+                    "for namespace generation"
+                )
         return namespace
 
     # Git auto-detection - ALWAYS add path hash for multi-repo safety
@@ -52,6 +60,7 @@ def get_namespace() -> str:
 
             return f"{namespace}_{path_hash}"
     except Exception:
+        # Git command failed (not a repo, timeout, etc.) - fall back to default
         pass
 
     # Fallback: Use path hash even for "default" to prevent conflicts
@@ -79,9 +88,15 @@ def sanitize_namespace(name: str) -> str:
     if not name or not name.strip():
         raise ValueError(f"Invalid namespace '{name}': input is empty or whitespace")
 
-    safe = name.replace("/", "_").replace("-", "_").replace("#", "").lower()
+    safe = name.lower()
+    safe = safe.replace("/", "_").replace("-", "_")
+    safe = "".join(c if c.isalnum() or c == "_" else "" for c in safe)
 
-    if not safe or not safe.strip("_"):
+    while "__" in safe:
+        safe = safe.replace("__", "_")
+    safe = safe.strip("_")
+
+    if not safe:
         raise ValueError(
             f"Invalid namespace '{name}': results in empty identifier after sanitization"
         )

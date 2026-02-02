@@ -1,7 +1,6 @@
 import hashlib
 import importlib.util
 import os
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -63,17 +62,25 @@ class TestNamespaceGeneration:
                     expected = f"feature_payments_{path_hash}"
                     assert namespace == expected
 
-    def test_fallback_default_with_warning(self, capsys):
+    def test_fallback_default_with_warning(self, tmp_path, capsys):
+        test_repo = tmp_path / "test_repo"
+        test_repo.mkdir()
+
         with patch.dict(os.environ, {}, clear=True):
             with patch("subprocess.run") as mock_run:
                 mock_run.side_effect = Exception("Not a git repo")
 
-                namespace = get_namespace()
-                assert namespace == "default"
+                with patch("pathlib.Path.cwd", return_value=test_repo):
+                    namespace = get_namespace()
 
-                captured = capsys.readouterr()
-                assert "WARNING" in captured.out
-                assert "may conflict" in captured.out.lower()
+                    # Should return "default_" + 8-char hex hash of repo path
+                    path_hash = hashlib.sha256(str(test_repo).encode()).hexdigest()[:8]
+                    expected = f"default_{path_hash}"
+                    assert namespace == expected
+
+                    captured = capsys.readouterr()
+                    assert "WARNING" in captured.out
+                    assert "BRANCH_NAME" in captured.out
 
     def test_main_branch_auto_detect_adds_path_hash(self, tmp_path):
         """Auto-detected main/master branch should add path hash for multi-repo isolation."""
@@ -119,10 +126,10 @@ class TestNamespaceGeneration:
 
     def test_sanitize_empty_input_raises_error(self):
         """Empty namespace input should raise ValueError."""
-        with pytest.raises(ValueError, match="results in empty identifier"):
+        with pytest.raises(ValueError, match="input is empty or whitespace"):
             sanitize_namespace("")
 
-        with pytest.raises(ValueError, match="results in empty identifier"):
+        with pytest.raises(ValueError, match="input is empty or whitespace"):
             sanitize_namespace("   ")
 
         with pytest.raises(ValueError, match="results in empty identifier"):
@@ -139,8 +146,8 @@ class TestNamespaceGeneration:
         # Hyphens become underscores
         assert sanitize_namespace("bug-fix-123") == "bug_fix_123"
 
-        # Mixed special chars are removed or converted
-        assert sanitize_namespace("test@#$%branch") == "test_branch"
+        # Mixed special chars (@#$%) are removed (not converted to underscores)
+        assert sanitize_namespace("test@#$%branch") == "testbranch"
 
         # Dots are removed
         assert sanitize_namespace("v1.2.3") == "v123"
@@ -185,7 +192,8 @@ class TestS3BucketNaming:
     def test_s3_bucket_with_namespace(self):
         namespace = "feature_auth_abc123"
         bucket = get_s3_bucket(namespace)
-        assert bucket == "statements-feature_auth_abc123"
+        # S3 bucket names use hyphens (underscores converted to hyphens)
+        assert bucket == "statements-feature-auth-abc123"
 
     def test_s3_bucket_default(self):
         bucket = get_s3_bucket("default")

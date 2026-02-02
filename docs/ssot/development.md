@@ -195,7 +195,7 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 
 ### Coverage Requirements
 
-- Backend line coverage: **>= 97%** (enforced by `pytest-cov`)
+- Backend line coverage: **>= 92%** (enforced by `pytest-cov`, target 97%)
 - Branch coverage: Required (via `--cov-branch`)
 - See [TDD Transformation Plan](./tdd.md) for details
 
@@ -295,7 +295,7 @@ BRANCH_NAME=feature-auth WORKSPACE_ID=alice  # → "feature_auth_alice"
 # → "feature_payments_beeba6ed"
 
 # Priority 3: Fallback (with warning)
-# → "default"
+# → "default_abc12345"  # Includes repo path hash for isolation
 ```
 
 ### Resource Naming Functions

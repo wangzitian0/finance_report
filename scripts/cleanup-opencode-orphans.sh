@@ -34,7 +34,7 @@ echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🧹 Starting cleanup..."
-    ps aux | grep opencode | grep -v grep | awk '$7 == "??" {print $2}' | xargs kill 2>/dev/null || true
+    ps aux | grep opencode | grep -v grep | awk '$7 == "??" {print $2}' | xargs -r kill 2>/dev/null || true
     sleep 2
     
     # Verify cleanup results
@@ -45,7 +45,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     else
         echo "⚠️  Some processes failed to clean, $remaining_orphans orphan(s) remaining"
         echo "Attempting force cleanup..."
-        ps aux | grep opencode | grep -v grep | awk '$7 == "??" {print $2}' | xargs kill -9 2>/dev/null || true
+        ps aux | grep opencode | grep -v grep | awk '$7 == "??" {print $2}' | xargs -r kill -9 2>/dev/null || true
         sleep 1
         echo "✅ Force cleanup complete"
     fi
