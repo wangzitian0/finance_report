@@ -60,11 +60,19 @@ async def test_create_session_maker_variants():
     maker = create_session_maker_from_db(mock_db)
     assert isinstance(maker, async_sessionmaker)
 
-    # 4. Failure case
+    # 4. Failure case - temporarily clear test session maker to test error path
     mock_db.bind = MagicMock()  # No async engine
     mock_db.get_bind.return_value = None
-    with pytest.raises(RuntimeError, match="Async engine unavailable"):
-        create_session_maker_from_db(mock_db)
+
+    from src import database
+
+    original_test_maker = database._test_session_maker
+    database.set_test_session_maker(None)
+    try:
+        with pytest.raises(RuntimeError, match="Async engine unavailable"):
+            create_session_maker_from_db(mock_db)
+    finally:
+        database.set_test_session_maker(original_test_maker)
 
 
 @pytest.mark.asyncio
