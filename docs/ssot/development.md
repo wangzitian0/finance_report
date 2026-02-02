@@ -36,8 +36,10 @@ moon run :ci                # One-button check (Lint + Format + Test + Check)
                             # Matches GitHub CI exactly.
 
 # Testing
-moon run :test              # All tests
-moon run backend:test       # Backend tests (auto-manages DB)
+moon run :test                  # All tests (full coverage)
+moon run backend:test           # Backend tests (auto-manages DB)
+moon run backend:test-smart     # Smart: coverage on changed files only (60-70% faster)
+moon run backend:test-no-cov    # Ultra-fast: no coverage (TDD mode)
 
 # Environment Verification
 # (See docs/ssot/env_smoke_test.md for full details)
@@ -365,6 +367,36 @@ moon run backend:test
 # Auto-detects: finance_report_test_feature_payments_<hash>
 # Hash prevents collisions across different repo copies
 ```
+
+---
+
+## Test Optimization
+
+### Test Modes
+
+| Mode | Command | Speed | Coverage | Use Case |
+|------|---------|-------|----------|----------|
+| Smart | `backend:test-smart` | ~40% | Changed files 99% | Daily dev (recommended) |
+| Ultra-fast | `backend:test-no-cov` | ~30% | None | TDD red-green |
+| Full | `backend:test` | 100% | All files 94% | CI/pre-commit |
+
+### Implementation
+
+**Scripts**:
+- `scripts/get_changed_files.py` - Detects changed Python files via git diff
+- `scripts/smart_test.py` - Runs all tests, coverage on changed files only
+- `scripts/fast_test.py` - Runs all tests, no coverage
+- `scripts/test_lifecycle.py` - DB lifecycle (accepts coverage flags from callers)
+
+**Key fixes from PR #260**:
+- Removed hardcoded coverage flags from `test_lifecycle.py`
+- Aggregate all git changes (branch diff + uncommitted + staged)
+- Exclude deleted files, verify file existence
+
+**CI Optimization** (`.github/workflows/ci.yml`):
+- 4-way parallel test sharding via `pytest-split`
+- Each shard: `pytest --splits 4 --group N`
+- Coverage reports merged post-run
 
 ---
 
