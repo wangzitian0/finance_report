@@ -406,6 +406,55 @@ Before marking a doc as "Complete", verify:
 
 ---
 
+## 🔀 Active Work: PR #235 Decomposition
+
+**Context**: PR #235 (31 files, 5711 additions, 2980 deletions) is being decomposed into smaller, focused PRs following TTD principles.
+
+### Decomposition Strategy
+
+| PR | Title | Status | Files | Priority | Description |
+|----|-------|--------|-------|----------|-------------|
+| [#254](https://github.com/wangzitian0/finance_report/pull/254) | Test Infrastructure | ✅ **Merged** | 2 | P0 | Worker-specific database isolation |
+| [#255](https://github.com/wangzitian0/finance_report/pull/255) | PDF Base64 Fallback | 🟡 **Open** | 2 | P0 | Enable PDF extraction without S3 public endpoint |
+| TBD | Logging Cleanup | ⏳ Planned | ~5 | P1 | Remove excessive logging from services |
+| TBD | Config & Health Endpoint | ⏳ Planned | ~3 | P2 | Add GIT_COMMIT_SHA to health |
+| TBD | Test Coverage & Cleanup | ⏳ Planned | ~20 | P1 | New classification tests, cleanup obsolete tests |
+
+### Files Included in PR 1 (#254) ✅
+- `apps/backend/tests/conftest.py` - Fixed client fixtures to use `test_database_url`
+- `docs/project/EPIC-014.ttd-transformation.md` - Added this decomposition tracking
+
+### Files Included in PR 2 (#255) 🟡
+- `apps/backend/src/services/extraction.py` - PDF base64 fallback logic
+- `tests/e2e/test_e2e_flows.py` - Re-enabled E2E test
+
+### Files Planned for PR 3 (Logging Cleanup)
+- `apps/backend/src/services/extraction.py` - Remove model selection logging
+- `apps/backend/src/services/openrouter_models.py` - Remove cache age logging
+- `apps/backend/src/services/openrouter_streaming.py` - Simplify logging
+- `apps/backend/src/routers/statements.py` - Clean up statement router logging
+
+### Files Planned for PR 4 (Config & Health)
+- `apps/backend/Dockerfile` - Add GIT_COMMIT_SHA build arg
+- `apps/backend/src/config.py` - Add GIT_COMMIT_SHA config
+- `apps/backend/src/main.py` - Add commit SHA to health endpoint
+
+### Files Planned for PR 5 (Test Coverage)
+- `apps/backend/tests/extraction/test_classification_service.py` - New file (117 lines)
+- `apps/backend/tests/extraction/test_extraction.py` - Coverage improvements
+- `apps/backend/tests/extraction/test_pdf_parsing.py` - Coverage improvements
+- `apps/backend/tests/ai/test_openrouter_models.py` - Remove obsolete catalog tests
+- Frontend test updates (StatementUploader.test.tsx, etc.)
+
+### Success Criteria for Decomposition
+1. ✅ Each PR has < 5 files changed
+2. ✅ Each PR has a single, clear purpose
+3. ⏳ All PRs merge successfully into main
+4. ⏳ Original PR #235 can be closed after all child PRs merge
+5. ⏳ No functionality is lost in decomposition
+
+---
+
 ## 📊 Success Metrics
 
 ### Quantitative
