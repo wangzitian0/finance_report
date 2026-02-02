@@ -490,7 +490,9 @@ class TestDeduplicationService:
 
         # Check if database constraint prevented race condition
         # Case 1: Constraint worked - one succeeds, one fails with IntegrityError
-        has_integrity_error = any(isinstance(r, Exception) and "unique constraint" in str(r).lower() for r in results)
+        from sqlalchemy.exc import IntegrityError
+
+        has_integrity_error = any(isinstance(r, IntegrityError) for r in results)
 
         # Case 2: One transaction succeeded (check-then-act won the race)
         successful_results: list[dict] = [r for r in results if not isinstance(r, Exception)]  # type: ignore[misc]
