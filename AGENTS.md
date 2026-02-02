@@ -1,6 +1,7 @@
 # Finance Report AI Agent Behavioral Guidelines
 
 > **Prohibition**: AI may NOT modify this file without explicit authorization.
+> **Prohibition**: AI's deliverable is Pull Request (CI-passing, test-environment-verified), NOT merged code. User reviews and decides whether to merge.
 > **Checklist**: When you think you have completed a task, you need to check this file line by line to make sure you have met all the requirements.
 > **English**: All code, PRs, commits, and reports must be in English; optional translated documentation files (e.g., *_ZH.md, *_CN.md) are allowed as non-authoritative copies.
 
@@ -234,10 +235,43 @@ AI must use this cascade structure before processing tasks:
 8. **Entries must balance**: Every JournalEntry must have balanced debits and credits. See: `apps/backend/tests/accounting/test_accounting.py::test_balanced_entry_passes`
 9. **Equation must hold**: At any point, the accounting equation must be satisfied. See: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_violation_detected`
 
-### Delivery
+### Agent Scope & Deliverables
+
+**What Agent Delivers**: A **CI-passing, test-environment-verified** Pull Request (NOT merged code)
+
+**Agent Workflow (Complete)**:
+1. ✅ Understand requirements
+2. ✅ Design solution
+3. ✅ Implement code
+4. ✅ Write tests
+5. ✅ Create PR
+6. ✅ **Monitor CI until it passes** (use `gh run watch`)
+   - If CI fails: Fix issues and repeat
+   - Agent is responsible for making CI pass
+7. ✅ Verify test environment deploys successfully (health check on `report-pr-XX.zitian.party`)
+8. ✅ **Report: "PR ready for your review"**
+9. ⏸️ **STOP. Wait for user decision.**
+
+**User Workflow**:
+1. Review PR (code quality, architecture decisions)
+2. Decide: Approve / Request changes / Reject
+3. If approved: **User merges PR** (or instructs agent to merge)
+
+**Critical Principles**:
+- ❌ Agent NEVER merges PR automatically
+- ✅ Agent MUST ensure CI passes before reporting completion
+- ✅ CI failures are Agent's responsibility to fix
+- ⏸️ Merging = User's authority, not Agent's
+
+**Delivering PR means**:
+- ✅ CI passed (all checks green)
+- ✅ Test environment working (health check returns 200)
+- ✅ All review comments addressed (if re-delivery)
+- ⏸️ **Waiting for user review** (do NOT merge)
+
+**Operational Guidelines**:
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars. If Dokploy is not enough to debug, use `ssh root@$VPS_HOST`, **You can only read, not modify**.
-2. **PR must work in test environment**: Before delivering PR, ensure health check passes on `report-pr-XX.zitian.party`.
-3. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
+2. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
 
 ### Environment Variable Management
 
