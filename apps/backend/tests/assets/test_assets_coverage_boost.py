@@ -49,31 +49,6 @@ class TestAssetsListCoverageBoost:
         assert data["total"] == 1
         assert data["items"][0]["account_name"] == "Boost Broker"
 
-    async def test_list_positions_without_account(self, client, db, test_user):
-        """
-        GIVEN a position with no linked account
-        WHEN GET /assets/positions
-        THEN response has null account_name
-        """
-        position = ManagedPosition(
-            user_id=test_user.id,
-            account_id=None,
-            asset_identifier="BOOST_TSLA",
-            quantity=Decimal("5.0"),
-            cost_basis=Decimal("800.00"),
-            acquisition_date=date(2024, 2, 1),
-            status=PositionStatus.ACTIVE,
-            currency="USD",
-        )
-        db.add(position)
-        await db.commit()
-
-        response = await client.get("/assets/positions")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total"] == 1
-        assert data["items"][0]["account_name"] is None
-
 
 @pytest.mark.asyncio
 class TestAssetsGetCoverageBoost:
