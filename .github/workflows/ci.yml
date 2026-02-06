@@ -158,6 +158,10 @@ jobs:
             nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-
             nextjs-${{ runner.os }}-
 
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: apps/frontend
+
       - name: Build Frontend (via Moon)
         run: moon run :build
 
