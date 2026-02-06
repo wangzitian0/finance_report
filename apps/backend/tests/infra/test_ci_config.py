@@ -17,11 +17,11 @@ def test_github_actions_lint():
     """Run actionlint on all workflows to catch syntax and logic errors."""
     workflow_dir = Path(__file__).parent.parent.parent.parent.parent / ".github" / "workflows"
     if not workflow_dir.exists():
-        return
+        pytest.skip(".github/workflows not found")
 
     actionlint_path = shutil.which("actionlint")
     if not actionlint_path:
-        return
+        pytest.skip("actionlint is not installed")
 
     result = subprocess.run(
         [actionlint_path, "-color"],

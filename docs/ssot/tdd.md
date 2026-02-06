@@ -1,21 +1,21 @@
 # Test-Driven Development (TDD) Transformation Plan
 
 > **SSOT Key**: `tdd-transformation`
-> **Objective**: Transform development workflow to Test-Driven Development and achieve 97% code coverage.
+> **Objective**: Transform development workflow to Test-Driven Development and maintain CI-enforced coverage quality.
 
 ---
 
 ## Executive Summary
 
 **Current State**:
-- Coverage threshold: 95%
+- Coverage threshold: 99% (enforced in `apps/backend/pyproject.toml`)
 - Test files: 85
 - Source files: 75
 - Test-to-source ratio: 1.7:1 (22,655 test LOC / 13,162 source LOC)
 - Well-organized test structure aligned with SSOT domains
 
 **Target State**:
-- Coverage threshold: 97%
+- Coverage threshold: 99% (maintained)
 - TDD-first development workflow
 - Documented testing patterns and best practices
 - Continuous coverage enforcement in CI
@@ -30,7 +30,7 @@
 |------------|--------------|------------|
 | **Test Framework** | pytest + pytest-asyncio + pytest-cov | `apps/backend/pyproject.toml` |
 | **Coverage Tool** | pytest-cov with XML + terminal reports | `pyproject.toml` `[tool.pytest.ini_options]` |
-| **Current Threshold** | 95% (`--cov-fail-under=95`) | `pyproject.toml` line 76 |
+| **Current Threshold** | 99% (`--cov-fail-under=99`) | `apps/backend/pyproject.toml` |
 | **Parallel Execution** | pytest-xdist (auto workers) | `moon.yml` test-execution |
 | **Database Lifecycle** | Auto-create/cleanup via context manager | `scripts/test_lifecycle.py` |
 
@@ -84,6 +84,123 @@ omit = [
 
 ---
 
+## Test Case Numbering System (ACx.y.z)
+
+> **Purpose**: Establish traceability between EPIC acceptance criteria and test implementations.
+
+### Numbering Convention
+
+**Format**: `ACx.y.z`
+
+| Component | Meaning | Example |
+|-----------|---------|---------|
+| **AC** | Acceptance Criteria prefix | AC (fixed) |
+| **x** | EPIC number | 001, 002, 003 |
+| **y** | Feature block within EPIC | 1, 2, 3 |
+| **z** | Test case number within block | 1, 2, 3 |
+
+**Examples**:
+- `AC1.1.1` → EPIC-001, Block 1 (Authentication), Test case 1
+- `AC2.3.5` → EPIC-002, Block 3 (Journal Entry Posting), Test case 5
+
+### Feature Block Organization
+
+Each EPIC should divide features into logical blocks:
+
+**EPIC-001 Example** (Infrastructure & Authentication):
+- **Block 1**: Backend Health Check
+- **Block 2**: User Authentication (Registration/Login)
+- **Block 3**: Database Connectivity
+- **Block 4**: Docker Environment
+
+**EPIC-002 Example** (Double-Entry Bookkeeping):
+- **Block 1**: Account Management (CRUD)
+- **Block 2**: Journal Entry Creation
+- **Block 3**: Journal Entry Posting & Voiding
+- **Block 4**: Balance Calculation
+- **Block 5**: Accounting Equation Validation
+
+### Test Case Documentation Requirements
+
+#### In EPIC Documents
+
+Each EPIC must include a **Test Cases** section with:
+
+```markdown
+## 🧪 Test Cases
+
+### AC2.1: Account Management
+
+| ID | Test Case | Test Function | Priority |
+|----|-----------|---------------|----------|
+| AC2.1.1 | Create account with valid data | `test_create_account()` | P0 |
+| AC2.1.2 | Create account with duplicate code | `test_create_account_duplicate_code()` | P0 |
+| AC2.1.3 | List accounts with type filter | `test_list_accounts_with_filters()` | P1 |
+
+### AC2.2: Journal Entry Creation
+
+| ID | Test Case | Test Function | Priority |
+|----|-----------|---------------|----------|
+| AC2.2.1 | Balanced entry passes validation | `test_balanced_entry_passes()` | P0 |
+| AC2.2.2 | Unbalanced entry fails | `test_unbalanced_entry_fails()` | P0 |
+```
+
+#### In Test Code
+
+Test functions MUST start with the AC number in docstring:
+
+```python
+@pytest.mark.asyncio
+async def test_balanced_entry_passes():
+    """AC2.2.1: Balanced entry passes validation.
+    
+    Verify that journal entries with equal debits and credits
+    are accepted by the validation logic.
+    """
+    # Test implementation...
+```
+
+### Implementation Guidelines
+
+#### 1. EPIC Document Update Checklist
+
+When creating/updating an EPIC:
+- [ ] Define feature blocks (x.y structure)
+- [ ] Create test case table for each block
+- [ ] Link test functions to AC IDs
+- [ ] Reference test file paths
+
+#### 2. Test Code Update Checklist
+
+When writing tests:
+- [ ] Add AC number in test docstring first line
+- [ ] Follow naming: `test_<feature>_<scenario>()`
+- [ ] Group tests by feature block (use pytest marks if needed)
+- [ ] Update EPIC document with new test references
+
+#### 3. Code Review Checklist
+
+During PR review:
+- [ ] New features have AC numbers assigned in EPIC
+- [ ] Test docstrings include AC references
+- [ ] EPIC test case table updated
+- [ ] Test-to-AC traceability maintained
+
+### Benefits
+
+1. **Traceability**: Easy to find tests for acceptance criteria
+2. **Coverage Verification**: Identify missing tests for AC blocks
+3. **Communication**: Product/QA can reference test IDs
+4. **Maintenance**: Track which tests validate which requirements
+
+### Migration Strategy
+
+**Phase 1**: Apply to EPIC-001 and EPIC-002 (pilot)
+**Phase 2**: Apply to new EPICs going forward
+**Phase 3**: Backfill existing EPICs (optional)
+
+---
+
 ## TDD Transformation Strategy
 
 ### Phase 1: Documentation & Standards (Week 1)
@@ -107,7 +224,7 @@ omit = [
 **Additions**:
 - TDD workflow section
 - Test-first development checklist
-- Coverage requirements (97%)
+- Coverage requirements (99%)
 - Test review process
 
 #### 1.3 Create Testing Standards Checklist
@@ -117,7 +234,7 @@ omit = [
 - [ ] New features have tests written FIRST
 - [ ] Edge cases covered (null, empty, boundary values)
 - [ ] Error handling tested
-- [ ] Coverage maintained ≥ 97%
+- [ ] Coverage maintained ≥ 99%
 - [ ] No test-only changes (refactors should have tests updated)
 ```
 
@@ -127,33 +244,28 @@ omit = [
 
 **Objective**: Raise coverage requirement and ensure CI enforcement.
 
-**Current Status** (2026-01-29):
-- Coverage threshold temporarily set to **95%** (upgraded from 95%, but kept at 95% pending actual coverage improvement)
+**Current Status** (2026-02-07):
+- Coverage threshold enforced at **99%** (`--cov-fail-under=99`)
 - Branch coverage tracking enabled via `--cov-branch`
-- Actual current coverage: ~95% (needs verification)
-- Target: 97%
-
-**Note**: The 97% threshold was configured but temporarily reverted to 95% to allow current PRs to pass. Once coverage is improved to 97%, the threshold will be updated.
+- Threshold source of truth: `apps/backend/pyproject.toml`
 
 #### 2.1 Update pyproject.toml
 
 ```diff
 # apps/backend/pyproject.toml
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --cov-fail-under=95 -m 'not slow'"
-+                                                                        ^^^^^^^^^
+addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --cov-fail-under=99 -m 'not slow'"
 ```
 
 **Changes**:
 - Added `--cov-branch` for stricter branch coverage
-- Threshold maintained at 95% (pending coverage improvement)
-- Note: 97% target documented in `tdd.md` will be enforced after coverage improvements
+- Threshold maintained at 99% and validated in CI
 
 #### 2.2 Update CI Workflow
 
 **File**: `.github/workflows/ci.yml`
 
-Coverage report continues to use 95% threshold. The 97% target remains the long-term goal documented in this plan.
+Coverage report uses the same 99% threshold as local and CI runs.
 
 ---
 
@@ -189,14 +301,14 @@ uv run pytest --cov=src --cov-report=html
 
 | Priority | Module | Current Coverage | Target | Action |
 |----------|---------|-----------------|--------|--------|
-| P0 | **accounting** | Unknown | 97% | Core domain, critical |
-| P0 | **reconciliation** | Unknown | 97% | Core business logic |
-| P1 | **extraction** | Unknown | 97% | AI integration path |
-| P1 | **reporting** | Unknown | 97% | Financial statements |
-| P2 | **auth** | Unknown | 97% | Security-critical |
-| P2 | **assets** | Unknown | 97% | Secondary domain |
-| P3 | **market_data** | Unknown | 97% | External API |
-| P3 | **ai** | Unknown | 97% | External dependency |
+| P0 | **accounting** | Unknown | 99% | Core domain, critical |
+| P0 | **reconciliation** | Unknown | 99% | Core business logic |
+| P1 | **extraction** | Unknown | 99% | AI integration path |
+| P1 | **reporting** | Unknown | 99% | Financial statements |
+| P2 | **auth** | Unknown | 99% | Security-critical |
+| P2 | **assets** | Unknown | 99% | Secondary domain |
+| P3 | **market_data** | Unknown | 99% | External API |
+| P3 | **ai** | Unknown | 99% | External dependency |
 
 ---
 
@@ -286,8 +398,8 @@ Add to `.pre-commit-config.yaml`:
 - repo: local
   hooks:
     - id: coverage-check
-      name: Coverage check (97%)
-      entry: uv run pytest --cov=src --cov-fail-under=97
+      name: Coverage check (99%)
+      entry: uv run pytest --cov=src --cov-fail-under=99
       language: system
       pass_filenames: false
       always_run: true
@@ -296,7 +408,7 @@ Add to `.pre-commit-config.yaml`:
 #### 5.2 Coverage Dashboard
 
 **Actions**:
-- Add coverage badge to README with threshold: 97%
+- Add coverage badge to README with threshold: 99%
 - Ensure Coveralls reports align with local threshold
 - Monitor coverage trends over time
 
@@ -342,13 +454,12 @@ exclude_lines = [
 ```diff
 # apps/backend/pyproject.toml
 [tool.pytest.ini_options]
-- addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=95 -m 'not slow'"
-+ addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --cov-fail-under=97 -m 'not slow'"
++ addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --cov-fail-under=99 -m 'not slow'"
 ```
 
 **Changes**:
 - Add `--cov-branch` for stricter coverage (branch + line)
-- Update threshold to 97%
+- Keep threshold at 99%
 
 ---
 
@@ -366,7 +477,7 @@ exclude_lines = [
 ### After Tests Pass (GREEN)
 
 1. **Run all tests** to ensure no regressions
-2. **Check coverage** meets 97%
+2. **Check coverage** meets 99%
 3. **Refactor** code for readability and performance
 4. **Update documentation** if behavior changed
 
@@ -374,7 +485,7 @@ exclude_lines = [
 
 ```markdown
 ## Test Coverage
-- [ ] Coverage ≥ 97%
+- [ ] Coverage ≥ 99%
 - [ ] Branch coverage verified
 - [ ] Edge cases tested
 - [ ] Error handling tested
@@ -393,20 +504,20 @@ exclude_lines = [
 
 | Week | Milestone | Deliverable |
 |-------|------------|-------------|
-| **1** | Documentation & Threshold Update | `docs/ssot/tdd.md`, `development.md` updated, 97% threshold |
+| **1** | Documentation & Threshold Update | `docs/ssot/tdd.md`, `development.md` updated, 99% threshold |
 | **2** | Coverage Gap Analysis | Detailed coverage report, gap identification |
-| **3** | Core Domain Coverage Boost | Accounting & reconciliation at 97% |
-| **4** | Feature Coverage Boost | Extraction, reporting, auth at 97% |
+| **3** | Core Domain Coverage Boost | Accounting & reconciliation at 99% |
+| **4** | Feature Coverage Boost | Extraction, reporting, auth at 99% |
 | **5** | CI/CD Enforcement | Pre-commit hooks, badge update, mutation testing |
-| **6+** | Continuous Improvement | Maintain 97%, add quality metrics |
+| **6+** | Continuous Improvement | Maintain 99%, add quality metrics |
 
 ---
 
 ## Success Criteria
 
 **Quantitative**:
-- [ ] Line coverage ≥ 97% (verified by pytest-cov)
-- [ ] Branch coverage ≥ 95% (stricter than line coverage)
+- [ ] Line coverage ≥ 99% (verified by pytest-cov)
+- [ ] Branch coverage tracked and reviewed in CI
 - [ ] Zero regressions in coverage after PRs
 - [ ] Test execution time < 30s for unit+integration
 

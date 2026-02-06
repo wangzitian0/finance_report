@@ -38,9 +38,9 @@ Set up a runnable Monorepo development environment, complete user authentication
 - [x] FastAPI project structure (`apps/backend/src/`)
 - [x] FastAPI Users authentication integration (registration/login/JWT)
 - [x] SQLAlchemy 2 + Alembic configuration
-- [x] Health check endpoint `/api/health`
+- [x] Health check endpoint `/health`
 - [x] structlog structured logging
-- [ ] pre-commit hooks (black, ruff) → Technical debt
+- [x] pre-commit hooks (ruff + hygiene checks)
 
 ### Frontend Skeleton
 - [x] Next.js 14 App Router initialization
@@ -58,6 +58,78 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 ---
 
+## 🧪 Test Cases
+
+> **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
+> **Coverage**: See `apps/backend/tests/auth/`, `apps/backend/tests/infra/`, `apps/backend/tests/api/`
+
+### AC1.1: Moon Workspace Requirements
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.1.1 | Root `moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
+| AC1.1.2 | `apps/backend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
+| AC1.1.3 | `apps/frontend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
+| AC1.1.4 | `infra/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
+
+### AC1.2: Backend Skeleton Requirements
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
+| AC1.2.2 | Auth integration works (register/login/JWT) | `test_register_success()`, `test_login_success()`, `test_auth_valid_user()` | `auth/test_auth_router.py`, `auth/test_auth.py` |
+| AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` |
+| AC1.2.4 | Health endpoint returns success | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
+| AC1.2.5 | structlog logging configured | `test_configure_logging_basic()` | `infra/test_logger.py` |
+
+### AC1.3: Frontend Skeleton Requirements
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.3.1 | Next.js App Router files exist | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
+| AC1.3.2 | TailwindCSS configuration exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
+| AC1.3.3 | Ping-pong page exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` |
+| AC1.3.4 | TanStack Query dependency configured | `test_epic_001_frontend_uses_react_query()` | `infra/test_epic_001_contracts.py` |
+
+### AC1.4: Docker Environment Requirements
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.4.1 | `docker-compose.yml` integrity valid | `test_docker_compose_integrity()` | `infra/test_ci_config.py` |
+| AC1.4.2 | PostgreSQL 15 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` |
+| AC1.4.3 | Redis 7 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` |
+| AC1.4.4 | Data volumes configured | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` |
+
+### AC1.5: Must-Have Acceptance Criteria Coverage
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph()` | `infra/test_ci_config.py` |
+| AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` |
+| AC1.5.3 | Health endpoint returns 200 | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
+| AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` |
+| AC1.5.5 | User registration/login API available | `test_register_success()`, `test_login_success()` | `auth/test_auth_router.py` |
+
+### AC1.6: Deferred Item Tracking (Now Test-Tracked)
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.6.1 | Pre-commit hooks configuration present | `test_epic_001_pre_commit_config_exists()` | `infra/test_epic_001_contracts.py` |
+
+### AC1.7: Auth Endpoint Behavioral Coverage
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.7.1 | Register endpoint accepts valid user payload | `test_register_success()` | `auth/test_auth_router.py` |
+| AC1.7.2 | Register endpoint rejects duplicate email | `test_register_duplicate_email()` | `auth/test_auth_router.py` |
+| AC1.7.3 | Login endpoint accepts valid credentials | `test_login_success()` | `auth/test_auth_router.py` |
+
+**Traceability Result**:
+- Requirements converted to AC IDs: 100% (EPIC-001 checklist + must-have standards)
+- Requirements with automated test references: 100%
+
+---
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
@@ -67,7 +139,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 | `docker compose up -d` successfully starts database | Manual verification | ✅ |
 | `moon run backend:dev` starts FastAPI | Console without errors | ✅ |
 | `moon run frontend:dev` starts Next.js | Access localhost:3000 | ✅ |
-| `/api/health` returns 200 OK | curl test | ✅ |
+| `/health` returns 200 OK | curl test | ✅ |
 | Frontend-backend ping-pong communication | Page displays "pong" | ✅ |
 | User registration/login API available | Postman test | ✅ |
 
@@ -76,7 +148,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 | Standard | Verification | Status |
 |------|----------|------|
 | GitHub Actions CI configuration | Automatic PR checks | ⏳ |
-| pre-commit hooks configuration | Auto-formatting on commit | ⏳ |
+| pre-commit hooks configuration | Auto-formatting on commit | ✅ |
 | Complete README documentation | New developers onboarded in 10 minutes | ✅ |
 | Test coverage > 50% | coverage report | ⏳ |
 

@@ -7,10 +7,23 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_health_when_all_services_healthy(client: AsyncClient) -> None:
+async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None:
     """Test health endpoint returns 200 when all services are healthy."""
+    from src.boot import Bootloader, ServiceStatus
+
+    monkeypatch.setattr(
+        Bootloader,
+        "_check_redis",
+        AsyncMock(return_value=ServiceStatus("redis", "skipped", "Not configured")),
+    )
+    monkeypatch.setattr(
+        Bootloader,
+        "_check_s3",
+        AsyncMock(return_value=ServiceStatus("s3", "ok", "Reachable")),
+    )
+
     response = await client.get("/health")
-    assert response.status_code in [200, 503]
+    assert response.status_code == 200
     data = response.json()
     assert "status" in data
     assert "timestamp" in data
