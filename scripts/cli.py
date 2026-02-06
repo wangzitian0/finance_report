@@ -16,6 +16,7 @@ Commands:
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent.absolute()
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"
 FRONTEND_DIR = REPO_ROOT / "apps" / "frontend"
+
+
+def get_compose_cmd() -> list[str]:
+    """Detect container runtime (podman or docker) and return compose command."""
+    if shutil.which("podman"):
+        return ["podman", "compose"]
+    elif shutil.which("docker"):
+        return ["docker", "compose"]
+    else:
+        print("ERROR: Neither podman nor docker found in PATH")
+        sys.exit(1)
 
 
 def run(cmd: list[str], cwd: Path = REPO_ROOT, env: dict = None, check: bool = True):
@@ -47,9 +59,10 @@ def cmd_setup(args):
 
 def cmd_dev(args):
     """Start development environment."""
+    compose_cmd = get_compose_cmd()
+    
     if args.infra or (not args.backend and not args.frontend):
-        # Start infra in background or foreground
-        run(["podman", "compose", "--profile", "infra", "up", "-d"])
+        run([*compose_cmd, "--profile", "infra", "up", "-d"])
     
     if args.migrate:
         run(["uv", "run", "alembic", "upgrade", "head"], cwd=BACKEND_DIR)
@@ -64,16 +77,13 @@ def cmd_dev(args):
     elif args.frontend:
         run(["python", "../../scripts/dev_frontend.py"], cwd=FRONTEND_DIR)
     elif not args.infra:
-        # Default: print instructions for running both
         print("\n🚀 Infrastructure started. Now run in separate terminals:")
         print("   moon run :dev -- --backend")
         print("   moon run :dev -- --frontend")
 
 
-def cmd_test(args):
+def cmd_test(args, extra_args: list[str]):
     """Run tests."""
-    extra_args = args.extra or []
-    
     if args.frontend:
         run(["npm", "run", "test"] + extra_args, cwd=FRONTEND_DIR)
         return
@@ -120,19 +130,19 @@ def cmd_lint(args):
 
 def cmd_build(args):
     """Build projects."""
-    if args.frontend or True:  # Currently only frontend needs explicit build
-        run(["npm", "run", "build"], cwd=FRONTEND_DIR)
+    # Currently only frontend needs explicit build
+    run(["npm", "run", "build"], cwd=FRONTEND_DIR)
 
 
 def cmd_clean(args):
     """Clean up resources."""
+    compose_cmd = get_compose_cmd()
+    
     if args.db:
-        # Clean test databases
         run(["python", "scripts/cleanup_orphaned_dbs.py"])
     elif args.containers:
-        run(["podman", "compose", "--profile", "infra", "down"])
+        run([*compose_cmd, "--profile", "infra", "down"])
     else:
-        # Full cleanup
         run(["bash", "scripts/cleanup_dev_resources.sh"])
 
 
@@ -153,14 +163,13 @@ def main():
     p_dev.add_argument("--migrate", action="store_true", help="Run migrations")
     p_dev.add_argument("--check", action="store_true", help="Environment check")
 
-    # test
+    # test - use parse_known_args for transparent pass-through
     p_test = subparsers.add_parser("test", help="Run tests")
     p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
     p_test.add_argument("--smart", action="store_true", help="Coverage on changed files")
     p_test.add_argument("--e2e", action="store_true", help="E2E tests")
     p_test.add_argument("--perf", action="store_true", help="Performance tests")
     p_test.add_argument("--frontend", action="store_true", help="Frontend tests")
-    p_test.add_argument("extra", nargs="*", help="Extra pytest args")
 
     # lint
     p_lint = subparsers.add_parser("lint", help="Code quality checks")
@@ -177,17 +186,20 @@ def main():
     p_clean.add_argument("--db", action="store_true", help="Clean test databases")
     p_clean.add_argument("--containers", action="store_true", help="Stop containers")
 
-    args = parser.parse_args()
+    # Use parse_known_args for test command to allow pass-through of pytest args
+    args, extra = parser.parse_known_args()
 
-    commands = {
-        "setup": cmd_setup,
-        "dev": cmd_dev,
-        "test": cmd_test,
-        "lint": cmd_lint,
-        "build": cmd_build,
-        "clean": cmd_clean,
-    }
-    commands[args.command](args)
+    if args.command == "test":
+        cmd_test(args, extra)
+    else:
+        commands = {
+            "setup": cmd_setup,
+            "dev": cmd_dev,
+            "lint": cmd_lint,
+            "build": cmd_build,
+            "clean": cmd_clean,
+        }
+        commands[args.command](args)
 
 
 if __name__ == "__main__":

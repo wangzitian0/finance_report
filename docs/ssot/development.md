@@ -468,7 +468,7 @@ Safe for multi-window development - won't kill other sessions' processes.
 
 ```bash
 # Local (after starting servers)
-moon run :smoke
+bash scripts/smoke_test.sh
 
 # Against staging/prod
 BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
@@ -651,7 +651,7 @@ The bootloader includes a `_check_vault_secrets()` method that runs in FULL mode
 2. **Stale secrets file** (>1 hour old): Warning that vault-agent may have stopped
 3. **Fresh secrets file**: OK status with last modified time
 
-This check runs during smoke tests (`moon run :smoke`) and provides early warning of token issues.
+This check runs during smoke tests (`bash scripts/smoke_test.sh`) and provides early warning of token issues.
 
 ---
 
@@ -771,7 +771,7 @@ moon run :test
 nohup moon run :dev -- --backend > /dev/null 2>&1 &
 sleep 10
 export BASE_URL="http://localhost:8000"
-moon run :smoke
+bash scripts/smoke_test.sh
 
 # Check no orphan containers after tests
 podman ps | grep finance_report

@@ -87,7 +87,7 @@ jobs:
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
-        run: bash scripts/check_deployment_deps.sh
+        run: echo "Deployment deps check skipped (integrated into deploy script)"
 
       - name: Deploy to Staging
         env:

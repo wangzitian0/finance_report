@@ -522,6 +522,7 @@ def main():
             "-m", "not slow and not e2e",
             "--dist", "worksteal",
             "--tb=short",
+            "--no-cov",  # Override pyproject.toml addopts
         ]
     elif args.smart:
         log("🧪 Smart Mode: Coverage on changed files only", GREEN)

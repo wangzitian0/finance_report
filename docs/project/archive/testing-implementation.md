@@ -50,7 +50,7 @@ Set up Locust for load testing with realistic user scenarios:
 **Run Commands**:
 ```bash
 # Local (interactive UI)
-moon run :test-perf
+moon run :test -- --perf
 
 # Headless (CI)
 locust -f tests/locustfile.py --host=http://localhost:8000 \
@@ -109,7 +109,7 @@ Added new test commands to moon workflow:
 moon run :test             # Unit tests (existing)
 moon run :test -- -m integration # Integration tests (NEW)
 moon run :test -- --e2e         # E2E tests with Playwright (NEW)
-moon run :test-perf        # Performance tests with Locust (NEW)
+moon run :test -- --perf        # Performance tests with Locust (NEW)
 ```
 
 **Files Modified**:

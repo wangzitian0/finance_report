@@ -477,13 +477,13 @@ class FinanceReportUser(HttpUser):
 ```bash
 # 本地开发
 moon run :test              # 单元测试 (快速)
-moon run :test-integration  # 集成测试 (新增)
-moon run :test-e2e          # E2E 测试 (新增)
+moon run :test -- -m integration  # 集成测试 (新增)
+moon run :test -- --e2e          # E2E 测试 (新增)
 
 # CI 专用
 moon run :test                 # 全部测试
 moon run :test -- --fast            # 关键路径测试 (快速验证)
-moon run :smoke                    # Smoke 测试 (已存在)
+bash scripts/smoke_test.sh                    # Smoke 测试 (已存在)
 
 # 覆盖率
 moon run :test          # 生成覆盖率报告
