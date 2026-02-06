@@ -16,7 +16,8 @@ This directory contains the OpenCode/Oh-My-OpenCode configuration for the `finan
 │   │   ├── schema/        # Database models
 │   │   ├── development/   # Moon commands, CI/CD
 │   │   ├── infra-operations/  # Infrastructure operations & deployment
-│   │   └── secrets-management/  # Environment variables, Vault, multi-env
+│   │   ├── secrets-management/  # Environment variables, Vault, multi-env
+│   │   └── github-operations/   # GitHub API, PR reviews, CI debugging
 │   │
 │   ├── professional/      # Reusable expertise
 │   │   ├── backend-development/  # FastAPI, security (11 refs)
@@ -214,6 +215,7 @@ Generated from `docs/ssot/` - the Single Source of Truth for this project.
 | Development | `domain/development` | [docs/ssot/development.md](../docs/ssot/development.md) |
 | Infra Operations | `domain/infra-operations` | Infrastructure deployment, operations, debugging, and monitoring |
 | **Secrets Management** | `domain/secrets-management` | Environment variables, Vault integration, multi-environment strategy |
+| **GitHub Operations** | `domain/github-operations` | GitHub API, PR review threads, CI debugging |
 
 ### Professional Skills (Reusable)
 
