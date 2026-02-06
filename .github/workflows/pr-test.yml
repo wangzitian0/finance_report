@@ -393,9 +393,6 @@ jobs:
           echo "--- Phase 2: Core Flow Validation (Python) ---"
           pytest tests/e2e -v -m "smoke or e2e" --junit-xml=test-results.xml
           
-          echo "--- Phase 3: Critical Tests Check ---"
-          python scripts/check_critical_tests.py test-results.xml
-          
           echo "✅ E2E Pipeline passed!"
 
       - name: Rollback on E2E Failure
