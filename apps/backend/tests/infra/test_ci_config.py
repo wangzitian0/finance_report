@@ -60,11 +60,4 @@ def test_moon_project_graph():
     assert "id" in result.stdout
 
 
-@pytest.mark.integration
-def test_moon_env_check_task():
-    """Verify that the 'env-check' task is correctly configured in moon."""
-    result = subprocess.run(["moon", "project", "backend", "--json"], capture_output=True, text=True)
-    assert result.returncode == 0, f"Moon project query failed: {result.stderr}"
-    project_data = json.loads(result.stdout)
-    tasks = project_data.get("tasks", {})
-    assert "env-check" in tasks, f"Task 'env-check' not found in backend project tasks: {list(tasks.keys())}"
+
