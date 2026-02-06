@@ -97,4 +97,6 @@ def test_epic_001_frontend_moon_tasks_configured() -> None:
     project_data = json.loads(result.stdout)
     # Tasks are now global (scripts/cli.py), so frontend project has no specific tasks.
     # We verify the project is correctly identified as an application.
-    assert project_data.get("type") == "application", "Frontend project type mismatch"
+    # Note: 'type' might be at top level or inside 'config' depending on moon version/output format
+    project_type = project_data.get("type") or project_data.get("config", {}).get("type")
+    assert project_type == "application", f"Frontend project type mismatch. Keys: {list(project_data.keys())}"
