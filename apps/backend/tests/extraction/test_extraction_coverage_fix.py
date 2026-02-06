@@ -406,9 +406,11 @@ async def test_handle_parse_failure_after_db_error(db):
         original_filename="f.pdf",
         institution="DBS",
     )
-    db.add(statement)
+    await db.add(statement)
     await db.commit()
 
+    # Simulate a DB error state by executing an invalid query
+    # This puts the session in an error state
     try:
         await db.execute(text("SELECT * FROM nonexistent_table_xyz"))
     except Exception:
@@ -416,7 +418,9 @@ async def test_handle_parse_failure_after_db_error(db):
 
     await _handle_parse_failure(statement, db, message="DB error occurred")
 
+    # Refresh to get the latest state after error handling
     await db.refresh(statement)
+
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.validation_error == "DB error occurred"
     assert statement.confidence_score == 0
