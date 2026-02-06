@@ -57,16 +57,24 @@ async def _handle_parse_failure(
     statement: BankStatement,
     db: AsyncSession,
     *,
-    message: str,
+    message: str | None,
 ) -> None:
     try:
         await db.rollback()
-    except Exception:
-        pass
+    except Exception as rollback_exc:
+        logger.warning(
+            "Rollback failed during parse failure handling",
+            statement_id=str(statement.id),
+            rollback_error=str(rollback_exc),
+        )
     try:
         refreshed = await db.get(BankStatement, statement.id)
         if refreshed is None:
-            logger.error("Statement not found after rollback", reason=message)
+            logger.error(
+                "Statement not found after rollback",
+                statement_id=str(statement.id),
+                reason=message,
+            )
             return
         refreshed.status = BankStatementStatus.REJECTED
         refreshed.validation_error = message[:500] if message else message

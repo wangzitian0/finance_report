@@ -79,10 +79,11 @@ class ExtractionService:
 
     @staticmethod
     def _sanitize_account_last4(value: str | None) -> str | None:
-        """Sanitize account_last4 to exactly ≤4 alphanumeric characters.
+        """Sanitize account_last4 to up to the last 4 alphanumeric characters.
 
         Strips all non-alphanumeric characters (hyphens, spaces, etc.)
-        and returns only the last 4 characters. This prevents
+        and returns only the last 4 characters. Returns None for empty
+        or non-alphanumeric input. This prevents
         StringDataRightTruncationError from the VARCHAR(4) DB column.
         """
         if not value:

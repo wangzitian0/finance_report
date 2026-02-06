@@ -69,6 +69,7 @@ export default function StatementDetailPage() {
     const resumePolling = useCallback(() => {
         setPollingStoppedReason(null);
         setConsecutiveErrors(0);
+        setParsingStartTime(Date.now());
         setPolling(true);
         fetchStatement();
     }, [fetchStatement]);
@@ -84,6 +85,7 @@ export default function StatementDetailPage() {
         const interval = setInterval(() => {
             if (parsingStartTime && Date.now() - parsingStartTime > PARSING_TIMEOUT_MS) {
                 setPolling(false);
+                setParsingStartTime(null);
                 setPollingStoppedReason(
                     "Parsing has been running for over 5 minutes. It may be stuck. You can retry parsing with a different model."
                 );
@@ -137,6 +139,8 @@ export default function StatementDetailPage() {
 
     const handleRetry = async () => {
         setRetryLoading(true);
+        setParsingStartTime(null);
+        setPollingStoppedReason(null);
         try {
             await apiFetch(`/api/statements/${statementId}/retry`, {
                 method: "POST",
@@ -194,7 +198,7 @@ export default function StatementDetailPage() {
     }
 
     const canApproveReject = statement.status === "parsed";
-    const canRetry = statement.status === "parsed" || statement.status === "rejected" || statement.status === "parsing";
+    const canRetry = statement.status === "parsed" || statement.status === "rejected" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
 
     return (
         <div className="p-6">

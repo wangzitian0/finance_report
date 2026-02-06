@@ -60,7 +60,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | `file_hash` | str | SHA256 for dedup |
 | `original_filename` | str | User-provided name |
 | `institution` | str | Bank/broker/fintech (DBS, CMB, Wise) |
-| `account_last4` | str | Last 4 digits |
+| `account_last4` | str | Last 4 alphanumeric characters (sanitized: non-alphanumeric stripped) |
 | `currency` | str | ISO currency code |
 | `period_start` | date | Statement start |
 | `period_end` | date | Statement end |
@@ -159,6 +159,10 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
   with a validation error so users can retry.
+- **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching
+  the statement, preventing `PendingRollbackError` cascades from leaving statements stuck.
+- **`account_last4` sanitization**: `_sanitize_account_last4()` strips non-alphanumeric characters
+  and takes the last 4, preventing `StringDataRightTruncationError` from the VARCHAR(4) column.
 
 ## Model Selection
 
@@ -178,6 +182,8 @@ To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces 
     -   Use `Decimal` with strict mode or string coercion. See: `apps/backend/tests/accounting/test_decimal_safety.py`
     -   Example: `amount: Decimal = Field(decimal_places=2)`
 3.  **Database Storage**: Stored as `DECIMAL(18,2)`.
+4.  **String Field Sanitization**: AI-extracted string fields with DB length constraints (e.g. `account_last4 VARCHAR(4)`)
+    are sanitized before persistence to prevent truncation errors.
 
 > **Float Ban**: Any code found using `float` for currency calculation will be rejected by CI.
 
