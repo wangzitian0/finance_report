@@ -105,6 +105,15 @@ class ExtractionService:
 
         PDFs use 'file' type (Universal PDF Support), images use 'image_url'.
         """
+        is_base64 = data.startswith("data:")
+        logger.info(
+            "Building media payload",
+            file_type=file_type,
+            mime_type=mime_type,
+            payload_type="file" if file_type == "pdf" else "image_url",
+            data_source="base64" if is_base64 else "url",
+            data_size=len(data) if is_base64 else None,
+        )
         if file_type == "pdf":
             return {
                 "type": "file",
@@ -352,7 +361,15 @@ class ExtractionService:
         media_payload = None
 
         if file_type == "pdf":
-            if file_url:
+            # Prefer base64-encoded content (works without public URL)
+            if file_content:
+                b64_content = base64.b64encode(file_content).decode("utf-8")
+                media_payload = self._build_media_payload(
+                    file_type=file_type,
+                    mime_type=mime_type,
+                    data=f"data:{mime_type};base64,{b64_content}",
+                )
+            elif file_url:
                 if self._validate_external_url(file_url):
                     media_payload = self._build_media_payload(
                         file_type=file_type,
@@ -364,7 +381,8 @@ class ExtractionService:
 
             if not media_payload:
                 raise ExtractionError(
-                    "PDF extraction requires a public URL. Ensure the uploaded file is accessible externally."
+                    "No valid file content or accessible URL provided for PDF extraction. "
+                    "Ensure file content is uploaded or URL is public."
                 )
         else:
             if file_content:
