@@ -2,7 +2,7 @@ import base64
 import hashlib
 import ipaddress
 import json
-import re  # noqa: F401 (used in regex patterns)
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -76,6 +76,20 @@ class ExtractionService:
             return Decimal(str(value))
         except (ValueError, TypeError, InvalidOperation) as exc:
             raise ValueError(f"Invalid decimal value: {value}") from exc
+
+    @staticmethod
+    def _sanitize_account_last4(value: str | None) -> str | None:
+        """Sanitize account_last4 to up to the last 4 alphanumeric characters.
+
+        Strips all non-alphanumeric characters (hyphens, spaces, etc.)
+        and returns only the last 4 characters. Returns None for empty
+        or non-alphanumeric input. This prevents
+        StringDataRightTruncationError from the VARCHAR(4) DB column.
+        """
+        if not value:
+            return None
+        alphanumeric_only = re.sub(r"[^a-zA-Z0-9]", "", value)
+        return alphanumeric_only[-4:] if alphanumeric_only else None
 
     def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevel:
         """Heuristic confidence for a single transaction."""
@@ -226,7 +240,7 @@ class ExtractionService:
                 file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
                 original_filename=original_filename or (file_path.name if file_path else "unknown"),
                 institution=final_institution,
-                account_last4=extracted.get("account_last4"),
+                account_last4=self._sanitize_account_last4(extracted.get("account_last4")),
                 currency=extracted.get("currency", "SGD"),
                 period_start=self._safe_date(extracted.get("period_start")),
                 period_end=self._safe_date(extracted.get("period_end")),

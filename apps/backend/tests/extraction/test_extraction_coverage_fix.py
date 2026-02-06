@@ -306,3 +306,143 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
     assert statement.validation_error is not None
     error_msg = statement.validation_error.lower()
     assert "api key" in error_msg or "configured" in error_msg
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_account_last4 unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizeAccountLast4:
+    def test_strips_hyphens(self):
+        result = ExtractionService._sanitize_account_last4("553-3")
+        assert result == "5533"
+
+    def test_takes_last4_when_longer(self):
+        result = ExtractionService._sanitize_account_last4("XXX-553-3")
+        assert result == "5533"
+
+    def test_none_returns_none(self):
+        assert ExtractionService._sanitize_account_last4(None) is None
+
+    def test_empty_string_returns_none(self):
+        assert ExtractionService._sanitize_account_last4("") is None
+
+    def test_short_value_preserved(self):
+        assert ExtractionService._sanitize_account_last4("12") == "12"
+
+    def test_only_special_chars_returns_none(self):
+        assert ExtractionService._sanitize_account_last4("---") is None
+
+    def test_already_clean_4_digits(self):
+        assert ExtractionService._sanitize_account_last4("1234") == "1234"
+
+    def test_strips_spaces(self):
+        assert ExtractionService._sanitize_account_last4("12 34") == "1234"
+
+    def test_mixed_alpha_numeric(self):
+        assert ExtractionService._sanitize_account_last4("AB-12") == "AB12"
+
+    def test_longer_alphanumeric_takes_last4(self):
+        assert ExtractionService._sanitize_account_last4("ABCDEF1234") == "1234"
+
+    def test_unicode_stripped(self):
+        assert ExtractionService._sanitize_account_last4("12号34") == "1234"
+
+    def test_single_char(self):
+        assert ExtractionService._sanitize_account_last4("A") == "A"
+
+
+# ---------------------------------------------------------------------------
+# _handle_parse_failure edge-case tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_parse_failure_truncates_long_message(db):
+    from src.models import BankStatement
+    from src.routers.statements import _handle_parse_failure
+
+    sid = uuid4()
+    statement = BankStatement(
+        id=sid,
+        user_id=uuid4(),
+        status=BankStatementStatus.PARSING,
+        file_path="p",
+        file_hash="h_trunc",
+        original_filename="f.pdf",
+        institution="DBS",
+    )
+    db.add(statement)
+    await db.commit()
+
+    long_message = "x" * 1000
+    await _handle_parse_failure(statement, db, message=long_message)
+
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.REJECTED
+    assert statement.validation_error is not None
+    assert len(statement.validation_error) == 500
+
+
+@pytest.mark.asyncio
+async def test_handle_parse_failure_after_db_error(db):
+    """Handler recovers from a session with pending rollback error."""
+    from sqlalchemy import text
+
+    from src.models import BankStatement
+    from src.routers.statements import _handle_parse_failure
+
+    sid = uuid4()
+    statement = BankStatement(
+        id=sid,
+        user_id=uuid4(),
+        status=BankStatementStatus.PARSING,
+        file_path="p",
+        file_hash="h_dberr",
+        original_filename="f.pdf",
+        institution="DBS",
+    )
+    db.add(statement)
+    await db.commit()
+
+    # Put session into failed-transaction state (requires rollback before reuse)
+    try:
+        await db.execute(text("SELECT * FROM nonexistent_table_xyz"))
+    except Exception as exc:
+        assert "nonexistent_table_xyz" in str(exc)
+
+    await _handle_parse_failure(statement, db, message="DB error occurred")
+
+    # Rollback expires all ORM objects → re-fetch via saved PK
+    result = await db.get(BankStatement, sid)
+    assert result is not None
+    assert result.status == BankStatementStatus.REJECTED
+    assert result.validation_error == "DB error occurred"
+    assert result.confidence_score == 0
+    assert result.balance_validated is False
+
+
+@pytest.mark.asyncio
+async def test_handle_parse_failure_none_message(db):
+    from src.models import BankStatement
+    from src.routers.statements import _handle_parse_failure
+
+    sid = uuid4()
+    statement = BankStatement(
+        id=sid,
+        user_id=uuid4(),
+        status=BankStatementStatus.PARSING,
+        file_path="p",
+        file_hash="h_none_msg",
+        original_filename="f.pdf",
+        institution="DBS",
+    )
+    db.add(statement)
+    await db.commit()
+
+    await _handle_parse_failure(statement, db, message=None)
+
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.REJECTED
+    assert statement.validation_error is None

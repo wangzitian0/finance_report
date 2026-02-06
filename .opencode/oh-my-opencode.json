@@ -43,6 +43,7 @@
       "domain/reconciliation",
       "domain/infra-operations",
       "domain/secrets-management",
+      "domain/github-operations",
       "professional/backend-development",
       "professional/frontend-react",
       "professional/ui-ux-design",

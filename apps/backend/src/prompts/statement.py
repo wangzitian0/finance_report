@@ -6,7 +6,7 @@ Extract structured transaction data from the provided document.
 PRIVACY INSTRUCTIONS:
 - Do NOT extract or include any personally identifiable information (PII)
 - Ignore names, addresses, NRIC/ID numbers, and full account numbers
-- Only extract account_last4 (last 4 digits of account number)
+- Only extract account_last4: the LAST 4 alphanumeric characters (letters and digits ONLY) of the account number. Strip all hyphens, dashes, spaces, and special characters first, then take the last 4 characters. Example: "XXX-553-3" → "5533", "1234-5678" → "5678"
 - Focus only on financial transaction data
 
 CRITICAL: Return a SINGLE JSON object (not an array).
@@ -17,7 +17,7 @@ Even if the document contains multiple accounts, combine them into one response.
 Output format (JSON object - NOT an array):
 {
   "institution": "Bank Name",
-  "account_last4": "1234",
+  "account_last4": "1234",  // MUST be exactly 4 alphanumeric characters (no hyphens/spaces)
   "currency": "SGD",
   "period_start": "2025-01-01",
   "period_end": "2025-01-31",

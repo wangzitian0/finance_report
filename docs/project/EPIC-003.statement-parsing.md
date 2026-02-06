@@ -69,10 +69,10 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
   - [x] `compute_confidence_score()` - Score 0-100 based on SSOT factors
   - [x] `route_by_threshold()` - Auto-accept / review queue / manual entry
 - [x] Duplicate import detection (file_hash) in upload endpoint
-- [ ] Validation failure handling
+- [x] Validation failure handling
   - [x] Mark as "Requires Manual Review"
   - [x] Log failure reason
-  - [ ] Notify user
+  - [x] Notify user
 
 ### API Endpoints (Backend)
 
@@ -210,6 +210,16 @@ def test_user_retry_on_failure():
 | Local PDF parsing fallback | P2 | Future iteration |
 | Additional bank support (UOB, Citi) | P3 | Future iteration |
 | OCR preprocessing (scanned docs) | P3 | Future iteration |
+
+---
+
+## 🛡️ Post-Release Fixes
+
+| Fix | PR | Root Cause |
+|-----|-----|------------|
+| `account_last4` sanitization — strip non-alphanumeric, take last 4 chars | #269 | AI returned `553-3` (5 chars with hyphen), exceeding VARCHAR(4) → `StringDataRightTruncationError` |
+| `_handle_parse_failure` rollback-first — rollback before re-fetching statement | #269 | Secondary `PendingRollbackError` crashed error handler, leaving statement stuck in `PARSING` forever |
+| Frontend parsing timeout + rejected alert — 5-min timeout, retry only when stuck | #269 | No UI feedback when parsing got stuck; user had no way to recover |
 
 ---
 
