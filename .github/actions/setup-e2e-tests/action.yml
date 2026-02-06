@@ -17,6 +17,13 @@ runs:
     - name: Install Test Dependencies
       shell: bash
       run: |
-        # Core deps + Playwright + Xdist for parallel execution
-        uv pip install httpx pytest pytest-asyncio pytest-playwright pytest-xdist reportlab
-        uv run playwright install chromium --with-deps
+        # Create virtual environment and install dependencies
+        uv venv
+        uv pip install -r tests/e2e/requirements.txt
+        
+        # Add venv bin to PATH so subsequent steps can use 'pytest' and 'playwright' directly
+        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+        
+        # Install playwright browsers
+        # Note: We must use the venv's python/playwright explicitly if PATH update hasn't propagated to current shell
+        ./.venv/bin/playwright install chromium --with-deps
