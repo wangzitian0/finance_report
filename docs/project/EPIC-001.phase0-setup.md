@@ -137,9 +137,9 @@ Set up a runnable Monorepo development environment, complete user authentication
 | Standard | Verification | Status |
 |------|----------|------|
 | `docker compose up -d` successfully starts database | Manual verification | ✅ |
-| `moon run backend:dev` starts FastAPI | Console without errors | ✅ |
-| `moon run frontend:dev` starts Next.js | Access localhost:3000 | ✅ |
-| `/health` returns 200 OK | curl test | ✅ |
+| `moon run :dev -- --backend` starts FastAPI | Console without errors | ✅ |
+| `moon run :dev -- --frontend` starts Next.js | Access localhost:3000 | ✅ |
+| `/api/health` returns 200 OK | curl test | ✅ |
 | Frontend-backend ping-pong communication | Page displays "pong" | ✅ |
 | User registration/login API available | Postman test | ✅ |
 

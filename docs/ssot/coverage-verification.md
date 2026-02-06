@@ -147,7 +147,7 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
 
 ### Local Development
 
-1. **Run tests**: `moon run backend:test`
+1. **Run tests**: `moon run :test`
 2. **View terminal output**: See missing lines in real-time
 3. **Generate HTML**: `uv run pytest --cov=src --cov-report=html`
 4. **Open in browser**: `open htmlcov/index.html`
@@ -158,7 +158,7 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
 
 ```yaml
 - name: Run Tests
-  run: moon run :ci
+  run: moon run :lint && moon run :test
 
 - name: Upload Coverage
   uses: coverallsapp/github-action@v2

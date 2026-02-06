@@ -11,17 +11,17 @@ description: Development environment, testing, CI/CD, and deployment procedures.
 
 ```bash
 # Development
-moon run backend:dev        # FastAPI on :8000
+moon run :dev -- --backend        # FastAPI on :8000
 moon run frontend:dev       # Next.js on :3000
 
 # Testing
 moon run :test              # All tests
-moon run backend:test       # Backend tests (auto-manages DB)
+moon run :test       # Backend tests (auto-manages DB)
 moon run :smoke             # Smoke tests
 
 # Code Quality
 moon run :lint              # Lint all
-moon run backend:format     # Format Python
+moon run :lint -- --fix     # Format Python
 
 # Build
 moon run :build             # Build all
@@ -32,8 +32,8 @@ moon run :build             # Build all
 ### Reference Counting
 
 ```
-Terminal 1: moon run backend:test  → refcount=1 (start container)
-Terminal 2: moon run backend:test  → refcount=2
+Terminal 1: moon run :test  → refcount=1 (start container)
+Terminal 2: moon run :test  → refcount=2
 Terminal 2 exits                   → refcount=1
 Terminal 1 exits                   → refcount=0 (stop container)
 ```
@@ -49,7 +49,7 @@ Terminal 1 exits                   → refcount=0 (stop container)
 | # | Scenario | Trigger | Tests | Goal |
 |---|----------|---------|-------|------|
 | 1 | Local Dev | Manual | None | Iteration speed |
-| 2 | Local Test | `moon run backend:test` | Unit+Integration | <30s feedback |
+| 2 | Local Test | `moon run :test` | Unit+Integration | <30s feedback |
 | 3 | Remote CI | PR / Push | Unit+Integration | Quality gate |
 | 4 | PR Test | PR opened | Health Check | Deployment validation |
 | 5 | Staging | Push to main | Smoke + Perf | Full validation |

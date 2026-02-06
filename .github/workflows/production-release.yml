@@ -58,7 +58,8 @@ jobs:
           S3_BUCKET: statements
         run: |
           # Ensure release is built from clean state
-          moon run :ci
+          moon run :lint
+          moon run :test
           
           # Clean up artifacts before build
           rm -rf .venv

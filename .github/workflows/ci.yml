@@ -154,7 +154,7 @@ jobs:
             nextjs-${{ runner.os }}-
 
       - name: Build Frontend (via Moon)
-        run: moon run frontend:build
+        run: moon run :build
 
   finish:
     needs: [backend, merge-coverage, frontend]

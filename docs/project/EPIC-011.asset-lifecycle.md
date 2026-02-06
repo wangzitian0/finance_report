@@ -1760,11 +1760,11 @@ Backend Logic:
 
 | Test Type | Command | Expected Output |
 |-----------|---------|-----------------|
-| **Unit Tests** | `moon run backend:test -k test_asset` | All pass, coverage ≥95% |
-| **Integration Tests** | `moon run backend:test -k test_e2e` | Securities/depreciation/ESOP workflows pass |
-| **Lint** | `moon run backend:format && moon run :lint` | No errors |
-| **Schema Guardrails** | `moon run backend:test -k test_schema_guardrails` | Enum naming enforced |
-| **Balance Validation** | `moon run backend:test -k test_accounting_integration` | All entries balanced |
+| **Unit Tests** | `moon run :test -k test_asset` | All pass, coverage ≥95% |
+| **Integration Tests** | `moon run :test -k test_e2e` | Securities/depreciation/ESOP workflows pass |
+| **Lint** | `moon run :lint -- --fix && moon run :lint` | No errors |
+| **Schema Guardrails** | `moon run :test -k test_schema_guardrails` | Enum naming enforced |
+| **Balance Validation** | `moon run :test -k test_accounting_integration` | All entries balanced |
 | **Smoke Test** | `moon run :smoke` | Asset endpoints return 2xx |
 | **Manual E2E** | See "End-to-End Acceptance Checklist" above | All user stories pass |
 

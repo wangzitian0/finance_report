@@ -27,7 +27,7 @@ tests/
 
 ```bash
 # Run all tests (requires DB)
-moon run backend:test
+moon run :test
 
 # Run specific domain
 uv run pytest tests/accounting/ -v

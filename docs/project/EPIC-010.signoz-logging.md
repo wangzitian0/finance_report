@@ -105,7 +105,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 ## ✅ Verification Evidence
 
-- `moon run backend:test`
+- `moon run :test`
 - `python scripts/check_env_keys.py`
 - `uv run invoke signoz.status`
 - `uv run invoke signoz.shared.test-trace --service-name=finance-report-backend`
