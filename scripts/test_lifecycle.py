@@ -54,7 +54,7 @@ def get_namespace() -> str:
             try:
                 namespace = f"{namespace}_{_sanitize_namespace(workspace)}"
             except ValueError:
-                pass
+                pass  # Invalid workspace ID, use branch-only namespace
         return namespace
 
     # Git auto-detection with path hash
@@ -69,7 +69,7 @@ def get_namespace() -> str:
             path_hash = hashlib.sha256(str(Path.cwd().absolute()).encode()).hexdigest()[:8]
             return f"{namespace}_{path_hash}"
     except Exception:
-        pass
+        pass  # Git command failed or not a git repo, fall through to default
 
     # Fallback
     path_hash = hashlib.sha256(str(Path.cwd().absolute()).encode()).hexdigest()[:8]
@@ -501,8 +501,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run backend tests with DB lifecycle management")
     parser.add_argument("--fast", action="store_true", help="Fast mode: no coverage, -n 4")
     parser.add_argument("--smart", action="store_true", help="Smart mode: coverage on changed files only")
-    parser.add_argument("pytest_args", nargs="*", help="Additional pytest arguments")
-    args = parser.parse_args()
+    # Use parse_known_args for transparent pytest flag pass-through (-k, -m, etc.)
+    args, extra_pytest_args = parser.parse_known_args()
 
     # Handle Signals
     def signal_handler(sig, frame):
@@ -531,6 +531,7 @@ def main():
             "-n", "4",
             "-m", "not slow and not e2e",
             "--dist", "worksteal",
+            "--no-cov",  # Override pyproject.toml addopts first
         ]
         if changed_modules:
             log(f"   Changed modules: {len(changed_modules)}", YELLOW)
@@ -558,7 +559,7 @@ def main():
         pass
 
     # Add any extra pytest args from CLI
-    pytest_args.extend(args.pytest_args)
+    pytest_args.extend(extra_pytest_args)
 
     try:
         with test_database() as (db_url, namespace):
