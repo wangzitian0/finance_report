@@ -66,11 +66,13 @@ class ExtractionService:
             )
             raise ValueError(f"Invalid date format: {value}") from exc
 
-    def _safe_decimal(self, value: str | None, default: str | None = None) -> Decimal:
+    def _safe_decimal(self, value: str | None, default: str | None = None, *, required: bool = False) -> Decimal | None:
         """Safely convert string to Decimal."""
         if value is None:
-            if default is None:
+            if required:
                 raise ValueError("Decimal value is required")
+            if default is None:
+                return None
             value = default
         try:
             return Decimal(str(value))
@@ -244,8 +246,8 @@ class ExtractionService:
                 currency=extracted.get("currency", "SGD"),
                 period_start=self._safe_date(extracted.get("period_start")),
                 period_end=self._safe_date(extracted.get("period_end")),
-                opening_balance=self._safe_decimal(extracted.get("opening_balance")),
-                closing_balance=self._safe_decimal(extracted.get("closing_balance")),
+                opening_balance=self._safe_decimal(extracted.get("opening_balance"), required=True),
+                closing_balance=self._safe_decimal(extracted.get("closing_balance"), required=True),
             )
 
             transactions = []
@@ -286,12 +288,17 @@ class ExtractionService:
                     net_transactions -= amount
 
                 event_confidence = self._compute_event_confidence(txn)
+                txn_currency = txn.get("currency")
+                txn_balance_after = self._safe_decimal(txn.get("balance_after"))
+
                 transaction = BankStatementTransaction(
                     txn_date=parsed_date,
                     description=txn.get("description", "Unknown"),
                     amount=amount,
                     direction=direction,
                     reference=txn.get("reference"),
+                    currency=txn_currency,
+                    balance_after=txn_balance_after,
                     confidence=event_confidence,
                     confidence_reason=txn.get("confidence_reason"),
                     raw_text=txn.get("raw_text"),

@@ -25,7 +25,7 @@ ConfidenceLevelEnum = ConfidenceLevel
 class BankStatementUploadRequest(BaseModel):
     """Request to upload and parse a statement."""
 
-    institution: str = Field(..., description="Bank/broker name (e.g., DBS, Wise)")
+    institution: str | None = Field(None, description="Bank/broker name - auto-detected if omitted for PDF/image")
     file_type: str = Field(..., description="File type: pdf, csv, image")
     account_id: UUID | None = Field(None, description="Optional account link")
 
@@ -55,6 +55,8 @@ class TransactionUpdateRequest(BaseModel):
     amount: Decimal | None = None
     direction: str | None = None
     reference: str | None = None
+    currency: str | None = None
+    balance_after: Decimal | None = None
 
 
 # --- Response Schemas ---
@@ -70,6 +72,8 @@ class BankStatementTransactionResponse(BaseModel):
     amount: Decimal
     direction: str
     reference: str | None
+    currency: str | None = None
+    balance_after: Decimal | None = None
     status: BankStatementTransactionStatusEnum
     confidence: ConfidenceLevelEnum
     confidence_reason: str | None

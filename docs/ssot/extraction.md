@@ -85,6 +85,8 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | `amount` | Decimal | Absolute value |
 | `direction` | str | IN or OUT |
 | `reference` | str | Optional reference |
+| `currency` | str(3) | Per-transaction ISO currency (nullable) |
+| `balance_after` | Decimal | Running balance after this txn (nullable) |
 | `status` | enum | pending / matched / unmatched |
 | `confidence` | enum | high / medium / low |
 | `confidence_reason` | str | Confidence reasoning |
@@ -93,12 +95,14 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 
 ## Confidence Scoring
 
-| Factor | Weight | Criteria |
-|--------|--------|----------|
-| Balance Check | 40% | opening + Σtxn ≈ closing (±0.1) |
-| Field Completeness | 30% | Required fields present |
-| Format Consistency | 20% | Valid date/amount formats |
-| Transaction Count | 10% | Reasonable (1-500) |
+| Factor | Weight |
+|--------|--------|
+| Balance validation | 35% |
+| Field completeness | 25% |
+| Format consistency | 15% |
+| Transaction count | 10% |
+| Balance progression | 10% |
+| Currency consistency | 5% |
 
 **Thresholds**:
 - ≥85: Auto-accept

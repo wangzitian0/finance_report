@@ -60,6 +60,8 @@ export interface BankStatementTransaction {
     amount: number;
     direction: string;
     reference?: string | null;
+    currency?: string | null;
+    balance_after?: number | null;
     status: "pending" | "matched" | "unmatched";
     confidence: "high" | "medium" | "low";
     confidence_reason?: string | null;

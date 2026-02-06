@@ -89,12 +89,12 @@ class TestConfidenceScoring:
             "period_start": "2025-01-01",
             "period_end": "2025-01-31",
             "opening_balance": "1000.00",
-            "closing_balance": "1150.00",  # Slight mismatch
+            "closing_balance": "1105.00",  # Slight mismatch
             "transactions": [
                 {"date": "2025-01-15", "amount": "100.00", "direction": "IN"},
             ],
         }
-        validation = {"balance_valid": False, "difference": "50.00"}
+        validation = {"balance_valid": False, "difference": "5.00"}
         score = self.service._compute_confidence(extracted, validation)
         assert 60 <= score < 85, f"Expected medium confidence, got {score}"
 
@@ -433,10 +433,13 @@ class TestExtractionServiceHelpers:
 
     def test_safe_decimal_none(self):
         """Test _safe_decimal with None."""
+        assert self.service._safe_decimal(None) is None
+
+    def test_safe_decimal_none_required(self):
         import pytest
 
         with pytest.raises(ValueError, match="Decimal value is required"):
-            self.service._safe_decimal(None)
+            self.service._safe_decimal(None, required=True)
 
     def test_compute_confidence_missing_transactions(self):
         """Test confidence with missing transactions key."""
@@ -468,3 +471,145 @@ class TestExtractionServiceHelpers:
                 original_filename=None,
                 force_model="google/gemini-2.0-flash-exp:free",
             )
+
+
+class TestBalanceProgression:
+    def test_consistent_chain(self):
+        from src.services.validation import _score_balance_progression
+
+        txns = [
+            {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
+            {"balance_after": "1100.00", "amount": "100.00", "direction": "IN"},
+            {"balance_after": "1050.00", "amount": "50.00", "direction": "OUT"},
+        ]
+        assert _score_balance_progression(txns) == 10
+
+    def test_inconsistent_chain(self):
+        from src.services.validation import _score_balance_progression
+
+        txns = [
+            {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
+            {"balance_after": "5000.00", "amount": "100.00", "direction": "IN"},
+        ]
+        assert _score_balance_progression(txns) == 0
+
+    def test_single_txn(self):
+        from src.services.validation import _score_balance_progression
+
+        txns = [{"balance_after": "1000.00", "amount": "100.00", "direction": "IN"}]
+        assert _score_balance_progression(txns) == 0
+
+    def test_no_balance_after(self):
+        from src.services.validation import _score_balance_progression
+
+        txns = [
+            {"amount": "100.00", "direction": "IN"},
+            {"amount": "200.00", "direction": "OUT"},
+        ]
+        assert _score_balance_progression(txns) == 0
+
+    def test_empty_list(self):
+        from src.services.validation import _score_balance_progression
+
+        assert _score_balance_progression([]) == 0
+
+    def test_partial_consistency(self):
+        from src.services.validation import _score_balance_progression
+
+        txns = [
+            {"balance_after": "1000.00", "amount": "100.00", "direction": "IN"},
+            {"balance_after": "1100.00", "amount": "100.00", "direction": "IN"},
+            {"balance_after": "9999.00", "amount": "50.00", "direction": "OUT"},
+        ]
+        assert _score_balance_progression(txns) == 5
+
+
+class TestCurrencyConsistency:
+    def test_all_match_header(self):
+        from src.services.validation import _score_currency_consistency
+
+        txns = [{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "SGD"}]
+        assert _score_currency_consistency(txns, "SGD") == 5
+
+    def test_none_match(self):
+        from src.services.validation import _score_currency_consistency
+
+        txns = [{"currency": "USD"}, {"currency": "EUR"}]
+        assert _score_currency_consistency(txns, "SGD") == 0
+
+    def test_no_header_uses_most_common(self):
+        from src.services.validation import _score_currency_consistency
+
+        txns = [{"currency": "SGD"}, {"currency": "SGD"}, {"currency": "USD"}]
+        assert _score_currency_consistency(txns, None) == 3
+
+    def test_no_currencies(self):
+        from src.services.validation import _score_currency_consistency
+
+        txns = [{"amount": "100"}, {"amount": "200"}]
+        assert _score_currency_consistency(txns, "SGD") == 0
+
+    def test_empty_list(self):
+        from src.services.validation import _score_currency_consistency
+
+        assert _score_currency_consistency([], "SGD") == 0
+
+    def test_mixed_currencies_partial(self):
+        from src.services.validation import _score_currency_consistency
+
+        txns = [{"currency": "SGD"}, {"currency": "USD"}, {"currency": "SGD"}, {"currency": "SGD"}]
+        assert _score_currency_consistency(txns, "SGD") == 3
+
+
+class TestConfidenceScoringV2:
+    def test_full_score_with_all_factors(self):
+        txns = [
+            {
+                "date": "2025-01-01",
+                "description": "A",
+                "amount": "100.00",
+                "direction": "IN",
+                "currency": "SGD",
+                "balance_after": "1000.00",
+            },
+            {
+                "date": "2025-01-02",
+                "description": "B",
+                "amount": "50.00",
+                "direction": "IN",
+                "currency": "SGD",
+                "balance_after": "1050.00",
+            },
+        ]
+        extracted = {
+            "institution": "DBS",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "900.00",
+            "closing_balance": "1050.00",
+            "currency": "SGD",
+            "transactions": txns,
+        }
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+        from src.services.validation import compute_confidence_score
+
+        score = compute_confidence_score(extracted, balance_result)
+        assert score == 100
+
+    def test_no_new_factors_caps_at_85(self):
+        txns = [
+            {"date": "2025-01-01", "description": "A", "amount": "100.00", "direction": "IN"},
+        ]
+        extracted = {
+            "institution": "DBS",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "0.00",
+            "closing_balance": "100.00",
+            "transactions": txns,
+        }
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+        from src.services.validation import compute_confidence_score
+
+        score = compute_confidence_score(extracted, balance_result)
+        assert score == 85

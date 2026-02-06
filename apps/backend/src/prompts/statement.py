@@ -30,6 +30,8 @@ Output format (JSON object - NOT an array):
       "amount": "5000.00",
       "direction": "IN",
       "reference": "TXN123456",
+      "currency": "SGD",
+      "balance_after": "15000.00",
       "raw_text": "15 Jan SALARY ACME CORP 5,000.00 CR"
     }
   ]
@@ -44,6 +46,9 @@ Important Rules:
 6. Preserve raw_text exactly as shown (for audit trail)
 7. If unsure about a field, set it to null but include the transaction
 8. For long statements with 50+ transactions, include all of them - do NOT truncate
+9. For each transaction, include "currency" (ISO 4217 code, e.g. "SGD", "USD")
+10. Include "balance_after" showing the running balance after the transaction (from the balance column if present)
+11. Auto-detect the institution name from the document header/logo and return it in the "institution" field
 """
 
 VALIDATION_PROMPT = """Verify the extracted data:

@@ -161,6 +161,8 @@ erDiagram
         enum direction "IN|OUT"
         string description
         string reference
+        string currency
+        decimal balance_after
         enum status "pending|matched|unmatched"
         enum confidence "high|medium|low"
         string confidence_reason
@@ -335,6 +337,8 @@ Statement transaction table (reconciliation input).
 | direction | ENUM | NOT NULL | IN/OUT |
 | description | TEXT | NOT NULL | Description/merchant |
 | reference | VARCHAR(100) | | Reference |
+| currency | VARCHAR(3) | | Per-transaction ISO currency code |
+| balance_after | DECIMAL(18,2) | | Running balance after this transaction |
 | status | ENUM | NOT NULL | pending/matched/unmatched |
 | confidence | ENUM | NOT NULL | high/medium/low |
 | confidence_reason | TEXT | | Extraction notes |

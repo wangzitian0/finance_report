@@ -18,6 +18,7 @@ This section contains:
 - [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation (Testing Pending)
 - [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 Complete)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
+- [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2 (currency, balance chain, institution auto-detect, confidence V2)
 
 **TODO**
 - (none)

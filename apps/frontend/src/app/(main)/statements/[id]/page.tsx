@@ -417,6 +417,8 @@ export default function StatementDetailPage() {
                                     <th className="text-left px-4 py-3 font-medium">Description</th>
                                     <th className="text-left px-4 py-3 font-medium">Reference</th>
                                     <th className="text-right px-4 py-3 font-medium">Amount</th>
+                                    <th className="text-left px-4 py-3 font-medium">Currency</th>
+                                    <th className="text-left px-4 py-3 font-medium">Balance</th>
                                     <th className="text-center px-4 py-3 font-medium">Confidence</th>
                                     <th className="text-center px-4 py-3 font-medium">Status</th>
                                 </tr>
@@ -438,6 +440,8 @@ export default function StatementDetailPage() {
                                         }`}>
                                             {formatAmount(txn.amount, txn.direction)}
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{txn.currency || "—"}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{txn.balance_after != null ? formatCurrency(txn.balance_after) : "—"}</td>
                                         <td className="px-4 py-3 text-center">
                                             <span className={`badge ${
                                                 txn.confidence === "high" ? "badge-success" :
