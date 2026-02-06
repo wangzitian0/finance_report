@@ -59,12 +59,27 @@ async def _handle_parse_failure(
     *,
     message: str,
 ) -> None:
-    logger.error("Statement parsing failed", statement_id=str(statement.id), reason=message)
-    statement.status = BankStatementStatus.REJECTED
-    statement.validation_error = message
-    statement.confidence_score = 0
-    statement.balance_validated = False
-    await db.commit()
+    try:
+        await db.rollback()
+    except Exception:
+        pass
+    try:
+        refreshed = await db.get(BankStatement, statement.id)
+        if refreshed is None:
+            logger.error("Statement not found after rollback", reason=message)
+            return
+        refreshed.status = BankStatementStatus.REJECTED
+        refreshed.validation_error = message[:500] if message else message
+        refreshed.confidence_score = 0
+        refreshed.balance_validated = False
+        await db.commit()
+        logger.error("Statement parsing failed", statement_id=str(refreshed.id), reason=message)
+    except Exception as inner_exc:
+        logger.exception(
+            "Failed to mark statement as rejected",
+            original_error=message,
+            inner_error=str(inner_exc),
+        )
 
 
 async def _parse_statement_background(

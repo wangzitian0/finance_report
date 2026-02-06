@@ -22,10 +22,13 @@ export default function StatementDetailPage() {
     const [polling, setPolling] = useState(false);
     const [consecutiveErrors, setConsecutiveErrors] = useState(0);
     const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
+    const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
     
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+
+    const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
     const fetchStatement = useCallback(async () => {
         try {
@@ -34,8 +37,13 @@ export default function StatementDetailPage() {
             setError(null);
             setConsecutiveErrors(0);
             
-            // Enable polling if statement is still parsing
-            setPolling(data.status === "parsing");
+            if (data.status === "parsing") {
+                setPolling(true);
+                setParsingStartTime((prev) => prev ?? Date.now());
+            } else {
+                setPolling(false);
+                setParsingStartTime(null);
+            }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Failed to load statement";
             
@@ -69,15 +77,25 @@ export default function StatementDetailPage() {
         fetchStatement();
     }, [fetchStatement]);
 
-    // Auto-refresh while parsing
+    // Auto-refresh while parsing (with timeout)
     useEffect(() => {
         if (!polling) return;
 
-        const interval = setInterval(fetchStatement, 3000);
+        const interval = setInterval(() => {
+            if (parsingStartTime && Date.now() - parsingStartTime > PARSING_TIMEOUT_MS) {
+                setPolling(false);
+                setPollingStoppedReason(
+                    "Parsing has been running for over 5 minutes. It may be stuck. You can retry parsing with a different model."
+                );
+                showToast("Parsing appears stuck — stopped auto-refresh", "error");
+                return;
+            }
+            fetchStatement();
+        }, 3000);
         return () => {
             clearInterval(interval);
         };
-    }, [polling, fetchStatement]);
+    }, [polling, fetchStatement, parsingStartTime, showToast]);
 
     const handleApproveConfirm = async () => {
         setActionLoading(true);
@@ -176,7 +194,7 @@ export default function StatementDetailPage() {
     }
 
     const canApproveReject = statement.status === "parsed";
-    const canRetry = statement.status === "parsed" || statement.status === "rejected";
+    const canRetry = statement.status === "parsed" || statement.status === "rejected" || statement.status === "parsing";
 
     return (
         <div className="p-6">
@@ -295,6 +313,31 @@ export default function StatementDetailPage() {
                             className="bg-[var(--accent)] h-2 rounded-full transition-all duration-500"
                             style={{ width: `${statement.parsing_progress ?? 0}%` }}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Rejected Status Alert */}
+            {statement.status === "rejected" && (
+                <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg">
+                    <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-label="Error">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                            <div className="font-medium text-[var(--error)] mb-1">Parsing Failed</div>
+                            {statement.validation_error && (
+                                <div className="text-sm text-[var(--foreground-muted)] mb-3 break-words">{statement.validation_error}</div>
+                            )}
+                            <button 
+                                type="button"
+                                onClick={handleRetry}
+                                disabled={retryLoading}
+                                className="btn-secondary text-sm"
+                            >
+                                {retryLoading ? "Retrying..." : "Retry Parse"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
