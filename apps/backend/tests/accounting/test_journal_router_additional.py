@@ -2,7 +2,6 @@
 
 from datetime import date
 from decimal import Decimal
-from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -71,7 +70,6 @@ class TestJournalRouterAdditionalCoverage:
         THEN it should return 204 and remove from database
         """
         from sqlalchemy import select
-        from src.models.journal import JournalEntry, JournalEntryStatus, JournalLine, Direction
 
         cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="USD")
         revenue = Account(user_id=test_user.id, name="Revenue", type=AccountType.INCOME, currency="USD")

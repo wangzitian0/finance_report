@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -22,7 +22,6 @@ class TestAssetsRouterCoverage:
         THEN account names should be included in response
         """
         from src.models.account import Account, AccountType
-        from src.models.layer3 import ManagedPosition, PositionStatus
 
         account = Account(
             user_id=test_user.id,
@@ -71,7 +70,6 @@ class TestAssetsRouterCoverage:
         THEN account name should be included
         """
         from src.models.account import Account, AccountType
-        from src.models.layer3 import ManagedPosition, PositionStatus
 
         account = Account(
             user_id=test_user.id,
@@ -134,7 +132,6 @@ class TestAssetsRouterCoverage:
         THEN it should return 400
         """
         from src.models.account import Account, AccountType
-        from src.models.layer3 import ManagedPosition, PositionStatus
 
         account = Account(
             user_id=test_user.id,
@@ -205,7 +202,6 @@ class TestAssetsRouterCoverage:
         THEN it should return 200 with depreciation schedule
         """
         from src.models.account import Account, AccountType
-        from src.models.layer3 import ManagedPosition, PositionStatus
         from src.services.assets import DepreciationResult
 
         account = Account(
