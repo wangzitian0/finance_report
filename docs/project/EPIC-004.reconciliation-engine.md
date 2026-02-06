@@ -78,11 +78,11 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### API Endpoints (Backend)
 
-- [x] `POST /api/reconciliation/run` - Execute matching
-- [x] `GET /api/reconciliation/matches` - Match results
-- [x] `GET /api/reconciliation/pending` - Pending queue
-- [x] `POST /api/reconciliation/matches/{id}/accept` - Accept
-- [x] `POST /api/reconciliation/matches/{id}/reject` - Reject
+- [x] `POST /reconciliation/run` - Execute matching
+- [x] `GET /reconciliation/matches` - Match results
+- [x] `GET /reconciliation/pending` - Pending queue
+- [x] `POST /reconciliation/matches/{id}/accept` - Accept
+- [x] `POST /reconciliation/matches/{id}/reject` - Reject
 
 ### Frontend UI (Frontend)
 
@@ -101,17 +101,17 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC4.1.1 | Exact Matching | `test_exact_match_high_score` | `reconciliation/test_reconciliation_scoring.py` | P0 |
-| AC4.1.2 | Fuzzy Date Matching | `test_fuzzy_date_match` | `reconciliation/test_reconciliation_scoring.py` | P0 |
-| AC4.1.3 | Amount Tolerance | `test_score_amount_tolerance` | `reconciliation/test_reconciliation_coverage_boost.py` | P0 |
-| AC4.1.4 | Description Similarity | `test_score_description_fuzzy` | `reconciliation/test_reconciliation_scoring.py` | P1 |
+| AC4.1.1 | Exact Matching | `test_score_amount_branches` | `reconciliation/test_reconciliation_scoring.py` | P0 |
+| AC4.1.2 | Fuzzy Date Matching | `test_score_date_branches` | `reconciliation/test_reconciliation_scoring.py` | P0 |
+| AC4.1.3 | Amount Tolerance | `test_score_amount_tiers` | `reconciliation/test_reconciliation_coverage_boost.py` | P0 |
+| AC4.1.4 | Description Similarity | `test_normalize_and_description_scoring` | `reconciliation/test_reconciliation_scoring.py` | P1 |
 
 ### AC4.2: Group Matching (Many-to-One / One-to-Many)
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC4.2.1 | Many-to-One (Batch Payment) | `test_many_to_one_grouping` | `reconciliation/test_reconciliation_engine.py` | P0 |
-| AC4.2.2 | Many-to-One Bonus | `test_many_to_one_bonus` | `reconciliation/test_reconciliation_coverage_boost.py` | P1 |
+| AC4.2.1 | Many-to-One (Batch Payment) | `test_execute_matching_many_to_one_group` | `reconciliation/test_reconciliation_engine.py` | P0 |
+| AC4.2.2 | Many-to-One Bonus | `test_calculate_match_score_many_to_one_bonus` | `reconciliation/test_reconciliation_scoring.py` | P1 |
 | AC4.2.3 | One-to-Many (Split) | `test_execute_matching_multi_entry_combinations` | `reconciliation/test_reconciliation_engine.py` | P1 |
 
 ### AC4.3: Review Queue & Status
@@ -119,15 +119,15 @@ Automatically match bank transactions with journal entries, implementing intelli
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC4.3.1 | Auto-Accept Logic | `test_auto_accept_threshold` | `reconciliation/test_reconciliation_engine.py` | P0 |
-| AC4.3.2 | Review Queue Logic | `test_review_queue_threshold` | `reconciliation/test_reconciliation_engine.py` | P0 |
-| AC4.3.3 | Batch Accept | `test_batch_accept` | `reconciliation/test_reconciliation_router_additional.py` | P1 |
+| AC4.3.2 | Review Queue Logic | `test_review_queue_actions_and_entry_creation` | `reconciliation/test_reconciliation_engine.py` | P0 |
+| AC4.3.3 | Batch Accept | `test_accept_reject_batch_accept` | `reconciliation/test_reconciliation_router_additional.py` | P1 |
 
 ### AC4.4: Performance & Edge Cases
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC4.4.1 | Large Batch Performance | `test_batch_10000_transactions` | `reconciliation/test_performance.py` | P1 |
-| AC4.4.2 | Cross-Period Matching | `test_cross_period_matching` | `reconciliation/test_reconciliation_engine.py` | P1 |
+| AC4.4.1 | Large Batch Performance (1,000 txns) | `test_batch_1000_transactions_reasonable_time` | `reconciliation/test_performance.py` | P1 |
+| AC4.4.2 | Cross-Period Matching | `test_month_end_to_month_start_match` | `reconciliation/test_performance.py` | P1 |
 
 ### AC4.5: Anomaly Detection
 
@@ -154,7 +154,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 | **False negative rate < 2%** | `test_reconciliation_scoring.py` | 🔴 Critical |
 | Configurable thresholds | `test_auto_accept_threshold` | Required |
 | Many-to-one matching support | `test_many_to_one_grouping` | Required |
-| Batch process 10,000 txns < 10s | `test_batch_10000_transactions` | Required |
+| Batch process 10,000 txns < 10s | `test_batch_1000_transactions_reasonable_time` (1,000 txns verified) | Required |
 
 ### 🌟 Nice to Have
 

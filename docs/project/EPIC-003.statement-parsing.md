@@ -76,13 +76,13 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 ### API Endpoints (Backend)
 
-- [x] `POST /api/statements/upload` - File upload
-- [x] `GET /api/statements` - Statement list
-- [x] `GET /api/statements/{id}` - Statement details (with transactions)
-- [x] `GET /api/statements/pending-review` - Review queue list
-- [x] `POST /api/statements/{id}/approve` - Approve statement
-- [x] `POST /api/statements/{id}/reject` - Reject statement
-- [x] `GET /api/statements/{id}/transactions` - Transaction list
+- [x] `POST /statements/upload` - File upload
+- [x] `GET /statements` - Statement list
+- [x] `GET /statements/{id}` - Statement details (with transactions)
+- [x] `GET /statements/pending-review` - Review queue list
+- [x] `POST /statements/{id}/approve` - Approve statement
+- [x] `POST /statements/{id}/reject` - Reject statement
+- [x] `GET /statements/{id}/transactions` - Transaction list
 
 ### Frontend Interface (Frontend)
 
@@ -112,7 +112,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.1.1 | Parse DBS PDF | `test_dbs_fixture_structure` | `extraction/test_pdf_parsing.py` | P0 |
+| AC3.1.1 | Parse DBS PDF | `test_dbs_fixture_has_valid_structure` | `extraction/test_pdf_parsing.py` | P0 |
 | AC3.1.2 | Parse CSV (DBS) | `test_parse_dbs_csv` | `test_csv_parsing.py` | P0 |
 | AC3.1.3 | Parse CSV (Wise) | `test_parse_wise_csv` | `test_csv_parsing.py` | P0 |
 | AC3.1.4 | Parse CSV (Generic) | `test_parse_generic_csv_with_amount_column` | `test_csv_parsing.py` | P0 |
@@ -164,11 +164,11 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 | Standard | Verification | Weight |
 |------|----------|------|
-| **Parsing success rate ≥ 95%** | `test_dbs_fixture_structure`, `test_parse_csv_*` | 🔴 Critical |
+| **Parsing success rate ≥ 95%** | `test_dbs_fixture_has_valid_structure`, `test_parse_csv_*` | 🔴 Critical |
 | **Balance validation 100% enforced** | `test_balance_valid`, `test_balance_invalid` | 🔴 Critical |
 | **Confidence score routing enforced** | `test_high_confidence`, `test_medium_confidence` | 🔴 Critical |
 | **Parsing errors not persisted** | `test_extraction_error_not_persisted` | 🔴 Critical |
-| Support PDF format (DBS/POSB, CMB, Maybank) | `test_dbs_fixture_structure` | Required |
+| Support PDF format (DBS/POSB, CMB, Maybank) | `test_dbs_fixture_has_valid_structure` | Required |
 | Support CSV format (Wise/fintech, generic) | `test_csv_parsing.py` suite | Required |
 | File size limit 10MB | `test_upload_file_exceeds_10mb_limit` | Required |
 

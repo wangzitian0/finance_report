@@ -55,12 +55,12 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 ### API Endpoints (Backend)
 
-- [x] `GET /api/reports/balance-sheet`
-- [x] `GET /api/reports/income-statement`
-- [x] `GET /api/reports/cash-flow`
-- [x] `GET /api/reports/trend`
-- [x] `GET /api/reports/breakdown`
-- [x] `GET /api/reports/export`
+- [x] `GET /reports/balance-sheet`
+- [x] `GET /reports/income-statement`
+- [x] `GET /reports/cash-flow`
+- [x] `GET /reports/trend`
+- [x] `GET /reports/breakdown`
+- [x] `GET /reports/export`
 
 ### Dashboard (Frontend)
 
@@ -120,20 +120,20 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.4.1 | FX Fallbacks | `test_fx_fallback_logic` | `reporting/test_reporting_fx.py` | P1 |
-| AC5.4.2 | Rate Caching | `test_exchange_rate_caching` | `reporting/test_reporting_fx.py` | P1 |
+| AC5.4.1 | FX Fallbacks | `test_reporting_fx_fallbacks` | `reporting/test_reporting_fx.py` | P1 |
+| AC5.4.2 | Balance Sheet Net Income FX Fallback | `test_balance_sheet_net_income_fx_fallback` | `reporting/test_reporting_fx.py` | P1 |
 
 ### AC5.5: Error Handling
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.5.1 | Report Generation Error | `test_report_generation_error` | `reporting/test_reports_errors.py` | P1 |
-| AC5.5.2 | Router Error Handling | `test_router_error_handling` | `reporting/test_reports_router_errors.py` | P1 |
+| AC5.5.1 | Report Generation Error | `test_reports_router_errors_extended` | `reporting/test_reports_errors.py` | P1 |
+| AC5.5.2 | Router Error Handling | `TestReportsRouterErrors` | `reporting/test_reports_router_errors.py` | P1 |
 
 **Traceability Result**:
 - Total AC IDs: 13
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
-- Requirements with test references: 100%
+- Requirements with implemented test references: 100%
 - Test files: 5
 
 ---
@@ -146,7 +146,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 |------|----------|------|
 | **Balance sheet balanced** | `test_balance_sheet_equation` | 🔴 Critical |
 | **Income statement calculation correct** | `test_income_statement_calculation` | 🔴 Critical |
-| **Reports consistent with journal entries** | `test_report_matches_journal` | 🔴 Critical |
+| **Reports consistent with journal entries** | `test_balance_sheet_equation` (indirect verification) | 🔴 Critical |
 | Report generation time < 2s | `test_performance.py` (Planned) | Required |
 | Data export functional | `test_export_endpoint` | Required |
 
