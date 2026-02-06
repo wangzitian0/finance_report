@@ -99,6 +99,8 @@ class BankStatementTransaction(Base, UUIDMixin, TimestampMixin):
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     direction: Mapped[str] = mapped_column(String(3), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    balance_after: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     status: Mapped[BankStatementTransactionStatus] = mapped_column(
         SQLEnum(
             BankStatementTransactionStatus,

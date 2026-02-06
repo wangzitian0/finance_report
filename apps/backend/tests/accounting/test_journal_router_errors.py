@@ -1,7 +1,6 @@
 """Tests for journal router error handling paths."""
 
 from datetime import date
-from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 

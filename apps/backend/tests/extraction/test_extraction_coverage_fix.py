@@ -200,8 +200,9 @@ def test_safe_decimal_invalid():
     assert service._safe_decimal("1.23") == Decimal("1.23")
     with pytest.raises(ValueError, match="Invalid decimal value"):
         service._safe_decimal("not-a-number")
+    assert service._safe_decimal(None) is None
     with pytest.raises(ValueError, match="Decimal value is required"):
-        service._safe_decimal(None)
+        service._safe_decimal(None, required=True)
 
 
 def test_compute_event_confidence_missing_fields():

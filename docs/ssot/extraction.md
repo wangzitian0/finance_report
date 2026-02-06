@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using a single OpenRouter vision model (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDFs are sent to the model via public URLs (no base64), while images can use URLs or inline data when necessary. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using a single OpenRouter vision model (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. Files are sent to the model as base64-encoded inline data (no public URL required). Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 
@@ -85,6 +85,8 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | `amount` | Decimal | Absolute value |
 | `direction` | str | IN or OUT |
 | `reference` | str | Optional reference |
+| `currency` | str(3) | Per-transaction ISO currency (nullable) |
+| `balance_after` | Decimal | Running balance after this txn (nullable) |
 | `status` | enum | pending / matched / unmatched |
 | `confidence` | enum | high / medium / low |
 | `confidence_reason` | str | Confidence reasoning |
@@ -93,12 +95,14 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 
 ## Confidence Scoring
 
-| Factor | Weight | Criteria |
-|--------|--------|----------|
-| Balance Check | 40% | opening + Σtxn ≈ closing (±0.1) |
-| Field Completeness | 30% | Required fields present |
-| Format Consistency | 20% | Valid date/amount formats |
-| Transaction Count | 10% | Reasonable (1-500) |
+| Factor | Weight |
+|--------|--------|
+| Balance validation | 35% |
+| Field completeness | 25% |
+| Format consistency | 15% |
+| Transaction count | 10% |
+| Balance progression | 10% |
+| Currency consistency | 5% |
 
 **Thresholds**:
 - ≥85: Auto-accept

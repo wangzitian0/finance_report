@@ -8,7 +8,7 @@ from typing import Any
 
 from src.models.statement import BankStatementStatus
 
-BALANCE_TOLERANCE = Decimal("0.01")
+BALANCE_TOLERANCE = Decimal("0.10")
 
 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
@@ -71,35 +71,37 @@ def compute_confidence_score(
     balance_result: dict[str, Any],
     missing_fields: list[str] | None = None,
 ) -> int:
-    """Compute confidence score (0-100) based on SSOT weights.
+    """Compute confidence score (0-100) based on SSOT V2 weights.
 
-    Supports optional missing_fields for backward compatibility.
+    Weights: Balance 35% | Completeness 25% | Format 15% | Txn Count 10%
+           | Balance Progression 10% | Currency Consistency 5%
     """
     if missing_fields is None:
         missing_fields = validate_completeness(extracted)
 
     score = 0
+    transactions = extracted.get("transactions", []) or []
 
-    # Balance validation (40%)
+    # Balance validation (35%)
     if balance_result["balance_valid"]:
-        score += 40
+        score += 35
     else:
         try:
             diff = Decimal(str(balance_result.get("difference", "0") or "0"))
             if diff <= Decimal("1.00"):
-                score += 30
+                score += 25
             elif diff <= Decimal("10.00"):
-                score += 20
+                score += 17
         except (ValueError, TypeError, InvalidOperation):
             pass
 
-    # Field completeness (30%)
+    # Field completeness (25%)
     required_fields_count = 5
     present = required_fields_count - len(missing_fields)
-    score += int((present / required_fields_count) * 30)
+    score += int((present / required_fields_count) * 25)
 
-    # Format consistency (20%)
-    format_score = 20
+    # Format consistency (15%)
+    format_score = 15
     try:
         if extracted.get("period_start"):
             date.fromisoformat(str(extracted["period_start"]))
@@ -112,13 +114,80 @@ def compute_confidence_score(
     score += format_score
 
     # Transaction count (10%)
-    txn_count = len(extracted.get("transactions", []) or [])
+    txn_count = len(transactions)
     if 1 <= txn_count <= 500:
         score += 10
     elif txn_count > 500:
         score += 5
 
+    # Balance progression (10%)
+    score += _score_balance_progression(transactions)
+
+    # Currency consistency (5%)
+    header_currency = extracted.get("currency")
+    score += _score_currency_consistency(transactions, header_currency)
+
     return min(100, score)
+
+
+def _score_balance_progression(transactions: list[dict[str, Any]]) -> int:
+    """Score 0-10 based on balance_after chain consistency.
+
+    Checks: balance_after[n] == balance_after[n-1] +/- amount[n] within tolerance.
+    """
+    balances = []
+    for txn in transactions:
+        bal = txn.get("balance_after")
+        amt = txn.get("amount")
+        direction = txn.get("direction", "IN")
+        if bal is not None and amt is not None:
+            try:
+                balances.append((Decimal(str(bal)), Decimal(str(amt)), direction))
+            except (ValueError, TypeError, InvalidOperation):
+                continue
+
+    if len(balances) < 2:
+        return 0
+
+    consistent = 0
+    total = len(balances) - 1
+    tolerance = Decimal("0.10")
+    for i in range(1, len(balances)):
+        prev_bal = balances[i - 1][0]
+        cur_bal, cur_amt, cur_dir = balances[i]
+        if cur_dir == "IN":
+            expected = prev_bal + cur_amt
+        else:
+            expected = prev_bal - cur_amt
+        if abs(cur_bal - expected) <= tolerance:
+            consistent += 1
+
+    if total == 0:
+        return 0
+    ratio = consistent / total
+    return int(ratio * 10)
+
+
+def _score_currency_consistency(transactions: list[dict[str, Any]], header_currency: str | None) -> int:
+    """Score 0-5 based on per-transaction currency matching header currency."""
+    if not transactions:
+        return 0
+
+    all_currencies = [txn.get("currency") for txn in transactions]
+    non_empty_currencies = [c for c in all_currencies if c]
+
+    if not non_empty_currencies:
+        return 0
+
+    if not header_currency:
+        from collections import Counter
+
+        most_common = Counter(non_empty_currencies).most_common(1)[0][0]
+        header_currency = most_common
+
+    matching = sum(1 for c in all_currencies if c == header_currency)
+    ratio = matching / len(transactions)
+    return int(ratio * 5)
 
 
 def route_by_threshold(score: int, balance_valid: bool) -> BankStatementStatus:

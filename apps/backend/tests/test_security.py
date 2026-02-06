@@ -4,12 +4,10 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import jwt
+from freezegun import freeze_time
 
 from src.config import settings
 from src.security import create_access_token, decode_access_token
-
-
-from freezegun import freeze_time
 
 
 def test_create_access_token_with_custom_expiry():
