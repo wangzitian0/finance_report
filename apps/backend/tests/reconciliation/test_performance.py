@@ -311,7 +311,7 @@ class TestBatchPerformance:
     @pytest.mark.slow  # Mark as slow test, can be skipped with -m "not slow"
     async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession):
         """
-        HIGH #13: Batch matching 1000 transactions should complete quickly.
+        [AC4.4.1] HIGH #13: Batch matching 1000 transactions should complete quickly.
 
         Note: Full 10,000 test is too slow for CI. Use 1000 as representative.
         Scale: 1000 txns < 2s implies 10,000 < 20s (within acceptable range).
@@ -461,7 +461,7 @@ class TestCrossMonthMatching:
     @pytest.mark.asyncio
     async def test_month_end_to_month_start_match(self, db: AsyncSession):
         """
-        HIGH #15: Transaction on 1/31 should match entry from 2/1.
+        [AC4.4.2] HIGH #15: Transaction on 1/31 should match entry from 2/1.
 
         Common scenario: Bank processes on last day, user enters on first day of new month.
         """

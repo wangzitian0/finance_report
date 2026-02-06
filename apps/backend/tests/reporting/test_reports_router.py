@@ -68,7 +68,7 @@ def test_data_setup_reports(db: AsyncSession, test_user):
 
 @pytest.mark.asyncio
 async def test_balance_sheet_endpoint(client, test_data_setup_reports):
-    """Test balance sheet endpoint."""
+    """[AC5.1.4] Test balance sheet endpoint."""
     await test_data_setup_reports()
 
     response = await client.get("/reports/balance-sheet", params={"currency": "SGD"})

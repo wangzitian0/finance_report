@@ -48,7 +48,7 @@ def create_test_pdf() -> bytes:
 
 @pytest.mark.e2e
 async def test_statement_upload_full_flow(page: Page):
-    """E2E: Upload PDF → AI Parse → View Transactions → Approve."""
+    """[AC3.5.1] E2E: Upload PDF → AI Parse → View Transactions → Approve."""
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
         warnings.warn("Skipping E2E logic: FRONTEND_URL not set", UserWarning)
@@ -97,7 +97,7 @@ async def test_statement_upload_full_flow(page: Page):
 
 @pytest.mark.e2e
 async def test_model_selection_and_upload(page: Page):
-    """E2E: Select model → Upload → Verify correct model used."""
+    """[AC3.5.3] E2E: Select model → Upload → Verify correct model used."""
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
         return

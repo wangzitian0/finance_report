@@ -118,6 +118,7 @@ def test_normalize_text_edge_cases():
 
 
 def test_score_description_edge_cases():
+    """[AC4.1.4] Test description scoring edge cases."""
     assert score_description(None, "test") == 0.0
     assert score_description("test", None) == 0.0
     assert score_description("", "test") == 0.0
@@ -126,6 +127,7 @@ def test_score_description_edge_cases():
 
 
 def test_score_amount_tiers():
+    """[AC4.1.3] Test score_amount tolerance tiers."""
     config = DEFAULT_CONFIG
     # Exact
     assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0

@@ -15,7 +15,7 @@ class TestReportsRouterErrors:
 
     async def test_balance_sheet_report_error(self, client, db, test_user):
         """
-        GIVEN a report generation that fails
+        [AC5.5.1] GIVEN a report generation that fails
         WHEN requesting balance sheet
         THEN it should return 400 with error message
         """

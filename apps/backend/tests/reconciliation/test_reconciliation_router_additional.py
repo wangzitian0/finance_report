@@ -313,6 +313,7 @@ async def test_pending_review_queue_returns_items(db: AsyncSession, test_user) -
 
 @pytest.mark.asyncio
 async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
+    """[AC4.3.3] Test batch accept functionality."""
     statement = await _create_statement(db, test_user.id)
     txn_accept = await _create_transaction(
         db, statement.id, amount=Decimal("7.00"), status=BankStatementTransactionStatus.PENDING

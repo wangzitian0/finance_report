@@ -62,7 +62,7 @@ def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> Stateme
 
 
 def test_auto_accept_threshold() -> None:
-    """Auto-accept helper respects the threshold."""
+    """[AC4.3.1] [AC4.3.2] Auto-accept helper respects the threshold."""
     assert auto_accept(DEFAULT_CONFIG.auto_accept, DEFAULT_CONFIG)
     assert not auto_accept(DEFAULT_CONFIG.pending_review - 1, DEFAULT_CONFIG)
 
@@ -256,7 +256,7 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -
 
 
 async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
-    """Batch-like transactions should reconcile via many-to-one grouping."""
+    """[AC4.2.1] Batch-like transactions should reconcile via many-to-one grouping."""
     user_id = uuid4()
     user = User(id=user_id, email=f"batch-{uuid4()}@example.com", hashed_password="hashed")
     bank = Account(
@@ -371,7 +371,7 @@ async def test_find_candidates(db: AsyncSession):
 
 
 async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> None:
-    """Multi-entry combinations should produce the best match."""
+    """[AC4.2.3] Multi-entry combinations should produce the best match (One-to-Many)."""
     user_id = uuid4()
     user = User(id=user_id, email=f"multi-{uuid4()}@example.com", hashed_password="hashed")
     bank = Account(
@@ -704,7 +704,7 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
 
 
 async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> None:
-    """Anomaly detection flags large, frequent, and new merchants."""
+    """[AC4.5.1] Anomaly detection flags large, frequent, and new merchants."""
     user_id = uuid4()
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 4))
     db.add(statement)
