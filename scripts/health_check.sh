@@ -114,6 +114,34 @@ while (( attempt <= MAX_ATTEMPTS )); do
   health_response=$(cat "$response_file" 2>/dev/null || echo "")
   
   if validate_health_response "$health_response"; then
+    # Verify Git SHA if provided
+    if [[ -n "$IMAGE_TAG" ]]; then
+      # Extract git_sha from response using safe_jq
+      actual_sha=$(echo "$health_response" | jq -r '.git_sha // .version // ""')
+      
+      # Handle short/long SHA comparison (prefix match)
+      if [[ "$actual_sha" != "$IMAGE_TAG"* ]] && [[ "$IMAGE_TAG" != "$actual_sha"* ]]; then
+        echo "[WARNING] SHA Mismatch (attempt $attempt/$MAX_ATTEMPTS)"
+        echo "  Expected: $IMAGE_TAG"
+        echo "  Got:      $actual_sha"
+        
+        if (( attempt == MAX_ATTEMPTS )); then
+           echo ""
+           echo "========================================="
+           echo "[FAIL] Deployment Failed: Git SHA Mismatch"
+           echo "========================================="
+           echo "Expected: $IMAGE_TAG"
+           echo "Actual:   $actual_sha"
+           echo "========================================="
+           exit 1
+        fi
+        
+        sleep 10
+        ((attempt++))
+        continue
+      fi
+    fi
+
     elapsed=$((attempt * 10))
     echo ""
     echo "========================================="

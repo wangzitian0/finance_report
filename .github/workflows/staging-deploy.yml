@@ -12,6 +12,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
@@ -64,6 +68,8 @@ jobs:
         with:
           context: ./apps/backend
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
@@ -75,6 +81,8 @@ jobs:
         with:
           context: ./apps/frontend
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
@@ -124,7 +132,8 @@ jobs:
           
           echo "--- Phase 2: Core Flow Validation (Python) ---"
           # Run full suite including UI tests since SKIP_UI_TESTS=false
-          pytest tests/e2e -v -m "smoke or e2e"
+          # Using 4 workers for parallel execution
+          pytest tests/e2e -v -m "smoke or e2e" -n 4
           
           echo "✅ Staging E2E Pipeline passed!"
 
