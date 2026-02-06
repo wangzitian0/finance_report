@@ -1,7 +1,9 @@
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -78,9 +80,19 @@ def test_epic_001_pre_commit_config_exists() -> None:
     assert "ruff" in config_text
 
 
+@pytest.mark.integration
 def test_epic_001_frontend_moon_tasks_configured() -> None:
     """AC1.5.2: Frontend moon tasks must include dev and build."""
-    result = subprocess.run(["moon", "project", "frontend", "--json"], capture_output=True, text=True)
+    moon_bin = shutil.which("moon")
+    if not moon_bin:
+        pytest.skip("moon CLI not installed")
+
+    result = subprocess.run(
+        [moon_bin, "project", "frontend", "--json"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
     assert result.returncode == 0, f"Moon frontend project query failed: {result.stderr}"
     project_data = json.loads(result.stdout)
     tasks = project_data.get("tasks", {})

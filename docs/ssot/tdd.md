@@ -95,13 +95,13 @@ omit = [
 | Component | Meaning | Example |
 |-----------|---------|---------|
 | **AC** | Acceptance Criteria prefix | AC (fixed) |
-| **x** | EPIC number | 001, 002, 003 |
+| **x** | EPIC number (no zero padding) | 1, 2, 3 |
 | **y** | Feature block within EPIC | 1, 2, 3 |
 | **z** | Test case number within block | 1, 2, 3 |
 
 **Examples**:
-- `AC1.1.1` → EPIC-001, Block 1 (Authentication), Test case 1
-- `AC2.3.5` → EPIC-002, Block 3 (Journal Entry Posting), Test case 5
+- `AC1.1.1` → EPIC-1 (EPIC-001), Block 1 (Authentication), Test case 1
+- `AC2.3.5` → EPIC-2 (EPIC-002), Block 3 (Journal Entry Posting), Test case 5
 
 ### Feature Block Organization
 
