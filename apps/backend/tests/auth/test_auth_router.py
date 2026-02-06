@@ -9,7 +9,7 @@ from src.routers.auth import hash_password
 
 @pytest.mark.asyncio
 async def test_register_success(public_client):
-    """Test successful user registration."""
+    """AC1.7.1: Test successful user registration."""
     payload = {"email": "newuser@example.com", "password": "password123", "name": "New User"}
     response = await public_client.post("/auth/register", json=payload)
 
@@ -24,7 +24,7 @@ async def test_register_success(public_client):
 
 @pytest.mark.asyncio
 async def test_register_duplicate_email(db: AsyncSession, public_client):
-    """Test registration failure with duplicate email."""
+    """AC1.7.2: Test registration failure with duplicate email."""
     # Pre-create user
     user = User(email="existing@example.com", hashed_password=hash_password("password123"))
     db.add(user)
@@ -39,7 +39,7 @@ async def test_register_duplicate_email(db: AsyncSession, public_client):
 
 @pytest.mark.asyncio
 async def test_login_success(db: AsyncSession, public_client):
-    """Test successful login."""
+    """AC1.7.3: Test successful login with valid credentials."""
     password = "secretpassword"
     hashed = hash_password(password)
     user = User(email="loginuser@example.com", hashed_password=hashed)
