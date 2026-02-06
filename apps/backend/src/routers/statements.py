@@ -120,12 +120,10 @@ async def _parse_statement_background(
 
         file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
         if file_type == "pdf" and not file_url:
-            await _handle_parse_failure(
-                statement,
-                session,
-                message="PDF extraction requires a public URL. Ensure the file is externally accessible.",
+            logger.info(
+                "No public URL available for PDF; will use base64-encoded content",
+                statement_id=str(statement_id),
             )
-            return
 
         service = ExtractionService()
         try:

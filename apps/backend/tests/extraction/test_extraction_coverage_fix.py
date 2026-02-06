@@ -285,6 +285,9 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
 
     monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
 
+    mock_parse = AsyncMock(side_effect=ExtractionError("API key not configured"))
+    monkeypatch.setattr("src.routers.statements.ExtractionService.parse_document", mock_parse)
+
     await _parse_statement_background(
         statement_id=sid,
         filename="f.pdf",
@@ -299,9 +302,7 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
     )
 
     await db.refresh(statement)
-    # Presigned URL failure now rejects PDFs without a public URL.
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.validation_error is not None
-    # Flexible check for failure reason
     error_msg = statement.validation_error.lower()
-    assert "public url" in error_msg
+    assert "api key" in error_msg or "configured" in error_msg
