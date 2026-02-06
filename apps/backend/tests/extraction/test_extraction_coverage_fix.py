@@ -387,10 +387,7 @@ async def test_handle_parse_failure_truncates_long_message(db):
 
 @pytest.mark.asyncio
 async def test_handle_parse_failure_after_db_error(db):
-    """Simulates a session with a pending rollback error.
-
-    The handler should rollback first, then re-fetch and mark rejected.
-    """
+    """Handler recovers from a session with pending rollback error."""
     from sqlalchemy import text
 
     from src.models import BankStatement
@@ -406,25 +403,24 @@ async def test_handle_parse_failure_after_db_error(db):
         original_filename="f.pdf",
         institution="DBS",
     )
-    await db.add(statement)
+    db.add(statement)
     await db.commit()
 
-    # Simulate a DB error state by executing an invalid query
-    # This puts the session in an error state
+    # Put session into failed-transaction state (requires rollback before reuse)
     try:
         await db.execute(text("SELECT * FROM nonexistent_table_xyz"))
-    except Exception:
-        pass
+    except Exception as exc:
+        assert "nonexistent_table_xyz" in str(exc)
 
     await _handle_parse_failure(statement, db, message="DB error occurred")
 
-    # Refresh to get the latest state after error handling
-    await db.refresh(statement)
-
-    assert statement.status == BankStatementStatus.REJECTED
-    assert statement.validation_error == "DB error occurred"
-    assert statement.confidence_score == 0
-    assert statement.balance_validated is False
+    # Rollback expires all ORM objects → re-fetch via saved PK
+    result = await db.get(BankStatement, sid)
+    assert result is not None
+    assert result.status == BankStatementStatus.REJECTED
+    assert result.validation_error == "DB error occurred"
+    assert result.confidence_score == 0
+    assert result.balance_validated is False
 
 
 @pytest.mark.asyncio

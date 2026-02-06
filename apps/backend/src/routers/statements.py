@@ -59,20 +59,21 @@ async def _handle_parse_failure(
     *,
     message: str | None,
 ) -> None:
+    statement_id = statement.id
     try:
         await db.rollback()
     except Exception as rollback_exc:
         logger.warning(
             "Rollback failed during parse failure handling",
-            statement_id=str(statement.id),
+            statement_id=str(statement_id),
             rollback_error=str(rollback_exc),
         )
     try:
-        refreshed = await db.get(BankStatement, statement.id)
+        refreshed = await db.get(BankStatement, statement_id)
         if refreshed is None:
             logger.error(
                 "Statement not found after rollback",
-                statement_id=str(statement.id),
+                statement_id=str(statement_id),
                 reason=message,
             )
             return
@@ -85,6 +86,7 @@ async def _handle_parse_failure(
     except Exception as inner_exc:
         logger.exception(
             "Failed to mark statement as rejected",
+            statement_id=str(statement_id),
             original_error=message,
             inner_error=str(inner_exc),
         )
