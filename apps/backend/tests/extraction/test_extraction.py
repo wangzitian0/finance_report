@@ -20,7 +20,7 @@ class TestBalanceValidation:
         self.service = ExtractionService()
 
     def test_balance_valid(self):
-        """Test that valid balances pass validation."""
+        """[AC3.2.1] Test that valid balances pass validation."""
         extracted = {
             "opening_balance": "1000.00",
             "closing_balance": "1100.00",
@@ -34,7 +34,7 @@ class TestBalanceValidation:
         assert result["difference"] == "0.00"
 
     def test_balance_invalid(self):
-        """Test that invalid balances fail validation."""
+        """[AC3.2.2] Test that invalid balances fail validation."""
         extracted = {
             "opening_balance": "1000.00",
             "closing_balance": "2000.00",  # Wrong!
@@ -67,7 +67,7 @@ class TestConfidenceScoring:
         self.service = ExtractionService()
 
     def test_high_confidence(self):
-        """Test that complete data gets high confidence."""
+        """[AC3.3.1] Test that complete data gets high confidence (Auto-Accept)."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",
@@ -83,7 +83,7 @@ class TestConfidenceScoring:
         assert score >= 85, f"Expected high confidence, got {score}"
 
     def test_medium_confidence(self):
-        """Test that partial data gets medium confidence."""
+        """[AC3.3.2] Test that partial data gets medium confidence (Review)."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",
@@ -99,7 +99,7 @@ class TestConfidenceScoring:
         assert 60 <= score < 85, f"Expected medium confidence, got {score}"
 
     def test_low_confidence_empty_transactions(self):
-        """Test that no transactions lowers confidence."""
+        """[AC3.3.3] Test that no transactions lowers confidence (Manual)."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",

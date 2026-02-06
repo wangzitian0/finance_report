@@ -76,7 +76,7 @@ async def fx_rates(db: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
-    """Test that unrealized FX gain is correctly calculated in the balance sheet."""
+    """[AC5.1.2] Test that unrealized FX gain is correctly calculated in the balance sheet."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
 
     # 1. Opening Entry: Invest 100 USD when rate is 1.30 (Historical Cost = 130 SGD)
@@ -122,7 +122,7 @@ async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_a
 
 @pytest.mark.asyncio
 async def test_income_statement_comprehensive_income(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
-    """Test that income statement includes both net income and unrealized FX change."""
+    """[AC5.2.2] Test that income statement includes both net income and unrealized FX change."""
     sgd_cash, usd_savings, capital, salary, _ = multi_currency_accounts
 
     # 1. Opening (already in USD)
@@ -251,7 +251,7 @@ async def test_fx_liability_inversion(db: AsyncSession, multi_currency_accounts,
 
 @pytest.mark.asyncio
 async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accounts, test_user_id):
-    """Test aggregation of multiple foreign currencies (USD and EUR)."""
+    """[AC5.1.3] Test aggregation of multiple foreign currencies (USD and EUR)."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
     eur_savings = Account(user_id=test_user_id, name="EUR Savings", type=AccountType.ASSET, currency="EUR")
     db.add(eur_savings)
@@ -419,7 +419,7 @@ async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_
 
 @pytest.mark.asyncio
 async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts, test_user_id):
-    """Test FX fallbacks when rates are missing for BS and IS."""
+    """[AC5.4.1] Test FX fallbacks when rates are missing for BS and IS."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
 
     # Rate only on Jan 31
@@ -998,7 +998,7 @@ async def test_reporting_income_statement_period_fx_fallback_to_spot(
 
 @pytest.mark.asyncio
 async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_currency_accounts, test_user_id):
-    """Test balance sheet uses FX fallback when entry_date has no rate but as_of_date does.
+    """[AC5.4.2] Test balance sheet uses FX fallback (Rate Caching logic).
 
     This covers the fallback path in _aggregate_net_income_sql (lines 312-333).
     """

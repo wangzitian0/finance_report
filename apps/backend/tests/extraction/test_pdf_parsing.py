@@ -96,7 +96,7 @@ class TestFixtureValidation:
 
     def test_dbs_fixture_has_valid_structure(self, dbs_fixture):
         """
-        CRITICAL #3: DBS fixture should have all required fields.
+        [AC3.1.1] CRITICAL #3: DBS fixture should have all required fields.
         """
         statement = dbs_fixture["statement"]
 
@@ -173,7 +173,7 @@ class TestInvalidParseNotPersisted:
     @pytest.mark.asyncio
     async def test_extraction_error_not_persisted(self, service, tmp_path):
         """
-        CRITICAL #4: Extraction errors should raise, not persist bad data.
+        [AC3.4.1] CRITICAL #4: Extraction errors should raise, not persist bad data.
         """
         # Create an invalid file
         bad_file = tmp_path / "bad.pdf"
@@ -259,7 +259,7 @@ class TestFileSizeLimit:
     @pytest.mark.asyncio
     async def test_upload_file_exceeds_10mb_limit(self, client):
         """
-        HIGH #10: File exceeding 10MB should be rejected with 413.
+        [AC3.5.2] HIGH #10: File exceeding 10MB should be rejected with 413.
         """
         # Create content larger than 10MB
         large_content = b"x" * (11 * 1024 * 1024)  # 11MB
@@ -336,7 +336,7 @@ class TestParsingTimeout:
     @pytest.mark.asyncio
     async def test_extraction_timeout_raises_error(self, service):
         """
-        HIGH #11: Extraction timeout should raise ExtractionError.
+        [AC3.4.3] HIGH #11: Extraction timeout should raise ExtractionError.
         """
         service.api_key = "test-key"
 
@@ -430,7 +430,7 @@ class TestStatementCompleteness:
     """Test statement completeness validation."""
 
     def test_missing_required_fields_detected(self):
-        """Missing required fields should be identified."""
+        """[AC3.2.3] Missing required fields should be identified."""
         incomplete = {
             "institution": "DBS",
             "period_start": "2025-01-01",

@@ -162,9 +162,11 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
 
 
 def test_normalize_and_description_scoring() -> None:
+    """[AC4.1.4] Test description similarity."""
     assert normalize_text("  ACME-CO.  ") == "acme co"
     assert score_description(None, "value") == 0.0
     assert score_description("   ", "value") == 0.0
+    # Description Similarity [AC4.1.4]
     assert score_description("Coffee Shop", "coffee shop") >= 95.0
 
 
@@ -221,8 +223,11 @@ def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
 
 
 def test_score_amount_branches() -> None:
+    """[AC4.1.1] [AC4.1.3] Test score_amount logic."""
     config = DEFAULT_CONFIG
+    # Exact Match [AC4.1.1]
     assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0
+    # Tolerance match [AC4.1.3]
     assert score_amount(Decimal("100.00"), Decimal("100.40"), config) == 90.0
     assert score_amount(Decimal("100.00"), Decimal("104.00"), config) == 70.0
     assert score_amount(Decimal("1000.00"), Decimal("994.00"), config, is_multi=True) == 70.0
@@ -231,8 +236,11 @@ def test_score_amount_branches() -> None:
 
 
 def test_score_date_branches() -> None:
+    """[AC4.1.2] Test score_date logic."""
     config = DEFAULT_CONFIG
+    # Exact Date
     assert score_date(date(2024, 1, 1), date(2024, 1, 1), config) == 100.0
+    # Fuzzy Date [AC4.1.2]
     assert score_date(date(2024, 1, 1), date(2024, 1, 3), config) == 90.0
     # Cross-month within date_days gets bonus (75 vs 70)
     assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 75.0

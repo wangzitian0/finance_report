@@ -82,7 +82,7 @@ class TestExtractionServiceFlow:
 
     @pytest.mark.asyncio
     async def test_parse_document_unsupported_type(self, service, tmp_path):
-        """Test parse_document raises error for unsupported type."""
+        """[AC3.4.2] Test parse_document raises error for unsupported type."""
         txt_file = tmp_path / "test.txt"
         txt_file.write_bytes(b"text")
 

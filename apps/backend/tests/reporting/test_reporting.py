@@ -78,7 +78,7 @@ async def chart_of_accounts(db: AsyncSession, test_user_id):
 
 @pytest.mark.asyncio
 async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_user_id):
-    """Balance sheet should satisfy Assets = Liabilities + Equity."""
+    """[AC5.1.1] Balance sheet should satisfy Assets = Liabilities + Equity."""
     cash, _liability, equity, *_rest = chart_of_accounts
 
     entry = JournalEntry(
@@ -127,7 +127,7 @@ async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_
 
 @pytest.mark.asyncio
 async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts, test_user_id):
-    """Income statement should satisfy Net Income = Income - Expenses."""
+    """[AC5.2.1] Income statement should satisfy Net Income = Income - Expenses."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
     salary_entry = JournalEntry(
@@ -241,6 +241,7 @@ async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_
 
 @pytest.mark.asyncio
 async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
+    """[AC5.2.3] Test income statement invalid date range validation."""
     with pytest.raises(ReportError, match="start_date must be before end_date"):
         await generate_income_statement(
             db,
@@ -701,7 +702,7 @@ async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts,
 
 @pytest.mark.asyncio
 async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_user_id):
-    """Cash flow statement should track movements across periods."""
+    """[AC5.3.1] Cash flow statement should track movements across periods."""
     cash, _liability, equity, income, expense = chart_of_accounts
 
     entry = JournalEntry(
@@ -837,7 +838,7 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
 
 @pytest.mark.asyncio
 async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_user_id):
-    """Cash flow statement with no transactions should return empty lists."""
+    """[AC5.3.2] Cash flow statement with no transactions should return empty lists."""
     report = cast(
         dict[str, Any],
         await generate_cash_flow(
