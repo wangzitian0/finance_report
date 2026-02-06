@@ -225,7 +225,7 @@ These scenarios represent the "Vertical Slices" of user value.
 
 ```bash
 # Run all E2E tests locally
-moon run :smoke
+bash scripts/smoke_test.sh
 
 # Run against specific environment
 APP_URL=https://report.zitian.party pytest tests/e2e -v -m "smoke or e2e"

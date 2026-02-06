@@ -43,7 +43,7 @@ class Bootloader:
 Every environment maps to one of the 3 Gates using the exact same code.
 
 ### 💻 Local Development
-- **Gate 2 (Startup)**: `moon run backend:dev` calls `Bootloader(CRITICAL)`.
+- **Gate 2 (Startup)**: `moon run :dev -- --backend` calls `Bootloader(CRITICAL)`.
   - Effect: If DB is down, uvicorn refuses to start.
 - **Gate 3 (Verification)**: Developer runs `python -m src.boot --mode full`.
   - Effect: Validates local MinIO/Redis setup.
@@ -67,7 +67,7 @@ Run this in any environment (Local, Pod shell, CI runner):
 
 ```bash
 # Check everything
-moon run backend:env-check
+moon run :dev -- --check
 ```
 
 ### Output Reference

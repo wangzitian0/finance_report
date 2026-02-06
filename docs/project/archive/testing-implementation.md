@@ -50,7 +50,7 @@ Set up Locust for load testing with realistic user scenarios:
 **Run Commands**:
 ```bash
 # Local (interactive UI)
-moon run backend:test-perf
+moon run :test -- --perf
 
 # Headless (CI)
 locust -f tests/locustfile.py --host=http://localhost:8000 \
@@ -88,7 +88,7 @@ Created end-to-end test framework with 3 critical scenarios:
 **Run Commands**:
 ```bash
 # Run E2E tests (requires full stack)
-moon run backend:test-e2e
+moon run :test -- --e2e
 
 # Or directly
 uv run pytest -m e2e tests/e2e/
@@ -106,10 +106,10 @@ Added new test commands to moon workflow:
 
 **New Tasks**:
 ```bash
-moon run backend:test             # Unit tests (existing)
-moon run backend:test-integration # Integration tests (NEW)
-moon run backend:test-e2e         # E2E tests with Playwright (NEW)
-moon run backend:test-perf        # Performance tests with Locust (NEW)
+moon run :test             # Unit tests (existing)
+moon run :test -- -m integration # Integration tests (NEW)
+moon run :test -- --e2e         # E2E tests with Playwright (NEW)
+moon run :test -- --perf        # Performance tests with Locust (NEW)
 ```
 
 **Files Modified**:
@@ -200,8 +200,8 @@ E2E tests are skipped by default. To run manually:
 1. **Start full stack locally**:
    ```bash
    docker compose up -d postgres minio redis
-   moon run backend:dev  # Terminal 1
-   moon run frontend:dev # Terminal 2
+   moon run :dev -- --backend  # Terminal 1
+   moon run :dev -- --frontend # Terminal 2
    ```
 
 2. **Set environment variables**:

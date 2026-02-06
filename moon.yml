@@ -1,64 +1,26 @@
 $schema: 'https://moonrepo.dev/schemas/project.json'
 
-# Root project - defines shared tasks
+# Root project - 6 unified commands
 type: tool
 
 tasks:
-  # Install all dependencies
   setup:
-    command: 'echo "Dependencies installed"'
-    deps:
-      - 'backend:install'
-      - 'frontend:install'
+    command: 'python scripts/cli.py setup'
+    deps: []
 
-  # Infrastructure (Postgres, Redis, MinIO)
-  # Run this in a dedicated terminal
-  infra:
-    command: 'bash scripts/infra.sh'
-    local: true
-
-  # Development servers
-  # Note: Run these in separate terminals as they block indefinitely
   dev:
-    command: 'echo "1. Run \"moon run :infra\" in a separate terminal.\n2. Run \"moon run backend:dev\" and \"moon run frontend:dev\" in their own terminals."'
+    command: 'python scripts/cli.py dev'
     local: true
 
-  # Lint all projects
-  lint:
-    command: 'echo "Linting complete"'
-    deps:
-      - 'backend:lint'
-      - 'frontend:lint'
-
-  # Test all projects
   test:
-    command: 'echo "All tests complete"'
-    deps:
-      - 'backend:test'
-      - 'frontend:test'
+    command: 'python scripts/cli.py test'
 
-  # Build all projects
+  lint:
+    command: 'python scripts/cli.py lint'
+
   build:
-    command: 'echo "Build complete"'
-    deps:
-      - 'frontend:build'
+    command: 'python scripts/cli.py build'
 
-  # Clean up development resources
   clean:
-    command: 'bash scripts/cleanup_dev_resources.sh'
+    command: 'python scripts/cli.py clean'
     local: true
-
-  smoke:
-    command: 'bash scripts/smoke_test.sh ${BASE_URL:-http://localhost:3000}'
-    local: true
-    options:
-      runInCI: false
-
-  # CI pipeline - matches GitHub CI exactly
-  ci:
-    command: 'echo "CI pipeline complete"'
-    deps:
-      - 'backend:ci'
-      - 'frontend:build'
-
-

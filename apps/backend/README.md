@@ -12,7 +12,7 @@ uv sync
 uv run uvicorn src.main:app --reload
 
 # Or via moon
-moon run backend:dev
+moon run :dev -- --backend
 ```
 
 ## Tests (with DB auto-cleanup)
@@ -20,7 +20,7 @@ moon run backend:dev
 Use the workspace script to start Postgres via compose and clean up when tests finish:
 
 ```bash
-moon run backend:test
+moon run :test
 ```
 
 ## API Endpoints

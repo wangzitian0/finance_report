@@ -384,8 +384,8 @@ Before production deployment, ensure:
 ### Local Development
 1. Start backend and frontend servers:
    ```bash
-   moon run backend:dev  # Terminal 1
-   moon run frontend:dev # Terminal 2
+   moon run :dev -- --backend  # Terminal 1
+   moon run :dev -- --frontend # Terminal 2
    ```
 2. Navigate to `http://localhost:3000/login` or `/register`
 3. Register a new user with email and password

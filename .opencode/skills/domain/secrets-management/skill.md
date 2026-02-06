@@ -290,7 +290,7 @@ def get_container_name(service: str, env: str) -> str:
 export BRANCH_NAME=$(git branch --show-current)
 export WORKSPACE_ID=$(echo $PWD | sha256sum | cut -c1-8)
 
-moon run backend:test
+moon run :test
 # Creates container: finance-report-db-fix-auth-abc12345
 # Binds to port: 5400-5999 (deterministic from branch name)
 ```
@@ -330,10 +330,10 @@ docker exec finance-report-backend env | grep DATABASE
 
 ```bash
 # Full environment validation (runs env_smoke_test.py)
-moon run backend:env-check
+moon run :dev -- --check
 
 # Critical-only check (for CI)
-moon run backend:env-check -- --critical-only
+moon run :dev -- --check -- --critical-only
 
 # What it tests:
 # - Database connectivity
@@ -507,7 +507,7 @@ python scripts/check_env_keys.py --diff
 # Expected: ✅ All checks passed
 
 # 2. Runtime validation
-moon run backend:env-check
+moon run :dev -- --check
 # Expected: ✅ Database OK, ✅ S3 OK, ✅ Redis OK (if set)
 
 # 3. Production check

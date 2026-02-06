@@ -30,7 +30,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -144,6 +144,11 @@ jobs:
         with:
           cache: true
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Cache Next.js
         uses: actions/cache@v4
         with:
@@ -153,8 +158,12 @@ jobs:
             nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-
             nextjs-${{ runner.os }}-
 
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: apps/frontend
+
       - name: Build Frontend (via Moon)
-        run: moon run frontend:build
+        run: moon run :build
 
   finish:
     needs: [backend, merge-coverage, frontend]

@@ -28,18 +28,18 @@
 
 ```bash
 # Development
-moon run backend:dev        # Full Stack (App + DB + Redis + MinIO)
-moon run frontend:dev       # Next.js on :3000
+moon run :dev -- --backend        # Full Stack (App + DB + Redis + MinIO)
+moon run :dev -- --frontend       # Next.js on :3000
 
 # Local CI / Verification (Recommended)
-moon run :ci                # One-button check (Lint + Format + Test + Check)
+moon run :lint && moon run :test                # One-button check (Lint + Format + Test + Check)
                             # Matches GitHub CI exactly.
 
 # Testing
 moon run :test                  # All tests (full coverage)
-moon run backend:test           # Backend tests (auto-manages DB)
-moon run backend:test-smart     # Smart: coverage on changed files only (60-70% faster)
-moon run backend:test-no-cov    # Ultra-fast: no coverage (TDD mode)
+moon run :test           # Backend tests (auto-manages DB)
+moon run :test -- --smart     # Smart: coverage on changed files only (60-70% faster)
+moon run :test -- --fast    # Ultra-fast: no coverage (TDD mode)
 
 # Environment Verification
 # (See docs/ssot/env_smoke_test.md for full details)
@@ -47,8 +47,8 @@ uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 
 # Code Quality
 moon run :lint              # Lint all
-moon run backend:format     # Format Python (auto-fix)
-moon run backend:format     # Format Python
+moon run :lint -- --fix     # Format Python (auto-fix)
+moon run :lint -- --fix     # Format Python
 
 # Build
 moon run :build             # Build all
@@ -95,8 +95,8 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 
 | # | Environment | URL | Trigger | Code Runtime | Infrastructure | Database | Isolation |
 |---|-------------|-----|---------|--------------|----------------|----------|-----------|
-| **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run backend:dev` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
-| **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :ci` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
+| **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
+| **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
 | **4** | **PR Preview** | `report-pr-123.zitian.party` | PR opened<br>`pr-test.yml` | **Docker Images**<br>(GHCR) | Dedicated Containers<br>(Per PR) | Dedicated DB/Redis/MinIO | Container suffix<br>`-pr-123` |
 | **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
@@ -111,21 +111,21 @@ The live documentation is hosted at [wangzitian0.github.io/finance_report](https
 - **Persistent**: Manually started, data preserved across runs
 - Isolation: Multiple repo copies use **namespace-aware DB names** (`finance_report`, `finance_report_dev_branch_a`, etc.)
 - S3: Shared local MinIO with namespace-aware buckets (`statements`, `statements-branch-a`)
-- Command: `moon run backend:dev` (or `moon run :infra` + manual uvicorn)
+- Command: `moon run :dev -- --backend` (or `moon run :dev -- --infra` + manual uvicorn)
 
 **Local CI** - Reuses Local Dev containers, creates **temporary test databases**:
 - Uses same `docker-compose.yml` (Profile: `infra`)
 - **Ephemeral data**: Test DB reset before each run, worker DBs auto-cleaned
 - Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.)
-- Command: `moon run :ci` (includes `moon run backend:test`)
-- **Matches GitHub CI command exactly** (`moon run :ci`)
+- Command: `moon run :lint && moon run :test` (includes `moon run :test`)
+- **Matches GitHub CI command exactly** (`moon run :lint && moon run :test`)
 
 #### GitHub Environments
 
 **GitHub CI** - Temporary services, runs same commands as Local CI:
 - Uses GitHub Actions `services:` (ephemeral Postgres container)
 - **Completely ephemeral**: Destroyed after job finishes
-- Command: `moon run :ci` (**identical to Local CI**)
+- Command: `moon run :lint && moon run :test` (**identical to Local CI**)
 - Database: `finance_report_test` (no namespace needed, job-isolated)
 
 **PR Preview** - Full deployment with code changes:
@@ -166,7 +166,7 @@ See [AGENTS.md](../../AGENTS.md#container-naming-patterns) for debugging contain
 
 | Workflow File | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
-| `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run `moon run :ci`, upload coverage |
+| `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run `moon run :lint && moon run :test`, upload coverage |
 | `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
 | `.github/workflows/staging-deploy.yml` | Staging | Push to main | Build images (`:staging` tag), deploy |
 | `.github/workflows/production-release.yml` | Production | Tag `v*.*.*` or manual | Build release images, deploy on manual trigger |
@@ -205,16 +205,16 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 
 ```bash
 # Local Development
-moon run :infra                    # Start containers (Postgres/Redis/MinIO)
-moon run backend:dev               # Start backend dev server
-moon run frontend:dev              # Start frontend dev server
+moon run :dev -- --infra                    # Start containers (Postgres/Redis/MinIO)
+moon run :dev -- --backend               # Start backend dev server
+moon run :dev -- --frontend              # Start frontend dev server
 
 # Local CI (matches GitHub CI exactly)
-moon run :ci                       # Lint + Format + Test + Build
+moon run :lint && moon run :test                       # Lint + Format + Test + Build
 
 # Isolated testing (multiple repo copies)
-BRANCH_NAME=feature-auth moon run backend:test
-BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
+BRANCH_NAME=feature-auth moon run :test
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test
 ```
 
 ---
@@ -250,14 +250,14 @@ The `scripts/test_lifecycle.py` script uses a Python Context Manager (`@contextm
 3. **Usage Examples**:
    ```bash
    # Explicit namespace (recommended for parallel development)
-   BRANCH_NAME=feature-auth moon run backend:test
+   BRANCH_NAME=feature-auth moon run :test
    
    # With workspace ID (multiple copies of same branch)
-   BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
-   BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
+   BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test
+   BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run :test
    
    # Auto-detect from git branch (adds repo path hash)
-   moon run backend:test  # Uses current git branch
+   moon run :test  # Uses current git branch
    ```
 
 4. **Automatic Cleanup**:
@@ -337,12 +337,12 @@ BRANCH_NAME=feature-auth WORKSPACE_ID=alice  # → "feature_auth_alice"
 ```bash
 # Terminal 1 (feature-auth branch)
 cd ~/repos/finance_report
-BRANCH_NAME=feature-auth moon run backend:test
+BRANCH_NAME=feature-auth moon run :test
 # Uses: finance_report_test_feature_auth
 
 # Terminal 2 (feature-payments branch)
 cd ~/repos/finance_report
-BRANCH_NAME=feature-payments moon run backend:test
+BRANCH_NAME=feature-payments moon run :test
 # Uses: finance_report_test_feature_payments
 ```
 
@@ -350,12 +350,12 @@ BRANCH_NAME=feature-payments moon run backend:test
 ```bash
 # Alice's terminal
 cd ~/repos/finance_report_alice
-BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test
 # Uses: finance_report_test_feature_auth_alice
 
 # Bob's terminal
 cd ~/repos/finance_report_bob
-BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
+BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run :test
 # Uses: finance_report_test_feature_auth_bob
 ```
 
@@ -363,7 +363,7 @@ BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
 ```bash
 cd ~/repos/finance_report
 git checkout feature-payments
-moon run backend:test
+moon run :test
 # Auto-detects: finance_report_test_feature_payments_<hash>
 # Hash prevents collisions across different repo copies
 ```
@@ -398,6 +398,18 @@ moon run backend:test
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
 
+> [!IMPORTANT]
+> **Local CI vs GitHub CI Parallelism**
+>
+> | Environment | Parallelism | Test Scope | Resource Usage |
+> |-------------|-------------|------------|----------------|
+> | **GitHub CI** | `-n auto` + `--splits 4` | ~25% tests per shard | Low (ephemeral runners) |
+> | **Local CI** | `-n 4` (fixed) | 100% tests | Controlled (shared machine) |
+>
+> GitHub CI uses `-n auto` because each shard only runs ~25% of tests on ephemeral runners.
+> Local CI uses `-n 4` to prevent resource exhaustion when running the full test suite.
+> This is intentional design, not inconsistency.
+
 ---
 
 ## Resource Lifecycle Management
@@ -408,7 +420,7 @@ All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test li
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ User runs: moon run backend:dev                                 │
+│ User runs: moon run :dev -- --backend                                 │
 │ ┌─────────┐    ┌─────────┐    ┌─────────┐                      │
 │ │ Start   │ -> │ Server  │ -> │ Ctrl+C  │                      │
 │ │ Stack   │    │ Runs    │    │ Cleanup │                      │
@@ -432,7 +444,7 @@ Safe for multi-window development - won't kill other sessions' processes.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ User runs: moon run backend:test                                │
+│ User runs: moon run :test                                │
 │ ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
 │ │ Start   │ -> │ Create  │ -> │ pytest  │ -> │ Cleanup │      │
 │ │ DB      │    │ test DB │    │ runs    │    │ (trap)  │      │
@@ -456,7 +468,7 @@ Safe for multi-window development - won't kill other sessions' processes.
 
 ```bash
 # Local (after starting servers)
-moon run :smoke
+bash scripts/smoke_test.sh
 
 # Against staging/prod
 BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
@@ -639,7 +651,7 @@ The bootloader includes a `_check_vault_secrets()` method that runs in FULL mode
 2. **Stale secrets file** (>1 hour old): Warning that vault-agent may have stopped
 3. **Fresh secrets file**: OK status with last modified time
 
-This check runs during smoke tests (`moon run :smoke`) and provides early warning of token issues.
+This check runs during smoke tests (`bash scripts/smoke_test.sh`) and provides early warning of token issues.
 
 ---
 
@@ -753,13 +765,13 @@ entrypoint:
 
 ```bash
 # Verify moon commands work
-moon run backend:test
+moon run :test
 
 # Test smoke tests locally
-nohup moon run backend:dev > /dev/null 2>&1 &
+nohup moon run :dev -- --backend > /dev/null 2>&1 &
 sleep 10
 export BASE_URL="http://localhost:8000"
-moon run :smoke
+bash scripts/smoke_test.sh
 
 # Check no orphan containers after tests
 podman ps | grep finance_report

@@ -34,60 +34,52 @@ Personal financial management system featuring **double-entry bookkeeping**, **A
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-# Backend (Terminal 1)
-moon run backend:dev
-
-# Frontend (Terminal 2)
-moon run frontend:dev
+# Start development
+moon run :dev              # Starts infra, shows instructions for backend/frontend
+moon run :dev -- --backend # Backend only
+moon run :dev -- --frontend # Frontend only
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
 
-Optional: run dependencies manually (e.g., MinIO for statement uploads):
-
-```bash
-docker compose up -d postgres minio
-```
-
 ## 🛠️ Development
 
-This project uses [Moonrepo](https://moonrepo.dev/) for task orchestration:
+This project uses [Moonrepo](https://moonrepo.dev/) with **6 unified commands**:
 
 ```bash
-# Development
-moon run backend:dev        # Start backend
-moon run frontend:dev       # Start frontend
+# Setup
+moon run :setup            # Install all dependencies
 
-# Local CI / Verification (Recommended)
-moon run :ci                # One-button check (Lint + Format + Test + Check)
-                             # Matches GitHub CI exactly.
+# Development
+moon run :dev              # Start dev environment
+moon run :dev -- --backend # Backend only
+moon run :dev -- --frontend # Frontend only
 
 # Testing
-moon run :test              # All tests
-moon run backend:test       # Run tests (auto-manages DB)
-moon run backend:env-check  # Smoke test environment variables
+moon run :test             # Full tests with coverage
+moon run :test -- --fast   # Fast mode (no coverage, TDD)
+moon run :test -- --smart  # Smart mode (coverage on changed files)
+moon run :test -- --e2e    # E2E tests
 
 # Code Quality
-moon run :lint              # Lint all
-moon run backend:format     # Format Python (auto-fix)
+moon run :lint             # Check all
+moon run :lint -- --fix    # Check + auto-fix
 
 # Build
-moon run :build             # Build all
-```
-Backend tests enforce **>= 92%** line coverage with branch coverage (target: 97%). See [TDD workflow](docs/ssot/tdd.md) for testing patterns and [Six Environments](docs/ssot/development.md#six-environments-ssot) for local/CI/production environment details.
+moon run :build            # Build frontend
 
-**Multi-Repo Isolation**: Run tests in parallel across multiple repo copies without conflicts:
+# Cleanup
+moon run :clean            # Clean resources
+```
+
+Backend tests enforce **>= 92%** line coverage. See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
+
+**Multi-Repo Isolation**: Run tests in parallel across multiple repo copies:
 
 ```bash
-# Recommended: Set explicit namespace
-BRANCH_NAME=feature-auth moon run backend:test
-
-# Multiple developers on same branch
-BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run backend:test
-BRANCH_NAME=feature-auth WORKSPACE_ID=bob moon run backend:test
-
-# Auto-detect from git branch (adds repo path hash for uniqueness)
-moon run backend:test
+BRANCH_NAME=feature-auth moon run :test           # Explicit namespace
+BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test  # Per-developer
+moon run :test                                     # Auto-detect from git
 ```
 
 See [development.md](docs/ssot/development.md) for detailed workflows.
@@ -110,20 +102,11 @@ User-scoped endpoints require an `X-User-Id` header (UUID). See
 
 ### Build Documentation Locally
 
-The project uses [MkDocs](https://www.mkdocs.org/) with Material theme for documentation:
-
 ```bash
-# Install dependencies
 pip install -r docs/requirements.txt
-
-# Serve docs locally with live reload (http://127.0.0.1:8000)
-mkdocs serve
-
-# Build static site (output: site/)
-mkdocs build
+mkdocs serve   # http://127.0.0.1:8000
+mkdocs build   # output: site/
 ```
-
-The generated documentation is output to the `site/` directory.
 
 ## 🏗️ Architecture
 

@@ -50,10 +50,10 @@
 
 **DO NOT manual check environment** (e.g., `docker ps`). Use `moon` to manage lifecycles.
 
-- **Dev**: `moon run :infra` (Terminal 1), `moon run backend:dev` (Terminal 2)
-- **Test**: `moon run backend:test` (Auto-DB lifecycle + Integrated tests)
-- **Quality**: `moon run :lint` (Check all), `moon run backend:format` (Ruff)
-- **Proof**: `moon run :smoke` (E2E against local/remote)
+- **Dev**: `moon run :dev` (starts infra + shows instructions)
+- **Test**: `moon run :test` (Auto-DB lifecycle + Integrated tests)
+- **Quality**: `moon run :lint` (check) or `moon run :lint -- --fix` (auto-fix)
+- **Proof**: `moon run :test -- --e2e` (E2E tests)
 
 ### Pre-commit Hooks (REQUIRED for contributors)
 

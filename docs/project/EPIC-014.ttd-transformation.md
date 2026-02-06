@@ -60,7 +60,7 @@ Transform the project's documentation approach from **prescriptive** (MUST/REQUI
 |-----------|---------------|------|-----------------|
 | **Development Setup** | ✅ Automated | `make install`, `moon run :dev` | 100% |
 | **Code Quality** | ✅ Automated | Ruff pre-commit, mypy pre-commit, CI lint | 100% |
-| **Testing** | ✅ Automated | `moon run backend:test`, pytest-xdist | 100% |
+| **Testing** | ✅ Automated | `moon run :test`, pytest-xdist | 100% |
 | **Debugging** | ✅ Automated | `scripts/debug.py` (env auto-detect) | 100% |
 | **Deployment** | ✅ Automated | `scripts/dokploy_deploy.sh`, `moon run :deploy` | 100% |
 | **Environment Consistency** | ✅ Automated | `scripts/check_env_keys.py`, `validate_schemas.py` | 100% |
@@ -304,7 +304,7 @@ Every SOP document should follow this structure:
 |----------|-------------|------|-----|
 | **Development Setup** | README.md | `make install` | ✅ Complete |
 | **Code Quality** | development.md | Ruff, pre-commit | ✅ Complete |
-| **Testing** | tests/README.md | `moon run backend:test` | ✅ Complete |
+| **Testing** | tests/README.md | `moon run :test` | ✅ Complete |
 | **Debugging** | development.md | `debug.py` | ✅ Complete |
 | **Deployment** | EPIC-007 | `dokploy_deploy.sh` | ✅ Complete |
 | **Env Consistency** | development.md | `check_env_keys.py` | ✅ Complete |

@@ -80,7 +80,7 @@ omit = [
 | `slow` | Performance tests, long-running | Default: excluded (`-m 'not slow'`) |
 | `perf` | Production-like performance validation | Manual only |
 | `integration` | External API calls | Default: excluded (`-m 'not integration'`) |
-| `e2e` | Playwright end-to-end tests | Separate: `moon run backend:test-e2e` |
+| `e2e` | Playwright end-to-end tests | Separate: `moon run :test -- --e2e` |
 
 ---
 
@@ -277,7 +277,7 @@ Coverage report uses the same 99% threshold as local and CI runs.
 
 ```bash
 # Run coverage with detailed report
-moon run backend:test-execution
+moon run :test
 
 # Generate HTML report for analysis
 uv run pytest --cov=src --cov-report=html

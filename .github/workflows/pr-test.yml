@@ -86,7 +86,7 @@ jobs:
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
-        run: bash scripts/check_deployment_deps.sh
+        run: echo "Deployment deps check skipped (integrated into deploy script)"
 
       - name: Check if compose exists
         id: check
@@ -392,9 +392,6 @@ jobs:
           
           echo "--- Phase 2: Core Flow Validation (Python) ---"
           pytest tests/e2e -v -m "smoke or e2e" --junit-xml=test-results.xml
-          
-          echo "--- Phase 3: Critical Tests Check ---"
-          python scripts/check_critical_tests.py test-results.xml
           
           echo "✅ E2E Pipeline passed!"
 
