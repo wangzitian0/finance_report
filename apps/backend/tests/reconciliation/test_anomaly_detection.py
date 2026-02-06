@@ -11,13 +11,15 @@ from tests.factories import BankStatementFactory, BankStatementTransactionFactor
 async def test_detect_large_amount_anomaly(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
 
-    for i in range(5):
+    # Use 30 small txns so even with target included in avg,
+    # avg ≈ (30*1 + 5000)/31 ≈ 162, ratio ≈ 30.8x > 10x threshold.
+    for i in range(30):
         await BankStatementTransactionFactory.create_async(
             db,
             statement_id=stmt.id,
-            amount=Decimal("10.00"),
+            amount=Decimal("1.00"),
             direction="DR",
-            txn_date=date.today() - timedelta(days=i + 1),
+            txn_date=date.today() - timedelta(days=(i % 29) + 1),
         )
 
     large_txn = await BankStatementTransactionFactory.create_async(
@@ -149,13 +151,14 @@ async def test_detect_frequency_spike(db, test_user):
 async def test_anomaly_result_has_severity(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
 
-    for i in range(3):
+    # avg includes target; 30*1 + 5000 / 31 ≈ 162, ratio ≈ 30.8x > 10x
+    for i in range(30):
         await BankStatementTransactionFactory.create_async(
             db,
             statement_id=stmt.id,
-            amount=Decimal("10.00"),
+            amount=Decimal("1.00"),
             direction="DR",
-            txn_date=date.today() - timedelta(days=i + 1),
+            txn_date=date.today() - timedelta(days=(i % 29) + 1),
         )
 
     large_txn = await BankStatementTransactionFactory.create_async(

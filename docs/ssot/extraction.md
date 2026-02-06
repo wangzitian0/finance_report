@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using a single OpenRouter vision model (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. PDFs are sent to the model via public URLs (no base64), while images can use URLs or inline data when necessary. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) using a single OpenRouter vision model (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. Files are sent to the model as base64-encoded inline data (no public URL required). Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 

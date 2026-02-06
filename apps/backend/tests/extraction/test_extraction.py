@@ -560,6 +560,12 @@ class TestCurrencyConsistency:
         txns = [{"currency": "SGD"}, {"currency": "USD"}, {"currency": "SGD"}, {"currency": "SGD"}]
         assert _score_currency_consistency(txns, "SGD") == 3
 
+    def test_missing_currencies_penalized(self):
+        from src.services.validation import _score_currency_consistency
+
+        txns = [{"currency": "SGD"}, {"amount": "100"}, {"amount": "200"}]
+        assert _score_currency_consistency(txns, "SGD") == 1
+
 
 class TestConfidenceScoringV2:
     def test_full_score_with_all_factors(self):

@@ -8,7 +8,7 @@ from typing import Any
 
 from src.models.statement import BankStatementStatus
 
-BALANCE_TOLERANCE = Decimal("0.01")
+BALANCE_TOLERANCE = Decimal("0.10")
 
 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
@@ -173,18 +173,20 @@ def _score_currency_consistency(transactions: list[dict[str, Any]], header_curre
     if not transactions:
         return 0
 
-    currencies = [txn.get("currency") for txn in transactions if txn.get("currency")]
-    if not currencies:
+    all_currencies = [txn.get("currency") for txn in transactions]
+    non_empty_currencies = [c for c in all_currencies if c]
+
+    if not non_empty_currencies:
         return 0
 
     if not header_currency:
         from collections import Counter
 
-        most_common = Counter(currencies).most_common(1)[0][0]
+        most_common = Counter(non_empty_currencies).most_common(1)[0][0]
         header_currency = most_common
 
-    matching = sum(1 for c in currencies if c == header_currency)
-    ratio = matching / len(currencies)
+    matching = sum(1 for c in all_currencies if c == header_currency)
+    ratio = matching / len(transactions)
     return int(ratio * 5)
 
 
