@@ -12,6 +12,7 @@ def test_moon_cli_available():
     assert moon_path is not None, "Moon CLI not found in PATH"
 
 
+@pytest.mark.integration
 def test_github_actions_lint():
     """AC7.8.2: GitHub Actions workflows pass actionlint validation."""
     workflow_dir = Path(__file__).parent.parent.parent.parent.parent / ".github" / "workflows"

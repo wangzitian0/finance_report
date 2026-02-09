@@ -214,7 +214,7 @@ Clearly labeled "for reference only"
 - Total AC IDs: 63
 - Requirements converted to AC IDs: 100% (EPIC-006 checklist + must-have standards)
 - Requirements with implemented test references: 100%
-- Test files: 3
+- Test files referenced in tables: 3 (additional AC6.* coverage exists in other `apps/backend/tests/ai/` tests not listed here)
 
 ---
 

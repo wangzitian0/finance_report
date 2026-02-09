@@ -193,21 +193,21 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.2.1 | New User Registration | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P0 |
-| AC8.2.2 | Create Cash Account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P0 |
-| AC8.2.3 | Create Bank Account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P0 |
-| AC8.2.4 | Update account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P1 |
-| AC8.2.5 | Delete account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P1 |
+| AC8.2.1 | New User Registration | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.2.2 | Create Cash Account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.2.3 | Create Bank Account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.2.4 | Update account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
+| AC8.2.5 | Delete account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
 
 ### AC8.3: Phase 2 - Manual Journal Entries
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.3.1 | Simple Expense Entry | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
-| AC8.3.2 | Void Entry | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
-| AC8.3.3 | Post Draft Entry | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
-| AC8.3.4 | Unbalanced Entry Rejected | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
-| AC8.3.5 | Journal Entry CRUD | _TBD – E2E test not yet implemented_ | _TBD_ | P1 |
+| AC8.3.1 | Simple Expense Entry | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.3.2 | Void Entry | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.3.3 | Post Draft Entry | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.3.4 | Unbalanced Entry Rejected | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.3.5 | Journal Entry CRUD | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
 
 ### AC8.4: Phase 3 - Statement Import & Parsing
 
@@ -221,36 +221,36 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.5.1 | Reconciliation engine runs | `test_reconciliation_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.5.2 | Reconciliation stats endpoint | `test_reconciliation_api()` | `e2e/test_core_journeys.py` | P1 |
+| AC8.5.1 | Reconciliation engine runs | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.5.2 | Reconciliation stats endpoint | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P1 |
 | AC8.5.3 | Match acceptance | Match acceptance tests | `reconciliation/` | P1 |
 
 ### AC8.6: Phase 5 - Reporting & Visualization
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.6.1 | View Balance Sheet | `test_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.6.2 | View Income Statement | `test_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.6.3 | View Cash Flow Report | `test_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.6.4 | Report navigation | Navigation tests | `e2e/test_e2e_flows.py` | P1 |
+| AC8.6.1 | View Balance Sheet | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.6.2 | View Income Statement | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.6.3 | View Cash Flow Report | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.6.4 | Report navigation | N/A – E2E test not yet implemented | `e2e/test_e2e_flows.py` (planned) | P1 |
 
 ### AC8.7: API Authentication & Authorization
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.7.1 | API authentication failures | `test_api_authentication_failures()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.7.2 | Unauthorized access blocked | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
-| AC8.7.3 | User session management | _TBD – E2E test not yet implemented_ | _TBD_ | P1 |
+| AC8.7.1 | API authentication failures | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.7.2 | Unauthorized access blocked | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
+| AC8.7.3 | User session management | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
 
 ### AC8.8: Core E2E Journey Tests
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.8.1 | API health check | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.2 | Accounts CRUD API | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.3 | Journal entry lifecycle API | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.4 | Reports API | `test_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.8.5 | Reconciliation API | `test_reconciliation_api()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.8.1 | API health check | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.8.2 | Accounts CRUD API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.8.3 | Journal entry lifecycle API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.8.4 | Reports API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.8.5 | Reconciliation API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
 
 ### AC8.9: CI/CD Integration Tests
 
@@ -259,27 +259,27 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.9.1 | PR workflow runs E2E tests | Manual verification | `.github/workflows/pr-test.yml` | P0 |
 | AC8.9.2 | Smoke tests integrated | Manual verification | PR pipeline | P0 |
 | AC8.9.3 | Critical test check | GitHub workflow check | `.github/workflows/pr-test.yml` | P0 |
-| AC8.9.4 | Environment isolation | Manual verification | Dokploy PR environments | P0 |
+| AC8.9.4 | Environment isolation | Manual verification | N/A (Dokploy PR environments platform feature) | P0 |
 
 ### AC8.10: Must-Have Scenario Traceability
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC8.10.1 | Health endpoint reachable | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.2 | User can create account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.3 | User can create journal entry | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.1 | Health endpoint reachable | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.2 | User can create account | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.3 | User can create journal entry | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
 | AC8.10.4 | Statement upload triggers AI | `test_model_selection_and_upload()` | `e2e/test_statement_upload_e2e.py` | P0 |
-| AC8.10.5 | Reconciliation engine runs | `test_reconciliation_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.6 | Unbalanced entry rejected | `test_unbalanced_journal_entry_rejection()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.7 | Reports API accessible | `test_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.8 | User registration flow | `test_registration_flow()` | `e2e/test_e2e_flows.py` | P0 |
-| AC8.10.9 | Authentication validation | `test_api_authentication_failures()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.5 | Reconciliation engine runs | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.6 | Unbalanced entry rejected | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.7 | Reports API accessible | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.8 | User registration flow | N/A – E2E test not yet implemented | `e2e/test_e2e_flows.py` (planned) | P0 |
+| AC8.10.9 | Authentication validation | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 49
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- Requirements with implemented test references: 85% (15% scenarios are nice-to-have or pending)
-- Test files: 7
+- Requirements with implemented test references: 35% (65% E2E scenarios planned but not yet implemented)
+- Test files: 1 implemented (`e2e/test_statement_upload_e2e.py`), 2 planned (`e2e/test_core_journeys.py`, `e2e/test_e2e_flows.py`)
 - Note: EPIC-008 covers 100 scenarios; current implementation covers ~15 core scenarios
 
 ---

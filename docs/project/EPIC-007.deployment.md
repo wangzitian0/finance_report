@@ -184,7 +184,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
 | AC7.7.1 | Health endpoint returns 200 | `test_health_when_all_services_healthy()` | `infra/test_main.py` | P0 |
-| AC7.7.2 | Health check with services down | `test_health_with_service_down()` | `infra/test_main.py` | P0 |
+| AC7.7.2 | Health check with services down | `test_health_returns_503_on_database_failure()`, `test_health_fails_when_redis_configured_but_unavailable()`, `test_health_returns_503_on_s3_failure()` | `infra/test_main.py` | P0 |
 
 ### AC7.8: Docker & CI Configuration
 
