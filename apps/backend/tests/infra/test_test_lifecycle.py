@@ -3,6 +3,7 @@ import os
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 import sys
+import subprocess
 
 # Add scripts directory to path so we can import test_lifecycle
 sys.path.append(str(Path(__file__).parent.parent.parent.parent.parent / "scripts"))
@@ -12,8 +13,8 @@ import test_lifecycle
 def patch_cache_file(tmp_path):
     """AC8.3.1: Ensure tests use a temporary cache file for hermeticity."""
     mock_cache = tmp_path / "test_active_namespaces.json"
-    with patch("test_lifecycle.ACTIVE_NAMESPACES_FILE", str(mock_cache)):
-        yield str(mock_cache)
+    with patch("test_lifecycle.ACTIVE_NAMESPACES_FILE", mock_cache):
+        yield mock_cache
 
 def test_sanitize_namespace():
     """AC8.1.1: Verify namespace sanitization replaces invalid characters."""
@@ -30,8 +31,12 @@ def test_is_db_ready(mock_run):
     mock_run.return_value = MagicMock(returncode=0)
     assert test_lifecycle.is_db_ready("podman", "db-container") is True
     
-    mock_run.return_value = MagicMock(returncode=1)
+    # Simulate CalledProcessError for failure case
+    mock_run.side_effect = subprocess.CalledProcessError(1, cmd=["pg_isready"])
     assert test_lifecycle.is_db_ready("podman", "db-container") is False
+    
+    # Reset side_effect for other tests
+    mock_run.side_effect = None
 
 @patch("test_lifecycle.subprocess.run")
 @patch("test_lifecycle.get_container_runtime")
@@ -104,6 +109,6 @@ def test_load_active_namespaces_corrupted(tmp_path):
     """AC8.3.1: Verify load_active_namespaces handles corrupted JSON."""
     corrupted_file = tmp_path / "corrupted.json"
     corrupted_file.write_text("invalid json")
-    with patch("test_lifecycle.ACTIVE_NAMESPACES_FILE", str(corrupted_file)):
+    with patch("test_lifecycle.ACTIVE_NAMESPACES_FILE", corrupted_file):
         namespaces = test_lifecycle.load_active_namespaces()
         assert namespaces == []
