@@ -11,11 +11,7 @@ from src.security import create_access_token, decode_access_token
 
 
 def test_create_access_token_with_custom_expiry():
-    """
-    GIVEN a data payload and custom expiry delta
-    WHEN creating an access token
-    THEN the token should contain the data and custom expiry
-    """
+    """AC8.2.3: Verify token creation with custom expiration delta."""
     data = {"sub": "user123"}
     expires_delta = timedelta(hours=2)
 
@@ -28,11 +24,7 @@ def test_create_access_token_with_custom_expiry():
 
 @freeze_time("2024-01-01 00:00:00")
 def test_create_access_token_with_default_expiry():
-    """
-    GIVEN a data payload without custom expiry
-    WHEN creating an access token
-    THEN the token should use default expiry from settings
-    """
+    """AC8.2.3: Verify token creation uses default expiration from settings."""
     data = {"sub": "user456"}
     token = create_access_token(data)
 
@@ -49,11 +41,7 @@ def test_create_access_token_with_default_expiry():
 
 
 def test_decode_access_token_valid():
-    """
-    GIVEN a valid JWT token
-    WHEN decoding the token
-    THEN it should return the payload
-    """
+    """AC8.2.3: Verify successful decoding of a valid JWT token."""
     data = {"sub": "user789", "role": "admin"}
     token = create_access_token(data)
 
@@ -65,11 +53,7 @@ def test_decode_access_token_valid():
 
 
 def test_decode_access_token_expired():
-    """
-    GIVEN an expired JWT token
-    WHEN decoding the token
-    THEN it should return None and log debug message
-    """
+    """AC8.2.3: Verify that expired tokens return None and log debug msg."""
     data = {"sub": "expired_user"}
     expires_delta = timedelta(seconds=-1)
     token = create_access_token(data, expires_delta)
@@ -82,11 +66,7 @@ def test_decode_access_token_expired():
 
 
 def test_decode_access_token_invalid_signature():
-    """
-    GIVEN a JWT token with invalid signature
-    WHEN decoding the token
-    THEN it should return None and log warning
-    """
+    """AC8.2.3: Verify that invalid signatures return None and log warning."""
     data = {"sub": "user999"}
     token = jwt.encode(data, "wrong-secret", algorithm=settings.jwt_algorithm)
 
@@ -100,15 +80,16 @@ def test_decode_access_token_invalid_signature():
 
 
 def test_decode_access_token_malformed():
-    """
-    GIVEN a malformed JWT token
-    WHEN decoding the token
-    THEN it should return None and log warning
-    """
+    """AC8.2.3: Verify that malformed tokens return None and log warning."""
+    # Test with random string
     token = "not.a.valid.jwt.token"
-
     with patch("src.security.logger.warning") as mock_warning:
         payload = decode_access_token(token)
-
     assert payload is None
     mock_warning.assert_called_once()
+    
+    # Test with empty string
+    assert decode_access_token("") is None
+    
+    # Test with None
+    assert decode_access_token(None) is None
