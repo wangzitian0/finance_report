@@ -147,6 +147,7 @@ Expected routing behavior remains threshold-based:
 |----|-----------|---------------|------|----------|
 | AC13.6.1 | Test that CSV parsing raises error when institution is None | `test_csv_requires_institution()` | `extraction/test_extraction.py` | P0 |
 | AC13.6.2 | Test that parse_document accepts institution=None for PDFs (AI auto-detect) | `test_parse_document_accepts_none_institution_for_pdf()` | `extraction/test_extraction.py` | P0 |
+| AC13.6.3 | Test that parse_document accepts force_model parameter | `test_parse_document_accepts_force_model()` | `extraction/test_extraction.py` | P0 |
 
 ### AC13.7: Extraction Service Helpers
 
@@ -165,7 +166,7 @@ Expected routing behavior remains threshold-based:
 | AC13.7.11 | Test _safe_decimal None required | `test_safe_decimal_none_required()` | `extraction/test_extraction.py` | P0 |
 | AC13.7.12 | Test compute_confidence with missing transactions key | `test_compute_confidence_missing_transactions()` | `extraction/test_extraction.py` | P0 |
 
-### AC13.8: Balance Progression
+### AC13.8: Balance Progression & Currency Consistency
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
@@ -175,9 +176,13 @@ Expected routing behavior remains threshold-based:
 | AC13.8.4 | Test no balance after | `test_no_balance_after()` | `extraction/test_extraction.py` | P0 |
 | AC13.8.5 | Test empty list | `test_empty_list()` | `extraction/test_extraction.py` | P0 |
 | AC13.8.6 | Test partial consistency | `test_partial_consistency()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.7 | Test none currencies partial | `test_mixed_currencies_partial()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.8 | Test none currencies | `test_no_currencies()` | `extraction/test_extraction.py` | P0 |
-| AC13.8.9 | Test missing currencies penalized | `test_missing_currencies_penalized()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.7 | Test all currencies match | `test_all_currencies_match()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.8 | Test no currencies match | `test_no_currencies_match()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.9 | Test no header currency | `test_no_header_currency()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.10 | Test no currencies in transactions | `test_no_currencies()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.11 | Test empty list (currency) | `test_empty_list()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.12 | Test mixed currencies partial | `test_mixed_currencies_partial()` | `extraction/test_extraction.py` | P0 |
+| AC13.8.13 | Test missing currencies penalized | `test_missing_currencies_penalized()` | `extraction/test_extraction.py` | P0 |
 
 ### AC13.9: Confidence Scoring V2
 
@@ -187,10 +192,10 @@ Expected routing behavior remains threshold-based:
 | AC13.9.2 | Test no new factors caps at 85 | `test_no_new_factors_caps_at_85()` | `extraction/test_extraction.py` | P0 |
 
 **Test Coverage Summary**:
-- Total AC IDs: 36
+- Total AC IDs: 52
 - Requirements converted to AC IDs: 100% (EPIC-013 P0 implementation)
 - Requirements with test references: 100%
-- Test files: 3
+- Test files: 1 (`test_extraction.py`)
 - Overall coverage: EPIC-013 implementation in progress
 
 ---

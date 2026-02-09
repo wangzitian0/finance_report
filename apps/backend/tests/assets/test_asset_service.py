@@ -322,8 +322,6 @@ class TestAssetService:
         """AC11.1.9: Test get_positions returns empty list when no positions exist."""
         service = AssetService()
 
-        await service.reconcile_positions(db, test_user.id)
-
         positions, total = await service.get_positions(db, test_user.id)
         assert positions == []
         assert total == 0

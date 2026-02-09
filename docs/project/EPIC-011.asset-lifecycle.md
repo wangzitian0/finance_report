@@ -1219,10 +1219,10 @@ DR  Equity:APIC                 $1,250
 | AC11.7.1 | Verify position queries are isolated by user_id | `test_get_position_user_isolation()` | `assets/test_assets_router.py` | P0 |
 
 **Test Coverage Summary**:
-- Total AC IDs: 26
+- Total AC IDs: 28
 - Requirements converted to AC IDs: 100% (EPIC-011 P0 implementation)
 - Requirements with test references: 100%
-- Test files: 2
+- Test files: 2 (`test_asset_service.py`, `test_assets_router.py`)
 - Overall coverage: P0 MVP Complete
 
 ---

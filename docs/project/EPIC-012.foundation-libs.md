@@ -87,11 +87,13 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.2.1 | Debug mode uses ConsoleRenderer | `test_select_renderer_uses_console_in_debug()` | `infra/test_logger.py` | P0 |
 | AC12.2.2 | Production mode uses JSONRenderer | `test_select_renderer_uses_json_in_production()` | `infra/test_logger.py` | P0 |
 
-### AC12.3: Logging - OTEL Missing Dependency Warning
+### AC12.3: Logging - OTEL Missing Dependency / No Endpoint
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.3.1 | OTEL not available logs warning | `test_configure_otel_logging_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
+| AC12.3.1 | OTEL logging not available logs warning | `test_configure_otel_logging_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
+| AC12.3.2 | OTEL tracing not available logs warning | `test_configure_otel_tracing_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
+| AC12.3.3 | OTEL logging with no endpoint skips setup | `test_configure_otel_logging_no_endpoint()` | `infra/test_logger.py` | P0 |
 
 ### AC12.4: Logging - OTEL with Fake Exporter
 
@@ -112,6 +114,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.6.1 | Sync log_timing logs operation with timing | `test_log_timing_basic()` | `infra/test_logger.py` | P0 |
 | AC12.6.2 | Async log_timing includes additional context | `test_log_timing_with_context()` | `infra/test_logger.py` | P0 |
 | AC12.6.3 | log_timing yields mutable dict | `test_log_timing_yields_mutable_dict()` | `infra/test_logger.py` | P0 |
+| AC12.6.4 | log_timing with custom level | `test_log_timing_with_custom_level()` | `infra/test_logger.py` | P0 |
 
 ### AC12.7: Logging - External API Logging
 
@@ -121,7 +124,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.7.2 | Sync external API call logs failure | `test_log_external_api_sync_failure()` | `infra/test_logger.py` | P0 |
 | AC12.7.3 | Async external API call logs success | `test_log_external_api_async_success()` | `infra/test_logger.py` | P0 |
 | AC12.7.4 | Async external API call logs failure | `test_log_external_api_async_failure()` | `infra/test_logger.py` | P0 |
-| AC12.7.5 | External API with log_args=True logs args count | `test_log_external_api_with_log_args()` | `infra/test_logger.py` | P0 |
+| AC12.7.5 | Sync external API with log_args=True logs args count | `test_log_external_api_with_log_args()` | `infra/test_logger.py` | P0 |
 
 ### AC12.8: Logging - Exception Logging
 
@@ -131,13 +134,6 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.8.2 | Log exception includes extra context fields | `test_log_exception_with_extra_context()` | `infra/test_logger.py` | P0 |
 | AC12.8.3 | Log exception without traceback | `test_log_exception_without_traceback()` | `infra/test_logger.py` | P0 |
 | AC12.8.4 | Log exception with custom level | `test_log_exception_custom_level()` | `infra/test_logger.py` | P0 |
-
-### AC12.9: Logging - Async Exception Logging
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.9.1 | Async log exception logs failure | `test_log_external_api_async_failure()` | `infra/test_logger.py` | P0 |
-| AC12.9.2 | Async log exception logs failure with log_args | `test_log_external_api_async_failure_with_log_args()` | `infra/test_logger.py` | P0 |
 
 ### AC12.10: Logging - Build Processors
 
@@ -157,22 +153,9 @@ This EPIC addresses technical debt in the foundational libraries that all module
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC12.12.1 | TracerProvider created and resource attributes set | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-| AC12.12.2 | Traces path appends /v1/traces | `test_configure_otel_tracing_appends_traces_path()` | `infra/test_logger.py` | P0 |
-| AC12.12.3 | Traces path with trailing slash appends /v1/traces | `test_configure_otel_tracing_appends_traces_path()` | `infra/test_logger.py` | P0 |
-
-### AC12.13: Logging - OTEL Resource Tests
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.13.1 | OTEL resource created with service.name attribute | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-| AC12.13.2 | OTEL resource created with deployment.environment attribute | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
-
-### AC12.14: Logging - OTEL Service Name
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.14.1 | OTEL resource created with deployment.environment attribute | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
+| AC12.12.1 | OTEL tracing skips setup when no endpoint configured | `test_configure_otel_tracing_no_endpoint()` | `infra/test_logger.py` | P0 |
+| AC12.12.2 | TracerProvider created and resource attributes set | `test_configure_otel_tracing_with_fake_exporter()` | `infra/test_logger.py` | P0 |
+| AC12.12.3 | Traces path appends /v1/traces | `test_configure_otel_tracing_appends_traces_path()` | `infra/test_logger.py` | P0 |
 
 ### AC12.15: Logging - Configuration Basics
 
@@ -186,6 +169,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC12.16.1 | Async log_timing logs operation with timing | `test_async_log_timing_basic()` | `infra/test_logger.py` | P0 |
+| AC12.16.2 | Async log_timing includes additional context | `test_async_log_timing_with_context()` | `infra/test_logger.py` | P0 |
 
 ### AC12.17: Logging - External API Async with Args
 
@@ -212,10 +196,10 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.19.1 | Moon workspace configuration files exist | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | P0 |
 
 **Test Coverage Summary**:
-- Total AC IDs: 31
+- Total AC IDs: 42
 - Requirements converted to AC IDs: 100% (EPIC-012 infrastructure work)
 - Requirements with test references: 100%
-- Test files: 2
+- Test files: 3 (`test_logger.py`, `test_config_contract.py`, `test_epic_001_contracts.py`)
 - Overall coverage: Logging and config infrastructure verified
 
 ---
