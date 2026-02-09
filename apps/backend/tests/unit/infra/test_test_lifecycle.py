@@ -206,3 +206,68 @@ def test_main_smart_mode(mock_changed, mock_run, mock_test_db):
     pytest_call = [c for c in mock_run.call_args_list if "pytest" in str(c)]
     assert "--cov=src.models" in str(pytest_call[0])
     assert "--cov=src.utils" in str(pytest_call[0])
+
+@patch("test_lifecycle.subprocess.run")
+def test_cleanup_orphan_databases_invalid_db_name(mock_run):
+    """AC8.3.3: Verify that cleanup_orphan_databases ignores non-confirming DB names."""
+    # Mock psql list dbs with some random names
+    mock_run.side_effect = [
+        MagicMock(stdout="postgres\ntest_db\nfinance_report_test_ok\n"), # list
+        MagicMock(returncode=0), # drop
+    ]
+    
+    with patch("test_lifecycle.load_active_namespaces", return_value=[]):
+        with patch("test_lifecycle.get_namespace", return_value="current"):
+            test_lifecycle.cleanup_orphan_databases("podman", "container")
+    
+    # DROP DATABASE should only be called for 'finance_report_test_ok' (if orphaned)
+    # But wait, 'finance_report_test_ok' namespace is 'ok'.
+    drop_calls = [c for c in mock_run.call_args_list if "DROP DATABASE" in str(c)]
+    assert len(drop_calls) == 1
+    assert "ok" in str(drop_calls[0])
+
+@patch("test_lifecycle.subprocess.run")
+def test_register_unregister_namespace(mock_run, tmp_path):
+    """AC8.3.4: Verify namespace registration and unregistration."""
+    test_file = tmp_path / "namespaces.json"
+    with patch("test_lifecycle.ACTIVE_NAMESPACES_FILE", test_file):
+        test_lifecycle.register_namespace("ns1")
+        assert "ns1" in test_lifecycle.load_active_namespaces()
+        
+        test_lifecycle.register_namespace("ns2")
+        assert len(test_lifecycle.load_active_namespaces()) == 2
+        
+        test_lifecycle.unregister_namespace("ns1")
+        assert "ns1" not in test_lifecycle.load_active_namespaces()
+        assert "ns2" in test_lifecycle.load_active_namespaces()
+
+@patch("test_lifecycle.subprocess.run")
+@patch("test_lifecycle.get_container_runtime")
+@patch("test_lifecycle.get_namespace")
+def test_env_suffix_in_test_database(mock_get_namespace, mock_get_runtime, mock_run):
+    """AC8.2.3: Verify that ENV_SUFFIX is correctly set in test_database."""
+    mock_get_namespace.return_value = "isolated_ns"
+    mock_get_runtime.return_value = "docker"
+    
+    # Mock minimal success flow
+    mock_run.side_effect = [
+        MagicMock(returncode=0), # up
+        MagicMock(stdout="container\n"), # ps
+        MagicMock(returncode=0), # ready check
+        MagicMock(stdout=""), # sql list dbs
+        MagicMock(stdout="0"), # sql check db exists
+        MagicMock(returncode=0), # sql create db
+        MagicMock(stdout="5432"), # port check
+        MagicMock(returncode=0), # migrations
+        MagicMock(stdout=""), # worker cleanup list
+        MagicMock(returncode=0), # drop db
+    ]
+    
+    with test_lifecycle.test_database(ephemeral=False) as (url, ns):
+        # Check if ENV_SUFFIX was passed to subprocess
+        env_passed = False
+        for call in mock_run.call_args_list:
+            if "env" in call.kwargs and call.kwargs["env"].get("ENV_SUFFIX") == "-isolated_ns":
+                env_passed = True
+                break
+        assert env_passed is True
