@@ -146,10 +146,10 @@ def cmd_clean(args):
         run([*compose_cmd, "--profile", "infra", "down"])
     else:
         cmd = ["bash", "scripts/cleanup_dev_resources.sh"]
-        if args.force:
-            cmd.append("--force")
         if args.all:
             cmd.append("--all")
+        elif args.force:
+            cmd.append("--force")
         run(cmd)
 
 

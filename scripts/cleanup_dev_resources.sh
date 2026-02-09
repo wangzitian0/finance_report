@@ -111,7 +111,7 @@ fi
 if [ -n "$RUNTIME" ]; then
     echo "🕵️  Checking for leaked CI/Test resources (finance-report-internal-*)..."
 
-    LEAKED_CONTAINERS=$($RUNTIME ps -a --format "{{.Names}}" | grep "^finance-report-internal" || true)
+    LEAKED_CONTAINERS=$($RUNTIME ps -a --format "{{.Names}}" | grep "^finance-report-internal-" || true)
     if [ -n "$LEAKED_CONTAINERS" ]; then
         echo "   Found leaked containers:"
         echo "$LEAKED_CONTAINERS" | sed 's/^/   - /'
@@ -123,7 +123,7 @@ if [ -n "$RUNTIME" ]; then
         fi
     fi
 
-    LEAKED_NETWORKS=$($RUNTIME network ls --format "{{.Name}}" | grep "^finance-report-internal" || true)
+    LEAKED_NETWORKS=$($RUNTIME network ls --format "{{.Name}}" | grep "^finance-report-internal-" || true)
     if [ -n "$LEAKED_NETWORKS" ]; then
         echo "   Found leaked networks:"
         echo "$LEAKED_NETWORKS" | sed 's/^/   - /'
