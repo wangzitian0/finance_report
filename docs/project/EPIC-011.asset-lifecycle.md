@@ -1150,6 +1150,83 @@ DR  Equity:APIC                 $1,250
 
 ---
 
+## 🧪 Test Cases
+
+> **Test Organization**: Tests organized by feature blocks using AC11.x.y numbering.
+> **Coverage**: See `apps/backend/tests/assets/`
+
+### AC11.1: Asset Service - Reconciliation Logic
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.1.1 | Reconcile creates new position | `test_reconcile_creates_position()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.2 | Reconcile updates existing position quantity | `test_reconcile_updates_position()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.3 | Reconcile disposes position when quantity is 0 | `test_reconcile_disposes_position()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.4 | Cost basis is set from market_value | `test_reconcile_cost_basis_uses_market_value()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.5 | Reconcile multiple different assets | `test_reconcile_multiple_assets()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.6 | Same asset at different brokers creates separate positions | `test_reconcile_multiple_brokers_same_asset()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.7 | Null broker name handled correctly | `test_reconcile_with_null_broker()` | `assets/test_asset_service.py` | P1 |
+| AC11.1.8 | Disposed position can be reactivated | `test_reconcile_reactivates_disposed_position()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.9 | Get positions returns empty list when no positions exist | `test_get_positions_empty()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.10 | Reconcile with no snapshots does nothing | `test_reconcile_no_snapshots()` | `assets/test_asset_service.py` | P0 |
+| AC11.1.11 | Negative quantities (short positions) handled correctly | `test_reconcile_negative_quantity_short_position()` | `assets/test_asset_service.py` | P1 |
+| AC11.1.12 | Updated and disposed counts are mutually exclusive | `test_reconcile_result_counts_are_mutually_exclusive()` | `assets/test_asset_service.py` | P0 |
+
+### AC11.2: Asset Router - List Operations
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.2.1 | GET /assets/positions returns empty list when no positions | `test_list_positions_empty()` | `assets/test_assets_router.py` | P0 |
+| AC11.2.2 | GET /assets/positions returns positions with data | `test_list_positions_with_data()` | `assets/test_assets_router.py` | P0 |
+| AC11.2.3 | GET /assets/positions filters by status correctly | `test_list_positions_filter_by_status()` | `assets/test_assets_router.py` | P0 |
+
+### AC11.3: Asset Router - Single Position Operations
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.3.1 | GET /assets/positions/{id} returns position details | `test_get_position_success()` | `assets/test_assets_router.py` | P0 |
+| AC11.3.2 | GET /assets/positions/{id} returns 404 for non-existent position | `test_get_position_not_found()` | `assets/test_assets_router.py` | P0 |
+| AC11.3.3 | GET /assets/positions/{id} returns 404 for other user's position | `test_get_position_wrong_user()` | `assets/test_assets_router.py` | P0 |
+
+### AC11.4: Asset Router - Reconciliation Endpoint
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.4.1 | POST /assets/reconcile creates positions from snapshots | `test_reconcile_positions_success()` | `assets/test_assets_router.py` | P0 |
+| AC11.4.2 | POST /assets/reconcile with no snapshots returns 0 counts | `test_reconcile_positions_empty()` | `assets/test_assets_router.py` | P0 |
+
+### AC11.5: Asset Router - Authentication
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.5.1 | GET /assets/positions requires authentication | `test_list_positions_requires_auth()` | `assets/test_assets_router.py` | P0 |
+| AC11.5.2 | GET /assets/positions/{id} requires authentication | `test_get_position_requires_auth()` | `assets/test_assets_router.py` | P0 |
+| AC11.5.3 | POST /assets/reconcile requires authentication | `test_reconcile_requires_auth()` | `assets/test_assets_router.py` | P0 |
+
+### AC11.6: Asset Router - Depreciation Endpoint
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.6.1 | GET /assets/positions/{id}/depreciation returns depreciation schedule | `test_get_position_depreciation_success()` | `assets/test_assets_router.py` | P0 |
+| AC11.6.2 | GET /assets/positions/{id}/depreciation returns 400 for non-existent position | `test_get_position_depreciation_not_found()` | `assets/test_assets_router.py` | P0 |
+| AC11.6.3 | GET /assets/positions/{id}/depreciation returns 400 for disposed position | `test_get_position_depreciation_disposed_position()` | `assets/test_assets_router.py` | P0 |
+| AC11.6.4 | GET /assets/positions/{id}/depreciation returns 422 for invalid params | `test_get_position_depreciation_invalid_params()` | `assets/test_assets_router.py` | P1 |
+
+### AC11.7: Security - User Isolation
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.7.1 | Verify position queries are isolated by user_id | `test_get_position_user_isolation()` | `assets/test_assets_router.py` | P0 |
+
+**Test Coverage Summary**:
+- Total AC IDs: 28
+- Requirements converted to AC IDs: 100% (EPIC-011 P0 implementation)
+- Requirements with test references: 100%
+- Test files: 2 (`test_asset_service.py`, `test_assets_router.py`)
+- Overall coverage: P0 MVP Complete
+
+---
+
 ## 🔄 Reusable Components & Reference Patterns
 
 ### Backend: Components to Reuse

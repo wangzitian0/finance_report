@@ -25,9 +25,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models.statement import BankStatement, BankStatementStatus
 from src.services.extraction import ExtractionService
-
 
 # ---------------------------------------------------------------------------
 # Gap 1: AI returns dirty account_last4 → parse_document sanitizes → DB stores ≤ 4 chars
@@ -223,7 +222,6 @@ class TestBackgroundTaskDirtyData:
         """Full background task flow: dirty AI response → sanitized → saved → PARSED/APPROVED."""
         from src.database import create_session_maker_from_db
         from src.routers.statements import _parse_statement_background
-        from src.services.extraction import ExtractionService
 
         sid = uuid4()
         uid = uuid4()
@@ -460,8 +458,6 @@ class TestCascadingFailureRecovery:
             file_hash="dummy",
             original_filename="test.pdf",
         )
-
-        original_parse = ExtractionService.parse_document
 
         async def parse_then_arm_failure(*args, **kwargs):
             nonlocal fail_next_commit
