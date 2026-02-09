@@ -193,27 +193,27 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.2.1 | New User Registration | `test_registration_flow()` | `e2e/test_e2e_flows.py` | P0 |
-| AC8.2.2 | Create Cash Account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.2.3 | Create Bank Account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.2.4 | Update account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P1 |
-| AC8.2.5 | Delete account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P1 |
+| AC8.2.1 | New User Registration | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P0 |
+| AC8.2.2 | Create Cash Account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P0 |
+| AC8.2.3 | Create Bank Account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P0 |
+| AC8.2.4 | Update account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P1 |
+| AC8.2.5 | Delete account | Planned (not implemented yet) | TBD – will live under `apps/backend/tests/e2e/` | P1 |
 
 ### AC8.3: Phase 2 - Manual Journal Entries
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.3.1 | Simple Expense Entry | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.2 | Void Entry | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.3 | Post Draft Entry | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.4 | Unbalanced Entry Rejected | `test_unbalanced_journal_entry_rejection()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.3.5 | Journal Entry CRUD | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P1 |
+| AC8.3.1 | Simple Expense Entry | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
+| AC8.3.2 | Void Entry | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
+| AC8.3.3 | Post Draft Entry | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
+| AC8.3.4 | Unbalanced Entry Rejected | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
+| AC8.3.5 | Journal Entry CRUD | _TBD – E2E test not yet implemented_ | _TBD_ | P1 |
 
 ### AC8.4: Phase 3 - Statement Import & Parsing
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.4.1 | Statement upload triggers AI | `test_statement_upload_parsing_flow()` | `e2e/test_e2e_flows.py` | P0 |
+| AC8.4.1 | Statement upload triggers AI | `test_model_selection_and_upload()` | `e2e/test_statement_upload_e2e.py` | P0 |
 | AC8.4.2 | Model selection | `test_model_selection_and_upload()` | `e2e/test_statement_upload_e2e.py` | P0 |
 | AC8.4.3 | Statement upload full flow | `test_statement_upload_full_flow()` | `e2e/test_statement_upload_e2e.py` | P0 |
 
@@ -239,8 +239,8 @@ These scenarios represent the "Vertical Slices" of user value.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC8.7.1 | API authentication failures | `test_api_authentication_failures()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.7.2 | Unauthorized access blocked | Auth tests | `e2e/test_auth_flows.py` | P0 |
-| AC8.7.3 | User session management | Session tests | `e2e/test_auth_flows.py` | P1 |
+| AC8.7.2 | Unauthorized access blocked | _TBD – E2E test not yet implemented_ | _TBD_ | P0 |
+| AC8.7.3 | User session management | _TBD – E2E test not yet implemented_ | _TBD_ | P1 |
 
 ### AC8.8: Core E2E Journey Tests
 
@@ -258,7 +258,7 @@ These scenarios represent the "Vertical Slices" of user value.
 |----|-----------|---------------|------|----------|
 | AC8.9.1 | PR workflow runs E2E tests | Manual verification | `.github/workflows/pr-test.yml` | P0 |
 | AC8.9.2 | Smoke tests integrated | Manual verification | PR pipeline | P0 |
-| AC8.9.3 | Critical test check | `scripts/check_critical_tests.py` | `scripts/check_critical_tests.py` | P0 |
+| AC8.9.3 | Critical test check | GitHub workflow check | `.github/workflows/pr-test.yml` | P0 |
 | AC8.9.4 | Environment isolation | Manual verification | Dokploy PR environments | P0 |
 
 ### AC8.10: Must-Have Scenario Traceability
@@ -268,7 +268,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.10.1 | Health endpoint reachable | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.2 | User can create account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.3 | User can create journal entry | `test_journal_entry_lifecycle_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.4 | Statement upload triggers AI | `test_statement_upload_parsing_flow()` | `e2e/test_e2e_flows.py` | P0 |
+| AC8.10.4 | Statement upload triggers AI | `test_model_selection_and_upload()` | `e2e/test_statement_upload_e2e.py` | P0 |
 | AC8.10.5 | Reconciliation engine runs | `test_reconciliation_api()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.6 | Unbalanced entry rejected | `test_unbalanced_journal_entry_rejection()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.7 | Reports API accessible | `test_reports_api()` | `e2e/test_core_journeys.py` | P0 |

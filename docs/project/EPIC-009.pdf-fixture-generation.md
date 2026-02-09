@@ -157,7 +157,6 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 > **Coverage**: See `scripts/pdf_fixtures/` and template files
-> **Coverage**: See `scripts/pdf_fixtures/` and template files
 
 ### AC9.1: PDF Format Analysis (Phase 0)
 
@@ -179,8 +178,8 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 | AC9.2.3 | CMB generator exists | Manual verification | `scripts/pdf_fixtures/generators/cmb_generator.py` | P0 |
 | AC9.2.4 | Mari Bank generator exists | Manual verification | `scripts/pdf_fixtures/generators/mari_generator.py` | P0 |
 | AC9.2.5 | Font utilities exist | Manual verification | `scripts/pdf_fixtures/generators/font_utils.py` | P0 |
-| AC9.2.6 | Fake data generator exists | Manual verification | `scripts/data/fake_data.py` | P0 |
-| AC9.2.7 | Main script exists | Manual verification | `scripts/generate_pdf_fixtures.py` | P0 |
+| AC9.2.6 | Fake data generator exists | Manual verification | `scripts/pdf_fixtures/data/fake_data.py` | P0 |
+| AC9.2.7 | Main script exists | Manual verification | `scripts/pdf_fixtures/generate_pdf_fixtures.py` | P0 |
 
 ### AC9.3: PDF Validation (Phase 2)
 

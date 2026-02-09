@@ -214,7 +214,7 @@ Clearly labeled "for reference only"
 - Total AC IDs: 63
 - Requirements converted to AC IDs: 100% (EPIC-006 checklist + must-have standards)
 - Requirements with implemented test references: 100%
-- Test files: 5
+- Test files: 3
 
 ---
 

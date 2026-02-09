@@ -176,7 +176,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.6.1 | Config syncs with .env.example | `test_config_contract.py` | `infra/test_config_contract.py` | P0 |
+| AC7.6.1 | Config syncs with .env.example | `TestConfigContract.test_config_sync_with_env_example` | `infra/test_config_contract.py` | P0 |
 | AC7.6.2 | Required secrets documented | Manual verification | `.env.example` | P0 |
 
 ### AC7.7: Health Checks
