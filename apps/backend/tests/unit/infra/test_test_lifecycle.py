@@ -6,7 +6,7 @@ import sys
 import subprocess
 
 # Add scripts directory to path so we can import test_lifecycle
-sys.path.append(str(Path(__file__).parent.parent.parent.parent.parent / "scripts"))
+sys.path.append(str(Path(__file__).parent.parent.parent.parent.parent.parent / "scripts"))
 import test_lifecycle
 
 @pytest.fixture(autouse=True)
