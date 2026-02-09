@@ -377,10 +377,10 @@ def test_database(ephemeral=False):
         container_name = res.stdout.strip()
         if not container_name:
             # Fallback if format not supported or empty
-            # Just try standard name
-            container_name = "finance-report-db"
+            # Use suffixed name to maintain isolation
+            container_name = f"finance-report-db{env_suffix}"
     except Exception:
-        container_name = "finance-report-db"
+        container_name = f"finance-report-db{env_suffix}"
 
     log(f"   Container: {container_name}", YELLOW)
 
