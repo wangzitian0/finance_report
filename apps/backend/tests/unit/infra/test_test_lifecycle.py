@@ -50,7 +50,7 @@ def test_test_database_persistence(mock_worker, mock_orphan, mock_unregister, mo
     mock_get_namespace.return_value = "dev"
     mock_get_runtime.return_value = "podman"
     
-    # Mock sequence: up, ps, ready_check (is_db_ready), check_exists, create, port, migrations, drop_test_db
+    # Mock sequence: up, ps, ready_check (is_db_ready), check_exists, create, port, migrations
     mock_run.side_effect = [
         MagicMock(returncode=0), # up
         MagicMock(stdout="db_container\n"), # ps
