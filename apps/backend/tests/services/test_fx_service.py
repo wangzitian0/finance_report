@@ -1,9 +1,10 @@
-import pytest
-from datetime import timedelta, datetime, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from src.services.fx import _FxRateCache, clear_fx_cache, _cache
+import pytest
+
+from src.services.fx import _cache, _FxRateCache, clear_fx_cache
 
 
 @pytest.fixture

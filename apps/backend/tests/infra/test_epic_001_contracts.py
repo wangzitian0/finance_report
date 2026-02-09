@@ -98,4 +98,6 @@ def test_epic_001_frontend_moon_tasks_configured() -> None:
     # Tasks are now global (scripts/cli.py), so frontend project has no specific tasks.
     # We verify the project is correctly identified by checking its language.
     # 'type' field seems to be missing in some moon versions' JSON output, but 'language' is present.
-    assert project_data.get("language") == "javascript", f"Frontend project language mismatch. Keys: {list(project_data.keys())}"
+    assert project_data.get("language") == "javascript", (
+        f"Frontend project language mismatch. Keys: {list(project_data.keys())}"
+    )

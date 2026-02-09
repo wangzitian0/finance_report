@@ -1,4 +1,3 @@
-import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -58,6 +57,3 @@ def test_moon_project_graph():
     result = subprocess.run(["moon", "project", "backend", "--json"], capture_output=True, text=True)
     assert result.returncode == 0, f"Moon project graph check failed: {result.stderr}"
     assert "id" in result.stdout
-
-
-

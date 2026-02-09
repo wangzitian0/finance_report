@@ -1,10 +1,12 @@
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
 from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
 import pytest
-from src.services.anomaly import detect_anomalies
+
 from src.models import BankStatementTransaction
+from src.services.anomaly import detect_anomalies
 
 
 @pytest.fixture
