@@ -10,6 +10,7 @@ from src.services.ai_advisor import AIAdvisorError
 
 @pytest.mark.asyncio
 async def test_chat_suggestions_en() -> None:
+    """AC6.5.1: Chat suggestions endpoint returns English suggestions."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language="en")
@@ -19,6 +20,7 @@ async def test_chat_suggestions_en() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_suggestions_zh() -> None:
+    """AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language="zh")
@@ -28,6 +30,7 @@ async def test_chat_suggestions_zh() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_suggestions_auto_detect_zh() -> None:
+    """AC6.2.5: Auto-detect Chinese language from message."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language=None, message="这个月花了多少钱")
@@ -37,6 +40,7 @@ async def test_chat_suggestions_auto_detect_zh() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_suggestions_auto_detect_en() -> None:
+    """AC6.2.6: Auto-detect English language from message."""
     from src.routers.chat import suggestions
 
     response = await suggestions(message="What are my expenses?")
@@ -46,6 +50,7 @@ async def test_chat_suggestions_auto_detect_en() -> None:
 
 @pytest.mark.asyncio
 async def test_detect_language_chinese() -> None:
+    """AC6.2.1: Detect Chinese language."""
     from src.services.ai_advisor import detect_language
 
     result = detect_language("这个月花了多少钱")
@@ -54,6 +59,7 @@ async def test_detect_language_chinese() -> None:
 
 @pytest.mark.asyncio
 async def test_detect_language_english() -> None:
+    """AC6.2.2: Detect English language."""
     from src.services.ai_advisor import detect_language
 
     result = detect_language("What are my expenses?")
@@ -62,6 +68,7 @@ async def test_detect_language_english() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_error_api_key_unavailable() -> None:
+    """AC6.5.3: Chat error returns 503 when API key unavailable."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -88,6 +95,7 @@ async def test_chat_error_api_key_unavailable() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_error_session_not_found() -> None:
+    """AC6.5.4: Chat error returns 404 when session not found."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -113,6 +121,7 @@ async def test_chat_error_session_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_error_bad_request() -> None:
+    """AC6.5.5: Chat error returns 400 for bad request."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -137,6 +146,7 @@ async def test_chat_error_bad_request() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_with_model_name_header() -> None:
+    """AC6.5.6: Chat response includes X-Model-Name header."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
@@ -167,6 +177,7 @@ async def test_chat_with_model_name_header() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_without_model_name_header() -> None:
+    """AC6.5.7: Chat response omits X-Model-Name when model is None."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
@@ -196,6 +207,7 @@ async def test_chat_without_model_name_header() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_session_not_found() -> None:
+    """AC6.4.6: Delete session returns 404 when not found."""
     from fastapi import HTTPException
 
     from src.routers.chat import delete_session
@@ -213,6 +225,7 @@ async def test_delete_session_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_session_success() -> None:
+    """AC6.4.5: Delete session marks session as deleted."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from src.models import ChatSession, ChatSessionStatus
@@ -232,6 +245,7 @@ async def test_delete_session_success() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_history_with_session_id() -> None:
+    """AC6.4.3: Chat history returns messages for specific session."""
     from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
 
@@ -269,6 +283,7 @@ async def test_chat_history_with_session_id() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_history_empty() -> None:
+    """AC6.4.3: Chat history returns empty when no sessions exist."""
     from src.routers.chat import chat_history
 
     mock_db = MagicMock()
@@ -282,6 +297,7 @@ async def test_chat_history_empty() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_history_lists_sessions() -> None:
+    """AC6.4.3: Chat history lists active sessions with message counts."""
     from src.models import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.routers.chat import chat_history
 
@@ -331,6 +347,7 @@ async def test_chat_history_lists_sessions() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_history_session_not_found() -> None:
+    """AC6.4.6: Chat history returns 404 for non-existent session."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_history
@@ -348,6 +365,7 @@ async def test_chat_history_session_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_with_allowed_model():
+    """AC6.5.6: Chat with allowed model passes validation."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
@@ -385,6 +403,7 @@ async def test_chat_with_allowed_model():
 
 @pytest.mark.asyncio
 async def test_chat_with_known_external_model():
+    """AC6.5.6: Chat with known external model passes validation."""
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
@@ -424,6 +443,7 @@ async def test_chat_with_known_external_model():
 
 @pytest.mark.asyncio
 async def test_chat_with_unknown_external_model():
+    """AC6.5.5: Chat with unknown external model returns 400."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message
@@ -457,6 +477,7 @@ async def test_chat_with_unknown_external_model():
 
 @pytest.mark.asyncio
 async def test_chat_with_model_validation_error():
+    """AC6.5.3: Chat returns 503 when model validation fails."""
     from fastapi import HTTPException
 
     from src.routers.chat import chat_message

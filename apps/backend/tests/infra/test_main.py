@@ -8,7 +8,7 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None:
-    """Test health endpoint returns 200 when all services are healthy."""
+    """AC7.7.1: Health endpoint returns 200 when all services healthy."""
     from src.boot import Bootloader, ServiceStatus
 
     monkeypatch.setattr(
@@ -32,7 +32,7 @@ async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch
 
 @pytest.mark.asyncio
 async def test_health_endpoint_structure(client: AsyncClient) -> None:
-    """Test health endpoint returns proper structure with checks."""
+    """AC7.7.1: Health endpoint returns proper structure with checks."""
     response = await client.get("/health")
     assert response.status_code in [200, 503]
     data = response.json()
@@ -53,7 +53,7 @@ async def test_health_endpoint_structure(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_health_returns_503_on_database_failure(public_client: AsyncClient, monkeypatch) -> None:
-    """Test health endpoint returns 503 when database check fails."""
+    """AC7.7.2: Health returns 503 when database check fails."""
     # The health check uses the db dependency directly.
     # To mock its failure, we can mock the execute method of the session.
     # However, it's easier to mock get_db to yield a session that fails.
@@ -82,7 +82,7 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_health_passes_when_redis_not_configured(public_client: AsyncClient, monkeypatch) -> None:
-    """Test health check passes when Redis URL is not set."""
+    """AC7.7.1: Health passes when Redis URL not set."""
     monkeypatch.setattr("src.config.settings.redis_url", None)
 
     response = await public_client.get("/health")
@@ -96,7 +96,7 @@ async def test_health_fails_when_redis_configured_but_unavailable(
     public_client: AsyncClient,
     monkeypatch,
 ) -> None:
-    """Test health check fails when Redis is configured but unreachable."""
+    """AC7.7.2: Health fails when Redis configured but unreachable."""
     monkeypatch.setattr("src.config.settings.redis_url", "redis://invalid:6379")
 
     from src.boot import Bootloader, ServiceStatus
@@ -116,7 +116,7 @@ async def test_health_fails_when_redis_configured_but_unavailable(
 
 @pytest.mark.asyncio
 async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
-    """Test health endpoint returns 503 when S3 check fails."""
+    """AC7.7.2: Health returns 503 when S3 check fails."""
     from src.boot import Bootloader, ServiceStatus
 
     monkeypatch.setattr(
@@ -321,7 +321,7 @@ class TestConfig:
     """Tests for configuration."""
 
     def test_config_defaults(self):
-        """Test Settings has reasonable defaults."""
+        """AC7.6.1: Config has reasonable defaults matching expected patterns."""
         from src.config import Settings
 
         settings = Settings()
@@ -330,7 +330,7 @@ class TestConfig:
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):
-        """Test database URL is set."""
+        """AC7.6.1: Database URL is properly configured."""
         from src.config import Settings
 
         settings = Settings()

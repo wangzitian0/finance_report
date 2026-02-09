@@ -12,7 +12,7 @@ from src.routers.ai_models import list_models
 
 @pytest.mark.asyncio
 async def test_list_models_success():
-    """Should return models with default parameters."""
+    """AC6.11.1: List models endpoint returns models with default parameters."""
     mock_models = [
         {
             "id": "free/model",
@@ -40,7 +40,7 @@ async def test_list_models_success():
 
 @pytest.mark.asyncio
 async def test_list_models_filter_by_modality():
-    """Should filter models by modality."""
+    """AC6.11.1: List models filters by modality."""
     mock_models = [
         {
             "id": "text/only",
@@ -67,7 +67,7 @@ async def test_list_models_filter_by_modality():
 
 @pytest.mark.asyncio
 async def test_list_models_free_only():
-    """Should filter to only free models."""
+    """AC6.11.1: List models filters to free-only models."""
     mock_models = [
         {
             "id": "free/model",
@@ -94,7 +94,7 @@ async def test_list_models_free_only():
 
 @pytest.mark.asyncio
 async def test_list_models_catalog_unavailable():
-    """Should return 503 when catalog is unavailable."""
+    """AC6.11.1: List models returns 503 when catalog unavailable."""
     with patch("src.routers.ai_models.fetch_model_catalog", new_callable=AsyncMock) as mock_fetch:
         mock_fetch.side_effect = Exception("Network error")
 
@@ -107,7 +107,7 @@ async def test_list_models_catalog_unavailable():
 
 @pytest.mark.asyncio
 async def test_list_models_sorted_free_first():
-    """Free models should be sorted first."""
+    """AC6.11.1: List models sorts free models first."""
     mock_models = [
         {
             "id": "paid/model",

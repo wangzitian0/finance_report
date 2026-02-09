@@ -48,7 +48,7 @@ def create_test_pdf() -> bytes:
 
 @pytest.mark.e2e
 async def test_statement_upload_full_flow(page: Page):
-    """[AC3.5.1] E2E: Upload PDF → AI Parse → View Transactions → Approve."""
+    """AC8.4.3: E2E: Upload PDF → AI Parse → View Transactions → Approve."""
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
         warnings.warn("Skipping E2E logic: FRONTEND_URL not set", UserWarning)
@@ -97,7 +97,7 @@ async def test_statement_upload_full_flow(page: Page):
 
 @pytest.mark.e2e
 async def test_model_selection_and_upload(page: Page):
-    """[AC3.5.3] E2E: Select model → Upload → Verify correct model used."""
+    """AC8.4.2: E2E: Select model → Upload → Verify correct model used."""
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
         return
@@ -135,7 +135,7 @@ async def test_model_selection_and_upload(page: Page):
 
 @pytest.mark.e2e
 async def test_stale_model_id_auto_cleanup(page: Page):
-    """E2E: Inject stale localStorage model → Reload → Verify cleanup."""
+    """AC8.4.2: E2E: Stale localStorage model auto-cleanup on reload."""
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
         return
