@@ -505,7 +505,7 @@ def test_database(ephemeral=False):
         if ephemeral:
             log(f"🌬️  Ephemeral mode: Tearing down infrastructure ({project_name})...", YELLOW)
             try:
-                subprocess.run([*compose_cmd, "down", "-v"], check=True)
+                subprocess.run([*compose_cmd, "down", "-v"], env=env, check=True)
                 log(f"   ✅ Resources released for {project_name}.", GREEN)
                 
                 # Explicit pod cleanup if using podman

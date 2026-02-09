@@ -146,6 +146,7 @@ def test_cleanup_worker_databases(mock_run):
     assert len(drop_calls) == 2
 
 def test_load_active_namespaces_corrupted(tmp_path):
+    """AC8.3.1: Verify load_active_namespaces handles corrupted JSON."""
     corrupted_file = tmp_path / "corrupted.json"
     corrupted_file.write_text("invalid json")
     
@@ -154,6 +155,7 @@ def test_load_active_namespaces_corrupted(tmp_path):
 
 @patch("test_lifecycle.subprocess.run")
 def test_is_db_ready(mock_run):
+    """AC8.2.1: Verify that is_db_ready correctly checks container status."""
     mock_run.return_value = MagicMock(returncode=0)
     assert test_lifecycle.is_db_ready("podman", "db-container") is True
     
@@ -164,6 +166,7 @@ def test_is_db_ready(mock_run):
 @patch("test_lifecycle.test_database")
 @patch("test_lifecycle.subprocess.run")
 def test_main_fast_mode(mock_run, mock_test_db):
+    """AC8.1.1: Verify that --fast mode disables coverage."""
     # Mock context manager
     mock_test_db.return_value.__enter__.return_value = ("db_url", "ns")
     
@@ -181,6 +184,7 @@ def test_main_fast_mode(mock_run, mock_test_db):
 @patch("test_lifecycle.test_database")
 @patch("test_lifecycle.subprocess.run")
 def test_main_failure(mock_run, mock_test_db):
+    """AC8.1.1: Verify that test_lifecycle exits with non-zero on test failure."""
     # Mock context manager
     mock_test_db.return_value.__enter__.return_value = ("db_url", "ns")
     
@@ -196,6 +200,7 @@ def test_main_failure(mock_run, mock_test_db):
 @patch("test_lifecycle.subprocess.run")
 @patch("test_lifecycle._get_changed_files")
 def test_main_smart_mode(mock_changed, mock_run, mock_test_db):
+    """AC8.3.1: Verify that --smart mode correctly filters coverage."""
     mock_test_db.return_value.__enter__.return_value = ("db_url", "ns")
     mock_run.return_value = MagicMock(returncode=0)
     mock_changed.return_value = ["src.models", "src.utils"]

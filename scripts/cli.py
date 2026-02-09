@@ -104,7 +104,7 @@ def cmd_test(args, extra_args: list[str]):
     lifecycle_args = []
     if args.fast:
         lifecycle_args.append("--fast")
-    if args.smart:
+    elif args.smart:
         lifecycle_args.append("--smart")
     if args.ephemeral:
         lifecycle_args.append("--ephemeral")

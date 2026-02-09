@@ -1,7 +1,5 @@
-import pytest
 from datetime import timedelta, UTC, datetime
 from src.security import create_access_token, decode_access_token
-from src.config import settings
 
 def test_create_and_decode_access_token():
     """AC8.2.3: Verify token creation and decoding with default expiration."""

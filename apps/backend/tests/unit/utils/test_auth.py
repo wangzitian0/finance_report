@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from uuid import uuid4, UUID
+from uuid import uuid4
 from fastapi import HTTPException, status
 from src.auth import get_current_user_id
 from src.security import create_access_token

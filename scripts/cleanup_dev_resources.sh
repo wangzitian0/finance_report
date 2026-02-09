@@ -72,7 +72,7 @@ if [ -n "$RUNTIME" ]; then
         $RUNTIME volume ls --format "{{.Name}}" | grep -E "finance[-_]report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
         echo "   ✅ Volumes removed."
 
-# ... (rest of the file remains same, I'll just use multi_replace for multiple chunks or be careful)
+
         
         echo "   🗑️  Cleaning MinIO data via mc (MinIO Client)..."
         MINIO_RUNNING=$($RUNTIME ps -q -f "name=finance-report-minio" 2>/dev/null || true)
