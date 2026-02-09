@@ -13,6 +13,19 @@ set -u
 
 echo "🧹 Starting cleanup of Finance Report dev resources..."
 
+# Parse arguments
+FORCE=0
+ALL=0
+
+while [[ "$#" -gt 0 ]]; do
+    case "${1}" in
+        --force) FORCE=1 ;;
+        --all) ALL=1 ;;
+        *) echo "⚠️  Unknown parameter: ${1}"; exit 1 ;;
+    esac
+    shift
+done
+
 # 1. Clean up containers
 SERVICES=("finance-report-db" "finance-report-redis" "finance-report-minio" "finance-report-minio-init")
 echo "🐳 Checking for lingering containers (${SERVICES[*]})..."
@@ -43,7 +56,7 @@ if [ -n "$RUNTIME" ]; then
         if [ -n "$PODS" ]; then
             echo "   Found leaked pods:"
             echo "$PODS" | sed 's/^/   - /'
-            if [[ "${1:-}" == "--all" || "${1:-}" == "--force" ]]; then
+            if [[ $ALL -eq 1 || $FORCE -eq 1 ]]; then
                 echo "$PODS" | xargs podman pod rm -f
                 echo "   ✅ Leaked pods removed."
             else
@@ -53,7 +66,7 @@ if [ -n "$RUNTIME" ]; then
     fi
     echo "   ✅ Specific containers cleaned."
     
-    if [[ "${1:-}" == "--all" ]]; then
+    if [[ $ALL -eq 1 ]]; then
         echo "   🗑️  Removing volumes (THIS WILL DELETE ALL DATA)..."
         # Match finance-report, finance_report, and varied suffixes
         $RUNTIME volume ls --format "{{.Name}}" | grep -E "finance(-|_)report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
@@ -86,37 +99,41 @@ PIDS=$(pgrep -f "pytest" | grep -v $$ || true)
 if [ -n "$PIDS" ]; then
     echo "   ⚠️  Found pytest processes: $PIDS"
     echo "       Only kill these if you are sure they are stuck."
-    if [[ "${1:-}" == "--force" ]]; then
+    if [[ $FORCE -eq 1 ]]; then
         kill $PIDS 2>/dev/null || true
         echo "       Killed."
     fi
 fi
 
 # 3. Clean up leaked CI/Test containers/networks (finance-report-internal-*)
-echo "🕵️  Checking for leaked CI/Test resources (finance-report-internal-*)..."
+if [ -n "$RUNTIME" ]; then
+    echo "🕵️  Checking for leaked CI/Test resources (finance-report-internal-*)..."
 
-LEAKED_CONTAINERS=$($RUNTIME ps -a --format "{{.Names}}" | grep "finance-report-internal" || true)
-if [ -n "$LEAKED_CONTAINERS" ]; then
-    echo "   Found leaked containers:"
-    echo "$LEAKED_CONTAINERS" | sed 's/^/   - /'
-    if [[ "${1:-}" == "--all" || "${1:-}" == "--force" ]]; then
-       echo "$LEAKED_CONTAINERS" | xargs $RUNTIME rm -f
-       echo "   ✅ Leaked containers removed."
-    else
-       echo "   ⚠️  Run with --force or --all to remove these."
+    LEAKED_CONTAINERS=$($RUNTIME ps -a --format "{{.Names}}" | grep "^finance-report-internal" || true)
+    if [ -n "$LEAKED_CONTAINERS" ]; then
+        echo "   Found leaked containers:"
+        echo "$LEAKED_CONTAINERS" | sed 's/^/   - /'
+        if [[ $ALL -eq 1 || $FORCE -eq 1 ]]; then
+           echo "$LEAKED_CONTAINERS" | xargs $RUNTIME rm -f
+           echo "   ✅ Leaked containers removed."
+        else
+           echo "   ⚠️  Run with --force or --all to remove these."
+        fi
     fi
-fi
 
-LEAKED_NETWORKS=$($RUNTIME network ls --format "{{.Name}}" | grep "finance-report-internal" || true)
-if [ -n "$LEAKED_NETWORKS" ]; then
-    echo "   Found leaked networks:"
-    echo "$LEAKED_NETWORKS" | sed 's/^/   - /'
-    if [[ "${1:-}" == "--all" || "${1:-}" == "--force" ]]; then
-       echo "$LEAKED_NETWORKS" | xargs $RUNTIME network rm 2>/dev/null || true
-       echo "   ✅ Leaked networks removed."
-    else
-       echo "   ⚠️  Run with --force or --all to remove these."
+    LEAKED_NETWORKS=$($RUNTIME network ls --format "{{.Name}}" | grep "^finance-report-internal" || true)
+    if [ -n "$LEAKED_NETWORKS" ]; then
+        echo "   Found leaked networks:"
+        echo "$LEAKED_NETWORKS" | sed 's/^/   - /'
+        if [[ $ALL -eq 1 || $FORCE -eq 1 ]]; then
+           echo "$LEAKED_NETWORKS" | xargs $RUNTIME network rm 2>/dev/null || true
+           echo "   ✅ Leaked networks removed."
+        else
+           echo "   ⚠️  Run with --force or --all to remove these."
+        fi
     fi
+else
+    echo "🕵️  Skipping leaked CI/Test resource check (no container runtime)."
 fi
 
 # 4. Clean up lock files and cache
@@ -130,6 +147,6 @@ fi
 echo ""
 echo "✨ Cleanup complete. Try running your tests/CI again."
 echo ""
-if [[ "${1:-}" == "--all" ]]; then
+if [[ $ALL -eq 1 ]]; then
     echo "⚠️  Note: ALL DATA WAS DELETED. You'll need to re-run migrations on next dev server start."
 fi
