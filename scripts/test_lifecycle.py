@@ -13,7 +13,7 @@ Key Features:
 - Supports --fast (no coverage) and --smart (changed files only) modes.
 
 Usage:
-    python scripts/test_lifecycle.py [--fast|--smart] [pytest_args]
+    python scripts/test_lifecycle.py [--fast|--smart|--ephemeral] [pytest_args]
 """
 
 import hashlib
@@ -325,8 +325,11 @@ def cleanup_worker_databases(runtime, container_name, namespace):
 
 
 @contextmanager
-def test_database():
-    """Context manager to spin up and tear down the test database with namespace isolation."""
+def test_database(ephemeral=False):
+    """Context manager to spin up and tear down the test database with namespace isolation.
+    If ephemeral is True, the entire infrastructure stack (containers, networks, volumes)
+    will be destroyed after the test run.
+    """
     runtime = get_container_runtime()
     if not runtime:
         log("❌ No container runtime (docker/podman) found.", RED)
@@ -341,7 +344,9 @@ def test_database():
     # Register namespace for orphan cleanup tracking
     register_namespace(namespace)
 
-    compose_cmd = [runtime, "compose", "-f", str(COMPOSE_FILE)]
+    # Use unique project name for isolation
+    project_name = f"finance-report-{namespace}"
+    compose_cmd = [runtime, "compose", "-p", project_name, "-f", str(COMPOSE_FILE)]
 
     log("🐘 Ensuring infrastructure is up...", YELLOW)
     try:
@@ -487,9 +492,22 @@ def test_database():
         except subprocess.CalledProcessError as e:
             log(f"   Warning: Failed to drop test database: {e}", YELLOW)
 
-        # NOTE: We intentionally do NOT stop infrastructure containers here.
-        # Keeping them running speeds up subsequent test runs.
-        # Use `podman compose --profile infra down` for manual cleanup.
+        # Stop and remove infrastructure if ephemeral mode is on
+        if ephemeral:
+            log(f"🌬️  Ephemeral mode: Tearing down infrastructure ({project_name})...", YELLOW)
+            try:
+                subprocess.run([*compose_cmd, "down", "-v"], check=True)
+                log(f"   ✅ Resources released for {project_name}.", GREEN)
+                
+                # Explicit pod cleanup if using podman
+                if runtime == "podman":
+                    pod_name = f"pod_{project_name}"
+                    log(f"📦 Checking for lingering pod: {pod_name}...", YELLOW)
+                    subprocess.run(["podman", "pod", "rm", "-f", pod_name], capture_output=True)
+            except subprocess.CalledProcessError as e:
+                log(f"   Warning: Failed to teardown infrastructure: {e}", YELLOW)
+        else:
+            log(f"📌 Persistent mode: Keeping infrastructure running ({project_name}).", YELLOW)
 
         # Unregister namespace after successful cleanup
         unregister_namespace(namespace)
@@ -501,6 +519,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run backend tests with DB lifecycle management")
     parser.add_argument("--fast", action="store_true", help="Fast mode: no coverage, -n 4")
     parser.add_argument("--smart", action="store_true", help="Smart mode: coverage on changed files only")
+    parser.add_argument("--ephemeral", action="store_true", help="Ephemeral mode: destroy all infrastructure after run")
     # Use parse_known_args for transparent pytest flag pass-through (-k, -m, etc.)
     args, extra_pytest_args = parser.parse_known_args()
 
@@ -562,7 +581,7 @@ def main():
     pytest_args.extend(extra_pytest_args)
 
     try:
-        with test_database() as (db_url, namespace):
+        with test_database(ephemeral=args.ephemeral) as (db_url, namespace):
             log("🚀 Starting Tests...", GREEN)
 
             env = os.environ.copy()
