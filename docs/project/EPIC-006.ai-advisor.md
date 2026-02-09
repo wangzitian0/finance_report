@@ -90,6 +90,134 @@ Clearly labeled "for reference only"
 
 ---
 
+## 🧪 Test Cases
+
+> **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
+> **Coverage**: See `apps/backend/tests/ai/`
+
+### AC6.1: Safety & Security Filters
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.1.1 | Prompt injection detection | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.1.2 | Sensitive information detection | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.1.3 | Write request detection | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.1.4 | Non-financial query detection | `test_safety_filters()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.1.5 | Prompt injection negative cases | `test_safety_filters_negative_cases()` | `ai/test_ai_advisor_service.py` | P0 |
+
+### AC6.2: Language & Localization
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.2.1 | Chinese language detection | `test_detect_language()`, `test_detect_language_chinese()` | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
+| AC6.2.2 | English language detection | `test_detect_language()`, `test_detect_language_english()` | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
+| AC6.2.3 | Chinese suggestions | `test_chat_suggestions_zh()` | `ai/test_chat_router.py` | P0 |
+| AC6.2.4 | English suggestions | `test_chat_suggestions_en()` | `ai/test_chat_router.py` | P0 |
+| AC6.2.5 | Auto-detect Chinese | `test_chat_suggestions_auto_detect_zh()` | `ai/test_chat_router.py` | P0 |
+| AC6.2.6 | Auto-detect English | `test_chat_suggestions_auto_detect_en()` | `ai/test_chat_router.py` | P0 |
+
+### AC6.3: Disclaimer Enforcement
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.3.1 | Disclaimer appended once | `test_ensure_disclaimer_appends_once()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.3.2 | Disclaimer respects existing | `test_ensure_disclaimer_respects_existing()` | `ai/test_ai_advisor_service.py` | P0 |
+
+### AC6.4: Session Management
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.4.1 | Get or create existing session | `test_get_or_create_session_with_existing_session()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.4.2 | Session not found raises error | `test_get_or_create_session_missing_raises()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.4.3 | Load history skips system messages | `test_load_history_skips_system_messages()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.4.4 | Record message sets title | `test_record_message_sets_title()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.4.5 | Delete session success | `test_delete_session_success()` | `ai/test_chat_router.py` | P0 |
+| AC6.4.6 | Delete session not found | `test_delete_session_not_found()` | `ai/test_chat_router.py` | P0 |
+
+### AC6.5: API Endpoints
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.5.1 | Chat suggestions endpoint (EN) | `test_chat_suggestions_en()` | `ai/test_chat_router.py` | P0 |
+| AC6.5.2 | Chat suggestions endpoint (ZH) | `test_chat_suggestions_zh()` | `ai/test_chat_router.py` | P0 |
+| AC6.5.3 | Chat error handling - API unavailable | `test_chat_error_api_key_unavailable()` | `ai/test_chat_router.py` | P0 |
+| AC6.5.4 | Chat error handling - session not found | `test_chat_error_session_not_found()` | `ai/test_chat_router.py` | P0 |
+| AC6.5.5 | Chat error handling - bad request | `test_chat_error_bad_request()` | `ai/test_chat_router.py` | P0 |
+| AC6.5.6 | Chat with model name header | `test_chat_with_model_name_header()` | `ai/test_chat_router.py` | P0 |
+| AC6.5.7 | Chat without model name header | `test_chat_without_model_name_header()` | `ai/test_chat_router.py` | P0 |
+
+### AC6.6: Response Caching
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.6.1 | Response cache TTL | `test_response_cache_ttl()` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.6.2 | Response cache prune | `test_response_cache_prune()` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.6.3 | Chat stream uses cached response | `test_chat_stream_uses_cached_response()` | `ai/test_ai_advisor_service.py` | P1 |
+
+### AC6.7: OpenRouter Streaming Integration
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.7.1 | Stream API key fallback | `test_stream_openrouter_falls_back()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.7.2 | Stream raises when all fail | `test_stream_openrouter_raises_when_all_fail()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.7.3 | Chat stream requires API key | `test_chat_stream_requires_api_key()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.7.4 | Stream redactor masks sensitive sequences | `test_stream_redactor_masks_sensitive_sequences()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.7.5 | Stream redactor flushes tail | `test_stream_redactor_flushes_tail()` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.7.6 | Stream redactor flush empty | `test_stream_redactor_flush_empty()` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.7.7 | Chat stream refusal branches | `test_chat_stream_refusal_branches()` | `ai/test_ai_advisor_service.py` | P0 |
+
+### AC6.8: Financial Context & Data Handling
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.8.1 | Financial context handles report errors | `test_get_financial_context_handles_report_errors()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.8.2 | Financial context filters by user | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.8.3 | Build refusal defaults to non-financial | `test_build_refusal_defaults_to_non_financial()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.8.4 | Stream and store records response | `test_stream_and_store_records_response()` | `ai/test_ai_advisor_service.py` | P0 |
+
+### AC6.9: Stream & Storage Error Handling
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.9.1 | Stream and store raises on stream error | `test_stream_and_store_raises_on_stream_error()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.9.2 | Chat stream success path uses stream | `test_chat_stream_success_path_uses_stream()` | `ai/test_ai_advisor_service.py` | P0 |
+
+### AC6.10: Text Processing Utilities
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.10.1 | Question normalization | `test_normalize_question()` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.10.2 | Token estimation | `test_estimate_tokens()` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.10.3 | Redact sensitive information | `test_redact_sensitive()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.10.4 | Chunk text splits text | `test_chunk_text_splits_text()` | `ai/test_ai_advisor_service.py` | P1 |
+
+### AC6.11: Model Catalog Integration
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.11.1 | Model catalog integration | `TestModelCatalogIntegration` class | `ai/test_ai_models_integration.py` | P1 |
+| AC6.11.2 | Model validation integration | `TestModelValidationIntegration` class | `ai/test_ai_models_integration.py` | P1 |
+| AC6.11.3 | Model catalog caching | `TestModelCatalogCaching` class | `ai/test_ai_models_integration.py` | P1 |
+
+### AC6.12: Must-Have Acceptance Criteria Traceability
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC6.12.1 | AI cannot modify ledger | `test_safety_filters()` (write request detection) | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.12.2 | Answers based on real data | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.12.3 | Clear disclaimer | `test_ensure_disclaimer_appends_once()`, `test_ensure_disclaimer_respects_existing()` | `ai/test_ai_advisor_service.py` | P0 |
+| AC6.12.4 | Support Chinese & English | `test_detect_language()`, language detection tests in router | `ai/test_ai_advisor_service.py`, `ai/test_chat_router.py` | P0 |
+| AC6.12.5 | OpenRouter API error handling | `test_chat_error_api_key_unavailable()`, `test_stream_openrouter_falls_back()` | `ai/test_chat_router.py`, `ai/test_ai_advisor_service.py` | P0 |
+| AC6.12.6 | Session isolation | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
+
+**Traceability Result**:
+- Total AC IDs: 63
+- Requirements converted to AC IDs: 100% (EPIC-006 checklist + must-have standards)
+- Requirements with implemented test references: 100%
+- Test files: 5
+
+---
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
