@@ -68,7 +68,7 @@ async def test_auth_valid_user(client, test_user):
 
 @pytest.mark.asyncio
 async def test_get_current_user_id_direct(db, test_user):
-    """AC8.2.4: Directly resolve a valid user from JWT token payload."""
+    """Directly resolve a valid user from JWT token payload."""
     from src.security import create_access_token
 
     token = create_access_token(data={"sub": str(test_user.id)})
@@ -78,7 +78,7 @@ async def test_get_current_user_id_direct(db, test_user):
 
 @pytest.mark.asyncio
 async def test_get_current_user_id_invalid_user_db(db):
-    """AC8.2.4: Database-backed invalid user should raise 401."""
+    """Database-backed invalid user should raise 401."""
     from src.security import create_access_token
 
     token = create_access_token(data={"sub": str(uuid4())})

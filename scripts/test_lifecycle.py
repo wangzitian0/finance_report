@@ -373,6 +373,7 @@ def test_database(ephemeral=False):
             [*compose_cmd, "ps", "--format", "{{.Name}}", "postgres"],
             capture_output=True,
             text=True,
+            env=env,
         )
         container_name = res.stdout.strip()
         if not container_name:
