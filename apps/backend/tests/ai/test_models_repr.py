@@ -7,6 +7,7 @@ from src.models.market_data import FxRate
 
 
 def test_chat_session_repr():
+    """AC6.4.1: ChatSession repr includes status."""
     session = ChatSession(
         id=uuid4(),
         user_id=uuid4(),
@@ -19,6 +20,7 @@ def test_chat_session_repr():
 
 
 def test_chat_message_repr():
+    """AC6.4.1: ChatMessage repr includes role and session ID."""
     session_id = uuid4()
     message = ChatMessage(
         id=uuid4(),
@@ -47,6 +49,7 @@ def test_fx_rate_repr():
 
 
 def test_openrouter_model_normalize_entry():
+    """AC6.11.1: OpenRouter model normalize entry extracts modalities."""
     from src.services.openrouter_models import normalize_model_entry
 
     entry = {
@@ -64,6 +67,7 @@ def test_openrouter_model_normalize_entry():
 
 
 def test_openrouter_model_matches_modality():
+    """AC6.11.1: OpenRouter model matches modality filtering."""
     from src.services.openrouter_models import model_matches_modality
 
     text_model = {"input_modalities": ["text"]}
@@ -86,6 +90,7 @@ def test_validation_route_by_threshold():
 
 
 def test_to_decimal():
+    """AC6.11.1: Decimal conversion utility handles valid and invalid inputs."""
     from decimal import Decimal
 
     from src.services.openrouter_models import _to_decimal
@@ -97,6 +102,7 @@ def test_to_decimal():
 
 
 def test_openrouter_normalize_model_is_free():
+    """AC6.11.1: Free model identification via pricing fields."""
     from src.services.openrouter_models import normalize_model_entry
 
     free_model = {"id": "free/model", "name": "Free", "pricing": {"prompt": "0", "completion": "0"}}
@@ -112,6 +118,7 @@ def test_openrouter_normalize_model_is_free():
 
 
 def test_openrouter_normalize_model_without_id():
+    """AC6.11.1: Model normalization handles missing ID."""
     from src.services.openrouter_models import normalize_model_entry
 
     model_no_id = {"name": "No ID Model", "pricing": {"prompt": "0", "completion": "0"}}

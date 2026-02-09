@@ -7,13 +7,13 @@ import pytest
 
 @pytest.mark.integration
 def test_moon_cli_available():
-    """Verify that 'moon' CLI is available in the environment."""
+    """AC7.8.1: Moon CLI is available in the environment."""
     moon_path = shutil.which("moon")
     assert moon_path is not None, "Moon CLI not found in PATH"
 
 
 def test_github_actions_lint():
-    """Run actionlint on all workflows to catch syntax and logic errors."""
+    """AC7.8.2: GitHub Actions workflows pass actionlint validation."""
     workflow_dir = Path(__file__).parent.parent.parent.parent.parent / ".github" / "workflows"
     if not workflow_dir.exists():
         pytest.skip(".github/workflows not found")
@@ -34,7 +34,7 @@ def test_github_actions_lint():
 
 
 def test_docker_compose_integrity():
-    """Verify project integrity by checking docker-compose contexts."""
+    """AC7.8.2: Docker compose build contexts exist."""
     import yaml
 
     compose_path = Path(__file__).parent.parent.parent.parent.parent / "docker-compose.yml"
@@ -53,7 +53,7 @@ def test_docker_compose_integrity():
 
 @pytest.mark.integration
 def test_moon_project_graph():
-    """Verify that moon can load the project graph without errors."""
+    """AC7.8.3: Moon project graph loads without errors."""
     result = subprocess.run(["moon", "project", "backend", "--json"], capture_output=True, text=True)
     assert result.returncode == 0, f"Moon project graph check failed: {result.stderr}"
     assert "id" in result.stdout

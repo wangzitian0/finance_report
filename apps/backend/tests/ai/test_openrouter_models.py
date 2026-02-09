@@ -29,7 +29,7 @@ def clear_cache():
 
 
 def test_normalize_model_entry_free_model():
-    """Free models should be identified correctly."""
+    """AC6.11.1: Normalize free model entry identifies free pricing."""
     entry = {
         "id": "test/model",
         "name": "Test Model",
@@ -44,7 +44,7 @@ def test_normalize_model_entry_free_model():
 
 
 def test_normalize_model_entry_paid_model():
-    """Paid models should be identified correctly."""
+    """AC6.11.1: Normalize paid model entry identifies paid pricing."""
     entry = {
         "id": "paid/model",
         "name": "Paid Model",
@@ -56,7 +56,7 @@ def test_normalize_model_entry_paid_model():
 
 
 def test_normalize_model_entry_missing_fields():
-    """Missing fields should be handled gracefully."""
+    """AC6.11.1: Normalize model entry handles missing fields gracefully."""
     entry = {"id": "minimal/model"}
     result = normalize_model_entry(entry)
     assert result["id"] == "minimal/model"
@@ -66,26 +66,26 @@ def test_normalize_model_entry_missing_fields():
 
 
 def test_model_matches_modality_no_filter():
-    """No filter should match all models."""
+    """AC6.11.1: Model matches modality with no filter returns True."""
     model = {"input_modalities": ["text"]}
     assert model_matches_modality(model, None) is True
 
 
 def test_model_matches_modality_matching():
-    """Matching modality should return True."""
+    """AC6.11.1: Model matches modality when modality present."""
     model = {"input_modalities": ["text", "image"]}
     assert model_matches_modality(model, "image") is True
 
 
 def test_model_matches_modality_not_matching():
-    """Non-matching modality should return False."""
+    """AC6.11.1: Model does not match when modality absent."""
     model = {"input_modalities": ["text"]}
     assert model_matches_modality(model, "image") is False
 
 
 @pytest.mark.asyncio
 async def test_fetch_model_catalog_success():
-    """Successful catalog fetch should return models."""
+    """AC6.11.1: Fetch model catalog returns models on success."""
     mock_response = MagicMock()
     mock_response.json.return_value = {"data": [{"id": "model1"}, {"id": "model2"}]}
     mock_response.raise_for_status = MagicMock()
@@ -105,7 +105,7 @@ async def test_fetch_model_catalog_success():
 
 @pytest.mark.asyncio
 async def test_fetch_model_catalog_caching():
-    """Catalog should be cached and reused."""
+    """AC6.11.3: Catalog is cached and reused on subsequent calls."""
     mock_response = MagicMock()
     mock_response.json.return_value = {"data": [{"id": "cached"}]}
     mock_response.raise_for_status = MagicMock()
@@ -129,7 +129,7 @@ async def test_fetch_model_catalog_caching():
 
 @pytest.mark.asyncio
 async def test_fetch_model_catalog_force_refresh():
-    """force_refresh should bypass cache."""
+    """AC6.11.3: Force refresh bypasses cache."""
     mock_response = MagicMock()
     mock_response.json.return_value = {"data": [{"id": "new-data"}]}
     mock_response.raise_for_status = MagicMock()
@@ -153,7 +153,7 @@ async def test_fetch_model_catalog_force_refresh():
 
 @pytest.mark.asyncio
 async def test_fetch_model_catalog_http_error():
-    """HTTP errors during fetch should be raised."""
+    """AC6.11.1: HTTP errors during fetch are raised."""
     with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")
@@ -167,7 +167,7 @@ async def test_fetch_model_catalog_http_error():
 
 @pytest.mark.asyncio
 async def test_is_model_known_found():
-    """Known model should return True."""
+    """AC6.11.1: Known model returns True."""
     _MODEL_CACHE["models"] = [{"id": "known/model"}]
     _MODEL_CACHE["expires_at"] = float("inf")
 
@@ -177,7 +177,7 @@ async def test_is_model_known_found():
 
 @pytest.mark.asyncio
 async def test_is_model_known_not_found():
-    """Unknown model should return False."""
+    """AC6.11.1: Unknown model returns False."""
     _MODEL_CACHE["models"] = [{"id": "other/model"}]
     _MODEL_CACHE["expires_at"] = float("inf")
 
@@ -187,7 +187,7 @@ async def test_is_model_known_not_found():
 
 @pytest.mark.asyncio
 async def test_get_model_info_found():
-    """Should return normalized info for a known model."""
+    """AC6.11.1: Get model info returns normalized info for known model."""
     _MODEL_CACHE["models"] = [{"id": "known/model", "name": "Known Model"}]
     _MODEL_CACHE["expires_at"] = float("inf")
 
@@ -199,7 +199,7 @@ async def test_get_model_info_found():
 
 @pytest.mark.asyncio
 async def test_get_model_info_not_found():
-    """Should return None for an unknown model."""
+    """AC6.11.1: Get model info returns None for unknown model."""
     _MODEL_CACHE["models"] = [{"id": "other/model"}]
     _MODEL_CACHE["expires_at"] = float("inf")
 
@@ -209,7 +209,7 @@ async def test_get_model_info_not_found():
 
 @pytest.mark.asyncio
 async def test_get_model_info_fetch_error():
-    """Should raise ModelCatalogError if fetching the catalog fails."""
+    """AC6.11.1: Get model info raises ModelCatalogError on fetch failure."""
     with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")

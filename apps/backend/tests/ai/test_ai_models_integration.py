@@ -10,10 +10,10 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
 class TestModelCatalogIntegration:
-    """Integration tests for OpenRouter model catalog."""
+    """AC6.11.1: Model catalog integration tests."""
 
     async def test_fetch_model_catalog(self):
-        """Test fetching models from OpenRouter returns data."""
+        """AC6.11.1: Fetch model catalog returns data from OpenRouter."""
         from src.services.openrouter_models import fetch_model_catalog
 
         models = await fetch_model_catalog()
@@ -21,7 +21,7 @@ class TestModelCatalogIntegration:
         assert all("id" in m for m in models), "Model entries missing 'id' field"
 
     async def test_primary_model_exists_in_catalog(self):
-        """Test that config.PRIMARY_MODEL exists in OpenRouter catalog."""
+        """AC6.11.1: Primary model exists in OpenRouter catalog."""
         from src.config import settings
         from src.services.openrouter_models import is_model_known
 
@@ -32,7 +32,7 @@ class TestModelCatalogIntegration:
         )
 
     async def test_primary_model_has_image_support(self):
-        """Test that PRIMARY_MODEL supports image inputs (required for PDF parsing)."""
+        """AC6.11.1: Primary model supports image inputs for PDF parsing."""
         from src.config import settings
         from src.services.openrouter_models import get_model_info, model_matches_modality
 
@@ -47,7 +47,7 @@ class TestModelCatalogIntegration:
         )
 
     async def test_fallback_models_format(self):
-        """Test that FALLBACK_MODELS are properly formatted."""
+        """AC6.11.1: Fallback models are properly formatted."""
         from src.config import settings
 
         if not settings.fallback_models:
@@ -61,7 +61,7 @@ class TestModelCatalogIntegration:
             assert len(model_id) > 5, f"Fallback model ID too short: {model_id}"
 
     async def test_gemini_models_available(self):
-        """Test that at least one Gemini model is available in catalog."""
+        """AC6.11.1: At least one Gemini model available in catalog."""
         from src.services.openrouter_models import fetch_model_catalog
 
         models = await fetch_model_catalog()
@@ -73,10 +73,10 @@ class TestModelCatalogIntegration:
 
 
 class TestModelValidationIntegration:
-    """Integration tests for model validation in upload flow."""
+    """AC6.11.2: Model validation integration tests."""
 
     async def test_invalid_model_rejected(self, client, test_user):
-        """Test that uploading with invalid model returns 400."""
+        """AC6.11.2: Invalid model rejected with 400."""
         response = await client.post(
             "/statements/upload",
             data={
@@ -91,7 +91,7 @@ class TestModelValidationIntegration:
         assert "Invalid model" in response.json()["detail"]
 
     async def test_model_without_image_support_rejected(self, client, test_user):
-        """Test that models without image support are rejected for PDF upload."""
+        """AC6.11.2: Model without image support rejected for PDF upload."""
         from src.services.openrouter_models import fetch_model_catalog, normalize_model_entry
 
         models = await fetch_model_catalog()
@@ -121,7 +121,7 @@ class TestModelValidationIntegration:
         assert "does not support image/PDF inputs" in response.json()["detail"]
 
     async def test_valid_model_accepted_in_upload_validation(self, client, test_user):
-        """Test that PRIMARY_MODEL passes validation in upload endpoint."""
+        """AC6.11.2: Valid model passes upload validation."""
         from src.config import settings
 
         response = await client.post(
@@ -141,10 +141,10 @@ class TestModelValidationIntegration:
 
 
 class TestModelCatalogCaching:
-    """Test model catalog caching behavior."""
+    """AC6.11.3: Model catalog caching tests."""
 
     async def test_catalog_caching_reduces_api_calls(self):
-        """Test that fetching catalog multiple times uses cache."""
+        """AC6.11.3: Catalog caching reduces API calls."""
         import time
 
         from src.services.openrouter_models import fetch_model_catalog
@@ -158,7 +158,7 @@ class TestModelCatalogCaching:
         assert duration < 0.1, f"Cached fetch took {duration:.3f}s, expected < 0.1s (likely hit API)"
 
     async def test_force_refresh_bypasses_cache(self):
-        """Test that force_refresh parameter bypasses cache."""
+        """AC6.11.3: Force refresh bypasses cache."""
         from src.services.openrouter_models import fetch_model_catalog
 
         first = await fetch_model_catalog(force_refresh=True)
