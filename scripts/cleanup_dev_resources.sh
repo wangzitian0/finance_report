@@ -27,6 +27,7 @@ else
 fi
 
 if [ -n "$RUNTIME" ]; then
+    # Remove specific service containers
     for SERVICE in "${SERVICES[@]}"; do
         CONTAINERS=$($RUNTIME ps -a --filter "name=${SERVICE}" --format "{{.ID}}")
         if [ -n "$CONTAINERS" ]; then
@@ -34,11 +35,28 @@ if [ -n "$RUNTIME" ]; then
             echo "$CONTAINERS" | xargs $RUNTIME rm -f
         fi
     done
-    echo "   ✅ Containers cleaned."
+    
+    # Remove Podman Pods if applicable
+    if [ "$RUNTIME" == "podman" ]; then
+        echo "📦 Checking for Podman Pods (pod_finance_report*)..."
+        PODS=$(podman pod ls --format "{{.Name}}" | grep "pod_finance_report" || true)
+        if [ -n "$PODS" ]; then
+            echo "   Found leaked pods:"
+            echo "$PODS" | sed 's/^/   - /'
+            if [[ "${1:-}" == "--all" || "${1:-}" == "--force" ]]; then
+                echo "$PODS" | xargs podman pod rm -f
+                echo "   ✅ Leaked pods removed."
+            else
+                echo "   ⚠️  Run with --force or --all to remove these pods."
+            fi
+        fi
+    fi
+    echo "   ✅ Specific containers cleaned."
     
     if [[ "${1:-}" == "--all" ]]; then
         echo "   🗑️  Removing volumes (THIS WILL DELETE ALL DATA)..."
-        $RUNTIME volume ls --format "{{.Name}}" | grep "finance.*report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
+        # Match finance-report, finance_report, and varied suffixes
+        $RUNTIME volume ls --format "{{.Name}}" | grep -E "finance(-|_)report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
         echo "   ✅ Volumes removed."
         
         echo "   🗑️  Cleaning MinIO data via mc (MinIO Client)..."
