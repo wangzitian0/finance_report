@@ -16,7 +16,7 @@ class TestAssetService:
     """Tests for asset reconciliation."""
 
     async def test_reconcile_creates_position(self, db, test_user):
-        """Test that reconciling creates a new managed position."""
+        """AC11.1.1: Test that reconciling creates a new managed position."""
         service = AssetService()
 
         # 1. Create Atomic Position
@@ -48,7 +48,7 @@ class TestAssetService:
         assert pos.account.name == "Moomoo"
 
     async def test_reconcile_updates_position(self, db, test_user):
-        """Test that reconciling updates existing position quantity."""
+        """AC11.1.2: Test that reconciling updates existing position quantity."""
         service = AssetService()
 
         # 1. Create Initial Atomic Position
@@ -91,7 +91,7 @@ class TestAssetService:
         assert pos.quantity == Decimal("15.0")
 
     async def test_reconcile_disposes_position(self, db, test_user):
-        """Test that 0 quantity marks position as disposed."""
+        """AC11.1.3: Test that 0 quantity marks position as disposed."""
         service = AssetService()
 
         # 1. Create Initial Atomic Position
@@ -141,7 +141,7 @@ class TestAssetService:
         assert pos.disposal_date == date(2024, 1, 17)
 
     async def test_reconcile_cost_basis_uses_market_value(self, db, test_user):
-        """Test that cost_basis is set from market_value."""
+        """AC11.1.4: Test that cost_basis is set from market_value."""
         service = AssetService()
 
         snap = AtomicPosition(
@@ -165,7 +165,7 @@ class TestAssetService:
         assert positions[0].cost_basis == Decimal("1250.00")
 
     async def test_reconcile_multiple_assets(self, db, test_user):
-        """Test reconciling multiple different assets."""
+        """AC11.1.5: Test reconciling multiple different assets."""
         service = AssetService()
 
         snap1 = AtomicPosition(
@@ -201,7 +201,7 @@ class TestAssetService:
         assert identifiers == {"AAPL", "GOOGL"}
 
     async def test_reconcile_multiple_brokers_same_asset(self, db, test_user):
-        """Test same asset at different brokers creates separate positions."""
+        """AC11.1.6: Test same asset at different brokers creates separate positions."""
         service = AssetService()
 
         snap1 = AtomicPosition(
@@ -237,7 +237,7 @@ class TestAssetService:
         assert brokers == {"Moomoo", "Interactive Brokers"}
 
     async def test_reconcile_with_null_broker(self, db, test_user):
-        """Test handling of null broker name."""
+        """AC11.1.7: Test handling of null broker name."""
         service = AssetService()
 
         snap = AtomicPosition(
@@ -261,9 +261,10 @@ class TestAssetService:
         assert positions[0].account.name == "Unknown Broker"
 
     async def test_reconcile_reactivates_disposed_position(self, db, test_user):
-        """Test that disposed position can be reactivated."""
+        """AC11.1.8: Test that disposed position can be reactivated."""
         service = AssetService()
 
+        # 1. Create Initial Atomic Position
         snap1 = AtomicPosition(
             user_id=test_user.id,
             snapshot_date=date(2024, 1, 15),
@@ -278,6 +279,7 @@ class TestAssetService:
         db.add(snap1)
         await service.reconcile_positions(db, test_user.id)
 
+        # 2. Create Disposal Snapshot
         snap2 = AtomicPosition(
             user_id=test_user.id,
             snapshot_date=date(2024, 1, 16),
@@ -292,6 +294,7 @@ class TestAssetService:
         db.add(snap2)
         await service.reconcile_positions(db, test_user.id)
 
+        # 3. Create Newer Atomic Position
         snap3 = AtomicPosition(
             user_id=test_user.id,
             snapshot_date=date(2024, 1, 17),
@@ -305,6 +308,7 @@ class TestAssetService:
         )
         db.add(snap3)
         await db.flush()
+
         await service.reconcile_positions(db, test_user.id)
 
         positions, _ = await service.get_positions(db, test_user.id)
@@ -315,15 +319,17 @@ class TestAssetService:
         assert pos.disposal_date is None
 
     async def test_get_positions_empty(self, db, test_user):
-        """Test get_positions returns empty list when no positions exist."""
+        """AC11.1.9: Test get_positions returns empty list when no positions exist."""
         service = AssetService()
+
+        await service.reconcile_positions(db, test_user.id)
 
         positions, total = await service.get_positions(db, test_user.id)
         assert positions == []
         assert total == 0
 
     async def test_reconcile_no_snapshots(self, db, test_user):
-        """Test reconcile with no atomic snapshots does nothing."""
+        """AC11.1.10: Test reconcile with no atomic snapshots does nothing."""
         service = AssetService()
 
         await service.reconcile_positions(db, test_user.id)
@@ -333,7 +339,7 @@ class TestAssetService:
         assert total == 0
 
     async def test_reconcile_negative_quantity_short_position(self, db, test_user):
-        """Test that negative quantities (short positions) are handled correctly."""
+        """AC11.1.11: Test that negative quantities (short positions) are handled correctly."""
         service = AssetService()
 
         snap = AtomicPosition(
@@ -360,7 +366,7 @@ class TestAssetService:
         assert pos.status == PositionStatus.ACTIVE
 
     async def test_reconcile_result_counts_are_mutually_exclusive(self, db, test_user):
-        """Test that updated and disposed counts don't double-count."""
+        """AC11.1.12: Test that updated and disposed counts don't double-count."""
         service = AssetService()
 
         snap1 = AtomicPosition(

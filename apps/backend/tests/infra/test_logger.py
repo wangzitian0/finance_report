@@ -12,27 +12,32 @@ from src import logger as logger_module
 
 
 def test_build_otlp_logs_endpoint_adds_suffix() -> None:
+    """AC12.1.1: OTEL logs endpoint adds suffix /v1/logs."""
     assert logger_module._build_otlp_logs_endpoint("http://collector:4318") == "http://collector:4318/v1/logs"
     assert logger_module._build_otlp_logs_endpoint("http://collector:4318/") == "http://collector:4318/v1/logs"
 
 
 def test_build_otlp_logs_endpoint_preserves_logs_path() -> None:
+    """AC12.1.2: OTEL logs endpoint preserves logs path."""
     assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
 
 
 def test_select_renderer_uses_console_in_debug(monkeypatch) -> None:
+    """AC12.2.1: Debug mode uses ConsoleRenderer."""
     monkeypatch.setattr(logger_module.settings, "debug", True)
     renderer = logger_module._select_renderer()
     assert isinstance(renderer, ConsoleRenderer)
 
 
 def test_select_renderer_uses_json_in_production(monkeypatch) -> None:
+    """AC12.2.2: Production mode uses JSONRenderer."""
     monkeypatch.setattr(logger_module.settings, "debug", False)
     renderer = logger_module._select_renderer()
     assert isinstance(renderer, JSONRenderer)
 
 
 def test_configure_otel_logging_missing_dependency_warns(monkeypatch, caplog) -> None:
+    """AC12.3.1: OTEL not available logs warning."""
     monkeypatch.setattr(
         logger_module.settings,
         "otel_exporter_otlp_endpoint",
@@ -54,6 +59,7 @@ def test_configure_otel_logging_missing_dependency_warns(monkeypatch, caplog) ->
 
 
 def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
+    """AC12.4.1: OTEL logging configuration with fake exporter."""
     calls: list[object] = []
 
     class DummyProvider:
@@ -156,7 +162,7 @@ def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
 
 
 def test_log_timing_basic(caplog) -> None:
-    """Test log_timing context manager logs operation with timing."""
+    """AC12.6.1: Sync log_timing logs operation with timing."""
     test_logger = logger_module.get_logger("test_timing")
 
     with caplog.at_level(logging.INFO):
@@ -168,7 +174,7 @@ def test_log_timing_basic(caplog) -> None:
 
 
 def test_log_timing_with_context(caplog) -> None:
-    """Test log_timing includes additional context."""
+    """AC12.6.2: log_timing includes additional context."""
     test_logger = logger_module.get_logger("test_timing")
 
     with caplog.at_level(logging.INFO):
@@ -180,7 +186,7 @@ def test_log_timing_with_context(caplog) -> None:
 
 
 def test_log_timing_yields_mutable_dict(caplog) -> None:
-    """Test log_timing yields a dict that can be updated."""
+    """AC12.6.3: log_timing yields mutable dict."""
     test_logger = logger_module.get_logger("test_timing")
 
     with caplog.at_level(logging.INFO):
@@ -191,7 +197,7 @@ def test_log_timing_yields_mutable_dict(caplog) -> None:
 
 
 def test_log_timing_with_custom_level(caplog) -> None:
-    """Test log_timing respects custom log level."""
+    """AC12.6.4: log_timing respects custom log level."""
     test_logger = logger_module.get_logger("test_timing")
 
     with caplog.at_level(logging.DEBUG):
@@ -202,7 +208,7 @@ def test_log_timing_with_custom_level(caplog) -> None:
 
 
 async def test_async_log_timing_basic(caplog) -> None:
-    """Test async_log_timing context manager logs operation with timing."""
+    """AC12.16.1: Async log_timing logs operation with timing."""
     import asyncio
 
     test_logger = logger_module.get_logger("test_async_timing")
@@ -216,7 +222,7 @@ async def test_async_log_timing_basic(caplog) -> None:
 
 
 async def test_async_log_timing_with_context(caplog) -> None:
-    """Test async_log_timing includes additional context."""
+    """AC12.16.2: Async log_timing includes additional context."""
     test_logger = logger_module.get_logger("test_async_timing")
 
     with caplog.at_level(logging.INFO):
@@ -228,7 +234,7 @@ async def test_async_log_timing_with_context(caplog) -> None:
 
 
 def test_log_external_api_sync_success(caplog) -> None:
-    """Test log_external_api decorator with sync function success."""
+    """AC12.7.1: Sync external API call logs success."""
 
     @logger_module.log_external_api("test_service")
     def sync_api_call():
@@ -243,7 +249,7 @@ def test_log_external_api_sync_success(caplog) -> None:
 
 
 def test_log_external_api_sync_failure(caplog) -> None:
-    """Test log_external_api decorator with sync function failure."""
+    """AC12.7.2: Sync external API call logs failure."""
 
     @logger_module.log_external_api("failing_service")
     def failing_api_call():
@@ -260,7 +266,7 @@ def test_log_external_api_sync_failure(caplog) -> None:
 
 
 async def test_log_external_api_async_success(caplog) -> None:
-    """Test log_external_api decorator with async function success."""
+    """AC12.7.3: Async external API call logs success."""
 
     @logger_module.log_external_api("async_service")
     async def async_api_call():
@@ -275,7 +281,7 @@ async def test_log_external_api_async_success(caplog) -> None:
 
 
 async def test_log_external_api_async_failure(caplog) -> None:
-    """Test log_external_api decorator with async function failure."""
+    """AC12.7.4: Async external API call logs failure."""
     import pytest
 
     @logger_module.log_external_api("async_failing_service")
@@ -291,7 +297,7 @@ async def test_log_external_api_async_failure(caplog) -> None:
 
 
 def test_log_external_api_with_log_args(caplog) -> None:
-    """Test log_external_api with log_args=True."""
+    """AC12.7.5: External API with log_args=True."""
 
     @logger_module.log_external_api("service_with_args", log_args=True)
     def api_with_args(a, b, key=None):
@@ -306,7 +312,7 @@ def test_log_external_api_with_log_args(caplog) -> None:
 
 
 def test_log_exception_basic(caplog) -> None:
-    """Test log_exception logs exception with context."""
+    """AC12.8.1: Log exception logs error with context."""
     test_logger = logger_module.get_logger("test_exception")
 
     with caplog.at_level(logging.ERROR):
@@ -321,7 +327,7 @@ def test_log_exception_basic(caplog) -> None:
 
 
 def test_log_exception_with_extra_context(caplog) -> None:
-    """Test log_exception includes extra context fields."""
+    """AC12.8.2: Log exception includes extra context fields."""
     test_logger = logger_module.get_logger("test_exception")
 
     with caplog.at_level(logging.ERROR):
@@ -335,7 +341,7 @@ def test_log_exception_with_extra_context(caplog) -> None:
 
 
 def test_log_exception_without_traceback(caplog) -> None:
-    """Test log_exception without traceback."""
+    """AC12.8.3: Log exception without traceback."""
     test_logger = logger_module.get_logger("test_exception")
 
     with caplog.at_level(logging.ERROR):
@@ -349,7 +355,7 @@ def test_log_exception_without_traceback(caplog) -> None:
 
 
 def test_log_exception_custom_level(caplog) -> None:
-    """Test log_exception with custom log level."""
+    """AC12.8.4: Log exception with custom level."""
     test_logger = logger_module.get_logger("test_exception")
 
     with caplog.at_level(logging.WARNING):
@@ -367,7 +373,7 @@ def test_log_exception_custom_level(caplog) -> None:
 
 
 def test_build_processors_returns_list() -> None:
-    """Test _build_processors returns a list of processors."""
+    """AC12.10.1: Build processors returns list."""
     processors = logger_module._build_processors()
     assert isinstance(processors, list)
     assert len(processors) >= 5  # contextvars, trace_context, log_level, exc_info, timestamper
@@ -379,7 +385,7 @@ def test_build_processors_returns_list() -> None:
 
 
 def test_add_trace_context_with_valid_span(monkeypatch) -> None:
-    """Test _add_trace_context injects trace_id and span_id when span is valid."""
+    """AC12.11.1: Trace context injects trace_id and span_id."""
     import types
 
     class MockSpanContext:
@@ -409,7 +415,7 @@ def test_add_trace_context_with_valid_span(monkeypatch) -> None:
 
 
 def test_add_trace_context_with_invalid_span(monkeypatch) -> None:
-    """Test _add_trace_context skips injection when span context is invalid."""
+    """AC12.11.2: Trace context skips injection when invalid."""
     import types
 
     class MockSpanContext:
@@ -435,7 +441,7 @@ def test_add_trace_context_with_invalid_span(monkeypatch) -> None:
 
 
 def test_add_trace_context_handles_import_error(monkeypatch) -> None:
-    """Test _add_trace_context gracefully handles missing opentelemetry."""
+    """AC12.11.3: Trace context handles missing opentelemetry."""
 
     def raise_import_error(name, *args, **kwargs):
         if "opentelemetry" in name:
@@ -464,14 +470,14 @@ def test_add_trace_context_handles_import_error(monkeypatch) -> None:
 
 
 def test_configure_otel_tracing_no_endpoint(monkeypatch) -> None:
-    """Test _configure_otel_tracing returns early when endpoint is not set."""
+    """AC12.12.1: OTEL tracing returns early when no endpoint."""
     monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
     # Should not raise and should return early
     logger_module._configure_otel_tracing()
 
 
 def test_configure_otel_tracing_missing_dependency_warns(monkeypatch, caplog) -> None:
-    """Test _configure_otel_tracing warns when opentelemetry is not available."""
+    """AC12.3.2: OTEL trace exporter not available logs warning."""
     monkeypatch.setattr(
         logger_module.settings,
         "otel_exporter_otlp_endpoint",
@@ -493,7 +499,7 @@ def test_configure_otel_tracing_missing_dependency_warns(monkeypatch, caplog) ->
 
 
 def test_configure_otel_tracing_with_fake_exporter(monkeypatch) -> None:
-    """Test _configure_otel_tracing sets up TracerProvider correctly."""
+    """AC12.12.2: TracerProvider created correctly."""
     calls: list[object] = []
 
     class DummyTracerProvider:
@@ -581,7 +587,7 @@ def test_configure_otel_tracing_with_fake_exporter(monkeypatch) -> None:
 
 
 def test_configure_otel_tracing_appends_traces_path(monkeypatch) -> None:
-    """Test _configure_otel_tracing appends /v1/traces to endpoint."""
+    """AC12.12.3: Traces path appends /v1/traces."""
     calls: list[object] = []
 
     class DummyTracerProvider:
@@ -663,7 +669,7 @@ def test_configure_otel_tracing_appends_traces_path(monkeypatch) -> None:
 
 
 def test_build_otel_resource(monkeypatch) -> None:
-    """Test _build_otel_resource creates resource with correct attributes."""
+    """AC12.5.1: OTEL resource created with correct attributes."""
 
     class DummyResource:
         @staticmethod
@@ -700,14 +706,14 @@ def test_build_otel_resource(monkeypatch) -> None:
 
 
 def test_configure_otel_logging_no_endpoint(monkeypatch) -> None:
-    """Test _configure_otel_logging returns early when endpoint is not set."""
+    """AC12.3.3: OTEL logging returns early when no endpoint."""
     monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
     # Should not raise and should return early
     logger_module._configure_otel_logging()
 
 
 def test_configure_logging_basic(monkeypatch) -> None:
-    """Test configure_logging sets up structlog correctly."""
+    """AC12.15.1: Configure logging in debug mode."""
     import structlog
 
     # Ensure no OTEL endpoint to avoid side effects
@@ -729,7 +735,7 @@ def test_configure_logging_basic(monkeypatch) -> None:
 
 
 def test_configure_logging_production_mode(monkeypatch) -> None:
-    """Test configure_logging in production mode (non-debug)."""
+    """AC12.15.2: Configure logging in production mode."""
     import structlog
 
     monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
@@ -746,7 +752,7 @@ def test_configure_logging_production_mode(monkeypatch) -> None:
 
 
 async def test_log_external_api_async_with_log_args(caplog) -> None:
-    """Test log_external_api with log_args=True for async functions."""
+    """AC12.17.1: Async external API with log_args=True."""
 
     @logger_module.log_external_api("async_service_with_args", log_args=True)
     async def async_api_with_args(a, b, key=None):
@@ -761,7 +767,7 @@ async def test_log_external_api_async_with_log_args(caplog) -> None:
 
 
 async def test_log_external_api_async_failure_with_log_args(caplog) -> None:
-    """Test log_external_api async failure path with log_args=True."""
+    """AC12.17.2: Async failure with log_args=True."""
     import pytest
 
     @logger_module.log_external_api("async_failing_with_args", log_args=True)

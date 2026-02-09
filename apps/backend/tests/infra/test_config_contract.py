@@ -12,7 +12,7 @@ class TestConfigContract:
     """Test configuration contracts and synchronization."""
 
     def test_primary_model_format(self):
-        """Ensure PRIMARY_MODEL follows expected pattern."""
+        """AC12.18.1: Ensure PRIMARY_MODEL follows expected pattern."""
         from src.config import settings
 
         # Test contract: model should follow google/gemini-* pattern
@@ -28,7 +28,7 @@ class TestConfigContract:
         )
 
     def test_config_sync_with_env_example(self):
-        """Ensure config.py default matches .env.example documentation."""
+        """AC12.18.2: Ensure config.py default matches .env.example documentation."""
         from src.config import settings
 
         # Go up to project root: tests/infra/ -> tests/ -> backend/ -> apps/ -> project_root
@@ -48,7 +48,7 @@ class TestConfigContract:
         )
 
     def test_base_currency_format(self):
-        """Ensure BASE_CURRENCY is a valid ISO 4217 currency code."""
+        """AC12.18.3: Ensure BASE_CURRENCY is a valid ISO 4217 currency code."""
         from src.config import settings
 
         assert settings.base_currency.isalpha(), (
@@ -62,7 +62,7 @@ class TestConfigContract:
         )
 
     def test_s3_bucket_format(self):
-        """Ensure S3_BUCKET follows naming conventions."""
+        """AC12.18.4: Ensure S3_BUCKET follows naming conventions."""
         from src.config import settings
 
         # S3 bucket naming rules: lowercase, no underscores, 3-63 chars
@@ -77,7 +77,7 @@ class TestConfigContract:
         )
 
     def test_jwt_algorithm_allowed(self):
-        """Ensure JWT_ALGORITHM is a secure algorithm."""
+        """AC12.18.5: Ensure JWT_ALGORITHM is a secure algorithm."""
         from src.config import settings
 
         # Allow only HS256 and RS256 (secure algorithms)
@@ -87,7 +87,7 @@ class TestConfigContract:
         )
 
     def test_database_url_format(self):
-        """Ensure DATABASE_URL follows expected format."""
+        """AC12.18.6: Ensure DATABASE_URL follows expected format."""
         from src.config import settings
 
         # Should use asyncpg driver for async FastAPI compatibility
