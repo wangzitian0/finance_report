@@ -51,8 +51,8 @@ if [ -n "$RUNTIME" ]; then
     
     # Remove Podman Pods if applicable
     if [ "$RUNTIME" == "podman" ]; then
-        echo "📦 Checking for Podman Pods (pod_finance_report*)..."
-        PODS=$(podman pod ls --format "{{.Name}}" | grep "pod_finance_report" || true)
+        echo "📦 Checking for Podman Pods (pod_finance[-_]report*)..."
+        PODS=$(podman pod ls --format "{{.Name}}" | grep -E "pod_finance[-_]report" || true)
         if [ -n "$PODS" ]; then
             echo "   Found leaked pods:"
             echo "$PODS" | sed 's/^/   - /'
@@ -69,8 +69,10 @@ if [ -n "$RUNTIME" ]; then
     if [[ $ALL -eq 1 ]]; then
         echo "   🗑️  Removing volumes (THIS WILL DELETE ALL DATA)..."
         # Match finance-report, finance_report, and varied suffixes
-        $RUNTIME volume ls --format "{{.Name}}" | grep -E "finance(-|_)report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
+        $RUNTIME volume ls --format "{{.Name}}" | grep -E "finance[-_]report" | xargs -r $RUNTIME volume rm 2>/dev/null || true
         echo "   ✅ Volumes removed."
+
+# ... (rest of the file remains same, I'll just use multi_replace for multiple chunks or be careful)
         
         echo "   🗑️  Cleaning MinIO data via mc (MinIO Client)..."
         MINIO_RUNNING=$($RUNTIME ps -q -f "name=finance-report-minio" 2>/dev/null || true)

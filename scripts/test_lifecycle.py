@@ -344,21 +344,30 @@ def test_database(ephemeral=False):
     # Register namespace for orphan cleanup tracking
     register_namespace(namespace)
 
-    # Use unique project name for isolation
+    # Use unique project name and ENV_SUFFIX for full isolation
+    # This ensures container_name: finance-report-db${ENV_SUFFIX} is unique
+    env_suffix = f"-{namespace}"
     project_name = f"finance-report-{namespace}"
+    
+    # Inject ENV_SUFFIX into environment for subprocess
+    env = os.environ.copy()
+    env["ENV_SUFFIX"] = env_suffix
+    
     compose_cmd = [runtime, "compose", "-p", project_name, "-f", str(COMPOSE_FILE)]
 
-    log("🐘 Ensuring infrastructure is up...", YELLOW)
+    log(f"🐘 Ensuring infrastructure is up (Project: {project_name}, Suffix: {env_suffix})...", YELLOW)
     try:
-        subprocess.run([*compose_cmd, "--profile", "infra", "up", "-d"], check=True)
+        # Start infrastructure services if not running
+        # Use --profile infra to only start infra services if needed
+        subprocess.run([*compose_cmd, "--profile", "infra", "up", "-d"], env=env, check=True)
+
+        # Wait for postgres to be ready
+        container_name = f"finance-report-db{env_suffix}"
     except subprocess.CalledProcessError:
         log("❌ Failed to start database.", RED)
         unregister_namespace(namespace)
         raise
 
-    # Find the actual container name (in case of compose project name variations)
-    # We look for the one defined in docker-compose.yml or generated
-    # Simple approach: ask compose for the container name
     try:
         res = subprocess.run(
             [*compose_cmd, "ps", "--format", "{{.Name}}", "postgres"],
