@@ -143,7 +143,12 @@ def cmd_clean(args):
     elif args.containers:
         run([*compose_cmd, "--profile", "infra", "down"])
     else:
-        run(["bash", "scripts/cleanup_dev_resources.sh"])
+        cmd = ["bash", "scripts/cleanup_dev_resources.sh"]
+        if args.force:
+            cmd.append("--force")
+        if args.all:
+            cmd.append("--all")
+        run(cmd)
 
 
 def main():
@@ -185,6 +190,8 @@ def main():
     p_clean = subparsers.add_parser("clean", help="Clean up resources")
     p_clean.add_argument("--db", action="store_true", help="Clean test databases")
     p_clean.add_argument("--containers", action="store_true", help="Stop containers")
+    p_clean.add_argument("--force", action="store_true", help="Force clean processes/leaked containers")
+    p_clean.add_argument("--all", action="store_true", help="Deep clean (including volumes)")
 
     # Use parse_known_args for test command to allow pass-through of pytest args
     args, extra = parser.parse_known_args()

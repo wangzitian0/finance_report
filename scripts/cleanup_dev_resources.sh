@@ -74,7 +74,34 @@ if [ -n "$PIDS" ]; then
     fi
 fi
 
-# 3. Clean up lock files and cache
+# 3. Clean up leaked CI/Test containers/networks (finance-report-internal-*)
+echo "🕵️  Checking for leaked CI/Test resources (finance-report-internal-*)..."
+
+LEAKED_CONTAINERS=$($RUNTIME ps -a --format "{{.Names}}" | grep "finance-report-internal" || true)
+if [ -n "$LEAKED_CONTAINERS" ]; then
+    echo "   Found leaked containers:"
+    echo "$LEAKED_CONTAINERS" | sed 's/^/   - /'
+    if [[ "${1:-}" == "--all" || "${1:-}" == "--force" ]]; then
+       echo "$LEAKED_CONTAINERS" | xargs $RUNTIME rm -f
+       echo "   ✅ Leaked containers removed."
+    else
+       echo "   ⚠️  Run with --force or --all to remove these."
+    fi
+fi
+
+LEAKED_NETWORKS=$($RUNTIME network ls --format "{{.Name}}" | grep "finance-report-internal" || true)
+if [ -n "$LEAKED_NETWORKS" ]; then
+    echo "   Found leaked networks:"
+    echo "$LEAKED_NETWORKS" | sed 's/^/   - /'
+    if [[ "${1:-}" == "--all" || "${1:-}" == "--force" ]]; then
+       echo "$LEAKED_NETWORKS" | xargs $RUNTIME network rm 2>/dev/null || true
+       echo "   ✅ Leaked networks removed."
+    else
+       echo "   ⚠️  Run with --force or --all to remove these."
+    fi
+fi
+
+# 4. Clean up lock files and cache
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/finance_report"
 if [ -d "$CACHE_DIR" ]; then
     echo "🔒 Cleaning up lock files in $CACHE_DIR..."
