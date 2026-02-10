@@ -15,7 +15,7 @@ from src.auth import get_current_user_id
 
 @pytest.mark.asyncio
 async def test_auth_missing_header(db_engine):
-    """Test 401 when Authorization header is missing."""
+    """AC8.2.4: Test 401 when Authorization header is missing."""
     from src.main import app
 
     transport = ASGITransport(app=app)
@@ -27,7 +27,7 @@ async def test_auth_missing_header(db_engine):
 
 @pytest.mark.asyncio
 async def test_auth_invalid_token(db_engine):
-    """Test 401 when Authorization token is invalid."""
+    """AC8.2.4: Test 401 when Authorization token is invalid."""
     from src.main import app
 
     transport = ASGITransport(app=app)
@@ -43,7 +43,7 @@ async def test_auth_invalid_token(db_engine):
 
 @pytest.mark.asyncio
 async def test_auth_non_existent_user(db_engine):
-    """Test 401 when JWT is valid but user does not exist."""
+    """AC8.2.4: Test 401 when JWT is valid but user does not exist."""
     from src.main import app
     from src.security import create_access_token
 
@@ -60,7 +60,7 @@ async def test_auth_non_existent_user(db_engine):
 
 @pytest.mark.asyncio
 async def test_auth_valid_user(client, test_user):
-    """Test 200 when valid JWT is provided."""
+    """AC8.2.4: Test 200 when valid JWT is provided."""
     # The client fixture already has the valid JWT in headers
     response = await client.get("/accounts")
     assert response.status_code == 200

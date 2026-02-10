@@ -100,15 +100,13 @@ def test_decode_access_token_invalid_signature():
 
 
 def test_decode_access_token_malformed():
-    """
-    GIVEN a malformed JWT token
-    WHEN decoding the token
-    THEN it should return None and log warning
-    """
+    """AC8.2.3: Verify that malformed tokens return None and log warning."""
     token = "not.a.valid.jwt.token"
-
     with patch("src.security.logger.warning") as mock_warning:
         payload = decode_access_token(token)
-
     assert payload is None
     mock_warning.assert_called_once()
+    
+    # Add empty/None tests for extra robustness
+    assert decode_access_token("") is None
+    assert decode_access_token(None) is None
