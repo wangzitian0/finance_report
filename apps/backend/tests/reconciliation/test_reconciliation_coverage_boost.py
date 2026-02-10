@@ -711,7 +711,22 @@ async def test_execute_matching_low_score_unmatched(db: AsyncSession):
 
 
 def test_load_reconciliation_config_yaml_import_error():
-    with patch("builtins.__import__", side_effect=ImportError):
+    """AC4.1.1 - Config loading: When yaml import fails, use DEFAULT_CONFIG
+
+    GIVEN yaml module cannot be imported
+    WHEN load_reconciliation_config is called with force_reload=True
+    THEN it returns DEFAULT_CONFIG as fallback
+    """
+    import builtins
+
+    original_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("yaml not available")
+        return original_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=mock_import):
         config = load_reconciliation_config(force_reload=True)
         assert config == DEFAULT_CONFIG
 
