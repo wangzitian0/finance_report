@@ -457,7 +457,6 @@ def test_database(ephemeral=False):
     )
 
     log(f"   Running migrations on {test_db_url}...", YELLOW)
-    env = os.environ.copy()
     env["DATABASE_URL"] = test_db_url
     env["TEST_NAMESPACE"] = namespace
 
