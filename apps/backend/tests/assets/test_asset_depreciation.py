@@ -1,4 +1,8 @@
-"""Tests for asset depreciation calculations."""
+"""AC11.6.1 - AC11.6.4: Asset Depreciation Tests
+
+These tests validate asset depreciation calculations including straight-line and declining-balance
+methods, salvage value handling, useful life years, and various edge cases and error scenarios.
+"""
 
 from datetime import date
 from decimal import Decimal

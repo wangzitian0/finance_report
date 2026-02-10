@@ -1,4 +1,8 @@
-"""Integration tests for Assets API router."""
+"""AC11.2.1 - AC11.4.1: Assets API Router Tests
+
+These tests validate asset management API endpoints including position CRUD,
+authentication requirements, depreciation schedule access, and user isolation security.
+"""
 
 from datetime import date
 from decimal import Decimal

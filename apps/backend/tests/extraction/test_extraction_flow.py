@@ -14,7 +14,12 @@ async def mock_stream_generator(content: str):
 
 
 class TestExtractionServiceFlow:
-    """Tests for ExtractionService flow mocking external dependencies."""
+    """AC3.5.1 - AC3.5.4: Extraction Flow Tests
+
+    These tests validate the complete extraction service flow including document parsing,
+    AI institution auto-detection, transaction extraction, error handling, and
+    various file format support (CSV, PDF, images) with proper mocking.
+    """
 
     @pytest.fixture
     def service(self):

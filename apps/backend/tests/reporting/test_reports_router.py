@@ -1,4 +1,10 @@
-"""Integration tests for Reports Router."""
+"""AC5.5.1 - AC5.5.4: Reports Router Tests
+
+These tests validate report generation endpoints including balance sheet,
+income statement, cash flow, trend analysis, breakdown, and export functionality.
+Tests cover various report types (CSV, PDF, JSON), format validation,
+date parameter handling, and error scenarios for invalid requests.
+"""
 
 from datetime import date
 from decimal import Decimal

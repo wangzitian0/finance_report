@@ -1,4 +1,8 @@
-"""Tests for users router endpoints."""
+"""AC1.8.1 - AC1.8.1: User Management Endpoint Tests
+
+These tests validate user management endpoints including CRUD operations,
+pagination, duplicate detection, password requirements, and response serialization.
+"""
 
 from datetime import UTC
 

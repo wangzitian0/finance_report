@@ -1,4 +1,10 @@
-"""Tests for AI models router."""
+"""AC6.5.1 - AC6.5.1: AI Models & Chat Router Tests
+
+These tests validate AI models router functionality including model listings,
+various model types (free/paid/vision/text/image), model catalog availability,
+and model selection for different task types.
+Tests verify that models are returned correctly for appropriate use cases.
+"""
 
 from __future__ import annotations
 

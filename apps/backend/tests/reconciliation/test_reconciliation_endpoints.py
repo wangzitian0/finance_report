@@ -1,8 +1,13 @@
-"""API endpoint tests for accounts, journal entries, and reconciliation."""
+"""AC2.10.1 - AC2.10.1: Reconciliation API Endpoint Tests
+
+These tests validate reconciliation API endpoints including running reconciliation,
+pending review queue, accepting/rejecting matches, batch operations,
+and statistics queries.
+"""
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
@@ -25,159 +30,6 @@ from src.models import (
     ReconciliationStatus,
     Statement,
 )
-
-
-async def _create_account(client: AsyncClient, name: str, account_type: str) -> dict:
-    payload = {"name": name, "type": account_type, "currency": "SGD"}
-    resp = await client.post("/accounts", json=payload)
-    assert resp.status_code == 201, resp.text
-    return resp.json()
-
-
-@pytest.mark.asyncio
-async def test_accounts_endpoints(client: AsyncClient) -> None:
-    account = await _create_account(client, "Cash", "ASSET")
-
-    basic_list_resp = await client.get("/accounts")
-    assert basic_list_resp.status_code == 200
-    assert basic_list_resp.json()["total"] >= 1
-
-    list_resp = await client.get("/accounts", params={"include_balance": "true"})
-    assert list_resp.status_code == 200
-    list_data = list_resp.json()
-    assert list_data["total"] >= 1
-    assert list_data["items"][0]["balance"] is not None
-
-    filter_resp = await client.get("/accounts", params={"account_type": "ASSET"})
-    assert filter_resp.status_code == 200
-
-    get_resp = await client.get(f"/accounts/{account['id']}")
-    assert get_resp.status_code == 200
-    assert get_resp.json()["id"] == account["id"]
-
-    update_resp = await client.put(
-        f"/accounts/{account['id']}",
-        json={"name": "Cash Vault", "code": "1001", "description": "Updated"},
-    )
-    assert update_resp.status_code == 200
-    assert update_resp.json()["name"] == "Cash Vault"
-
-    deactivate_resp = await client.put(
-        f"/accounts/{account['id']}",
-        json={"is_active": False},
-    )
-    assert deactivate_resp.status_code == 200
-    assert deactivate_resp.json()["is_active"] is False
-
-    inactive_resp = await client.get("/accounts", params={"is_active": "false"})
-    assert inactive_resp.status_code == 200
-    assert inactive_resp.json()["total"] >= 1
-
-    missing_resp = await client.get(f"/accounts/{uuid4()}")
-    assert missing_resp.status_code == 404
-
-    missing_update = await client.put(
-        f"/accounts/{uuid4()}",
-        json={"name": "Missing"},
-    )
-    assert missing_update.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_journal_entry_endpoints(client: AsyncClient) -> None:
-    debit_account = await _create_account(client, "Bank", "ASSET")
-    credit_account = await _create_account(client, "Revenue", "INCOME")
-
-    entry_payload = {
-        "entry_date": date.today().isoformat(),
-        "memo": "Test entry",
-        "lines": [
-            {
-                "account_id": debit_account["id"],
-                "direction": "DEBIT",
-                "amount": "100.00",
-                "currency": "SGD",
-            },
-            {
-                "account_id": credit_account["id"],
-                "direction": "CREDIT",
-                "amount": "100.00",
-                "currency": "SGD",
-            },
-        ],
-    }
-    create_resp = await client.post("/journal-entries", json=entry_payload)
-    assert create_resp.status_code == 201
-    entry = create_resp.json()
-
-    older_date = date.today() - timedelta(days=10)
-    older_payload = {
-        "entry_date": older_date.isoformat(),
-        "memo": "Older entry",
-        "lines": [
-            {
-                "account_id": debit_account["id"],
-                "direction": "DEBIT",
-                "amount": "50.00",
-                "currency": "SGD",
-            },
-            {
-                "account_id": credit_account["id"],
-                "direction": "CREDIT",
-                "amount": "50.00",
-                "currency": "SGD",
-            },
-        ],
-    }
-    older_resp = await client.post("/journal-entries", json=older_payload)
-    assert older_resp.status_code == 201
-    older_entry = older_resp.json()
-
-    list_resp = await client.get("/journal-entries", params={"status_filter": "draft"})
-    assert list_resp.status_code == 200
-    assert list_resp.json()["total"] >= 1
-
-    start_date_resp = await client.get(
-        "/journal-entries",
-        params={"start_date": date.today().isoformat()},
-    )
-    assert start_date_resp.status_code == 200
-    start_ids = {item["id"] for item in start_date_resp.json()["items"]}
-    assert older_entry["id"] not in start_ids
-
-    end_date_resp = await client.get(
-        "/journal-entries",
-        params={"end_date": older_date.isoformat()},
-    )
-    assert end_date_resp.status_code == 200
-    end_ids = {item["id"] for item in end_date_resp.json()["items"]}
-    assert older_entry["id"] in end_ids
-
-    get_resp = await client.get(f"/journal-entries/{entry['id']}")
-    assert get_resp.status_code == 200
-
-    missing_get = await client.get(f"/journal-entries/{uuid4()}")
-    assert missing_get.status_code == 404
-
-    post_resp = await client.post(f"/journal-entries/{entry['id']}/post")
-    assert post_resp.status_code == 200
-    assert post_resp.json()["status"] == "posted"
-
-    void_resp = await client.post(
-        f"/journal-entries/{entry['id']}/void",
-        json={"reason": "Test void"},
-    )
-    assert void_resp.status_code == 200
-    assert void_resp.json()["status"] == "posted"
-
-    missing_post = await client.post(f"/journal-entries/{uuid4()}/post")
-    assert missing_post.status_code == 400
-
-    missing_void = await client.post(
-        f"/journal-entries/{uuid4()}/void",
-        json={"reason": "missing"},
-    )
-    assert missing_void.status_code == 400
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,8 @@
-"""Tests for accounting balance aggregation helpers."""
+"""AC2.4.1 - AC2.4.6: Account Balance Calculation Tests
+
+These tests validate account balance calculation across multiple account types (asset, income, expense)
+with proper handling of journal entries and ledger aggregation.
+"""
 
 from datetime import date
 from decimal import Decimal

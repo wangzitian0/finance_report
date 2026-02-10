@@ -1,4 +1,11 @@
-"""Integration tests for EPIC-011 Phase 4 Layer 2 Read."""
+"""AC4.4.1: Reconciliation Layer 2 Read Tests
+
+These tests validate Phase 4 Layer 2 Read functionality
+including atomic transaction creation from bank transactions, linking to accounts,
+dual-write mode behavior, and Layer 2 status transitions.
+Tests verify atomic transaction guarantees, proper account linking,
+and correct status state management in the reconciliation layer architecture.
+"""
 
 import hashlib
 from datetime import date

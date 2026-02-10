@@ -1,4 +1,11 @@
-"""Integration tests for EPIC-011 Phase 3 Dual Read Validation."""
+"""AC4.3.1 - AC4.3.1: Reconciliation Dual Read Tests
+
+These tests validate Phase 3 Dual Read functionality including atomic transaction
+creation from bank transactions, account linking, dual-write mode behavior,
+and validation of dual-write constraints, and data consistency checks.
+Tests verify dual-write guarantees, proper account resolution
+between Layer 1 and Layer 2 data sources.
+"""
 
 import hashlib
 from pathlib import Path

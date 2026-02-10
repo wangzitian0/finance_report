@@ -1,4 +1,8 @@
-"""Tests for authentication dependency."""
+"""AC1.7.1 - AC1.7.1: Authentication Logic Tests
+
+These tests validate JWT token-based authentication, user existence checks,
+and invalid credential scenarios including token validation and session management.
+"""
 
 from uuid import uuid4
 
