@@ -1,3 +1,12 @@
+"""AC4.5.1 - AC4.5.1: Anomaly Detection Tests
+
+These tests validate anomaly detection functionality including large amount detection,
+new merchant identification, weekend anomaly detection, frequency spike analysis,
+severity assessment, and result verification for various transaction patterns.
+Tests verify that anomalies are correctly detected, have appropriate severity levels,
+and that the detection service handles edge cases appropriately.
+"""
+
 from datetime import date, timedelta
 from decimal import Decimal
 

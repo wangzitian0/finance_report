@@ -1,4 +1,9 @@
-"""Tests for Pydantic schemas validation."""
+"""AC2.9.1 - AC2.9.3: Data Model Schema Validation Tests
+
+These tests validate Pydantic schemas for accounts and journal entries,
+including account creation rules, journal line validation, currency rules,
+FX rate handling, and request schema validation.
+"""
 
 from datetime import date
 from decimal import Decimal

@@ -1,3 +1,11 @@
+"""AC4.3.1 - AC4.3.1: Review Queue Tests
+
+These tests validate review queue operations including getting pending
+items, accepting/rejecting matches, batch operations, and creating journal entries
+from transactions. Tests cover various status transitions, amount validation,
+batch processing scenarios, and error handling.
+"""
+
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4

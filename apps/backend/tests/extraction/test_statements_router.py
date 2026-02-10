@@ -1,4 +1,9 @@
-"""Tests for statement router functions."""
+"""AC3.5.4 - AC3.5.4: Statements Router Tests
+
+These tests validate statement upload, duplicate detection, model selection,
+file size limits, review queue management, and various error paths
+including storage failures, retry mechanisms, and status transitions.
+"""
 
 from __future__ import annotations
 

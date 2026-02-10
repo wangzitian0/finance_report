@@ -1,4 +1,8 @@
-"""Coverage tests for assets router error paths and edge cases."""
+"""AC11.2.2: Assets Router Coverage Tests
+
+These tests are specifically designed to improve test coverage across asset management
+edge cases, error paths, and additional validation scenarios.
+"""
 
 from datetime import date
 from decimal import Decimal

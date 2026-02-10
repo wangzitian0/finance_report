@@ -1,4 +1,8 @@
-"""Tests for journal router error handling paths."""
+"""AC2.7.2 - AC2.7.2: Journal Router Error Handling Tests
+
+These tests validate journal router error handling for various scenarios including
+validation errors, posting restrictions, voiding constraints, and deletion protection.
+"""
 
 from datetime import date
 from unittest.mock import AsyncMock, patch

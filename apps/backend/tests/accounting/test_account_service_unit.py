@@ -1,4 +1,8 @@
-"""Unit tests for account service."""
+"""AC2.1.1 - AC2.1.1: Account Service Unit Tests
+
+These tests validate account service CRUD operations (create, get, update, list)
+with comprehensive error handling and database interaction testing.
+"""
 
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

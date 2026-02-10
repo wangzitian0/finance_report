@@ -1,4 +1,8 @@
-"""Unit tests for statement validation helpers."""
+"""AC2.12.1 - AC2.12.6: Statement Validation Logic Tests
+
+These tests validate balance calculation, completeness checks, confidence scoring,
+and threshold-based routing logic for bank statements.
+"""
 
 from decimal import Decimal
 
