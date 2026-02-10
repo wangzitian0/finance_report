@@ -18,7 +18,8 @@ class TestAccountsRouterCoverage:
     """Additional tests for accounts router coverage."""
 
     async def test_delete_account_with_transactions(self, client, db, test_user):
-        """
+        """AC2.10.2: Delete account with transactions
+
         GIVEN an account with existing transactions
         WHEN attempting to delete it
         THEN it should return 400 error

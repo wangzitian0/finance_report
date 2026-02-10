@@ -12,7 +12,8 @@ class TestAIModelsRouterCoverage:
     """Additional tests for AI models router coverage."""
 
     async def test_list_models_free_only_filter(self, client):
-        """
+        """AC6.1.1: List AI models with free_only filter
+
         GIVEN AI models endpoint with free_only filter
         WHEN requesting models
         THEN it should return only free models

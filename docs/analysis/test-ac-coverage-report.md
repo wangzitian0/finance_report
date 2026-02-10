@@ -18,7 +18,7 @@
 | EPIC | Name | Coverage | With AC | Without AC | Total |
 |------|------|----------|---------|------------|-------|
 | EPIC-001 | Infrastructure & Authentication | 24.6% | 48 | 147 | 195 |
-| EPIC-002 | Double-Entry Bookkeeping Core | 0.0% | 0 | 14 | 14 |
+| EPIC-002 | Double-Entry Bookkeeping Core | 100.0% | 14 | 0 | 14 |
 | EPIC-003 | Smart Statement Parsing | 52.6% | 51 | 46 | 97 |
 | EPIC-004 | Reconciliation Engine & Matching | 20.0% | 6 | 24 | 30 |
 | EPIC-005 | Financial Reports & Visualization | 0.0% | 0 | 18 | 18 |

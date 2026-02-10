@@ -23,6 +23,7 @@ async def _create_account(client: AsyncClient, name: str, account_type: str) -> 
 @pytest.mark.asyncio
 async def test_journal_entry_endpoints(client: AsyncClient) -> None:
     """AC2.10.1: Journal entry API endpoints
+
     GIVEN authenticated user
     WHEN interacting with journal entry API
     THEN all CRUD operations and status transitions should work correctly

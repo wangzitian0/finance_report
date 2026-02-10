@@ -12,7 +12,8 @@ class TestAuthRouterCoverage:
     """Additional tests for auth router coverage."""
 
     async def test_login_invalid_credentials(self, public_client):
-        """
+        """AC1.1.1: Login with invalid credentials
+
         GIVEN invalid login credentials
         WHEN attempting to login
         THEN it should return 401 error

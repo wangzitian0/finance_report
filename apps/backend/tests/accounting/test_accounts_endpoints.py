@@ -22,6 +22,7 @@ async def _create_account(client: AsyncClient, name: str, account_type: str) -> 
 @pytest.mark.asyncio
 async def test_accounts_endpoints(client: AsyncClient) -> None:
     """AC2.10.1: Accounts API endpoints
+
     GIVEN authenticated user
     WHEN interacting with accounts API
     THEN all CRUD operations should work correctly

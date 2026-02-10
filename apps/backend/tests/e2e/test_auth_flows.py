@@ -15,6 +15,7 @@ Run with:
 """
 
 import os
+import warnings
 
 import pytest
 
@@ -31,7 +32,7 @@ async def test_registration_flow(page):
     if not frontend_url:
         pytest.skip("FRONTEND_URL not set")
 
-    await page.goto(f"{frontend_url}/auth/register")
+    await page.goto(f"{frontend_url}/login")
 
     await page.fill("input[name='email']", "newuser@example.com")
     await page.fill("input[name='password']", "SecurePass123!")
@@ -53,8 +54,7 @@ async def test_login_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/auth/login")
 

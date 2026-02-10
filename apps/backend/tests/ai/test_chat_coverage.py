@@ -14,7 +14,8 @@ class TestChatRouterCoverage:
     """Additional tests for chat router coverage."""
 
     async def test_get_nonexistent_session(self, client):
-        """
+        """AC6.2.1: Get non-existent chat session
+
         GIVEN a non-existent session ID
         WHEN requesting session details
         THEN it should return 404
@@ -24,7 +25,8 @@ class TestChatRouterCoverage:
         assert response.status_code == 404
 
     async def test_send_message_to_nonexistent_session(self, client):
-        """
+        """AC6.2.2: Send message to non-existent session
+
         GIVEN a non-existent session ID
         WHEN sending a message
         THEN it should return 404

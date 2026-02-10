@@ -15,6 +15,7 @@ class TestServiceLayerCoverage:
 
     async def test_pii_redaction_edge_cases(self):
         """AC3.5.1: PII redaction edge cases
+
         GIVEN text with edge case PII patterns
         WHEN redacting
         THEN it should handle gracefully

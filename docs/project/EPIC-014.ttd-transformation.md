@@ -468,23 +468,23 @@ Before marking a doc as "Complete", verify:
 
 ---
 
-## 📝 工作进度报告
+## 📝 Work Progress Report
 
-**更新日期**: 2026-02-09
+**Updated**: 2026-02-09
 
-### 已完成的工作（选项 A.1 & A.2）
+### Completed Work (Option A.1 & A.2)
 
-#### Accounting/ (4 个文件已添加 AC 编号 ✅)
+#### Accounting/ (4 files with AC numbers added ✅)
 - ✅ `test_validation.py` → AC2.12.6: Statement Validation Logic Tests
 - ✅ `test_accounting_balances.py` → AC2.4.1: Account Balance Calculation Tests
 - ✅ `test_account_service_unit.py` → AC2.1.1: Account Service Unit Tests
 - ✅ `test_journal_router_errors.py` → AC2.7.2: Journal Router Error Handling Tests
 
-#### API/ (2 个文件已添加 AC 编号 ✅)
+#### API/ (2 files with AC numbers added ✅)
 - ✅ `test_schemas.py` → AC2.9.1: Data Model Schema Validation Tests
 - ✅ `test_api_endpoints.py` → AC2.10.1: API Endpoint Tests
 
-#### Auth/ (2 个文件已添加 AC 编号 ✅)
+#### Auth/ (2 files with AC numbers added ✅)
 - ✅ `test_auth.py` → AC1.7.1: Authentication Logic Tests
 - ✅ `test_users_router.py` → AC1.8.1: User Management Endpoint Tests
 

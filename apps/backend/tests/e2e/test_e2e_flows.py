@@ -31,7 +31,7 @@ async def test_registration_flow(page):
     if not frontend_url:
         pytest.skip("FRONTEND_URL not set")
 
-    await page.goto(f"{frontend_url}/register")
+    await page.goto(f"{frontend_url}/login")
 
     await page.fill("input[name='email']", "test@example.com")
     await page.fill("input[name='password']", "SecurePass123!")

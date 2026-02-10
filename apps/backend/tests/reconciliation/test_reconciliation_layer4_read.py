@@ -1,4 +1,4 @@
-"""AC4.3.1 - AC4.3.1: Reconciliation Layer 2 Read Tests
+"""AC4.4.1: Reconciliation Layer 2 Read Tests
 
 These tests validate Phase 4 Layer 2 Read functionality
 including atomic transaction creation from bank transactions, linking to accounts,

@@ -22,7 +22,7 @@
 | EPIC | Status | Total ACs | ACs with Tests | ACs without Tests | % Complete |
 |------|--------|-----------|----------------|-------------------|------------|
 | [EPIC-001](#epic-001-infrastructure--authentication) | ✅ Complete | 26 | 26 | 0 | 100% |
-| [EPIC-002](#epic-002-double-entry-bookkeeping-core) | ✅ Complete | 57 | 57 | 0 | 100% |
+| [EPIC-002](#epic-002-double-entry-bookkeeping-core) | ✅ Complete | 58 | 58 | 0 | 100% |
 | [EPIC-003](#epic-003-smart-statement-parsing) | ✅ Complete | 15 | 15 | 0 | 100% |
 | [EPIC-004](#epic-004-reconciliation-engine--matching) | ✅ Complete | 12 | 12 | 0 | 100% |
 | [EPIC-005](#epic-005-financial-reports--visualization) | ✅ Complete | 13 | 13 | 0 | 100% |

@@ -164,7 +164,10 @@ def extract_test_functions(file_path: Path) -> List[TestFunction]:
                 script_dir = Path(__file__).resolve().parent
                 repo_root = script_dir.parent
                 tests_dir = repo_root / "apps" / "backend" / "tests"
-                rel_path = file_path.relative_to(tests_dir)
+                try:
+                    rel_path = file_path.relative_to(tests_dir)
+                except ValueError:
+                    rel_path = file_path
                 parts = rel_path.parts
                 domain = parts[0] if len(parts) > 1 else "root"
 
@@ -184,7 +187,7 @@ def extract_test_functions(file_path: Path) -> List[TestFunction]:
 
                 functions.append(
                     TestFunction(
-                        file_path=str(file_path.relative_to(Path.cwd())),
+                        file_path=str(file_path.relative_to(repo_root)),
                         function_name=node.name,
                         docstring=docstring.split("\n")[0] if docstring else "",
                         has_ac=has_ac,
