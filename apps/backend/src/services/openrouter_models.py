@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -21,58 +22,78 @@ class ModelCatalogError(Exception):
 logger = get_logger(__name__)
 
 _CACHE_TTL_SECONDS = 600
-_MODEL_CACHE: dict[str, Any] = {
-    "expires_at": 0.0,
-    "models": [],
-}
-_CACHE_LOCK = threading.Lock()
+_MAX_CACHE_ENTRIES = 10
+
+
+class LRUCache:
+    def __init__(self, maxsize: int = 10):
+        self.cache: OrderedDict[str, Any] = OrderedDict()
+        self.maxsize = maxsize
+        self.lock = threading.Lock()
+
+    def get(self, key: str) -> Any | None:
+        with self.lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+                return self.cache[key]
+            return None
+
+    def set(self, key: str, value: Any) -> None:
+        with self.lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+            self.cache[key] = value
+            if len(self.cache) > self.maxsize:
+                self.cache.popitem(last=False)
+
+
+_MODEL_CACHE = LRUCache(maxsize=_MAX_CACHE_ENTRIES)
 
 
 async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any]]:
+    cache_key = "model_catalog"
     now = time.time()
-    if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
-        cache_age_seconds = round(now - (_MODEL_CACHE["expires_at"] - _CACHE_TTL_SECONDS), 1)
+
+    cached = _MODEL_CACHE.get(cache_key)
+    if not force_refresh and cached and now < cached.get("expires_at", 0):
+        cache_age_seconds = round(now - (cached["expires_at"] - _CACHE_TTL_SECONDS), 1)
         logger.debug(
             "Using cached model catalog",
-            model_count=len(_MODEL_CACHE["models"]),
+            model_count=len(cached["models"]),
             cache_age_seconds=cache_age_seconds,
-            ttl_remaining=round(_MODEL_CACHE["expires_at"] - now, 1),
+            ttl_remaining=round(cached["expires_at"] - now, 1),
         )
-        return list(_MODEL_CACHE["models"])
+        return list(cached["models"])
 
-    await asyncio.to_thread(_CACHE_LOCK.acquire)
-    try:
-        now = time.time()
-        if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
-            return list(_MODEL_CACHE["models"])
+    headers = {}
+    if settings.openrouter_api_key:
+        headers["Authorization"] = f"Bearer {settings.openrouter_api_key}"
 
-        headers = {}
-        if settings.openrouter_api_key:
-            headers["Authorization"] = f"Bearer {settings.openrouter_api_key}"
+    timeout = httpx.Timeout(10.0, connect=5.0, read=10.0)
+    start_time = time.perf_counter()
 
-        timeout = httpx.Timeout(10.0, connect=5.0, read=10.0)
-        start_time = time.perf_counter()
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.get(f"{settings.openrouter_base_url}/models", headers=headers)
+        response.raise_for_status()
+        payload = response.json()
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(f"{settings.openrouter_base_url}/models", headers=headers)
-            response.raise_for_status()
-            payload = response.json()
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    models = payload.get("data", []) if isinstance(payload, dict) else []
 
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        models = payload.get("data", []) if isinstance(payload, dict) else []
-        _MODEL_CACHE["models"] = models
-        _MODEL_CACHE["expires_at"] = time.time() + _CACHE_TTL_SECONDS
+    cache_entry = {
+        "models": models,
+        "expires_at": time.time() + _CACHE_TTL_SECONDS,
+    }
+    _MODEL_CACHE.set(cache_key, cache_entry)
 
-        logger.info(
-            "Fetched OpenRouter model catalog",
-            model_count=len(models),
-            duration_ms=round(duration_ms, 2),
-            cache_ttl_seconds=_CACHE_TTL_SECONDS,
-        )
+    logger.info(
+        "Fetched OpenRouter model catalog",
+        model_count=len(models),
+        duration_ms=round(duration_ms, 2),
+        cache_ttl_seconds=_CACHE_TTL_SECONDS,
+    )
 
-        return list(models)
-    finally:
-        _CACHE_LOCK.release()
+    return list(models)
 
 
 def _to_decimal(value: Any) -> Decimal | None:

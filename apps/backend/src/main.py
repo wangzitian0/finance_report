@@ -83,12 +83,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     stop_event.set()
     supervisor_task.cancel()
 
-    # Close rate limiters (Redis connections)
     auth_rate_limiter.close()
     register_rate_limiter.close()
 
     with suppress(asyncio.CancelledError):
         await supervisor_task
+
+    await engine.dispose()
     logger.info("Application shutting down")
 
 
