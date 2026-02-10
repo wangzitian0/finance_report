@@ -15,7 +15,6 @@ Run with:
 """
 
 import os
-import warnings
 
 import pytest
 
@@ -30,8 +29,7 @@ async def test_registration_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/auth/register")
 
@@ -79,8 +77,7 @@ async def test_login_invalid_credentials(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/auth/login")
 
@@ -103,8 +100,7 @@ async def test_logout_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/dashboard")
 
@@ -125,8 +121,7 @@ async def test_password_reset_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/auth/forgot-password")
 

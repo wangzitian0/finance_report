@@ -7,7 +7,7 @@ This script scans all test files in apps/backend/tests/ and identifies:
 2. Suggested AC categorization based on file location and function name
 3. Summary statistics by EPIC/domain
 
-AC Pattern: "ACx.y.z" or "[ACx.y.z]" in docstrings or comments
+AC Pattern: "ACx.y.z" or "[ACx.y.z]" in docstrings
 """
 
 import ast
@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Set
+from typing import Dict, List
 
 # AC pattern (e.g., AC2.2.1, [AC4.3.1], AC13.1.2)
 AC_PATTERN = re.compile(r"\[?AC\d+\.\d+\.\d+\]?")
@@ -160,8 +160,10 @@ def extract_test_functions(file_path: Path) -> List[TestFunction]:
                 docstring = ast.get_docstring(node) or ""
                 has_ac = bool(AC_PATTERN.search(docstring))
 
-                # Determine domain from file path (use absolute path)
-                tests_dir = Path.cwd() / "apps" / "backend" / "tests"
+                # Determine domain from file path (derive repo root from __file__)
+                script_dir = Path(__file__).resolve().parent
+                repo_root = script_dir.parent
+                tests_dir = repo_root / "apps" / "backend" / "tests"
                 rel_path = file_path.relative_to(tests_dir)
                 parts = rel_path.parts
                 domain = parts[0] if len(parts) > 1 else "root"
@@ -201,8 +203,6 @@ def extract_test_functions(file_path: Path) -> List[TestFunction]:
 def suggest_ac(function_name: str, domain: str, epic_info: Dict) -> str:
     """Suggest an AC number based on function name and domain."""
     ac_prefix = epic_info["ac_prefix"]
-    keywords = epic_info["keywords"]
-
     # Try to match keywords to subcategories
     name_lower = function_name.lower()
 
@@ -286,7 +286,9 @@ def suggest_ac(function_name: str, domain: str, epic_info: Dict) -> str:
 
 def main():
     """Main analysis function."""
-    tests_dir = Path.cwd() / "apps" / "backend" / "tests"
+    script_dir = Path(__file__).resolve().parent
+    repo_root = script_dir.parent
+    tests_dir = repo_root / "apps" / "backend" / "tests"
 
     # Collect all test files
     test_files = list(tests_dir.rglob("test_*.py"))

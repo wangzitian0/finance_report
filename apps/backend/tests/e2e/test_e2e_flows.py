@@ -15,7 +15,6 @@ Run with:
 """
 
 import os
-import warnings
 
 import pytest
 
@@ -30,8 +29,7 @@ async def test_registration_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/register")
 
@@ -55,8 +53,7 @@ async def test_login_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/login")
 
@@ -79,8 +76,7 @@ async def test_navigation_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/dashboard")
 
@@ -107,8 +103,7 @@ async def test_report_viewing_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/reports")
 
@@ -131,8 +126,7 @@ async def test_income_statement_viewing_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/reports")
 
@@ -155,8 +149,7 @@ async def test_cash_flow_viewing_flow(page):
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
-        warnings.warn("Skipping E2E UI test: FRONTEND_URL not set", UserWarning)
-        return
+        pytest.skip("FRONTEND_URL not set")
 
     await page.goto(f"{frontend_url}/reports")
 
