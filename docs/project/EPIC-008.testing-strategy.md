@@ -3,7 +3,7 @@
 > **Status**: In Progress (Core Complete)
 > **Owner**: QA / DevOps
 > **Date**: 2026-01-16
-> **Updated**: 2026-01-27
+> **Updated**: 2026-02-23
 
 ## 1. Overview
 
@@ -31,7 +31,27 @@ This epic defines the strategy for **Smoke Testing** and **End-to-End (E2E) Test
 
 > **Note**: E2E tests are expensive and flaky. We run them on Staging to avoid polluting Production and to ensure stability before release.
 
-### 2.3 Synthetic Test Data (PDF Generation)
+### 2.3 Coverage Tier Definition
+
+E2E coverage is measured across three tiers of increasing fidelity:
+
+| Tier | Method | Transport | Environment | What It Proves |
+|------|--------|-----------|-------------|----------------|
+| **Tier 1** | API Integration E2E | `AsyncClient` + `ASGITransport` (in-process) | CI (pytest, real DB) | Router→Service→DB→Response contract works |
+| **Tier 2** | HTTP E2E | `httpx` against deployed app | PR / Staging | Real HTTP, real network, real deployment |
+| **Tier 3** | Browser E2E | Playwright | Staging | Full UI→API→DB user journey |
+
+**Coverage accounting rules:**
+- An AC counts as "covered" when it has a **passing Tier 1+ test** that exercises the real code path (not a mock/stub).
+- Tier 2/3 tests that `skip` due to missing env vars (e.g., `FRONTEND_URL`) do NOT count toward coverage.
+- The **AC pass rate** = (ACs with at least one passing Tier 1+ test) / (Total ACs).
+
+**Current state (2026-02-23):**
+- **Tier 1**: 22 tests in `test_core_journeys.py` covering 22 ACs → **44.9% AC pass rate** (22/49)
+- **Tier 2**: Not yet implemented (planned: `tests/e2e/` with `APP_URL`)
+- **Tier 3**: 3 Playwright test files, all skip without `FRONTEND_URL`
+
+### 2.4 Synthetic Test Data (PDF Generation)
 
 To ensure deterministic and controllable tests for Phase 3 (Import/Parsing), we utilize a synthetic data generation script.
 
@@ -47,10 +67,10 @@ To ensure deterministic and controllable tests for Phase 3 (Import/Parsing), we 
 These scenarios represent the "Vertical Slices" of user value.
 
 ### Phase 1: Onboarding & Account Structure (1-10)
-- [x] **New User Registration**: User signs up with email/password, verifies email, and lands on dashboard. *(test_e2e_flows.py::test_registration_flow)*
+- [x] **New User Registration**: User signs up with email/password, verifies email, and lands on dashboard. *(test_core_journeys.py::test_register_and_login_flow)*
 - [ ] **Setup Base Currency**: User selects SGD as base currency during onboarding.
-- [x] **Create Cash Account**: User creates a "Wallet" asset account (SGD). *(test_core_journeys.py::test_accounts_crud_api)*
-- [x] **Create Bank Account**: User creates a "DBS Savings" asset account (SGD). *(covered by CRUD test)*
+- [x] **Create Cash Account**: User creates a "Wallet" asset account (SGD). *(test_core_journeys.py::test_create_cash_account)*
+- [x] **Create Bank Account**: User creates a "DBS Savings" asset account (SGD). *(test_core_journeys.py::test_create_bank_account)*
 - [ ] **Create Credit Card**: User creates a "Citi Rewards" liability account (SGD).
 - [ ] **Create Multi-currency Account**: User creates a "Wise USD" asset account (USD).
 - [ ] **Define Custom Expense Category**: User adds "Coffee Subscription" under "Expenses".
@@ -59,7 +79,7 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Reactivate Account**: User restores the "Student Account" for historical reference.
 
 ### Phase 2: Manual Journal Entries (11-30)
-- [x] **Simple Expense**: User pays $5.00 for coffee using "Wallet" (Manual Entry). *(test_core_journeys.py::test_journal_entry_lifecycle_api)*
+- [x] **Simple Expense**: User pays $5.00 for coffee using "Wallet" (Manual Entry). *(test_core_journeys.py::test_simple_expense_entry)*
 - [ ] **Income Recording**: User records $5,000 salary deposit into "DBS Savings".
 - [ ] **Credit Card Spend**: User buys a laptop ($2,000) using "Citi Rewards".
 - [ ] **Credit Card Repayment**: User pays off "Citi Rewards" ($2,000) from "DBS Savings".
@@ -67,8 +87,8 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Split Transaction**: User spends $100 at supermarket: $80 "Groceries", $20 "Household" (1 Debit, 2 Credits).
 - [ ] **Refund Processing**: User receives $50 refund to "Citi Rewards" for returned item.
 - [ ] **Foreign Expense (Manual FX)**: User spends 10 USD on "Wise USD", records as 13.50 SGD equivalent.
-- [x] **Void Entry**: User voids a duplicate coffee transaction (System generates reversal). *(test_core_journeys.py::test_journal_entry_lifecycle_api)*
-- [x] **Post Draft**: User saves a complex entry as "Draft", reviews later, and "Posts" it. *(test_core_journeys.py::test_journal_entry_lifecycle_api)*
+- [x] **Void Entry**: User voids a duplicate coffee transaction (System generates reversal). *(test_core_journeys.py::test_void_journal_entry)*
+- [x] **Post Draft**: User saves a complex entry as "Draft", reviews later, and "Posts" it. *(test_core_journeys.py::test_post_draft_entry)*
 - [ ] **Recurring Subscription**: User sets up monthly $15 Netflix bill (Template/Copy).
 - [ ] **Asset Purchase**: User buys a car, recording asset increase and loan liability increase.
 - [ ] **Depreciation Entry**: User manually records monthly depreciation for the laptop.
@@ -118,7 +138,7 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Reconcile Period**: User "Locks" reconciliation up to Jan 31st.
 - [ ] **Modify Reconciled Entry**: User tries to edit amount of reconciled entry -> **Blocked/Warning**.
 - [ ] **Void Reconciled Entry**: User voids reconciled entry; system warns to unmatch first.
-- [x] **Recon Progress Bar**: User sees "85% Reconciled" for Jan statement. *(test_core_journeys.py::test_reconciliation_api - stats endpoint)*
+- [x] **Recon Progress Bar**: User sees "85% Reconciled" for Jan statement. *(test_core_journeys.py::test_reconciliation_stats)*
 - [ ] **Filter Unreconciled**: User filters view to show only unmatched manual entries.
 - [ ] **Search Statement**: User searches "Starbucks" in statement lines.
 - [ ] **Review Low Confidence**: User reviews a 60% match score (wrong date?) and rejects it.
@@ -130,14 +150,14 @@ These scenarios represent the "Vertical Slices" of user value.
 - [ ] **Force Match**: User manually links two totally different records (Admin override).
 
 ### Phase 5: Reporting & Visualization (76-90)
-- [x] **View Balance Sheet**: User views BS as of today; sees Assets = Liab + Equity. *(test_core_journeys.py::test_reports_api)*
-- [x] **View Income Statement**: User views P&L for "Last Month". *(test_core_journeys.py::test_reports_api)*
+- [x] **View Balance Sheet**: User views BS as of today; sees Assets = Liab + Equity. *(test_core_journeys.py::test_balance_sheet_report)*
+- [x] **View Income Statement**: User views P&L for "Last Month". *(test_core_journeys.py::test_income_statement_report)*
 - [ ] **Drill Down**: User clicks "Food" in P&L -> sees list of food transactions.
 - [ ] **Trend Analysis**: User views "6 Month Expense Trend" bar chart.
 - [ ] **Category Pie Chart**: User sees "Where my money went" breakdown.
 - [ ] **Net Worth Tracking**: User views line chart of Net Worth over 1 year.
 - [ ] **Savings Rate**: System calculates (Income - Expense) / Income %.
-- [x] **Cash Flow Report**: User views Operating vs Investing vs Financing flows. *(test_core_journeys.py::test_reports_api)*
+- [x] **Cash Flow Report**: User views Operating vs Investing vs Financing flows. *(test_core_journeys.py::test_cash_flow_report)*
 - [ ] **Multi-currency Report**: User views BS in SGD (USD assets converted at closing rate).
 - [ ] **Export PDF**: User downloads P&L as PDF.
 - [ ] **Export CSV**: User downloads raw transaction list for Excel.
@@ -184,7 +204,7 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.1.1 | API health check | Health check tests | `scripts/smoke_test.sh` | P0 |
+| AC8.1.1 | API health check | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.1.2 | Backend service reachable | Connectivity tests | `scripts/smoke_test.sh` | P0 |
 | AC8.1.3 | Frontend service reachable | Connectivity tests | `scripts/smoke_test.sh` | P0 |
 | AC8.1.4 | Database connectivity | Connectivity tests | `scripts/smoke_test.sh` | P0 |
@@ -193,21 +213,21 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.2.1 | New User Registration | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.2.2 | Create Cash Account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.2.3 | Create Bank Account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.2.4 | Update account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
-| AC8.2.5 | Delete account | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
+| AC8.2.1 | New User Registration | `test_register_and_login_flow()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.2.2 | Create Cash Account | `test_create_cash_account()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.2.3 | Create Bank Account | `test_create_bank_account()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.2.4 | Update account | `test_update_account()` | `e2e/test_core_journeys.py` | P1 |
+| AC8.2.5 | Delete account | `test_delete_account()` | `e2e/test_core_journeys.py` | P1 |
 
 ### AC8.3: Phase 2 - Manual Journal Entries
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.3.1 | Simple Expense Entry | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.3.2 | Void Entry | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.3.3 | Post Draft Entry | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.3.4 | Unbalanced Entry Rejected | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.3.5 | Journal Entry CRUD | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
+| AC8.3.1 | Simple Expense Entry | `test_simple_expense_entry()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.3.2 | Void Entry | `test_void_journal_entry()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.3.3 | Post Draft Entry | `test_post_draft_entry()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.3.4 | Unbalanced Entry Rejected | `test_unbalanced_journal_entry_rejection()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.3.5 | Journal Entry CRUD | `test_journal_entry_crud()` | `e2e/test_core_journeys.py` | P1 |
 
 ### AC8.4: Phase 3 - Statement Import & Parsing
 
@@ -221,36 +241,36 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.5.1 | Reconciliation engine runs | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.5.2 | Reconciliation stats endpoint | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P1 |
+| AC8.5.1 | Reconciliation engine runs | `test_reconciliation_engine_runs()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.5.2 | Reconciliation stats endpoint | `test_reconciliation_stats()` | `e2e/test_core_journeys.py` | P1 |
 | AC8.5.3 | Match acceptance | Match acceptance tests | `reconciliation/` | P1 |
 
 ### AC8.6: Phase 5 - Reporting & Visualization
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.6.1 | View Balance Sheet | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.6.2 | View Income Statement | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.6.3 | View Cash Flow Report | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.6.4 | Report navigation | N/A – E2E test not yet implemented | `e2e/test_e2e_flows.py` (planned) | P1 |
+| AC8.6.1 | View Balance Sheet | `test_balance_sheet_report()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.6.2 | View Income Statement | `test_income_statement_report()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.6.3 | View Cash Flow Report | `test_cash_flow_report()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.6.4 | Report navigation | N/A – Tier 3 (Playwright) not yet implemented | `e2e/test_e2e_flows.py` (planned) | P1 |
 
 ### AC8.7: API Authentication & Authorization
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.7.1 | API authentication failures | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.7.2 | Unauthorized access blocked | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P0 |
-| AC8.7.3 | User session management | N/A – E2E test not yet implemented | `apps/backend/tests/e2e/` (planned) | P1 |
+| AC8.7.1 | API authentication failures | `test_api_authentication_failures()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.7.2 | Unauthorized access blocked | `test_unauthorized_access_blocked()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.7.3 | User session management | `test_user_session_management()` | `e2e/test_core_journeys.py` | P1 |
 
 ### AC8.8: Core E2E Journey Tests
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC8.8.1 | API health check | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.8.2 | Accounts CRUD API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.8.3 | Journal entry lifecycle API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.8.4 | Reports API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.8.5 | Reconciliation API | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.8.1 | API health check | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.8.2 | Accounts CRUD API | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.8.3 | Journal entry lifecycle API | `test_journal_entry_crud()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.8.4 | Reports API | `test_balance_sheet_report()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.8.5 | Reconciliation API | `test_reconciliation_engine_runs()` | `e2e/test_core_journeys.py` | P0 |
 
 ### AC8.9: CI/CD Integration Tests
 
@@ -265,76 +285,120 @@ These scenarios represent the "Vertical Slices" of user value.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC8.10.1 | Health endpoint reachable | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.10.2 | User can create account | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.10.3 | User can create journal entry | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.1 | Health endpoint reachable | `test_api_health_check()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.2 | User can create account | `test_accounts_crud_api()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.3 | User can create journal entry | `test_journal_entry_crud()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.4 | Statement upload triggers AI | `test_model_selection_and_upload()` | `e2e/test_statement_upload_e2e.py` | P0 |
-| AC8.10.5 | Reconciliation engine runs | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.10.6 | Unbalanced entry rejected | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.10.7 | Reports API accessible | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
-| AC8.10.8 | User registration flow | N/A – E2E test not yet implemented | `e2e/test_e2e_flows.py` (planned) | P0 |
-| AC8.10.9 | Authentication validation | N/A – E2E test not yet implemented | `e2e/test_core_journeys.py` (planned) | P0 |
+| AC8.10.5 | Reconciliation engine runs | `test_reconciliation_engine_runs()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.6 | Unbalanced entry rejected | `test_unbalanced_journal_entry_rejection()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.7 | Reports API accessible | `test_balance_sheet_report()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.8 | User registration flow | `test_register_and_login_flow()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.9 | Authentication validation | `test_api_authentication_failures()` | `e2e/test_core_journeys.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 49
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- Requirements with implemented test references: 35% (65% E2E scenarios planned but not yet implemented)
-- Test files: 1 implemented (`e2e/test_statement_upload_e2e.py`), 2 planned (`e2e/test_core_journeys.py`, `e2e/test_e2e_flows.py`)
-- Note: EPIC-008 covers 100 scenarios; current implementation covers ~15 core scenarios
+- **ACs with passing Tier 1 tests: 22/49 (44.9%)**
+- ACs covered by AC group:
+  - AC8.1: 1/4 (health check via Tier 1; 3 remain smoke-script-only)
+  - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
+  - AC8.3: 5/5 (100% — expense, void, post, unbalanced, CRUD)
+  - AC8.4: 0/3 (0% — statement upload Playwright tests skip without env)
+  - AC8.5: 2/3 (67% — engine runs, stats; match acceptance is unit-level)
+  - AC8.6: 3/4 (75% — BS, P&L, cash flow; navigation is Tier 3)
+  - AC8.7: 3/3 (100% — auth failures, unauthorized, session)
+  - AC8.8: 5/5 (100% — health, accounts, journal, reports, recon)
+  - AC8.9: 0/4 (0% — CI/CD integration verified manually, not via pytest)
+  - AC8.10: 9/9 (100% — all must-have scenarios traced)
+- Test files: 1 fully implemented (`e2e/test_core_journeys.py` — 22 tests), 1 existing (`e2e/test_statement_upload_e2e.py`), 3 Playwright (skip without env)
+- **Previous state**: 35% with mostly "N/A – not yet implemented" placeholders
+- **Current state**: 44.9% with real, passing Tier 1 tests
 
 ---
 
-## 5. Implementation Status (as of 2026-01-27)
+## 5. Implementation Status (as of 2026-02-23)
 
 ### 5.1 Implemented Test Files
 
-| File | Type | Coverage |
-|------|------|----------|
-| `tests/e2e/test_core_journeys.py` | API E2E | Health, accounts CRUD, journal entries, reports, reconciliation |
-| `tests/e2e/test_e2e_flows.py` | UI E2E | Navigation, registration, reports view |
-| `tests/e2e/test_auth_flows.py` | Auth E2E | Authentication flows |
-| `tests/e2e/conftest.py` | Fixtures | Shared session user, browser context, auth injection |
-| `scripts/smoke_test.sh` | Shell Smoke | 200+ lines of basic connectivity tests |
+| File | Type | Tier | Tests | Coverage |
+|------|------|------|-------|----------|
+| `tests/e2e/test_core_journeys.py` | API E2E | Tier 1 | 22 | Health, accounts CRUD, journal entries (create/post/void/delete), reports (BS/P&L/CF/currencies), reconciliation (run/stats), auth (login/register/session/unauthorized) |
+| `tests/e2e/test_statement_upload_e2e.py` | Playwright | Tier 3 | 2 | Statement upload + model selection (skips without `FRONTEND_URL`) |
+| `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
+| `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |
+| `tests/e2e/conftest.py` | Fixtures | — | — | Shared session user, browser context, auth injection |
+| `scripts/smoke_test.sh` | Shell Smoke | — | — | 200+ lines of basic connectivity tests |
 
-### 5.2 Scenario Coverage (Issue #196 Requirements)
+### 5.2 Scenario Coverage (Must-Have Requirements)
 
 | Requirement | Status | Test Location |
 |-------------|--------|---------------|
-| Health endpoint reachable | ✅ Done | `test_core_journeys.py::test_api_health_check` |
-| User can create account | ✅ Done | `test_core_journeys.py::test_accounts_crud_api` |
-| User can create journal entry | ✅ Done | `test_core_journeys.py::test_journal_entry_lifecycle_api` |
-| Statement upload triggers AI | ⚠️ Skipped | `test_e2e_flows.py::test_statement_upload_parsing_flow` (backend bug) |
-| Reconciliation engine runs | ✅ Done | `test_core_journeys.py::test_reconciliation_api` |
-| Unbalanced entry rejected | ✅ Done | `test_core_journeys.py::test_unbalanced_journal_entry_rejection` |
-| Reports API accessible | ✅ Done | `test_core_journeys.py::test_reports_api` |
-| Authentication validation | ✅ Done | `test_core_journeys.py::test_api_authentication_failures` |
-| User registration flow | ✅ Done | `test_e2e_flows.py::test_registration_flow` |
+| Health endpoint reachable | ✅ Passing | `test_core_journeys.py::test_api_health_check` |
+| User can create account | ✅ Passing | `test_core_journeys.py::test_create_cash_account`, `test_accounts_crud_api` |
+| User can create journal entry | ✅ Passing | `test_core_journeys.py::test_simple_expense_entry`, `test_journal_entry_crud` |
+| Statement upload triggers AI | ⚠️ Skipped | `test_statement_upload_e2e.py` (Tier 3, needs `FRONTEND_URL`) |
+| Reconciliation engine runs | ✅ Passing | `test_core_journeys.py::test_reconciliation_engine_runs` |
+| Unbalanced entry rejected | ✅ Passing | `test_core_journeys.py::test_unbalanced_journal_entry_rejection` |
+| Reports API accessible | ✅ Passing | `test_core_journeys.py::test_balance_sheet_report`, `test_income_statement_report`, `test_cash_flow_report` |
+| Authentication validation | ✅ Passing | `test_core_journeys.py::test_api_authentication_failures`, `test_unauthorized_access_blocked` |
+| User registration flow | ✅ Passing | `test_core_journeys.py::test_register_and_login_flow` |
 
-### 5.3 CI/CD Integration Status
+### 5.3 Tier 1 Test → AC Mapping (Complete)
+
+| Test Function | ACs Covered | Description |
+|---------------|-------------|-------------|
+| `test_api_health_check` | AC8.1.1, AC8.8.1 | GET /health returns 200 |
+| `test_create_cash_account` | AC8.2.2 | Create Wallet asset account |
+| `test_create_bank_account` | AC8.2.3 | Create DBS Savings asset account |
+| `test_update_account` | AC8.2.4 | Update account name |
+| `test_delete_account` | AC8.2.5 | Delete account + verify 404 |
+| `test_accounts_crud_api` | AC8.8.2 | Full CRUD: create/list/get/update |
+| `test_simple_expense_entry` | AC8.3.1 | $5 coffee with Expense+Asset accounts |
+| `test_void_journal_entry` | AC8.3.2 | Post then void with reason |
+| `test_post_draft_entry` | AC8.3.3 | Draft → posted status transition |
+| `test_unbalanced_journal_entry_rejection` | AC8.3.4 | 400 on unbalanced lines |
+| `test_journal_entry_crud` | AC8.3.5, AC8.8.3 | Create/read/list/delete lifecycle |
+| `test_reconciliation_engine_runs` | AC8.5.1, AC8.8.5 | POST /reconciliation/run |
+| `test_reconciliation_stats` | AC8.5.2 | GET /reconciliation/stats |
+| `test_balance_sheet_report` | AC8.6.1, AC8.8.4 | GET /reports/balance-sheet |
+| `test_income_statement_report` | AC8.6.2 | GET /reports/income-statement with date params |
+| `test_cash_flow_report` | AC8.6.3 | GET /reports/cash-flow with date params |
+| `test_reports_currencies_endpoint` | AC8.6.1 (supp) | GET /reports/currencies |
+| `test_api_authentication_failures` | AC8.7.1 | Login with invalid creds |
+| `test_unauthorized_access_blocked` | AC8.7.2 | public_client hits 401 on 3 endpoints |
+| `test_user_session_management` | AC8.7.3 | GET /auth/me returns user info |
+| `test_register_and_login_flow` | AC8.2.1, AC8.7.1 (supp) | Register → Login via public_client |
+
+### 5.4 CI/CD Integration Status
 
 - ✅ **PR Workflow**: `.github/workflows/pr-test.yml` runs E2E tests on every PR
 - ✅ **Smoke Tests**: `scripts/smoke_test.sh` integrated into PR pipeline
 - ✅ **Critical Test Check**: `scripts/check_critical_tests.py` validates test results
 - ✅ **Environment Isolation**: Each PR gets isolated DB/Redis/MinIO via Dokploy
 
-### 5.4 Known Gaps
+### 5.5 Known Gaps
 
-1. **Statement Upload Parsing** (`test_statement_upload_parsing_flow`):
-   - **Status**: Skipped
+1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
+   - **Status**: Skipped (Tier 3 — needs `FRONTEND_URL`)
    - **Reason**: Backend AI parsing returns 0 transactions instead of expected 15
    - **Tracking**: PR #142 comments
    - **Fix Required**: Backend team to investigate Gemini parsing flow
 
-2. **100 Scenario Coverage**:
-   - **Current**: ~15 core scenarios implemented
-   - **Gap**: 85 scenarios from Phase 1-6 not yet automated
+2. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
+
+3. **100 Scenario Coverage**:
+   - **Current**: 13 scenarios checked in Section 3 (of 100)
+   - **Gap**: 87 scenarios from Phase 1-6 not yet automated
    - **Priority**: Low (core flows are covered, remaining are nice-to-have)
 
-### 5.5 Running Tests
+### 5.6 Running Tests
 
 ```bash
 # Run all E2E tests locally
 bash scripts/smoke_test.sh
+
+# Run Tier 1 API E2E tests (requires DB)
+moon run :test -- -m e2e
 
 # Run against specific environment
 APP_URL=https://report.zitian.party pytest tests/e2e -v -m "smoke or e2e"

@@ -8,12 +8,10 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from fastapi import UploadFile
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.models.statement import BankStatement, BankStatementStatus
