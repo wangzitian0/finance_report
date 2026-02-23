@@ -20,6 +20,8 @@ This section contains:
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
 - [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2 (currency, balance chain, institution auto-detect, confidence V2)
 
+- [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 Complete, P1 Pending)
+
 **TODO**
 - Processing Virtual Account — Internal clearing account for in-transit/unconfirmed funds (see vision.md Decision 5). Needs new EPIC.
 - Two-Stage Review Workflow — Confidence-based auto-accept (>=85) / manual review (60-84) / reject (<60) pipeline (see vision.md Decision 4). Needs new EPIC or extend EPIC-003.
@@ -52,9 +54,11 @@ This section contains:
 | [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | ✅ Complete | 0 | 1 week |
 | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | 🟡 In Progress (P0 ✅) | 5 | 4-5 weeks |
 | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation Libraries Enhancement | 🟡 In Progress | 0 | 2-3 weeks |
+| [EPIC-013](./EPIC-013.statement-parsing-v2.md) | Statement Parsing V2 | 🟡 In Progress | 2 | 3 weeks |
+| [EPIC-014](./EPIC-014.ttd-transformation.md) | TTD Transformation | 🟡 In Progress (P0 ✅) | 0 | 3-4 weeks |
 
-**Total Duration**: 23-28 weeks  
-**Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness and infrastructure hardening
+**Total Duration**: 28-35 weeks  
+**Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness, infrastructure hardening, and test-driven documentation
 
 ## 🗺️ EPIC Dependencies
 
@@ -69,6 +73,8 @@ graph LR
     E7[EPIC-007<br/>Deployment]
     E2 --> E11[EPIC-011<br/>Asset Lifecycle]
     E5 --> E11
+    E3 --> E13[EPIC-013<br/>Statement Parsing V2]
+    E8[EPIC-008<br/>Testing] --> E14[EPIC-014<br/>TTD Transformation]
     
     style E1 fill:#90EE90
     style E2 fill:#90EE90
@@ -78,6 +84,8 @@ graph LR
     style E6 fill:#90EE90
     style E7 fill:#90EE90
     style E11 fill:#FFD700
+    style E13 fill:#FFD700
+    style E14 fill:#FFD700
 ```
 
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
@@ -108,6 +116,9 @@ Check the relevant EPIC for your feature:
 - **Deployment**: [EPIC-007](./EPIC-007.deployment.md)
 - **Asset Management**: [EPIC-011](./EPIC-011.asset-lifecycle.md)
 
+- **Statement Parsing V2**: [EPIC-013](./EPIC-013.statement-parsing-v2.md)
+- **TTD Transformation**: [EPIC-014](./EPIC-014.ttd-transformation.md)
+
 ## 📊 Quality Standards
 
 Each EPIC document contains:
@@ -134,7 +145,7 @@ Each EPIC document contains:
 
 ---
 
-*Last updated: January 2026*
+*Last updated: February 2026*
 
 ## Quick Links
 
