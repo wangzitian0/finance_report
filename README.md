@@ -94,7 +94,7 @@ User-scoped endpoints require an `X-User-Id` header (UUID). See
 | Resource | Description |
 |----------|-------------|
 | [📖 **Documentation Site**](https://wangzitian0.github.io/finance_report/) | **Complete documentation** — User guides, API reference, and technical docs |
-| [target.md](./target.md) | Project target and decision criteria |
+| [vision.md](./vision.md) | Project vision and decision criteria |
 | [docs/ssot/](./docs/ssot/) | Technical SSOT (Single Source of Truth) |
 | [AGENTS.md](./AGENTS.md) | AI agent guidelines |
 

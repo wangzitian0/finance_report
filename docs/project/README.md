@@ -21,7 +21,10 @@ This section contains:
 - [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2 (currency, balance chain, institution auto-detect, confidence V2)
 
 **TODO**
-- (none)
+- Processing Virtual Account — Internal clearing account for in-transit/unconfirmed funds (see vision.md Decision 4). Needs new EPIC.
+- Two-Stage Review Workflow — Confidence-based auto-accept (>=85) / manual review (60-84) / reject (<60) pipeline (see vision.md Decision 5). Needs new EPIC or extend EPIC-003.
+- Wealthfolio CSV Export — Export confirmed transactions to Wealthfolio-compatible format for portfolio tracking integration (see vision.md Decision 7). Needs new EPIC or extend EPIC-011.
+- source_type Priority Logic — Conflict resolution when multiple sources report different values for the same transaction (see vision.md Decision 3). Extend EPIC-013 or EPIC-004.
 
 **Done**
 - [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
@@ -86,7 +89,7 @@ graph LR
 ### For New Developers
 Start with these documents in order:
 
-1. **[target.md](../target.md)** — North Star goals and decision criteria
+1. **[vision.md](../../vision.md)** — North Star goals and decision criteria
 2. **[README.md](https://github.com/wangzitian0/finance_report#readme)** — Tech stack and quick start
 3. **[EPIC-001: Setup](./EPIC-001.phase0-setup.md)** — Infrastructure and authentication
 4. **[EPIC-002: Double-Entry](./EPIC-002.double-entry-core.md)** — Core accounting system
@@ -126,7 +129,7 @@ Each EPIC document contains:
 
 - **Technical Specs**: [SSOT Documentation](../ssot/README.md)
 - **Development Setup**: [Development Guide](../ssot/development.md)
-- **North Star**: [target.md](../target.md)
+- **North Star**: [vision.md](../../vision.md)
 
 ---
 
@@ -134,6 +137,6 @@ Each EPIC document contains:
 
 ## Quick Links
 
-- [Project Target](../target.md)
+- [Project Vision](../../vision.md)
 - [SSOT Index](../ssot/README.md)
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
