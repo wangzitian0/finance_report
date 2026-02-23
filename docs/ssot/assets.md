@@ -58,7 +58,7 @@ For each latest atomic position:
 
 ## 3. API Endpoints
 
-> Full API layer details documented in [schema.md Section 7](./schema.md#7-api-layer-router--schema-mapping).
+> Full API layer details documented in [schema.md Section 7](./schema.md#7-api-layer-assets).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -180,11 +180,11 @@ CREATE TABLE managed_positions (
 
 | Behavior | Test File | Tests | Status |
 |----------|-----------|-------|--------|
-| Position CRUD | `test_assets_crud.py` | Basic create/read/list | ✅ Passing |
-| Reconciliation pipeline | `test_assets_reconciliation.py` | Window function, upsert, disposal | ✅ Passing |
-| Depreciation calculation | `test_assets_depreciation.py` | Straight-line, declining-balance | ✅ Passing |
-| Edge cases (nulls, zeros) | `test_assets_edge_cases.py` | Null skip, zero disposal, negatives | ✅ Passing |
-| API endpoints | `test_assets_api.py` | Router integration tests | ✅ Passing |
+| Position CRUD / service logic | `test_asset_service.py` | Service-level create/read/update scenarios | ✅ Passing |
+| Position lifecycle & reconciliation | `test_assets_positions_and_depreciation.py` | Position lifecycle, reconciliation, depreciation | ✅ Passing |
+| Depreciation calculation | `test_asset_depreciation.py` | Straight-line, declining-balance | ✅ Passing |
+| Router edge cases (nulls, zeros) | `test_assets_router_edge_cases.py` | Nulls, zeros, invalid payloads | ✅ Passing |
+| API endpoints | `test_assets_router.py` | Router integration tests | ✅ Passing |
 
 **Total**: 52 tests, all passing.
 
