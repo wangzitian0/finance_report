@@ -65,7 +65,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Project Target: target.md
+  - Project Vision: target.md
   - User Guide:
       - Getting Started: user-guide/getting-started.md
       - Account Management: user-guide/accounts.md

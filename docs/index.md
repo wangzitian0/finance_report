@@ -6,7 +6,7 @@ Welcome to the **Finance Report** documentation — your comprehensive guide to 
 
 Read the North Star goals and decision criteria before deep technical work:
 
- [Project Vision (North Star)](vision.md)
+- [Project Vision (North Star)](target.md)
 
 ## 📖 Documentation Guide
 
