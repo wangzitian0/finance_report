@@ -1,6 +1,6 @@
 $schema: 'https://moonrepo.dev/schemas/project.json'
 
-type: application
+layer: application
 language: bash
 
 tasks:
