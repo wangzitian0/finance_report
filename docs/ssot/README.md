@@ -18,7 +18,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
 | [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, TDD workflow, and building documentation |
-| [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 97% coverage goal |
+| [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 99% coverage goal |
 | [observability.md](./observability.md) | `observability` | Logging and SigNoz OTLP export configuration |
 | [auth.md](./auth.md) | `auth` | API user identity, registration/login flow, and frontend integration |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | React/Next.js SSR handling, theme system, and API patterns |
@@ -41,7 +41,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 For new developers joining the project:
 
 1. **[development.md](./development.md)** — Setup your environment and understand the build/test workflow
-2. **[tdd.md](./tdd.md)** — Learn Test-Driven Development workflow and coverage requirements (97%)
+2. **[tdd.md](./tdd.md)** — Learn Test-Driven Development workflow and coverage requirements (99%)
 3. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
 4. **[schema.md](./schema.md)** — Understand the database structure
 5. **[auth.md](./auth.md)** — Learn how auth and registration works
@@ -105,7 +105,7 @@ This table shows how domain concepts map across different layers. Use this to ma
 | **reporting** | [reporting.md](./reporting.md) | `reports.py` | `reporting.py`, `reporting_snapshot.py` | `/reports` | `reporting/` |
 | **extraction** | [extraction.md](./extraction.md) | `statements.py` | `extraction.py`, `storage.py`, `validation.py` | `/statements` | `extraction/` |
 | **ai** | [ai.md](./ai.md) | `chat.py`, `ai_models.py` | `ai_advisor.py`, `openrouter_*.py` | `/chat` | `ai/` |
-| **assets** | *(planned)* | `assets.py` | `assets.py` | `/assets` | `assets/` |
+| **assets** | [assets.md](./assets.md) | `assets.py` | `assets.py` | `/assets` | `assets/` |
 | **auth** | [auth.md](./auth.md) | `auth.py`, `users.py` | — | `/login` | `auth/` |
 | **market_data** | [market_data.md](./market_data.md) | — | `fx.py` | — | `market_data/` |
 
