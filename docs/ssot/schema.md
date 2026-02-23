@@ -230,7 +230,7 @@ Chart of accounts table, five types.
 | user_id | UUID | FK -> Users, NOT NULL | Owner user |
 | name | VARCHAR(255) | NOT NULL | Account name |
 | type | ENUM | NOT NULL | ASSET/LIABILITY/EQUITY/INCOME/EXPENSE |
-| currency | CHAR(3) | NOT NULL | Currency code |
+| currency | VARCHAR(3) | NOT NULL | Currency code |
 | code | VARCHAR(50) | | Account code (e.g., 1110) |
 | parent_id | UUID | FK -> Accounts | Parent account |
 | is_active | BOOLEAN | DEFAULT true | Is active |
@@ -265,7 +265,7 @@ Journal entry line table.
 | account_id | UUID | FK -> Accounts | Account |
 | direction | ENUM | NOT NULL | DEBIT/CREDIT |
 | amount | DECIMAL(18,2) | NOT NULL | Amount |
-| currency | CHAR(3) | NOT NULL | Currency |
+| currency | VARCHAR(3) | NOT NULL | Currency |
 | fx_rate | DECIMAL(12,6) | | Exchange rate |
 | event_type | VARCHAR(100) | | Event type |
 | tags | JSONB | | Tags |
@@ -310,7 +310,7 @@ Statement header table for imported statements.
 | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
 | institution | VARCHAR(100) | NOT NULL | Bank/broker name |
 | account_last4 | VARCHAR(4) | | Last 4 digits |
-| currency | CHAR(3) |  | Currency (nullable while parsing) |
+| currency | VARCHAR(3) |  | Currency (nullable while parsing) |
 | period_start | DATE |  | Statement start (nullable while parsing) |
 | period_end | DATE |  | Statement end (nullable while parsing) |
 | opening_balance | DECIMAL(18,2) |  | Opening balance (nullable while parsing) |
@@ -398,7 +398,7 @@ Reconciliation match table.
     | direction | ENUM | NOT NULL | IN/OUT |
     | description | TEXT | NOT NULL | Description |
     | reference | VARCHAR(100) | | Reference ID |
-    | currency | CHAR(3) | NOT NULL | Currency code |
+    | currency | VARCHAR(3) | NOT NULL | Currency code |
     | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
     | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
     | created_at | TIMESTAMP | NOT NULL | Creation time |
@@ -420,7 +420,7 @@ Reconciliation match table.
     | broker | VARCHAR(100) | | Broker/Custodian name |
     | quantity | DECIMAL(18,6) | NOT NULL | Units held |
     | market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
-    | currency | CHAR(3) | NOT NULL | Currency code |
+    | currency | VARCHAR(3) | NOT NULL | Currency code |
     | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
     | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
     | created_at | TIMESTAMP | NOT NULL | Creation time |
@@ -588,7 +588,7 @@ The `POST /api/assets/reconcile` endpoint:
 | Router | `apps/backend/src/routers/assets.py` |
 | Schemas | `apps/backend/src/schemas/assets.py` |
 | Service | `apps/backend/src/services/assets.py` |
-| Model | `apps/backend/src/models/managed_position.py` |
+| Model | `apps/backend/src/models/layer3.py` (ManagedPosition class) |
 
 ### Related Tables
 

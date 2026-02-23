@@ -72,7 +72,7 @@ moon run :build            # Build frontend
 moon run :clean            # Clean resources
 ```
 
-Backend tests enforce **>= 92%** line coverage. See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
+Backend tests enforce **>= 99%** line coverage. See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
 
 **Multi-Repo Isolation**: Run tests in parallel across multiple repo copies:
 
