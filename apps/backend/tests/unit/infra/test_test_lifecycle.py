@@ -1,12 +1,14 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
-import sys
 import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add scripts directory to path so we can import test_lifecycle
 sys.path.append(str(Path(__file__).parent.parent.parent.parent.parent.parent / "scripts"))
 import test_lifecycle
+
 
 @pytest.fixture(autouse=True)
 def patch_cache_file(tmp_path):

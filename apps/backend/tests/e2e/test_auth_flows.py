@@ -15,7 +15,6 @@ Run with:
 """
 
 import os
-import warnings
 
 import pytest
 
