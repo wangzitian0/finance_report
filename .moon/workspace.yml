@@ -11,7 +11,7 @@ projects:
   - 'infra'
   - '.'
 
-# Task runner settings
-runner:
+# Task pipeline settings
+pipeline:
   cacheLifetime: '7 days'
   inheritColorsForPipedTasks: true
