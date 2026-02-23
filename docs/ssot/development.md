@@ -197,7 +197,7 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 
 ### Coverage Requirements
 
- Backend line coverage: **>= 99%** (enforced by `pytest-cov`)
+- Backend line coverage: **>= 99%** (enforced by `pytest-cov`)
 - Branch coverage: Required (via `--cov-branch`)
 - See [TDD Transformation Plan](./tdd.md) for details
 
