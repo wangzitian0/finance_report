@@ -200,6 +200,12 @@ Expected routing behavior remains threshold-based:
 
 ---
 
+## 📌 Future Work (from Vision Recovery Audit)
+
+The following item was identified during the vision.md recovery audit as a feature designed in vision but not yet tracked in this EPIC:
+
+- **source_type Priority Logic** — Conflict resolution when multiple sources (bank_statement, manual, ai_extracted, csv_import) report different values for the same transaction. Higher-priority sources override lower-priority ones per vision.md Decision 3. Requires extending the confidence scoring framework with source-aware weighting. Tracked in [project README TODO](./README.md).
+
 ## 📏 Acceptance Criteria
 
 - All extraction tests pass

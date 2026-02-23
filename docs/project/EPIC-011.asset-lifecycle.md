@@ -2005,4 +2005,13 @@ All key decisions confirmed based on requirements:
 
 ---
 
+
+## 📌 Future Work (from Vision Recovery Audit)
+
+The following items were identified during the vision.md recovery audit as features designed in vision but not yet tracked in this EPIC:
+
+- **Wealthfolio CSV Export** — Export confirmed transactions to Wealthfolio-compatible CSV format for portfolio tracking integration (see vision.md Decision 7). Natural extension of the 4-layer architecture: Layer 4 report output → CSV formatter → Wealthfolio import. Tracked in [project README TODO](./README.md).
+
+---
+
 **Last Updated**: 2026-01-24

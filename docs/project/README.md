@@ -25,6 +25,7 @@ This section contains:
 - Two-Stage Review Workflow — Confidence-based auto-accept (>=85) / manual review (60-84) / reject (<60) pipeline (see vision.md Decision 5). Needs new EPIC or extend EPIC-003.
 - Wealthfolio CSV Export — Export confirmed transactions to Wealthfolio-compatible format for portfolio tracking integration (see vision.md Decision 7). Needs new EPIC or extend EPIC-011.
 - source_type Priority Logic — Conflict resolution when multiple sources report different values for the same transaction (see vision.md Decision 3). Extend EPIC-013 or EPIC-004.
+- Confirmation Workflow SSOT — Code uses `pending_review` status across 7 files (review_queue, reconciliation, ai_advisor, routers) but no SSOT document defines the confirmation/review workflow. Needs `docs/ssot/confirmation.md` or extend `reconciliation.md`.
 
 **Done**
 - [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
