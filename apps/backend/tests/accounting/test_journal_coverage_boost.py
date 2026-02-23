@@ -1,8 +1,8 @@
-"""Coverage boost tests for journal router — DELETE endpoint and create error paths.
+"""AC2.3 - AC2.7: Journal router coverage boost tests.
 
-These tests target specific uncovered lines in src/routers/journal.py:
-- Lines 141-159: DELETE /{entry_id} endpoint (success, not-found, non-draft)
-- Lines 47-48: create_entry ValidationError catch
+These tests target specific uncovered lines from EPIC-002:
+- AC2.3.7: create_entry ValidationError catch (unbalanced, single-line)
+- AC2.7.5: DELETE /{entry_id} endpoint (success, not-found, non-draft)
 """
 
 from datetime import date

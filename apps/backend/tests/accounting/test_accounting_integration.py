@@ -1,4 +1,11 @@
-"""Integration tests for accounting service with database."""
+"""AC2.3 - AC2.5: Integration tests for accounting service with database.
+
+These tests cover:
+ AC2.3.x: Journal entry posting and voiding
+ AC2.4.x: Balance calculation
+ AC2.5.x: Accounting equation verification
+ AC2.7.1: Transaction boundary handling (flush vs commit)
+"""
 
 from datetime import date
 from decimal import Decimal

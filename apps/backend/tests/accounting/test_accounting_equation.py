@@ -1,11 +1,13 @@
-"""Critical and High priority tests for EPIC-002.
-
-These tests cover the Critical and High priority gaps identified in the test audit:
-- #1 Accounting equation violation detection
-- #2 Posted entry modification rejection
-- #7 API response time performance (benchmark marker)
-- #8 Amount boundary tests (max/min)
-- #9 Multi-line complex entry tests
+"""AC2.3 - AC2.6: Accounting equation validation and boundary tests.
+These tests cover Critical and High priority gaps from EPIC-002:
+ AC2.3.5: Posted entry cannot be re-posted
+ AC2.3.6: Posted entry status immutability
+ AC2.5.1: Accounting equation violation detection
+ AC2.5.2: Accounting equation holds with all 5 account types
+ AC2.6.1: Maximum amount boundary (999,999,999.99)
+ AC2.6.2: Minimum amount boundary (0.01)
+ AC2.6.3: Amount precision tolerance boundary
+ AC2.6.4: Multi-line complex entry (6+ lines)
 """
 
 from datetime import date

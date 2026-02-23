@@ -1,7 +1,7 @@
 $schema: 'https://moonrepo.dev/schemas/project.json'
 
 # Root project - 6 unified commands
-type: tool
+layer: tool
 
 tasks:
   setup:
@@ -10,7 +10,7 @@ tasks:
 
   dev:
     command: 'python scripts/cli.py dev'
-    local: true
+    preset: 'server'
 
   test:
     command: 'python scripts/cli.py test'
@@ -23,4 +23,4 @@ tasks:
 
   clean:
     command: 'python scripts/cli.py clean'
-    local: true
+    preset: 'server'

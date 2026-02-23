@@ -23,7 +23,7 @@
 
 **Level 1 Entries (by purpose)**
 1. **Global Project Overview** → [README.md](README.md)
-2. **Project Target (North Star)** → [target.md](target.md)
+2. **Project Vision (North Star)** → [vision.md](vision.md)
 3. **Technical Truth / SSOT** → [docs/ssot/README.md](docs/ssot/README.md)
 4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md)
 
@@ -32,13 +32,13 @@
 - **Copilot Instructions** → [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
 **Reading Order (10-minute overview)**
-1. [target.md](target.md) — Macro goals and decision criteria
+1. [vision.md](vision.md) — Macro goals and decision criteria
 2. [README.md](README.md) — Tech stack, quick start commands
 3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [schema.md](docs/ssot/schema.md)
 4. [.opencode/oh-my-opencode.json](.opencode/oh-my-opencode.json) — Agent configurations
 
 **Routing Rules (where to go when)**
-- Need to understand business logic → [target.md](target.md)
+- Need to understand business logic → [vision.md](vision.md)
 - **Need environment setup / moon commands** → [docs/ssot/development.md](docs/ssot/development.md)
 - Need to write code → [.opencode/skills/](.opencode/skills/) + SSOT files
 - Need data model reference → [docs/ssot/](docs/ssot/)
@@ -161,7 +161,7 @@ docker restart finance-report-backend
 
 ## 📌 Core Domain Context
 
-**Read [target.md](target.md) for macro goals and decision criteria. Key points:**
+**Read [vision.md](vision.md) for macro goals and decision criteria. Key points:**
 
 ### Accounting Equation
 ```
@@ -208,7 +208,7 @@ AI must use this cascade structure before processing tasks:
 - **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README.
 
 ### 4. Result (Verification)
-- **Self-Check**: Compare against project goals in [target.md](target.md)
+- **Self-Check**: Compare against project goals in [vision.md](vision.md)
 - **Engineering Audit**:
     - [ ] **Submodule Sync**: Did I update `infra2` for config changes?
     - [ ] **Enum Naming**: Are all `sa.Enum` fields explicitly named (e.g., `name="..._enum"`)?

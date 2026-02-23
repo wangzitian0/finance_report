@@ -2,11 +2,11 @@
 
 Welcome to the **Finance Report** documentation — your comprehensive guide to building and using a personal financial management system with double-entry bookkeeping and bank reconciliation.
 
-## 🎯 Project Target
+## 🎯 Project Vision
 
 Read the North Star goals and decision criteria before deep technical work:
 
-- [Project Target (North Star)](target.md)
+- [Project Vision (North Star)](target.md)
 
 ## 📖 Documentation Guide
 

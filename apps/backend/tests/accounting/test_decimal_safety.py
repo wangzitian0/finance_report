@@ -1,3 +1,13 @@
+"""AC2.8: Decimal safety and float injection prevention.
+
+These tests cover data integrity requirements from EPIC-002:
+- AC2.8.1: Decimal parsing from string is exact
+- AC2.8.2: Float injection safety (precision artifacts rejected)
+- AC2.8.3: Scientific notation handling
+
+Ref: docs/ssot/accounting.md (Anti-pattern A)
+"""
+
 from decimal import Decimal
 from uuid import uuid4
 
