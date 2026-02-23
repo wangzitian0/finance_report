@@ -1,4 +1,4 @@
-"""Unit tests for accounting service."""
+"""AC2.2 - AC2.3: Unit tests for accounting service validation logic."""
 
 from decimal import Decimal
 from uuid import uuid4

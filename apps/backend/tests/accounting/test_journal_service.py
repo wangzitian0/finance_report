@@ -1,7 +1,12 @@
-"""Direct tests for journal router functions.
+"""AC2.3: Journal router direct function tests.
 
-These tests validate the journal service layer functions including
-journal entry creation, listing, posting, and voiding.
+These tests cover journal service layer operations from EPIC-002:
+ AC2.3.1: Journal entry creation (DRAFT status)
+ AC2.3.2: Journal entry listing with filters (status, date range)
+ AC2.3.3: Journal entry fetching by ID
+ AC2.3.4: Journal entry posting (DRAFT → POSTED)
+ AC2.3.5: Journal entry voiding
+ AC2.3.6: Error handling for non-existent entries
 """
 
 from datetime import date, timedelta
