@@ -1,4 +1,4 @@
-"""AC2.10 - AC2.1: Additional coverage tests for accounts router.
+"""AC2.1 - AC2.10: Additional coverage tests for accounts router.
 These tests cover edge cases and error paths for the accounts router
 that are not covered in the main test files.
 """

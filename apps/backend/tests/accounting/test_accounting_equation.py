@@ -1,10 +1,9 @@
-"""AC2.5 - AC2.6: Accounting equation validation and boundary tests.
-
+"""AC2.3 - AC2.6: Accounting equation validation and boundary tests.
 These tests cover Critical and High priority gaps from EPIC-002:
- AC2.5.1: Accounting equation violation detection
- AC2.5.2: Accounting equation holds with all 5 account types
  AC2.3.5: Posted entry cannot be re-posted
  AC2.3.6: Posted entry status immutability
+ AC2.5.1: Accounting equation violation detection
+ AC2.5.2: Accounting equation holds with all 5 account types
  AC2.6.1: Maximum amount boundary (999,999,999.99)
  AC2.6.2: Minimum amount boundary (0.01)
  AC2.6.3: Amount precision tolerance boundary

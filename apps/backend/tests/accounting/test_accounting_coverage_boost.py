@@ -1,14 +1,13 @@
-"""AC2.3 - AC2.5: Accounting service coverage boost tests.
-
+"""AC2.2 - AC2.5: Accounting service coverage boost tests.
 These tests cover error paths and edge cases from EPIC-002:
- AC2.4.1: calculate_account_balance error handling (not found, wrong user)
+ AC2.2.3: validate_journal_balance error paths
  AC2.3.8: post_journal_entry error handling (not found, wrong user, inactive account)
  AC2.3.9: void_journal_entry error handling (not found, wrong user, non-posted)
- AC2.4.2: calculate_account_balances with LIABILITY/EQUITY types
  AC2.3.10: post_journal_entry success path
  AC2.3.11: void_journal_entry success path with reversal
+ AC2.4.1: calculate_account_balance error handling (not found, wrong user)
+ AC2.4.2: calculate_account_balances with LIABILITY/EQUITY types
  AC2.5.1: verify_accounting_equation success
- AC2.2.3: validate_journal_balance error paths
 """
 
 from datetime import date
