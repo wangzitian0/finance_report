@@ -10,7 +10,7 @@ See: docs/ssot/processing_account.md Section 7 (Integration Points)
 
 from datetime import date
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from sqlalchemy import select
@@ -26,7 +26,6 @@ from src.models import (
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
-    ReconciliationMatch,
 )
 from src.services.account_service import get_or_create_processing_account
 from src.services.reconciliation import execute_matching

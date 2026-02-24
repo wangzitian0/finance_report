@@ -1,5 +1,6 @@
 """Tests for Processing virtual account functionality."""
 
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
@@ -7,9 +8,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from datetime import date
-
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntrySourceType,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.services.account_service import get_or_create_processing_account
 
 
