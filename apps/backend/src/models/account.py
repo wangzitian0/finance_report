@@ -43,6 +43,7 @@ class Account(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SGD")
     parent_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     journal_lines: Mapped[list[JournalLine]] = relationship("JournalLine", back_populates="account")

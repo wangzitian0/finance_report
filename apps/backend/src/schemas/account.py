@@ -44,6 +44,7 @@ class AccountResponse(AccountBase, BaseResponse):
     id: UUID
     user_id: UUID
     is_active: bool
+    is_system: bool
     balance: Annotated[Decimal, Field(decimal_places=2)] | None = None
     created_at: datetime
     updated_at: datetime
