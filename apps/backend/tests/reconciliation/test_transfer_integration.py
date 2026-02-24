@@ -36,7 +36,7 @@ class TestTransferDetectionDuringReconciliation:
 
     @pytest.mark.asyncio
     async def test_transfer_detected_creates_processing_entry(self, db: AsyncSession, test_user):
-        """Transfer detection creates Processing account entry with linked account."""
+        """AC15.6.1 · Transfer detection creates Processing account entry with linked account."""
         user_id = test_user.id
 
         # Setup: Cash account
@@ -119,7 +119,7 @@ class TestTransferDetectionDuringReconciliation:
 
     @pytest.mark.asyncio
     async def test_transfer_detection_skips_when_no_account_linked(self, db: AsyncSession, test_user):
-        """Transfer detection logs warning and skips when statement has no linked account."""
+        """AC15.6.2 · Transfer detection logs warning and skips when statement has no linked account."""
         user_id = test_user.id
 
         # Create bank statement WITHOUT linked account
@@ -164,7 +164,7 @@ class TestTransferDetectionDuringReconciliation:
 
     @pytest.mark.asyncio
     async def test_transfer_in_creates_correct_processing_entry(self, db: AsyncSession, test_user):
-        """Transfer IN creates: DEBIT destination account, CREDIT Processing."""
+        """AC15.6.3 · Transfer IN creates: DEBIT destination account, CREDIT Processing."""
         user_id = test_user.id
 
         # Setup: Checking account
@@ -242,7 +242,7 @@ class TestTransferAutoPairingPhase:
 
     @pytest.mark.asyncio
     async def test_auto_pair_transfers_same_amount_same_date(self, db: AsyncSession, test_user):
-        """Paired transfers (same amount, same date) are auto-paired, Processing balance = 0."""
+        """AC15.6.4 · Paired transfers (same amount, same date) are auto-paired, Processing balance = 0."""
         user_id = test_user.id
 
         # Setup: Cash and Checking accounts
@@ -318,7 +318,7 @@ class TestTransferAutoPairingPhase:
 
     @pytest.mark.asyncio
     async def test_unpaired_transfer_leaves_processing_nonzero(self, db: AsyncSession, test_user):
-        """Unpaired transfer leaves Processing balance ≠ 0."""
+        """AC15.6.5 · Unpaired transfer leaves Processing balance ≠ 0."""
         user_id = test_user.id
 
         # Setup: Cash account
@@ -374,7 +374,7 @@ class TestNormalMatchingPhaseIntegration:
 
     @pytest.mark.asyncio
     async def test_non_transfer_transaction_proceeds_to_normal_matching(self, db: AsyncSession, test_user):
-        """Non-transfer transactions skip Phase 1 and proceed to Phase 2 (normal matching)."""
+        """AC15.6.6 · Non-transfer transactions skip Phase 1 and proceed to Phase 2 (normal matching)."""
         user_id = test_user.id
 
         # Setup: Cash account and journal entry for normal expense
@@ -463,7 +463,7 @@ class TestNormalMatchingPhaseIntegration:
 
     @pytest.mark.asyncio
     async def test_mixed_transactions_both_phases_execute(self, db: AsyncSession, test_user):
-        """Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
+        """AC15.6.6 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
         user_id = test_user.id
 
         # Setup accounts

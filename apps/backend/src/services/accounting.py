@@ -296,11 +296,11 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
 
     # Validate Processing account usage (Anti-pattern A from processing_account.md)
     for line in entry.lines:
-        if line.account.is_system and line.account.code == "1199":
+        if line.account.is_system:
             if entry.source_type != JournalEntrySourceType.SYSTEM:
                 raise ValidationError(
-                    "Processing account can only be used by system-generated entries. "
-                    "Manual entries cannot debit/credit the Processing account."
+                    "System accounts can only be used by system-generated entries. "
+                    "Manual entries cannot debit/credit system accounts."
                 )
 
     for line in entry.lines:

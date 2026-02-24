@@ -25,7 +25,7 @@ class TestProcessingAccountCreation:
 
     @pytest.mark.asyncio
     async def test_processing_account_created_on_first_call(self, db: AsyncSession, test_user):
-        """Processing account is auto-created on first get_or_create call."""
+        """AC15.1.1 · Processing account is auto-created on first get_or_create call."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
 
@@ -38,7 +38,7 @@ class TestProcessingAccountCreation:
 
     @pytest.mark.asyncio
     async def test_processing_account_idempotent(self, db: AsyncSession, test_user):
-        """Multiple calls return the same Processing account."""
+        """AC15.1.2 · Multiple calls return the same Processing account."""
         user_id = test_user.id
         processing1 = await get_or_create_processing_account(db, user_id)
         processing2 = await get_or_create_processing_account(db, user_id)
@@ -47,7 +47,7 @@ class TestProcessingAccountCreation:
 
     @pytest.mark.asyncio
     async def test_processing_account_hidden_from_list(self, db: AsyncSession, test_user):
-        """Processing account is hidden from list_accounts."""
+        """AC15.1.3 · Processing account is hidden from list_accounts."""
         user_id = test_user.id
         from src.services.account_service import list_accounts
 
@@ -74,7 +74,7 @@ class TestProcessingAccountCreation:
 
     @pytest.mark.asyncio
     async def test_processing_account_per_user(self, db: AsyncSession):
-        """Each user gets their own Processing account."""
+        """AC15.1.4 · Each user gets their own Processing account."""
         user1 = uuid4()
         user2 = uuid4()
 
@@ -91,7 +91,7 @@ class TestProcessingAccountTransfers:
 
     @pytest.mark.asyncio
     async def test_transfer_out_to_processing(self, db: AsyncSession, test_user):
-        """Transfer OUT: Debit Processing, Credit source account."""
+        """AC15.2.1 · Transfer OUT: Debit Processing, Credit source account."""
         user_id = test_user.id
         # Setup: Cash account
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -134,7 +134,7 @@ class TestProcessingAccountTransfers:
 
     @pytest.mark.asyncio
     async def test_transfer_in_from_processing(self, db: AsyncSession, test_user):
-        """Transfer IN: Debit destination account, Credit Processing."""
+        """AC15.2.2 · Transfer IN: Debit destination account, Credit Processing."""
         user_id = test_user.id
         # Setup: Checking account
         checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
@@ -180,7 +180,7 @@ class TestProcessingAccountTransfers:
 
     @pytest.mark.asyncio
     async def test_paired_transfers_zero_balance(self, db: AsyncSession, test_user):
-        """Paired transfer OUT + IN results in Processing balance = 0."""
+        """AC15.2.3 · Paired transfer OUT + IN results in Processing balance = 0."""
         user_id = test_user.id
         # Setup: Cash and Checking accounts
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -267,7 +267,7 @@ class TestProcessingAccountIntegrity:
 
     @pytest.mark.asyncio
     async def test_unpaired_transfer_visible_in_processing_balance(self, db: AsyncSession, test_user):
-        """Unpaired transfer OUT shows as non-zero Processing balance."""
+        """AC15.3.1 · Unpaired transfer OUT shows as non-zero Processing balance."""
         user_id = test_user.id
         # Setup: Cash account
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -307,7 +307,7 @@ class TestProcessingAccountIntegrity:
 
     @pytest.mark.asyncio
     async def test_accounting_equation_holds_with_processing(self, db: AsyncSession, test_user):
-        """Accounting equation holds after transfers involving Processing account."""
+        """AC15.3.2 · Accounting equation holds after transfers involving Processing account."""
         user_id = test_user.id
         # Setup: Cash, Checking accounts
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -418,7 +418,7 @@ class TestProcessingAccountValidation:
 
     @pytest.mark.asyncio
     async def test_reject_manual_processing_entry(self, db: AsyncSession, test_user):
-        """Manual journal entries cannot use Processing account (SSOT Anti-pattern A)."""
+        """AC15.4.A · Manual journal entries cannot use Processing account (SSOT Anti-pattern A)."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -451,12 +451,12 @@ class TestProcessingAccountValidation:
         db.add_all(lines)
         await db.flush()
 
-        with pytest.raises(ValidationError, match="Processing.*system"):
+        with pytest.raises(ValidationError, match="System accounts.*system-generated"):
             await post_journal_entry(db, entry.id, user_id)
 
     @pytest.mark.asyncio
     async def test_system_entry_can_use_processing(self, db: AsyncSession, test_user):
-        """System-generated entries (source_type=SYSTEM) CAN use Processing account."""
+        """AC15.4.A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
         user_id = test_user.id
         processing = await get_or_create_processing_account(db, user_id)
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
@@ -498,7 +498,7 @@ class TestTransferDetection:
 
     @pytest.mark.asyncio
     async def test_detect_transfer_keywords(self, db: AsyncSession, test_user):
-        """detect_transfer_pattern identifies transfer keywords in descriptions."""
+        """AC15.4.1 · detect_transfer_pattern identifies transfer keywords in descriptions."""
         from src.models import BankStatement, BankStatementTransaction
         from src.services.processing_account import detect_transfer_pattern
 
@@ -556,7 +556,7 @@ class TestTransferDetection:
 
     @pytest.mark.asyncio
     async def test_detect_transfer_no_description(self, db: AsyncSession, test_user):
-        """detect_transfer_pattern returns False for None/empty description."""
+        """AC15.4.2 · detect_transfer_pattern returns False for None/empty description."""
         from src.models import BankStatement, BankStatementTransaction
         from src.services.processing_account import detect_transfer_pattern
 
@@ -586,7 +586,7 @@ class TestTransferDetection:
 
     @pytest.mark.asyncio
     async def test_auto_pair_transfers_above_threshold(self, db: AsyncSession, test_user):
-        """find_transfer_pairs auto-pairs transfers with confidence >= 85."""
+        """AC15.4.3 · find_transfer_pairs auto-pairs transfers with confidence >= 85."""
         from src.services.processing_account import (
             create_transfer_in_entry,
             create_transfer_out_entry,
@@ -630,7 +630,7 @@ class TestTransferScoringFunctions:
     """Test scoring functions for transfer pairing."""
 
     def test_amount_exact_match(self):
-        """Exact amount match within 1 cent returns 100."""
+        """AC15.5.1 · Exact amount match within 1 cent returns 100."""
         from src.services.processing_account import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("100.01"))
@@ -640,7 +640,7 @@ class TestTransferScoringFunctions:
         assert score == 100.0
 
     def test_amount_very_close_match(self):
-        """Amount within 10 cents returns 95."""
+        """AC15.5.2 · Amount within 10 cents returns 95."""
         from src.services.processing_account import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("100.05"))
@@ -650,7 +650,7 @@ class TestTransferScoringFunctions:
         assert score == 95.0
 
     def test_amount_close_match(self):
-        """Amount within 1 SGD returns 85."""
+        """AC15.5.2 · Amount within 1 SGD returns 85."""
         from src.services.processing_account import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("100.50"))
@@ -660,7 +660,7 @@ class TestTransferScoringFunctions:
         assert score == 85.0
 
     def test_amount_moderate_match(self):
-        """Amount within 5 SGD returns 70."""
+        """AC15.5.2 · Amount within 5 SGD returns 70."""
         from src.services.processing_account import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("103.00"))
@@ -670,42 +670,42 @@ class TestTransferScoringFunctions:
         assert score == 70.0
 
     def test_amount_zero_base(self):
-        """Zero base amount returns 0."""
+        """AC15.5.2 · Zero base amount returns 0."""
         from src.services.processing_account import _score_amount_match
 
         score = _score_amount_match(Decimal("0"), Decimal("100.00"))
         assert score == 0.0
 
     def test_amount_large_diff(self):
-        """Large amount difference returns proportional score."""
+        """AC15.5.2 · Large amount difference returns proportional score."""
         from src.services.processing_account import _score_amount_match
 
         score = _score_amount_match(Decimal("100.00"), Decimal("110.00"))
         assert score == 90.0  # 10 SGD diff on 100 = 90% match
 
     def test_description_exact_match(self):
-        """Exact description match returns 100."""
+        """AC15.5.3 · Exact description match returns 100."""
         from src.services.processing_account import _score_description_match
 
         score = _score_description_match("Transfer to Bank B", "Transfer to Bank B")
         assert score == 100.0
 
     def test_description_case_insensitive(self):
-        """Description matching is case-insensitive."""
+        """AC15.5.3 · Description matching is case-insensitive."""
         from src.services.processing_account import _score_description_match
 
         score = _score_description_match("TRANSFER TO BANK B", "transfer to bank b")
         assert score == 100.0
 
     def test_description_partial_match(self):
-        """Partial description match returns proportional score."""
+        """AC15.5.3 · Partial description match returns proportional score."""
         from src.services.processing_account import _score_description_match
 
         score = _score_description_match("Transfer to Bank B", "Transfer to Bank A")
         assert 50 < score < 100
 
     def test_description_none_values(self):
-        """None descriptions return 0 score."""
+        """AC15.5.3 · None descriptions return 0 score."""
         from src.services.processing_account import _score_description_match
 
         score = _score_description_match(None, "Transfer")
@@ -718,7 +718,7 @@ class TestTransferScoringFunctions:
         assert score == 0.0
 
     def test_date_same_day(self):
-        """Same day transfer returns 100."""
+        """AC15.5.4 · Same day transfer returns 100."""
         from src.services.processing_account import _score_date_proximity
 
         same_date = date(2025, 1, 15)
@@ -726,7 +726,7 @@ class TestTransferScoringFunctions:
         assert score == 100.0
 
     def test_date_one_day_diff(self):
-        """1 day difference returns 90."""
+        """AC15.5.4 · 1 day difference returns 95."""
         from src.services.processing_account import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -735,7 +735,7 @@ class TestTransferScoringFunctions:
         assert score == 95.0
 
     def test_date_three_day_diff(self):
-        """3 day difference returns 70."""
+        """AC15.5.4 · 3 day difference returns 85."""
         from src.services.processing_account import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -744,7 +744,7 @@ class TestTransferScoringFunctions:
         assert score == 85.0
 
     def test_date_seven_day_diff(self):
-        """7 day difference returns 50."""
+        """AC15.5.4 · 7 day difference returns 70."""
         from src.services.processing_account import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -753,7 +753,7 @@ class TestTransferScoringFunctions:
         assert score == 70.0
 
     def test_date_far_apart(self):
-        """Dates >7 days apart return 0."""
+        """AC15.5.4 · Dates >7 days apart return 0."""
         from src.services.processing_account import _score_date_proximity
 
         d1 = date(2025, 1, 15)
@@ -767,7 +767,7 @@ class TestUnpairedTransferDetection:
 
     @pytest.mark.asyncio
     async def test_get_unpaired_transfers_empty(self, db: AsyncSession, test_user):
-        """No unpaired transfers when Processing balance is zero."""
+        """AC15.3.1 · No unpaired transfers when Processing balance is zero."""
         from src.services.processing_account import get_unpaired_transfers
 
         user_id = test_user.id
@@ -777,7 +777,7 @@ class TestUnpairedTransferDetection:
 
     @pytest.mark.asyncio
     async def test_get_unpaired_transfers_with_balance(self, db: AsyncSession, test_user):
-        """Unpaired transfers detected when Processing balance ≠ 0."""
+        """AC15.3.1 · Unpaired transfers detected when Processing balance ≠ 0."""
         from src.services.processing_account import (
             create_transfer_out_entry,
             get_unpaired_transfers,
@@ -810,7 +810,7 @@ class TestProcessingBalanceQuery:
 
     @pytest.mark.asyncio
     async def test_get_processing_balance_zero(self, db: AsyncSession, test_user):
-        """Processing balance is zero when no transfers exist."""
+        """AC15.3.2 · Processing balance is zero when no transfers exist."""
         from src.services.processing_account import get_processing_balance
 
         user_id = test_user.id
@@ -820,7 +820,7 @@ class TestProcessingBalanceQuery:
 
     @pytest.mark.asyncio
     async def test_get_processing_balance_with_transfers(self, db: AsyncSession, test_user):
-        """Processing balance reflects unpaired transfers."""
+        """AC15.3.2 · Processing balance reflects unpaired transfers."""
         from src.services.processing_account import (
             create_transfer_out_entry,
             get_processing_balance,
@@ -844,3 +844,141 @@ class TestProcessingBalanceQuery:
         balance = await get_processing_balance(db, user_id)
 
         assert balance == Decimal("75.00")  # Positive balance = funds in transit OUT
+
+
+class TestTransferEntryValidation:
+    """Test input validation for create_transfer_out_entry and create_transfer_in_entry."""
+
+    @pytest.mark.asyncio
+    async def test_transfer_out_rejects_zero_amount(self, db: AsyncSession, test_user):
+        """AC15.2.1 · create_transfer_out_entry rejects amount <= 0."""
+        from src.services.processing_account import create_transfer_out_entry
+
+        user_id = test_user.id
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+        db.add(cash)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Transfer amount must be positive"):
+            await create_transfer_out_entry(
+                db,
+                user_id=user_id,
+                source_account_id=cash.id,
+                amount=Decimal("0"),
+                txn_date=date.today(),
+                description="Test",
+            )
+
+    @pytest.mark.asyncio
+    async def test_transfer_out_rejects_negative_amount(self, db: AsyncSession, test_user):
+        """AC15.2.1 · create_transfer_out_entry rejects negative amount."""
+        from src.services.processing_account import create_transfer_out_entry
+
+        user_id = test_user.id
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+        db.add(cash)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Transfer amount must be positive"):
+            await create_transfer_out_entry(
+                db,
+                user_id=user_id,
+                source_account_id=cash.id,
+                amount=Decimal("-50"),
+                txn_date=date.today(),
+                description="Test",
+            )
+
+    @pytest.mark.asyncio
+    async def test_transfer_out_rejects_empty_description(self, db: AsyncSession, test_user):
+        """AC15.2.1 · create_transfer_out_entry rejects empty description."""
+        from src.services.processing_account import create_transfer_out_entry
+
+        user_id = test_user.id
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+        db.add(cash)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Transfer description must not be empty"):
+            await create_transfer_out_entry(
+                db,
+                user_id=user_id,
+                source_account_id=cash.id,
+                amount=Decimal("100"),
+                txn_date=date.today(),
+                description="",
+            )
+
+    @pytest.mark.asyncio
+    async def test_transfer_out_rejects_whitespace_description(self, db: AsyncSession, test_user):
+        """AC15.2.1 · create_transfer_out_entry rejects whitespace-only description."""
+        from src.services.processing_account import create_transfer_out_entry
+
+        user_id = test_user.id
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+        db.add(cash)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Transfer description must not be empty"):
+            await create_transfer_out_entry(
+                db,
+                user_id=user_id,
+                source_account_id=cash.id,
+                amount=Decimal("100"),
+                txn_date=date.today(),
+                description="   ",
+            )
+
+    @pytest.mark.asyncio
+    async def test_transfer_in_rejects_zero_amount(self, db: AsyncSession, test_user):
+        """AC15.2.2 · create_transfer_in_entry rejects amount <= 0."""
+        from src.services.processing_account import create_transfer_in_entry
+
+        user_id = test_user.id
+        checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
+        db.add(checking)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Transfer amount must be positive"):
+            await create_transfer_in_entry(
+                db,
+                user_id=user_id,
+                dest_account_id=checking.id,
+                amount=Decimal("0"),
+                txn_date=date.today(),
+                description="Test",
+            )
+
+    @pytest.mark.asyncio
+    async def test_transfer_in_rejects_empty_description(self, db: AsyncSession, test_user):
+        """AC15.2.2 · create_transfer_in_entry rejects empty description."""
+        from src.services.processing_account import create_transfer_in_entry
+
+        user_id = test_user.id
+        checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
+        db.add(checking)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Transfer description must not be empty"):
+            await create_transfer_in_entry(
+                db,
+                user_id=user_id,
+                dest_account_id=checking.id,
+                amount=Decimal("100"),
+                txn_date=date.today(),
+                description="",
+            )
+
+
+class TestDescriptionScoringEdgeCases:
+    """Test edge cases in description scoring."""
+
+    def test_description_whitespace_only(self):
+        """AC15.5.3 · Whitespace-only descriptions return 0 score."""
+        from src.services.processing_account import _score_description_match
+
+        score = _score_description_match("   ", "Transfer")
+        assert score == 0.0
+
+        score = _score_description_match("Transfer", "   ")
+        assert score == 0.0

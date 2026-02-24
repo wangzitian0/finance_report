@@ -765,7 +765,6 @@ async def execute_matching(
 
     # Phase 1: Transfer Detection (BEFORE normal matching)
     # Detect transfers and create Processing account entries per processing_account.md
-    transfer_entry_ids: set[UUID] = set()  # Track created transfer entries
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
@@ -795,8 +794,8 @@ async def execute_matching(
                         txn_date=txn.txn_date,
                         description=txn.description,
                     )
-                    transfer_entry_ids.add(transfer_entry.id)
                     matched_txn_ids.add(txn.id)
+
                     # Create reconciliation match for transfer OUT
                     match = ReconciliationMatch(
                         bank_txn_id=txn.id if not settings.enable_4_layer_read else None,
@@ -829,8 +828,8 @@ async def execute_matching(
                         txn_date=txn.txn_date,
                         description=txn.description,
                     )
-                    transfer_entry_ids.add(transfer_entry.id)
                     matched_txn_ids.add(txn.id)
+
                     # Create reconciliation match for transfer IN
                     match = ReconciliationMatch(
                         bank_txn_id=txn.id if not settings.enable_4_layer_read else None,

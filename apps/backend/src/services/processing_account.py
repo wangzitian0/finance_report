@@ -197,9 +197,24 @@ def _calculate_pair_confidence(
     Returns:
         Tuple of (total_score, breakdown_dict)
     """
-    # Extract amounts from journal entries
-    out_amount = sum(line.amount for line in out_entry.lines if line.direction == Direction.DEBIT)
-    in_amount = sum(line.amount for line in in_entry.lines if line.direction == Direction.DEBIT)
+    # Extract amounts from the Processing account line in each entry
+    # (system-generated transfer entries always have exactly one Processing line)
+    processing_account_id = None
+    for line in out_entry.lines:
+        if line.direction == Direction.DEBIT:
+            processing_account_id = line.account_id
+            break
+
+    out_amount = Decimal("0")
+    in_amount = Decimal("0")
+    for line in out_entry.lines:
+        if line.account_id == processing_account_id and line.direction == Direction.DEBIT:
+            out_amount = line.amount
+            break
+    for line in in_entry.lines:
+        if line.account_id == processing_account_id and line.direction == Direction.CREDIT:
+            in_amount = line.amount
+            break
 
     # Score individual components
     amount_score = _score_amount_match(out_amount, in_amount)
@@ -277,13 +292,14 @@ async def find_transfer_pairs(
 
     # Find pairs with confidence >= threshold
     pairs: list[TransferPair] = []
-
+    matched_in_entries: set[int] = set()  # Track already-matched IN entries
     for out_entry in out_entries:
         best_match: TransferPair | None = None
-
         for in_entry in in_entries:
-            confidence, breakdown = _calculate_pair_confidence(out_entry, in_entry)
+            if id(in_entry) in matched_in_entries:
+                continue
 
+            confidence, breakdown = _calculate_pair_confidence(out_entry, in_entry)
             if confidence >= threshold:
                 pair = TransferPair(
                     out_entry=out_entry,
@@ -291,13 +307,12 @@ async def find_transfer_pairs(
                     confidence=confidence,
                     score_breakdown=breakdown,
                 )
-
                 # Keep only the best match for this out_entry
                 if best_match is None or confidence > best_match.confidence:
                     best_match = pair
-
         if best_match:
             pairs.append(best_match)
+            matched_in_entries.add(id(best_match.in_entry))
 
     return pairs
 
@@ -325,6 +340,11 @@ async def create_transfer_out_entry(
     Returns:
         Created JournalEntry (not yet committed)
     """
+    if amount <= Decimal("0"):
+        raise ValueError("Transfer amount must be positive")
+    if not description or not description.strip():
+        raise ValueError("Transfer description must not be empty")
+
     processing_account = await get_or_create_processing_account(db, user_id)
 
     entry = JournalEntry(
@@ -381,6 +401,11 @@ async def create_transfer_in_entry(
     Returns:
         Created JournalEntry (not yet committed)
     """
+    if amount <= Decimal("0"):
+        raise ValueError("Transfer amount must be positive")
+    if not description or not description.strip():
+        raise ValueError("Transfer description must not be empty")
+
     processing_account = await get_or_create_processing_account(db, user_id)
 
     entry = JournalEntry(
