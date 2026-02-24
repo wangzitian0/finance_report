@@ -115,7 +115,9 @@ class TestProcessingAccountTransfers:
             JournalLine(
                 journal_entry_id=entry.id, account_id=processing.id, direction=Direction.DEBIT, amount=Decimal("100.00")
             ),
-            JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("100.00")),
+            JournalLine(
+                journal_entry_id=entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("100.00")
+            ),
         ]
         db.add_all(lines)
         await db.flush()
@@ -153,9 +155,14 @@ class TestProcessingAccountTransfers:
         await db.flush()
 
         lines = [
-            JournalLine(journal_entry_id=entry.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal("100.00")),
             JournalLine(
-                journal_entry_id=entry.id, account_id=processing.id, direction=Direction.CREDIT, amount=Decimal("100.00")
+                journal_entry_id=entry.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal("100.00")
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=processing.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
             ),
         ]
         db.add_all(lines)
@@ -196,7 +203,10 @@ class TestProcessingAccountTransfers:
 
         out_lines = [
             JournalLine(
-                journal_entry_id=out_entry.id, account_id=processing.id, direction=Direction.DEBIT, amount=Decimal("100.00")
+                journal_entry_id=out_entry.id,
+                account_id=processing.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
             ),
             JournalLine(
                 journal_entry_id=out_entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("100.00")
@@ -217,10 +227,16 @@ class TestProcessingAccountTransfers:
 
         in_lines = [
             JournalLine(
-                journal_entry_id=in_entry.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal("100.00")
+                journal_entry_id=in_entry.id,
+                account_id=checking.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
             ),
             JournalLine(
-                journal_entry_id=in_entry.id, account_id=processing.id, direction=Direction.CREDIT, amount=Decimal("100.00")
+                journal_entry_id=in_entry.id,
+                account_id=processing.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
             ),
         ]
         db.add_all(in_lines)
@@ -275,7 +291,9 @@ class TestProcessingAccountIntegrity:
             JournalLine(
                 journal_entry_id=entry.id, account_id=processing.id, direction=Direction.DEBIT, amount=Decimal("200.00")
             ),
-            JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("200.00")),
+            JournalLine(
+                journal_entry_id=entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("200.00")
+            ),
         ]
         db.add_all(lines)
         await db.flush()
@@ -315,7 +333,10 @@ class TestProcessingAccountIntegrity:
                 journal_entry_id=init_entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal("500.00")
             ),
             JournalLine(
-                journal_entry_id=init_entry.id, account_id=equity.id, direction=Direction.CREDIT, amount=Decimal("500.00")
+                journal_entry_id=init_entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("500.00"),
             ),
         ]
         db.add_all(init_lines)
@@ -332,7 +353,10 @@ class TestProcessingAccountIntegrity:
         await db.flush()
         out_lines = [
             JournalLine(
-                journal_entry_id=out_entry.id, account_id=processing.id, direction=Direction.DEBIT, amount=Decimal("100.00")
+                journal_entry_id=out_entry.id,
+                account_id=processing.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
             ),
             JournalLine(
                 journal_entry_id=out_entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("100.00")
@@ -352,10 +376,16 @@ class TestProcessingAccountIntegrity:
         await db.flush()
         in_lines = [
             JournalLine(
-                journal_entry_id=in_entry.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal("100.00")
+                journal_entry_id=in_entry.id,
+                account_id=checking.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
             ),
             JournalLine(
-                journal_entry_id=in_entry.id, account_id=processing.id, direction=Direction.CREDIT, amount=Decimal("100.00")
+                journal_entry_id=in_entry.id,
+                account_id=processing.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
             ),
         ]
         db.add_all(in_lines)
@@ -381,7 +411,6 @@ class TestProcessingAccountIntegrity:
         assert total_equity == Decimal("500.00")
         assert total_assets == total_equity  # Accounting equation holds
         assert processing_balance == Decimal("0.00")  # Transfers paired
-
 
 
 class TestProcessingAccountValidation:
@@ -524,7 +553,6 @@ class TestTransferDetection:
         await db.flush()
 
         assert detect_transfer_pattern(non_transfer) is False
-
 
     @pytest.mark.asyncio
     async def test_detect_transfer_no_description(self, db: AsyncSession, test_user):

@@ -253,7 +253,6 @@ async def find_transfer_pairs(
         select(JournalEntry)
         .options(selectinload(JournalEntry.lines))
         .join(JournalLine, JournalEntry.id == JournalLine.journal_entry_id)
-
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
         .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
@@ -449,10 +448,10 @@ async def get_unpaired_transfers(
     days_threshold: int = MAX_DATE_DIFF_DAYS,
 ) -> list[dict]:
     """Get unpaired transfer entries (Processing balance != 0).
-    
+
     Returns ALL entries involving Processing account to show user what's unpaired.
     The days_threshold is for alerting purposes only, not filtering.
-    
+
     Args:
         db: Database session
         user_id: User ID
@@ -472,16 +471,18 @@ async def get_unpaired_transfers(
         .order_by(JournalEntry.entry_date.desc())
     )
     rows = result.all()
-    
+
     # Build list of unpaired transfers
     unpaired = []
     for line, entry in rows:
-        unpaired.append({
-            "entry_id": entry.id,
-            "direction": "OUT" if line.direction == Direction.DEBIT else "IN",
-            "amount": line.amount,
-            "date": entry.entry_date,
-            "description": entry.memo or "",
-        })
-    
+        unpaired.append(
+            {
+                "entry_id": entry.id,
+                "direction": "OUT" if line.direction == Direction.DEBIT else "IN",
+                "amount": line.amount,
+                "date": entry.entry_date,
+                "description": entry.memo or "",
+            }
+        )
+
     return unpaired

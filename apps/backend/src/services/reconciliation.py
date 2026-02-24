@@ -769,16 +769,14 @@ async def execute_matching(
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
-        
+
         # Detect transfer pattern (keywords-based detection)
         if detect_transfer_pattern(txn):
             try:
                 # Fetch statement to get account_id
-                stmt_result = await db.execute(
-                    select(BankStatement).where(BankStatement.id == txn.statement_id)
-                )
+                stmt_result = await db.execute(select(BankStatement).where(BankStatement.id == txn.statement_id))
                 stmt = stmt_result.scalar_one()
-                
+
                 # Skip transfer detection if statement has no linked account
                 if stmt.account_id is None:
                     logger.warning(
@@ -810,12 +808,12 @@ async def execute_matching(
                     )
                     db.add(match)
                     matches.append(match)
-                    
+
                     if not settings.enable_4_layer_read:
                         txn.status = BankStatementTransactionStatus.MATCHED
                     if transfer_entry.status != JournalEntryStatus.VOID:
                         transfer_entry.status = JournalEntryStatus.RECONCILED
-                    
+
                     logger.info(
                         "Transfer OUT detected and Processing entry created",
                         txn_id=str(txn.id),
@@ -844,12 +842,12 @@ async def execute_matching(
                     )
                     db.add(match)
                     matches.append(match)
-                    
+
                     if not settings.enable_4_layer_read:
                         txn.status = BankStatementTransactionStatus.MATCHED
                     if transfer_entry.status != JournalEntryStatus.VOID:
                         transfer_entry.status = JournalEntryStatus.RECONCILED
-                    
+
                     logger.info(
                         "Transfer IN detected and Processing entry created",
                         txn_id=str(txn.id),
@@ -864,7 +862,7 @@ async def execute_matching(
                     error=str(e),
                 )
                 # Continue to normal matching if transfer entry creation fails
-    
+
     # Phase 2: Normal Matching (existing logic)
     # Skip transactions already matched in Phase 1 (transfer detection)
     for txn in transactions:
