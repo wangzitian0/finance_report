@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
@@ -43,8 +43,12 @@ logger = get_logger(__name__)
 
 
 def _init_otel_instrumentation() -> None:
-    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX."""
-    if not settings.enable_otel:
+    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX.
+
+    This enables distributed tracing across HTTP requests, database queries,
+    and external API calls without manual code instrumentation.
+    """
+    if not settings.otel_exporter_otlp_endpoint:
         return
 
     try:
@@ -52,9 +56,13 @@ def _init_otel_instrumentation() -> None:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
-        # Global instrumentation
+        # Instrument FastAPI
         FastAPIInstrumentor.instrument()
+
+        # Instrument SQLAlchemy
         SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
+
+        # Instrument HTTPX
         HTTPXClientInstrumentor().instrument()
 
         logger.info("OpenTelemetry auto-instrumentation initialized")
@@ -69,7 +77,7 @@ _init_otel_instrumentation()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan (startup/shutdown)."""
-    # Environment variable check
+    # Initialize environment
     if not await Bootloader.validate(mode=BootMode.CRITICAL):
         logger.critical("Bootloader failed, exiting")
         import sys
@@ -140,7 +148,6 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
             duration_ms=round(duration * 1000, 2),
             error=str(exc),
         )
-        # Global exception handler will catch this and return 500
         raise
 
 
@@ -192,31 +199,30 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
     try:
         checks = {}
 
-        # DB - Critical
+        # DB
         try:
             await db.execute(text("SELECT 1"))
             checks["database"] = True
         except Exception:
-            logger.warning("Health check: Database unreachable")
             checks["database"] = False
 
-        # Redis - Non-critical for readiness
+        # Redis
         redis_res = await Bootloader._check_redis()
         checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
 
-        # S3 - Non-critical for readiness
+        # S3
         s3_res = await Bootloader._check_s3()
         checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
 
-        # Overall status
-        # Only DB is critical for the readiness probe during deployment
+        all_healthy = all(checks.values())
+        # Only DB is critical for readiness in some environments
         is_ready = checks["database"]
         status_code = 200 if is_ready else 503
 
         return JSONResponse(
             status_code=status_code,
             content={
-                "status": "healthy" if is_ready else "unhealthy",
+                "status": "healthy" if all_healthy else "unhealthy",
                 "timestamp": datetime.now(UTC).isoformat(),
                 "git_sha": os.getenv("GIT_COMMIT_SHA", "unknown"),
                 "checks": checks,
@@ -224,7 +230,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             },
         )
     except Exception as e:
-        logger.exception("Health check failed unexpectedly")
+        logger.exception("Health check failed")
         return JSONResponse(
             status_code=503,
             content={
