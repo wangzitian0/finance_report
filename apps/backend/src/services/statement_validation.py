@@ -52,16 +52,17 @@ async def _get_opening_balance(db: AsyncSession, statement: BankStatement) -> De
     if statement.manual_opening_balance is not None:
         return statement.manual_opening_balance
 
+    filters = [
+        BankStatement.user_id == statement.user_id,
+        BankStatement.account_id == statement.account_id if statement.account_id is not None else BankStatement.account_id.is_(None),
+        BankStatement.status == BankStatementStatus.APPROVED,
+    ]
+    if statement.period_start:
+        filters.append(BankStatement.period_end < statement.period_start)
+
     prev_result = await db.execute(
         select(BankStatement)
-        .where(
-            and_(
-                BankStatement.user_id == statement.user_id,
-                BankStatement.account_id == statement.account_id,
-                BankStatement.period_end < statement.period_start,
-                BankStatement.status == BankStatementStatus.APPROVED,
-            )
-        )
+        .where(and_(*filters))
         .order_by(desc(BankStatement.period_end))
         .limit(1)
     )

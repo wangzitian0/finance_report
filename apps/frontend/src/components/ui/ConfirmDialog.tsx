@@ -16,6 +16,7 @@ interface ConfirmDialogProps {
     loading?: boolean;
     onConfirm: (inputValue?: string) => void;
     onCancel: () => void;
+    children?: React.ReactNode;
 }
 
 export default function ConfirmDialog({
@@ -32,6 +33,7 @@ export default function ConfirmDialog({
     loading = false,
     onConfirm,
     onCancel,
+    children,
 }: ConfirmDialogProps) {
     const [inputValue, setInputValue] = useState("");
     const titleId = useId();
@@ -124,6 +126,8 @@ export default function ConfirmDialog({
                             />
                         </div>
                     )}
+
+                    {children}
 
                     <div className="flex gap-3 pt-2">
                         <button

@@ -74,7 +74,7 @@ async def detect_transfer_pairs(
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.APPROVED)
-        .options(selectinload(BankStatementTransaction.statement).selectinload(BankStatement.account))
+        .options(selectinload(BankStatementTransaction.statement))
     )
     if statement_id:
         query = query.where(BankStatementTransaction.statement_id == statement_id)
