@@ -199,12 +199,18 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             checks["database"] = False
 
         # Redis
-        redis_res = await Bootloader._check_redis()
-        checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
+        try:
+            redis_res = await Bootloader._check_redis()
+            checks["redis"] = redis_res.status in ("ok", "skipped")
+        except Exception:
+            checks["redis"] = False
 
         # S3
-        s3_res = await Bootloader._check_s3()
-        checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
+        try:
+            s3_res = await Bootloader._check_s3()
+            checks["s3"] = s3_res.status in ("ok", "skipped")
+        except Exception:
+            checks["s3"] = False
 
         all_healthy = all(checks.values())
         status_code = 200 if all_healthy else 503
