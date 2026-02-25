@@ -78,7 +78,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-# Test markers
 markers = [
     "slow: Long-running tests (>1s)",
     "perf: Performance tests",
@@ -86,10 +85,11 @@ markers = [
 ]
 
 # Default: Run all tests except slow/perf/e2e
+# Note: -n 4 for local (fixed), CI uses -n auto for ephemeral runners
 addopts = [
     "-v",
     "-ra",
-    "-n", "auto",
+    "-n", "4",
     "-m", "not e2e and not slow and not perf",
     "--cov=src",
     "--cov-report=term-missing",
