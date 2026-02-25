@@ -1,7 +1,8 @@
-# Auth SSOT
+# Auth SSOT (MIDDLEWARE ONE)
 
 > **SSOT Key**: `auth`
-> **Core Definition**: How API requests resolve the current user identity and how users register/login.
+> **Priority**: 0 (Critical Foundation)
+> **Core Definition**: Mandatory JWT/OAuth2 identity system. All user-scoped requests must resolve identity via cryptographic tokens.
 
 ---
 
@@ -9,11 +10,12 @@
 
 | Component | Physical Location | Description |
 |-----------|-------------------|-------------|
-| User context dependency | `apps/backend/src/auth.py` | `get_current_user_id` header-based resolver |
+| User context dependency | `apps/backend/src/auth.py` | `get_current_user_id` JWT resolver |
+| Global security gate | `apps/backend/src/main.py` | CORS and security middleware configuration |
 | User registration API | `apps/backend/src/routers/auth.py` | Registration and login endpoints |
 | User model | `apps/backend/src/models/user.py` | Persistence for valid user IDs |
 | Frontend auth context | `apps/frontend/src/lib/auth.ts` | User session management |
-| API fetch with auth | `apps/frontend/src/lib/api.ts` | Header injection for all API calls |
+| API fetch with auth | `apps/frontend/src/lib/api.ts` | Bearer token injection |
 
 ---
 
@@ -85,6 +87,9 @@ sequenceDiagram
 - Invalid/expired token → `401 Unauthorized`
 - Valid token but user deleted → `401 Unauthorized`
 - Valid token → request proceeds with resolved user_id
+
+**Prohibition (Red Line)**:
+- **X-User-Id Header**: Direct use of `X-User-Id` for identity resolution is **STRICTLY PROHIBITED** in production and development. All identity must be derived from the validated JWT subject (`sub`).
 
 **Scope**:
 - Accounts, journal entries, statements, reports, reconciliation, and chat endpoints.

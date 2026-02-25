@@ -44,8 +44,10 @@ class FinanceReportUser(HttpUser):
 
     def on_start(self) -> None:
         """Set up test user authentication."""
-        test_user_id = os.getenv("TEST_USER_ID", "00000000-0000-0000-0000-000000000001")
-        self.client.headers = {"X-User-Id": test_user_id}
+        # Note: Performance tests now require a valid JWT token.
+        # Use TEST_USER_TOKEN env var to provide it.
+        token = os.getenv("TEST_USER_TOKEN", "mock-token-not-for-prod")
+        self.client.headers = {"Authorization": f"Bearer {token}"}
 
     @task(5)
     def view_dashboard(self) -> None:

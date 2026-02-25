@@ -8,7 +8,7 @@
 ## Executive Summary
 
 **Current State**:
-- Coverage threshold: 99% (enforced in `apps/backend/pyproject.toml` + CI POST-MERGE VALIDATION)
+- Coverage threshold: No-regression policy (must not decrease from baseline, target 99%)
 - Test files: 100
 - Source files: 75
 - Test-to-source ratio: 1.7:1 (22,655 test LOC / 13,162 source LOC)
@@ -16,7 +16,7 @@
 - **CI Coverage Enforcement**: ✅ NOW ENFORCED (post-merge validation added)
 
 **Target State**:
-- Coverage threshold: 99% (maintained)
+- Coverage threshold: 99% overall coverage (maintained)
 - TDD-first development workflow
 - Documented testing patterns and best practices
 - Service layer coverage: 80%+ (currently 16.59%)
@@ -31,8 +31,8 @@
 |------------|--------------|------------|
 | **Test Framework** | pytest + pytest-asyncio + pytest-cov | `apps/backend/pyproject.toml` |
 | **Coverage Tool** | pytest-cov with XML + terminal reports | `pyproject.toml` `[tool.pytest.ini_options]` |
-| **Local Threshold** | 99% (`--cov-fail-under=99`) | `apps/backend/pyproject.toml` |
-| **CI Threshold** | 99% (post-merge validation) | `.github/workflows/ci.yml` |
+| **Local Threshold** | 99% (target, enforced via pyproject.toml) | `apps/backend/pyproject.toml` |
+| **CI Threshold** | Monitored (post-merge validation) | `.github/workflows/ci.yml` |
 | **Parallel Execution** | pytest-xdist (4 workers local, auto in CI) | `moon.yml` test-execution |
 | **Database Lifecycle** | Auto-create/cleanup via context manager | `scripts/test_lifecycle.py` |
 

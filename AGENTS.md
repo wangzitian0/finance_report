@@ -481,7 +481,7 @@ skills/
 
 ### Portfolio Management Strategy
 
-**EPIC-017** implements 100% self-developed portfolio management (replacing Wealthfolio integration):
+**EPIC-017** implements 100% self-developed portfolio management:
 - Holdings dashboard with XIRR, time-weighted return, money-weighted return
 - Brokerage statement auto-parsing (Moomoo, Futu, Interactive Brokers)
 - Manual market price updates (user updates every few months)

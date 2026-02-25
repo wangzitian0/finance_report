@@ -83,7 +83,7 @@ async def test_login_non_existent_user(public_client):
 @pytest.mark.asyncio
 async def test_get_me_success(client, test_user):
     """Test get current user endpoint."""
-    # client fixture already includes X-User-Id for test_user
+    # client fixture already includes Authorization header for test_user
     response = await client.get("/auth/me")
 
     assert response.status_code == 200

@@ -14,21 +14,21 @@ This section contains:
 
 **In Progress**
 - [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization
-- [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Core Complete, Statement Upload Pending)
-- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation (Testing Pending)
-- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 Complete)
+- [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
+- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
+- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 ✅)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
-- [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2 (currency, balance chain, institution auto-detect, confidence V2)
-- [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 Complete, P1 Pending)
+- [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
+- [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 ✅, target 99% coverage pending)
 **Planned (P0 - Critical)**
 - [EPIC-016](./EPIC-016.two-stage-review-ui.md) — Two-Stage Review & Data Validation UI (4-6 weeks) — Stage 1: PDF vs parsed validation. Stage 2: Dedup, transfer pairing, anomaly detection.
 
 **Planned (P1 - High Priority)**
-- [EPIC-017](./EPIC-017.portfolio-management.md) — Investment Portfolio Management (6-8 weeks) — 100% self-developed. Holdings, XIRR, TWR, sector allocation, brokerage parsing (Moomoo/Futu/IB).
+- [EPIC-017](./EPIC-017.portfolio-management.md) — Investment Portfolio Management (6-8 weeks) — 100% self-developed.
 
 **TODO (Design Needed)**
 - source_type Priority Logic — Conflict resolution when multiple sources report different values for the same transaction (see vision.md Decision 6). Extend EPIC-013 or EPIC-004.
-- Confirmation Workflow SSOT — Code uses `pending_review` status across 7 files (review_queue, reconciliation, ai_advisor, routers) but no SSOT document defines the confirmation/review workflow. Needs `docs/ssot/confirmation.md` or extend `reconciliation.md`.
+- Confirmation Workflow SSOT — Code uses `pending_review` status across 7 files but no SSOT document defines the workflow.
 
 **Done**
  [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
@@ -45,11 +45,11 @@ This section contains:
 | ID | Project | Status | Phase | Duration |
 |----|---------|--------|-------|----------|
 | [EPIC-001](./EPIC-001.phase0-setup.md) | Infrastructure & Authentication | ✅ Complete | 0 | 2 weeks |
-| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-Entry Bookkeeping Core | ✅ Complete (Backend) | 1 | 3 weeks |
-| [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | ✅ Complete (Backend) | 2 | 4 weeks |
-| [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | ✅ Complete | 3 | 5 weeks |
+| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-Entry Bookkeeping Core | 🟡 In Progress (Refining) | 1 | 3 weeks |
+| [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | 🟡 In Progress (Refining) | 2 | 4 weeks |
+| [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | 🟡 In Progress (Refining) | 3 | 5 weeks |
 | [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | 🟡 In Progress | 4 | 3 weeks |
-| [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | ✅ Complete | 4 | 2 weeks |
+| [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | 🟡 In Progress (Refining) | 4 | 2 weeks |
 | [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | ✅ Complete | 0 | 1 week |
 | [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | 🟡 In Progress | 0 | 2 weeks |
 | [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | 🟡 In Progress | 2 | 2-3 weeks |
@@ -106,7 +106,7 @@ graph LR
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
 **Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
 **Infrastructure Path**: EPIC-007 deploys completed features to production  
-**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation), EPIC-016 (Two-Stage Review) is critical for user adoption, EPIC-017 (Portfolio) replaces Wealthfolio integration with 100% self-developed solution
+**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation), EPIC-016 (Two-Stage Review) is critical for user adoption, EPIC-017 (Portfolio) implements 100% self-developed solution
 
 ## 📖 Reading Guide
 

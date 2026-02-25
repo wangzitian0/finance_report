@@ -61,7 +61,7 @@ Confirmed Record
     ↓ Human confirmation (Stage 2)
 Knowledge (trusted data)
     ↓ Export
-Dashboard and reports (referencing Wealthfolio's flow)
+Dashboard and reports (Native Portfolio Engine)
 ```
 
 **Key insight: only confirmed data becomes knowledge.**
@@ -101,12 +101,8 @@ Use this when choices are unclear:
 
 **Problem**: Portfolio calculations are complex (IRR, time-weighted returns, multi-currency FX).
 
-**Original Choice (Deprecated)**:
-- ❌ Build our own → High effort, error-prone
-- ✅ Reuse [Wealthfolio](https://wealthfolio.app/) → Mature open-source solution, we focus on the data pipeline
-**Updated Choice (2026-02)**:
-- ✅ **100% Self-Developed** → Full integration with double-entry bookkeeping, custom UI, self-hosted
-- ❌ Wealthfolio integration → External dependency, data export friction
+**Choice**:
+- ✅ **100% Self-Developed** → Full integration with double-entry bookkeeping, custom UI, self-hosted. No external portfolio management tools used.
 
 **Result**: Implement full-featured portfolio management in-house (EPIC-017):
 - Holdings dashboard with XIRR, time-weighted return, money-weighted return
@@ -115,11 +111,11 @@ Use this when choices are unclear:
 - Sector/geography/asset class allocation
 - Dividend tracking and cost basis methods (FIFO/LIFO/AvgCost)
 
-**Why the Change**: User requirement: "不应该有 wealthfolio 的概念了，100% 自研" (No Wealthfolio concept, 100% self-developed). Better integration with accounting system, full control over features and data.
+**Why the Change**: Strategic decision to eliminate external dependencies and ensure deep integration with the core accounting system. "100% Self-Developed" is the final state.
 
 ### Decision 2: Why an Event Middle Layer?
 
-**Problem**: Converting directly from PDF to Wealthfolio format?
+**Problem**: Converting directly from PDF to target formats?
 
 **Choice**:
 - ❌ Direct conversion → Tight coupling between input and output, hard to extend
@@ -127,7 +123,7 @@ Use this when choices are unclear:
 
 **Benefits**:
 - Multiple inputs (DBS PDF, Moomoo CSV) → Unified Events
-- Unified Events → Multiple outputs (Wealthfolio, custom reports, future integrations)
+- Unified Events → Multiple outputs (Native Reports, CSV, future integrations)
 
 ### Decision 3: Why a Record Layer?
 
