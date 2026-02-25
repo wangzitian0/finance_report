@@ -204,7 +204,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
 
         # Use a fresh bootloader for detailed checks
         boot = Bootloader(mode=BootMode.DRY_RUN)
-        
+
         # Redis
         redis_res = await boot._check_redis()
         checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
