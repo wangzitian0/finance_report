@@ -1,312 +1,1164 @@
-from datetime import datetime
+"""Tests for reporting service."""
+
+from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+from typing import Any, cast
+from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntrySourceType,
+    JournalEntryStatus,
+    JournalLine,
+)
+from src.services import reporting as reporting_service
 from src.services.reporting import (
     ReportError,
-    ReportingService,
-    _add_months,
-    _aggregate_balances_sql,
-    _aggregate_net_income_sql,
-    _iter_periods,
-    _month_end,
-    _month_start,
-    _normalize_currency,
-    _quantize_money,
-    _quarter_start,
-    _signed_amount,
-)
-from tests.test_factories import (
-    create_account,
-    create_journal_entry,
+    generate_balance_sheet,
+    generate_cash_flow,
+    generate_income_statement,
+    get_account_trend,
+    get_category_breakdown,
 )
 
 
 @pytest.fixture
-async def reporting_service():
-    """Fixture for ReportingService with mocked dependencies."""
-    service = ReportingService()
-    service._get_fx_rates_map = AsyncMock(return_value={})  # Mock FX rate fetching
-    return service
+def test_user_id():
+    """Test user ID."""
+    return uuid4()
 
 
 @pytest.fixture
-async def test_account():
-    """Fixture for a test account."""
-    return await create_account()
+async def chart_of_accounts(db: AsyncSession, test_user_id):
+    """Create a minimal chart of accounts for reporting."""
+    accounts = [
+        Account(
+            user_id=test_user_id,
+            name="Cash",
+            type=AccountType.ASSET,
+            currency="SGD",
+        ),
+        Account(
+            user_id=test_user_id,
+            name="Credit Card",
+            type=AccountType.LIABILITY,
+            currency="SGD",
+        ),
+        Account(
+            user_id=test_user_id,
+            name="Owner Equity",
+            type=AccountType.EQUITY,
+            currency="SGD",
+        ),
+        Account(
+            user_id=test_user_id,
+            name="Salary",
+            type=AccountType.INCOME,
+            currency="SGD",
+        ),
+        Account(
+            user_id=test_user_id,
+            name="Dining",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        ),
+    ]
+    db.add_all(accounts)
+    await db.commit()
+    for account in accounts:
+        await db.refresh(account)
+    return accounts
 
 
-@pytest.fixture
-async def test_entries():
-    """Fixture for test journal entries."""
-    entries = []
-    for i in range(3):
-        entry = await create_journal_entry(
-            description=f"Test entry {i}",
-            amount=Decimal(str(100 + i * 50)),
+@pytest.mark.asyncio
+async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_user_id):
+    """[AC5.1.1] Balance sheet should satisfy Assets = Liabilities + Equity."""
+    cash, _liability, equity, *_rest = chart_of_accounts
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Owner contribution",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(
+        db,
+        test_user_id,
+        as_of_date=date.today(),
+        currency="SGD",
+    )
+
+    assert report["total_assets"] == Decimal("1000.00")
+    assert report["total_liabilities"] == Decimal("0.00")
+    assert report["total_equity"] == Decimal("1000.00")
+    assert report["equation_delta"] == Decimal("0.00")
+    assert report["is_balanced"] is True
+
+
+@pytest.mark.asyncio
+async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts, test_user_id):
+    """[AC5.2.1] Income statement should satisfy Net Income = Income - Expenses."""
+    cash, _liability, _equity, income, expense = chart_of_accounts
+
+    salary_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Salary",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(salary_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=salary_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=salary_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+
+    expense_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 20),
+        memo="Dinner",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(expense_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("200.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("200.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+    )
+
+    assert report["total_income"] == Decimal("5000.00")
+    assert report["total_expenses"] == Decimal("200.00")
+    assert report["net_income"] == Decimal("4800.00")
+
+
+@pytest.mark.asyncio
+async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    cash, _liability, equity, *_rest = chart_of_accounts
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="FX entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_balance_sheet(db, test_user_id, as_of_date=date.today(), currency="SGD")
+
+
+@pytest.mark.asyncio
+async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
+    """[AC5.2.3] Test income statement invalid date range validation."""
+    with pytest.raises(ReportError, match="start_date must be before end_date"):
+        await generate_income_statement(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 1, 1),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    cash, _liability, _equity, income, _expense = chart_of_accounts
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="FX income",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("50.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("50.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_income_statement(
+            db,
+            test_user_id,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_account_not_found(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="Account not found"):
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=uuid4(),
+            period="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_invalid_period(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    with pytest.raises(ReportError, match="Unsupported period"):
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=account.id,
+            period="yearly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="FX trend",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("10.00"),
             currency="USD",
         )
-        entries.append(entry)
-    return entries
+    )
+    await db.commit()
 
-
-# AC references for helper functions
-# AC1.1.1: Reporting service helper functions must correctly normalize currency codes
-# AC1.1.2: Reporting service helper functions must correctly handle signed amounts
-# AC1.1.3: Reporting service helper functions must correctly quantize monetary values
-# AC1.1.4: Reporting service helper functions must correctly calculate period boundaries
-# AC1.1.5: Reporting service helper functions must correctly iterate periods
-
-
-class TestReportingHelperFunctions:
-    """Test suite for reporting service helper functions."""
-
-    async def test_normalize_currency(self):
-        """Test currency normalization (AC1.1.1)."""
-        assert _normalize_currency("USD") == "USD"
-        assert _normalize_currency("usd") == "USD"
-        assert _normalize_currency("UsD") == "USD"
-        assert _normalize_currency("eur") == "EUR"
-        assert _normalize_currency("gbp") == "GBP"
-
-    async def test_signed_amount(self):
-        """Test signed amount calculation (AC1.1.2)."""
-        assert _signed_amount(Decimal("100"), "DEBIT") == Decimal("-100")
-        assert _signed_amount(Decimal("100"), "CREDIT") == Decimal("100")
-        assert _signed_amount(Decimal("-50"), "DEBIT") == Decimal("50")
-        assert _signed_amount(Decimal("-50"), "CREDIT") == Decimal("-50")
-
-    async def test_quantize_money(self):
-        """Test monetary quantization (AC1.1.3)."""
-        amount = Decimal("123.45678")
-        quantized = _quantize_money(amount)
-        assert quantized == Decimal("123.46")
-        assert quantized.as_tuple().exponent == -2
-
-    async def test_month_start(self):
-        """Test month start calculation (AC1.1.4)."""
-        date = datetime(2023, 3, 15)
-        start = _month_start(date)
-        assert start == datetime(2023, 3, 1)
-
-    async def test_month_end(self):
-        """Test month end calculation (AC1.1.4)."""
-        date = datetime(2023, 3, 15)
-        end = _month_end(date)
-        assert end == datetime(2023, 3, 31, 23, 59, 59, 999999)
-
-    async def test_quarter_start(self):
-        """Test quarter start calculation (AC1.1.4)."""
-        date = datetime(2023, 3, 15)
-        start = _quarter_start(date)
-        assert start == datetime(2023, 1, 1)
-
-    async def test_add_months(self):
-        """Test month addition (AC1.1.4)."""
-        date = datetime(2023, 3, 15)
-        new_date = _add_months(date, 2)
-        assert new_date == datetime(2023, 5, 15)
-
-
-class TestPeriodIteration:
-    """Test suite for period iteration functions."""
-
-    async def test_iter_periods_monthly(self):
-        """Test monthly period iteration (AC1.1.5)."""
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 3, 31)
-        periods = list(_iter_periods(start_date, end_date, "monthly"))
-        assert len(periods) == 3
-        assert periods[0] == (datetime(2023, 1, 1), datetime(2023, 1, 31, 23, 59, 59, 999999))
-        assert periods[1] == (datetime(2023, 2, 1), datetime(2023, 2, 28, 23, 59, 59, 999999))
-        assert periods[2] == (datetime(2023, 3, 1), datetime(2023, 3, 31, 23, 59, 59, 999999))
-
-    async def test_iter_periods_quarterly(self):
-        """Test quarterly period iteration (AC1.1.5)."""
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 12, 31)
-        periods = list(_iter_periods(start_date, end_date, "quarterly"))
-        assert len(periods) == 4
-        assert periods[0] == (datetime(2023, 1, 1), datetime(2023, 3, 31, 23, 59, 59, 999999))
-        assert periods[1] == (datetime(2023, 4, 1), datetime(2023, 6, 30, 23, 59, 59, 999999))
-        assert periods[2] == (datetime(2023, 7, 1), datetime(2023, 9, 30, 23, 59, 59, 999999))
-        assert periods[3] == (datetime(2023, 10, 1), datetime(2023, 12, 31, 23, 59, 59, 999999))
-
-    async def test_iter_periods_yearly(self):
-        """Test yearly period iteration (AC1.1.5)."""
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 12, 31)
-        periods = list(_iter_periods(start_date, end_date, "yearly"))
-        assert len(periods) == 1
-        assert periods[0] == (datetime(2023, 1, 1), datetime(2023, 12, 31, 23, 59, 59, 999999))
-
-    async def test_iter_periods_invalid_period_type(self):
-        """Test invalid period type handling (AC1.1.5)."""
-        start_date = datetime(2023, 1, 1)
-        end_date = datetime(2023, 12, 31)
-        with pytest.raises(ValueError):
-            list(_iter_periods(start_date, end_date, "invalid"))
-
-
-class TestFXRateHandling:
-    """Test suite for FX rate handling functions."""
-
-    @pytest.mark.usefixtures("mock_openrouter")
-    async def test_get_fx_rates_map(self, reporting_service):
-        """Test FX rate map retrieval (AC1.2.1)."""
-        # Mock FX rates map
-        reporting_service._get_fx_rates_map = AsyncMock(
-            return_value={
-                "USD/EUR": Decimal("0.85"),
-                "EUR/USD": Decimal("1.18"),
-            }
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=account.id,
+            period="monthly",
+            currency="SGD",
         )
 
-        rates_map = await reporting_service._get_fx_rates_map(["USD", "EUR"])
-        assert "USD/EUR" in rates_map
-        assert "EUR/USD" in rates_map
-        assert rates_map["USD/EUR"] == Decimal("0.85")
-        assert rates_map["EUR/USD"] == Decimal("1.18")
 
-    async def test_get_fx_rates_map_empty(self, reporting_service):
-        """Test FX rate map retrieval with empty currencies (AC1.2.1)."""
-        rates_map = await reporting_service._get_fx_rates_map([])
-        assert rates_map == {}
-
-
-class TestSQLAggregation:
-    """Test suite for SQL aggregation functions."""
-
-    async def test_aggregate_balances_sql(self):
-        """Test balance aggregation SQL (AC1.3.1)."""
-        sql = _aggregate_balances_sql(
-            account_ids=[1, 2, 3],
-            start_date=datetime(2023, 1, 1),
-            end_date=datetime(2023, 12, 31),
-            currencies=["USD", "EUR"],
-        )
-        assert "SELECT" in sql
-        assert "account_id" in sql
-        assert "currency" in sql
-        assert "SUM(amount)" in sql
-        assert "WHERE" in sql
-        assert "account_id IN (1, 2, 3)" in sql
-        assert "currency IN ('USD', 'EUR')" in sql
-        assert "entry_date BETWEEN '2023-01-01' AND '2023-12-31'" in sql
-
-    async def test_aggregate_net_income_sql(self):
-        """Test net income aggregation SQL (AC1.3.2)."""
-        sql = _aggregate_net_income_sql(
-            account_ids=[1, 2, 3],
-            start_date=datetime(2023, 1, 1),
-            end_date=datetime(2023, 12, 31),
-            currencies=["USD", "EUR"],
-        )
-        assert "SELECT" in sql
-        assert "account_id" in sql
-        assert "currency" in sql
-        assert "SUM(amount)" in sql
-        assert "WHERE" in sql
-        assert "account_id IN (1, 2, 3)" in sql
-        assert "currency IN ('USD', 'EUR')" in sql
-        assert "entry_date BETWEEN '2023-01-01' AND '2023-12-31'" in sql
-
-
-class TestReportingService:
-    """Test suite for ReportingService class."""
-
-    @pytest.mark.usefixtures("mock_openrouter")
-    async def test_generate_balance_sheet(self, reporting_service, test_account, test_entries):
-        """Test balance sheet generation (AC1.4.1)."""
-        # Mock FX rates
-        reporting_service._get_fx_rates_map = AsyncMock(
-            return_value={
-                "USD/EUR": Decimal("0.85"),
-                "EUR/USD": Decimal("1.18"),
-            }
+@pytest.mark.asyncio
+async def test_category_breakdown_invalid_type(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="Breakdown type must be income or expense"):
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.ASSET,
+            period="monthly",
+            currency="SGD",
         )
 
-        # Generate balance sheet
-        balance_sheet = await reporting_service.generate_balance_sheet(
-            account_id=test_account.id,
-            start_date=datetime(2023, 1, 1),
-            end_date=datetime(2023, 12, 31),
+
+@pytest.mark.asyncio
+async def test_category_breakdown_invalid_period(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="Unsupported period"):
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.INCOME,
+            period="weekly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    expense = chart_of_accounts[-1]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="FX expense",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=expense.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("15.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.EXPENSE,
+            period="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_invalid_range(db: AsyncSession, test_user_id):
+    with pytest.raises(ReportError, match="start_date must be before end_date"):
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 1, 1),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 1),
+        memo="FX before",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("5.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 2, 28),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 2, 10),
+        memo="FX during",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("7.00"),
+            currency="USD",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 2, 1),
+            end_date=date(2025, 2, 28),
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_account_trend_daily_weekly(db: AsyncSession, chart_of_accounts, test_user_id):
+    account = chart_of_accounts[0]
+
+    daily = await get_account_trend(
+        db,
+        test_user_id,
+        account_id=account.id,
+        period="daily",
+        currency="SGD",
+    )
+    weekly = await get_account_trend(
+        db,
+        test_user_id,
+        account_id=account.id,
+        period="weekly",
+        currency="SGD",
+    )
+
+    assert daily["period"] == "daily"
+    assert weekly["period"] == "weekly"
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
+    report = cast(
+        dict[str, Any],
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.INCOME,
+            period="annual",
+            currency="SGD",
+        ),
+    )
+
+    assert cast(date, report["period_start"]).year == date.today().year
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accounts, test_user_id) -> None:
+    account = chart_of_accounts[0]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 1),
+        memo="Before period",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("20.00"),
+            currency="SGD",
+        )
+    )
+    await db.commit()
+
+    report = await generate_cash_flow(
+        db,
+        test_user_id,
+        start_date=date(2025, 2, 1),
+        end_date=date(2025, 2, 28),
+        currency="SGD",
+    )
+
+    assert "summary" in report
+
+
+@pytest.mark.asyncio
+async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
+    """Account trend should bucket entries by month."""
+    cash, _liability, _equity, income, expense = chart_of_accounts
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls) -> "FixedDate":
+            return cls(2025, 3, 15)
+
+    monkeypatch.setattr(reporting_service, "date", FixedDate)
+
+    entry_one = JournalEntry(
+        user_id=test_user_id,
+        entry_date=FixedDate(2024, 12, 10),
+        memo="Salary",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry_one)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry_one.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_one.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+
+    entry_two = JournalEntry(
+        user_id=test_user_id,
+        entry_date=FixedDate(2025, 2, 5),
+        memo="Dinner",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry_two)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry_two.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("40.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_two.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("40.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report = cast(
+        dict[str, Any],
+        await get_account_trend(
+            db,
+            test_user_id,
+            account_id=cash.id,
+            period="monthly",
+            currency="SGD",
+        ),
+    )
+
+    points = {point["period_start"]: point["amount"] for point in cast(list[dict[str, Any]], report["points"])}
+    assert points[FixedDate(2024, 12, 1)] == Decimal("100.00")
+    assert points[FixedDate(2025, 2, 1)] == Decimal("-40.00")
+
+
+@pytest.mark.asyncio
+async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
+    """Category breakdown should aggregate within the selected period."""
+    cash, _liability, _equity, _income, expense = chart_of_accounts
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls) -> "FixedDate":
+            return cls(2025, 3, 15)
+
+    monkeypatch.setattr(reporting_service, "date", FixedDate)
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=FixedDate(2025, 2, 10),
+        memo="Expense",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("120.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("120.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report = cast(
+        dict[str, Any],
+        await get_category_breakdown(
+            db,
+            test_user_id,
+            breakdown_type=AccountType.EXPENSE,
+            period="quarterly",
+            currency="SGD",
+        ),
+    )
+
+    assert cast(list[dict[str, Any]], report["items"])[0]["total"] == Decimal("120.00")
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_user_id):
+    """[AC5.3.1] Cash flow statement should track movements across periods."""
+    cash, _liability, equity, income, expense = chart_of_accounts
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Owner contribution",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+
+    salary_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 20),
+        memo="Salary income",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(salary_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=salary_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("3000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=salary_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("3000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+
+    expense_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 25),
+        memo="Office supplies",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(expense_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("500.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("500.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report = cast(
+        dict[str, Any],
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            currency="SGD",
+        ),
+    )
+
+    assert "operating" in report
+    assert "investing" in report
+    assert "financing" in report
+    assert "summary" in report
+    assert report["currency"] == "SGD"
+    assert report["start_date"] == date(2025, 1, 1)
+    assert report["end_date"] == date(2025, 1, 31)
+
+    operating: list[dict] = report["operating"]
+    investing: list[dict] = report["investing"]
+    financing: list[dict] = report["financing"]
+
+    operating_names = [item["subcategory"] for item in operating]
+    investing_names = [item["subcategory"] for item in investing]
+    financing_names = [item["subcategory"] for item in financing]
+
+    assert income.name in operating_names, "Income account should be in operating activities"
+    assert expense.name in operating_names, "Expense account should be in operating activities"
+    assert equity.name in financing_names, "Equity account should be in financing activities"
+    # Cash accounts are excluded from activity categories - they ARE the cash flow
+    # Their movements are reflected in beginning_cash and ending_cash
+    assert cash.name not in investing_names, "Cash account should NOT be in investing (it's the subject of the report)"
+
+    summary: dict = report["summary"]
+    assert "operating_activities" in summary
+    assert "investing_activities" in summary
+    assert "financing_activities" in summary
+    assert "net_cash_flow" in summary
+    assert "beginning_cash" in summary
+    assert "ending_cash" in summary
+
+
+@pytest.mark.asyncio
+async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_user_id):
+    """[AC5.3.2] Cash flow statement with no transactions should return empty lists."""
+    report = cast(
+        dict[str, Any],
+        await generate_cash_flow(
+            db,
+            test_user_id,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 31),
+            currency="SGD",
+        ),
+    )
+
+    assert report["operating"] == []
+    assert report["investing"] == []
+    assert report["financing"] == []
+    assert cast(dict[str, Any], report["summary"])["net_cash_flow"] == Decimal("0.00")
+
+
+@pytest.mark.asyncio
+async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_accounts, test_user_id):
+    """Income statement should filter by tags when specified."""
+    cash, _liability, _equity, income, expense = chart_of_accounts
+
+    tagged_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Tagged salary",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(tagged_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=tagged_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+                tags={"business": True, "project": "alpha"},
+            ),
+            JournalLine(
+                journal_entry_id=tagged_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+                tags={"business": True, "project": "alpha"},
+            ),
+        ]
+    )
+
+    untagged_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 20),
+        memo="Personal gift",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(untagged_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=untagged_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=untagged_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report_with_business_tag: dict = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+        tags=["business"],
+    )
+
+    assert report_with_business_tag["total_income"] == Decimal("5000.00")
+    assert report_with_business_tag["filters_applied"]["tags"] == ["business"]
+
+    report_with_all_tags: dict = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+        tags=["business", "personal"],
+    )
+
+    assert report_with_all_tags["total_income"] == Decimal("5000.00")
+
+
+@pytest.mark.asyncio
+async def test_income_statement_with_account_type_filter(db: AsyncSession, chart_of_accounts, test_user_id):
+    """Income statement should filter by account type when specified."""
+    cash, _liability, _equity, income, expense = chart_of_accounts
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Mixed entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("2000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report_income_only: dict = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+        account_type=AccountType.INCOME,
+    )
+
+    assert report_income_only["total_income"] == Decimal("5000.00")
+    assert report_income_only["total_expenses"] == Decimal("0.00")
+    assert report_income_only["filters_applied"]["account_type"] == "INCOME"
+    assert len(report_income_only["expenses"]) == 0
+
+    report_expense_only: dict = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+        account_type=AccountType.EXPENSE,
+    )
+
+    assert report_expense_only["total_income"] == Decimal("0.00")
+    assert report_expense_only["total_expenses"] == Decimal("2000.00")
+    assert report_expense_only["filters_applied"]["account_type"] == "EXPENSE"
+    assert len(report_expense_only["income"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_income_statement_combined_filters(db: AsyncSession, chart_of_accounts, test_user_id):
+    """Income statement should support combined tags and account_type filters."""
+    cash, _liability, _equity, income, expense = chart_of_accounts
+
+    tagged_income_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Business income",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(tagged_income_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=tagged_income_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("3000.00"),
+                currency="SGD",
+                tags={"business": True},
+            ),
+            JournalLine(
+                journal_entry_id=tagged_income_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("3000.00"),
+                currency="SGD",
+                tags={"business": True},
+            ),
+        ]
+    )
+
+    untagged_income_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 16),
+        memo="Personal income",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(untagged_income_entry)
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=untagged_income_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("2000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=untagged_income_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("2000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    report: dict = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+        tags=["business"],
+        account_type=AccountType.INCOME,
+    )
+
+    assert report["total_income"] == Decimal("3000.00")
+    assert report["filters_applied"]["tags"] == ["business"]
+    assert report["filters_applied"]["account_type"] == "INCOME"
+
+
+@pytest.mark.asyncio
+async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
+    """Test fallback to convert_amount when PrefetchedFxRates returns None."""
+    from src.models import FxRate as FxRateModel
+    from src.services.fx import PrefetchedFxRates
+
+    cash, _liability, _equity, income, _expense = chart_of_accounts
+
+    # Add rate to DB
+    db.add(
+        FxRateModel(
             base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.35"),
+            rate_date=date(2025, 1, 31),
+            source="test",
         )
+    )
 
-        assert balance_sheet is not None
-        assert "assets" in balance_sheet
-        assert "liabilities" in balance_sheet
-        assert "equity" in balance_sheet
-
-    @pytest.mark.usefixtures("mock_openrouter")
-    async def test_generate_income_statement(self, reporting_service, test_account, test_entries):
-        """Test income statement generation (AC1.4.2)."""
-        # Mock FX rates
-        reporting_service._get_fx_rates_map = AsyncMock(
-            return_value={
-                "USD/EUR": Decimal("0.85"),
-                "EUR/USD": Decimal("1.18"),
-            }
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="USD income",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=cash.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="USD",
         )
-
-        # Generate income statement
-        income_statement = await reporting_service.generate_income_statement(
-            account_id=test_account.id,
-            start_date=datetime(2023, 1, 1),
-            end_date=datetime(2023, 12, 31),
-            base_currency="USD",
+    )
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=income.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency="USD",
         )
+    )
+    await db.commit()
 
-        assert income_statement is not None
-        assert "revenues" in income_statement
-        assert "expenses" in income_statement
-        assert "net_income" in income_statement
+    # Mock get_rate to return None, forcing fallback
+    monkeypatch.setattr(PrefetchedFxRates, "get_rate", lambda self, *args, **kwargs: None)
 
-    @pytest.mark.usefixtures("mock_openrouter")
-    async def test_generate_cash_flow_statement(self, reporting_service, test_account, test_entries):
-        """Test cash flow statement generation (AC1.4.3)."""
-        # Mock FX rates
-        reporting_service._get_fx_rates_map = AsyncMock(
-            return_value={
-                "USD/EUR": Decimal("0.85"),
-                "EUR/USD": Decimal("1.18"),
-            }
-        )
+    report = await generate_income_statement(
+        db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
+    )
 
-        # Generate cash flow statement
-        cash_flow = await reporting_service.generate_cash_flow_statement(
-            account_id=test_account.id,
-            start_date=datetime(2023, 1, 1),
-            end_date=datetime(2023, 12, 31),
-            base_currency="USD",
-        )
+    # If it didn't raise error and returned correct value, fallback worked
+    assert report["total_income"] == Decimal("135.00")
 
-        assert cash_flow is not None
-        assert "operating_activities" in cash_flow
-        assert "investing_activities" in cash_flow
-        assert "financing_activities" in cash_flow
 
-    async def test_generate_report_invalid_period(self, reporting_service):
-        """Test invalid period handling (AC1.4.4)."""
-        with pytest.raises(ReportError):
-            await reporting_service.generate_balance_sheet(
-                account_id=1,
-                start_date=datetime(2023, 12, 31),
-                end_date=datetime(2023, 1, 1),
-                base_currency="USD",
-            )
+def test_iter_periods_daily_limit():
+    """Test that _iter_periods respects the MAX_TREND_POINTS limit."""
+    from datetime import date, timedelta
 
-    async def test_generate_report_database_error(self, reporting_service):
-        """Test database error handling (AC1.4.5)."""
-        # Mock database session to raise error
-        with patch.object(reporting_service, "_execute_sql_query", side_effect=Exception("Database error")):
-            with pytest.raises(ReportError):
-                await reporting_service.generate_balance_sheet(
-                    account_id=1,
-                    start_date=datetime(2023, 1, 1),
-                    end_date=datetime(2023, 12, 31),
-                    base_currency="USD",
-                )
+    from src.services.reporting import MAX_TREND_POINTS, _iter_periods
+
+    # 1000 days span
+    start = date(2020, 1, 1)
+    end = start + timedelta(days=999)
+
+    spans = _iter_periods(start, end, "daily")
+    assert len(spans) == MAX_TREND_POINTS + 1
