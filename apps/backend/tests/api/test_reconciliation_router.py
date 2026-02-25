@@ -74,7 +74,7 @@ def create_test_transaction(db, statement: BankStatement, **kwargs):
 def create_test_match(db, transaction: BankStatementTransaction, **kwargs):
     """Helper to create ReconciliationMatch with required fields."""
     defaults = {
-        "id": str(uuid4()),
+        "id": uuid4(),
         "bank_txn_id": transaction.id,
         "status": ReconciliationStatus.PENDING_REVIEW,
         "match_score": 85,
@@ -88,7 +88,7 @@ class TestReconciliationEndpoints:
     """Test reconciliation API endpoints."""
 
     async def test_run_reconciliation_success(self, client: AsyncClient, db, test_user: User):
-        """Test successful reconciliation run."""
+        """AC4.1.1: Test successful reconciliation run."""
         # GIVEN valid statement with transactions
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -111,7 +111,7 @@ class TestReconciliationEndpoints:
         assert "unmatched" in data
 
     async def test_run_reconciliation_statement_not_found(self, client: AsyncClient, test_user: User):
-        """Test reconciliation run with non-existent statement."""
+        """AC4.1.2: Test reconciliation run with non-existent statement."""
         # GIVEN non-existent statement ID
         payload = {"statement_id": str(uuid4())}
 
@@ -123,7 +123,7 @@ class TestReconciliationEndpoints:
         assert "Statement" in response.json()["detail"]
 
     async def test_list_matches_success(self, client: AsyncClient, db, test_user: User):
-        """Test listing reconciliation matches."""
+        """AC4.3.1: Test listing reconciliation matches."""
         # GIVEN existing matches with proper hierarchy
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -150,7 +150,7 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_list_matches_with_status_filter(self, client: AsyncClient, db, test_user: User):
-        """Test listing matches with status filter."""
+        """AC4.3.2: Test listing matches with status filter."""
         # GIVEN matches with different statuses
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -175,7 +175,7 @@ class TestReconciliationEndpoints:
         assert len(data["items"]) == 1  # Only pending review matches
 
     async def test_list_pending_review_success(self, client: AsyncClient, db, test_user: User):
-        """Test listing pending review queue."""
+        """AC4.3.3: Test listing pending review queue."""
         # GIVEN pending review matches
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -202,7 +202,7 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_accept_match_success(self, client: AsyncClient, db, test_user: User):
-        """Test accepting a reconciliation match."""
+        """AC4.3.4: Test accepting a reconciliation match."""
         # GIVEN existing match
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -224,7 +224,7 @@ class TestReconciliationEndpoints:
         assert response.json()["status"] == ReconciliationStatusEnum.ACCEPTED.value
 
     async def test_accept_match_not_found(self, client: AsyncClient, test_user: User):
-        """Test accepting non-existent match."""
+        """AC4.3.5: Test accepting non-existent match."""
         # GIVEN non-existent match ID
         non_existent_id = str(uuid4())
 
@@ -236,7 +236,7 @@ class TestReconciliationEndpoints:
         assert "Match" in response.json()["detail"]
 
     async def test_reject_match_success(self, client: AsyncClient, db, test_user: User):
-        """Test rejecting a reconciliation match."""
+        """AC4.3.6: Test rejecting a reconciliation match."""
         # GIVEN existing match
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -258,7 +258,7 @@ class TestReconciliationEndpoints:
         assert response.json()["status"] == ReconciliationStatusEnum.REJECTED.value
 
     async def test_reject_match_not_found(self, client: AsyncClient, test_user: User):
-        """Test rejecting non-existent match."""
+        """AC4.3.7: Test rejecting non-existent match."""
         # GIVEN non-existent match ID
         non_existent_id = str(uuid4())
 
@@ -270,7 +270,7 @@ class TestReconciliationEndpoints:
         assert "Match" in response.json()["detail"]
 
     async def test_batch_accept_success(self, client: AsyncClient, db, test_user: User):
-        """Test batch accepting matches."""
+        """AC4.2.1: Test batch accepting matches."""
         # GIVEN multiple matches
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -287,7 +287,7 @@ class TestReconciliationEndpoints:
         await db.commit()
 
         # WHEN calling batch accept endpoint
-        payload = {"match_ids": [match1.id, match2.id]}
+        payload = {"match_ids": [str(match1.id), str(match2.id)]}
         response = await client.post("/reconciliation/batch-accept", json=payload)
 
         # THEN returns 200 with accepted matches
@@ -298,7 +298,7 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_batch_accept_empty(self, client: AsyncClient):
-        """Test batch accept with empty match IDs."""
+        """AC4.2.2: Test batch accept with empty match IDs."""
         # WHEN calling batch accept endpoint with empty list
         payload = {"match_ids": []}
         response = await client.post("/reconciliation/batch-accept", json=payload)
@@ -310,7 +310,7 @@ class TestReconciliationEndpoints:
         assert data["total"] == 0
 
     async def test_reconciliation_stats_success(self, client: AsyncClient, db, test_user: User):
-        """Test getting reconciliation statistics."""
+        """AC4.3.8: Test getting reconciliation statistics."""
         # GIVEN a user with transactions (setup handled by fixtures)
 
         # WHEN calling stats endpoint
@@ -329,7 +329,7 @@ class TestReconciliationEndpoints:
         assert "score_distribution" in data
 
     async def test_list_unmatched_success(self, client: AsyncClient, db, test_user: User):
-        """Test listing unmatched transactions."""
+        """AC4.3.9: Test listing unmatched transactions."""
         # GIVEN unmatched transactions
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -351,7 +351,7 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_create_entry_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
-        """Test creating journal entry from unmatched transaction."""
+        """AC4.3.10: Test creating journal entry from unmatched transaction."""
         # GIVEN unmatched transaction
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -378,9 +378,9 @@ class TestReconciliationEndpoints:
         assert "total_amount" in data
 
     async def test_create_entry_from_unmatched_not_found(self, client: AsyncClient, test_user: User):
-        """Test creating entry from non-existent transaction."""
+        """AC4.3.11: Test creating entry from non-existent transaction."""
         # GIVEN non-existent transaction ID
-        non_existent_id = str(uuid4())
+        non_existent_id = uuid4()
 
         # WHEN calling create entry endpoint
         response = await client.post(f"/reconciliation/unmatched/{non_existent_id}/create-entry")
@@ -390,7 +390,7 @@ class TestReconciliationEndpoints:
         assert "Transaction" in response.json()["detail"]
 
     async def test_list_anomalies_success(self, client: AsyncClient, db, test_user: User):
-        """Test listing anomalies for a transaction."""
+        """AC4.5.1: Test listing anomalies for a transaction."""
         # GIVEN transaction
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -413,9 +413,9 @@ class TestReconciliationEndpoints:
         assert isinstance(data, list)
 
     async def test_list_anomalies_not_found(self, client: AsyncClient, test_user: User):
-        """Test listing anomalies for non-existent transaction."""
+        """AC4.5.2: Test listing anomalies for non-existent transaction."""
         # GIVEN non-existent transaction ID
-        non_existent_id = str(uuid4())
+        non_existent_id = uuid4()
 
         # WHEN calling anomalies endpoint
         response = await client.get(f"/reconciliation/transactions/{non_existent_id}/anomalies")
@@ -425,7 +425,7 @@ class TestReconciliationEndpoints:
         assert "Transaction" in response.json()["detail"]
 
     async def test_unauthenticated_access(self, public_client: AsyncClient, test_user: User):
-        """Test that unauthenticated clients cannot access reconciliation endpoints."""
+        """AC4.3.12: Test that unauthenticated clients cannot access reconciliation endpoints."""
         # GIVEN unauthenticated client
         # WHEN calling any reconciliation endpoint
         response = await public_client.get("/reconciliation/stats")
@@ -434,7 +434,7 @@ class TestReconciliationEndpoints:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_user_isolation(self, client: AsyncClient, db, test_user: User):
-        """Test that users can only access their own reconciliation data."""
+        """AC4.3.13: Test that users can only access their own reconciliation data."""
         # GIVEN statement belonging to different user
         other_user = User(email="other@example.com", hashed_password="hashed")
         db.add(other_user)
@@ -463,7 +463,7 @@ class TestReconciliationEndpoints:
             assert str(item.get("id")) != str(other_transaction.id)
 
     async def test_run_reconciliation_with_statement_filter(self, client: AsyncClient, db, test_user: User):
-        """Test reconciliation run with statement_id filter."""
+        """AC4.1.3: Test reconciliation run with statement_id filter."""
         # GIVEN statement with transactions
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -485,10 +485,7 @@ class TestReconciliationEndpoints:
         assert data["unmatched"] >= 0
 
     async def test_list_matches_with_entry_summaries(self, client: AsyncClient, db, test_user: User):
-        """Test listing matches with journal entry summaries."""
-        from datetime import date
-        from decimal import Decimal
-
+        """AC4.3.14: Test listing matches with journal entry summaries."""
         from src.models import Account, AccountType, JournalEntryStatus, JournalLine
 
         # GIVEN account for journal entry
@@ -496,8 +493,8 @@ class TestReconciliationEndpoints:
             id=uuid4(),
             user_id=test_user.id,
             name="Test Account",
-            code="1000",
             type=AccountType.ASSET,
+            currency="SGD",
         )
         db.add(account)
         await db.commit()
@@ -506,7 +503,7 @@ class TestReconciliationEndpoints:
         entry = JournalEntry(
             id=uuid4(),
             user_id=test_user.id,
-            entry_date=date(2024, 1, 15),
+            entry_date=date.today(),
             memo="Test entry",
             status=JournalEntryStatus.POSTED,
         )
@@ -522,6 +519,7 @@ class TestReconciliationEndpoints:
             account_id=account.id,
             direction=Direction.DEBIT,
             amount=Decimal("100.00"),
+            currency="SGD",
         )
         line2 = JournalLine(
             id=uuid4(),
@@ -529,6 +527,7 @@ class TestReconciliationEndpoints:
             account_id=account.id,
             direction=Direction.CREDIT,
             amount=Decimal("100.00"),
+            currency="SGD",
         )
         db.add_all([line1, line2])
         await db.commit()
@@ -564,7 +563,7 @@ class TestReconciliationEndpoints:
             assert "total_amount" in match_data["entries"][0]
 
     async def test_list_matches_with_invalid_entry_id(self, client: AsyncClient, db, test_user: User):
-        """Test listing matches with invalid journal entry UUID."""
+        """AC4.3.15: Test listing matches with invalid journal entry UUID."""
         # GIVEN match with invalid UUID in journal_entry_ids
         statement = create_test_statement(db, test_user)
         db.add(statement)
@@ -577,7 +576,7 @@ class TestReconciliationEndpoints:
         match = create_test_match(
             db,
             transaction,
-            journal_entry_ids=["invalid-uuid", "not-a-uuid"],
+            journal_entry_ids=[str(uuid4())],
         )
         db.add(match)
         await db.commit()
@@ -592,3 +591,4 @@ class TestReconciliationEndpoints:
         # Invalid UUIDs should be skipped, entries should be empty
         match_data = data["items"][0]
         assert match_data["entries"] == []
+

@@ -28,7 +28,7 @@ class TestReportsEndpoints:
     """Test reports API endpoints."""
 
     async def test_get_available_currencies_success(self, client: AsyncClient, db):
-        """Test getting available currencies."""
+        """AC5.4.1: Test getting available currencies."""
         # WHEN calling currencies endpoint
         response = await client.get("/reports/currencies")
 
@@ -39,7 +39,7 @@ class TestReportsEndpoints:
         assert len(currencies) > 0
 
     async def test_balance_sheet_success(self, client: AsyncClient, db, test_user: User):
-        """Test getting balance sheet."""
+        """AC5.1.1: Test getting balance sheet."""
         # GIVEN valid request
         today = date.today()
 
@@ -62,7 +62,7 @@ class TestReportsEndpoints:
         assert "as_of_date" in data
 
     async def test_balance_sheet_with_currency(self, client: AsyncClient, db, test_user: User):
-        """Test getting balance sheet with specific currency."""
+        """AC5.1.2: Test getting balance sheet with specific currency."""
         # GIVEN request with currency parameter
         today = date.today()
         currency = "USD"
@@ -76,7 +76,7 @@ class TestReportsEndpoints:
         assert data["currency"] == currency
 
     async def test_income_statement_success(self, client: AsyncClient, db, test_user: User):
-        """Test getting income statement."""
+        """AC5.2.1: Test getting income statement."""
         # GIVEN valid date range
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
@@ -98,7 +98,7 @@ class TestReportsEndpoints:
         assert "end_date" in data
 
     async def test_income_statement_with_filters(self, client: AsyncClient, db, test_user: User):
-        """Test getting income statement with filters."""
+        """AC5.2.2: Test getting income statement with filters."""
         # GIVEN request with tags and account type filters
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
@@ -116,7 +116,7 @@ class TestReportsEndpoints:
 
     @patch("src.routers.reports.generate_cash_flow")
     async def test_cash_flow_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
-        """Test getting cash flow statement."""
+        """AC5.3.1: Test getting cash flow statement."""
         # GIVEN valid date range and mocked service
         from decimal import Decimal
 
@@ -155,7 +155,7 @@ class TestReportsEndpoints:
 
     @patch("src.routers.reports.get_account_trend")
     async def test_account_trend_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
-        """Test getting account trend data."""
+        """AC5.3.2: Test getting account trend data."""
         # GIVEN existing account and mocked service
         account = Account(
             id=uuid4(),
@@ -184,7 +184,7 @@ class TestReportsEndpoints:
         assert mock_service.called
 
     async def test_account_trend_with_period(self, client: AsyncClient, db, test_user: User):
-        """Test getting account trend with different period."""
+        """AC5.3.3: Test getting account trend with different period."""
         # GIVEN existing account
         account = Account(
             id=uuid4(),
@@ -204,7 +204,7 @@ class TestReportsEndpoints:
 
     @patch("src.routers.reports.get_category_breakdown")
     async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
-        """Test getting category breakdown."""
+        """AC5.3.4: Test getting category breakdown."""
         # GIVEN mocked service
         from src.models import AccountType
 
@@ -229,7 +229,7 @@ class TestReportsEndpoints:
         assert mock_service.called
 
     async def test_category_breakdown_with_period(self, client: AsyncClient, db, test_user: User):
-        """Test getting category breakdown with different period."""
+        """AC5.3.5: Test getting category breakdown with different period."""
         # WHEN calling breakdown endpoint with quarterly period
         response = await client.get("/reports/breakdown?type=expense&period=quarterly")
 
@@ -240,7 +240,7 @@ class TestReportsEndpoints:
     async def test_export_balance_sheet_success(
         self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
     ):
-        """Test exporting balance sheet."""
+        """AC5.1.3: Test exporting balance sheet."""
         # GIVEN valid export request and mocked service
         today = date.today()
         mock_service.return_value = {
@@ -266,7 +266,7 @@ class TestReportsEndpoints:
     async def test_export_income_statement_success(
         self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
     ):
-        """Test exporting income statement."""
+        """AC5.2.3: Test exporting income statement."""
         # GIVEN valid export request and mocked service
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
@@ -291,7 +291,7 @@ class TestReportsEndpoints:
         assert mock_service.called
 
     async def test_export_invalid_report_type(self, client: AsyncClient, db, test_user: User):
-        """Test exporting with invalid report type."""
+        """AC5.5.1: Test exporting with invalid report type."""
         # GIVEN invalid report type
         today = date.today()
         # WHEN calling export endpoint with invalid report type (validation error at query param level)
@@ -301,7 +301,7 @@ class TestReportsEndpoints:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     async def test_export_missing_dates_for_income_statement(self, client: AsyncClient, db, test_user: User):
-        """Test exporting income statement without required dates."""
+        """AC5.5.2: Test exporting income statement without required dates."""
         # GIVEN missing start_date and end_date
         # WHEN calling export endpoint for income statement
         response = await client.get("/reports/export?report_type=income-statement&format=csv")
@@ -310,7 +310,7 @@ class TestReportsEndpoints:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_unauthenticated_access(self, public_client: AsyncClient, test_user: User):
-        """Test that unauthenticated clients cannot access reports endpoints."""
+        """AC5.5.3: Test that unauthenticated clients cannot access reports endpoints."""
         # GIVEN unauthenticated client
         # WHEN calling any reports endpoint
         response = await public_client.get("/reports/balance-sheet")
@@ -319,7 +319,8 @@ class TestReportsEndpoints:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_user_isolation(self, client: AsyncClient, db, test_user: User):
-        """Test that users can only access their own reports data."""
+        """AC5.5.4: Test that users can only access their own reports data."""
+
         # GIVEN account belonging to different user
         other_user = User(email="other@example.com", hashed_password="hashed")
         db.add(other_user)

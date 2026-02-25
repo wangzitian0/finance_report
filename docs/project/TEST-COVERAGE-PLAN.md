@@ -19,9 +19,11 @@
 | **Schemas** | 90.0% | 24L | ✅ Good |
 | **Constants** | 100% | 0L | ✅ Complete |
 | **Services** | 18.7% | 2,214L | ❌ Critical gap |
-| **Routers** | 0.0% | 929L | ❌ No coverage |
+| **Routers** | 0.0% (pre-Phase 2 baseline) | 929L | ❌ No coverage in baseline |
 | **Utils** | 0.0% | 23L | ❌ No coverage |
 | **Infrastructure** | 25.4% | 444L | ❌ Low coverage |
+
+> Note: "Current" values above represent the pre-Phase 2 baseline. This PR adds substantial router tests (journal/reconciliation/reports/statements), so actual router coverage is higher; see the latest coverage report for up-to-date numbers.
 
 ---
 

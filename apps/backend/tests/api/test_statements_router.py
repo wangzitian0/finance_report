@@ -104,7 +104,7 @@ async def wait_for_background_tasks() -> None:
 
 
 async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """Uploading the same file twice should trigger duplicate detection."""
+    """AC3.5.4: Uploading the same file twice should trigger duplicate detection."""
     content = b"duplicate-statement"
 
     async def fake_parse_document(
@@ -160,7 +160,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
 
 
 async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_user):
-    """Storage failure should return 503."""
+    """AC3.5.5: Storage failure should return 503."""
     content = b"content"
 
     # Mock StorageService to raise StorageError
@@ -189,7 +189,7 @@ async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_
 
 
 async def test_upload_invalid_extension(db, test_user):
-    """Invalid file extension should return 400."""
+    """AC3.5.6: Invalid file extension should return 400."""
     content = b"content"
     upload_file = make_upload_file("statement.exe", content)
 
@@ -209,7 +209,7 @@ async def test_upload_invalid_extension(db, test_user):
 
 
 async def test_upload_requires_model_for_pdf(db, test_user):
-    """PDF/image uploads must include a model selection."""
+    """AC3.5.7: PDF/image uploads must include a model selection."""
     upload_file = make_upload_file("statement.pdf", b"content")
 
     with pytest.raises(HTTPException) as exc:
@@ -228,7 +228,7 @@ async def test_upload_requires_model_for_pdf(db, test_user):
 
 
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
-    """Upload rejects models without image modalities."""
+    """AC3.5.8: Upload rejects models without image modalities."""
 
     async def fake_get_model_info(model_id: str):
         return {"id": model_id, "input_modalities": ["text"]}
@@ -253,7 +253,8 @@ async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
 
 
 async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """Upload then list statements and transactions."""
+    """AC3.5.9: Upload then list statements and transactions."""
+
     content = b"statement-flow"
 
     async def fake_parse_document(
@@ -321,7 +322,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
 
 async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """Review queue filters by confidence and supports approve/reject."""
+    """AC3.5.10: Review queue filters by confidence and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
     score_by_hash = {
@@ -398,7 +399,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
 
 
 async def test_get_statement_not_found(db, test_user):
-    """Missing statement returns 404."""
+    """AC3.5.11: Missing statement returns 404."""
     with pytest.raises(HTTPException) as exc:
         await statements_router.get_statement(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
@@ -409,7 +410,7 @@ async def test_get_statement_not_found(db, test_user):
 
 
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
-    """File exceeding 10MB limit returns 413."""
+    """AC3.5.12: File exceeding 10MB limit returns 413."""
     content = b"x" * (10 * 1024 * 1024 + 1)
     upload_file = make_upload_file("large-statement.pdf", content)
 
@@ -429,7 +430,7 @@ async def test_upload_file_too_large(db, model_catalog_stub, test_user):
 
 
 async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, test_user):
-    """Extraction failure marks statement as rejected."""
+    """AC3.5.13: Extraction failure marks statement as rejected."""
     content = b"content"
 
     mock_storage = MagicMock()
@@ -486,7 +487,7 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
 
 
 async def test_retry_statement_not_found(db, test_user):
-    """Retry on missing statement returns 404."""
+    """AC3.5.14: Retry on missing statement returns 404."""
     from src.schemas import RetryParsingRequest
 
     with pytest.raises(HTTPException) as exc:
@@ -500,7 +501,7 @@ async def test_retry_statement_not_found(db, test_user):
 
 
 async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
-    """Retry rejects models without image modalities."""
+    """AC3.5.15: Retry rejects models without image modalities."""
     from src.schemas import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
@@ -526,7 +527,7 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
 
 
 async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
-    """Retry returns 503 if storage fetch fails."""
+    """AC3.5.16: Retry returns 503 if storage fetch fails."""
     from src.schemas import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
@@ -552,7 +553,7 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
 
 
 async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """Retry on statement not in parsed/rejected status returns 400."""
+    """AC3.5.17: Retry on statement not in parsed/rejected status returns 400."""
     from src.schemas import RetryParsingRequest
 
     content = b"statement"
@@ -611,7 +612,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
 
 
 async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, test_user):
-    """Verify that retrying a statement in PARSING status is allowed."""
+    """AC3.5.18: Verify that retrying a statement in PARSING status is allowed."""
     from unittest.mock import patch
     from uuid import uuid4
 
@@ -644,7 +645,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
 
 
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """Retry parsing with stronger model succeeds."""
+    """AC3.5.19: Retry parsing with stronger model succeeds."""
     from src.schemas import RetryParsingRequest
 
     content = b"statement"
@@ -713,7 +714,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
 
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """Retry extraction failure returns 422."""
+    """AC3.5.20: Retry extraction failure returns 422."""
     from src.schemas import RetryParsingRequest
 
     content = b"statement"
@@ -794,7 +795,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
 
 
 async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stub, monkeypatch):
-    """Upload rejects models not in the OpenRouter catalog."""
+    """AC3.5.21: Upload rejects models not in the OpenRouter catalog."""
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)
 
@@ -818,7 +819,7 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
 
 
 async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub, monkeypatch):
-    """Upload returns 503 if model catalog fetch fails."""
+    """AC3.5.22: Upload returns 503 if model catalog fetch fails."""
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)
 
@@ -844,7 +845,7 @@ async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub,
 
 
 async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, storage_stub):
-    """Retry returns 503 if model catalog fetch fails."""
+    """AC3.5.23: Retry returns 503 if model catalog fetch fails."""
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
@@ -872,7 +873,7 @@ async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, s
 
 
 async def test_background_parse_error_logging(db, monkeypatch, test_user, storage_stub):
-    """Background parse error should be caught and logged."""
+    """AC3.5.24: Background parse error should be caught and logged."""
     content = b"content"
 
     async def fake_parse_document_fail(*args, **kwargs):
@@ -912,7 +913,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
 
 
 async def test_background_retry_error_logging(db, monkeypatch, test_user, storage_stub):
-    """Background retry error should be caught and logged."""
+    """AC3.5.25: Background retry error should be caught and logged."""
     statement = build_statement(test_user.id, "hash_retry", 80)
     statement.status = BankStatementStatus.REJECTED
     statement.file_path = "path"

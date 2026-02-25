@@ -10,11 +10,13 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
+from unittest.mock import AsyncMock, patch
+
 from src.schemas.ai_models import AIModelCatalogResponse
 
 
 async def test_list_models(client: AsyncClient):
-    """Test listing all AI models."""
+    """AC6.11.1: Test listing all AI models."""
     # WHEN: List all models
     response = await client.get("/ai/models")
 
@@ -32,7 +34,7 @@ async def test_list_models(client: AsyncClient):
 
 
 async def test_list_models_with_modality_filter(client: AsyncClient):
-    """Test filtering models by modality."""
+    """AC6.11.2: Test filtering models by modality."""
     # WHEN: List models with modality filter
     response = await client.get("/ai/models?modality=text")
 
@@ -44,7 +46,7 @@ async def test_list_models_with_modality_filter(client: AsyncClient):
 
 
 async def test_list_models_with_free_only_filter(client: AsyncClient):
-    """Test filtering models by free_only."""
+    """AC6.11.3: Test filtering models by free_only."""
     # WHEN: List models with free_only filter
     response = await client.get("/ai/models?free_only=true")
 
@@ -56,7 +58,7 @@ async def test_list_models_with_free_only_filter(client: AsyncClient):
 
 
 async def test_list_models_with_both_filters(client: AsyncClient):
-    """Test filtering models with both modality and free_only filters."""
+    """AC6.11.4: Test filtering models with both modality and free_only filters."""
     # WHEN: List models with both filters
     response = await client.get("/ai/models?modality=text&free_only=true")
 
@@ -67,8 +69,18 @@ async def test_list_models_with_both_filters(client: AsyncClient):
     # Models should be filtered by both modality and free_only
 
 
-async def test_list_models_error_handling(client: AsyncClient):
-    """Test error handling when model catalog is unavailable."""
-    # This test would require mocking the fetch_model_catalog service
-    # For now, we'll skip it as it requires service mocking
-    pytest.skip("Requires service mocking for fetch_model_catalog")
+@patch("src.routers.ai_models.fetch_model_catalog")
+async def test_list_models_error_handling(mock_fetch: AsyncMock, client: AsyncClient):
+    """AC6.11.5: Test error handling when model catalog is unavailable."""
+    # GIVEN: fetch_model_catalog raises an exception
+    mock_fetch.side_effect = Exception("Catalog service unavailable")
+
+    # WHEN: List models
+    response = await client.get("/ai/models")
+
+    # THEN: Returns 503 Service Unavailable
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    data = response.json()
+    assert "Model catalog unavailable" in data["detail"]
+    assert mock_fetch.called
+
