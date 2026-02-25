@@ -293,7 +293,6 @@ async def find_transfer_pairs(
                     in_entries.append(entry)
                 break
 
-
     # Limit entries to prevent O(n²) performance degradation with large datasets
     out_entries = out_entries[:max_entries]
     in_entries = in_entries[:max_entries]
