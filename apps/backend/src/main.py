@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
@@ -43,11 +43,7 @@ logger = get_logger(__name__)
 
 
 def _init_otel_instrumentation() -> None:
-    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX.
-
-    This enables distributed tracing across HTTP requests, database queries,
-    and external API calls without manual code instrumentation.
-    """
+    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX."""
     if not settings.otel_exporter_otlp_endpoint:
         return
 
@@ -73,7 +69,7 @@ _init_otel_instrumentation()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan (startup/shutdown)."""
-    # Environment variable check
+    # Initialize environment
     if not await Bootloader.validate(mode=BootMode.CRITICAL):
         logger.critical("Bootloader failed, exiting")
         import sys
@@ -202,21 +198,16 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
         except Exception:
             checks["database"] = False
 
-        # Use a fresh bootloader for detailed checks
-        boot = Bootloader(mode=BootMode.DRY_RUN)
-
         # Redis
-        redis_res = await boot._check_redis()
+        redis_res = await Bootloader._check_redis()
         checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
 
         # S3
-        s3_res = await boot._check_s3()
+        s3_res = await Bootloader._check_s3()
         checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
 
         all_healthy = all(checks.values())
-        # Only DB is critical for readiness in some environments
-        is_ready = checks["database"]
-        status_code = 200 if is_ready else 503
+        status_code = 200 if all_healthy else 503
 
         return JSONResponse(
             status_code=status_code,
@@ -233,7 +224,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
         return JSONResponse(
             status_code=503,
             content={
-                "status": "error",
+                "status": "unhealthy",
                 "timestamp": datetime.now(UTC).isoformat(),
                 "error": str(e),
             },

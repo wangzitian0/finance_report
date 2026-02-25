@@ -1,6 +1,6 @@
 """PingState model for demo."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,13 +16,11 @@ class PingState(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     state: Mapped[str] = mapped_column(String(10), default="ping")
     toggle_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(UTC),
+        nullable=True,
     )
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
-        onupdate=lambda: datetime.now(UTC),
     )
