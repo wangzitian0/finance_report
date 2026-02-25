@@ -34,55 +34,42 @@
 | **Parallel Execution** | pytest-xdist (auto workers) | `moon.yml` test-execution |
 | **Database Lifecycle** | Auto-create/cleanup via context manager | `scripts/test_lifecycle.py` |
 
-### Test Organization
+### Test Organization (Domain-Based)
+
+Tests are organized by domain matching the source structure:
 
 ```
 tests/
 ├── conftest.py          # Shared fixtures (db, client, test_user)
-├── accounting/          # 8 test files
-├── ai/                 # 6 test files
-├── api/                 # 4 test files
-├── assets/              # 3 test files
-├── auth/                # 4 test files
+├── fixtures/            # Factory patterns
+├── accounting/          # 19 test files
+├── reconciliation/      # 7 test files
 ├── extraction/          # 11 test files
-├── infra/               # 8 test files
+├── auth/                # 4 test files
+├── ai/                  # 6 test files
+├── assets/              # 3 test files
+├── api/                 # 4 test files
+├── reporting/           # 5 test files
 ├── market_data/         # 1 test file
-├── reconciliation/      # 6 test files
-└── reporting/           # 5 test files
+├── infra/               # 8 test files
+├── services/            # Service tests
+├── unit/                # Pure utility tests
+└── e2e/                 # End-to-end UI tests
 ```
 
-**Total**: 56 test files in domain directories + 29 utility/coverage-boost files
-
-### Current Coverage Exclusions
-
-From `pyproject.toml` `[tool.coverage.run]`:
-```python
-omit = [
-    "src/__init__.py",
-    "src/models/__init__.py",
-    "src/schemas/__init__.py",
-    "src/schemas/user.py",
-    "src/services/__init__.py",
-    "src/routers/__init__.py",
-    "src/routers/users.py",
-    "src/services/extraction.py",  # ← Only integration tests
-    "src/prompts/*",            # ← AI prompts (non-code)
-    "src/main.py",
-    "src/env_smoke_test.py",
-    "src/env_check.py",
-]
-```
+**Total**: ~100 test files organized by feature domain
 
 ### Test Execution Modes
 
-| Marker | Description | Usage |
-|---------|-------------|---------|
-| `slow` | Performance tests, long-running | Default: excluded (`-m 'not slow'`) |
-| `perf` | Production-like performance validation | Manual only |
-| `integration` | External API calls | Default: excluded (`-m 'not integration'`) |
-| `e2e` | Playwright end-to-end tests | Separate: `moon run :test -- --e2e` |
+| Command | Description |
+|---------|-------------|
+| `moon run :test` | Run all tests (default, 99% coverage) |
+| `moon run :test -- --fast` | TDD mode (no coverage, fastest) |
+| `moon run :test -- --smart` | Coverage on changed files only |
+| `moon run :test -- --e2e` | E2E tests (Playwright) |
+| `moon run :test -- tests/accounting/` | Run specific module tests |
+| `moon run :test -- tests/accounting/test_journal_service.py` | Run specific file |
 
----
 
 ## Test Case Numbering System (ACx.y.z)
 

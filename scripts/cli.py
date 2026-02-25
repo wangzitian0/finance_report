@@ -87,11 +87,9 @@ def cmd_test(args, extra_args: list[str]):
     if args.frontend:
         run(["npm", "run", "test"] + extra_args, cwd=FRONTEND_DIR)
         return
-    
     if args.e2e:
         run(["uv", "run", "pytest", "-m", "e2e", "tests/e2e/"] + extra_args, cwd=BACKEND_DIR)
         return
-    
     if args.perf:
         run([
             "uv", "run", "locust", "-f", "tests/locustfile.py",
@@ -100,7 +98,9 @@ def cmd_test(args, extra_args: list[str]):
         ], cwd=BACKEND_DIR)
         return
     
-    # Default: use test_lifecycle.py
+    if extra_args and extra_args[0].startswith("tests/"):
+        run(["uv", "run", "pytest"] + extra_args, cwd=BACKEND_DIR)
+        return
     lifecycle_args = []
     if args.fast:
         lifecycle_args.append("--fast")
@@ -108,7 +108,6 @@ def cmd_test(args, extra_args: list[str]):
         lifecycle_args.append("--smart")
     if args.ephemeral:
         lifecycle_args.append("--ephemeral")
-    
     lifecycle_args.extend(extra_args)
     run(["python", "../../scripts/test_lifecycle.py"] + lifecycle_args, cwd=BACKEND_DIR)
 
@@ -175,7 +174,7 @@ def main():
     p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
     p_test.add_argument("--smart", action="store_true", help="Coverage on changed files")
     p_test.add_argument("--ephemeral", action="store_true", help="Ephemeral mode: destroy all infra after run")
-    p_test.add_argument("--e2e", action="store_true", help="E2E tests")
+    p_test.add_argument("--e2e", action="store_true", help="E2E tests (Playwright)")
     p_test.add_argument("--perf", action="store_true", help="Performance tests")
     p_test.add_argument("--frontend", action="store_true", help="Frontend tests")
 
