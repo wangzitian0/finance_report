@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
@@ -56,13 +56,9 @@ def _init_otel_instrumentation() -> None:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
-        # Instrument FastAPI
+        # Global instrumentation
         FastAPIInstrumentor.instrument()
-
-        # Instrument SQLAlchemy
         SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
-
-        # Instrument HTTPX
         HTTPXClientInstrumentor().instrument()
 
         logger.info("OpenTelemetry auto-instrumentation initialized")
@@ -77,7 +73,7 @@ _init_otel_instrumentation()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan (startup/shutdown)."""
-    # Initialize environment
+    # Environment variable check
     if not await Bootloader.validate(mode=BootMode.CRITICAL):
         logger.critical("Bootloader failed, exiting")
         import sys
@@ -206,12 +202,15 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
         except Exception:
             checks["database"] = False
 
+        # Use a fresh bootloader for detailed checks
+        boot = Bootloader(mode=BootMode.DRY_RUN)
+        
         # Redis
-        redis_res = await Bootloader._check_redis()
+        redis_res = await boot._check_redis()
         checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
 
         # S3
-        s3_res = await Bootloader._check_s3()
+        s3_res = await boot._check_s3()
         checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
 
         all_healthy = all(checks.values())
