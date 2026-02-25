@@ -141,6 +141,10 @@ jobs:
           submodules: recursive
           fetch-depth: 0  # moon 2.x needs full history for VCS diffing
       
+      - name: Fetch submodule PR refs
+        run: |
+          cd repo && git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
+      
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
         with:
