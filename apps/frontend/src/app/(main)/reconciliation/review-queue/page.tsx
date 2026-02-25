@@ -347,7 +347,7 @@ export default function Stage2ReviewQueuePage() {
                                                     <span className="badge badge-warning">{match.status}</span>
                                                 </td>
                                                 <td className="px-4 py-2 text-muted">
-                                                    {new Date(match.created_at).toLocaleDateString()}
+                                                    {match.created_at ? new Date(match.created_at).toLocaleDateString() : "—"}
                                                 </td>
                                             </tr>
                                         ))}
