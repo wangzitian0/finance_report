@@ -12,6 +12,23 @@ import { BankStatement, BankStatementTransaction } from "@/lib/types";
 const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export default function StatementDetailPage() {
+    const { showToast } = useToast();
+    const params = useParams();
+    const statementId = params.id as string;
+
+    const [statement, setStatement] = useState<BankStatement | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [retryLoading, setRetryLoading] = useState(false);
+    const [polling, setPolling] = useState(false);
+    const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+    const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
+    const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
+    
+    // Dialog states
+    const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
     const fetchStatement = useCallback(async () => {
         try {
