@@ -11,6 +11,7 @@ venv/
 .coverage
 coverage.xml
 coverage.lcov
+coverage.json
 htmlcov/
 
 # pytest

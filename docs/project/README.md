@@ -23,20 +23,21 @@ This section contains:
 - [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 Complete, P1 Pending)
 
 **TODO**
-- Processing Virtual Account — Internal clearing account for in-transit/unconfirmed funds (see vision.md Decision 5). Needs new EPIC.
+
 - Two-Stage Review Workflow — Confidence-based auto-accept (>=85) / manual review (60-84) / reject (<60) pipeline (see vision.md Decision 4). Needs new EPIC or extend EPIC-003.
 - Wealthfolio CSV Export — Export confirmed transactions to Wealthfolio-compatible format for portfolio tracking integration (see vision.md Decision 1). Needs new EPIC or extend EPIC-011.
 - source_type Priority Logic — Conflict resolution when multiple sources report different values for the same transaction (see vision.md Decision 6). Extend EPIC-013 or EPIC-004.
 - Confirmation Workflow SSOT — Code uses `pending_review` status across 7 files (review_queue, reconciliation, ai_advisor, routers) but no SSOT document defines the confirmation/review workflow. Needs `docs/ssot/confirmation.md` or extend `reconciliation.md`.
 
 **Done**
-- [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
-- [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
-- [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing
-- [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching
-- [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
-- [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
-- [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
+ [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
+ [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
+ [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing
+ [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching
+ [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
+ [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
+ [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
+ [EPIC-015](./EPIC-015.processing-account.md) — Processing Account Integration
 
 ## 🎯 Active Projects (EPICs)
 
@@ -56,8 +57,9 @@ This section contains:
 | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation Libraries Enhancement | 🟡 In Progress | 0 | 2-3 weeks |
 | [EPIC-013](./EPIC-013.statement-parsing-v2.md) | Statement Parsing V2 | 🟡 In Progress | 2 | 3 weeks |
 | [EPIC-014](./EPIC-014.ttd-transformation.md) | TTD Transformation | 🟡 In Progress (P0 ✅) | 0 | 3-4 weeks |
+| [EPIC-015](./EPIC-015.processing-account.md) | Processing Account Integration | ✅ Complete | 3 | 2 weeks |
 
-**Total Duration**: 28-35 weeks  
+**Total Duration**: 30-37 weeks
 **Current Focus**: Phase 4 (Reporting & AI Features) plus deployment readiness, infrastructure hardening, and test-driven documentation
 
 ## 🗺️ EPIC Dependencies
@@ -75,6 +77,8 @@ graph LR
     E5 --> E11
     E3 --> E13[EPIC-013<br/>Statement Parsing V2]
     E8[EPIC-008<br/>Testing] --> E14[EPIC-014<br/>TTD Transformation]
+    E4 --> E15[EPIC-015<br/>Processing Account]
+    E2 --> E15
     
     style E1 fill:#90EE90
     style E2 fill:#90EE90
@@ -86,12 +90,13 @@ graph LR
     style E11 fill:#FFD700
     style E13 fill:#FFD700
     style E14 fill:#FFD700
+    style E15 fill:#90EE90
 ```
 
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
 **Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
 **Infrastructure Path**: EPIC-007 deploys completed features to production  
-**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting)
+**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation)
 
 ## 📖 Reading Guide
 
@@ -115,6 +120,7 @@ Check the relevant EPIC for your feature:
 - **Infrastructure**: [EPIC-012](./EPIC-012.foundation-libs.md)
 - **Deployment**: [EPIC-007](./EPIC-007.deployment.md)
 - **Asset Management**: [EPIC-011](./EPIC-011.asset-lifecycle.md)
+ **Processing Account**: [EPIC-015](./EPIC-015.processing-account.md)
 
 - **Statement Parsing V2**: [EPIC-013](./EPIC-013.statement-parsing-v2.md)
 - **TTD Transformation**: [EPIC-014](./EPIC-014.ttd-transformation.md)

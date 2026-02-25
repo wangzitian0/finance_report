@@ -125,6 +125,7 @@ jobs:
       
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
+        continue-on-error: true  # Don't fail CI if Coveralls is down
         with:
           file: coverage.lcov
           flag-name: backend
@@ -176,3 +177,17 @@ jobs:
         echo "Backend: ${{ needs.backend.result }}"
         echo "Coverage: ${{ needs.merge-coverage.result }}"
         echo "Frontend: ${{ needs.frontend.result }}"
+        # Critical jobs must succeed
+        if [[ "${{ needs.backend.result }}" != "success" ]]; then
+          echo "::error::Backend tests failed"
+          exit 1
+        fi
+        if [[ "${{ needs.frontend.result }}" != "success" ]]; then
+          echo "::error::Frontend build failed"
+          exit 1
+        fi
+
+        # Coverage upload is best-effort (external service)
+        if [[ "${{ needs.merge-coverage.result }}" != "success" ]]; then
+          echo "::warning::Coverage upload failed (non-blocking)"
+        fi

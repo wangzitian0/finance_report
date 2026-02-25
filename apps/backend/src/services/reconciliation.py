@@ -34,6 +34,12 @@ from src.models import (
     UploadedDocument,
 )
 from src.services.accounting import ValidationError, validate_journal_balance
+from src.services.processing_account import (
+    create_transfer_in_entry,
+    create_transfer_out_entry,
+    detect_transfer_pattern,
+    find_transfer_pairs,
+)
 
 logger = get_logger(__name__)
 
@@ -672,8 +678,112 @@ async def execute_matching(
         pattern_score_cache[token] = score
         return score
 
+    # Phase 1: Transfer Detection (BEFORE normal matching)
+    # Detect transfers and create Processing account entries per processing_account.md
+    for txn in transactions:
+        if txn.id in matched_txn_ids:
+            continue
+
+        # Detect transfer pattern (keywords-based detection)
+        if detect_transfer_pattern(txn):
+            try:
+                # Fetch statement to get account_id
+                stmt_result = await db.execute(select(BankStatement).where(BankStatement.id == txn.statement_id))
+                stmt = stmt_result.scalar_one()
+
+                # Skip transfer detection if statement has no linked account
+                if stmt.account_id is None:
+                    logger.warning(
+                        "Transfer detected but statement has no linked account - skipping Processing entry",
+                        txn_id=str(txn.id),
+                        statement_id=str(txn.statement_id),
+                    )
+                    continue
+                # Create Processing account entry based on direction
+                if txn.direction == "OUT":
+                    transfer_entry = await create_transfer_out_entry(
+                        db=db,
+                        user_id=user_id,
+                        source_account_id=stmt.account_id,
+                        amount=txn.amount,
+                        txn_date=txn.txn_date,
+                        description=txn.description,
+                    )
+                    matched_txn_ids.add(txn.id)
+
+                    # Create reconciliation match for transfer OUT
+                    match = ReconciliationMatch(
+                        bank_txn_id=txn.id if not settings.enable_4_layer_read else None,
+                        atomic_txn_id=txn.id if settings.enable_4_layer_read else None,
+                        journal_entry_ids=[str(transfer_entry.id)],
+                        match_score=100,  # Transfer detection is exact match
+                        score_breakdown={"transfer_out": 100.0},
+                        status=ReconciliationStatus.AUTO_ACCEPTED,
+                    )
+                    db.add(match)
+                    matches.append(match)
+
+                    if not settings.enable_4_layer_read:
+                        txn.status = BankStatementTransactionStatus.MATCHED
+                    if transfer_entry.status != JournalEntryStatus.VOID:
+                        transfer_entry.status = JournalEntryStatus.RECONCILED
+
+                    logger.info(
+                        "Transfer OUT detected and Processing entry created",
+                        txn_id=str(txn.id),
+                        entry_id=str(transfer_entry.id),
+                        amount=str(txn.amount),
+                    )
+                elif txn.direction == "IN":
+                    transfer_entry = await create_transfer_in_entry(
+                        db=db,
+                        user_id=user_id,
+                        dest_account_id=stmt.account_id,
+                        amount=txn.amount,
+                        txn_date=txn.txn_date,
+                        description=txn.description,
+                    )
+                    matched_txn_ids.add(txn.id)
+
+                    # Create reconciliation match for transfer IN
+                    match = ReconciliationMatch(
+                        bank_txn_id=txn.id if not settings.enable_4_layer_read else None,
+                        atomic_txn_id=txn.id if settings.enable_4_layer_read else None,
+                        journal_entry_ids=[str(transfer_entry.id)],
+                        match_score=100,  # Transfer detection is exact match
+                        score_breakdown={"transfer_in": 100.0},
+                        status=ReconciliationStatus.AUTO_ACCEPTED,
+                    )
+                    db.add(match)
+                    matches.append(match)
+
+                    if not settings.enable_4_layer_read:
+                        txn.status = BankStatementTransactionStatus.MATCHED
+                    if transfer_entry.status != JournalEntryStatus.VOID:
+                        transfer_entry.status = JournalEntryStatus.RECONCILED
+
+                    logger.info(
+                        "Transfer IN detected and Processing entry created",
+                        txn_id=str(txn.id),
+                        entry_id=str(transfer_entry.id),
+                        amount=str(txn.amount),
+                    )
+            except Exception as e:
+                logger.error(
+                    "Failed to create Processing account entry for transfer",
+                    txn_id=str(txn.id),
+                    direction=txn.direction,
+                    error=str(e),
+                )
+                # Continue to normal matching if transfer entry creation fails
+
+    # Many-to-one matching
+    # Skip transactions already matched in Phase 1 (transfer detection)
     groups = build_many_to_one_groups(transactions)
     for group in groups:
+        # Skip groups where all transactions are already matched (e.g., transfers)
+        if all(txn.id in matched_txn_ids for txn in group):
+            continue
         group_total = sum((txn.amount for txn in group), Decimal("0.00"))
         group_date = max(txn.txn_date for txn in group)
         candidates = get_candidates_for_date(group_date)
@@ -719,6 +829,8 @@ async def execute_matching(
                 else ReconciliationStatus.PENDING_REVIEW
             )
             for txn in group:
+                if txn.id in matched_txn_ids:
+                    continue
                 existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
                 if existing_match:
                     existing_je_ids = set(existing_match.journal_entry_ids or [])
@@ -757,6 +869,8 @@ async def execute_matching(
                     if not settings.enable_4_layer_read:
                         txn.status = BankStatementTransactionStatus.PENDING
 
+    # Phase 2: Normal Matching (existing logic)
+    # Skip transactions already matched in Phase 1 (transfer detection)
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
@@ -877,6 +991,24 @@ async def execute_matching(
         else:
             if not settings.enable_4_layer_read:
                 txn.status = BankStatementTransactionStatus.PENDING
+
+    # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
+    # Find and pair transfers automatically per processing_account.md
+    try:
+        transfer_pairs = await find_transfer_pairs(db, user_id, threshold=85)
+        if transfer_pairs:
+            logger.info(
+                "Auto-pairing complete",
+                user_id=str(user_id),
+                pairs_found=len(transfer_pairs),
+            )
+    except Exception as e:
+        logger.error(
+            "Failed to auto-pair transfers",
+            user_id=str(user_id),
+            error=str(e),
+        )
+        # Non-fatal error - continue with existing matches
 
     try:
         await db.flush()
