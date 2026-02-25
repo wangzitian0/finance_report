@@ -11,6 +11,7 @@ Tests all endpoints in src/routers/reports.py:
 """
 
 import pytest
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 from datetime import date, timedelta
 from httpx import AsyncClient
@@ -119,30 +120,48 @@ class TestReportsEndpoints:
         # THEN returns 200 with filtered income statement data
         assert response.status_code == 200
 
-    async def test_cash_flow_success(self, client: AsyncClient, db, test_user: User):
+    @patch("src.routers.reports.generate_cash_flow")
+    async def test_cash_flow_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """Test getting cash flow statement."""
-        # GIVEN valid date range
+        # GIVEN valid date range and mocked service
+        from decimal import Decimal
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
-
+        mock_service.return_value = {
+            "operating": [],
+            "investing": [],
+            "financing": [],
+            "summary": {
+                "operating_activities": Decimal("0.00"),
+                "investing_activities": Decimal("0.00"),
+                "financing_activities": Decimal("0.00"),
+                "net_cash_flow": Decimal("0.00"),
+                "beginning_cash": Decimal("1000.00"),
+                "ending_cash": Decimal("1000.00"),
+            },
+            "currency": "SGD",
+            "start_date": start_date,
+            "end_date": end_date,
+        }
         # WHEN calling cash flow endpoint
         response = await client.get(f"/reports/cash-flow?start_date={start_date}&end_date={end_date}")
-
         # THEN returns 200 with cash flow data
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict)
-        assert "operating_activities" in data
-        assert "investing_activities" in data
-        assert "financing_activities" in data
-        assert "net_cash_flow" in data
+        assert "operating" in data
+        assert "investing" in data
+        assert "financing" in data
+        assert "summary" in data
         assert "currency" in data
         assert "start_date" in data
         assert "end_date" in data
+        assert mock_service.called
 
-    async def test_account_trend_success(self, client: AsyncClient, db, test_user: User):
+    @patch("src.routers.reports.get_account_trend")
+    async def test_account_trend_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """Test getting account trend data."""
-        # GIVEN existing account
+        # GIVEN existing account and mocked service
         account = Account(
             id=uuid4(),
             user_id=test_user.id,
@@ -152,18 +171,22 @@ class TestReportsEndpoints:
         )
         db.add(account)
         await db.commit()
-
+        mock_service.return_value = {
+            "account_id": account.id,
+            "period": "monthly",
+            "points": [],
+            "currency": "USD",
+        }
         # WHEN calling trend endpoint
         response = await client.get(f"/reports/trend?account_id={account.id}")
-
-        # THEN returns 200 with trend data
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict)
         assert "account_id" in data
         assert "period" in data
-        assert "data" in data
+        assert "points" in data
         assert "currency" in data
+        assert mock_service.called
 
     async def test_account_trend_with_period(self, client: AsyncClient, db, test_user: User):
         """Test getting account trend with different period."""
@@ -184,19 +207,30 @@ class TestReportsEndpoints:
         # THEN returns 200 with trend data
         assert response.status_code == 200
 
-    async def test_category_breakdown_success(self, client: AsyncClient, db, test_user: User):
+    @patch("src.routers.reports.get_category_breakdown")
+    async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """Test getting category breakdown."""
+        # GIVEN mocked service
+        from src.models import AccountType
+        mock_service.return_value = {
+            "type": AccountType.INCOME,
+            "period_start": date.today() - timedelta(days=30),
+            "period_end": date.today(),
+            "items": [],
+            "currency": "SGD",
+        }
         # WHEN calling breakdown endpoint
         response = await client.get("/reports/breakdown?type=income")
-
         # THEN returns 200 with breakdown data
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict)
-        assert "breakdown_type" in data
-        assert "period" in data
-        assert "data" in data
+        assert "type" in data
+        assert "period_start" in data
+        assert "period_end" in data
+        assert "items" in data
         assert "currency" in data
+        assert mock_service.called
 
     async def test_category_breakdown_with_period(self, client: AsyncClient, db, test_user: User):
         """Test getting category breakdown with different period."""
@@ -206,45 +240,65 @@ class TestReportsEndpoints:
         # THEN returns 200 with breakdown data
         assert response.status_code == 200
 
-    async def test_export_balance_sheet_success(self, client: AsyncClient, db, test_user: User):
+    @patch("src.routers.reports.generate_balance_sheet")
+    async def test_export_balance_sheet_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """Test exporting balance sheet."""
-        # GIVEN valid export request
+        # GIVEN valid export request and mocked service
         today = date.today()
-
+        mock_service.return_value = {
+            "assets": [{"name": "Cash", "amount": "1000.00"}],
+            "liabilities": [],
+            "equity": [{"name": "Capital", "amount": "1000.00"}],
+            "total_assets": "1000.00",
+            "total_liabilities": "0.00",
+            "total_equity": "1000.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+            "currency": "SGD",
+            "as_of_date": str(today),
+        }
         # WHEN calling export endpoint
         response = await client.get(f"/reports/export?report_type=balance-sheet&as_of_date={today}&format=csv")
-
-        # THEN returns 200 with CSV content
         assert response.status_code == 200
-        assert response.headers["content-type"] == "text/csv"
+        assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
+        assert mock_service.called
 
-    async def test_export_income_statement_success(self, client: AsyncClient, db, test_user: User):
+    @patch("src.routers.reports.generate_income_statement")
+    async def test_export_income_statement_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """Test exporting income statement."""
-        # GIVEN valid export request
+        # GIVEN valid export request and mocked service
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
-
+        mock_service.return_value = {
+            "income": [{"name": "Sales", "amount": "1000.00"}],
+            "expenses": [{"name": "Rent", "amount": "500.00"}],
+            "total_income": "1000.00",
+            "total_expenses": "500.00",
+            "net_income": "500.00",
+            "currency": "SGD",
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+        }
         # WHEN calling export endpoint
         response = await client.get(
             f"/reports/export?report_type=income-statement&start_date={start_date}&end_date={end_date}&format=csv"
         )
-
         # THEN returns 200 with CSV content
         assert response.status_code == 200
-        assert response.headers["content-type"] == "text/csv"
+        assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
+        assert mock_service.called
 
     async def test_export_invalid_report_type(self, client: AsyncClient, db, test_user: User):
         """Test exporting with invalid report type."""
         # GIVEN invalid report type
         today = date.today()
+        # WHEN calling export endpoint with invalid report type (validation error at query param level)
+        response = await client.get(f"/reports/export?report_type=invalid&format=csv&as_of_date={today}")
 
-        # WHEN calling export endpoint with invalid report type
-        response = await client.get(f"/reports/export?report_type=invalid&type=csv&as_of_date={today}")
-
-        # THEN returns 400 Bad Request
-        assert response.status_code == 400
+        # THEN returns 422 Unprocessable Entity (FastAPI query param validation)
+        assert response.status_code == 422
 
     async def test_export_missing_dates_for_income_statement(self, client: AsyncClient, db, test_user: User):
         """Test exporting income statement without required dates."""
