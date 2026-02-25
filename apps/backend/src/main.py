@@ -23,7 +23,7 @@ from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
 from src.rate_limit import auth_rate_limiter, register_rate_limiter
-from src.routers import accounts, ai_models, assets, auth, chat, journal, reports, statements, users
+from src.routers import accounts, ai_models, assets, auth, chat, journal, reports, review, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
@@ -181,6 +181,7 @@ app.include_router(chat.router)
 app.include_router(journal.router)
 app.include_router(reports.router)
 app.include_router(statements.router)
+app.include_router(review.router)
 app.include_router(reconciliation_router)
 app.include_router(users.router)
 

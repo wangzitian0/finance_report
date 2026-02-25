@@ -1,13 +1,13 @@
 """Bank statement models for document extraction."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Date, Enum as SQLEnum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Date, DateTime, Enum as SQLEnum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -38,9 +38,18 @@ class BankStatementTransactionStatus(str, Enum):
 class ConfidenceLevel(str, Enum):
     """Confidence level for parsed data."""
 
-    HIGH = "high"  # >=85: Auto-accept
-    MEDIUM = "medium"  # 60-84: Review queue
-    LOW = "low"  # <60: Manual entry required
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class Stage1Status(str, Enum):
+    """Stage 1 review status for statements."""
+
+    PENDING_REVIEW = "pending_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EDITED = "edited"
 
 
 class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
@@ -75,6 +84,25 @@ class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     parsing_progress: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
     balance_validated: Mapped[bool | None] = mapped_column(default=None, nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    stage1_status: Mapped[Stage1Status | None] = mapped_column(
+        SQLEnum(Stage1Status, name="stage1_status_enum"),
+        nullable=True,
+        default=None,
+    )
+    balance_validation_result: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        default=None,
+    )
+    stage1_reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    manual_opening_balance: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+    )
 
     transactions: Mapped[list["BankStatementTransaction"]] = relationship(
         "BankStatementTransaction",
