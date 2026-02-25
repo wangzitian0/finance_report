@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import and_, desc, select
+from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -185,7 +185,7 @@ async def get_pending_stage1_review(
         select(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
-        .where((BankStatement.stage1_status.is_(None)) | (BankStatement.stage1_status == Stage1Status.PENDING_REVIEW))
+        .where(or_(BankStatement.stage1_status.is_(None), BankStatement.stage1_status == Stage1Status.PENDING_REVIEW))
         .order_by(BankStatement.created_at.desc())
         .limit(limit)
         .offset(offset)
