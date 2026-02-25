@@ -20,6 +20,11 @@ __pycache__/
 *.so
 .Python
 
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
 # PDF Fixtures: Input and Output directories
 scripts/pdf_fixtures/input/
 scripts/pdf_fixtures/output/
