@@ -140,6 +140,10 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0  # moon 2.x needs full history for VCS diffing
+
+      - name: Fetch submodule history for Moon VCS
+        run: |
+          git submodule foreach --recursive 'git fetch --depth=100 || git fetch --unshallow || true'
       
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
