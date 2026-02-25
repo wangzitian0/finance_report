@@ -294,7 +294,8 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     validate_journal_balance(entry.lines)
     validate_fx_rates(entry.lines)
 
-    # Validate Processing account usage (Anti-pattern A from processing_account.md)
+    # Validate system account usage (Anti-pattern A from processing_account.md).
+    # System accounts (e.g., Processing) can only be used by system-generated entries.
     for line in entry.lines:
         if line.account.is_system:
             if entry.source_type != JournalEntrySourceType.SYSTEM:

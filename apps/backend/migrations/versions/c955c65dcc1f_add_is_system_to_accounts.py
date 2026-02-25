@@ -11,8 +11,8 @@ depends_on = None
 
 def upgrade() -> None:
     # Add is_system column to accounts table.
-    # server_default=sa.false() ensures all existing rows get is_system=False
-    # during migration, so no separate backfill step is needed.
+    # Using server_default=sa.false() ensures existing rows are backfilled with is_system=False,
+    # making nullable=False safe for this migration (no separate backfill step needed).
     op.add_column("accounts", sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.false()))
 
 

@@ -187,24 +187,25 @@ def _score_date_proximity(date1: date, date2: date) -> float:
 def _calculate_pair_confidence(
     out_entry: JournalEntry,
     in_entry: JournalEntry,
+    processing_account_id: UUID | None = None,
 ) -> tuple[int, dict[str, float]]:
     """Calculate confidence score for transfer pair matching.
-
     Args:
         out_entry: Transfer OUT journal entry
         in_entry: Transfer IN journal entry
-
+        processing_account_id: Processing account ID for precise amount extraction.
+            If None, falls back to finding the first DEBIT line (legacy behavior).
     Returns:
         Tuple of (total_score, breakdown_dict)
     """
-    # Extract amounts from the Processing account line in each entry
-    # (system-generated transfer entries always have exactly one Processing line)
-    processing_account_id = None
-    for line in out_entry.lines:
-        if line.direction == Direction.DEBIT:
-            processing_account_id = line.account_id
-            break
-
+    # Extract amounts from the Processing account line in each entry.
+    # Use explicit processing_account_id when available for precision;
+    # fallback to first DEBIT line for backward compatibility.
+    if processing_account_id is None:
+        for line in out_entry.lines:
+            if line.direction == Direction.DEBIT:
+                processing_account_id = line.account_id
+                break
     out_amount = Decimal("0")
     in_amount = Decimal("0")
     for line in out_entry.lines:
@@ -246,17 +247,19 @@ async def find_transfer_pairs(
     db: AsyncSession,
     user_id: UUID,
     threshold: int = AUTO_PAIR_THRESHOLD,
+    max_entries: int = 500,
 ) -> list[TransferPair]:
     """Find matching transfer pairs based on confidence scoring.
-
-    This function searches for unpaired transfer entries in the Processing account
     and attempts to match them based on amount, description, and date proximity.
+    Note: The pairing algorithm is O(n²) where n = max(out_entries, in_entries).
+    The max_entries parameter limits the number of entries processed to prevent
+    performance degradation with high transaction volumes.
 
     Args:
         db: Database session
         user_id: User ID to search transfers for
         threshold: Minimum confidence score (default: 85)
-
+        max_entries: Maximum number of entries to process per side (default: 500)
     Returns:
         List of TransferPair objects with confidence >= threshold
     """
@@ -290,6 +293,11 @@ async def find_transfer_pairs(
                     in_entries.append(entry)
                 break
 
+
+    # Limit entries to prevent O(n²) performance degradation with large datasets
+    out_entries = out_entries[:max_entries]
+    in_entries = in_entries[:max_entries]
+
     # Find pairs with confidence >= threshold
     pairs: list[TransferPair] = []
     matched_in_entries: set[int] = set()  # Track already-matched IN entries
@@ -299,7 +307,7 @@ async def find_transfer_pairs(
             if id(in_entry) in matched_in_entries:
                 continue
 
-            confidence, breakdown = _calculate_pair_confidence(out_entry, in_entry)
+            confidence, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account.id)
             if confidence >= threshold:
                 pair = TransferPair(
                     out_entry=out_entry,
