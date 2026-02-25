@@ -80,12 +80,6 @@ repos:
         files: ^apps/frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
-# CI configuration
-ci:
-  autofix_prs: true
-  autofix_commit_msg: "style: auto-fix from pre-commit hooks"
-  autoupdate_schedule: monthly
-
   # Infrastructure submodule sync check
   - repo: local
     hooks:
@@ -95,3 +89,7 @@ ci:
         language: system
         pass_filenames: false
         always_run: true  # Check on every commit
+ci:
+  autofix_prs: true
+  autofix_commit_msg: "style: auto-fix from pre-commit hooks"
+  autoupdate_schedule: monthly
