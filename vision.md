@@ -97,15 +97,25 @@ Use this when choices are unclear:
 > Each decision follows **Problem → Choice → Result** format.
 > When future decisions are unclear, return here to check alignment.
 
-### Decision 1: Why Wealthfolio?
+### Decision 1: Portfolio Management Strategy (Updated 2026-02)
 
 **Problem**: Portfolio calculations are complex (IRR, time-weighted returns, multi-currency FX).
 
-**Choice**:
+**Original Choice (Deprecated)**:
 - ❌ Build our own → High effort, error-prone
 - ✅ Reuse [Wealthfolio](https://wealthfolio.app/) → Mature open-source solution, we focus on the data pipeline
+**Updated Choice (2026-02)**:
+- ✅ **100% Self-Developed** → Full integration with double-entry bookkeeping, custom UI, self-hosted
+- ❌ Wealthfolio integration → External dependency, data export friction
 
-**Result**: We only need to produce accurate Activity CSV; calculations are delegated to Wealthfolio.
+**Result**: Implement full-featured portfolio management in-house (EPIC-017):
+- Holdings dashboard with XIRR, time-weighted return, money-weighted return
+- Brokerage statement auto-parsing (Moomoo, Futu, Interactive Brokers)
+- Manual market price updates (user updates every few months)
+- Sector/geography/asset class allocation
+- Dividend tracking and cost basis methods (FIFO/LIFO/AvgCost)
+
+**Why the Change**: User requirement: "不应该有 wealthfolio 的概念了，100% 自研" (No Wealthfolio concept, 100% self-developed). Better integration with accounting system, full control over features and data.
 
 ### Decision 2: Why an Event Middle Layer?
 
