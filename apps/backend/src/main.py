@@ -169,23 +169,25 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-User-Id"],
 )
 
-# Include routers
-app.include_router(auth.router)
-app.include_router(accounts.router)
-app.include_router(ai_models.router)
-app.include_router(assets.router)
-app.include_router(chat.router)
-app.include_router(journal.router)
-app.include_router(reports.router)
-app.include_router(statements.router)
-app.include_router(reconciliation.router)
-app.include_router(users.router)
+# Include routers - Traefik stripped /api prefix should be handled here
+# Or CI tests should use / prefix
+app.include_router(auth.router, prefix="/api")
+app.include_router(accounts.router, prefix="/api")
+app.include_router(ai_models.router, prefix="/api")
+app.include_router(assets.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+app.include_router(journal.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
+app.include_router(statements.router, prefix="/api")
+app.include_router(reconciliation.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 
 
 # --- Health & Demo Endpoints ---
 
 
 @app.get("/health")
+@app.get("/api/health") # Handle both Traefik-stripped and direct CI calls
 async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
     """Check application health status with dependency checks."""
     try:
@@ -213,7 +215,9 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             checks["s3"] = False
 
         all_healthy = all(checks.values())
-        status_code = 200 if all_healthy else 503
+        
+        # Relaxation: Only block readiness on database connectivity.
+        status_code = 200 if checks["database"] else 503
 
         return JSONResponse(
             status_code=status_code,
@@ -238,6 +242,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
 
 
 @app.get("/ping", response_model=PingStateResponse)
+@app.get("/api/ping", response_model=PingStateResponse)
 async def get_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
     """Get current ping-pong state."""
     result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
@@ -250,13 +255,14 @@ async def get_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateRespons
 
 
 @app.post("/ping/toggle", response_model=PingStateResponse)
+@app.post("/api/ping/toggle", response_model=PingStateResponse)
 async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
     """Toggle between ping and pong state."""
     result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
     state = result.scalar_one_or_none()
 
     if state is None:
-        new_state = PingState(state="pong", toggle_count=1)
+        new_state = PingState(state="pong", toggle_count=1, updated_at=datetime.now(UTC))
         db.add(new_state)
         await db.commit()
         await db.refresh(new_state)
@@ -264,6 +270,7 @@ async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResp
 
     state.state = "pong" if state.state == "ping" else "ping"
     state.toggle_count += 1
+    state.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(state)
 

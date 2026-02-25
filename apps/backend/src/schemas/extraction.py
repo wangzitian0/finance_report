@@ -33,6 +33,7 @@ class BankStatementUploadRequest(BaseModel):
 class StatementDecisionRequest(BaseModel):
     """Review decision payload for approve/reject."""
 
+    decision: str | None = None
     notes: str | None = None
 
 
