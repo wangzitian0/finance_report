@@ -2,6 +2,7 @@
 
 from src.models.account import Account, AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.journal import (
     Direction,
     JournalEntry,
@@ -29,6 +30,7 @@ from src.models.statement import (
     BankStatementTransaction,
     BankStatementTransactionStatus,
     ConfidenceLevel,
+    Stage1Status,
 )
 from src.models.user import User
 
@@ -54,6 +56,9 @@ __all__ = [
     "ChatMessageRole",
     "ChatSession",
     "ChatSessionStatus",
+    "CheckStatus",
+    "CheckType",
+    "ConsistencyCheck",
     "ClassificationRule",
     "ClassificationStatus",
     "ConfidenceLevel",
@@ -74,6 +79,7 @@ __all__ = [
     "ReportType",
     "RuleType",
     "Statement",  # Alias for BankStatement
+    "Stage1Status",
     "TransactionClassification",
     "TransactionDirection",
     "UploadedDocument",

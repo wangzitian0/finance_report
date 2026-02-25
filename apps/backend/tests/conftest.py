@@ -202,6 +202,7 @@ async def db_engine(test_database_url):
         Account,
         BankStatement,
         BankStatementTransaction,
+        ConsistencyCheck,
         ChatMessage,
         ChatSession,
         FxRate,
