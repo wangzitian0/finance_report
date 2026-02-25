@@ -10,7 +10,7 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
-from src.schemas.ai_models import AIModel, AIModelCatalogResponse
+from src.schemas.ai_models import AIModelCatalogResponse
 
 
 async def test_list_models(client: AsyncClient):
