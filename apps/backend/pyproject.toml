@@ -111,8 +111,6 @@ omit = [
     "src/services/extraction.py",
     "src/prompts/*",
     "src/main.py",
-    "src/env_smoke_test.py",
-    "src/env_check.py",
 ]
 
 [tool.coverage.report]
