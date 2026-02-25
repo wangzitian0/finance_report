@@ -274,6 +274,14 @@ AI must use this cascade structure before processing tasks:
 **Operational Guidelines**:
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars. If Dokploy is not enough to debug, use `ssh root@$VPS_HOST`, **You can only read, not modify**.
 2. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
+3. **Infrastructure Submodule Sync (Critical)**: Before creating PR, verify `repo/` submodule points to latest `infra2` main:
+   ```bash
+   # Check submodule status
+   cd repo && git fetch origin main && git log --oneline -1 origin/main && git log --oneline -1 HEAD
+   # If behind, update:
+   cd repo && git checkout main && git pull && cd .. && git add repo
+   ```
+   **Why Critical**: Deployment configs (Vault, Compose) live in `repo/` submodule. PRs must use latest infrastructure definitions.
 
 ### Environment Variable Management
 
@@ -463,6 +471,21 @@ skills/
 
 ## 📅 Current Phase
 
-**Phase 0**: Infrastructure Setup (Moonrepo + Docker)
+**Current Focus**: Phase 3-5 (Two-Stage Review, Reporting & AI, Portfolio Management)
 
-See [docs/project/README.md](docs/project/README.md) for phased delivery status.
+- **Phase 3**: Two-Stage Review & Data Validation UI (Foundation for User Adoption)
+- **Phase 4**: Reporting & Visualization, AI Financial Advisor
+- **Phase 5**: Investment Portfolio Management (100% Self-Developed)
+
+**Note**: Phase 0 (Infrastructure Setup) is complete. See [docs/project/README.md](docs/project/README.md) for detailed phased delivery status.
+
+### Portfolio Management Strategy
+
+**EPIC-017** implements 100% self-developed portfolio management (replacing Wealthfolio integration):
+- Holdings dashboard with XIRR, time-weighted return, money-weighted return
+- Brokerage statement auto-parsing (Moomoo, Futu, Interactive Brokers)
+- Manual market price updates (user updates every few months)
+- Sector/geography/asset class allocation
+- Dividend tracking and cost basis methods (FIFO/LIFO/AvgCost)
+
+See [vision.md](vision.md) Decision 1 and [EPIC-017](docs/project/EPIC-017.portfolio-management.md) for details.

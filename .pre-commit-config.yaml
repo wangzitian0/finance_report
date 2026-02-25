@@ -85,3 +85,13 @@ ci:
   autofix_prs: true
   autofix_commit_msg: "style: auto-fix from pre-commit hooks"
   autoupdate_schedule: monthly
+
+  # Infrastructure submodule sync check
+  - repo: local
+    hooks:
+      - id: check-repo-submodule
+        name: Check repo/ submodule points to latest infra2 main
+        entry: bash scripts/check_repo_submodule.sh
+        language: system
+        pass_filenames: false
+        always_run: true  # Check on every commit

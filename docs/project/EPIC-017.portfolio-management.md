@@ -267,7 +267,7 @@ Build a **100% self-developed** investment portfolio management system with comp
 - [schema.md](../ssot/schema.md) — `atomic_positions`, `managed_positions`, database models
 - [accounting.md](../ssot/accounting.md) — Journal entry rules for investment transactions
 - [extraction.md](../ssot/extraction.md) — Statement parsing patterns (extend for brokerage)
-- [vision.md](../vision.md) Decision 1 — Portfolio management strategy (updated to 100% self-developed)
+- [vision.md](../../vision.md) Decision 1 — Portfolio management strategy (updated to 100% self-developed)
 
 ---
 

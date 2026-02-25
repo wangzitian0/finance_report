@@ -26,6 +26,7 @@ Personal financial management system featuring **double-entry bookkeeping**, **A
 - **Smart Reconciliation** — Fuzzy matching engine with 85%+ auto-accept accuracy
 - **Financial Reports** — Balance sheet, income statement, trend analysis
 - **Multi-Currency** — SGD base with FX rate support
+- **Portfolio Management** — Investment holdings tracking with XIRR, cost basis (FIFO/LIFO/AvgCost), sector allocation
 
 ## 🚀 Quick Start
 
