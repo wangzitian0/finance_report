@@ -1,24 +1,27 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
+import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 import structlog
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.boot import Bootloader, BootMode
 from src.config import settings
-from src.database import engine, init_db
-from src.deps import DbSession
+from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
+from src.rate_limit import auth_rate_limiter, register_rate_limiter
 from src.routers import (
     accounts,
     ai_models,
@@ -48,24 +51,30 @@ def _init_otel_instrumentation() -> None:
     if not settings.enable_otel:
         return
 
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
-    # Initialize auto-instrumentation
-    FastAPIInstrumentor.instrument_app(app)
-    SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
-    HTTPXClientInstrumentor().instrument()
+        # Instrument FastAPI
+        FastAPIInstrumentor.instrument()
 
-    logger.info("OpenTelemetry auto-instrumentation initialized")
+        # Instrument SQLAlchemy
+        SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
+
+        # Instrument HTTPX
+        HTTPXClientInstrumentor().instrument()
+
+        logger.info("OpenTelemetry auto-instrumentation initialized")
+    except Exception:
+        logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan (startup/shutdown)."""
     # Initialize environment
-    bootloader = Bootloader(mode=BootMode.CRITICAL)
-    if not await bootloader.run():
+    if not await Bootloader.validate(mode=BootMode.CRITICAL):
         logger.critical("Bootloader failed, exiting")
         import sys
 
@@ -75,7 +84,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
 
     # Start background workers
-    supervisor_task = asyncio.create_task(run_parsing_supervisor())
+    stop_event = asyncio.Event()
+    supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
 
     _init_otel_instrumentation()
 
@@ -83,9 +93,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     # Clean up
+    stop_event.set()
     supervisor_task.cancel()
     with suppress(asyncio.CancelledError):
         await supervisor_task
+
+    # Close rate limiters
+    auth_rate_limiter.close()
+    register_rate_limiter.close()
+
     await engine.dispose()
     logger.info("Application shutdown complete")
 
@@ -99,10 +115,15 @@ app = FastAPI(
 
 
 @app.middleware("http")
-async def add_process_time_header(request: Request, call_next: Any) -> Response:
+async def logging_middleware(request: Request, call_next: Any) -> Response:
     """Middleware to track request processing time and request IDs."""
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    structlog.contextvars.bind_contextvars(request_id=request_id)
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+    )
 
     start_time = time.perf_counter()
     try:
@@ -132,10 +153,13 @@ async def add_process_time_header(request: Request, call_next: Any) -> Response:
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all for unhandled exceptions to prevent internal details leak."""
     logger.exception("Unhandled exception", url=str(request.url))
+
+    detail = str(exc) if settings.debug else "An internal server error occurred."
+
     return JSONResponse(
         status_code=500,
         content={
-            "detail": "An internal server error occurred.",
+            "detail": detail,
             "request_id": structlog.contextvars.get_contextvars().get("request_id"),
         },
     )
@@ -168,24 +192,71 @@ app.include_router(users.router)
 
 
 @app.get("/health")
-async def health_check(db: DbSession):
-    """Health check endpoint for monitoring."""
+async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
+    """Check application health status with dependency checks."""
     try:
-        await db.execute(text("SELECT 1"))
-        return {"status": "ok", "timestamp": time.time()}
-    except Exception:
+        checks = {}
+
+        # DB
+        try:
+            await db.execute(text("SELECT 1"))
+            checks["database"] = True
+        except Exception:
+            checks["database"] = False
+
+        # Redis
+        redis_res = await Bootloader._check_redis()
+        checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
+
+        # S3
+        s3_res = await Bootloader._check_s3()
+        checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
+
+        all_healthy = all(checks.values())
+        status_code = 200 if all_healthy else 503
+
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "healthy" if all_healthy else "unhealthy",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "git_sha": os.getenv("GIT_COMMIT_SHA", "unknown"),
+                "checks": checks,
+                "version": settings.git_commit_sha,
+            },
+        )
+    except Exception as e:
         logger.exception("Health check failed")
-        raise HTTPException(status_code=503, detail="Database unreachable")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "error": str(e),
+            },
+        )
 
 
 @app.get("/ping", response_model=PingStateResponse)
-async def ping(db: DbSession):
-    """Ping endpoint to test DB connectivity and session management."""
-    result = await db.execute(select(PingState).limit(1))
+async def get_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
+    """Get current ping-pong state."""
+    result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
     state = result.scalar_one_or_none()
 
-    if not state:
-        new_state = PingState(state="ping", toggle_count=0)
+    if state is None:
+        return PingStateResponse(state="ping", toggle_count=0, updated_at=None)
+
+    return PingStateResponse.model_validate(state)
+
+
+@app.post("/ping/toggle", response_model=PingStateResponse)
+async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
+    """Toggle between ping and pong state."""
+    result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
+    state = result.scalar_one_or_none()
+
+    if state is None:
+        new_state = PingState(state="pong", toggle_count=1)
         db.add(new_state)
         await db.commit()
         await db.refresh(new_state)

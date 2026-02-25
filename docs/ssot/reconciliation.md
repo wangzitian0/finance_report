@@ -234,7 +234,7 @@ EPIC-016 introduces a two-stage review workflow before reconciliation:
 **Flow**:
 1. Parse statement → `status=PARSED`
 2. User reviews transactions with PDF preview
-3. Balance chain validation (tolerance: 0.01 USD)
+3. Balance chain validation (tolerance: 0.001 USD)
 4. Approve → `stage1_status=APPROVED`, `status=APPROVED`
 5. Reject → `stage1_status=REJECTED`, `status=REJECTED`
 
@@ -242,7 +242,7 @@ EPIC-016 introduces a two-stage review workflow before reconciliation:
 ```
 opening_delta = abs(stated_opening - derived_opening)
 closing_delta = abs(stated_closing - calculated_closing)
-valid = (opening_delta <= 0.01) AND (closing_delta <= 0.01)
+valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)
 ```
 
 **New Fields** (BankStatement):
@@ -283,12 +283,12 @@ pending --> flagged: Needs manual review
 | POST | `/statements/{id}/review/reject` | Reject and trigger re-parse |
 | POST | `/statements/{id}/review/edit` | Edit transactions and approve |
 | POST | `/statements/{id}/review/opening-balance` | Set manual opening balance |
-| GET | `/statements/stage2` | Stage 2 review queue (global) |
+| GET | `/statements/stage2/queue` | Stage 2 review queue (global) |
 | POST | `/statements/{id}/stage2/run-checks` | Run consistency checks for statement |
 | POST | `/statements/consistency-checks/{id}/resolve` | Resolve a check |
-| GET | `/statements/consistency-checks` | List/filter consistency checks |
-| POST | `/statements/batch-approve` | Batch approve matches |
-| POST | `/statements/batch-reject` | Batch reject matches |
+| GET | `/statements/consistency-checks/list` | List/filter consistency checks |
+| POST | `/statements/batch-approve-matches` | Batch approve matches |
+| POST | `/statements/batch-reject-matches` | Batch reject matches |
 
 ### Files
 
@@ -298,6 +298,6 @@ pending --> flagged: Needs manual review
 | Model | `apps/backend/src/models/consistency_check.py` |
 | Service | `apps/backend/src/services/statement_validation.py` |
 | Service | `apps/backend/src/services/consistency_checks.py` |
-| Router | `apps/backend/src/routers/review.py` |
+| Router | `apps/backend/src/routers/statements.py` |
 | Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |

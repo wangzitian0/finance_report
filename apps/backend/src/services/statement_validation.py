@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from src.models import BankStatement, BankStatementStatus
 from src.models.statement import Stage1Status
 
-BALANCE_TOLERANCE = Decimal("0.01")
+BALANCE_TOLERANCE = Decimal("0.001")
 
 
 async def validate_balance_chain(
