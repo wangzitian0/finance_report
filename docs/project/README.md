@@ -106,7 +106,7 @@ graph LR
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
 **Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
 **Infrastructure Path**: EPIC-007 deploys completed features to production  
-**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation), EPIC-016 (Two-Stage Review) is critical for user adoption, EPIC-017 (Portfolio) replaces Wealthfolio integration with 100% self-developed solution
+**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation), EPIC-016 (Two-Stage Review) is critical for user adoption, EPIC-017 (Portfolio) implements 100% self-developed solution
 
 ## 📖 Reading Guide
 

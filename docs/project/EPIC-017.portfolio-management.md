@@ -10,7 +10,7 @@
 
 ## 🎯 Objective
 
-Build a **100% self-developed** investment portfolio management system with comprehensive holdings tracking, performance metrics, and brokerage statement auto-parsing. This replaces the original Wealthfolio integration plan (vision.md Decision 1) with a fully integrated, self-hosted solution.
+Build a **100% self-developed** investment portfolio management system with comprehensive holdings tracking, performance metrics, and brokerage statement auto-parsing. This is a fully integrated, self-hosted solution.
 
 **Core Features**:
 - **Holdings Dashboard**: Ticker, quantity, cost basis, market value, P&L
@@ -300,7 +300,6 @@ Build a **100% self-developed** investment portfolio management system with comp
   - `PriceUpdateForm.tsx`
 
 ### Documentation
-- [ ] Update `vision.md` Decision 1 — Replace Wealthfolio integration with 100% self-developed
 - [ ] Update `docs/ssot/extraction.md` — Add brokerage statement parsing section
 - [ ] Update `README.md` — Add portfolio management feature description
 

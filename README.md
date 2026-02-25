@@ -73,7 +73,7 @@ moon run :build            # Build frontend
 moon run :clean            # Clean resources
 ```
 
-Backend tests enforce **>= 99%** line coverage. See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
+Backend tests enforce a **no-regression coverage policy** (coverage must not decrease from the previous baseline). See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
 
 **Multi-Repo Isolation**: Run tests in parallel across multiple repo copies:
 
@@ -85,10 +85,9 @@ moon run :test                                     # Auto-detect from git
 
 See [development.md](docs/ssot/development.md) for detailed workflows.
 
-## API Auth (MVP)
+## API Auth
 
-User-scoped endpoints require an `X-User-Id` header (UUID). See
-[authentication.md](docs/ssot/authentication.md) for details.
+The API uses **JWT (JSON Web Token)** with Bearer authentication. User-scoped requests require a valid token in the `Authorization` header. See [auth.md](docs/ssot/auth.md) for details.
 
 ## 📚 Documentation
 
