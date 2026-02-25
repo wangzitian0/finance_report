@@ -80,6 +80,9 @@ def _track_task(task: asyncio.Task[None]) -> None:
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
 
 
+# --- Schemas for Two-Stage Review ---
+
+
 class ConsistencyCheckResponse(BaseModel):
     id: UUID
     check_type: CheckType
@@ -117,6 +120,9 @@ class Stage2ReviewQueueResponse(BaseModel):
     pending_matches: list[dict]
     consistency_checks: list[ConsistencyCheckResponse]
     has_unresolved_checks: bool
+
+
+# --- Helper functions ---
 
 
 async def _handle_parse_failure(
@@ -288,6 +294,9 @@ async def _parse_statement_background(
             await _handle_parse_failure(statement, session, message=f"Finalize failed: {exc}")
 
 
+# --- Core Endpoints ---
+
+
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
@@ -423,7 +432,7 @@ async def retry_statement_parsing(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> BankStatementResponse:
-    """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
+    """Retry parsing with a different model."""
     model_override = request.model if request else None
 
     result = await db.execute(
@@ -456,17 +465,11 @@ async def retry_statement_parsing(
         if not model_matches_modality(model_info, "image"):
             raise_bad_request("Selected model does not support image/PDF inputs.")
 
-    # Reset status to PARSING before starting background task
     statement.status = BankStatementStatus.PARSING
     statement.validation_error = None
     await db.commit()
     await db.refresh(statement)
 
-    # Need file content for some vision models if URL fails or for consistency
-    # But retry currently doesn't have the original 'content' bytes in memory.
-    # It must fetch from storage or use URL.
-    # The _parse_statement_background requires 'content: bytes'.
-    # We'll fetch it from storage now.
     try:
         storage = StorageService()
         content = await run_in_threadpool(storage.get_object, statement.file_path)
@@ -490,7 +493,6 @@ async def retry_statement_parsing(
     )
     _track_task(task)
 
-    # Re-fetch statement with transactions to avoid MissingGreenlet error during Pydantic validation
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement.id).options(selectinload(BankStatement.transactions))
     )
@@ -691,7 +693,6 @@ async def delete_statement(
                 error_id=ErrorIds.STORAGE_DELETE_FAILED,
                 file_path=statement.file_path,
             )
-            # Proceed to delete from DB to avoid zombie record
 
     await db.delete(statement)
     await db.commit()
@@ -706,6 +707,7 @@ async def get_statement_for_review(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> StatementReviewResponse:
+    """Get Stage 1 review data for a statement."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
@@ -754,6 +756,7 @@ async def approve_statement_stage1(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
+    """Stage 1: Approve statement with balance validation."""
     try:
         await approve_statement_svc(db, statement_id, user_id)
         await db.commit()
@@ -774,6 +777,7 @@ async def reject_statement_stage1(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
+    """Stage 1: Reject statement."""
     try:
         await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
         await db.commit()
@@ -794,6 +798,7 @@ async def edit_and_approve_statement(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
+    """Stage 1: Edit transactions and approve."""
     edits_data = [{"txn_id": e.txn_id, **e.model_dump(exclude={"txn_id"})} for e in request.edits]
     try:
         await edit_and_approve(db, statement_id, user_id, edits_data)
@@ -815,6 +820,7 @@ async def set_statement_opening_balance(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
+    """Set manual opening balance override."""
     try:
         await set_opening_balance(db, statement_id, user_id, request.opening_balance)
         await db.commit()
@@ -833,6 +839,7 @@ async def get_stage2_review_queue(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> Stage2ReviewQueueResponse:
+    """Stage 2: Get review queue (matches + checks)."""
     matches_result = await db.execute(
         select(ReconciliationMatch)
         .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
@@ -869,6 +876,7 @@ async def run_stage2_checks(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ConsistencyCheckListResponse:
+    """Run consistency checks for a statement."""
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
     )
@@ -892,6 +900,7 @@ async def resolve_consistency_check(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ConsistencyCheckResponse:
+    """Resolve a consistency check."""
     try:
         check = await resolve_check(db, check_id, request.action, user_id, request.note)
         await db.commit()
@@ -910,6 +919,7 @@ async def list_consistency_checks(
     limit: int = 50,
     offset: int = 0,
 ) -> ConsistencyCheckListResponse:
+    """List/filter consistency checks."""
     query = (
         select(ConsistencyCheck)
         .where(ConsistencyCheck.user_id == user_id)
@@ -945,6 +955,7 @@ async def batch_approve_matches(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> dict:
+    """Batch approve matches (blocked by unresolved checks)."""
     if await has_unresolved_checks(db, user_id):
         return {
             "success": False,
@@ -987,6 +998,7 @@ async def batch_reject_matches(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> dict:
+    """Batch reject matches."""
     if not request.match_ids:
         return {"success": True, "rejected_count": 0}
 
