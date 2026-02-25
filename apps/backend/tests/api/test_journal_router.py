@@ -332,19 +332,16 @@ async def test_void_journal_entry(
     assert data["status"] == "posted"  # Reversal entry is POSTED
     assert "VOID:" in data["memo"]  # Reversal has VOID: prefix
 
-    # Save IDs before expiring (need them to refetch)
-    posted_entry_id = posted_entry.id
-    draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
-    draft_entry_id = draft_entry.id if draft_entry else None
-    db.expire_all()  # Force reload from DB (void operation committed in router)
+    # Force refresh from database to see changes
+    await db.refresh(posted_entry)
     # Verify original entry was marked VOID in database
-    result = await db.execute(select(JournalEntry).where(JournalEntry.id == posted_entry_id))
-    original_entry = result.scalar_one()
-    assert original_entry.status == JournalEntryStatus.VOID  # Original marked VOID
-    assert original_entry.void_reason == "Test void reason"
-    if draft_entry_id:
+    assert posted_entry.status == JournalEntryStatus.VOID  # Original marked VOID
+    assert posted_entry.void_reason == "Test void reason"
+    # Test voiding draft entry (should fail)
+    draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
+    if draft_entry:
         response = await client.post(
-            f"/journal-entries/{draft_entry_id}/void",
+            f"/journal-entries/{draft_entry.id}/void",
             json=void_request,
         )
         assert response.status_code == 400
