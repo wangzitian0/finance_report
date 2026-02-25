@@ -1,10 +1,14 @@
-"""Router tests for reports API endpoints.
+"""AC5.1-AC5.5: Financial reports API router tests.
 
-Tests all endpoints in src/routers/reports.py:
+Tests all endpoints in src/routers/reports.py covering:
+- AC5.1: Balance sheet endpoint (GET /reports/balance-sheet)
+- AC5.2: Income statement endpoint (GET /reports/income-statement)
+- AC5.3: Cash flow endpoint (GET /reports/cash-flow)
+- AC5.4: FX rates and currency conversion
+- AC5.5: Error handling and validation
+
+Additional endpoints:
 - GET /reports/currencies - Get available currencies
-- GET /reports/balance-sheet - Get balance sheet
-- GET /reports/income-statement - Get income statement
-- GET /reports/cash-flow - Get cash flow statement
 - GET /reports/trend - Get account trend data
 - GET /reports/breakdown - Get category breakdown
 - GET /reports/export - Export reports in CSV format
@@ -29,7 +33,7 @@ class TestReportsEndpoints:
         response = await client.get("/reports/currencies")
 
         # THEN returns 200 with currency list
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         currencies = response.json()
         assert isinstance(currencies, list)
         assert len(currencies) > 0
@@ -43,7 +47,7 @@ class TestReportsEndpoints:
         response = await client.get(f"/reports/balance-sheet?as_of_date={today}")
 
         # THEN returns 200 with balance sheet data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, dict)
         assert "assets" in data
@@ -67,7 +71,7 @@ class TestReportsEndpoints:
         response = await client.get(f"/reports/balance-sheet?as_of_date={today}&currency={currency}")
 
         # THEN returns 200 with balance sheet data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["currency"] == currency
 
@@ -81,7 +85,7 @@ class TestReportsEndpoints:
         response = await client.get(f"/reports/income-statement?start_date={start_date}&end_date={end_date}")
 
         # THEN returns 200 with income statement data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, dict)
         assert "income" in data
@@ -108,7 +112,7 @@ class TestReportsEndpoints:
         )
 
         # THEN returns 200 with filtered income statement data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
 
     @patch("src.routers.reports.generate_cash_flow")
     async def test_cash_flow_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
@@ -137,7 +141,7 @@ class TestReportsEndpoints:
         # WHEN calling cash flow endpoint
         response = await client.get(f"/reports/cash-flow?start_date={start_date}&end_date={end_date}")
         # THEN returns 200 with cash flow data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, dict)
         assert "operating" in data
@@ -170,7 +174,7 @@ class TestReportsEndpoints:
         }
         # WHEN calling trend endpoint
         response = await client.get(f"/reports/trend?account_id={account.id}")
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, dict)
         assert "account_id" in data
@@ -196,7 +200,7 @@ class TestReportsEndpoints:
         response = await client.get(f"/reports/trend?account_id={account.id}&period=weekly")
 
         # THEN returns 200 with trend data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
 
     @patch("src.routers.reports.get_category_breakdown")
     async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
@@ -214,7 +218,7 @@ class TestReportsEndpoints:
         # WHEN calling breakdown endpoint
         response = await client.get("/reports/breakdown?type=income")
         # THEN returns 200 with breakdown data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, dict)
         assert "type" in data
@@ -230,7 +234,7 @@ class TestReportsEndpoints:
         response = await client.get("/reports/breakdown?type=expense&period=quarterly")
 
         # THEN returns 200 with breakdown data
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
 
     @patch("src.routers.reports.generate_balance_sheet")
     async def test_export_balance_sheet_success(
@@ -253,7 +257,7 @@ class TestReportsEndpoints:
         }
         # WHEN calling export endpoint
         response = await client.get(f"/reports/export?report_type=balance-sheet&as_of_date={today}&format=csv")
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
         assert mock_service.called
@@ -281,7 +285,7 @@ class TestReportsEndpoints:
             f"/reports/export?report_type=income-statement&start_date={start_date}&end_date={end_date}&format=csv"
         )
         # THEN returns 200 with CSV content
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
         assert mock_service.called
@@ -294,7 +298,7 @@ class TestReportsEndpoints:
         response = await client.get(f"/reports/export?report_type=invalid&format=csv&as_of_date={today}")
 
         # THEN returns 422 Unprocessable Entity (FastAPI query param validation)
-        assert response.status_code == 422
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     async def test_export_missing_dates_for_income_statement(self, client: AsyncClient, db, test_user: User):
         """Test exporting income statement without required dates."""
@@ -303,7 +307,7 @@ class TestReportsEndpoints:
         response = await client.get("/reports/export?report_type=income-statement&format=csv")
 
         # THEN returns 400 Bad Request
-        assert response.status_code == 400
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_unauthenticated_access(self, public_client: AsyncClient, test_user: User):
         """Test that unauthenticated clients cannot access reports endpoints."""
@@ -312,7 +316,7 @@ class TestReportsEndpoints:
         response = await public_client.get("/reports/balance-sheet")
 
         # THEN returns 401 Unauthorized
-        assert response.status_code == 401
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     async def test_user_isolation(self, client: AsyncClient, db, test_user: User):
         """Test that users can only access their own reports data."""

@@ -1,6 +1,13 @@
-"""Router tests for reconciliation API endpoints.
+"""AC4.3: Reconciliation API router tests for review queue and status management.
 
-Tests all endpoints in src/routers/reconciliation.py:
+Tests all endpoints in src/routers/reconciliation.py covering:
+- AC4.1: Matching core (POST /reconciliation/run)
+- AC4.2: Group matching and batch operations
+- AC4.3: Review queue and status management
+- AC4.4: Performance optimization
+- AC4.5: Anomaly detection
+
+Endpoints:
 - POST /reconciliation/run - Run reconciliation matching
 - GET /reconciliation/matches - List matches with status filter
 - GET /reconciliation/pending - List pending review queue
@@ -305,9 +312,6 @@ class TestReconciliationEndpoints:
     async def test_reconciliation_stats_success(self, client: AsyncClient, db, test_user: User):
         """Test getting reconciliation statistics."""
         # GIVEN a user with transactions (setup handled by fixtures)
-
-        # WHEN calling stats endpoint
-        response = await client.get("/reconciliation/stats")
 
         # WHEN calling stats endpoint
         response = await client.get("/reconciliation/stats")

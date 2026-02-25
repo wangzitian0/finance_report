@@ -1,8 +1,20 @@
+"""AC2.7: Journal entry API router tests.
+
+Tests all endpoints in src/routers/journal.py covering:
+- POST /journal-entries - Create journal entry
+- GET /journal-entries - List journal entries with filters
+- GET /journal-entries/{id} - Get specific entry
+- POST /journal-entries/{id}/post - Post draft entry
+- POST /journal-entries/{id}/void - Void posted entry
+- DELETE /journal-entries/{id} - Delete draft entry
+"""
+
 from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,7 +134,6 @@ async def test_entries(db: AsyncSession, test_user: User, test_accounts: list[Ac
     return entries
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry(
     client: AsyncClient,
     db: AsyncSession,
@@ -155,7 +166,7 @@ async def test_create_journal_entry(
     response = await client.post("/journal-entries", json=entry_data)
 
     # THEN: Entry created successfully
-    assert response.status_code == 201
+    assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["id"] is not None
     assert data["entry_date"] == "2023-01-15"
@@ -172,7 +183,6 @@ async def test_create_journal_entry(
     assert entry.memo == "Test entry"
 
 
-@pytest.mark.asyncio
 async def test_create_unbalanced_entry(
     client: AsyncClient,
     db: AsyncSession,
@@ -199,11 +209,9 @@ async def test_create_unbalanced_entry(
     response = await client.post("/journal-entries", json=invalid_data)
 
     # THEN: Request rejected
-    assert response.status_code == 422  # Pydantic validation (min_length=2 for lines)
-    # Schema validation rejects before reaching balance check
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY  # Pydantic validation
 
 
-@pytest.mark.asyncio
 async def test_list_journal_entries(
     client: AsyncClient,
     db: AsyncSession,
@@ -217,14 +225,14 @@ async def test_list_journal_entries(
     response = await client.get("/journal-entries")
 
     # THEN: Entries returned
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["total"] >= len(test_entries)
     assert len(data["items"]) > 0
 
     # Test filtering by status
     response = await client.get("/journal-entries?status_filter=draft")
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["total"] >= 1
     assert all(item["status"] == "draft" for item in data["items"])
@@ -233,18 +241,17 @@ async def test_list_journal_entries(
     start_date = date(2023, 1, 1)
     end_date = date(2023, 12, 31)
     response = await client.get(f"/journal-entries?start_date={start_date}&end_date={end_date}")
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["total"] >= 1
 
     # Test pagination
     response = await client.get("/journal-entries?limit=1&offset=0")
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data["items"]) <= 1
 
 
-@pytest.mark.asyncio
 async def test_get_journal_entry(
     client: AsyncClient,
     db: AsyncSession,
@@ -259,7 +266,7 @@ async def test_get_journal_entry(
     response = await client.get(f"/journal-entries/{entry.id}")
 
     # THEN: Entry returned
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["id"] == str(entry.id)
     assert data["memo"] == entry.memo
@@ -267,10 +274,9 @@ async def test_get_journal_entry(
     # Test getting non-existent entry
     non_existent_id = uuid4()
     response = await client.get(f"/journal-entries/{non_existent_id}")
-    assert response.status_code == 404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-@pytest.mark.asyncio
 async def test_post_journal_entry(
     client: AsyncClient,
     db: AsyncSession,
@@ -286,7 +292,7 @@ async def test_post_journal_entry(
     response = await client.post(f"/journal-entries/{draft_entry.id}/post")
 
     # THEN: Entry posted successfully
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["status"] == "posted"
 
@@ -297,16 +303,15 @@ async def test_post_journal_entry(
 
     # Test posting already posted entry
     response = await client.post(f"/journal-entries/{draft_entry.id}/post")
-    assert response.status_code == 400
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "draft" in response.json()["detail"].lower()  # Error mentions draft requirement
 
     # Test posting non-existent entry
     non_existent_id = uuid4()
     response = await client.post(f"/journal-entries/{non_existent_id}/post")
-    assert response.status_code == 400  # Service returns ValidationError (400), not 404
+    assert response.status_code == status.HTTP_400_BAD_REQUEST  # Service ValidationError, not 404
 
 
-@pytest.mark.asyncio
 async def test_void_journal_entry(
     client: AsyncClient,
     db: AsyncSession,
@@ -326,7 +331,7 @@ async def test_void_journal_entry(
     )
 
     # THEN: Entry voided successfully
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     # void_journal_entry returns the REVERSAL entry (POSTED), not original (VOID)
     assert data["status"] == "posted"  # Reversal entry is POSTED
@@ -337,6 +342,7 @@ async def test_void_journal_entry(
     # Verify original entry was marked VOID in database
     assert posted_entry.status == JournalEntryStatus.VOID  # Original marked VOID
     assert posted_entry.void_reason == "Test void reason"
+    assert posted_entry.void_reversal_entry_id is not None  # Reversal entry ID set
     # Test voiding draft entry (should fail)
     draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
     if draft_entry:
@@ -344,17 +350,16 @@ async def test_void_journal_entry(
             f"/journal-entries/{draft_entry.id}/void",
             json=void_request,
         )
-        assert response.status_code == 400
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "posted" in response.json()["detail"].lower()
     non_existent_id = uuid4()
     response = await client.post(
         f"/journal-entries/{non_existent_id}/void",
         json=void_request,
     )
-    assert response.status_code == 400  # Service ValidationError, not 404
+    assert response.status_code == status.HTTP_400_BAD_REQUEST  # Service ValidationError
 
 
-@pytest.mark.asyncio
 async def test_delete_journal_entry(
     client: AsyncClient,
     db: AsyncSession,
@@ -399,7 +404,7 @@ async def test_delete_journal_entry(
     response = await client.delete(f"/journal-entries/{draft_id}")
 
     # THEN: Entry deleted successfully
-    assert response.status_code == 204
+    assert response.status_code == status.HTTP_204_NO_CONTENT
 
     # Verify in database
     result = await db.execute(select(JournalEntry).where(JournalEntry.id == draft_id))
@@ -408,9 +413,9 @@ async def test_delete_journal_entry(
 
     # Test deleting already deleted entry
     response = await client.delete(f"/journal-entries/{draft_id}")
-    assert response.status_code == 404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
 
     # Test deleting non-existent entry
     non_existent_id = uuid4()
     response = await client.delete(f"/journal-entries/{non_existent_id}")
-    assert response.status_code == 404
+    assert response.status_code == status.HTTP_404_NOT_FOUND

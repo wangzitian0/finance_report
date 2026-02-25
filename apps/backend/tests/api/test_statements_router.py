@@ -1,8 +1,14 @@
-"""AC3.5.4 - AC3.5.4: Statements Router Tests
+"""AC3.5: Statements API router tests.
 
-These tests validate statement upload, duplicate detection, model selection,
-file size limits, review queue management, and various error paths
-including storage failures, retry mechanisms, and status transitions.
+Tests all endpoints in src/routers/statements.py covering:
+- POST /statements/upload - Upload statement
+- GET /statements - List statements
+- GET /statements/{id} - Get statement details
+- GET /statements/{id}/transactions - List statement transactions
+- GET /statements/pending-review - List statements pending review
+- POST /statements/{id}/approve - Approve statement
+- POST /statements/{id}/reject - Reject statement
+- POST /statements/{id}/retry - Retry statement parsing
 """
 
 from __future__ import annotations
@@ -14,11 +20,13 @@ from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException, UploadFile, status
 
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers import statements as statements_router
 from src.schemas import StatementDecisionRequest
+
+pytestmark = pytest.mark.asyncio
 
 
 class DummyStorage:
@@ -95,10 +103,8 @@ async def wait_for_background_tasks() -> None:
     await statements_router.wait_for_parse_tasks()
 
 
-@pytest.mark.asyncio
 async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """Uploading the same file twice should trigger duplicate detection."""
-    content = b"duplicate-statement"
     content = b"duplicate-statement"
 
     async def fake_parse_document(
@@ -150,10 +156,9 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
         )
     await upload_file_dup.close()
 
-    assert exc.value.status_code == 409
+    assert exc.value.status_code == status.HTTP_409_CONFLICT
 
 
-@pytest.mark.asyncio
 async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_user):
     """Storage failure should return 503."""
     content = b"content"
@@ -179,11 +184,10 @@ async def test_upload_storage_failure(db, monkeypatch, model_catalog_stub, test_
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 503
+    assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert "S3 Down" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_upload_invalid_extension(db, test_user):
     """Invalid file extension should return 400."""
     content = b"content"
@@ -200,11 +204,10 @@ async def test_upload_invalid_extension(db, test_user):
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Unsupported file type" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_upload_requires_model_for_pdf(db, test_user):
     """PDF/image uploads must include a model selection."""
     upload_file = make_upload_file("statement.pdf", b"content")
@@ -220,11 +223,10 @@ async def test_upload_requires_model_for_pdf(db, test_user):
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "AI model is required" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
     """Upload rejects models without image modalities."""
 
@@ -246,15 +248,13 @@ async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "does not support image/PDF inputs" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """Upload then list statements and transactions."""
     content = b"statement-flow"
-    hashlib.sha256(content).hexdigest()
 
     async def fake_parse_document(
         self,
@@ -320,7 +320,6 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
     assert txns.items[0].description == "Salary"
 
 
-@pytest.mark.asyncio
 async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """Review queue filters by confidence and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
@@ -398,7 +397,6 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     assert rejected.status == BankStatementStatus.REJECTED
 
 
-@pytest.mark.asyncio
 async def test_get_statement_not_found(db, test_user):
     """Missing statement returns 404."""
     with pytest.raises(HTTPException) as exc:
@@ -407,10 +405,9 @@ async def test_get_statement_not_found(db, test_user):
             db=db,
             user_id=test_user.id,
         )
-    assert exc.value.status_code == 404
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
 
-@pytest.mark.asyncio
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
     """File exceeding 10MB limit returns 413."""
     content = b"x" * (10 * 1024 * 1024 + 1)
@@ -427,11 +424,10 @@ async def test_upload_file_too_large(db, model_catalog_stub, test_user):
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 413
+    assert exc.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
     assert "10MB" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, test_user):
     """Extraction failure marks statement as rejected."""
     content = b"content"
@@ -489,7 +485,6 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
     assert statement.status == BankStatementStatus.REJECTED
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_not_found(db, test_user):
     """Retry on missing statement returns 404."""
     from src.schemas import RetryParsingRequest
@@ -501,10 +496,9 @@ async def test_retry_statement_not_found(db, test_user):
             db=db,
             user_id=test_user.id,
         )
-    assert exc.value.status_code == 404
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
 
-@pytest.mark.asyncio
 async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
     """Retry rejects models without image modalities."""
     from src.schemas import RetryParsingRequest
@@ -527,11 +521,10 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
             user_id=test_user.id,
         )
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "does not support image/PDF inputs" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
     """Retry returns 503 if storage fetch fails."""
     from src.schemas import RetryParsingRequest
@@ -554,11 +547,10 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
             user_id=test_user.id,
         )
 
-    assert exc.value.status_code == 503
+    assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert "Failed to fetch file from storage" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """Retry on statement not in parsed/rejected status returns 400."""
     from src.schemas import RetryParsingRequest
@@ -614,11 +606,10 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
             db=db,
             user_id=test_user.id,
         )
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "stuck parsing statements" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, test_user):
     """Verify that retrying a statement in PARSING status is allowed."""
     from unittest.mock import patch
@@ -652,7 +643,6 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
         assert resp.status == BankStatementStatus.PARSING
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """Retry parsing with stronger model succeeds."""
     from src.schemas import RetryParsingRequest
@@ -722,7 +712,6 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
     )
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """Retry extraction failure returns 422."""
     from src.schemas import RetryParsingRequest
@@ -804,7 +793,6 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     assert resp.status == BankStatementStatus.PARSING
 
 
-@pytest.mark.asyncio
 async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stub, monkeypatch):
     """Upload rejects models not in the OpenRouter catalog."""
     content = b"some content"
@@ -825,11 +813,10 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Invalid model selection" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub, monkeypatch):
     """Upload returns 503 if model catalog fetch fails."""
     content = b"some content"
@@ -852,11 +839,10 @@ async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub,
         )
     await upload_file.close()
 
-    assert exc.value.status_code == 503
+    assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert "Model catalog unavailable" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, storage_stub):
     """Retry returns 503 if model catalog fetch fails."""
     statement = build_statement(test_user.id, "hash", 80)
@@ -881,11 +867,10 @@ async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, s
             user_id=test_user.id,
         )
 
-    assert exc.value.status_code == 503
+    assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert "Model catalog unavailable" in exc.value.detail
 
 
-@pytest.mark.asyncio
 async def test_background_parse_error_logging(db, monkeypatch, test_user, storage_stub):
     """Background parse error should be caught and logged."""
     content = b"content"
@@ -926,7 +911,6 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
     assert statement is not None
 
 
-@pytest.mark.asyncio
 async def test_background_retry_error_logging(db, monkeypatch, test_user, storage_stub):
     """Background retry error should be caught and logged."""
     statement = build_statement(test_user.id, "hash_retry", 80)
