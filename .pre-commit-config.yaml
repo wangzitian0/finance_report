@@ -80,7 +80,15 @@ repos:
         files: ^apps/frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
-# CI configuration
+  # Infrastructure submodule sync check
+  - repo: local
+    hooks:
+      - id: check-repo-submodule
+        name: Check repo/ submodule points to latest infra2 main
+        entry: bash scripts/check_repo_submodule.sh
+        language: system
+        pass_filenames: false
+        always_run: true  # Check on every commit
 ci:
   autofix_prs: true
   autofix_commit_msg: "style: auto-fix from pre-commit hooks"
