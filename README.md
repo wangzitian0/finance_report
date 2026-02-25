@@ -73,7 +73,7 @@ moon run :build            # Build frontend
 moon run :clean            # Clean resources
 ```
 
-Backend tests enforce a **no-regression coverage policy** (coverage must not decrease from the previous baseline). See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
+Backend tests run with coverage enabled, and coverage is monitored as part of the TDD workflow. See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
 
 **Multi-Repo Isolation**: Run tests in parallel across multiple repo copies:
 

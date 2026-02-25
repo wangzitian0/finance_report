@@ -404,7 +404,7 @@ def test_database(ephemeral=False):
 
     log("🛠  Setting up test database...", YELLOW)
     # Always try to drop with FORCE to handle active connections from previous interrupted runs
-    subprocess.run(
+    drop_res = subprocess.run(
         [
             runtime,
             "exec",
@@ -416,7 +416,10 @@ def test_database(ephemeral=False):
             f"DROP DATABASE IF EXISTS \"{test_db_name}\" WITH (FORCE);",
         ],
         capture_output=True,
+        text=True,
     )
+    if drop_res.returncode != 0:
+        log(f"   Warning: DROP DATABASE failed (might be expected if DB doesn't exist): {drop_res.stderr.strip()}", YELLOW)
 
     subprocess.run(
         [
@@ -430,6 +433,8 @@ def test_database(ephemeral=False):
             f"CREATE DATABASE \"{test_db_name}\";",
         ],
         check=True,
+        capture_output=True,
+        text=True,
     )
     log(f"   Created '{test_db_name}' database.", GREEN)
 

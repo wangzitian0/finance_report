@@ -31,8 +31,8 @@
 |------------|--------------|------------|
 | **Test Framework** | pytest + pytest-asyncio + pytest-cov | `apps/backend/pyproject.toml` |
 | **Coverage Tool** | pytest-cov with XML + terminal reports | `pyproject.toml` `[tool.pytest.ini_options]` |
-| **Local Threshold** | No decrease (baseline check) | `apps/backend/pyproject.toml` |
-| **CI Threshold** | No decrease / 99% Target (post-merge validation) | `.github/workflows/ci.yml` |
+| **Local Threshold** | 99% (target, enforced via pyproject.toml) | `apps/backend/pyproject.toml` |
+| **CI Threshold** | Monitored (post-merge validation) | `.github/workflows/ci.yml` |
 | **Parallel Execution** | pytest-xdist (4 workers local, auto in CI) | `moon.yml` test-execution |
 | **Database Lifecycle** | Auto-create/cleanup via context manager | `scripts/test_lifecycle.py` |
 
