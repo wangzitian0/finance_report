@@ -1,6 +1,6 @@
 import pytest
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from uuid import uuid4
 
 from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
@@ -83,6 +83,8 @@ class TestValidateBalanceChain:
             original_filename="test.pdf",
             institution="Test Bank",
             currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("1100.0009"),
             status=BankStatementStatus.PARSED,
@@ -116,6 +118,8 @@ class TestValidateBalanceChain:
             original_filename="test.pdf",
             institution="Test Bank",
             currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("1100.01"),
             status=BankStatementStatus.PARSED,
@@ -149,6 +153,8 @@ class TestValidateBalanceChain:
             original_filename="test.pdf",
             institution="Test Bank",
             currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
             opening_balance=Decimal("0.00"),
             closing_balance=Decimal("150.00"),
             manual_opening_balance=Decimal("100.00"),
@@ -193,6 +199,8 @@ class TestApproveStatement:
             original_filename="test.pdf",
             institution="Test Bank",
             currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("2000.00"),
             status=BankStatementStatus.PARSED,
