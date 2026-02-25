@@ -41,10 +41,10 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 For new developers joining the project:
 
 1. **[development.md](./development.md)** — Setup your environment and understand the build/test workflow
-2. **[tdd.md](./tdd.md)** — Learn Test-Driven Development workflow and coverage requirements (99%)
-3. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
+2. **[tdd.md](./tdd.md)** — Learn Test-Driven Development workflow and coverage requirements
+3. **[auth.md](./auth.md)** — **MIDDLEWARE ONE** — Learn the mandatory JWT/OAuth2 identity system
 4. **[schema.md](./schema.md)** — Understand the database structure
-5. **[auth.md](./auth.md)** — Learn how auth and registration works
+5. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
 6. **[frontend-patterns.md](./frontend-patterns.md)** — React/Next.js patterns and SSR handling
 7. **[accounting.md](./accounting.md)** — Learn the double-entry bookkeeping model
 8. **[extraction.md](./extraction.md)** — See how bank statements are parsed
@@ -57,8 +57,8 @@ For new developers joining the project:
 ```mermaid
 flowchart TD
     development[development.md<br/>Development Setup] --> tdd[tdd.md<br/>TDD Workflow]
-    tdd --> schema[schema.md<br/>Database Schema]
-    schema --> auth[auth.md<br/>Authentication]
+    tdd --> auth[auth.md<br/>Authentication]
+    auth --> schema[schema.md<br/>Database Schema]
     schema --> accounting[accounting.md<br/>Accounting Rules]
     schema --> extraction[extraction.md<br/>Statement Parsing]
     schema --> reconciliation[reconciliation.md<br/>Reconciliation Engine]
@@ -74,6 +74,7 @@ flowchart TD
     
     style development fill:#e1f5ff
     style tdd fill:#ffe0b2
+    style auth fill:#ffccbc
     style schema fill:#fff3e0
     style accounting fill:#f3e5f5
 ```

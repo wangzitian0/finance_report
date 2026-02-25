@@ -52,7 +52,7 @@ text-gray-500
 All API calls must use `apiFetch` or `apiUpload` from `lib/api.ts`:
 
 - **NO Direct `fetch()`**: Never use native fetch for `/api/*` calls
-- **X-User-Id**: Auto-injected from local storage
+- **Authorization**: Auto-injected `Bearer <token>` from local storage
 - **Absolute URLs**: Use `APP_URL` constant
 
 ### Security

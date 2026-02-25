@@ -53,7 +53,7 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 
 **Rules:**
 - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
-- **X-User-Id**: The utility automatically injects the `X-User-Id` header from local storage.
+- **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 
 ## 5. Security & Authentication
