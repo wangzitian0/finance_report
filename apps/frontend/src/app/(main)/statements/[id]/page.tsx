@@ -9,6 +9,8 @@ import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
 
+const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
 export default function StatementDetailPage() {
     const { showToast } = useToast();
     const params = useParams();
@@ -27,8 +29,6 @@ export default function StatementDetailPage() {
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-
-    const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
     const fetchStatement = useCallback(async () => {
         try {
