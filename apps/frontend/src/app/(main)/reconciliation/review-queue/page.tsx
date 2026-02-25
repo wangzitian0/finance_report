@@ -43,7 +43,7 @@ export default function Stage2ReviewQueuePage() {
 
     const fetchData = useCallback(async () => {
         try {
-            const result = await apiFetch<Stage2Data>("/api/statements/stage2");
+            const result = await apiFetch<Stage2Data>("/api/statements/stage2/queue");
             setData(result);
             setError(null);
         } catch (err) {
@@ -88,7 +88,7 @@ export default function Stage2ReviewQueuePage() {
         setActionLoading(true);
         try {
             const result = await apiFetch<{ success: boolean; approved_count: number; error?: string }>(
-                "/api/statements/batch-approve",
+                "/api/statements/batch-approve-matches",
                 {
                     method: "POST",
                     body: JSON.stringify({ match_ids: Array.from(selectedMatches) }),
@@ -114,7 +114,7 @@ export default function Stage2ReviewQueuePage() {
         setActionLoading(true);
         try {
             const result = await apiFetch<{ success: boolean; rejected_count: number }>(
-                "/api/statements/batch-reject",
+                "/api/statements/batch-reject-matches",
                 {
                     method: "POST",
                     body: JSON.stringify({ match_ids: Array.from(selectedMatches) }),

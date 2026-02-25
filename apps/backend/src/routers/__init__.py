@@ -9,7 +9,6 @@ from . import (
     journal,
     reconciliation,
     reports,
-    review,
     statements,
     users,
 )
@@ -23,7 +22,6 @@ __all__ = [
     "journal",
     "reconciliation",
     "reports",
-    "review",
     "statements",
     "users",
 ]
