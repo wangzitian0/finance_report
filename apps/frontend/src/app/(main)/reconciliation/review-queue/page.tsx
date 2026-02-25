@@ -246,7 +246,7 @@ export default function Stage2ReviewQueuePage() {
                                             <span className="badge badge-muted">{getCheckTypeLabel(check.check_type)}</span>
                                         </div>
                                         <p className="text-sm text-muted truncate">
-                                            {check.details.message || JSON.stringify(check.details)}
+                                            {(check.details.message as string | undefined) || JSON.stringify(check.details)}
                                         </p>
                                         <p className="text-xs text-muted mt-1">
                                             {new Date(check.created_at).toLocaleString()}
