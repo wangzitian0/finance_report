@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.models.statement import Stage1Status
 from src.schemas.extraction import (
     BankStatementResponse,
+    BankStatementStatusEnum,
     BankStatementTransactionResponse,
 )
 
@@ -39,7 +40,7 @@ class StatementReviewResponse(BaseModel):
     period_end: date | None
     opening_balance: Decimal | None
     closing_balance: Decimal | None
-    status: str
+    status: BankStatementStatusEnum
     confidence_score: int | None
     parsing_progress: int | None = 0
     balance_validated: bool | None

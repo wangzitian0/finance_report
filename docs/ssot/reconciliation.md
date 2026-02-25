@@ -240,13 +240,14 @@ EPIC-016 introduces a two-stage review workflow before reconciliation:
 
 **Balance Validation Logic**:
 ```
+opening_delta = abs(stated_opening - derived_opening)
 closing_delta = abs(stated_closing - calculated_closing)
-closing_match = closing_delta <= 0.01  # USD
+valid = (opening_delta <= 0.01) AND (closing_delta <= 0.01)
 ```
 
 **New Fields** (BankStatement):
 - `stage1_status`: PENDING_REVIEW | APPROVED | REJECTED | EDITED
-- `balance_validation_result`: JSONB with validation details
+- `balance_validation_result`: JSONB with validation details (opening/closing deltas)
 - `stage1_reviewed_at`: Timestamp
 - `manual_opening_balance`: Manual override for first statement
 
@@ -259,8 +260,8 @@ closing_match = closing_delta <= 0.01  # USD
 **Check Types**:
 | Type | Description | Severity |
 |------|-------------|----------|
-| `duplicate` | Same amount/date/description within 1 day | high |
-| `transfer_pair` | Matching OUT/IN across accounts | medium |
+| `duplicate` | Same amount/date/description within 1 day (global check) | high |
+| `transfer_pair` | Matching OUT/IN across accounts (global check) | medium |
 | `anomaly` | Large amount, frequency spike, new merchant | varies |
 
 **Constraint**: Batch approve blocked if unresolved checks exist.
@@ -268,7 +269,7 @@ closing_match = closing_delta <= 0.01  # USD
 **State Machine**:
 ```
 [*] --> pending: Check detected
-pending --> approved: User acknowledges
+pending --> approved: User acknowledges (idempotent)
 pending --> rejected: User flags for fix
 pending --> flagged: Needs manual review
 ```
@@ -281,9 +282,11 @@ pending --> flagged: Needs manual review
 | POST | `/statements/{id}/review/approve` | Approve with balance validation |
 | POST | `/statements/{id}/review/reject` | Reject and trigger re-parse |
 | POST | `/statements/{id}/review/edit` | Edit transactions and approve |
+| POST | `/statements/{id}/review/opening-balance` | Set manual opening balance |
 | GET | `/statements/stage2` | Stage 2 review queue (global) |
 | POST | `/statements/{id}/stage2/run-checks` | Run consistency checks for statement |
 | POST | `/statements/consistency-checks/{id}/resolve` | Resolve a check |
+| GET | `/statements/consistency-checks` | List/filter consistency checks |
 | POST | `/statements/batch-approve` | Batch approve matches |
 | POST | `/statements/batch-reject` | Batch reject matches |
 

@@ -133,11 +133,31 @@ export default function StatementReviewPage() {
     if (!data) {
         return (
             <div className="p-6">
-                <div className="card p-8 text-center">
-                    <p className="text-muted mb-4">Statement not found</p>
-                    <Link href="/statements" className="btn-primary">
-                        Back to Statements
-                    </Link>
+                <div className="card p-12 text-center max-w-md mx-auto">
+                    {error ? (
+                        <>
+                            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="text-xl font-bold">!</span>
+                            </div>
+                            <h2 className="text-lg font-medium mb-2">Failed to load statement</h2>
+                            <p className="text-muted mb-6">{error}</p>
+                            <div className="flex gap-3 justify-center">
+                                <button type="button" onClick={fetchData} className="btn-primary">
+                                    Retry
+                                </button>
+                                <Link href="/statements" className="btn-secondary">
+                                    Back to Statements
+                                </Link>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-muted mb-6">Statement not found</p>
+                            <Link href="/statements" className="btn-primary">
+                                Back to Statements
+                            </Link>
+                        </>
+                    )}
                 </div>
             </div>
         );

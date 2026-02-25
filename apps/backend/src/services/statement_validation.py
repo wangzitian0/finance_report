@@ -24,6 +24,7 @@ async def validate_balance_chain(
         raise ValueError("Statement not found")
 
     opening_balance = await _get_opening_balance(db, statement)
+    opening_delta = abs((statement.opening_balance or Decimal("0")) - opening_balance)
 
     txn_sum = Decimal("0")
     for txn in statement.transactions:
@@ -40,9 +41,9 @@ async def validate_balance_chain(
         "opening_balance": str(opening_balance),
         "closing_balance": str(statement.closing_balance),
         "calculated_closing": str(calculated_closing),
-        "opening_delta": "0.000",
+        "opening_delta": str(opening_delta),
         "closing_delta": str(closing_delta),
-        "opening_match": True,
+        "opening_match": opening_delta <= BALANCE_TOLERANCE,
         "closing_match": closing_delta <= BALANCE_TOLERANCE,
         "validated_at": datetime.now(UTC).isoformat(),
     }

@@ -39,6 +39,7 @@ async def approved_statement(db, user_id):
 
 class TestDetectDuplicates:
     async def test_detect_duplicates(self, db, user_id, approved_statement):
+        """AC2.1.1 Detect duplicate transactions within a single approved statement."""
         txn1 = BankStatementTransaction(
             id=uuid4(),
             statement_id=approved_statement.id,
@@ -68,6 +69,7 @@ class TestDetectDuplicates:
 
 class TestDetectTransferPairs:
     async def test_detect_transfer_pairs(self, db, user_id):
+        """AC2.2.1 Detect matching transfer pairs (OUT/IN) across different accounts."""
         # Create two accounts
         stmt1 = BankStatement(
             id=uuid4(),
@@ -119,6 +121,7 @@ class TestDetectTransferPairs:
 
 class TestDetectAnomalies:
     async def test_detect_large_amount(self, db, user_id, approved_statement):
+        """AC2.3.1 Detect large transaction amount anomalies."""
         # Create history
         for i in range(10):
             txn = BankStatementTransaction(
@@ -154,6 +157,7 @@ class TestDetectAnomalies:
 
 class TestResolveCheck:
     async def test_resolve_check(self, db, user_id):
+        """AC2.4.1 Resolve a consistency check and update status."""
         check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,

@@ -19,35 +19,60 @@ async def detect_duplicates(
     user_id: UUID,
     statement_id: UUID | None = None,
 ) -> list[ConsistencyCheck]:
-    query = (
+    base_query = (
         select(BankStatementTransaction)
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.APPROVED)
     )
-    if statement_id:
-        query = query.where(BankStatementTransaction.statement_id == statement_id)
 
-    result = await db.execute(query)
-    transactions = list(result.scalars().all())
+    if statement_id:
+        anchor_result = await db.execute(base_query.where(BankStatementTransaction.statement_id == statement_id))
+        anchor_txns = list(anchor_result.scalars().all())
+        all_result = await db.execute(base_query)
+        all_txns = list(all_result.scalars().all())
+    else:
+        all_result = await db.execute(base_query)
+        all_txns = list(all_result.scalars().all())
+        anchor_txns = all_txns
 
     groups: dict[str, list[BankStatementTransaction]] = {}
-    for txn in transactions:
+    for txn in all_txns:
         key = f"{txn.amount}_{txn.direction}_{txn.description[:50] if txn.description else ''}"
         if key not in groups:
             groups[key] = []
         groups[key].append(txn)
 
     checks: list[ConsistencyCheck] = []
+    anchor_ids = {str(t.id) for t in anchor_txns}
+
     for key, group in groups.items():
         if len(group) > 1:
+            # Only process if at least one transaction in the group is an anchor
+            if not any(str(t.id) in anchor_ids for t in group):
+                continue
+
             dates = sorted([t.txn_date for t in group])
             if (dates[-1] - dates[0]).days <= 1:
+                txn_ids = sorted([str(t.id) for t in group])
+
+                # Idempotency: check if pending check already exists
+                existing = await db.execute(
+                    select(ConsistencyCheck).where(
+                        ConsistencyCheck.user_id == user_id,
+                        ConsistencyCheck.check_type == CheckType.DUPLICATE,
+                        ConsistencyCheck.status == CheckStatus.PENDING,
+                        ConsistencyCheck.related_txn_ids == txn_ids,
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    continue
+
                 check = ConsistencyCheck(
                     user_id=user_id,
                     check_type=CheckType.DUPLICATE,
                     status=CheckStatus.PENDING,
-                    related_txn_ids=[str(t.id) for t in group],
+                    related_txn_ids=txn_ids,
                     details={
                         "count": len(group),
                         "amount": str(group[0].amount),
@@ -69,22 +94,27 @@ async def detect_transfer_pairs(
     user_id: UUID,
     statement_id: UUID | None = None,
 ) -> list[ConsistencyCheck]:
-    query = (
+    base_query = (
         select(BankStatementTransaction)
         .join(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.APPROVED)
         .options(selectinload(BankStatementTransaction.statement))
     )
+
     if statement_id:
-        query = query.where(BankStatementTransaction.statement_id == statement_id)
+        anchor_result = await db.execute(base_query.where(BankStatementTransaction.statement_id == statement_id))
+        anchor_txns = list(anchor_result.scalars().all())
+        all_result = await db.execute(base_query)
+        all_txns = list(all_result.scalars().all())
+    else:
+        all_result = await db.execute(base_query)
+        all_txns = list(all_result.scalars().all())
+        anchor_txns = all_txns
 
-    result = await db.execute(query)
-    transactions = list(result.scalars().all())
-
-    out_txns = [t for t in transactions if t.direction == "OUT"]
+    out_txns = [t for t in anchor_txns if t.direction == "OUT"]
     in_txns_by_amount: dict[Decimal, list[BankStatementTransaction]] = {}
-    for t in transactions:
+    for t in all_txns:
         if t.direction == "IN":
             if t.amount not in in_txns_by_amount:
                 in_txns_by_amount[t.amount] = []
@@ -94,8 +124,6 @@ async def detect_transfer_pairs(
     matched_in: set[str] = set()
 
     for out_txn in out_txns:
-        # Since TRANSFER_TOLERANCE is 0.001 and amounts are Numeric(18,2),
-        # they must be exactly equal for the delta to be <= 0.001.
         candidates = in_txns_by_amount.get(out_txn.amount, [])
         for in_txn in candidates:
             if str(in_txn.id) in matched_in:
@@ -103,11 +131,26 @@ async def detect_transfer_pairs(
 
             date_diff = abs((out_txn.txn_date - in_txn.txn_date).days)
             if date_diff <= TRANSFER_DATE_TOLERANCE_DAYS:
+                txn_ids = sorted([str(out_txn.id), str(in_txn.id)])
+
+                # Idempotency
+                existing = await db.execute(
+                    select(ConsistencyCheck).where(
+                        ConsistencyCheck.user_id == user_id,
+                        ConsistencyCheck.check_type == CheckType.TRANSFER_PAIR,
+                        ConsistencyCheck.status == CheckStatus.PENDING,
+                        ConsistencyCheck.related_txn_ids == txn_ids,
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    matched_in.add(str(in_txn.id))
+                    continue
+
                 check = ConsistencyCheck(
                     user_id=user_id,
                     check_type=CheckType.TRANSFER_PAIR,
                     status=CheckStatus.PENDING,
-                    related_txn_ids=[str(out_txn.id), str(in_txn.id)],
+                    related_txn_ids=txn_ids,
                     details={
                         "amount": str(out_txn.amount),
                         "out_date": str(out_txn.txn_date),
@@ -148,11 +191,30 @@ async def detect_anomalies_batch(
     for txn in transactions:
         anomalies = await detect_anomalies(db, txn, user_id=user_id)
         for anomaly in anomalies:
+            txn_ids = [str(txn.id)]
+
+            # Idempotency
+            existing = await db.execute(
+                select(ConsistencyCheck).where(
+                    ConsistencyCheck.user_id == user_id,
+                    ConsistencyCheck.check_type == CheckType.ANOMALY,
+                    ConsistencyCheck.status == CheckStatus.PENDING,
+                    ConsistencyCheck.related_txn_ids == txn_ids,
+                )
+            )
+            found = False
+            for existing_check in existing.scalars().all():
+                if existing_check.details.get("anomaly_type") == anomaly.anomaly_type:
+                    found = True
+                    break
+            if found:
+                continue
+
             check = ConsistencyCheck(
                 user_id=user_id,
                 check_type=CheckType.ANOMALY,
                 status=CheckStatus.PENDING,
-                related_txn_ids=[str(txn.id)],
+                related_txn_ids=txn_ids,
                 details={
                     "anomaly_type": anomaly.anomaly_type,
                     "message": anomaly.message,

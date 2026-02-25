@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementTransaction
-from src.models.consistency_check import ConsistencyCheck
+from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas import BankStatementResponse, StatementDecisionRequest
 from src.schemas.review import (
@@ -41,8 +41,8 @@ logger = get_logger(__name__)
 
 class ConsistencyCheckResponse(BaseModel):
     id: UUID
-    check_type: str
-    status: str
+    check_type: CheckType
+    status: CheckStatus
     related_txn_ids: list[str]
     details: dict
     severity: str
@@ -132,8 +132,11 @@ async def approve_statement_stage1(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    statement = await approve_statement(db, statement_id, user_id)
-    await db.commit()
+    try:
+        await approve_statement(db, statement_id, user_id)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
@@ -149,8 +152,11 @@ async def reject_statement_stage1(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    statement = await reject_statement(db, statement_id, user_id, reason=decision.notes)
-    await db.commit()
+    try:
+        await reject_statement(db, statement_id, user_id, reason=decision.notes)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
@@ -167,8 +173,11 @@ async def edit_and_approve_statement(
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
     edits_data = [{"txn_id": e.txn_id, **e.model_dump(exclude={"txn_id"})} for e in request.edits]
-    statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-    await db.commit()
+    try:
+        await edit_and_approve(db, statement_id, user_id, edits_data)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
@@ -184,8 +193,11 @@ async def set_statement_opening_balance(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    statement = await set_opening_balance(db, statement_id, user_id, request.opening_balance)
-    await db.commit()
+    try:
+        await set_opening_balance(db, statement_id, user_id, request.opening_balance)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
@@ -258,8 +270,11 @@ async def resolve_consistency_check(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ConsistencyCheckResponse:
-    check = await resolve_check(db, check_id, request.action, user_id, request.note)
-    await db.commit()
+    try:
+        check = await resolve_check(db, check_id, request.action, user_id, request.note)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     return ConsistencyCheckResponse.model_validate(check)
 
@@ -268,8 +283,8 @@ async def resolve_consistency_check(
 async def list_consistency_checks(
     db: DbSession,
     user_id: CurrentUserId,
-    status: str | None = None,
-    check_type: str | None = None,
+    status: CheckStatus | None = None,
+    check_type: CheckType | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> ConsistencyCheckListResponse:

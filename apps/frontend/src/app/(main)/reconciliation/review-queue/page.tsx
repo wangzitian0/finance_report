@@ -25,7 +25,7 @@ interface Stage2Data {
         id: string;
         match_score: number;
         status: string;
-        created_at: string;
+        created_at: string | null;
     }>;
     consistency_checks: ConsistencyCheck[];
     has_unresolved_checks: boolean;
@@ -141,7 +141,15 @@ export default function Stage2ReviewQueuePage() {
                 method: "POST",
                 body: JSON.stringify({ action, note }),
             });
-            showToast(`Check ${action}ed`, "success");
+            
+            const actionLabels: Record<string, string> = {
+                approve: "approved",
+                reject: "rejected",
+                flag: "flagged",
+            };
+            const label = actionLabels[action] ?? `${action}ed`;
+            showToast(`Check ${label}`, "success");
+            
             setResolveDialogOpen(false);
             setSelectedCheck(null);
             fetchData();
