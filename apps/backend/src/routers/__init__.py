@@ -1,6 +1,6 @@
 """API routers package."""
 
-from src.routers import (
+from . import (
     accounts,
     ai_models,
     assets,
