@@ -36,10 +36,12 @@ moon run :lint && moon run :test                # One-button check (Lint + Forma
                             # Matches GitHub CI exactly.
 
 # Testing
-moon run :test                  # All tests (full coverage)
-moon run :test           # Backend tests (auto-manages DB)
-moon run :test -- --smart     # Smart: coverage on changed files only (60-70% faster)
-moon run :test -- --fast    # Ultra-fast: no coverage (TDD mode)
+moon run :test                    # All tests (default, 99% coverage)
+moon run :test -- --fast         # TDD mode (no coverage, fastest)
+moon run :test -- --smart        # Coverage on changed files only
+moon run :test -- --e2e          # E2E tests (Playwright)
+moon run :test -- tests/accounting/  # Run specific module
+moon run :test -- tests/accounting/test_journal_service.py  # Run specific file
 
 # Environment Verification
 # (See docs/ssot/env_smoke_test.md for full details)
