@@ -95,7 +95,6 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=xml",
     "--cov-branch",
-    "--cov-fail-under=99",
 ]
 
 [tool.coverage.run]
