@@ -13,13 +13,13 @@ Tests all endpoints in src/routers/reconciliation.py:
 - GET /reconciliation/transactions/{txn_id}/anomalies - List anomalies for a transaction
 """
 
-import pytest
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
+
 from fastapi import status
 from httpx import AsyncClient
-from sqlalchemy import select
+
 from src.models import (
     BankStatement,
     BankStatementTransaction,
@@ -29,18 +29,7 @@ from src.models import (
     ReconciliationStatus,
     User,
 )
-from src.schemas.reconciliation import (
-    AnomalyResponse,
-    BatchAcceptRequest,
-    JournalEntrySummary,
-    ReconciliationMatchListResponse,
-    ReconciliationMatchResponse,
-    ReconciliationRunRequest,
-    ReconciliationRunResponse,
-    ReconciliationStatsResponse,
-    ReconciliationStatusEnum,
-    UnmatchedTransactionsResponse,
-)
+from src.schemas.reconciliation import ReconciliationStatusEnum
 
 
 def create_test_statement(db, user: User, **kwargs):
@@ -315,16 +304,10 @@ class TestReconciliationEndpoints:
 
     async def test_reconciliation_stats_success(self, client: AsyncClient, db, test_user: User):
         """Test getting reconciliation statistics."""
-        # GIVEN some transactions and matches
-        stats = ReconciliationStatsResponse(
-            total_transactions=100,
-            matched_transactions=75,
-            unmatched_transactions=25,
-            pending_review=10,
-            auto_accepted=65,
-            match_rate=75.0,
-            score_distribution={"0-59": 0, "60-79": 5, "80-89": 10, "90-100": 60},
-        )
+        # GIVEN a user with transactions (setup handled by fixtures)
+
+        # WHEN calling stats endpoint
+        response = await client.get("/reconciliation/stats")
 
         # WHEN calling stats endpoint
         response = await client.get("/reconciliation/stats")
@@ -499,9 +482,10 @@ class TestReconciliationEndpoints:
 
     async def test_list_matches_with_entry_summaries(self, client: AsyncClient, db, test_user: User):
         """Test listing matches with journal entry summaries."""
-        from decimal import Decimal
         from datetime import date
-        from src.models import JournalEntry, JournalLine, JournalEntryStatus, Account, AccountType
+        from decimal import Decimal
+
+        from src.models import Account, AccountType, JournalEntryStatus, JournalLine
 
         # GIVEN account for journal entry
         account = Account(
@@ -527,6 +511,7 @@ class TestReconciliationEndpoints:
 
         # GIVEN journal lines
         from src.models import Direction
+
         line1 = JournalLine(
             id=uuid4(),
             journal_entry_id=entry.id,
@@ -554,7 +539,8 @@ class TestReconciliationEndpoints:
         await db.commit()
 
         match = create_test_match(
-            db, transaction,
+            db,
+            transaction,
             journal_entry_ids=[str(entry.id)],
         )
         db.add(match)
@@ -585,7 +571,8 @@ class TestReconciliationEndpoints:
         await db.commit()
 
         match = create_test_match(
-            db, transaction,
+            db,
+            transaction,
             journal_entry_ids=["invalid-uuid", "not-a-uuid"],
         )
         db.add(match)

@@ -10,24 +10,14 @@ Tests all endpoints in src/routers/reports.py:
 - GET /reports/export - Export reports in CSV format
 """
 
-import pytest
+from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
-from datetime import date, timedelta
+
+from fastapi import status
 from httpx import AsyncClient
-from sqlalchemy import select
+
 from src.models import Account, AccountType, User
-from src.schemas import (
-    AccountTrendResponse,
-    BalanceSheetResponse,
-    CashFlowResponse,
-    CategoryBreakdownResponse,
-    IncomeStatementResponse,
-    BreakdownPeriod,
-    BreakdownType,
-    TrendPeriod,
-)
-from src.routers.reports import ExportFormat, ReportType
 
 
 class TestReportsEndpoints:
@@ -125,6 +115,7 @@ class TestReportsEndpoints:
         """Test getting cash flow statement."""
         # GIVEN valid date range and mocked service
         from decimal import Decimal
+
         start_date = date.today() - timedelta(days=30)
         end_date = date.today()
         mock_service.return_value = {
@@ -212,6 +203,7 @@ class TestReportsEndpoints:
         """Test getting category breakdown."""
         # GIVEN mocked service
         from src.models import AccountType
+
         mock_service.return_value = {
             "type": AccountType.INCOME,
             "period_start": date.today() - timedelta(days=30),
@@ -241,7 +233,9 @@ class TestReportsEndpoints:
         assert response.status_code == 200
 
     @patch("src.routers.reports.generate_balance_sheet")
-    async def test_export_balance_sheet_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
+    async def test_export_balance_sheet_success(
+        self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
+    ):
         """Test exporting balance sheet."""
         # GIVEN valid export request and mocked service
         today = date.today()
@@ -265,7 +259,9 @@ class TestReportsEndpoints:
         assert mock_service.called
 
     @patch("src.routers.reports.generate_income_statement")
-    async def test_export_income_statement_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
+    async def test_export_income_statement_success(
+        self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
+    ):
         """Test exporting income statement."""
         # GIVEN valid export request and mocked service
         start_date = date.today() - timedelta(days=30)
@@ -337,5 +333,4 @@ class TestReportsEndpoints:
 
         # WHEN calling trend endpoint with different user's account
         response = await client.get(f"/reports/trend?account_id={other_account.id}")
-
-        # THEN returns 404 Not Found (due to user isolation)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
