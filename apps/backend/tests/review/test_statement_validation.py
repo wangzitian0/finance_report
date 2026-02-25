@@ -1,17 +1,18 @@
-import pytest
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
+
+import pytest
 
 from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.models.statement import Stage1Status
 from src.services.statement_validation import (
     BALANCE_TOLERANCE,
-    validate_balance_chain,
     approve_statement,
-    reject_statement,
     edit_and_approve,
+    reject_statement,
     set_opening_balance,
+    validate_balance_chain,
 )
 
 
@@ -121,7 +122,7 @@ class TestValidateBalanceChain:
             period_start=date(2024, 1, 1),
             period_end=date(2024, 1, 31),
             opening_balance=Decimal("1000.00"),
-            closing_balance=Decimal("1100.01"),
+            closing_balance=Decimal("1100.02"),
             status=BankStatementStatus.PARSED,
         )
         db.add(stmt)

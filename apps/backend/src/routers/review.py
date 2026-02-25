@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import BankStatement
+from src.models import BankStatement, BankStatementTransaction
 from src.models.consistency_check import ConsistencyCheck
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas import BankStatementResponse, StatementDecisionRequest
@@ -201,9 +201,11 @@ async def get_stage2_review_queue(
 ) -> Stage2ReviewQueueResponse:
     matches_result = await db.execute(
         select(ReconciliationMatch)
+        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
         .where(
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            ReconciliationMatch.user_id == user_id,
+            BankStatement.user_id == user_id,
         )
         .limit(50)
     )
@@ -318,8 +320,13 @@ async def batch_approve_matches(
 
     result = await db.execute(
         select(ReconciliationMatch)
-        .where(ReconciliationMatch.id.in_(request.match_ids))
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(
+            ReconciliationMatch.id.in_(request.match_ids),
+            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+            BankStatement.user_id == user_id,
+        )
     )
     matches = list(result.scalars().all())
 
@@ -348,8 +355,13 @@ async def batch_reject_matches(
 
     result = await db.execute(
         select(ReconciliationMatch)
-        .where(ReconciliationMatch.id.in_(request.match_ids))
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(
+            ReconciliationMatch.id.in_(request.match_ids),
+            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+            BankStatement.user_id == user_id,
+        )
     )
     matches = list(result.scalars().all())
 

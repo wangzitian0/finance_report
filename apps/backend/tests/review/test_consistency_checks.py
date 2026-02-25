@@ -1,16 +1,17 @@
-import pytest
+from datetime import date
 from decimal import Decimal
-from datetime import date, timedelta
 from uuid import uuid4
+
+import pytest
 
 from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.services.consistency_checks import (
+    detect_anomalies_batch,
     detect_duplicates,
     detect_transfer_pairs,
-    detect_anomalies_batch,
-    resolve_check,
     has_unresolved_checks,
+    resolve_check,
 )
 
 
@@ -101,7 +102,7 @@ class TestDetectTransferPairs:
         txn_in = BankStatementTransaction(
             id=uuid4(),
             statement_id=stmt2.id,
-            txn_date=date(2024, 1, 16), # 1 day later
+            txn_date=date(2024, 1, 16),  # 1 day later
             description="Transfer from Bank A",
             amount=Decimal("100.00"),
             direction="IN",
@@ -123,7 +124,7 @@ class TestDetectAnomalies:
             txn = BankStatementTransaction(
                 id=uuid4(),
                 statement_id=approved_statement.id,
-                txn_date=date(2024, 1, i+1),
+                txn_date=date(2024, 1, i + 1),
                 description="Regular",
                 amount=Decimal("10.00"),
                 direction="OUT",
