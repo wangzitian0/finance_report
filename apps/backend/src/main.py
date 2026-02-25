@@ -43,11 +43,7 @@ logger = get_logger(__name__)
 
 
 def _init_otel_instrumentation() -> None:
-    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX.
-
-    This enables distributed tracing across HTTP requests, database queries,
-    and external API calls without manual code instrumentation.
-    """
+    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX."""
     if not settings.enable_otel:
         return
 
@@ -56,13 +52,9 @@ def _init_otel_instrumentation() -> None:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
-        # Instrument FastAPI
+        # Global instrumentation
         FastAPIInstrumentor.instrument()
-
-        # Instrument SQLAlchemy
         SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
-
-        # Instrument HTTPX
         HTTPXClientInstrumentor().instrument()
 
         logger.info("OpenTelemetry auto-instrumentation initialized")
@@ -70,10 +62,14 @@ def _init_otel_instrumentation() -> None:
         logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
+# Initialize instrumentation BEFORE app creation
+_init_otel_instrumentation()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan (startup/shutdown)."""
-    # Initialize environment
+    # Environment variable check
     if not await Bootloader.validate(mode=BootMode.CRITICAL):
         logger.critical("Bootloader failed, exiting")
         import sys
@@ -86,8 +82,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start background workers
     stop_event = asyncio.Event()
     supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
-
-    _init_otel_instrumentation()
 
     logger.info("Application startup complete")
     yield
@@ -146,13 +140,14 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
             duration_ms=round(duration * 1000, 2),
             error=str(exc),
         )
+        # Global exception handler will catch this and return 500
         raise
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all for unhandled exceptions to prevent internal details leak."""
-    logger.exception("Unhandled exception", url=str(request.url))
+    logger.exception("Unhandled exception", url=str(request.url), error=str(exc))
 
     detail = str(exc) if settings.debug else "An internal server error occurred."
 
@@ -197,28 +192,31 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
     try:
         checks = {}
 
-        # DB
+        # DB - Critical
         try:
             await db.execute(text("SELECT 1"))
             checks["database"] = True
         except Exception:
+            logger.warning("Health check: Database unreachable")
             checks["database"] = False
 
-        # Redis
+        # Redis - Non-critical for readiness
         redis_res = await Bootloader._check_redis()
         checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
 
-        # S3
+        # S3 - Non-critical for readiness
         s3_res = await Bootloader._check_s3()
         checks["s3"] = s3_res.status == "ok" or s3_res.status == "skipped"
 
-        all_healthy = all(checks.values())
-        status_code = 200 if all_healthy else 503
+        # Overall status
+        # Only DB is critical for the readiness probe during deployment
+        is_ready = checks["database"]
+        status_code = 200 if is_ready else 503
 
         return JSONResponse(
             status_code=status_code,
             content={
-                "status": "healthy" if all_healthy else "unhealthy",
+                "status": "healthy" if is_ready else "unhealthy",
                 "timestamp": datetime.now(UTC).isoformat(),
                 "git_sha": os.getenv("GIT_COMMIT_SHA", "unknown"),
                 "checks": checks,
@@ -226,7 +224,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             },
         )
     except Exception as e:
-        logger.exception("Health check failed")
+        logger.exception("Health check failed unexpectedly")
         return JSONResponse(
             status_code=503,
             content={
