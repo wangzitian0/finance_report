@@ -333,4 +333,6 @@ class TestReportsEndpoints:
 
         # WHEN calling trend endpoint with different user's account
         response = await client.get(f"/reports/trend?account_id={other_account.id}")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # THEN returns 400 Bad Request (service reports "Account not found")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
