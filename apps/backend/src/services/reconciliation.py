@@ -678,91 +678,6 @@ async def execute_matching(
         pattern_score_cache[token] = score
         return score
 
-    groups = build_many_to_one_groups(transactions)
-    for group in groups:
-        group_total = sum((txn.amount for txn in group), Decimal("0.00"))
-        group_date = max(txn.txn_date for txn in group)
-        candidates = get_candidates_for_date(group_date)
-        if not candidates:
-            continue
-        candidates = prune_candidates(
-            candidates,
-            txn_date=group_date,
-            target_amount=group_total,
-        )
-
-        best_candidate: MatchCandidate | None = None
-        best_entry: JournalEntry | None = None
-        # Optimization: pre-calculate pattern score once for the group
-        history_score = await get_cached_pattern_score(group[0])
-
-        for entry in candidates:
-            if not is_entry_balanced(entry):
-                continue
-
-            candidate = await calculate_match_score(
-                db,
-                group[0],
-                [entry],
-                config,
-                user_id=user_id,
-                is_multi=True,
-                is_many_to_one=True,
-                amount_override=group_total,
-                history_score_override=history_score,
-            )
-            candidate.breakdown["group_total"] = float(group_total)
-            if candidate.score >= config.pending_review and (
-                best_candidate is None or candidate.score > best_candidate.score
-            ):
-                best_candidate = candidate
-                best_entry = entry
-
-        if best_candidate and best_entry:
-            status = (
-                ReconciliationStatus.AUTO_ACCEPTED
-                if best_candidate.score >= config.auto_accept
-                else ReconciliationStatus.PENDING_REVIEW
-            )
-            for txn in group:
-                existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
-                if existing_match:
-                    existing_je_ids = set(existing_match.journal_entry_ids or [])
-                    new_je_ids = set(best_candidate.journal_entry_ids or [])
-                    if existing_je_ids == new_je_ids:
-                        matched_txn_ids.add(txn.id)
-                        continue
-                    existing_match.status = ReconciliationStatus.SUPERSEDED
-
-                match_kwargs = {
-                    "journal_entry_ids": best_candidate.journal_entry_ids,
-                    "match_score": best_candidate.score,
-                    "score_breakdown": best_candidate.breakdown,
-                    "status": status,
-                }
-                if settings.enable_4_layer_read:
-                    match_kwargs["atomic_txn_id"] = txn.id
-                else:
-                    match_kwargs["bank_txn_id"] = txn.id
-
-                match = ReconciliationMatch(**match_kwargs)
-                db.add(match)
-
-                if existing_match:
-                    await db.flush()
-                    existing_match.superseded_by_id = match.id
-
-                matches.append(match)
-                matched_txn_ids.add(txn.id)
-                if status == ReconciliationStatus.AUTO_ACCEPTED:
-                    if not settings.enable_4_layer_read:
-                        txn.status = BankStatementTransactionStatus.MATCHED
-                    if best_entry.status != JournalEntryStatus.VOID:
-                        best_entry.status = JournalEntryStatus.RECONCILED
-                else:
-                    if not settings.enable_4_layer_read:
-                        txn.status = BankStatementTransactionStatus.PENDING
-
     # Phase 1: Transfer Detection (BEFORE normal matching)
     # Detect transfers and create Processing account entries per processing_account.md
     for txn in transactions:
@@ -861,6 +776,98 @@ async def execute_matching(
                     error=str(e),
                 )
                 # Continue to normal matching if transfer entry creation fails
+
+    # Many-to-one matching
+    # Skip transactions already matched in Phase 1 (transfer detection)
+    groups = build_many_to_one_groups(transactions)
+    for group in groups:
+        # Skip groups where all transactions are already matched (e.g., transfers)
+        if all(txn.id in matched_txn_ids for txn in group):
+            continue
+        group_total = sum((txn.amount for txn in group), Decimal("0.00"))
+        group_date = max(txn.txn_date for txn in group)
+        candidates = get_candidates_for_date(group_date)
+        if not candidates:
+            continue
+        candidates = prune_candidates(
+            candidates,
+            txn_date=group_date,
+            target_amount=group_total,
+        )
+
+        best_candidate: MatchCandidate | None = None
+        best_entry: JournalEntry | None = None
+        # Optimization: pre-calculate pattern score once for the group
+        history_score = await get_cached_pattern_score(group[0])
+
+        for entry in candidates:
+            if not is_entry_balanced(entry):
+                continue
+
+            candidate = await calculate_match_score(
+                db,
+                group[0],
+                [entry],
+                config,
+                user_id=user_id,
+                is_multi=True,
+                is_many_to_one=True,
+                amount_override=group_total,
+                history_score_override=history_score,
+            )
+            candidate.breakdown["group_total"] = float(group_total)
+            if candidate.score >= config.pending_review and (
+                best_candidate is None or candidate.score > best_candidate.score
+            ):
+                best_candidate = candidate
+                best_entry = entry
+
+        if best_candidate and best_entry:
+            status = (
+                ReconciliationStatus.AUTO_ACCEPTED
+                if best_candidate.score >= config.auto_accept
+                else ReconciliationStatus.PENDING_REVIEW
+            )
+            for txn in group:
+                if txn.id in matched_txn_ids:
+                    continue
+                existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
+                if existing_match:
+                    existing_je_ids = set(existing_match.journal_entry_ids or [])
+                    new_je_ids = set(best_candidate.journal_entry_ids or [])
+                    if existing_je_ids == new_je_ids:
+                        matched_txn_ids.add(txn.id)
+                        continue
+                    existing_match.status = ReconciliationStatus.SUPERSEDED
+
+                match_kwargs = {
+                    "journal_entry_ids": best_candidate.journal_entry_ids,
+                    "match_score": best_candidate.score,
+                    "score_breakdown": best_candidate.breakdown,
+                    "status": status,
+                }
+                if settings.enable_4_layer_read:
+                    match_kwargs["atomic_txn_id"] = txn.id
+                else:
+                    match_kwargs["bank_txn_id"] = txn.id
+
+                match = ReconciliationMatch(**match_kwargs)
+                db.add(match)
+
+                if existing_match:
+                    await db.flush()
+                    existing_match.superseded_by_id = match.id
+
+                matches.append(match)
+                matched_txn_ids.add(txn.id)
+                if status == ReconciliationStatus.AUTO_ACCEPTED:
+                    if not settings.enable_4_layer_read:
+                        txn.status = BankStatementTransactionStatus.MATCHED
+                    if best_entry.status != JournalEntryStatus.VOID:
+                        best_entry.status = JournalEntryStatus.RECONCILED
+                else:
+                    if not settings.enable_4_layer_read:
+                        txn.status = BankStatementTransactionStatus.PENDING
 
     # Phase 2: Normal Matching (existing logic)
     # Skip transactions already matched in Phase 1 (transfer detection)
