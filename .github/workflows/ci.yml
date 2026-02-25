@@ -143,7 +143,10 @@ jobs:
 
       - name: Fetch submodule history for Moon VCS
         run: |
-          git submodule foreach --recursive 'git fetch --depth=100 || git fetch --unshallow || true'
+          # Fetch the old commit that Moon needs for VCS diffing
+          git submodule foreach --recursive 'git fetch origin 7db811abd43a3fc389db92721baae9f4b0e8fb51 2>/dev/null || true'
+          # Also fetch latest to ensure we have current state
+          git submodule foreach --recursive 'git fetch --unshallow 2>/dev/null || git fetch --depth=1000 || true'
       
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
