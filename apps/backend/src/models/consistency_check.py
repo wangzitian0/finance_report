@@ -26,11 +26,19 @@ class ConsistencyCheck(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __tablename__ = "consistency_checks"
 
     check_type: Mapped[CheckType] = mapped_column(
-        SQLEnum(CheckType, name="check_type_enum"),
+        SQLEnum(
+            CheckType,
+            name="check_type_enum",
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     status: Mapped[CheckStatus] = mapped_column(
-        SQLEnum(CheckStatus, name="check_status_enum"),
+        SQLEnum(
+            CheckStatus,
+            name="check_status_enum",
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
         default=CheckStatus.PENDING,
     )

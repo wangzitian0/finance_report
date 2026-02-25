@@ -194,21 +194,18 @@ async def set_statement_opening_balance(
     return BankStatementResponse.model_validate(statement)
 
 
-@router.get("/{statement_id}/stage2", response_model=Stage2ReviewQueueResponse)
+@router.get("/stage2", response_model=Stage2ReviewQueueResponse)
 async def get_stage2_review_queue(
-    statement_id: UUID,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> Stage2ReviewQueueResponse:
-    result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
-    )
-    statement = result.scalar_one_or_none()
-    if not statement:
-        raise_not_found("Statement")
-
     matches_result = await db.execute(
-        select(ReconciliationMatch).where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW).limit(50)
+        select(ReconciliationMatch)
+        .where(
+            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+            ReconciliationMatch.user_id == user_id,
+        )
+        .limit(50)
     )
     pending_matches = []
     for match in matches_result.scalars().all():
@@ -282,17 +279,19 @@ async def list_consistency_checks(
         .offset(offset)
     )
 
+    count_query = select(func.count()).select_from(ConsistencyCheck).where(ConsistencyCheck.user_id == user_id)
+
     if status:
         query = query.where(ConsistencyCheck.status == status)
+        count_query = count_query.where(ConsistencyCheck.status == status)
     if check_type:
         query = query.where(ConsistencyCheck.check_type == check_type)
+        count_query = count_query.where(ConsistencyCheck.check_type == check_type)
 
     result = await db.execute(query)
     checks = list(result.scalars().all())
 
-    count_result = await db.execute(
-        select(func.count()).select_from(ConsistencyCheck).where(ConsistencyCheck.user_id == user_id)
-    )
+    count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
     return ConsistencyCheckListResponse(

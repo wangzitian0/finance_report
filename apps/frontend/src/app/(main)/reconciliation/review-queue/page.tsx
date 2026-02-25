@@ -141,7 +141,7 @@ export default function Stage2ReviewQueuePage() {
                 method: "POST",
                 body: JSON.stringify({ action, note }),
             });
-            showToast("Check resolved", "success");
+            showToast(`Check ${action}ed`, "success");
             setResolveDialogOpen(false);
             setSelectedCheck(null);
             fetchData();
@@ -315,7 +315,10 @@ export default function Stage2ReviewQueuePage() {
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedMatches.has(match.id)}
-                                                        onChange={() => toggleMatch(match.id)}
+                                                        onChange={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleMatch(match.id);
+                                                        }}
                                                         className="rounded"
                                                     />
                                                 </td>
@@ -390,7 +393,26 @@ export default function Stage2ReviewQueuePage() {
                 showInput
                 inputLabel="Note (optional)"
                 inputPlaceholder="Add resolution note..."
-            />
+            >
+                <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleResolveCheck("reject")}
+                        className="btn-secondary text-[var(--error)]"
+                        disabled={actionLoading}
+                    >
+                        Reject
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleResolveCheck("flag")}
+                        className="btn-secondary text-[var(--warning)]"
+                        disabled={actionLoading}
+                    >
+                        Flag
+                    </button>
+                </div>
+            </ConfirmDialog>
         </div>
     );
 }

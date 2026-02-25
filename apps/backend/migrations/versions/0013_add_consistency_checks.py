@@ -46,8 +46,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_consistency_checks_status")
-    op.drop_index("ix_consistency_checks_user_id")
+    op.drop_index("ix_consistency_checks_status", table_name="consistency_checks")
+    op.drop_index("ix_consistency_checks_user_id", table_name="consistency_checks")
     op.drop_table("consistency_checks")
     op.execute("DROP TYPE check_status_enum")
     op.execute("DROP TYPE check_type_enum")

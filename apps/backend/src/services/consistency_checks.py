@@ -83,20 +83,26 @@ async def detect_transfer_pairs(
     transactions = list(result.scalars().all())
 
     out_txns = [t for t in transactions if t.direction == "OUT"]
-    in_txns = [t for t in transactions if t.direction == "IN"]
+    in_txns_by_amount: dict[Decimal, list[BankStatementTransaction]] = {}
+    for t in transactions:
+        if t.direction == "IN":
+            if t.amount not in in_txns_by_amount:
+                in_txns_by_amount[t.amount] = []
+            in_txns_by_amount[t.amount].append(t)
 
     checks: list[ConsistencyCheck] = []
     matched_in: set[str] = set()
 
     for out_txn in out_txns:
-        for in_txn in in_txns:
+        # Since TRANSFER_TOLERANCE is 0.001 and amounts are Numeric(18,2),
+        # they must be exactly equal for the delta to be <= 0.001.
+        candidates = in_txns_by_amount.get(out_txn.amount, [])
+        for in_txn in candidates:
             if str(in_txn.id) in matched_in:
                 continue
 
-            amount_diff = abs(out_txn.amount - in_txn.amount)
             date_diff = abs((out_txn.txn_date - in_txn.txn_date).days)
-
-            if amount_diff <= TRANSFER_TOLERANCE and date_diff <= TRANSFER_DATE_TOLERANCE_DAYS:
+            if date_diff <= TRANSFER_DATE_TOLERANCE_DAYS:
                 check = ConsistencyCheck(
                     user_id=user_id,
                     check_type=CheckType.TRANSFER_PAIR,
@@ -106,7 +112,7 @@ async def detect_transfer_pairs(
                         "amount": str(out_txn.amount),
                         "out_date": str(out_txn.txn_date),
                         "in_date": str(in_txn.txn_date),
-                        "amount_delta": str(amount_diff),
+                        "amount_delta": "0.00",
                         "date_diff_days": date_diff,
                     },
                     severity="medium",

@@ -86,7 +86,12 @@ class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     stage1_status: Mapped[Stage1Status | None] = mapped_column(
-        SQLEnum(Stage1Status, name="stage1_status_enum"),
+        SQLEnum(
+            Stage1Status,
+            name="stage1_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+            validate_strings=True,
+        ),
         nullable=True,
         default=None,
     )

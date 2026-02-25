@@ -23,11 +23,11 @@ interface Transaction {
     id: string;
     txn_date: string;
     description: string;
-    amount: number;
+    amount: string | number;
     direction: string;
     reference: string | null;
     currency: string | null;
-    balance_after: number | null;
+    balance_after: string | number | null;
     status: string;
     confidence: string;
 }
@@ -39,8 +39,8 @@ interface StatementReview {
     currency: string | null;
     period_start: string | null;
     period_end: string | null;
-    opening_balance: number | null;
-    closing_balance: number | null;
+    opening_balance: string | number | null;
+    closing_balance: string | number | null;
     status: string;
     stage1_status: string | null;
     balance_validation_result: BalanceValidationResult | null;
@@ -107,14 +107,16 @@ export default function StatementReviewPage() {
         }
     };
 
-    const formatAmount = (amount: number, direction: string) => {
+    const formatAmount = (amount: string | number, direction: string) => {
+        const num = typeof amount === "string" ? parseFloat(amount) : amount;
         const sign = direction === "IN" ? "+" : "-";
-        return `${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        return `${sign}${Math.abs(num).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     };
 
-    const formatCurrency = (amount?: number | null, currency?: string | null) => {
+    const formatCurrency = (amount?: string | number | null, currency?: string | null) => {
         if (amount === null || amount === undefined) return "—";
-        return `${currency || ""} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        const num = typeof amount === "string" ? parseFloat(amount) : amount;
+        return `${currency || ""} ${num.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     };
 
     if (loading) {
