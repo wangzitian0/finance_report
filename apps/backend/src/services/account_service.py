@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession\nfrom sqlalchemy.orm import selectinload\nfrom sqlalchemy.orm import selectinload
 
 from src.models import Account, AccountType
 from src.schemas.account import AccountCreate, AccountUpdate

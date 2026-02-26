@@ -13,6 +13,17 @@ from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class TransactionDirection(str, Enum):
+
+class AssetType(str, Enum):
+    """Type of financial asset."""
+
+    STOCK = "stock"
+    BOND = "bond"
+    ETF = "etf"
+    MUTUAL_FUND = "mutual_fund"
+    PROPERTY = "property"
+    CASH = "cash"
+    OTHER = "other"
     """Transaction flow direction."""
 
     IN = "IN"
@@ -89,6 +100,19 @@ class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         Numeric(18, 2), nullable=False, comment="Fair value in asset's currency"
     )
     currency: Mapped[str] = mapped_column(String(3), nullable=False, comment="Asset currency")
+
+    # Portfolio management fields (EPIC-017)
+    asset_type: Mapped[AssetType | None] = mapped_column(
+        SQLEnum(
+            AssetType,
+            name="asset_type_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=True,
+        comment="Asset classification",
+    )
+    sector: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Sector for allocation")
+    geography: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Country/region")
 
     dedup_hash: Mapped[str] = mapped_column(
         String(64),

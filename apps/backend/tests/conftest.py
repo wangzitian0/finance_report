@@ -13,7 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession\nfrom sqlalchemy.orm import selectinload\nfrom sqlalchemy.orm import selectinload, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from src.logger import get_logger
@@ -240,7 +240,7 @@ async def patch_database_connection(db_engine):
     This handles tests that manually instantiate the app/client without using
     the client fixture.
     """
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession\nfrom sqlalchemy.orm import selectinload\nfrom sqlalchemy.orm import selectinload, async_sessionmaker
 
     from src import database
 

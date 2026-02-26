@@ -17,7 +17,7 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession\nfrom sqlalchemy.orm import selectinload\nfrom sqlalchemy.orm import selectinload
 
 from src.models import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine, User
 

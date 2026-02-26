@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession\nfrom sqlalchemy.orm import selectinload\nfrom sqlalchemy.orm import selectinload
 from sqlalchemy.orm import selectinload
 
 from src.logger import get_logger
