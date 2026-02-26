@@ -186,14 +186,11 @@ jobs:
           name: coverage-frontend
           path: coverage-frontend
 
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
-MERGE_COVERAGE_PLACEHOLDER
+      - name: Merge coverage reports
+        run: |
+          mkdir -p coverage
+          cat coverage-backend/*.lcov > coverage/backend.lcov 2>/dev/null || echo "No backend coverage"
+          cp coverage-frontend/lcov.info coverage/frontend.lcov 2>/dev/null || echo "No frontend coverage"
       - name: Calculate unified coverage
         run: |
           uv run python scripts/calculate_unified_coverage.py
