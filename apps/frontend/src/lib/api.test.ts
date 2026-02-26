@@ -1,28 +1,48 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { apiFetch, apiUpload, API_URL } from './api';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { apiFetch, apiUpload, API_URL, resetRedirectGuard } from './api';
 
 // Mock fetch global
 const fetchMock = vi.fn();
 global.fetch = fetchMock;
 
-// Mock window.location
-const originalLocation = window.location;
-delete (window as any).location;
-window.location = { ...originalLocation, href: '' } as Location;
+// Create a mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(() => null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
+};
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+  configurable: true,
+});
+
+// Create a mutable mock location object
+const mockLocation = { href: '' };
+
+// Mock window.location using Object.defineProperty
+Object.defineProperty(window, 'location', {
+  value: mockLocation,
+  writable: true,
+  configurable: true,
+});
 
 describe('apiFetch', () => {
   beforeEach(() => {
+    resetRedirectGuard();
     fetchMock.mockReset();
-    window.location.href = '';
+    localStorageMock.getItem.mockReset();
+    mockLocation.href = '';
+    // Default: no token (unauthenticated)
+    localStorageMock.getItem.mockReturnValue(null);
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ data: 'test' }),
     });
-  });
-
-  afterEach(() => {
-    window.location = originalLocation;
   });
 
   it('should normalize path by adding leading slash if missing', async () => {
@@ -54,7 +74,7 @@ describe('apiFetch', () => {
     });
 
     await expect(apiFetch('/api/statements')).rejects.toThrow('Authentication required');
-    expect(window.location.href).toBe('/login');
+    expect(mockLocation.href).toBe('/login');
   });
 
   it('should throw error on 500 server error without redirect', async () => {
@@ -65,7 +85,7 @@ describe('apiFetch', () => {
     });
 
     await expect(apiFetch('/api/statements')).rejects.toThrow('Internal server error');
-    expect(window.location.href).toBe(''); // No redirect
+    expect(mockLocation.href).toBe(''); // No redirect
   });
 
   it('should throw error on 404 not found without redirect', async () => {
@@ -76,14 +96,18 @@ describe('apiFetch', () => {
     });
 
     await expect(apiFetch('/api/users/123')).rejects.toThrow('Not found');
-    expect(window.location.href).toBe(''); // No redirect
+    expect(mockLocation.href).toBe(''); // No redirect
   });
 });
 
 describe('apiUpload', () => {
   beforeEach(() => {
+    resetRedirectGuard();
     fetchMock.mockReset();
-    window.location.href = '';
+    localStorageMock.getItem.mockReset();
+    mockLocation.href = '';
+    // Default: no token (unauthenticated)
+    localStorageMock.getItem.mockReturnValue(null);
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -102,6 +126,6 @@ describe('apiUpload', () => {
     formData.append('file', new Blob(['test']));
 
     await expect(apiUpload('/api/statements/upload', formData)).rejects.toThrow('Authentication required');
-    expect(window.location.href).toBe('/login');
+    expect(mockLocation.href).toBe('/login');
   });
 });
