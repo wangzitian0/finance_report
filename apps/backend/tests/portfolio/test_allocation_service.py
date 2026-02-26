@@ -31,6 +31,7 @@ async def investment_account(db: AsyncSession, test_user):
 
 @pytest.fixture
 async def tech_stock_position(db: AsyncSession, test_user, investment_account):
+    from src.models.layer2 import AtomicPosition
     position = ManagedPosition(
         user_id=test_user.id,
         account_id=investment_account.id,
@@ -43,12 +44,29 @@ async def tech_stock_position(db: AsyncSession, test_user, investment_account):
         cost_basis_method=CostBasisMethod.FIFO,
     )
     db.add(position)
+    # Add atomic position with classification
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date.today(),
+        asset_identifier="AAPL",
+        broker="Test Broker",
+        quantity=Decimal("100"),
+        market_value=Decimal("17000.00"),
+        currency="USD",
+        sector="Technology",
+        geography="US",
+        asset_type="stock",
+        dedup_hash="aapl_test_hash",
+        source_documents={},
+    )
+    db.add(atomic)
     await db.flush()
     return position
 
 
 @pytest.fixture
 async def finance_stock_position(db: AsyncSession, test_user, investment_account):
+    from src.models.layer2 import AtomicPosition
     position = ManagedPosition(
         user_id=test_user.id,
         account_id=investment_account.id,
@@ -61,6 +79,22 @@ async def finance_stock_position(db: AsyncSession, test_user, investment_account
         cost_basis_method=CostBasisMethod.FIFO,
     )
     db.add(position)
+    # Add atomic position with classification
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date.today(),
+        asset_identifier="JPM",
+        broker="Test Broker",
+        quantity=Decimal("50"),
+        market_value=Decimal("8500.00"),
+        currency="USD",
+        sector="Financials",
+        geography="US",
+        asset_type="stock",
+        dedup_hash="jpm_test_hash",
+        source_documents={},
+    )
+    db.add(atomic)
     await db.flush()
     return position
 

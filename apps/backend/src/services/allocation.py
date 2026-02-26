@@ -97,7 +97,7 @@ async def get_sector_allocation(
                 db=db,
                 amount=atomic.market_value or Decimal("0"),
                 from_currency=atomic.currency,
-                to_currency=settings.BASE_CURRENCY,
+                to_currency=settings.base_currency,
                 as_of_date=as_of_date,
             )
 
@@ -177,7 +177,7 @@ async def get_geography_allocation(
                 db=db,
                 amount=atomic.market_value or Decimal("0"),
                 from_currency=atomic.currency,
-                to_currency=settings.BASE_CURRENCY,
+                to_currency=settings.base_currency,
                 as_of_date=as_of_date,
             )
 
@@ -257,7 +257,7 @@ async def get_asset_class_allocation(
                 db=db,
                 amount=atomic.market_value or Decimal("0"),
                 from_currency=atomic.currency,
-                to_currency=settings.BASE_CURRENCY,
+                to_currency=settings.base_currency,
                 as_of_date=as_of_date,
             )
 

@@ -80,7 +80,7 @@ async def calculate_xirr(
             db=db,
             amount=txn.amount,
             from_currency=txn.currency,
-            to_currency=settings.BASE_CURRENCY,
+            to_currency=settings.base_currency,
             as_of_date=txn.txn_date,
         )
         sign = -1 if txn.direction == TransactionDirection.OUT else 1
@@ -117,7 +117,7 @@ async def calculate_xirr(
                 db=db,
                 amount=atomic.market_value or Decimal("0"),
                 from_currency=atomic.currency,
-                to_currency=settings.BASE_CURRENCY,
+                to_currency=settings.base_currency,
                 as_of_date=as_of_date,
             )
             total_value += value_base
@@ -228,7 +228,7 @@ async def calculate_time_weighted_return(
             db=db,
             amount=txn.amount,
             from_currency=txn.currency,
-            to_currency=settings.BASE_CURRENCY,
+            to_currency=settings.base_currency,
             as_of_date=txn.txn_date,
         )
         # OUT = negative (money leaving), IN = positive (money entering)
@@ -318,7 +318,7 @@ async def _get_portfolio_value(
                 db=db,
                 amount=atomic.market_value or Decimal("0"),
                 from_currency=atomic.currency,
-                to_currency=settings.BASE_CURRENCY,
+                to_currency=settings.base_currency,
                 as_of_date=as_of_date,
             )
             total_value += value_base
