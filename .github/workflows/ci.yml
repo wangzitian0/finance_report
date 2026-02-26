@@ -186,14 +186,14 @@ jobs:
           name: coverage-frontend
           path: coverage-frontend
 
-      - name: Merge coverage reports
-        run: |
-          mkdir -p coverage
-          cat coverage-backend/*.lcov > coverage/backend.lcov
-          cp coverage-frontend/lcov.info coverage/frontend.lcov
-          echo "✅ Coverage files prepared:"
-          ls -la coverage/
-
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
+MERGE_COVERAGE_PLACEHOLDER
       - name: Calculate unified coverage
         run: |
           uv run python scripts/calculate_unified_coverage.py
