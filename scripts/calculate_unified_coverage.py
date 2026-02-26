@@ -111,43 +111,38 @@ def parse_lcov_file(lcov_path: Path) -> dict:
     
     covered_lines = 0
     total_measured_lines = 0
-    current_file = None
-    file_lines_covered = {}
     
     with open(lcov_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             
-            if line.startswith("SF:"):
-                current_file = line[3:].strip()
-                if current_file and current_file not in file_lines_covered:
-                    file_lines_covered[current_file] = {"covered": 0, "total": 0}
-            elif line.startswith("DA:"):
-                # DA:data_file_path,line_number
+            if line.startswith("DA:"):
+                # DA:line_number,hit_count[,checksum]
                 parts = line[3:].split(",")
-                if len(parts) >= 2 and current_file:
+                if len(parts) >= 2:
                     try:
-                        line_num = int(parts[1])
-                        file_lines_covered[current_file]["total"] += 1
+                        hit_count = int(parts[1])
                         total_measured_lines += 1
-                    except ValueError:
-                        pass
-            elif line.startswith("LF:"):
-                # LF:data_file_path,line_number,hit_count
-                parts = line[3:].split(",")
-                if len(parts) >= 3 and current_file:
-                    try:
-                        hit_count = int(parts[2])
                         if hit_count > 0:
-                            file_lines_covered[current_file]["covered"] += 1
                             covered_lines += 1
                     except ValueError:
                         pass
+            elif line.startswith("LH:"):
+                # LH:number_of_lines_hit (overrides DA counting)
+                try:
+                    covered_lines = int(line[3:])
+                except ValueError:
+                    pass
+            elif line.startswith("LF:"):
+                # LF:number_of_lines_found (overrides DA counting)
+                try:
+                    total_measured_lines = int(line[3:])
+                except ValueError:
+                    pass
     
     return {
         "covered_lines": covered_lines,
         "total_measured_lines": total_measured_lines,
-        "files_detail": file_lines_covered
     }
 
 
