@@ -24,6 +24,8 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+unified-coverage.json
+coverage/
 
 # PDF Fixtures: Input and Output directories
 scripts/pdf_fixtures/input/
