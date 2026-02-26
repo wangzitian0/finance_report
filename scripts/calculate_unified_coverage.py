@@ -105,44 +105,56 @@ def count_code_lines(directory: Path, extensions: list[str]) -> dict:
 
 
 def parse_lcov_file(lcov_path: Path) -> dict:
-    """Parse lcov coverage file and extract covered line counts."""
+    """Parse lcov coverage file and extract covered line counts.
+    
+    LCOV format has per-file records with LH/LF summaries.
+    We must accumulate LH/LF from each file, not override.
+    """
     if not lcov_path.exists():
         return {"covered_lines": 0, "total_measured_lines": 0}
+    total_covered = 0
+    total_measured = 0
     
-    covered_lines = 0
-    total_measured_lines = 0
-    
+    # Parse file by file, accumulating LH/LF from each record
+    current_file_covered = 0
+    current_file_total = 0
+    in_record = False
     with open(lcov_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            
-            if line.startswith("DA:"):
-                # DA:line_number,hit_count[,checksum]
-                parts = line[3:].split(",")
-                if len(parts) >= 2:
-                    try:
-                        hit_count = int(parts[1])
-                        total_measured_lines += 1
-                        if hit_count > 0:
-                            covered_lines += 1
-                    except ValueError:
-                        pass
+            if line.startswith("SF:"):
+                # Start of new file record
+                in_record = True
+                current_file_covered = 0
+                current_file_total = 0
             elif line.startswith("LH:"):
-                # LH:number_of_lines_hit (overrides DA counting)
+                # Lines hit in current file
                 try:
-                    covered_lines = int(line[3:])
+                    current_file_covered = int(line[3:])
                 except ValueError:
                     pass
             elif line.startswith("LF:"):
-                # LF:number_of_lines_found (overrides DA counting)
+                # Lines found in current file
                 try:
-                    total_measured_lines = int(line[3:])
+                    current_file_total = int(line[3:])
                 except ValueError:
                     pass
+            elif line == "end_of_record":
+                # End of file record, accumulate to totals
+                if in_record:
+                    total_covered += current_file_covered
+                    total_measured += current_file_total
+                    in_record = False
+                    current_file_covered = 0
+                    current_file_total = 0
     
+    # Handle last record if no end_of_record marker
+    if in_record and current_file_total > 0:
+        total_covered += current_file_covered
+        total_measured += current_file_total
     return {
-        "covered_lines": covered_lines,
-        "total_measured_lines": total_measured_lines,
+        "covered_lines": total_covered,
+        "total_measured_lines": total_measured,
     }
 
 
