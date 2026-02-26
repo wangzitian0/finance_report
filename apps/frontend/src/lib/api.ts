@@ -47,6 +47,10 @@ function handle401Redirect(): never {
   throw new Error("Authentication required");
 }
 
+export function resetRedirectGuard(): void {
+  redirecting = false;
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
