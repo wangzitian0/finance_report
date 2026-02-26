@@ -105,11 +105,11 @@ class ResolveCheckRequest(BaseModel):
 
 
 class BatchApproveRequest(BaseModel):
-    match_ids: list[str] = Field(default_factory=list)
+    match_ids: list[UUID] = Field(default_factory=list)
 
 
 class BatchRejectRequest(BaseModel):
-    match_ids: list[str] = Field(default_factory=list)
+    match_ids: list[UUID] = Field(default_factory=list)
 
 
 class Stage2ReviewQueueResponse(BaseModel):
@@ -800,7 +800,7 @@ async def edit_and_approve_statement(
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """Stage 1: Edit transactions and approve."""
-    edits_data = [{"txn_id": e.txn_id, **e.model_dump(exclude={"txn_id"})} for e in request.edits]
+    edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         await edit_and_approve(db, statement_id, user_id, edits_data)
         await db.commit()

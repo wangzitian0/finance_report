@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -51,6 +51,7 @@ interface StatementReview {
 export default function StatementReviewPage() {
     const { showToast } = useToast();
     const params = useParams();
+    const router = useRouter();
     const statementId = params.id as string;
 
     const [data, setData] = useState<StatementReview | null>(null);
@@ -82,7 +83,7 @@ export default function StatementReviewPage() {
             await apiFetch(`/api/statements/${statementId}/review/approve`, { method: "POST" });
             showToast("Statement approved successfully", "success");
             setApproveDialogOpen(false);
-            window.location.href = "/statements";
+            router.push("/statements");
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to approve", "error");
         } finally {
@@ -99,7 +100,7 @@ export default function StatementReviewPage() {
             });
             showToast("Statement rejected", "success");
             setRejectDialogOpen(false);
-            window.location.href = "/statements";
+            router.push("/statements");
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to reject", "error");
         } finally {

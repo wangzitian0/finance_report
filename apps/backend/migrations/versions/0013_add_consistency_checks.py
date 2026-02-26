@@ -60,9 +60,15 @@ def upgrade() -> None:
     )
     op.create_index("ix_consistency_checks_user_id", "consistency_checks", ["user_id"])
     op.create_index("ix_consistency_checks_status", "consistency_checks", ["status"])
+    op.create_index(
+        "ix_consistency_checks_user_check_type_status",
+        "consistency_checks",
+        ["user_id", "check_type", "status"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_consistency_checks_user_check_type_status", table_name="consistency_checks")
     op.drop_index("ix_consistency_checks_status", table_name="consistency_checks")
     op.drop_index("ix_consistency_checks_user_id", table_name="consistency_checks")
     op.drop_table("consistency_checks")

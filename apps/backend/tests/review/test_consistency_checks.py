@@ -10,8 +10,10 @@ from src.services.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,
     detect_transfer_pairs,
+    get_pending_checks,
     has_unresolved_checks,
     resolve_check,
+    run_all_consistency_checks,
 )
 
 
@@ -177,3 +179,99 @@ class TestResolveCheck:
         assert resolved.resolved_at is not None
 
         assert await has_unresolved_checks(db, user_id) is False
+
+
+class TestRunAllConsistencyChecks:
+    async def test_run_all_aggregates_results(self, db, user_id, approved_statement):
+        """AC2.5.1 run_all_consistency_checks aggregates results from all detectors."""
+        # Create duplicate pair
+        txn1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 15),
+            description="Coffee",
+            amount=Decimal("5.00"),
+            direction="OUT",
+            status="pending",
+        )
+        txn2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 15),
+            description="Coffee",
+            amount=Decimal("5.00"),
+            direction="OUT",
+            status="pending",
+        )
+        db.add_all([txn1, txn2])
+        await db.flush()
+
+        checks = await run_all_consistency_checks(db, user_id, approved_statement.id)
+        # Should include at least the duplicate check
+        assert len(checks) >= 1
+        types = {c.check_type for c in checks}
+        assert CheckType.DUPLICATE in types
+
+    async def test_run_all_empty_statement(self, db, user_id, approved_statement):
+        """AC2.5.2 run_all_consistency_checks returns empty for clean statement."""
+        # No transactions -> no checks
+        checks = await run_all_consistency_checks(db, user_id, approved_statement.id)
+        assert checks == []
+
+
+class TestGetPendingChecks:
+    async def test_get_pending_returns_only_pending(self, db, user_id):
+        """AC2.6.1 get_pending_checks returns only PENDING checks."""
+        pending = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn1"],
+            details={},
+        )
+        resolved = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.ANOMALY,
+            status=CheckStatus.APPROVED,
+            related_txn_ids=["txn2"],
+            details={},
+        )
+        db.add_all([pending, resolved])
+        await db.flush()
+
+        result = await get_pending_checks(db, user_id)
+        assert len(result) == 1
+        assert result[0].id == pending.id
+        assert result[0].status == CheckStatus.PENDING
+
+    async def test_get_pending_filters_by_type(self, db, user_id):
+        """AC2.6.2 get_pending_checks filters by check_type."""
+        dup = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn1"],
+            details={},
+        )
+        anomaly = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.ANOMALY,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn2"],
+            details={},
+        )
+        db.add_all([dup, anomaly])
+        await db.flush()
+
+        result = await get_pending_checks(db, user_id, check_type=CheckType.DUPLICATE)
+        assert len(result) == 1
+        assert result[0].check_type == CheckType.DUPLICATE
+
+    async def test_get_pending_empty(self, db, user_id):
+        """AC2.6.3 get_pending_checks returns empty when no pending checks."""
+        result = await get_pending_checks(db, user_id)
+        assert result == []

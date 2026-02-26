@@ -10,6 +10,7 @@ from src.services.statement_validation import (
     BALANCE_TOLERANCE,
     approve_statement,
     edit_and_approve,
+    get_pending_stage1_review,
     reject_statement,
     set_opening_balance,
     validate_balance_chain,
@@ -256,3 +257,56 @@ class TestSetOpeningBalance:
         )
 
         assert stmt.manual_opening_balance == Decimal("500.00")
+
+
+class TestGetPendingStage1Review:
+    async def test_returns_parsed_statements(self, db, user_id):
+        """AC1.6.1 get_pending_stage1_review returns PARSED statements with null/PENDING stage1_status."""
+        # PARSED with no stage1_status (null) -> should be returned
+        stmt_pending = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="pending.pdf",
+            file_hash="hash_pend",
+            original_filename="pending.pdf",
+            institution="Test Bank",
+            currency="USD",
+            status=BankStatementStatus.PARSED,
+        )
+        # PARSED with stage1_status=PENDING_REVIEW -> should be returned
+        stmt_review = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="review.pdf",
+            file_hash="hash_review",
+            original_filename="review.pdf",
+            institution="Test Bank",
+            currency="USD",
+            status=BankStatementStatus.PARSED,
+            stage1_status=Stage1Status.PENDING_REVIEW,
+        )
+        # APPROVED -> should NOT be returned
+        stmt_approved = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="approved.pdf",
+            file_hash="hash_approved",
+            original_filename="approved.pdf",
+            institution="Test Bank",
+            currency="USD",
+            status=BankStatementStatus.APPROVED,
+            stage1_status=Stage1Status.APPROVED,
+        )
+        db.add_all([stmt_pending, stmt_review, stmt_approved])
+        await db.flush()
+
+        result = await get_pending_stage1_review(db, user_id)
+        ids = {s.id for s in result}
+        assert stmt_pending.id in ids
+        assert stmt_review.id in ids
+        assert stmt_approved.id not in ids
+
+    async def test_returns_empty_when_none_pending(self, db, user_id):
+        """AC1.6.2 get_pending_stage1_review returns empty when no pending statements."""
+        result = await get_pending_stage1_review(db, user_id)
+        assert result == []

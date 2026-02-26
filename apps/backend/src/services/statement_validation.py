@@ -150,6 +150,10 @@ async def edit_and_approve(
                 txn.description = edit["description"]
             if "txn_date" in edit:
                 txn.txn_date = edit["txn_date"]
+            if "direction" in edit:
+                txn.direction = edit["direction"]
+            if "reference" in edit:
+                txn.reference = edit["reference"]
 
     validation_result = await validate_balance_chain(db, statement_id)
 
