@@ -1,18 +1,17 @@
 """Tests for portfolio allocation service."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer2 import AssetType
-from src.models.layer3 import ManagedPosition, PositionStatus, CostBasisMethod
 from src.models.account import Account, AccountType
+from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.services.allocation import (
-    get_sector_allocation,
-    get_geography_allocation,
     get_asset_class_allocation,
+    get_geography_allocation,
+    get_sector_allocation,
 )
 
 

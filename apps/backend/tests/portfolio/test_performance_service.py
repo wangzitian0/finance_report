@@ -1,17 +1,16 @@
 """Tests for portfolio performance service (XIRR, TWR, MWR)."""
 
-import pytest
 from datetime import date, timedelta
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.performance import (
-    calculate_xirr,
-    calculate_time_weighted_return,
-    calculate_money_weighted_return,
     InsufficientDataError,
+    calculate_money_weighted_return,
+    calculate_time_weighted_return,
+    calculate_xirr,
 )
 
 

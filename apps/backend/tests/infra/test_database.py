@@ -2,7 +2,7 @@
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, async_sessionmaker
+from sqlalchemy.orm import async_sessionmaker
 
 from src.database import (
     create_session_maker_from_db,

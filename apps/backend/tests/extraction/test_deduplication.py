@@ -453,7 +453,6 @@ class TestDeduplicationService:
         import asyncio
 
         from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
         service = DeduplicationService()
         doc1_id = uuid4()

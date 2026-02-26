@@ -5,7 +5,6 @@ from uuid import UUID
 from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm import selectinload
 
 from src.models import BankStatement, BankStatementStatus
 from src.models.statement import Stage1Status

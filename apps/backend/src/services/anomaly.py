@@ -7,7 +7,6 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.models import BankStatement, BankStatementTransaction
 from src.services.reconciliation import extract_merchant_tokens

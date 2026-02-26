@@ -8,14 +8,13 @@ from uuid import UUID
 
 from sqlalchemy import Date, Enum as SQLEnum, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from src.models.layer3 import ManagedPosition
-    from src.models.user import User
+    pass
 
 
 class DividendType(str, Enum):

@@ -7,7 +7,6 @@ from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger

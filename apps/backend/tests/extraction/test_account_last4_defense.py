@@ -24,7 +24,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.models.statement import BankStatement, BankStatementStatus
 from src.services.extraction import ExtractionService

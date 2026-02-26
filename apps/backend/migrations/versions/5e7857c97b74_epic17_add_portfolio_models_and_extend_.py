@@ -1,8 +1,7 @@
 """epic17: add portfolio models and extend positions"""
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = '5e7857c97b74'

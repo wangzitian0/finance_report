@@ -2,7 +2,6 @@
 
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
@@ -53,7 +52,6 @@ async def get_holdings(
         user_id=str(user_id),
         as_of_date=as_of_date,
         include_disposed=include_disposed,
-        account_id=str(account_id) if account_id else None,
     )
 
     holdings = await portfolio.get_holdings(
@@ -62,9 +60,6 @@ async def get_holdings(
         as_of_date=as_of_date or date.today(),
         include_disposed=include_disposed,
     )
-
-    if account_id:
-        holdings = [h for h in holdings if h.account_id == account_id]
 
     logger.info("Retrieved holdings", count=len(holdings))
     return holdings
@@ -85,7 +80,6 @@ async def get_performance(
         period_start=period_start,
         period_end=period_end,
         as_of_date=as_of_date,
-        account_id=str(account_id) if account_id else None,
     )
 
     as_of = as_of_date or date.today()
@@ -103,9 +97,7 @@ async def get_performance(
     else:
         twr = Decimal("0")
 
-    mwr = await performance.calculate_money_weighted_return(
-        db=db, user_id=user_id, as_of_date=as_of
-    )
+    mwr = await performance.calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
 
     logger.info("Performance calculated", xirr=float(xirr), twr=float(twr), mwr=float(mwr))
     return PerformanceMetricsResponse(xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr)
@@ -122,7 +114,6 @@ async def get_sector_allocation(
         "Getting sector allocation",
         user_id=str(user_id),
         as_of_date=as_of_date,
-        account_id=str(account_id) if account_id else None,
     )
 
     breakdowns = await allocation.get_sector_allocation(
@@ -146,7 +137,6 @@ async def get_geography_allocation(
         "Getting geography allocation",
         user_id=str(user_id),
         as_of_date=as_of_date,
-        account_id=str(account_id) if account_id else None,
     )
 
     breakdowns = await allocation.get_geography_allocation(
@@ -170,7 +160,6 @@ async def get_asset_class_allocation(
         "Getting asset class allocation",
         user_id=str(user_id),
         as_of_date=as_of_date,
-        account_id=str(account_id) if account_id else None,
     )
 
     breakdowns = await allocation.get_asset_class_allocation(

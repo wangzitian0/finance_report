@@ -12,7 +12,6 @@ from uuid import UUID
 from sqlalchemy import case, func, literal, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.constants.error_ids import ErrorIds

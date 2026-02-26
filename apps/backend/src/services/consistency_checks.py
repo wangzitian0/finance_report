@@ -5,7 +5,6 @@ from uuid import UUID
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm import selectinload
 
 from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck

@@ -5,7 +5,6 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.models import FxRate
 from src.services import fx as fx_service

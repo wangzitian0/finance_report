@@ -227,7 +227,6 @@ async def test_delete_session_not_found() -> None:
 async def test_delete_session_success() -> None:
     """AC6.4.5: Delete session marks session as deleted."""
     from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
     from src.models import ChatSession, ChatSessionStatus
     from src.routers.chat import delete_session
