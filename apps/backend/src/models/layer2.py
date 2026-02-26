@@ -13,6 +13,11 @@ from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class TransactionDirection(str, Enum):
+    """Transaction flow direction."""
+
+    IN = "IN"
+    OUT = "OUT"
+
 
 class AssetType(str, Enum):
     """Type of financial asset."""
@@ -24,11 +29,6 @@ class AssetType(str, Enum):
     PROPERTY = "property"
     CASH = "cash"
     OTHER = "other"
-    """Transaction flow direction."""
-
-    IN = "IN"
-    OUT = "OUT"
-
 
 class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """

@@ -22,6 +22,7 @@ from src.models.layer3 import (
 )
 from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.market_data import FxRate
+from src.models.portfolio import DividendIncome, DividendType, MarketDataOverride, PriceSource
 from src.models.ping_state import PingState
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
@@ -70,9 +71,12 @@ __all__ = [
     "JournalEntrySourceType",
     "JournalEntryStatus",
     "JournalLine",
-    "ManagedPosition",
+    "DividendIncome",
+    "DividendType",
     "PingState",
     "PositionStatus",
+    "ManagedPosition",
+    "MarketDataOverride",
     "ReconciliationMatch",
     "ReconciliationStatus",
     "ReportSnapshot",
@@ -80,6 +84,7 @@ __all__ = [
     "RuleType",
     "Statement",  # Alias for BankStatement
     "Stage1Status",
+    "PriceSource",
     "TransactionClassification",
     "TransactionDirection",
     "UploadedDocument",

@@ -143,6 +143,11 @@ class TransactionClassification(Base, UUIDMixin, TimestampMixin):
 
 
 class PositionStatus(str, Enum):
+    """Status of a managed position."""
+
+    ACTIVE = "active"
+    DISPOSED = "disposed"
+
 
 class CostBasisMethod(str, Enum):
     """Cost basis calculation method for realized P&L."""
@@ -150,11 +155,6 @@ class CostBasisMethod(str, Enum):
     FIFO = "FIFO"  # First In First Out
     LIFO = "LIFO"  # Last In First Out
     AVGCOST = "AvgCost"  # Average Cost
-    """Status of a managed position."""
-
-    ACTIVE = "active"
-    DISPOSED = "disposed"
-
 
 class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """

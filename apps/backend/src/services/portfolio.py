@@ -1,12 +1,16 @@
+"""Portfolio management service - Holdings and P&L calculations."""
+
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
 from src.config import settings
+from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import MarketDataOverride, PriceSource
@@ -19,8 +23,6 @@ from src.schemas.portfolio import (
     UnrealizedPnLResponse,
 )
 from src.services import fx
-
-from src.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -86,7 +88,9 @@ class PortfolioService:
             .where(ManagedPosition.user_id == user_id)
             .options(
                 selectinload(ManagedPosition.account),
-                selectinload(ManagedPosition.atomic_positions).joinedload(AtomicPosition.asset_classification),
+                selectinload(ManagedPosition.atomic_positions).joinedload(
+                    AtomicPosition.asset_classification
+                ),
             )
         )
 
@@ -199,7 +203,9 @@ class PortfolioService:
             PortfolioNotFoundError: If user has no disposed positions
         """
         if period_start > period_end:
-            raise InvalidDateRangeError(f"period_start ({period_start}) cannot be after period_end ({period_end})")
+            raise InvalidDateRangeError(
+                f"period_start ({period_start}) cannot be after period_end ({period_end})"
+            )
 
         # Get disposed positions
         disposed_positions_query = (
