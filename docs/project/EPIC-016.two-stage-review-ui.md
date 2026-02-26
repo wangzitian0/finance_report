@@ -190,30 +190,26 @@ Stage 2: Run-Level Review (Consistency Checks)
 ---
 
 ## 📏 Acceptance Criteria
-
 ### 🟢 Must Have
 
-| Standard | Verification | Weight |
-|------|----------|------|
-| **Balance validation tolerance = 0.001 USD** | `test_validate_balance_chain_within_tolerance()` | 🔴 Critical |
-| **Stage 1 UI shows PDF + parsed split view** | Manual UI test | 🔴 Critical |
-| **Approve button disabled if balance invalid** | Frontend unit test | Required |
-| **Deduplication detection accuracy ≥ 95%** | `test_detect_duplicates_*()` | Required |
-| **Transfer pair detection accuracy ≥ 90%** | `test_detect_transfer_pairs_*()` | Required |
-| **Batch approve blocked if unresolved checks** | `test_batch_approve_requires_checks_resolved()` | Required |
-| **Stage 2 UI supports batch operations** | Manual UI test | Required |
+| AC ID | Standard | Verification | Weight |
+|------|------|----------|------|
+| AC16.1.1 | **Balance validation tolerance = 0.001 USD** | `test_validate_balance_chain_within_tolerance()` | 🔴 Critical |
+| AC16.1.2 | **Stage 1 UI shows PDF + parsed split view** | Manual UI test | 🔴 Critical |
+| AC16.1.3 | **Approve button disabled if balance invalid** | Frontend unit test | Required |
+| AC16.2.1 | **Deduplication detection accuracy ≥ 95%** | `test_detect_duplicates_*()` | Required |
+| AC16.2.2 | **Transfer pair detection accuracy ≥ 90%** | `test_detect_transfer_pairs_*()` | Required |
+| AC16.2.3 | **Batch approve blocked if unresolved checks** | `test_batch_approve_requires_checks_resolved()` | Required |
+| AC16.2.4 | **Stage 2 UI supports batch operations** | Manual UI test | Required |
 
 ### 🌟 Nice to Have
-
 | Standard | Verification | Status |
 |------|----------|------|
 | **Visual diff for edited transactions** | Frontend feature | ⏳ |
 | **Keyboard shortcuts for approve/reject** | Frontend feature | ⏳ |
 | **Mobile-responsive review UI** | Responsive design | ⏳ |
 | **Export review queue to CSV** | API endpoint | ⏳ |
-
 ### 🚫 Not Acceptable
-
 - Balance tolerance > 0.01 USD (too loose)
 - Stage 1 UI without PDF preview (user can't verify)
 - Batch approve without consistency checks (data corruption risk)
