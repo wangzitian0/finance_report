@@ -231,6 +231,7 @@ jobs:
           flag-name: backend
           base-path: apps/backend
       - name: Upload frontend to Coveralls (per-flag)
+        if: ${{ hashFiles('coverage/frontend.lcov') != '' }}
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
@@ -239,7 +240,7 @@ jobs:
           base-path: apps/frontend/src
       - name: AC Traceability Report
         run: |
-          uv run python scripts/check_ac_traceability.py --report-only
+          uv run --with pyyaml python scripts/check_ac_traceability.py --report-only
         continue-on-error: true
 
   finish:
