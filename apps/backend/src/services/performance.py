@@ -37,9 +37,7 @@ class XIRRCalculationError(PerformanceError):
 
 async def calculate_xirr(
     db: AsyncSession,
-    user_id: UUID,
-    account_id: UUID | None = None,
-    as_of_date: date | None = None,
+    user_id: UUID,    as_of_date: date | None = None,
 ) -> Decimal:
     """
     Calculate XIRR (Extended Internal Rate of Return) for portfolio.
@@ -50,7 +48,6 @@ async def calculate_xirr(
     Args:
         db: Database session
         user_id: User ID
-        account_id: Optional account filter (None = all accounts)
         as_of_date: Calculate as of this date (default: today)
 
     Returns:
@@ -73,9 +70,6 @@ async def calculate_xirr(
         AtomicTransaction.user_id == user_id,
         AtomicTransaction.txn_date <= as_of_date,
     )
-    if account_id:
-        query = query.where(AtomicTransaction.account_id == account_id)
-
     result = await db.execute(query)
     transactions = result.scalars().all()
 
@@ -99,9 +93,6 @@ async def calculate_xirr(
         ManagedPosition.user_id == user_id,
         ManagedPosition.status == PositionStatus.ACTIVE,
     )
-    if account_id:
-        query = query.where(ManagedPosition.account_id == account_id)
-
     result = await db.execute(query)
     positions = result.scalars().all()
 
@@ -196,9 +187,7 @@ async def calculate_time_weighted_return(
     db: AsyncSession,
     user_id: UUID,
     period_start: date,
-    period_end: date,
-    account_id: UUID | None = None,
-) -> Decimal:
+    period_end: date,) -> Decimal:
     """
     Calculate Time-Weighted Return (TWR) for a period.
 
@@ -211,7 +200,6 @@ async def calculate_time_weighted_return(
         user_id: User ID
         period_start: Start date of period
         period_end: End date of period
-        account_id: Optional account filter (None = all accounts)
 
     Returns:
         Decimal: Period return as percentage (e.g., 8.5 for 8.5%)
@@ -220,8 +208,8 @@ async def calculate_time_weighted_return(
         InsufficientDataError: Need at least two position snapshots
     """
     # Get position snapshots at start and end of period
-    start_value = await _get_portfolio_value(db, user_id, period_start, account_id)
-    end_value = await _get_portfolio_value(db, user_id, period_end, account_id)
+    start_value = await _get_portfolio_value(db, user_id, period_start)
+    end_value = await _get_portfolio_value(db, user_id, period_end)
 
     # Get net cash flows during period
     query = select(AtomicTransaction).where(
@@ -231,9 +219,6 @@ async def calculate_time_weighted_return(
             AtomicTransaction.txn_date <= period_end,
         ),
     )
-    if account_id:
-        query = query.where(AtomicTransaction.account_id == account_id)
-
     result = await db.execute(query)
     transactions = result.scalars().all()
 
@@ -265,9 +250,7 @@ async def calculate_time_weighted_return(
 
 async def calculate_money_weighted_return(
     db: AsyncSession,
-    user_id: UUID,
-    account_id: UUID | None = None,
-    as_of_date: date | None = None,
+    user_id: UUID,    as_of_date: date | None = None,
 ) -> Decimal:
     """
     Calculate Money-Weighted Return (MWR) for portfolio.
@@ -278,7 +261,6 @@ async def calculate_money_weighted_return(
     Args:
         db: Database session
         user_id: User ID
-        account_id: Optional account filter (None = all accounts)
         as_of_date: Calculate as of this date (default: today)
 
     Returns:
@@ -289,14 +271,13 @@ async def calculate_money_weighted_return(
         XIRRCalculationError: Calculation failed to converge
     """
     # MWR = XIRR (they are the same concept)
-    return await calculate_xirr(db, user_id, account_id, as_of_date)
+    return await calculate_xirr(db, user_id, as_of_date)
 
 
 async def _get_portfolio_value(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date,
-    account_id: UUID | None = None,
 ) -> Decimal:
     """
     Get total portfolio value as of a specific date.
@@ -305,7 +286,6 @@ async def _get_portfolio_value(
         db: Database session
         user_id: User ID
         as_of_date: Date to get value for
-        account_id: Optional account filter
 
     Returns:
         Decimal: Total portfolio value in base currency
@@ -314,9 +294,6 @@ async def _get_portfolio_value(
         ManagedPosition.user_id == user_id,
         ManagedPosition.status == PositionStatus.ACTIVE,
     )
-    if account_id:
-        query = query.where(ManagedPosition.account_id == account_id)
-
     result = await db.execute(query)
     positions = result.scalars().all()
 

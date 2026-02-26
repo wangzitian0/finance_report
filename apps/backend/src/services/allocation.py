@@ -48,9 +48,7 @@ class AllocationBreakdown:
 async def get_sector_allocation(
     db: AsyncSession,
     user_id: UUID,
-    as_of_date: date | None = None,
-    account_id: UUID | None = None,
-) -> list[AllocationBreakdown]:
+    as_of_date: date | None = None,) -> list[AllocationBreakdown]:
     """
     Calculate sector allocation breakdown.
 
@@ -58,7 +56,6 @@ async def get_sector_allocation(
         db: Database session
         user_id: User ID
         as_of_date: Calculate as of this date (default: today)
-        account_id: Optional account filter (None = all accounts)
 
     Returns:
         list[AllocationBreakdown]: Sector breakdown sorted by value (descending)
@@ -71,9 +68,6 @@ async def get_sector_allocation(
         ManagedPosition.user_id == user_id,
         ManagedPosition.status == PositionStatus.ACTIVE,
     )
-    if account_id:
-        query = query.where(ManagedPosition.account_id == account_id)
-
     result = await db.execute(query)
     positions = result.scalars().all()
 
@@ -134,9 +128,7 @@ async def get_sector_allocation(
 async def get_geography_allocation(
     db: AsyncSession,
     user_id: UUID,
-    as_of_date: date | None = None,
-    account_id: UUID | None = None,
-) -> list[AllocationBreakdown]:
+    as_of_date: date | None = None,) -> list[AllocationBreakdown]:
     """
     Calculate geography allocation breakdown.
 
@@ -144,7 +136,6 @@ async def get_geography_allocation(
         db: Database session
         user_id: User ID
         as_of_date: Calculate as of this date (default: today)
-        account_id: Optional account filter (None = all accounts)
 
     Returns:
         list[AllocationBreakdown]: Geography breakdown sorted by value (descending)
@@ -157,9 +148,6 @@ async def get_geography_allocation(
         ManagedPosition.user_id == user_id,
         ManagedPosition.status == PositionStatus.ACTIVE,
     )
-    if account_id:
-        query = query.where(ManagedPosition.account_id == account_id)
-
     result = await db.execute(query)
     positions = result.scalars().all()
 
@@ -220,9 +208,7 @@ async def get_geography_allocation(
 async def get_asset_class_allocation(
     db: AsyncSession,
     user_id: UUID,
-    as_of_date: date | None = None,
-    account_id: UUID | None = None,
-) -> list[AllocationBreakdown]:
+    as_of_date: date | None = None,) -> list[AllocationBreakdown]:
     """
     Calculate asset class allocation breakdown.
 
@@ -230,7 +216,6 @@ async def get_asset_class_allocation(
         db: Database session
         user_id: User ID
         as_of_date: Calculate as of this date (default: today)
-        account_id: Optional account filter (None = all accounts)
 
     Returns:
         list[AllocationBreakdown]: Asset class breakdown sorted by value (descending)
@@ -243,9 +228,6 @@ async def get_asset_class_allocation(
         ManagedPosition.user_id == user_id,
         ManagedPosition.status == PositionStatus.ACTIVE,
     )
-    if account_id:
-        query = query.where(ManagedPosition.account_id == account_id)
-
     result = await db.execute(query)
     positions = result.scalars().all()
 

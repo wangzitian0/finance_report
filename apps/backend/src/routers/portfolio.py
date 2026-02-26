@@ -46,7 +46,6 @@ async def get_holdings(
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     include_disposed: bool = Query(False, description="Include disposed positions"),
-    account_id: UUID | None = Query(None, description="Filter by account"),
 ) -> list[HoldingResponse]:
     """Get portfolio holdings with P&L."""
     logger.info(
@@ -78,7 +77,6 @@ async def get_performance(
     period_start: date | None = Query(None, description="Period start date (for TWR)"),
     period_end: date | None = Query(None, description="Period end date (for TWR, default: today)"),
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
-    account_id: UUID | None = Query(None, description="Filter by account"),
 ) -> PerformanceMetricsResponse:
     """Calculate portfolio performance metrics (XIRR, TWR, MWR)."""
     logger.info(
@@ -93,7 +91,7 @@ async def get_performance(
     as_of = as_of_date or date.today()
     p_end = period_end or date.today()
 
-    xirr = await performance.calculate_xirr(db=db, user_id=user_id, account_id=account_id, as_of_date=as_of)
+    xirr = await performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
 
     if period_start:
         twr = await performance.calculate_time_weighted_return(
@@ -101,13 +99,12 @@ async def get_performance(
             user_id=user_id,
             period_start=period_start,
             period_end=p_end,
-            account_id=account_id,
         )
     else:
         twr = Decimal("0")
 
     mwr = await performance.calculate_money_weighted_return(
-        db=db, user_id=user_id, account_id=account_id, as_of_date=as_of
+        db=db, user_id=user_id, as_of_date=as_of
     )
 
     logger.info("Performance calculated", xirr=float(xirr), twr=float(twr), mwr=float(mwr))
@@ -119,7 +116,6 @@ async def get_sector_allocation(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
-    account_id: UUID | None = Query(None, description="Filter by account"),
 ) -> list[AllocationBreakdownResponse]:
     """Get sector allocation breakdown."""
     logger.info(
@@ -133,7 +129,6 @@ async def get_sector_allocation(
         db=db,
         user_id=user_id,
         as_of_date=as_of_date or date.today(),
-        account_id=account_id,
     )
 
     logger.info("Retrieved sector allocation", count=len(breakdowns))
@@ -145,7 +140,6 @@ async def get_geography_allocation(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
-    account_id: UUID | None = Query(None, description="Filter by account"),
 ) -> list[AllocationBreakdownResponse]:
     """Get geography allocation breakdown."""
     logger.info(
@@ -159,7 +153,6 @@ async def get_geography_allocation(
         db=db,
         user_id=user_id,
         as_of_date=as_of_date or date.today(),
-        account_id=account_id,
     )
 
     logger.info("Retrieved geography allocation", count=len(breakdowns))
@@ -171,7 +164,6 @@ async def get_asset_class_allocation(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
-    account_id: UUID | None = Query(None, description="Filter by account"),
 ) -> list[AllocationBreakdownResponse]:
     """Get asset class allocation breakdown."""
     logger.info(
@@ -185,7 +177,6 @@ async def get_asset_class_allocation(
         db=db,
         user_id=user_id,
         as_of_date=as_of_date or date.today(),
-        account_id=account_id,
     )
 
     logger.info("Retrieved asset class allocation", count=len(breakdowns))
