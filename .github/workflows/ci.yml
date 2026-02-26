@@ -203,7 +203,7 @@ jobs:
         run: |
           uv run python scripts/calculate_unified_coverage.py
         env:
-          COVERAGE_THRESHOLD: 21
+          COVERAGE_THRESHOLD: 21  # Baseline as of PR #298 (21.3%); raise as coverage improves
 
       - name: Merge all coverage into unified LCOV
         run: |
@@ -231,7 +231,8 @@ jobs:
           flag-name: backend
           base-path: apps/backend
       - name: Upload frontend to Coveralls (per-flag)
-        if: ${{ hashFiles('coverage/frontend.lcov') != '' }}
+        # Note: hashFiles() evaluates at plan time before steps run; use always() + action handles missing file
+        if: always()
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:

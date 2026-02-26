@@ -8,9 +8,7 @@ This gives us the combined coverage across all test shards.
 """
 
 import sys
-from collections import defaultdict
 from pathlib import Path
-
 
 def parse_lcov_to_records(lcov_path: Path) -> dict:
     """Parse LCOV file into per-file records."""
@@ -33,9 +31,12 @@ def parse_lcov_to_records(lcov_path: Path) -> dict:
                 # DA:line_number,hit_count
                 parts = line[3:].split(",")
                 if len(parts) >= 2:
-                    line_num = int(parts[0])
-                    hit_count = int(parts[1])
-                    current_record["lines"][line_num] = hit_count
+                    try:
+                        line_num = int(parts[0])
+                        hit_count = int(parts[1])
+                        current_record["lines"][line_num] = hit_count
+                    except ValueError:
+                        pass  # skip malformed DA: lines (e.g., corrupt LCOV)
             elif line == "end_of_record":
                 if current_file and current_record:
                     if current_file not in records:
@@ -79,7 +80,7 @@ def merge_records(records_list: list[dict]) -> dict:
     return merged
 
 
-def write_lcov(records: dict, output_path: Path):
+def write_lcov(records: dict, output_path: Path) -> None:
     """Write merged records to LCOV format."""
     with open(output_path, "w", encoding="utf-8") as f:
         for source_file, record in sorted(records.items()):
@@ -97,7 +98,7 @@ def write_lcov(records: dict, output_path: Path):
             f.write("end_of_record\n")
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 3:
         print("Usage: merge_lcov.py <output.lcov> <input1.lcov> [input2.lcov ...]")
         sys.exit(1)

@@ -16,10 +16,8 @@ Output: unified-coverage.json with:
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
-
 
 # Configuration
 ROOT_DIR = Path(__file__).parent.parent
@@ -199,7 +197,7 @@ def get_frontend_coverage() -> dict:
 
 
 def get_scripts_coverage() -> dict:
-    """Get scripts coverage (run with pytest-cov if tests exist)."""
+    """Get scripts coverage from pre-generated lcov file (coverage-scripts.lcov), if it exists."""
     lcov_path = ROOT_DIR / "coverage-scripts.lcov"
     coverage_data = parse_lcov_file(lcov_path)
     
@@ -231,7 +229,7 @@ def calculate_unified_coverage(backend: dict, frontend: dict, scripts: dict) -> 
     }
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     print("=" * 60)
     print("Unified Coverage Calculator")

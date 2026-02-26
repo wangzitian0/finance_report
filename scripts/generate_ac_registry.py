@@ -7,7 +7,7 @@ import sys
 EPIC_DIR = "docs/project"
 OUTPUT = "docs/ac_registry.yaml"
 
-EPIC_NAMES = {
+EPIC_NAMES: dict[int, str] = {
     1: "phase0-setup",
     2: "double-entry-core",
     3: "statement-parsing",
