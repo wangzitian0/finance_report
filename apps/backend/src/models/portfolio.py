@@ -55,7 +55,7 @@ class DividendIncome(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         default=DividendType.ORDINARY,
     )
 
-    position: Mapped["ManagedPosition"] = relationship("ManagedPosition")
+    # Relationship removed - position_id FK is sufficient for queries
 
     def __repr__(self) -> str:
         return f"<DividendIncome {self.payment_date} {self.amount} {self.currency}>"
@@ -93,7 +93,7 @@ class MarketDataOverride(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         default=PriceSource.MANUAL,
     )
 
-    user: Mapped["User"] = relationship("User")
+    # Relationship removed - user_id from UserOwnedMixin is sufficient for queries
 
     def __repr__(self) -> str:
         return f"<MarketDataOverride {self.asset_identifier} {self.price} on {self.price_date}>"
