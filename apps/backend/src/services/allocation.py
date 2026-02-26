@@ -94,11 +94,11 @@ async def get_sector_allocation(
         if atomic:
             # Convert to base currency
             value_base = await fx.convert_amount(
-                db=db,
-                amount=atomic.market_value or Decimal("0"),
-                from_currency=atomic.currency,
-                to_currency=settings.base_currency,
-                as_of_date=as_of_date,
+                db,
+                atomic.market_value or Decimal("0"),
+                atomic.currency,
+                settings.base_currency,
+                as_of_date,
             )
 
             sector = atomic.sector or "Unknown"
@@ -174,11 +174,11 @@ async def get_geography_allocation(
         if atomic:
             # Convert to base currency
             value_base = await fx.convert_amount(
-                db=db,
-                amount=atomic.market_value or Decimal("0"),
-                from_currency=atomic.currency,
-                to_currency=settings.base_currency,
-                as_of_date=as_of_date,
+                db,
+                atomic.market_value or Decimal("0"),
+                atomic.currency,
+                settings.base_currency,
+                as_of_date,
             )
 
             geography = atomic.geography or "Unknown"
@@ -254,11 +254,11 @@ async def get_asset_class_allocation(
         if atomic:
             # Convert to base currency
             value_base = await fx.convert_amount(
-                db=db,
-                amount=atomic.market_value or Decimal("0"),
-                from_currency=atomic.currency,
-                to_currency=settings.base_currency,
-                as_of_date=as_of_date,
+                db,
+                atomic.market_value or Decimal("0"),
+                atomic.currency,
+                settings.base_currency,
+                as_of_date,
             )
 
             # Map enum to readable string

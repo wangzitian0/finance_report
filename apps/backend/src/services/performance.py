@@ -77,11 +77,11 @@ async def calculate_xirr(
     # OUT = negative (money leaving account), IN = positive (money entering)
     for txn in transactions:
         amount_base = await fx.convert_amount(
-            db=db,
-            amount=txn.amount,
-            from_currency=txn.currency,
-            to_currency=settings.base_currency,
-            as_of_date=txn.txn_date,
+            db,
+            txn.amount,
+            txn.currency,
+            settings.base_currency,
+            txn.txn_date,
         )
         sign = -1 if txn.direction == TransactionDirection.OUT else 1
         cash_flows.append((txn.txn_date, amount_base * sign))
@@ -114,11 +114,11 @@ async def calculate_xirr(
 
         if atomic:
             value_base = await fx.convert_amount(
-                db=db,
-                amount=atomic.market_value or Decimal("0"),
-                from_currency=atomic.currency,
-                to_currency=settings.base_currency,
-                as_of_date=as_of_date,
+                db,
+                atomic.market_value or Decimal("0"),
+                atomic.currency,
+                settings.base_currency,
+                as_of_date,
             )
             total_value += value_base
 
@@ -225,11 +225,11 @@ async def calculate_time_weighted_return(
     net_cash_flow = Decimal("0")
     for txn in transactions:
         amount_base = await fx.convert_amount(
-            db=db,
-            amount=txn.amount,
-            from_currency=txn.currency,
-            to_currency=settings.base_currency,
-            as_of_date=txn.txn_date,
+            db,
+            txn.amount,
+            txn.currency,
+            settings.base_currency,
+            txn.txn_date,
         )
         # OUT = negative (money leaving), IN = positive (money entering)
         sign = -1 if txn.direction == TransactionDirection.OUT else 1
@@ -315,11 +315,11 @@ async def _get_portfolio_value(
 
         if atomic:
             value_base = await fx.convert_amount(
-                db=db,
-                amount=atomic.market_value or Decimal("0"),
-                from_currency=atomic.currency,
-                to_currency=settings.base_currency,
-                as_of_date=as_of_date,
+                db,
+                atomic.market_value or Decimal("0"),
+                atomic.currency,
+                settings.base_currency,
+                as_of_date,
             )
             total_value += value_base
 
