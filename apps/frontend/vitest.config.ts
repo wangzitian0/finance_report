@@ -9,11 +9,19 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
+      // Blacklist approach: exclude test/config files, everything else counts as code
       exclude: [
         'node_modules/',
         '.next/',
         'coverage/',
+        '**/tests/**',
+        '**/__tests__/**',
+        '**/*.test.ts',
+        '**/*.test.tsx',
+        '**/*.spec.ts',
+        '**/*.spec.tsx',
+        '**/vitest.setup.ts',
         '**/*.config.*',
         '**/types/**',
       ],
@@ -22,6 +30,7 @@ export default defineConfig({
         functions: 80,
         branches: 80,
         statements: 80,
+        autoUpdate: true,
       },
     },
   },

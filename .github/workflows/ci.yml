@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
+
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
         with:
@@ -50,7 +50,7 @@ jobs:
         with:
           version: "0.5.14"
           enable-cache: true
-      
+
       - name: Set up Python
         run: uv python install 3.12
 
@@ -86,69 +86,38 @@ jobs:
             --splits 4 \
             --group ${{ matrix.shard }} \
             --cov=src \
-            --cov-report=lcov:coverage-${{ matrix.shard }}.lcov \
+            --cov-report=lcov:coverage-backend-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
             --cov-branch \
             --cov-fail-under=0 \
             --dist worksteal
-      
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.shard }}
-          path: apps/backend/coverage-${{ matrix.shard }}.lcov
+          name: coverage-backend-${{ matrix.shard }}
+          path: apps/backend/coverage-backend-${{ matrix.shard }}.lcov
           retention-days: 1
 
-  merge-coverage:
-    name: Merge Coverage Reports
-    needs: backend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      
-      - name: Download all coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-*
-          merge-multiple: true
-      
-      - name: Merge coverage reports
-        run: |
-          cat coverage-*.lcov > coverage.lcov
-          echo "✅ Merged coverage reports:"
-          ls -lh coverage*.lcov
-          echo ""
-          echo "ℹ️  Coverage reporting is best-effort (non-blocking)"
-
-      - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@v2
-        continue-on-error: true
-        with:
-          file: coverage.lcov
-          flag-name: backend
-          base-path: apps/backend
-
   frontend:
-    name: Frontend Build
+    name: Frontend Build & Test
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0  # moon 2.x needs full history for VCS diffing
+          fetch-depth: 0
 
       - name: Fetch submodule history for Moon VCS
         run: |
           git submodule foreach --recursive 'git fetch origin 7db811abd43a3fc389db92721baae9f4b0e8fb51 2>/dev/null || true'
           git submodule foreach --recursive 'git fetch --unshallow 2>/dev/null || git fetch --depth=1000 || true'
-      
+
       - name: Fetch submodule PR refs
         run: |
           cd repo && git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
-      
+
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
         with:
@@ -175,27 +144,98 @@ jobs:
       - name: Build Frontend (via Moon)
         run: moon run :build
 
+      - name: Run Frontend Tests
+        run: npm run test:coverage
+        working-directory: apps/frontend
+
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-frontend
+          path: apps/frontend/coverage/lcov.info
+          retention-days: 1
+
+  unified-coverage:
+    name: Calculate Unified Coverage
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.14"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-backend-*
+          merge-multiple: true
+          path: coverage-backend
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-frontend
+          path: coverage-frontend
+
+      - name: Merge coverage reports
+        run: |
+          mkdir -p coverage
+          cat coverage-backend/*.lcov > coverage/backend.lcov
+          cp coverage-frontend/lcov.info coverage/frontend.lcov
+          echo "✅ Coverage files prepared:"
+          ls -la coverage/
+
+      - name: Calculate unified coverage
+        run: |
+          uv run python scripts/calculate_unified_coverage.py
+        env:
+          COVERAGE_THRESHOLD: 80
+
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
+        continue-on-error: true
+        with:
+          file: coverage/backend.lcov
+          flag-name: backend
+          base-path: apps/backend
+
+      - name: Upload frontend to Coveralls
+        uses: coverallsapp/github-action@v2
+        continue-on-error: true
+        with:
+          file: coverage/frontend.lcov
+          flag-name: frontend
+          base-path: apps/frontend/src
+
   finish:
-    needs: [backend, merge-coverage, frontend]
+    needs: [backend, frontend, unified-coverage]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
     - name: Check job status
       run: |
         echo "Backend: ${{ needs.backend.result }}"
-        echo "Coverage: ${{ needs.merge-coverage.result }}"
         echo "Frontend: ${{ needs.frontend.result }}"
-        # Critical jobs must succeed
+        echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
         if [[ "${{ needs.backend.result }}" != "success" ]]; then
           echo "::error::Backend tests failed"
           exit 1
         fi
         if [[ "${{ needs.frontend.result }}" != "success" ]]; then
-          echo "::error::Frontend build failed"
+          echo "::error::Frontend build/tests failed"
           exit 1
         fi
-
-        # Coverage upload is best-effort (external service)
-        if [[ "${{ needs.merge-coverage.result }}" != "success" ]]; then
-          echo "::warning::Coverage upload failed (non-blocking)"
+        if [[ "${{ needs.unified-coverage.result }}" != "success" ]]; then
+          echo "::error::Unified coverage check failed"
+          exit 1
         fi
+        echo "✅ All checks passed!"

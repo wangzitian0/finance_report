@@ -19,6 +19,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 |----------|----------|-------------|
 | [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, TDD workflow, and building documentation |
 | [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 99% coverage goal |
+| [coverage.md](./coverage.md) | `coverage` | Unified test coverage system — Backend + Frontend + Scripts with blacklist approach |
 | [observability.md](./observability.md) | `observability` | Logging and SigNoz OTLP export configuration |
 | [auth.md](./auth.md) | `auth` | API user identity, registration/login flow, and frontend integration |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | React/Next.js SSR handling, theme system, and API patterns |
@@ -42,7 +43,8 @@ For new developers joining the project:
 
 1. **[development.md](./development.md)** — Setup your environment and understand the build/test workflow
 2. **[tdd.md](./tdd.md)** — Learn Test-Driven Development workflow and coverage requirements
-3. **[auth.md](./auth.md)** — **MIDDLEWARE ONE** — Learn the mandatory JWT/OAuth2 identity system
+3. **[coverage.md](./coverage.md)** — Understand the unified coverage system (backend + frontend + scripts)
+4. **[auth.md](./auth.md)** — **MIDDLEWARE ONE** — Learn the mandatory JWT/OAuth2 identity system
 4. **[schema.md](./schema.md)** — Understand the database structure
 5. **[observability.md](./observability.md)** — Logging and SigNoz OTLP export
 6. **[frontend-patterns.md](./frontend-patterns.md)** — React/Next.js patterns and SSR handling
