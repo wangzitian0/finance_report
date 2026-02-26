@@ -88,9 +88,7 @@ class PortfolioService:
             .where(ManagedPosition.user_id == user_id)
             .options(
                 selectinload(ManagedPosition.account),
-                selectinload(ManagedPosition.atomic_positions).joinedload(
-                    AtomicPosition.asset_classification
-                ),
+                selectinload(ManagedPosition.atomic_positions).joinedload(AtomicPosition.asset_classification),
             )
         )
 
@@ -203,9 +201,7 @@ class PortfolioService:
             PortfolioNotFoundError: If user has no disposed positions
         """
         if period_start > period_end:
-            raise InvalidDateRangeError(
-                f"period_start ({period_start}) cannot be after period_end ({period_end})"
-            )
+            raise InvalidDateRangeError(f"period_start ({period_start}) cannot be after period_end ({period_end})")
 
         # Get disposed positions
         disposed_positions_query = (

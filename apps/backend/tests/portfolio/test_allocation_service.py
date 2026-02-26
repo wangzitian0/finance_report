@@ -31,6 +31,7 @@ async def investment_account(db: AsyncSession, test_user):
 @pytest.fixture
 async def tech_stock_position(db: AsyncSession, test_user, investment_account):
     from src.models.layer2 import AtomicPosition
+
     position = ManagedPosition(
         user_id=test_user.id,
         account_id=investment_account.id,
@@ -66,6 +67,7 @@ async def tech_stock_position(db: AsyncSession, test_user, investment_account):
 @pytest.fixture
 async def finance_stock_position(db: AsyncSession, test_user, investment_account):
     from src.models.layer2 import AtomicPosition
+
     position = ManagedPosition(
         user_id=test_user.id,
         account_id=investment_account.id,

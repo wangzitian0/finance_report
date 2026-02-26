@@ -156,6 +156,7 @@ class CostBasisMethod(str, Enum):
     LIFO = "LIFO"  # Last In First Out
     AVGCOST = "AvgCost"  # Average Cost
 
+
 class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
     Layer 3: Calculated position derived from AtomicPositions.

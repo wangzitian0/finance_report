@@ -48,7 +48,8 @@ class AllocationBreakdown:
 async def get_sector_allocation(
     db: AsyncSession,
     user_id: UUID,
-    as_of_date: date | None = None,) -> list[AllocationBreakdown]:
+    as_of_date: date | None = None,
+) -> list[AllocationBreakdown]:
     """
     Calculate sector allocation breakdown.
 
@@ -128,7 +129,8 @@ async def get_sector_allocation(
 async def get_geography_allocation(
     db: AsyncSession,
     user_id: UUID,
-    as_of_date: date | None = None,) -> list[AllocationBreakdown]:
+    as_of_date: date | None = None,
+) -> list[AllocationBreakdown]:
     """
     Calculate geography allocation breakdown.
 
@@ -208,7 +210,8 @@ async def get_geography_allocation(
 async def get_asset_class_allocation(
     db: AsyncSession,
     user_id: UUID,
-    as_of_date: date | None = None,) -> list[AllocationBreakdown]:
+    as_of_date: date | None = None,
+) -> list[AllocationBreakdown]:
     """
     Calculate asset class allocation breakdown.
 

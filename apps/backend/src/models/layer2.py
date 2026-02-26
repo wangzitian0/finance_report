@@ -30,6 +30,7 @@ class AssetType(str, Enum):
     CASH = "cash"
     OTHER = "other"
 
+
 class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
     Layer 2: Deduplicated transaction records.

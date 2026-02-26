@@ -591,4 +591,3 @@ class TestReconciliationEndpoints:
         # Invalid UUIDs should be skipped, entries should be empty
         match_data = data["items"][0]
         assert match_data["entries"] == []
-

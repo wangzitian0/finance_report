@@ -1,6 +1,5 @@
 """Portfolio performance metrics service - XIRR, TWR, MWR calculations."""
 
-
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -37,7 +36,8 @@ class XIRRCalculationError(PerformanceError):
 
 async def calculate_xirr(
     db: AsyncSession,
-    user_id: UUID,    as_of_date: date | None = None,
+    user_id: UUID,
+    as_of_date: date | None = None,
 ) -> Decimal:
     """
     Calculate XIRR (Extended Internal Rate of Return) for portfolio.
@@ -187,7 +187,8 @@ async def calculate_time_weighted_return(
     db: AsyncSession,
     user_id: UUID,
     period_start: date,
-    period_end: date,) -> Decimal:
+    period_end: date,
+) -> Decimal:
     """
     Calculate Time-Weighted Return (TWR) for a period.
 
@@ -250,7 +251,8 @@ async def calculate_time_weighted_return(
 
 async def calculate_money_weighted_return(
     db: AsyncSession,
-    user_id: UUID,    as_of_date: date | None = None,
+    user_id: UUID,
+    as_of_date: date | None = None,
 ) -> Decimal:
     """
     Calculate Money-Weighted Return (MWR) for portfolio.

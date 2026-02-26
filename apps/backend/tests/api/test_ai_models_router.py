@@ -82,4 +82,3 @@ async def test_list_models_error_handling(mock_fetch: AsyncMock, client: AsyncCl
     data = response.json()
     assert "Model catalog unavailable" in data["detail"]
     assert mock_fetch.called
-
