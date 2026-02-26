@@ -218,3 +218,86 @@ Activated via `ENABLE_4_LAYER_READ=true`:
 
 - [schema.md](./schema.md)
 - [accounting.md](./accounting.md)
+
+---
+
+## 7. EPIC-016 Two-Stage Review (New)
+
+EPIC-016 introduces a two-stage review workflow before reconciliation:
+
+### Stage 1: Record-Level Review
+
+**Location**: `/statements/{id}/review`
+
+**Purpose**: Validate extracted transaction data against original document.
+
+**Flow**:
+1. Parse statement → `status=PARSED`
+2. User reviews transactions with PDF preview
+3. Balance chain validation (tolerance: 0.001 USD)
+4. Approve → `stage1_status=APPROVED`, `status=APPROVED`
+5. Reject → `stage1_status=REJECTED`, `status=REJECTED`
+
+**Balance Validation Logic**:
+```
+opening_delta = abs(stated_opening - derived_opening)
+closing_delta = abs(stated_closing - calculated_closing)
+valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)
+```
+
+**New Fields** (BankStatement):
+- `stage1_status`: PENDING_REVIEW | APPROVED | REJECTED | EDITED
+- `balance_validation_result`: JSONB with validation details (opening/closing deltas)
+- `stage1_reviewed_at`: Timestamp
+- `manual_opening_balance`: Manual override for first statement
+
+### Stage 2: Consistency Checks
+
+**Location**: `/reconciliation/review-queue`
+
+**Purpose**: Run deduplication, transfer detection, and anomaly checks before batch approval.
+
+**Check Types**:
+| Type | Description | Severity |
+|------|-------------|----------|
+| `duplicate` | Same amount/date/description within 1 day (global check) | high |
+| `transfer_pair` | Matching OUT/IN across accounts (global check) | medium |
+| `anomaly` | Large amount, frequency spike, new merchant | varies |
+
+**Constraint**: Batch approve blocked if unresolved checks exist.
+
+**State Machine**:
+```
+[*] --> pending: Check detected
+pending --> approved: User acknowledges (idempotent)
+pending --> rejected: User flags for fix
+pending --> flagged: Needs manual review
+```
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/statements/{id}/review` | Stage 1 review data with PDF URL |
+| POST | `/statements/{id}/review/approve` | Approve with balance validation |
+| POST | `/statements/{id}/review/reject` | Reject and trigger re-parse |
+| POST | `/statements/{id}/review/edit` | Edit transactions and approve |
+| POST | `/statements/{id}/review/opening-balance` | Set manual opening balance |
+| GET | `/statements/stage2/queue` | Stage 2 review queue (global) |
+| POST | `/statements/{id}/stage2/run-checks` | Run consistency checks for statement |
+| POST | `/statements/consistency-checks/{id}/resolve` | Resolve a check |
+| GET | `/statements/consistency-checks/list` | List/filter consistency checks |
+| POST | `/statements/batch-approve-matches` | Batch approve matches |
+| POST | `/statements/batch-reject-matches` | Batch reject matches |
+
+### Files
+
+| Dimension | Location |
+|-----------|----------|
+| Model | `apps/backend/src/models/statement.py` (Stage1Status) |
+| Model | `apps/backend/src/models/consistency_check.py` |
+| Service | `apps/backend/src/services/statement_validation.py` |
+| Service | `apps/backend/src/services/consistency_checks.py` |
+| Router | `apps/backend/src/routers/statements.py` |
+| Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
+| Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
