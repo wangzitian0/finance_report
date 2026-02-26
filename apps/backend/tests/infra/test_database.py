@@ -1,8 +1,7 @@
 """Tests for database session management and utilities."""
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import (
     create_session_maker_from_db,
