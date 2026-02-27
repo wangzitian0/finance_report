@@ -201,9 +201,10 @@ jobs:
           fi
       - name: Run scripts tests with coverage
         run: |
+          printf '[run]\nomit = scripts/tests/*\n' > /tmp/scripts-coveragerc
           uv run --with pytest --with pytest-cov --with pyyaml --with pydantic --with pydantic-settings pytest scripts/tests/ \
             --cov=scripts \
-            --cov-omit=scripts/tests/* \
+            --cov-config=/tmp/scripts-coveragerc \
             --cov-report=lcov:coverage/scripts.lcov \
             -x -q
       - name: Calculate unified coverage
