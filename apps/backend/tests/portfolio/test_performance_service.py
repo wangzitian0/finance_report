@@ -1,4 +1,7 @@
-"""Tests for portfolio performance service (XIRR, TWR, MWR)."""
+"""Tests for portfolio performance service (XIRR, TWR, MWR).
+
+AC17.3 block: Performance metrics — XIRR, TWR, MWR calculations.
+"""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -124,14 +127,20 @@ async def portfolio_with_transactions(db: AsyncSession, test_user, investment_ac
 
 @pytest.mark.asyncio
 async def test_xirr_insufficient_data(db: AsyncSession, test_user):
-    """XIRR should raise error when no transactions exist."""
+    """AC17.3.1: XIRR raises InsufficientDataError on empty portfolio.
+
+    Verify that XIRR calculation fails gracefully when no transactions exist.
+    """
     with pytest.raises(InsufficientDataError):
         await calculate_xirr(db, test_user.id)
 
 
 @pytest.mark.asyncio
 async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_with_transactions):
-    """XIRR should calculate annualized return correctly."""
+    """AC17.3.2: XIRR calculates annualized return for realistic portfolio.
+
+    Verify that XIRR returns a negative Decimal for a loss scenario (deposits > current value).
+    """
     xirr = await calculate_xirr(db, test_user.id)
 
     # With deposits totaling 15000 and current value 12000, XIRR should be negative
@@ -142,7 +151,10 @@ async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_w
 
 @pytest.mark.asyncio
 async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user):
-    """TWR should return 0 for empty portfolio."""
+    """AC17.3.3: TWR returns zero for empty portfolio.
+
+    Verify that TWR handles empty portfolio gracefully by returning Decimal(0).
+    """
     start = date.today() - timedelta(days=30)
     end = date.today()
 
@@ -152,7 +164,10 @@ async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user)
 
 @pytest.mark.asyncio
 async def test_time_weighted_return_with_period(db: AsyncSession, test_user, portfolio_with_transactions):
-    """TWR should calculate period return correctly."""
+    """AC17.3.4: TWR calculates period return within reasonable bounds.
+
+    Verify that TWR returns a valid percentage for a period with transactions.
+    """
     start = date.today() - timedelta(days=59)
     end = date.today()
 
@@ -167,14 +182,20 @@ async def test_time_weighted_return_with_period(db: AsyncSession, test_user, por
 
 @pytest.mark.asyncio
 async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_user):
-    """MWR should raise error when no data exists."""
+    """AC17.3.5: MWR raises InsufficientDataError on empty portfolio.
+
+    Verify that MWR calculation fails gracefully when no data exists.
+    """
     with pytest.raises(InsufficientDataError):
         await calculate_money_weighted_return(db, test_user.id)
 
 
 @pytest.mark.asyncio
 async def test_money_weighted_return_with_data(db: AsyncSession, test_user, portfolio_with_transactions):
-    """MWR should calculate money-weighted return correctly."""
+    """AC17.3.6: MWR calculates money-weighted return for loss scenario.
+
+    Verify that MWR returns a negative Decimal when total deposits exceed current value.
+    """
     mwr = await calculate_money_weighted_return(db, test_user.id)
 
     # Similar to XIRR, should reflect actual cash flows
@@ -185,7 +206,10 @@ async def test_money_weighted_return_with_data(db: AsyncSession, test_user, port
 
 @pytest.mark.asyncio
 async def test_xirr_with_as_of_date(db: AsyncSession, test_user, portfolio_with_transactions):
-    """XIRR should respect as_of_date parameter."""
+    """AC17.3.7: XIRR respects as_of_date parameter.
+
+    Verify that XIRR calculates return as of a historical date.
+    """
     past_date = date.today() - timedelta(days=45)
 
     # Should calculate XIRR as of 45 days ago
@@ -196,7 +220,10 @@ async def test_xirr_with_as_of_date(db: AsyncSession, test_user, portfolio_with_
 
 @pytest.mark.asyncio
 async def test_time_weighted_return_same_day(db: AsyncSession, test_user):
-    """TWR should handle same-day period gracefully."""
+    """AC17.3.8: TWR returns zero for same-day period.
+
+    Verify that TWR returns 0 when period_start == period_end.
+    """
     today = date.today()
 
     twr = await calculate_time_weighted_return(db, test_user.id, today, today)
@@ -207,7 +234,10 @@ async def test_time_weighted_return_same_day(db: AsyncSession, test_user):
 
 @pytest.mark.asyncio
 async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_user):
-    """Performance metrics should handle portfolios with only cash."""
+    """AC17.3.9: Performance metrics handle cash-only portfolios.
+
+    Verify that XIRR raises InsufficientDataError when portfolio has deposits but no positions.
+    """
     from src.models.layer2 import AtomicTransaction
 
     # Add cash deposit but no positions
@@ -231,7 +261,10 @@ async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_us
 
 @pytest.mark.asyncio
 async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investment_account):
-    """XIRR should handle edge cases where IRR calculation might not converge."""
+    """AC17.3.10: XIRR handles extreme convergence edge cases.
+
+    Verify that extreme gain scenarios either produce a very high XIRR or raise InsufficientDataError.
+    """
     from src.models.layer2 import AtomicPosition, AtomicTransaction
 
     # Create scenario with extreme values that might cause convergence issues
@@ -291,42 +324,54 @@ async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investmen
 
 
 def test_xirr_bisection_no_root_raises():
-    """_xirr_bisection raises ValueError when NPV has same sign at both ends."""
+    """AC17.3.11: _xirr_bisection raises ValueError when no root exists.
+
+    Verify that all-positive cash flows cause a ValueError (no sign change in search range).
+    """
     from src.services.performance import _xirr_bisection
 
     # All positive cash flows → NPV always positive → no root
-    amounts = [100.0, 200.0, 300.0]
+    amounts = [Decimal("100"), Decimal("200"), Decimal("300")]
     days = [0, 180, 365]
     with pytest.raises(ValueError, match="No root in"):
-        _xirr_bisection(amounts, days, max_iter=200, tolerance=1e-6)
+        _xirr_bisection(amounts, days, max_iter=200, tolerance=Decimal("1e-6"))
 
 
 def test_xirr_bisection_max_iter_returns():
-    """_xirr_bisection returns best estimate after max_iter without converging."""
+    """AC17.3.12: _xirr_bisection returns Decimal estimate after max_iter exhaustion.
+
+    Verify that bisection returns a Decimal midpoint when max_iter is too small to converge.
+    """
     from src.services.performance import _xirr_bisection
 
     # Normal cash flows (negative deposit, positive terminal) with max_iter=1
     # so it can't converge but should return a midpoint
-    amounts = [-10000.0, 12000.0]
+    amounts = [Decimal("-10000"), Decimal("12000")]
     days = [0, 365]
-    result = _xirr_bisection(amounts, days, max_iter=1, tolerance=1e-12)
-    assert isinstance(result, float)
+    result = _xirr_bisection(amounts, days, max_iter=1, tolerance=Decimal("1e-12"))
+    assert isinstance(result, Decimal)
 
 
 def test_xirr_newton_fallthrough_to_bisection():
-    """_xirr_newton falls through to _xirr_bisection when Newton doesn't converge."""
+    """AC17.3.13: _xirr_newton falls back to bisection on non-convergence.
+
+    Verify that Newton's method with insufficient iterations falls back to bisection and returns Decimal.
+    """
     from src.services.performance import _xirr_newton
 
     # Use a guess that won't converge easily with very few iterations
-    amounts = [-10000.0, 12000.0]
+    amounts = [Decimal("-10000"), Decimal("12000")]
     days = [0, 365]
-    result = _xirr_newton(amounts, days, guess=0.1, max_iter=1, tolerance=1e-15)
-    assert isinstance(result, float)
+    result = _xirr_newton(amounts, days, guess=Decimal("0.1"), max_iter=1, tolerance=Decimal("1e-15"))
+    assert isinstance(result, Decimal)
 
 
 @pytest.mark.asyncio
 async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, investment_account, monkeypatch):
-    """XIRRCalculationError is raised when both Newton and bisection fail (lines 143-145)."""
+    """AC17.3.14: XIRRCalculationError raised when Newton and bisection both fail.
+
+    Verify that monkeypatching _xirr_newton to always raise causes XIRRCalculationError.
+    """
     from src.models.layer2 import AtomicPosition, AtomicTransaction
     from src.services.performance import XIRRCalculationError
 

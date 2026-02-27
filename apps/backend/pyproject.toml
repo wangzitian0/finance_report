@@ -29,7 +29,6 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",
     "httpx-sse>=0.4.3",
-    "numpy>=1.26.0",
 ]
 
 [dependency-groups]
