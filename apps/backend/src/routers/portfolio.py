@@ -1,18 +1,23 @@
 """Portfolio management API router."""
 
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.schemas.portfolio import HoldingResponse
-from src.services import allocation, performance, portfolio
+from src.schemas.portfolio import PriceUpdateRequest as SchemaPriceUpdateRequest
+from src.services import allocation, performance
+from src.services.performance import InsufficientDataError, PerformanceError
+from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)
+
+_portfolio_service = PortfolioService()
 
 
 class AllocationBreakdownResponse(BaseModel):
@@ -32,7 +37,7 @@ class PriceUpdateRequest(BaseModel):
     asset_identifier: str
     price: Decimal = Field(decimal_places=2)
     currency: str = Field(min_length=3, max_length=3)
-    effective_date: date
+    price_date: date
 
 
 class PriceUpdateBatchRequest(BaseModel):
@@ -54,12 +59,16 @@ async def get_holdings(
         include_disposed=include_disposed,
     )
 
-    holdings = await portfolio.get_holdings(
-        db=db,
-        user_id=user_id,
-        as_of_date=as_of_date or date.today(),
-        include_disposed=include_disposed,
-    )
+    try:
+        holdings = await _portfolio_service.get_holdings(
+            db=db,
+            user_id=user_id,
+            as_of_date=as_of_date or date.today(),
+            include_disposed=include_disposed,
+        )
+    except (PortfolioNotFoundError, AssetNotFoundError):
+        # No holdings found — return empty list instead of error
+        return []
 
     logger.info("Retrieved holdings", count=len(holdings))
     return holdings
@@ -85,20 +94,37 @@ async def get_performance(
     as_of = as_of_date or date.today()
     p_end = period_end or date.today()
 
-    xirr = await performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
+    try:
+        xirr = await performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of)
+    except InsufficientDataError:
+        xirr = Decimal("0")
+    except PerformanceError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
     if period_start:
-        twr = await performance.calculate_time_weighted_return(
-            db=db,
-            user_id=user_id,
-            period_start=period_start,
-            period_end=p_end,
-        )
+        try:
+            twr = await performance.calculate_time_weighted_return(
+                db=db,
+                user_id=user_id,
+                period_start=period_start,
+                period_end=p_end,
+            )
+        except InsufficientDataError:
+            twr = Decimal("0")
     else:
         twr = Decimal("0")
 
-    mwr = await performance.calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
+    try:
+        mwr = await performance.calculate_money_weighted_return(db=db, user_id=user_id, as_of_date=as_of)
+    except InsufficientDataError:
+        mwr = Decimal("0")
+    except PerformanceError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
+    _two_dp = Decimal("0.01")
+    xirr = xirr.quantize(_two_dp, rounding=ROUND_HALF_UP)
+    twr = twr.quantize(_two_dp, rounding=ROUND_HALF_UP)
+    mwr = mwr.quantize(_two_dp, rounding=ROUND_HALF_UP)
     logger.info("Performance calculated", xirr=float(xirr), twr=float(twr), mwr=float(mwr))
     return PerformanceMetricsResponse(xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr)
 
@@ -185,10 +211,21 @@ async def update_prices(
         count=len(request.updates),
     )
 
-    results = await portfolio.update_market_prices(
+    # Map router request models to service schema models
+    schema_updates = [
+        SchemaPriceUpdateRequest(
+            asset_identifier=u.asset_identifier,
+            price_date=u.price_date,
+            price=u.price,
+            currency=u.currency,
+        )
+        for u in request.updates
+    ]
+
+    results = await _portfolio_service.update_market_prices(
         db=db,
         user_id=user_id,
-        updates=request.updates,
+        updates=schema_updates,
     )
 
     await db.commit()

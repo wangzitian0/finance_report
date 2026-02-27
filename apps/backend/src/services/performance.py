@@ -73,8 +73,9 @@ async def calculate_xirr(
     result = await db.execute(query)
     transactions = result.scalars().all()
 
-    # Convert transactions to cash flows
-    # OUT = negative (money leaving account), IN = positive (money entering)
+    # Convert transactions to cash flows using XIRR convention:
+    # IN (deposits/purchases) = negative (investor cash outflow)
+    # OUT (withdrawals/sales) = positive (investor cash inflow)
     for txn in transactions:
         amount_base = await fx.convert_amount(
             db,
@@ -83,7 +84,7 @@ async def calculate_xirr(
             settings.base_currency,
             txn.txn_date,
         )
-        sign = -1 if txn.direction == TransactionDirection.OUT else 1
+        sign = 1 if txn.direction == TransactionDirection.OUT else -1
         cash_flows.append((txn.txn_date, amount_base * sign))
         dates.append(txn.txn_date)
         amounts.append(float(amount_base * sign))
@@ -134,7 +135,7 @@ async def calculate_xirr(
     first_date = min(dates)
     day_offsets = [(d - first_date).days for d in dates]
 
-    # Use numpy to solve for XIRR using Newton's method
+    # Solve for XIRR using Newton's method with bisection fallback
     # XIRR formula: Sum of (cash_flow_i / (1 + xirr)^(days_i / 365)) = 0
     try:
         xirr = _xirr_newton(amounts, day_offsets, guess=0.1, max_iter=100, tolerance=1e-6)
@@ -146,7 +147,7 @@ async def calculate_xirr(
 
 def _xirr_newton(amounts: list[float], days: list[int], guess: float, max_iter: int, tolerance: float) -> float:
     """
-    Calculate XIRR using Newton's method.
+    Calculate XIRR using Newton's method with bisection fallback.
 
     Args:
         amounts: Cash flow amounts (negative for outflows, positive for inflows)
@@ -157,30 +158,68 @@ def _xirr_newton(amounts: list[float], days: list[int], guess: float, max_iter: 
 
     Returns:
         float: XIRR as decimal (e.g., 0.15 for 15%)
-
     Raises:
         ValueError: If calculation fails to converge
     """
     rate = guess
     for _ in range(max_iter):
-        # NPV = Sum of (CF_i / (1 + rate)^(days_i / 365))
         npv = sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(amounts, days))
-
-        # Derivative of NPV with respect to rate
-        # dNPV/dr = Sum of (-days_i / 365 * CF_i / (1 + rate)^(days_i / 365 + 1))
         d_npv = sum(-(d / 365.0) * cf / (1 + rate) ** (d / 365.0 + 1) for cf, d in zip(amounts, days))
-
         if abs(d_npv) < 1e-10:
-            raise ValueError("Derivative too small, cannot converge")
+            break
 
         new_rate = rate - npv / d_npv
-
         if abs(new_rate - rate) < tolerance:
             return new_rate
+            break
 
         rate = new_rate
+    return _xirr_bisection(amounts, days, max_iter=200, tolerance=tolerance)
 
-    raise ValueError(f"Failed to converge after {max_iter} iterations")
+
+def _xirr_bisection(amounts: list[float], days: list[int], max_iter: int, tolerance: float) -> float:
+    """
+    Bisection fallback for XIRR when Newton's method fails to converge.
+
+    Searches the range [-0.99, 10.0] (i.e., -99% to 1000% return).
+
+    Args:
+        amounts: Cash flow amounts
+        days: Day offsets from first date
+        max_iter: Maximum iterations
+        tolerance: Convergence tolerance
+
+    Returns:
+        float: XIRR as decimal
+
+    Raises:
+        ValueError: If no root found in search range
+    """
+    lo, hi = -0.99, 10.0
+
+    def npv(rate: float) -> float:
+        return sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(amounts, days))
+
+    npv_lo = npv(lo)
+    npv_hi = npv(hi)
+
+    if npv_lo * npv_hi > 0:
+        raise ValueError(f"No root in [{lo}, {hi}]: NPV({lo})={npv_lo:.4f}, NPV({hi})={npv_hi:.4f}")
+    for _ in range(max_iter):
+        mid = (lo + hi) / 2
+        npv_mid = npv(mid)
+
+        if abs(npv_mid) < tolerance or (hi - lo) / 2 < tolerance:
+            return mid
+
+        if npv_lo * npv_mid < 0:
+            hi = mid
+            npv_hi = npv_mid
+        else:
+            lo = mid
+            npv_lo = npv_mid
+
+    return (lo + hi) / 2
 
 
 async def calculate_time_weighted_return(
@@ -232,7 +271,7 @@ async def calculate_time_weighted_return(
             settings.base_currency,
             txn.txn_date,
         )
-        # OUT = negative (money leaving), IN = positive (money entering)
+        # For TWR: IN = positive (money added to portfolio), OUT = negative (money withdrawn)
         sign = -1 if txn.direction == TransactionDirection.OUT else 1
         net_cash_flow += amount_base * sign
 

@@ -86,10 +86,7 @@ class PortfolioService:
         positions_query = (
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
-            .options(
-                selectinload(ManagedPosition.account),
-                selectinload(ManagedPosition.atomic_positions).joinedload(AtomicPosition.asset_classification),
-            )
+            .options(selectinload(ManagedPosition.account))
         )
 
         if not include_disposed:
@@ -104,8 +101,8 @@ class PortfolioService:
         holdings: list[HoldingResponse] = []
 
         for position in positions:
-            # Get latest market price from AtomicPosition
-            latest_price = await self._get_latest_price(db, position, eval_date)
+            # Get latest market price from AtomicPosition (per-unit price)
+            latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
             market_value = position.quantity * latest_price
@@ -139,12 +136,12 @@ class PortfolioService:
             else:
                 unrealized_pnl_percent = Decimal("0")
 
-            # Get asset classification from latest AtomicPosition
+            # Get asset classification from latest AtomicPosition (scoped by user_id)
             asset_type = None
             sector = None
             geography = None
 
-            latest_atomic = await self._get_latest_atomic(db, position.asset_identifier)
+            latest_atomic = await self._get_latest_atomic(db, position.asset_identifier, user_id)
             if latest_atomic:
                 asset_type = latest_atomic.asset_type
                 sector = latest_atomic.sector
@@ -156,7 +153,7 @@ class PortfolioService:
                 account_id=position.account_id,
                 asset_identifier=position.asset_identifier,
                 quantity=position.quantity,
-                cost_basis=position.cost_basis,
+                cost_basis=converted_cost,
                 market_value=converted_value,
                 unrealized_pnl=unrealized_pnl,
                 unrealized_pnl_percent=unrealized_pnl_percent.quantize(Decimal("0.01")),
@@ -227,11 +224,14 @@ class PortfolioService:
             )
 
         total_realized_pnl = Decimal("0")
+        total_converted_cost = Decimal("0")
         details: list[dict] = []
 
         for position in disposed_positions:
-            # Get disposal price from latest AtomicPosition
-            disposal_price = await self._get_latest_price(db, position, position.disposal_date)
+            # Get disposal price from latest AtomicPosition (per-unit price)
+            # disposal_date is guaranteed non-None by the isnot(None) filter above
+            assert position.disposal_date is not None
+            disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
             disposal_value = position.quantity * disposal_price
 
             # Convert to base currency if needed
@@ -263,6 +263,7 @@ class PortfolioService:
                 realized_pnl_percent = Decimal("0")
 
             total_realized_pnl += realized_pnl
+            total_converted_cost += converted_cost
 
             details.append(
                 {
@@ -279,10 +280,9 @@ class PortfolioService:
                 }
             )
 
-        # Calculate overall percent (base on total cost basis of disposed positions)
-        total_disposed_cost = sum(p.cost_basis for p in disposed_positions if p.currency == settings.base_currency)
-        if total_disposed_cost != Decimal("0"):
-            total_realized_pnl_percent = (total_realized_pnl / total_disposed_cost) * Decimal("100")
+        # Calculate overall percent using converted costs (not raw costs)
+        if total_converted_cost != Decimal("0"):
+            total_realized_pnl_percent = (total_realized_pnl / total_converted_cost) * Decimal("100")
         else:
             total_realized_pnl_percent = Decimal("0")
 
@@ -339,8 +339,8 @@ class PortfolioService:
         details: list[dict] = []
 
         for position in positions:
-            # Get latest market price from AtomicPosition
-            latest_price = await self._get_latest_price(db, position, eval_date)
+            # Get latest market price from AtomicPosition (per-unit price)
+            latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
             market_value = position.quantity * latest_price
@@ -454,8 +454,9 @@ class PortfolioService:
                 )
                 continue
 
-            # Create market data override
+            # Create market data override (scoped to user)
             override = MarketDataOverride(
+                user_id=user_id,
                 asset_identifier=update.asset_identifier,
                 price_date=update.price_date,
                 price=update.price,
@@ -463,6 +464,7 @@ class PortfolioService:
                 source=PriceSource.MANUAL,
             )
             db.add(override)
+            await db.flush()  # Flush to populate created_at
 
             responses.append(
                 PriceUpdateResponse(
@@ -542,9 +544,10 @@ class PortfolioService:
         db: AsyncSession,
         position: ManagedPosition,
         eval_date: date,
+        user_id: UUID,
     ) -> Decimal:
         """
-        Get latest market price for a position from AtomicPosition or override.
+        Get latest per-unit market price for a position from override or AtomicPosition.
 
         Priority: MarketDataOverride > AtomicPosition snapshot on eval_date > earliest available.
 
@@ -552,16 +555,18 @@ class PortfolioService:
             db: Database session
             position: Managed position
             eval_date: Date to evaluate price
+            user_id: User UUID for security scoping
 
         Returns:
-            Latest price in position's currency
+            Latest per-unit price in position's currency
 
         Raises:
             AssetNotFoundError: If no price data available
         """
-        # Check for manual override first
+        # Check for manual override first (scoped by user_id)
         override_query = (
             select(MarketDataOverride)
+            .where(MarketDataOverride.user_id == user_id)
             .where(MarketDataOverride.asset_identifier == position.asset_identifier)
             .where(MarketDataOverride.price_date == eval_date)
             .where(MarketDataOverride.source == PriceSource.MANUAL)
@@ -572,9 +577,10 @@ class PortfolioService:
         if override:
             return override.price
 
-        # Get latest snapshot from AtomicPosition
+        # Get latest snapshot from AtomicPosition (scoped by user_id)
         snapshot_query = (
             select(AtomicPosition)
+            .where(AtomicPosition.user_id == user_id)
             .where(AtomicPosition.asset_identifier == position.asset_identifier)
             .where(AtomicPosition.snapshot_date <= eval_date)
             .order_by(AtomicPosition.snapshot_date.desc())
@@ -584,6 +590,9 @@ class PortfolioService:
         snapshot = snapshot_result.scalar_one_or_none()
 
         if snapshot:
+            # Return per-unit price (market_value is total position value)
+            if snapshot.quantity != Decimal("0"):
+                return snapshot.market_value / snapshot.quantity
             return snapshot.market_value
 
         # No price data available
@@ -593,6 +602,7 @@ class PortfolioService:
         self,
         db: AsyncSession,
         asset_identifier: str,
+        user_id: UUID,
     ) -> AtomicPosition | None:
         """
         Get the latest AtomicPosition for an asset identifier.
@@ -602,12 +612,14 @@ class PortfolioService:
         Args:
             db: Database session
             asset_identifier: Asset ticker or identifier
+            user_id: User UUID for security scoping
 
         Returns:
             Latest AtomicPosition or None if not found
         """
         query = (
             select(AtomicPosition)
+            .where(AtomicPosition.user_id == user_id)
             .where(AtomicPosition.asset_identifier == asset_identifier)
             .order_by(AtomicPosition.snapshot_date.desc())
             .limit(1)

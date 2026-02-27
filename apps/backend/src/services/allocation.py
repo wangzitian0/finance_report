@@ -39,8 +39,8 @@ class AllocationBreakdown:
         """Convert to dictionary for API response."""
         return {
             "category": self.category,
-            "value": float(self.value),
-            "percentage": float(self.percentage),
+            "value": self.value,
+            "percentage": self.percentage,
             "count": self.count,
         }
 

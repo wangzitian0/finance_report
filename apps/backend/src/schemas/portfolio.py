@@ -1,6 +1,6 @@
 """Pydantic schemas for portfolio management."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -78,7 +78,7 @@ class PriceUpdateResponse(BaseModel):
     price: Annotated[Decimal, Field(decimal_places=2)]
     currency: str
     source: str
-    created_at: date | None = None
+    created_at: datetime | None = None
 
 
 class PortfolioSummaryResponse(BaseModel):
