@@ -10,8 +10,6 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      // all: true ensures ALL source files appear in LCOV, not just imported ones
-      all: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'node_modules/',
