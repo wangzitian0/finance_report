@@ -1,8 +1,7 @@
 """
 Tests for scripts/generate_ac_registry.py
-
-AC16.1.1: AC IDs are centrally registered and auto-generated from EPIC files
-AC16.1.2: Registry sort order is numerically correct (AC2.1.1 < AC10.1.1)
+Covers AC registry generation from EPIC markdown files, including ID sorting,
+extraction, deduplication, and YAML output.
 """
 
 import sys

@@ -1,7 +1,6 @@
 """
 Tests for scripts/merge_lcov.py
-
-AC16.3.3: LCOV merge correctly unions coverage across test shards
+LCOV merge correctly unions coverage across test shards.
 """
 
 import sys

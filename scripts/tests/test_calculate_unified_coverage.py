@@ -1,8 +1,7 @@
 """
 Tests for scripts/calculate_unified_coverage.py
-
-AC16.3.1: Unified coverage calculation is correct and reproducible
-AC16.3.2: Blacklist patterns correctly exclude test files from code line count
+Covers unified coverage calculation across backend, frontend, and scripts,
+including blacklist pattern exclusions and threshold enforcement.
 """
 
 import json

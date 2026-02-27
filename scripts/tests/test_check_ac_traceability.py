@@ -1,8 +1,7 @@
 """
 Tests for scripts/check_ac_traceability.py
-
-AC16.2.1: Every mandatory AC has at least one test reference
-AC16.2.2: Traceability check correctly identifies covered vs missing ACs
+Covers AC traceability verification: every mandatory AC has at least one
+test reference, and the check correctly identifies covered vs missing ACs.
 """
 
 import sys
