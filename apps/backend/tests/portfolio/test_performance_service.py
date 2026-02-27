@@ -81,7 +81,6 @@ async def portfolio_with_transactions(db: AsyncSession, test_user, investment_ac
     )
     db.add(atomic)
 
-
     # Early snapshot at position open date for historical queries
     early_atomic = AtomicPosition(
         user_id=test_user.id,
