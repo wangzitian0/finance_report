@@ -8,8 +8,7 @@ from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.schemas.portfolio import HoldingResponse
-from src.schemas.portfolio import PriceUpdateRequest as SchemaPriceUpdateRequest
+from src.schemas.portfolio import HoldingResponse, PriceUpdateRequest as SchemaPriceUpdateRequest
 from src.services import allocation, performance
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
