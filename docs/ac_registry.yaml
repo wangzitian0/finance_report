@@ -2575,7 +2575,8 @@ acs:
     epic: 16
     epic_name: two-stage-review-ui
     description: 'useCurrencies falls back to defaults on API error'
-    mandatory: true  - id: AC16.10.1
+    mandatory: true
+  - id: AC16.10.1
     epic: 16
     epic_name: two-stage-review-ui
     description: 'apiFetch returns JSON on 200 response'
