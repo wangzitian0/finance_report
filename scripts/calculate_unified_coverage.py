@@ -197,8 +197,14 @@ def get_frontend_coverage() -> dict:
 
 
 def get_scripts_coverage() -> dict:
-    """Get scripts coverage from pre-generated lcov file (coverage-scripts.lcov), if it exists."""
-    lcov_path = ROOT_DIR / "coverage-scripts.lcov"
+    """Get scripts coverage from pre-generated lcov file, if it exists.
+
+    Checks CI path (coverage/scripts.lcov) first, then falls back to the
+    legacy root-level path (coverage-scripts.lcov).
+    """
+    lcov_path = ROOT_DIR / "coverage" / "scripts.lcov"
+    if not lcov_path.exists():
+        lcov_path = ROOT_DIR / "coverage-scripts.lcov"
     coverage_data = parse_lcov_file(lcov_path)
     
     # Get total scripts code lines
