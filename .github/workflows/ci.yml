@@ -201,7 +201,7 @@ jobs:
           fi
       - name: Run scripts tests with coverage
         run: |
-          uv run --with pyyaml pytest scripts/tests/ \
+          uv run --with pytest --with pytest-cov --with pyyaml --with pydantic --with pydantic-settings pytest scripts/tests/ \
             --cov=scripts \
             --cov-report=lcov:coverage/scripts.lcov \
             -x -q
