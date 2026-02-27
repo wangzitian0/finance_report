@@ -193,7 +193,8 @@ def _xirr_newton(amounts: list[Decimal], days: list[int], guess: Decimal, max_it
     """
     Calculate XIRR using Newton's method with bisection fallback.
 
-    Uses Decimal arithmetic throughout to maintain monetary precision.
+    Accepts Decimal parameters and returns a Decimal result; uses float internally
+    for power and rate operations for performance and compatibility.
 
     Args:
         amounts: Cash flow amounts (negative for outflows, positive for inflows)
