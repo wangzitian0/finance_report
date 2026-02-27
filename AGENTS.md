@@ -237,6 +237,18 @@ AI must use this cascade structure before processing tasks:
 8. **Entries must balance**: Every JournalEntry must have balanced debits and credits. See: `apps/backend/tests/accounting/test_accounting.py::test_balanced_entry_passes`
 9. **Equation must hold**: At any point, the accounting equation must be satisfied. See: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_violation_detected`
 
+### Development Work Order (TDD-First)
+10. **EPIC → ACx.y.z → Test → Code → Doc** — This is the mandatory work sequence:
+    1. **EPIC**: Anchor task to a project EPIC in `docs/project/`
+    2. **ACx.y.z**: Register acceptance criteria in `docs/ac_registry.yaml` before writing any code
+    3. **Test**: Write failing tests that reference the AC IDs (red phase)
+    4. **Code**: Write minimal code to make the tests pass (green phase)
+    5. **Doc**: Update SSOT docs and README to reflect the change
+    - ❌ **NEVER** write code before the test exists
+    - ❌ **NEVER** write a test without a registered AC number
+    - ❌ **NEVER** ship without updating SSOT docs
+    - Reference: [docs/ssot/tdd.md](docs/ssot/tdd.md)
+
 ### Agent Scope & Deliverables
 
 **What Agent Delivers**: A **CI-passing, test-environment-verified** Pull Request (NOT merged code)

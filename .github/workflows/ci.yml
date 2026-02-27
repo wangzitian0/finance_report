@@ -211,7 +211,7 @@ jobs:
         run: |
           uv run python scripts/calculate_unified_coverage.py
         env:
-          COVERAGE_THRESHOLD: 24  # Corrected: omitting test files from scripts lcov gives true ~24.4% coverage; will increase as TS/Python business code coverage grows
+          COVERAGE_THRESHOLD: 40  # Calculator now uses LCOV LF (executable lines) as denominator; current unified coverage ~70%
 
       - name: Merge all coverage into unified LCOV
         run: |

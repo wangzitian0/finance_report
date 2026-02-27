@@ -157,63 +157,48 @@ def parse_lcov_file(lcov_path: Path) -> dict:
 
 
 def get_backend_coverage() -> dict:
-    """Get backend coverage from pytest-cov output."""
-    # Check both local and CI paths
     lcov_path = BACKEND_DIR / "coverage.lcov"
     ci_lcov_path = ROOT_DIR / "coverage" / "backend.lcov"
     if ci_lcov_path.exists():
         lcov_path = ci_lcov_path
     coverage_data = parse_lcov_file(lcov_path)
-    
-    # Get total backend code lines
     code_stats = count_code_lines(BACKEND_DIR / "src", [".py"])
-    
+    total_lines = coverage_data["total_measured_lines"] or code_stats["total_lines"]
     return {
-        "total_lines": code_stats["total_lines"],
+        "total_lines": total_lines,
         "covered_lines": coverage_data["covered_lines"],
-        "coverage_percent": round(coverage_data["covered_lines"] / max(code_stats["total_lines"], 1) * 100, 2) if code_stats["total_lines"] > 0 else 0,
+        "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
         "file_count": code_stats["file_count"],
     }
 
 
 def get_frontend_coverage() -> dict:
-    """Get frontend coverage from vitest output."""
-    # Check both local and CI paths
     lcov_path = FRONTEND_DIR / "coverage" / "lcov.info"
     ci_lcov_path = ROOT_DIR / "coverage" / "frontend.lcov"
     if ci_lcov_path.exists():
         lcov_path = ci_lcov_path
     coverage_data = parse_lcov_file(lcov_path)
-    
-    # Get total frontend code lines
     code_stats = count_code_lines(FRONTEND_DIR / "src", [".ts", ".tsx"])
-    
+    total_lines = coverage_data["total_measured_lines"] or code_stats["total_lines"]
     return {
-        "total_lines": code_stats["total_lines"],
+        "total_lines": total_lines,
         "covered_lines": coverage_data["covered_lines"],
-        "coverage_percent": round(coverage_data["covered_lines"] / max(code_stats["total_lines"], 1) * 100, 2) if code_stats["total_lines"] > 0 else 0,
+        "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
         "file_count": code_stats["file_count"],
     }
 
 
 def get_scripts_coverage() -> dict:
-    """Get scripts coverage from pre-generated lcov file, if it exists.
-
-    Checks CI path (coverage/scripts.lcov) first, then falls back to the
-    legacy root-level path (coverage-scripts.lcov).
-    """
     lcov_path = ROOT_DIR / "coverage" / "scripts.lcov"
     if not lcov_path.exists():
         lcov_path = ROOT_DIR / "coverage-scripts.lcov"
     coverage_data = parse_lcov_file(lcov_path)
-    
-    # Get total scripts code lines
     code_stats = count_code_lines(SCRIPTS_DIR, [".py", ".sh"])
-    
+    total_lines = coverage_data["total_measured_lines"] or code_stats["total_lines"]
     return {
-        "total_lines": code_stats["total_lines"],
+        "total_lines": total_lines,
         "covered_lines": coverage_data["covered_lines"],
-        "coverage_percent": round(coverage_data["covered_lines"] / max(code_stats["total_lines"], 1) * 100, 2) if code_stats["total_lines"] > 0 else 0,
+        "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
         "file_count": code_stats["file_count"],
     }
 
