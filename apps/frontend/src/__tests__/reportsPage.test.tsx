@@ -16,10 +16,9 @@ describe("ReportsPage", () => {
     expect(screen.getByText("Income Statement")).toBeInTheDocument()
     expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument()
 
-    const links = screen.getAllByRole("link")
-    expect(links.some((link) => link.getAttribute("href") === "/reports/balance-sheet")).toBe(true)
-    expect(links.some((link) => link.getAttribute("href") === "/reports/income-statement")).toBe(true)
-    expect(links.some((link) => link.getAttribute("href") === "/reports/cash-flow")).toBe(true)
+    expect(screen.getByRole("link", { name: /Balance Sheet/i })).toHaveAttribute("href", "/reports/balance-sheet")
+    expect(screen.getByRole("link", { name: /Income Statement/i })).toHaveAttribute("href", "/reports/income-statement")
+    expect(screen.getByRole("link", { name: /Cash Flow Statement/i })).toHaveAttribute("href", "/reports/cash-flow")
   })
 
   it("AC16.12.12 displays accounting equation section", () => {

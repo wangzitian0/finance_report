@@ -54,7 +54,9 @@ describe("LoginPage", () => {
         expect.objectContaining({ method: "POST" }),
       )
     })
+    expect(mockedSetUser).toHaveBeenCalledTimes(1)
     expect(mockedSetUser).toHaveBeenCalledWith("u1", "user@example.com", "token-1")
+    expect(pushMock).toHaveBeenCalledTimes(1)
     expect(pushMock).toHaveBeenCalledWith("/dashboard")
   })
 
@@ -100,6 +102,8 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }))
 
     await waitFor(() => expect(screen.getByText("invalid credentials")).toBeInTheDocument())
+    expect(mockedSetUser).not.toHaveBeenCalled()
+    expect(pushMock).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument()
   })
 })

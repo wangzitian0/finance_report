@@ -47,8 +47,9 @@ describe("DashboardPage", () => {
 
     await waitFor(() => expect(screen.getByText("Welcome to Finance Report")).toBeInTheDocument())
     expect(screen.getByText("dashboard failed")).toBeInTheDocument()
+    const callCountBeforeRetry = mockedApiFetch.mock.calls.length
     fireEvent.click(screen.getByRole("button", { name: "Retry Connection" }))
-    expect(mockedApiFetch).toHaveBeenCalled()
+    await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
   it("AC16.12.3 renders KPI and chart sections when API succeeds", async () => {
