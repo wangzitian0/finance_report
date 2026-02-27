@@ -1,5 +1,4 @@
-"""
-Tests for scripts/generate_ac_registry.py
+"""Tests for scripts/generate_ac_registry.py.
 Covers AC registry generation from EPIC markdown files, including ID sorting,
 extraction, deduplication, and YAML output.
 """
@@ -9,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import generate_ac_registry as gar  # noqa: E402
 

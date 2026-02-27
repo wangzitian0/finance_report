@@ -125,11 +125,11 @@ class TestIdentifyCommonPatterns:
         assert result["edge_cases"] == 2
 
     def test_counts_error_paths(self):
-        """Counts lines containing 'raise' or 'error'."""
+        """Counts lines containing 'raise' or 'error' (case-sensitive: 'Error' does not match)."""
         lines = [
             "src/service.py:10: raise ValueError",
             "src/service.py:20: error handling",
-            "src/service.py:30: Error class",
+            "src/service.py:30: Error class",  # capital E: case-sensitive, does not match
             "src/service.py:40: normal line",
         ]
         result = identify_common_patterns(lines)

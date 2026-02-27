@@ -92,13 +92,8 @@ class TestSanitizeDescription:
     def test_nric_masked(self):
         desc = "Transfer from S1234567A"
         result = sanitize_description(desc)
-        assert (
-            "S1234567A".replace("1234567", "XXXXXXX") in result
-            or "SXXXXXXXZ" not in result
-        )
-        # At minimum the middle digits should be replaced
-        assert "S" in result and "A" in result
         assert "1234567" not in result
+        assert "S" in result and "A" in result
 
     def test_long_digit_sequence_masked(self):
         desc = "Ref 123456789012 paid"

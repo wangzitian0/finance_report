@@ -182,6 +182,7 @@ class TestExtractTestFunctions:
         assert result == []
         captured = capsys.readouterr()
         assert "Error parsing" in captured.out
+
     def test_returns_empty_for_file_outside_project_root(self, tmp_path, capsys):
         test_file = tmp_path / "test_sample.py"
         test_file.write_text('''
@@ -194,6 +195,8 @@ def test_example_one():
         assert result == []
         captured = capsys.readouterr()
         assert "Error parsing" in captured.out
+
+    def test_handles_empty_file(self, tmp_path):
         test_file = tmp_path / "test_empty.py"
         test_file.write_text("")
         result = extract_test_functions(test_file)

@@ -1,5 +1,4 @@
-"""
-Tests for scripts/check_ac_traceability.py
+"""Tests for scripts/check_ac_traceability.py.
 Covers AC traceability verification: every mandatory AC has at least one
 test reference, and the check correctly identifies covered vs missing ACs.
 """
@@ -10,7 +9,7 @@ from typing import NamedTuple
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import check_ac_traceability as cat  # noqa: E402
 

@@ -1,5 +1,4 @@
-"""
-Tests for scripts/calculate_unified_coverage.py
+"""Tests for scripts/calculate_unified_coverage.py.
 Covers unified coverage calculation across backend, frontend, and scripts,
 including blacklist pattern exclusions and threshold enforcement.
 """
@@ -12,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 # Make scripts importable
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import calculate_unified_coverage as cuc  # noqa: E402
 

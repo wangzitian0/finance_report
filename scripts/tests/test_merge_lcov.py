@@ -1,5 +1,4 @@
-"""
-Tests for scripts/merge_lcov.py
+"""Tests for scripts/merge_lcov.py.
 LCOV merge correctly unions coverage across test shards.
 """
 
@@ -8,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import merge_lcov as ml  # noqa: E402
 
