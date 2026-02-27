@@ -275,3 +275,290 @@ class TestGetPendingChecks:
         """AC2.6.3 get_pending_checks returns empty when no pending checks."""
         result = await get_pending_checks(db, user_id)
         assert result == []
+
+
+class TestDetectDuplicatesEdgeCases:
+    async def test_global_scan_no_statement_id(self, db, user_id, approved_statement):
+        """AC16.4.1 detect_duplicates runs global scan when no statement_id provided."""
+        txn1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 15),
+            description="Global dup",
+            amount=Decimal("9.99"),
+            direction="OUT",
+            status="pending",
+        )
+        txn2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 15),
+            description="Global dup",
+            amount=Decimal("9.99"),
+            direction="OUT",
+            status="pending",
+        )
+        db.add_all([txn1, txn2])
+        await db.flush()
+
+        checks = await detect_duplicates(db, user_id)
+        assert len(checks) >= 1
+        assert checks[0].check_type == CheckType.DUPLICATE
+
+    async def test_idempotent_duplicate_detection(self, db, user_id, approved_statement):
+        """AC16.4.2 detect_duplicates is idempotent - does not create duplicate checks."""
+        txn1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 20),
+            description="Coffee Shop",
+            amount=Decimal("4.50"),
+            direction="OUT",
+            status="pending",
+        )
+        txn2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 20),
+            description="Coffee Shop",
+            amount=Decimal("4.50"),
+            direction="OUT",
+            status="pending",
+        )
+        db.add_all([txn1, txn2])
+        await db.flush()
+
+        checks1 = await detect_duplicates(db, user_id, approved_statement.id)
+        assert len(checks1) == 1
+
+        checks2 = await detect_duplicates(db, user_id, approved_statement.id)
+        assert len(checks2) == 0
+
+    async def test_no_duplicate_when_date_spread_exceeds_1_day(self, db, user_id, approved_statement):
+        """detect_duplicates does not flag txns with >1 day apart as duplicates."""
+        txn1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 10),
+            description="Grocery",
+            amount=Decimal("25.00"),
+            direction="OUT",
+            status="pending",
+        )
+        txn2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 1, 15),
+            description="Grocery",
+            amount=Decimal("25.00"),
+            direction="OUT",
+            status="pending",
+        )
+        db.add_all([txn1, txn2])
+        await db.flush()
+
+        checks = await detect_duplicates(db, user_id, approved_statement.id)
+        assert len(checks) == 0
+
+
+class TestDetectTransferPairsEdgeCases:
+    async def test_global_scan_no_statement_id(self, db, user_id):
+        """AC16.4.3 detect_transfer_pairs runs global scan when no statement_id provided."""
+        stmt1 = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="a.pdf",
+            file_hash="hash_global_out",
+            original_filename="a.pdf",
+            institution="Bank A",
+            status=BankStatementStatus.APPROVED,
+        )
+        stmt2 = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="b.pdf",
+            file_hash="hash_global_in",
+            original_filename="b.pdf",
+            institution="Bank B",
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add_all([stmt1, stmt2])
+        await db.flush()
+
+        txn_out = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt1.id,
+            txn_date=date(2024, 2, 1),
+            description="Transfer out",
+            amount=Decimal("200.00"),
+            direction="OUT",
+            status="pending",
+        )
+        txn_in = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt2.id,
+            txn_date=date(2024, 2, 2),
+            description="Transfer in",
+            amount=Decimal("200.00"),
+            direction="IN",
+            status="pending",
+        )
+        db.add_all([txn_out, txn_in])
+        await db.flush()
+
+        checks = await detect_transfer_pairs(db, user_id)
+        assert len(checks) >= 1
+        assert checks[0].check_type == CheckType.TRANSFER_PAIR
+
+    async def test_idempotent_transfer_pair_detection(self, db, user_id):
+        """AC16.4.3 detect_transfer_pairs is idempotent."""
+        stmt1 = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="c.pdf",
+            file_hash="hash_idem_out",
+            original_filename="c.pdf",
+            institution="Bank C",
+            status=BankStatementStatus.APPROVED,
+        )
+        stmt2 = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="d.pdf",
+            file_hash="hash_idem_in",
+            original_filename="d.pdf",
+            institution="Bank D",
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add_all([stmt1, stmt2])
+        await db.flush()
+
+        txn_out = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt1.id,
+            txn_date=date(2024, 2, 5),
+            description="Idem transfer out",
+            amount=Decimal("75.00"),
+            direction="OUT",
+            status="pending",
+        )
+        txn_in = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt2.id,
+            txn_date=date(2024, 2, 6),
+            description="Idem transfer in",
+            amount=Decimal("75.00"),
+            direction="IN",
+            status="pending",
+        )
+        db.add_all([txn_out, txn_in])
+        await db.flush()
+
+        checks1 = await detect_transfer_pairs(db, user_id, stmt1.id)
+        assert len(checks1) == 1
+
+        checks2 = await detect_transfer_pairs(db, user_id, stmt1.id)
+        assert len(checks2) == 0
+
+
+class TestResolveCheckEdgeCases:
+    async def test_resolve_check_invalid_action_raises(self, db, user_id):
+        """AC16.4.4 resolve_check raises ValueError on invalid action."""
+        check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_x"],
+            details={},
+        )
+        db.add(check)
+        await db.flush()
+
+        with pytest.raises(ValueError, match="Invalid action"):
+            await resolve_check(db, check.id, "unknown_action", user_id)
+
+    async def test_resolve_check_not_found_raises(self, db, user_id):
+        """AC16.4.5 resolve_check raises ValueError when check not found."""
+        non_existent_id = uuid4()
+        with pytest.raises(ValueError, match="Check not found or access denied"):
+            await resolve_check(db, non_existent_id, "approve", user_id)
+
+    async def test_resolve_check_wrong_user_raises(self, db, user_id):
+        """AC16.4.5 resolve_check raises ValueError when called with wrong user_id."""
+        check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.ANOMALY,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_y"],
+            details={},
+        )
+        db.add(check)
+        await db.flush()
+
+        wrong_user_id = uuid4()
+        with pytest.raises(ValueError, match="Check not found or access denied"):
+            await resolve_check(db, check.id, "approve", wrong_user_id)
+
+    async def test_resolve_check_sets_flagged(self, db, user_id):
+        """AC16.4.6 resolve_check sets FLAGGED status when action=flag."""
+        check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_z"],
+            details={},
+        )
+        db.add(check)
+        await db.flush()
+
+        resolved = await resolve_check(db, check.id, "flag", user_id, "Suspicious")
+        assert resolved.status == CheckStatus.FLAGGED
+        assert resolved.resolution_note == "Suspicious"
+
+    async def test_resolve_check_sets_rejected(self, db, user_id):
+        """resolve_check sets REJECTED status when action=reject."""
+        check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.TRANSFER_PAIR,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_r"],
+            details={},
+        )
+        db.add(check)
+        await db.flush()
+
+        resolved = await resolve_check(db, check.id, "reject", user_id)
+        assert resolved.status == CheckStatus.REJECTED
+
+
+class TestGetPendingChecksEdgeCases:
+    async def test_get_pending_filters_by_severity(self, db, user_id):
+        """AC16.4.7 get_pending_checks filters by severity."""
+        high_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_high"],
+            details={},
+            severity="high",
+        )
+        medium_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.TRANSFER_PAIR,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_med"],
+            details={},
+            severity="medium",
+        )
+        db.add_all([high_check, medium_check])
+        await db.flush()
+
+        result = await get_pending_checks(db, user_id, severity="high")
+        assert len(result) == 1
+        assert result[0].id == high_check.id

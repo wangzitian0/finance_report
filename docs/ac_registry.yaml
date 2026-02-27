@@ -2428,3 +2428,220 @@ acs:
     epic_name: two-stage-review-ui
     description: 'Stage 2 UI supports batch operations'
     mandatory: true
+  # EPIC-016: two-stage-review (coverage branch - additional service tests)
+  - id: AC16.3.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'validate_balance_chain raises ValueError when statement not found'
+    mandatory: true
+  - id: AC16.3.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: '_get_opening_balance falls back to opening_balance when no prev statement'
+    mandatory: true
+  - id: AC16.3.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: '_get_opening_balance uses prev statement closing_balance when available'
+    mandatory: true
+  - id: AC16.3.4
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'reject_statement without reason clears validation_error'
+    mandatory: true
+  - id: AC16.3.5
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'edit_and_approve raises ValueError when balance still invalid after edits'
+    mandatory: true
+  - id: AC16.3.6
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: '_get_statement_for_update raises ValueError when wrong user_id'
+    mandatory: true
+  - id: AC16.4.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'detect_duplicates runs global scan when no statement_id provided'
+    mandatory: true
+  - id: AC16.4.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'detect_duplicates is idempotent - does not create duplicate checks'
+    mandatory: true
+  - id: AC16.4.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'detect_transfer_pairs runs global scan when no statement_id provided'
+    mandatory: true
+  - id: AC16.4.4
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'resolve_check raises ValueError on invalid action'
+    mandatory: true
+  - id: AC16.4.5
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'resolve_check raises ValueError when check not found or wrong user'
+    mandatory: true
+  - id: AC16.4.6
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'resolve_check sets FLAGGED status when action=flag'
+    mandatory: true
+  - id: AC16.4.7
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'get_pending_checks filters by severity'
+    mandatory: true
+
+  # EPIC-016: two-stage-review (frontend utility coverage)
+  - id: AC16.5.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'getUserId returns null when not set'
+    mandatory: true
+  - id: AC16.5.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'getUserId returns stored userId from localStorage'
+    mandatory: true
+  - id: AC16.5.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'setUser stores userId, email, and optional token'
+    mandatory: true
+  - id: AC16.5.4
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'clearUser removes all auth keys from localStorage'
+    mandatory: true
+  - id: AC16.5.5
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'isAuthenticated returns false when no token, true when token exists'
+    mandatory: true
+  - id: AC16.6.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'formatDateInput formats Date as YYYY-MM-DD with zero-padded month and day'
+    mandatory: true
+  - id: AC16.7.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'getTheme returns stored value or system preference'
+    mandatory: true
+  - id: AC16.7.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'setTheme adds/removes dark class and saves to localStorage'
+    mandatory: true
+  - id: AC16.7.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'toggleTheme switches between dark and light'
+    mandatory: true
+  - id: AC16.7.4
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'initTheme applies stored or system theme on load'
+    mandatory: true
+  - id: AC16.8.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'fetchAiModels calls /api/ai/models with no params when no options'
+    mandatory: true
+  - id: AC16.8.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'fetchAiModels appends modality query param when provided'
+    mandatory: true
+  - id: AC16.8.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'fetchAiModels appends free_only=true when freeOnly is set'
+    mandatory: true
+  - id: AC16.9.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'useCurrencies returns default currencies while loading'
+    mandatory: true
+  - id: AC16.9.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'useCurrencies updates currencies from API response'
+    mandatory: true
+  - id: AC16.9.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'useCurrencies falls back to defaults on API error'
+    mandatory: true  - id: AC16.10.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch returns JSON on 200 response'
+    mandatory: true
+  - id: AC16.10.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch returns undefined on 204 No Content'
+    mandatory: true
+  - id: AC16.10.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch throws error with detail message on non-ok response'
+    mandatory: true
+  - id: AC16.10.4
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch throws on non-JSON error text'
+    mandatory: true
+  - id: AC16.10.5
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch calls handle401Redirect on 401 response'
+    mandatory: true
+  - id: AC16.10.6
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'resetRedirectGuard resets the redirect guard state'
+    mandatory: true
+  - id: AC16.10.7
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiDelete succeeds on 200 response'
+    mandatory: true
+  - id: AC16.10.8
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiDelete throws on non-ok response'
+    mandatory: true
+  - id: AC16.10.9
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiStream returns response and sessionId on success'
+    mandatory: true
+  - id: AC16.10.10
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiStream throws on non-ok response'
+    mandatory: true
+  - id: AC16.10.11
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiUpload returns JSON on 200 response'
+    mandatory: true
+  - id: AC16.10.12
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiUpload returns undefined on 204 No Content'
+    mandatory: true
+  - id: AC16.10.13
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch normalizes path without leading slash'
+    mandatory: true
+  - id: AC16.10.14
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'apiFetch includes Authorization header when token present'
+    mandatory: true
