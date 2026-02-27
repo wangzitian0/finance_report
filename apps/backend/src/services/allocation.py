@@ -172,8 +172,12 @@ async def get_asset_class_allocation(
         as_of_date = date.today()
 
     def _asset_class_key(atomic):
-        asset_type = atomic.asset_type.value if atomic.asset_type else "unknown"
-        return asset_type.replace("_", " ").title()
+        asset_type = atomic.asset_type
+        if not asset_type:
+            return "Unknown"
+        # Handle both Enum member and string (from tests or DB)
+        val = asset_type.value if hasattr(asset_type, "value") else str(asset_type)
+        return val.replace("_", " ").title()
 
     enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date)
     return _build_allocation(enriched, _asset_class_key)

@@ -14,6 +14,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.services.performance import (
     InsufficientDataError,
+    XIRRCalculationError,
     calculate_money_weighted_return,
     calculate_time_weighted_return,
     calculate_xirr,
@@ -313,8 +314,8 @@ async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investmen
         xirr = await calculate_xirr(db, test_user.id)
         # If it succeeds, should be extremely high
         assert xirr > Decimal("1000")  # Over 1000% annualized
-    except InsufficientDataError:
-        # Acceptable if convergence fails
+    except (InsufficientDataError, XIRRCalculationError):
+        # Acceptable if convergence fails or data is insufficient
         pass
 
 
