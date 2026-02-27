@@ -193,7 +193,7 @@ def test_example_one():
 
         assert result == []
         captured = capsys.readouterr()
-        assert "is not in the subpath" in captured.out
+        assert "Error parsing" in captured.out
         test_file = tmp_path / "test_empty.py"
         test_file.write_text("")
         result = extract_test_functions(test_file)
