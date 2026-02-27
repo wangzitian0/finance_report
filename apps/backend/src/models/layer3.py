@@ -149,6 +149,14 @@ class PositionStatus(str, Enum):
     DISPOSED = "disposed"
 
 
+class CostBasisMethod(str, Enum):
+    """Cost basis calculation method for realized P&L."""
+
+    FIFO = "FIFO"  # First In First Out
+    LIFO = "LIFO"  # Last In First Out
+    AVGCOST = "AvgCost"  # Average Cost
+
+
 class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
     Layer 3: Calculated position derived from AtomicPositions.
@@ -169,6 +177,28 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     cost_basis: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, comment="Total cost basis")
+
+    # Portfolio management fields (EPIC-017)
+    cost_basis_method: Mapped[CostBasisMethod | None] = mapped_column(
+        SQLEnum(
+            CostBasisMethod,
+            name="cost_basis_method_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=True,
+        default=CostBasisMethod.FIFO,
+        comment="Method for calculating realized P&L",
+    )
+    unrealized_pnl: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+        comment="Unrealized gain/loss (market_value - cost_basis)",
+    )
+    realized_pnl: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+        comment="Realized gain/loss from disposals",
+    )
 
     acquisition_date: Mapped[date] = mapped_column(Date, nullable=False)
     disposal_date: Mapped[date | None] = mapped_column(Date, nullable=True)

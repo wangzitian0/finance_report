@@ -6,11 +6,10 @@ Tests all endpoints in src/routers/ai_models.py covering:
 
 from __future__ import annotations
 
-import pytest
+from unittest.mock import AsyncMock, patch
+
 from fastapi import status
 from httpx import AsyncClient
-
-from unittest.mock import AsyncMock, patch
 
 from src.schemas.ai_models import AIModelCatalogResponse
 
@@ -83,4 +82,3 @@ async def test_list_models_error_handling(mock_fetch: AsyncMock, client: AsyncCl
     data = response.json()
     assert "Model catalog unavailable" in data["detail"]
     assert mock_fetch.called
-

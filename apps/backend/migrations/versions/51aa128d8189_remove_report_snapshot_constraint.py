@@ -1,8 +1,6 @@
 """remove_report_snapshot_constraint"""
 
 from alembic import op
-import sqlalchemy as sa
-
 
 revision = "51aa128d8189"
 down_revision = "bcd695dcaf71"

@@ -1,7 +1,7 @@
 """add_layer4_reporting"""
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "bcd695dcaf71"
