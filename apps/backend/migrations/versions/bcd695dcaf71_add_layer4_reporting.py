@@ -23,25 +23,15 @@ def upgrade() -> None:
         sa.Column("as_of_date", sa.Date(), nullable=False, comment="Report end date"),
         sa.Column("start_date", sa.Date(), nullable=True, comment="Report start date (for ranges)"),
         sa.Column("rule_version_id", sa.UUID(), nullable=False),
-        sa.Column(
-            "report_data", postgresql.JSONB(), nullable=False, comment="Full report JSON structure"
-        ),
-        sa.Column(
-            "is_latest", sa.Boolean(), nullable=False, comment="Is this the most recent generation?"
-        ),
-        sa.Column(
-            "ttl", sa.DateTime(timezone=True), nullable=True, comment="Expiration time for cache"
-        ),
+        sa.Column("report_data", postgresql.JSONB(), nullable=False, comment="Full report JSON structure"),
+        sa.Column("is_latest", sa.Boolean(), nullable=False, comment="Is this the most recent generation?"),
+        sa.Column("ttl", sa.DateTime(timezone=True), nullable=True, comment="Expiration time for cache"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["rule_version_id"], ["classification_rules.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["rule_version_id"], ["classification_rules.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "user_id", "report_type", "as_of_date", "rule_version_id", name="uq_report_snapshot"
-        ),
+        sa.UniqueConstraint("user_id", "report_type", "as_of_date", "rule_version_id", name="uq_report_snapshot"),
     )
 
 

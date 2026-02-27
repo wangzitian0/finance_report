@@ -1,4 +1,4 @@
-"""Tests for portfolio allocation service."""
+"""AC17.4: Portfolio allocation service tests — sector, geography, asset class breakdowns."""
 
 from datetime import date
 from decimal import Decimal
@@ -102,18 +102,30 @@ async def finance_stock_position(db: AsyncSession, test_user, investment_account
 
 @pytest.mark.asyncio
 async def test_sector_allocation_empty_portfolio(db: AsyncSession, test_user):
+    """AC17.4.1: Empty portfolio returns empty sector allocation.
+
+    Verify that get_sector_allocation returns [] when user has no positions.
+    """
     result = await get_sector_allocation(db, test_user.id)
     assert result == []
 
 
 @pytest.mark.asyncio
 async def test_geography_allocation_empty_portfolio(db: AsyncSession, test_user):
+    """AC17.4.2: Empty portfolio returns empty geography allocation.
+
+    Verify that get_geography_allocation returns [] when user has no positions.
+    """
     result = await get_geography_allocation(db, test_user.id)
     assert result == []
 
 
 @pytest.mark.asyncio
 async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_user):
+    """AC17.4.3: Empty portfolio returns empty asset class allocation.
+
+    Verify that get_asset_class_allocation returns [] when user has no positions.
+    """
     result = await get_asset_class_allocation(db, test_user.id)
     assert result == []
 
@@ -122,6 +134,10 @@ async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_use
 async def test_sector_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
+    """AC17.4.4: Sector allocation with positions returns category/value/percentage/count.
+
+    Verify that sector allocation correctly groups positions by sector with market values.
+    """
     result = await get_sector_allocation(db, test_user.id)
 
     assert len(result) > 0
@@ -135,6 +151,10 @@ async def test_sector_allocation_with_positions(
 async def test_geography_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
+    """AC17.4.5: Geography allocation with positions returns grouped results.
+
+    Verify that geography allocation correctly groups positions by geography.
+    """
     result = await get_geography_allocation(db, test_user.id)
 
     assert len(result) > 0
@@ -145,6 +165,10 @@ async def test_geography_allocation_with_positions(
 async def test_asset_class_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
+    """AC17.4.6: Asset class allocation with positions returns grouped results.
+
+    Verify that asset class allocation correctly groups positions by asset type.
+    """
     result = await get_asset_class_allocation(db, test_user.id)
 
     assert len(result) > 0

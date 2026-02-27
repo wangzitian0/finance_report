@@ -22,9 +22,7 @@ def upgrade() -> None:
         sa.Column("source", sa.String(length=50), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "base_currency", "quote_currency", "rate_date", name="uq_fx_rates_pair_date"
-        ),
+        sa.UniqueConstraint("base_currency", "quote_currency", "rate_date", name="uq_fx_rates_pair_date"),
     )
     op.create_index(
         "idx_fx_rates_lookup",
@@ -57,9 +55,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["default_account_id"], ["accounts.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "user_id", "rule_name", "version_number", name="uq_classification_rules_version"
-        ),
+        sa.UniqueConstraint("user_id", "rule_name", "version_number", name="uq_classification_rules_version"),
     )
 
     op.create_table(
@@ -79,15 +75,11 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["atomic_txn_id"], ["atomic_transactions.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["rule_version_id"], ["classification_rules.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["rule_version_id"], ["classification_rules.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["superseded_by_id"], ["transaction_classification.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "atomic_txn_id", "rule_version_id", name="uq_txn_classification_version"
-        ),
+        sa.UniqueConstraint("atomic_txn_id", "rule_version_id", name="uq_txn_classification_version"),
     )
 
 

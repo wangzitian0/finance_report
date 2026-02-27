@@ -1,4 +1,4 @@
-"""Tests for portfolio service - get_holdings, realized/unrealized PnL, summary, price updates."""
+"""AC17.1/AC17.2/AC17.5: Portfolio service tests — holdings, realized/unrealized PnL, price updates."""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -85,6 +85,10 @@ async def atomic_snapshot(db: AsyncSession, test_user):
 
 @pytest.mark.asyncio
 async def test_get_holdings_happy_path(db, test_user, svc, active_position, atomic_snapshot):
+    """AC17.1.1: Holdings happy path returns correct market value, cost basis, and classification.
+
+    Verify that get_holdings returns enriched HoldingResponse with PnL and sector data.
+    """
     holdings = await svc.get_holdings(db, test_user.id)
     assert len(holdings) == 1
     h = holdings[0]
@@ -100,13 +104,17 @@ async def test_get_holdings_happy_path(db, test_user, svc, active_position, atom
 
 @pytest.mark.asyncio
 async def test_get_holdings_no_positions_raises(db, test_user, svc):
+    """AC17.1.2: Holdings on empty portfolio raises PortfolioNotFoundError.
+
+    Verify that get_holdings raises PortfolioNotFoundError when user has no positions.
+    """
     with pytest.raises(PortfolioNotFoundError):
         await svc.get_holdings(db, test_user.id)
 
 
 @pytest.mark.asyncio
 async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic_snapshot):
-    """Disposed positions are included only when include_disposed=True."""
+    """AC17.1.3: Disposed positions included only when include_disposed=True."""
     disposed = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -122,11 +130,11 @@ async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic
     db.add(disposed)
     await db.flush()
 
-    # Without include_disposed → raises (no ACTIVE positions)
+    # Without include_disposed -> raises (no ACTIVE positions)
     with pytest.raises(PortfolioNotFoundError):
         await svc.get_holdings(db, test_user.id, include_disposed=False)
 
-    # With include_disposed → returns the disposed position
+    # With include_disposed -> returns the disposed position
     holdings = await svc.get_holdings(db, test_user.id, include_disposed=True)
     assert len(holdings) == 1
     assert holdings[0].status == PositionStatus.DISPOSED
@@ -134,7 +142,7 @@ async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic
 
 @pytest.mark.asyncio
 async def test_get_holdings_fx_conversion(db, test_user, svc, account):
-    """When position currency != base_currency (SGD), FX conversion is applied (lines 111-126)."""
+    """AC17.1.4: FX conversion applied when position currency != base currency (SGD)."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -192,7 +200,7 @@ async def test_get_holdings_fx_conversion(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_get_holdings_zero_cost_basis(db, test_user, svc, account):
-    """Line 137: unrealized_pnl_percent = 0 when cost_basis == 0."""
+    """AC17.1.5: Zero cost basis -> unrealized_pnl_percent = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -227,7 +235,7 @@ async def test_get_holdings_zero_cost_basis(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_get_holdings_no_atomic_for_classification(db, test_user, svc, account):
-    """When _get_latest_atomic returns None, classification fields stay None."""
+    """AC17.1.6: No atomic position for user -> classification fields stay None."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -256,7 +264,7 @@ async def test_get_holdings_no_atomic_for_classification(db, test_user, svc, acc
     )
     db.add(other_user_atom)
 
-    # But we do need a price source for this user → use override
+    # But we do need a price source for this user -> use override
     override = MarketDataOverride(
         user_id=test_user.id,
         asset_identifier="NOCLASS",
@@ -315,11 +323,15 @@ async def disposed_position(db, test_user, account):
 
 @pytest.mark.asyncio
 async def test_realized_pnl_happy_path(db, test_user, svc, disposed_position):
+    """AC17.2.1: Realized PnL happy path returns correct total and details.
+
+    Verify that calculate_realized_pnl returns correct PnL for disposed positions.
+    """
     start = date.today() - timedelta(days=30)
     end = date.today()
     result = await svc.calculate_realized_pnl(db, test_user.id, start, end)
     assert result.positions_count == 1
-    # disposal_value = 20 * (4000/20) = 4000, cost = 3000 → pnl = 1000
+    # disposal_value = 20 * (4000/20) = 4000, cost = 3000 -> pnl = 1000
     assert result.total_realized_pnl == Decimal("1000.00")
     assert len(result.details) == 1
     assert result.details[0]["asset_identifier"] == "GOOG"
@@ -327,13 +339,17 @@ async def test_realized_pnl_happy_path(db, test_user, svc, disposed_position):
 
 @pytest.mark.asyncio
 async def test_realized_pnl_invalid_date_range(db, test_user, svc):
+    """AC17.2.2: Invalid date range raises InvalidDateRangeError.
+
+    Verify that start_date > end_date triggers InvalidDateRangeError.
+    """
     with pytest.raises(InvalidDateRangeError):
         await svc.calculate_realized_pnl(db, test_user.id, date.today(), date.today() - timedelta(days=1))
 
 
 @pytest.mark.asyncio
 async def test_realized_pnl_no_disposed(db, test_user, svc):
-    """No disposed positions → returns zero response."""
+    """AC17.2.3: No disposed positions -> returns zero response."""
     result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today())
     assert result.total_realized_pnl == Decimal("0")
     assert result.positions_count == 0
@@ -342,7 +358,7 @@ async def test_realized_pnl_no_disposed(db, test_user, svc):
 
 @pytest.mark.asyncio
 async def test_realized_pnl_zero_cost(db, test_user, svc, account):
-    """Line 263: zero cost → realized_pnl_percent = 0."""
+    """AC17.2.4: Zero cost -> realized_pnl_percent = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -378,7 +394,7 @@ async def test_realized_pnl_zero_cost(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
-    """Lines 238-252: disposed position in non-base currency triggers FX path."""
+    """AC17.2.5: Disposed position in non-base currency triggers FX conversion."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -427,7 +443,7 @@ async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
 
     result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today())
     assert result.positions_count == 1
-    # disposal: 1500 * 1.35 = 2025, cost: 1000 * 1.30 = 1300 → pnl = 725
+    # disposal: 1500 * 1.35 = 2025, cost: 1000 * 1.30 = 1300 -> pnl = 725
     assert result.total_realized_pnl == Decimal("725.00")
 
 
@@ -438,6 +454,10 @@ async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, atomic_snapshot):
+    """AC17.2.6: Unrealized PnL happy path returns correct totals.
+
+    Verify that calculate_unrealized_pnl returns correct market value, cost basis, and PnL.
+    """
     result = await svc.calculate_unrealized_pnl(db, test_user.id)
     assert result.holdings_count == 1
     assert result.total_market_value == Decimal("12000.00")
@@ -448,13 +468,17 @@ async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, at
 
 @pytest.mark.asyncio
 async def test_unrealized_pnl_no_positions(db, test_user, svc):
+    """AC17.2.7: Unrealized PnL on empty portfolio raises PortfolioNotFoundError.
+
+    Verify that calculate_unrealized_pnl raises when user has no active positions.
+    """
     with pytest.raises(PortfolioNotFoundError):
         await svc.calculate_unrealized_pnl(db, test_user.id)
 
 
 @pytest.mark.asyncio
 async def test_unrealized_pnl_zero_cost(db, test_user, svc, account):
-    """Lines 384-388: zero cost → unrealized_pnl_percent in details = 0."""
+    """AC17.2.8: Zero cost -> unrealized_pnl_percent in details = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -489,7 +513,7 @@ async def test_unrealized_pnl_zero_cost(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
-    """Lines 349-364: FX conversion for unrealized PnL."""
+    """AC17.2.9: FX conversion for unrealized PnL."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -536,7 +560,7 @@ async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
     await db.flush()
 
     result = await svc.calculate_unrealized_pnl(db, test_user.id)
-    # market: 2500 * 1.35 = 3375, cost: 2000 * 1.30 = 2600 → pnl = 775
+    # market: 2500 * 1.35 = 3375, cost: 2000 * 1.30 = 2600 -> pnl = 775
     assert result.total_market_value == Decimal("3375.00")
     assert result.total_cost_basis == Decimal("2600.00")
     assert result.total_unrealized_pnl == Decimal("775.00")
@@ -549,6 +573,10 @@ async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_portfolio_summary_happy(db, test_user, svc, active_position, atomic_snapshot):
+    """AC17.1.7: Portfolio summary happy path returns correct counts and totals.
+
+    Verify that get_portfolio_summary returns accurate summary with PnL.
+    """
     summary = await svc.get_portfolio_summary(db, test_user.id)
     assert summary.holdings_count == 1
     assert summary.active_positions_count == 1
@@ -561,7 +589,7 @@ async def test_portfolio_summary_happy(db, test_user, svc, active_position, atom
 
 @pytest.mark.asyncio
 async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atomic_snapshot):
-    """Summary includes both active and disposed positions."""
+    """AC17.1.8: Summary includes both active and disposed positions."""
     active = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -596,7 +624,7 @@ async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atom
 
 @pytest.mark.asyncio
 async def test_portfolio_summary_zero_cost(db, test_user, svc, account):
-    """Lines 522-525: zero total cost → net_pnl_percent = 0."""
+    """AC17.1.9: Zero total cost -> net_pnl_percent = 0."""
     pos = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
@@ -635,6 +663,10 @@ async def test_portfolio_summary_zero_cost(db, test_user, svc, account):
 
 @pytest.mark.asyncio
 async def test_update_prices_happy(db, test_user, svc, active_position):
+    """AC17.5.1: Update market prices happy path creates override.
+
+    Verify that update_market_prices creates a MarketDataOverride record.
+    """
     updates = [
         PriceUpdateRequest(
             asset_identifier="AAPL",
@@ -651,6 +683,10 @@ async def test_update_prices_happy(db, test_user, svc, active_position):
 
 @pytest.mark.asyncio
 async def test_update_prices_asset_not_found(db, test_user, svc):
+    """AC17.5.2: Update prices for non-existent asset returns failure.
+
+    Verify that update_market_prices returns success=False for unknown assets.
+    """
     updates = [
         PriceUpdateRequest(
             asset_identifier="NOPE",
@@ -672,7 +708,7 @@ async def test_update_prices_asset_not_found(db, test_user, svc):
 
 @pytest.mark.asyncio
 async def test_get_latest_price_override(db, test_user, svc, active_position):
-    """Line 577-578: override price takes precedence."""
+    """AC17.5.3: Override price takes precedence over atomic position price."""
     override = MarketDataOverride(
         user_id=test_user.id,
         asset_identifier="AAPL",
@@ -690,7 +726,7 @@ async def test_get_latest_price_override(db, test_user, svc, active_position):
 
 @pytest.mark.asyncio
 async def test_get_latest_price_from_atomic(db, test_user, svc, active_position, atomic_snapshot):
-    """Lines 592-595: per-unit price = market_value / quantity."""
+    """AC17.5.4: Per-unit price = market_value / quantity from atomic position."""
     price = await svc._get_latest_price(db, active_position, date.today(), test_user.id)
     # 12000 / 100 = 120
     assert price == Decimal("120")
@@ -698,7 +734,7 @@ async def test_get_latest_price_from_atomic(db, test_user, svc, active_position,
 
 @pytest.mark.asyncio
 async def test_get_latest_price_zero_quantity(db, test_user, svc, active_position):
-    """Line 596: quantity==0 → return market_value directly."""
+    """AC17.5.5: Quantity == 0 -> return market_value directly."""
     atom = AtomicPosition(
         user_id=test_user.id,
         snapshot_date=date.today(),
@@ -719,7 +755,7 @@ async def test_get_latest_price_zero_quantity(db, test_user, svc, active_positio
 
 @pytest.mark.asyncio
 async def test_get_latest_price_no_data(db, test_user, svc, active_position):
-    """Line 599: no price data → AssetNotFoundError."""
+    """AC17.5.6: No price data -> AssetNotFoundError."""
     with pytest.raises(AssetNotFoundError):
         await svc._get_latest_price(db, active_position, date.today(), test_user.id)
 
@@ -731,6 +767,10 @@ async def test_get_latest_price_no_data(db, test_user, svc, active_position):
 
 @pytest.mark.asyncio
 async def test_get_latest_atomic_returns_latest(db, test_user, svc):
+    """AC17.5.7: _get_latest_atomic returns the most recent snapshot.
+
+    Verify that when multiple snapshots exist, the latest by date is returned.
+    """
     old = AtomicPosition(
         user_id=test_user.id,
         snapshot_date=date.today() - timedelta(days=30),
@@ -765,5 +805,9 @@ async def test_get_latest_atomic_returns_latest(db, test_user, svc):
 
 @pytest.mark.asyncio
 async def test_get_latest_atomic_none(db, test_user, svc):
+    """AC17.5.8: _get_latest_atomic returns None when no snapshots exist.
+
+    Verify that _get_latest_atomic returns None for unknown asset.
+    """
     result = await svc._get_latest_atomic(db, "NOPE", test_user.id)
     assert result is None

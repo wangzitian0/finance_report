@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -32,6 +32,59 @@ class XIRRCalculationError(PerformanceError):
     """Raised when XIRR calculation fails to converge."""
 
     pass
+
+
+async def batch_latest_atomic_positions(
+    db: AsyncSession,
+    user_id: UUID,
+    asset_identifiers: list[str],
+    as_of_date: date,
+) -> dict[str, AtomicPosition]:
+    """
+    Batch-fetch the latest AtomicPosition for each asset_identifier in a single query.
+
+    Uses a window function (ROW_NUMBER) to find the most recent snapshot per asset,
+    avoiding the N+1 pattern of querying one asset at a time.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        asset_identifiers: List of asset identifiers to fetch
+        as_of_date: Fetch snapshots on or before this date
+
+    Returns:
+        dict mapping asset_identifier -> latest AtomicPosition
+    """
+    if not asset_identifiers:
+        return {}
+
+    # Subquery: rank snapshots per asset by date descending
+    row_num = (
+        func.row_number()
+        .over(
+            partition_by=AtomicPosition.asset_identifier,
+            order_by=AtomicPosition.snapshot_date.desc(),
+        )
+        .label("rn")
+    )
+
+    subq = (
+        select(AtomicPosition.id, row_num)
+        .where(
+            AtomicPosition.user_id == user_id,
+            AtomicPosition.asset_identifier.in_(asset_identifiers),
+            AtomicPosition.snapshot_date <= as_of_date,
+        )
+        .subquery()
+    )
+
+    # Join back to get full AtomicPosition rows where rn == 1
+    query = select(AtomicPosition).join(subq, AtomicPosition.id == subq.c.id).where(subq.c.rn == 1)
+
+    result = await db.execute(query)
+    rows = result.scalars().all()
+
+    return {row.asset_identifier: row for row in rows}
 
 
 async def calculate_xirr(
@@ -63,7 +116,7 @@ async def calculate_xirr(
     # Collect cash flows (transactions)
     cash_flows: list[tuple[date, Decimal]] = []
     dates: list[date] = []
-    amounts: list[float] = []
+    amounts: list[Decimal] = []
 
     # Get all transactions up to as_of_date
     query = select(AtomicTransaction).where(
@@ -87,7 +140,7 @@ async def calculate_xirr(
         sign = 1 if txn.direction == TransactionDirection.OUT else -1
         cash_flows.append((txn.txn_date, amount_base * sign))
         dates.append(txn.txn_date)
-        amounts.append(float(amount_base * sign))
+        amounts.append(amount_base * sign)
 
     # Get current position value as final cash flow (positive = portfolio value)
     query = select(ManagedPosition).where(
@@ -97,22 +150,13 @@ async def calculate_xirr(
     result = await db.execute(query)
     positions = result.scalars().all()
 
+    # Batch-fetch latest atomic positions (fixes N+1)
+    asset_ids = [pos.asset_identifier for pos in positions]
+    atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
+
     total_value = Decimal("0")
     for pos in positions:
-        # Get latest atomic position for market value
-        atomic_query = (
-            select(AtomicPosition)
-            .where(
-                AtomicPosition.user_id == user_id,
-                AtomicPosition.asset_identifier == pos.asset_identifier,
-                AtomicPosition.snapshot_date <= as_of_date,
-            )
-            .order_by(AtomicPosition.snapshot_date.desc())
-            .limit(1)
-        )
-        atomic_result = await db.execute(atomic_query)
-        atomic = atomic_result.scalar_one_or_none()
-
+        atomic = atomic_map.get(pos.asset_identifier)
         if atomic:
             value_base = await fx.convert_amount(
                 db,
@@ -125,7 +169,7 @@ async def calculate_xirr(
 
     if total_value > Decimal("0"):
         dates.append(as_of_date)
-        amounts.append(float(total_value))
+        amounts.append(total_value)
 
     # Need at least 2 data points (initial investment + current value)
     if len(dates) < 2:
@@ -138,16 +182,19 @@ async def calculate_xirr(
     # Solve for XIRR using Newton's method with bisection fallback
     # XIRR formula: Sum of (cash_flow_i / (1 + xirr)^(days_i / 365)) = 0
     try:
-        xirr = _xirr_newton(amounts, day_offsets, guess=0.1, max_iter=100, tolerance=1e-6)
-        return Decimal(str(xirr * 100))  # Convert to percentage
+        xirr = _xirr_newton(amounts, day_offsets, guess=Decimal("0.1"), max_iter=100, tolerance=Decimal("1e-6"))
+        return xirr * Decimal("100")  # Convert to percentage
     except (ValueError, RuntimeError) as e:
         logger.error(f"XIRR calculation failed: {e}", cash_flows=cash_flows)
         raise XIRRCalculationError(f"XIRR calculation failed to converge: {e}") from e
 
 
-def _xirr_newton(amounts: list[float], days: list[int], guess: float, max_iter: int, tolerance: float) -> float:
+def _xirr_newton(amounts: list[Decimal], days: list[int], guess: Decimal, max_iter: int, tolerance: Decimal) -> Decimal:
     """
     Calculate XIRR using Newton's method with bisection fallback.
+
+    Accepts Decimal parameters and returns a Decimal result; uses float internally
+    for power and rate operations for performance and compatibility.
 
     Args:
         amounts: Cash flow amounts (negative for outflows, positive for inflows)
@@ -157,27 +204,31 @@ def _xirr_newton(amounts: list[float], days: list[int], guess: float, max_iter: 
         tolerance: Convergence tolerance
 
     Returns:
-        float: XIRR as decimal (e.g., 0.15 for 15%)
+        Decimal: XIRR as decimal (e.g., 0.15 for 15%)
     Raises:
         ValueError: If calculation fails to converge
     """
-    rate = guess
+    # Use float internally for the power/division operations (Decimal ** Decimal is slow
+    # and Decimal doesn't support fractional exponents natively), but convert result back.
+    rate = float(guess)
+    float_amounts = [float(a) for a in amounts]
+    float_tol = float(tolerance)
+
     for _ in range(max_iter):
-        npv = sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(amounts, days))
-        d_npv = sum(-(d / 365.0) * cf / (1 + rate) ** (d / 365.0 + 1) for cf, d in zip(amounts, days))
+        npv = sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(float_amounts, days))
+        d_npv = sum(-(d / 365.0) * cf / (1 + rate) ** (d / 365.0 + 1) for cf, d in zip(float_amounts, days))
         if abs(d_npv) < 1e-10:
             break
 
         new_rate = rate - npv / d_npv
-        if abs(new_rate - rate) < tolerance:
-            return new_rate
-            break
+        if abs(new_rate - rate) < float_tol:
+            return Decimal(str(new_rate))
 
         rate = new_rate
     return _xirr_bisection(amounts, days, max_iter=200, tolerance=tolerance)
 
 
-def _xirr_bisection(amounts: list[float], days: list[int], max_iter: int, tolerance: float) -> float:
+def _xirr_bisection(amounts: list[Decimal], days: list[int], max_iter: int, tolerance: Decimal) -> Decimal:
     """
     Bisection fallback for XIRR when Newton's method fails to converge.
 
@@ -190,15 +241,17 @@ def _xirr_bisection(amounts: list[float], days: list[int], max_iter: int, tolera
         tolerance: Convergence tolerance
 
     Returns:
-        float: XIRR as decimal
+        Decimal: XIRR as decimal
 
     Raises:
         ValueError: If no root found in search range
     """
     lo, hi = -0.99, 10.0
+    float_amounts = [float(a) for a in amounts]
+    float_tol = float(tolerance)
 
     def npv(rate: float) -> float:
-        return sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(amounts, days))
+        return sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(float_amounts, days))
 
     npv_lo = npv(lo)
     npv_hi = npv(hi)
@@ -209,8 +262,8 @@ def _xirr_bisection(amounts: list[float], days: list[int], max_iter: int, tolera
         mid = (lo + hi) / 2
         npv_mid = npv(mid)
 
-        if abs(npv_mid) < tolerance or (hi - lo) / 2 < tolerance:
-            return mid
+        if abs(npv_mid) < float_tol or (hi - lo) / 2 < float_tol:
+            return Decimal(str(mid))
 
         if npv_lo * npv_mid < 0:
             hi = mid
@@ -219,7 +272,7 @@ def _xirr_bisection(amounts: list[float], days: list[int], max_iter: int, tolera
             lo = mid
             npv_lo = npv_mid
 
-    return (lo + hi) / 2
+    return Decimal(str((lo + hi) / 2))
 
 
 async def calculate_time_weighted_return(
@@ -232,7 +285,7 @@ async def calculate_time_weighted_return(
     Calculate Time-Weighted Return (TWR) for a period.
 
     TWR eliminates the effect of cash flows, measuring only investment performance.
-    Formula: TWR = [(1 + R1) × (1 + R2) × ... × (1 + Rn)] - 1
+    Formula: TWR = [(1 + R1) * (1 + R2) * ... * (1 + Rn)] - 1
     where R_i = (End_Value - Start_Value - Net_Cash_Flow) / Start_Value
 
     Args:
@@ -323,6 +376,8 @@ async def _get_portfolio_value(
     """
     Get total portfolio value as of a specific date.
 
+    Uses batched query to avoid N+1 pattern.
+
     Args:
         db: Database session
         user_id: User ID
@@ -338,22 +393,13 @@ async def _get_portfolio_value(
     result = await db.execute(query)
     positions = result.scalars().all()
 
+    # Batch-fetch latest atomic positions (fixes N+1)
+    asset_ids = [pos.asset_identifier for pos in positions]
+    atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
+
     total_value = Decimal("0")
     for pos in positions:
-        # Get latest atomic position snapshot before or on as_of_date
-        atomic_query = (
-            select(AtomicPosition)
-            .where(
-                AtomicPosition.user_id == user_id,
-                AtomicPosition.asset_identifier == pos.asset_identifier,
-                AtomicPosition.snapshot_date <= as_of_date,
-            )
-            .order_by(AtomicPosition.snapshot_date.desc())
-            .limit(1)
-        )
-        atomic_result = await db.execute(atomic_query)
-        atomic = atomic_result.scalar_one_or_none()
-
+        atomic = atomic_map.get(pos.asset_identifier)
         if atomic:
             value_base = await fx.convert_amount(
                 db,

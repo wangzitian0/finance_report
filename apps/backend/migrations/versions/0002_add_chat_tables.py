@@ -38,9 +38,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=200), nullable=True),
         sa.Column(
             "status",
-            postgresql.ENUM(
-                "active", "deleted", name="chat_session_status_enum", create_type=False
-            ),
+            postgresql.ENUM("active", "deleted", name="chat_session_status_enum", create_type=False),
             nullable=False,
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -65,9 +63,7 @@ def upgrade() -> None:
         sa.Column("session_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column(
             "role",
-            postgresql.ENUM(
-                "user", "assistant", "system", name="chat_message_role_enum", create_type=False
-            ),
+            postgresql.ENUM("user", "assistant", "system", name="chat_message_role_enum", create_type=False),
             nullable=False,
         ),
         sa.Column("content", sa.Text(), nullable=False),

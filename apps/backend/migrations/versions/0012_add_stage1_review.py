@@ -28,7 +28,9 @@ def upgrade() -> None:
         "bank_statements",
         sa.Column(
             "stage1_status",
-            sa.dialects.postgresql.ENUM("pending_review", "approved", "rejected", "edited", name="stage1_status_enum", create_type=False),
+            sa.dialects.postgresql.ENUM(
+                "pending_review", "approved", "rejected", "edited", name="stage1_status_enum", create_type=False
+            ),
             nullable=True,
         ),
     )
