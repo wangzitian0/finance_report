@@ -499,7 +499,7 @@ class PortfolioService:
         Returns:
             Comprehensive portfolio summary
         """
-        holdings = await self.get_holdings(db, user_id, as_of_date)
+        holdings = await self.get_holdings(db, user_id, as_of_date, include_disposed=True)
 
         total_market_value = Decimal("0")
         total_cost_basis = Decimal("0")

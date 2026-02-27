@@ -283,3 +283,96 @@ async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investmen
     except InsufficientDataError:
         # Acceptable if convergence fails
         pass
+
+
+# ──────────────────────────────────────────────
+# Pure-function tests for _xirr_newton / _xirr_bisection
+# ──────────────────────────────────────────────
+
+
+def test_xirr_bisection_no_root_raises():
+    """_xirr_bisection raises ValueError when NPV has same sign at both ends."""
+    from src.services.performance import _xirr_bisection
+
+    # All positive cash flows → NPV always positive → no root
+    amounts = [100.0, 200.0, 300.0]
+    days = [0, 180, 365]
+    with pytest.raises(ValueError, match="No root in"):
+        _xirr_bisection(amounts, days, max_iter=200, tolerance=1e-6)
+
+
+def test_xirr_bisection_max_iter_returns():
+    """_xirr_bisection returns best estimate after max_iter without converging."""
+    from src.services.performance import _xirr_bisection
+
+    # Normal cash flows (negative deposit, positive terminal) with max_iter=1
+    # so it can't converge but should return a midpoint
+    amounts = [-10000.0, 12000.0]
+    days = [0, 365]
+    result = _xirr_bisection(amounts, days, max_iter=1, tolerance=1e-12)
+    assert isinstance(result, float)
+
+
+def test_xirr_newton_fallthrough_to_bisection():
+    """_xirr_newton falls through to _xirr_bisection when Newton doesn't converge."""
+    from src.services.performance import _xirr_newton
+
+    # Use a guess that won't converge easily with very few iterations
+    amounts = [-10000.0, 12000.0]
+    days = [0, 365]
+    result = _xirr_newton(amounts, days, guess=0.1, max_iter=1, tolerance=1e-15)
+    assert isinstance(result, float)
+
+
+@pytest.mark.asyncio
+async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, investment_account, monkeypatch):
+    """XIRRCalculationError is raised when both Newton and bisection fail (lines 143-145)."""
+    from src.models.layer2 import AtomicPosition, AtomicTransaction
+    from src.services.performance import XIRRCalculationError
+
+    deposit = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date.today() - timedelta(days=30),
+        amount=Decimal("10000.00"),
+        currency="SGD",
+        direction=TransactionDirection.IN,
+        description="deposit",
+        source_documents={},
+        dedup_hash="xirr_error_deposit",
+    )
+    db.add(deposit)
+
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="ERR",
+        quantity=Decimal("1"),
+        cost_basis=Decimal("10000.00"),
+        currency="SGD",
+        acquisition_date=date.today() - timedelta(days=30),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(position)
+
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date.today(),
+        asset_identifier="ERR",
+        broker="B",
+        quantity=Decimal("1"),
+        market_value=Decimal("11000.00"),
+        currency="SGD",
+        dedup_hash="xirr_error_snap",
+        source_documents={},
+    )
+    db.add(atomic)
+    await db.flush()
+
+    def _raise_newton(*args, **kwargs):
+        raise ValueError("forced failure")
+
+    monkeypatch.setattr("src.services.performance._xirr_newton", _raise_newton)
+
+    with pytest.raises(XIRRCalculationError):
+        await calculate_xirr(db, test_user.id)

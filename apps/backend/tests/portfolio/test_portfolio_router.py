@@ -249,3 +249,48 @@ async def test_performance_metrics_response_format(client: AsyncClient, portfoli
     for key in ["xirr", "time_weighted_return", "money_weighted_return"]:
         assert key in data
         assert isinstance(data[key], str)
+
+
+@pytest.mark.asyncio
+async def test_get_performance_insufficient_data(client: AsyncClient):
+    """InsufficientDataError on empty portfolio → xirr/mwr default to 0."""
+    response = await client.get("/portfolio/performance")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["xirr"] == "0.00"
+    assert data["money_weighted_return"] == "0.00"
+    assert data["time_weighted_return"] == "0.00"
+
+
+@pytest.mark.asyncio
+async def test_get_performance_xirr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
+    """PerformanceError (non-InsufficientData) on XIRR → 422."""
+    from src.services.performance import XIRRCalculationError
+
+    async def _raise_xirr(*args, **kwargs):
+        raise XIRRCalculationError("Newton+bisection failed")
+
+    monkeypatch.setattr("src.routers.portfolio.performance.calculate_xirr", _raise_xirr)
+
+    response = await client.get("/portfolio/performance")
+    assert response.status_code == 422
+    assert "Newton+bisection failed" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
+    """PerformanceError (non-InsufficientData) on MWR → 422."""
+    from src.services.performance import XIRRCalculationError
+
+    async def _ok_xirr(*args, **kwargs):
+        return Decimal("10.00")
+
+    async def _raise_mwr(*args, **kwargs):
+        raise XIRRCalculationError("MWR convergence failed")
+
+    monkeypatch.setattr("src.routers.portfolio.performance.calculate_xirr", _ok_xirr)
+    monkeypatch.setattr("src.routers.portfolio.performance.calculate_money_weighted_return", _raise_mwr)
+
+    response = await client.get("/portfolio/performance")
+    assert response.status_code == 422
+    assert "MWR convergence failed" in response.json()["detail"]
