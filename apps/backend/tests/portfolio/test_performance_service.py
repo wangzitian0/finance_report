@@ -330,7 +330,7 @@ def test_xirr_bisection_no_root_raises():
     """
     from src.services.performance import _xirr_bisection
 
-    # All positive cash flows → NPV always positive → no root
+    # All positive cash flows -> NPV always positive -> no root
     amounts = [Decimal("100"), Decimal("200"), Decimal("300")]
     days = [0, 180, 365]
     with pytest.raises(ValueError, match="No root in"):

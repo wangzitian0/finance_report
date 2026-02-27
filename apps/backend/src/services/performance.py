@@ -34,7 +34,7 @@ class XIRRCalculationError(PerformanceError):
     pass
 
 
-async def _batch_latest_atomic_positions(
+async def batch_latest_atomic_positions(
     db: AsyncSession,
     user_id: UUID,
     asset_identifiers: list[str],
@@ -53,7 +53,7 @@ async def _batch_latest_atomic_positions(
         as_of_date: Fetch snapshots on or before this date
 
     Returns:
-        dict mapping asset_identifier → latest AtomicPosition
+        dict mapping asset_identifier -> latest AtomicPosition
     """
     if not asset_identifiers:
         return {}
@@ -152,7 +152,7 @@ async def calculate_xirr(
 
     # Batch-fetch latest atomic positions (fixes N+1)
     asset_ids = [pos.asset_identifier for pos in positions]
-    atomic_map = await _batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
+    atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     total_value = Decimal("0")
     for pos in positions:
@@ -394,7 +394,7 @@ async def _get_portfolio_value(
 
     # Batch-fetch latest atomic positions (fixes N+1)
     asset_ids = [pos.asset_identifier for pos in positions]
-    atomic_map = await _batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
+    atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     total_value = Decimal("0")
     for pos in positions:

@@ -134,7 +134,7 @@ async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic
     with pytest.raises(PortfolioNotFoundError):
         await svc.get_holdings(db, test_user.id, include_disposed=False)
 
-    # With include_disposed → returns the disposed position
+    # With include_disposed -> returns the disposed position
     holdings = await svc.get_holdings(db, test_user.id, include_disposed=True)
     assert len(holdings) == 1
     assert holdings[0].status == PositionStatus.DISPOSED
@@ -264,7 +264,7 @@ async def test_get_holdings_no_atomic_for_classification(db, test_user, svc, acc
     )
     db.add(other_user_atom)
 
-    # But we do need a price source for this user → use override
+    # But we do need a price source for this user -> use override
     override = MarketDataOverride(
         user_id=test_user.id,
         asset_identifier="NOCLASS",
@@ -331,7 +331,7 @@ async def test_realized_pnl_happy_path(db, test_user, svc, disposed_position):
     end = date.today()
     result = await svc.calculate_realized_pnl(db, test_user.id, start, end)
     assert result.positions_count == 1
-    # disposal_value = 20 * (4000/20) = 4000, cost = 3000 → pnl = 1000
+    # disposal_value = 20 * (4000/20) = 4000, cost = 3000 -> pnl = 1000
     assert result.total_realized_pnl == Decimal("1000.00")
     assert len(result.details) == 1
     assert result.details[0]["asset_identifier"] == "GOOG"
@@ -443,7 +443,7 @@ async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
 
     result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today())
     assert result.positions_count == 1
-    # disposal: 1500 * 1.35 = 2025, cost: 1000 * 1.30 = 1300 → pnl = 725
+    # disposal: 1500 * 1.35 = 2025, cost: 1000 * 1.30 = 1300 -> pnl = 725
     assert result.total_realized_pnl == Decimal("725.00")
 
 
@@ -560,7 +560,7 @@ async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
     await db.flush()
 
     result = await svc.calculate_unrealized_pnl(db, test_user.id)
-    # market: 2500 * 1.35 = 3375, cost: 2000 * 1.30 = 2600 → pnl = 775
+    # market: 2500 * 1.35 = 3375, cost: 2000 * 1.30 = 2600 -> pnl = 775
     assert result.total_market_value == Decimal("3375.00")
     assert result.total_cost_basis == Decimal("2600.00")
     assert result.total_unrealized_pnl == Decimal("775.00")

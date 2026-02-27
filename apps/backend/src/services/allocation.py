@@ -1,6 +1,7 @@
 """Portfolio allocation service - sector, geography, asset class breakdowns."""
 
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -10,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.logger import get_logger
+from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.services import fx
-from src.services.performance import _batch_latest_atomic_positions
+from src.services.performance import batch_latest_atomic_positions
 
 logger = get_logger(__name__)
 
@@ -40,7 +42,7 @@ async def _get_active_positions_with_atomics(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date,
-) -> list[tuple]:
+) -> list[tuple[AtomicPosition, Decimal]]:
     """
     Fetch active positions and their latest atomic snapshots in batch.
 
@@ -55,7 +57,7 @@ async def _get_active_positions_with_atomics(
     positions = result.scalars().all()
 
     asset_ids = [pos.asset_identifier for pos in positions]
-    atomic_map = await _batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
+    atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
 
     enriched = []
     for pos in positions:
@@ -75,7 +77,7 @@ async def _get_active_positions_with_atomics(
 
 def _build_allocation(
     enriched: list[tuple],
-    key_fn,
+    key_fn: Callable[[AtomicPosition], str],
 ) -> list[AllocationBreakdown]:
     """Build allocation breakdowns from enriched position data."""
     category_values: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
