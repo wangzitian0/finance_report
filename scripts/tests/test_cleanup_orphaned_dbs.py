@@ -139,11 +139,11 @@ def test_AC16_11_15_cleanup_orphaned_clean_all(monkeypatch):
     assert dropped == ["finance_report_test_a", "finance_report_test_b"]
 
 
-def test_drop_database_dry_run_returns_true():
+def test_AC16_11_30_drop_database_dry_run_returns_true():
     assert cod.drop_database("docker", "finance_report_test_x", dry_run=True) is True
 
 
-def test_main_calls_cleanup_orphaned(monkeypatch):
+def test_AC16_11_31_main_calls_cleanup_orphaned(monkeypatch):
     monkeypatch.setattr(
         cod.argparse.ArgumentParser,
         "parse_args",

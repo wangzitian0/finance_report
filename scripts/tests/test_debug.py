@@ -64,7 +64,7 @@ def test_AC16_11_7_list_containers_prints_all(capsys):
     assert "redis" in output
 
 
-def test_view_remote_logs_docker_exits_when_vps_host_missing(monkeypatch):
+def test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing(monkeypatch):
     monkeypatch.delenv("VPS_HOST", raising=False)
     with pytest.raises(SystemExit) as exc:
         debug.view_remote_logs_docker(
@@ -73,7 +73,7 @@ def test_view_remote_logs_docker_exits_when_vps_host_missing(monkeypatch):
     assert exc.value.code == 1
 
 
-def test_view_remote_logs_docker_exits_on_invalid_host(monkeypatch):
+def test_AC16_11_22_view_remote_logs_docker_exits_on_invalid_host(monkeypatch):
     monkeypatch.setenv("VPS_HOST", "-bad")
     with pytest.raises(SystemExit) as exc:
         debug.view_remote_logs_docker(
@@ -82,7 +82,7 @@ def test_view_remote_logs_docker_exits_on_invalid_host(monkeypatch):
     assert exc.value.code == 1
 
 
-def test_view_remote_logs_docker_exits_on_invalid_user(monkeypatch):
+def test_AC16_11_23_view_remote_logs_docker_exits_on_invalid_user(monkeypatch):
     monkeypatch.setenv("VPS_HOST", "example.com")
     monkeypatch.setenv("VPS_USER", "BadUser")
     with pytest.raises(SystemExit) as exc:
@@ -92,7 +92,7 @@ def test_view_remote_logs_docker_exits_on_invalid_user(monkeypatch):
     assert exc.value.code == 1
 
 
-def test_view_local_logs_builds_docker_command(monkeypatch):
+def test_AC16_11_24_view_local_logs_builds_docker_command(monkeypatch):
     calls = []
 
     def fake_run(cmd, check=True):
@@ -111,7 +111,7 @@ def test_view_local_logs_builds_docker_command(monkeypatch):
     ]
 
 
-def test_main_logs_signoz_path(monkeypatch):
+def test_AC16_11_25_main_logs_signoz_path(monkeypatch):
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",
@@ -134,7 +134,7 @@ def test_main_logs_signoz_path(monkeypatch):
     assert called["signoz"] is True
 
 
-def test_main_status_local_path(monkeypatch):
+def test_AC16_11_26_main_status_local_path(monkeypatch):
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",
@@ -150,7 +150,7 @@ def test_main_status_local_path(monkeypatch):
     assert calls == [(debug.Service.BACKEND, 20, False)]
 
 
-def test_main_containers_path(monkeypatch):
+def test_AC16_11_27_main_containers_path(monkeypatch):
     monkeypatch.setattr(
         debug.argparse.ArgumentParser,
         "parse_args",

@@ -171,12 +171,12 @@ def test_AC16_11_19_check_database_ready_failure(monkeypatch):
     assert dev_backend.check_database_ready() is False
 
 
-def test_check_database_ready_success(monkeypatch):
+def test_AC16_11_28_check_database_ready_success(monkeypatch):
     monkeypatch.setattr(dev_backend.subprocess, "run", lambda *args, **kwargs: None)
     assert dev_backend.check_database_ready() is True
 
 
-def test_dev_backend_cleanup_terminates_and_exits(monkeypatch):
+def test_AC16_11_29_dev_backend_cleanup_terminates_and_exits(monkeypatch):
     proc = SimpleNamespace(
         poll=lambda: None, terminate=lambda: None, wait=lambda timeout=5: None
     )
