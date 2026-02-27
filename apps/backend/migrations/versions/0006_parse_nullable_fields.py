@@ -20,18 +20,10 @@ def upgrade() -> None:
     op.alter_column("bank_statements", "currency", existing_type=sa.String(length=3), nullable=True)
     op.alter_column("bank_statements", "period_start", existing_type=sa.Date(), nullable=True)
     op.alter_column("bank_statements", "period_end", existing_type=sa.Date(), nullable=True)
-    op.alter_column(
-        "bank_statements", "opening_balance", existing_type=sa.Numeric(18, 2), nullable=True
-    )
-    op.alter_column(
-        "bank_statements", "closing_balance", existing_type=sa.Numeric(18, 2), nullable=True
-    )
-    op.alter_column(
-        "bank_statements", "confidence_score", existing_type=sa.Integer(), nullable=True
-    )
-    op.alter_column(
-        "bank_statements", "balance_validated", existing_type=sa.Boolean(), nullable=True
-    )
+    op.alter_column("bank_statements", "opening_balance", existing_type=sa.Numeric(18, 2), nullable=True)
+    op.alter_column("bank_statements", "closing_balance", existing_type=sa.Numeric(18, 2), nullable=True)
+    op.alter_column("bank_statements", "confidence_score", existing_type=sa.Integer(), nullable=True)
+    op.alter_column("bank_statements", "balance_validated", existing_type=sa.Boolean(), nullable=True)
 
 
 def downgrade() -> None:
@@ -42,24 +34,12 @@ def downgrade() -> None:
     op.execute("UPDATE bank_statements SET opening_balance = 0 WHERE opening_balance IS NULL")
     op.execute("UPDATE bank_statements SET closing_balance = 0 WHERE closing_balance IS NULL")
     op.execute("UPDATE bank_statements SET confidence_score = 0 WHERE confidence_score IS NULL")
-    op.execute(
-        "UPDATE bank_statements SET balance_validated = False WHERE balance_validated IS NULL"
-    )
+    op.execute("UPDATE bank_statements SET balance_validated = False WHERE balance_validated IS NULL")
 
-    op.alter_column(
-        "bank_statements", "balance_validated", existing_type=sa.Boolean(), nullable=False
-    )
-    op.alter_column(
-        "bank_statements", "confidence_score", existing_type=sa.Integer(), nullable=False
-    )
-    op.alter_column(
-        "bank_statements", "closing_balance", existing_type=sa.Numeric(18, 2), nullable=False
-    )
-    op.alter_column(
-        "bank_statements", "opening_balance", existing_type=sa.Numeric(18, 2), nullable=False
-    )
+    op.alter_column("bank_statements", "balance_validated", existing_type=sa.Boolean(), nullable=False)
+    op.alter_column("bank_statements", "confidence_score", existing_type=sa.Integer(), nullable=False)
+    op.alter_column("bank_statements", "closing_balance", existing_type=sa.Numeric(18, 2), nullable=False)
+    op.alter_column("bank_statements", "opening_balance", existing_type=sa.Numeric(18, 2), nullable=False)
     op.alter_column("bank_statements", "period_end", existing_type=sa.Date(), nullable=False)
     op.alter_column("bank_statements", "period_start", existing_type=sa.Date(), nullable=False)
-    op.alter_column(
-        "bank_statements", "currency", existing_type=sa.String(length=3), nullable=False
-    )
+    op.alter_column("bank_statements", "currency", existing_type=sa.String(length=3), nullable=False)

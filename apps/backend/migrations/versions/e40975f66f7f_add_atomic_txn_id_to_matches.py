@@ -40,9 +40,7 @@ def downgrade() -> None:
 
     op.execute("DELETE FROM reconciliation_matches WHERE bank_txn_id IS NULL")
 
-    op.alter_column(
-        "reconciliation_matches", "bank_txn_id", existing_type=sa.UUID(), nullable=False
-    )
+    op.alter_column("reconciliation_matches", "bank_txn_id", existing_type=sa.UUID(), nullable=False)
 
     op.drop_index("idx_reconciliation_matches_atomic_txn", "reconciliation_matches")
     op.drop_constraint("fk_matches_atomic_txn", "reconciliation_matches", type_="foreignkey")

@@ -26,9 +26,7 @@ def upgrade() -> None:
         ),
         sa.Column("acquisition_date", sa.Date(), nullable=False),
         sa.Column("disposal_date", sa.Date(), nullable=True),
-        sa.Column(
-            "status", sa.Enum("active", "disposed", name="position_status_enum"), nullable=False
-        ),
+        sa.Column("status", sa.Enum("active", "disposed", name="position_status_enum"), nullable=False),
         sa.Column("currency", sa.String(length=3), nullable=False),
         sa.Column("position_metadata", postgresql.JSONB(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
