@@ -400,3 +400,319 @@ class TestMain:
         assert "covered_lines" in data
         assert "coverage_percent" in data
         assert "breakdown" in data
+
+# ---------------------------------------------------------------------------
+# Baseline comparison — compares current run against historical baseline
+# ---------------------------------------------------------------------------
+
+
+class TestBaselineComparison:
+    """AC16.4: Baseline comparison enforces minimum coverage improvement."""
+
+    def test_passes_when_coverage_equals_baseline(self, tmp_path, monkeypatch):
+        """When current coverage equals baseline, expect exit 0."""
+        # Setup baseline file
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
+                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
+                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            }
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+
+        # Set up environment
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        # Mock all coverage functions to return same as baseline
+        def mock_coverage(name):
+            return baseline_data["breakdown"][name]
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
+        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+
+        # Should exit 0 (no regression)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+
+    def test_fails_when_unified_drops_below_baseline(self, tmp_path, monkeypatch, capfd):
+        """When unified coverage drops below baseline, expect exit 1 with message."""
+        # Setup baseline file
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
+                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
+                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            }
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+
+        # Set up environment
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        # Mock unified coverage to drop (82.0% < 83.15%)
+        current_data = {
+            "coverage_percent": 82.0,
+            "total_lines": 10000,
+            "covered_lines": 8200,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0},
+                "frontend": {"total_lines": 3000, "covered_lines": 2400, "coverage_percent": 80.0},
+                "scripts": {"total_lines": 2000, "covered_lines": 1300, "coverage_percent": 65.0}
+            }
+        }
+
+        def mock_coverage(name):
+            return current_data["breakdown"][name]
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
+        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+
+        # Should exit 1 with message containing both values
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 1
+        # Check stderr contains both baseline and current values
+        captured = capfd.readouterr()
+        assert "82.0" in captured.err
+        assert "83.15" in captured.err
+
+    def test_fails_when_backend_drops_despite_unified_ok(self, tmp_path, monkeypatch):
+        """When backend drops significantly despite unified staying ok, expect exit 1."""
+        # Setup baseline file
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
+                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
+                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            }
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        # Mock: backend drops 94.0% → 90.0%, unified stays 83.15%
+        def mock_backend():
+            return {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0}
+
+        def mock_frontend():
+            return {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13}
+
+        def mock_scripts():
+            return {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
+        monkeypatch.setattr(cuc, "get_scripts_coverage", mock_scripts)
+
+        # Should exit 1 due to backend regression
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 1
+
+    def test_fails_when_frontend_drops(self, tmp_path, monkeypatch):
+        """When frontend drops significantly, expect exit 1."""
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
+                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
+                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            }
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        # Frontend drops 61.77% → 60.0%
+        def mock_backend():
+            return {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18}
+
+        def mock_frontend():
+            return {"total_lines": 3000, "covered_lines": 1800, "coverage_percent": 60.0}
+
+        def mock_scripts():
+            return {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
+        monkeypatch.setattr(cuc, "get_scripts_coverage", mock_scripts)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 1
+
+    def test_fails_when_scripts_drops(self, tmp_path, monkeypatch):
+        """When scripts drops significantly, expect exit 1."""
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
+                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
+                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            }
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        # Scripts drops 68.02% → 65.0%
+        def mock_backend():
+            return {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18}
+
+        def mock_frontend():
+            return {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13}
+
+        def mock_scripts():
+            return {"total_lines": 2000, "covered_lines": 1300, "coverage_percent": 65.0}
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
+        monkeypatch.setattr(cuc, "get_scripts_coverage", mock_scripts)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 1
+
+    def test_passes_when_all_components_improve(self, tmp_path, monkeypatch):
+        """When all components improve, expect exit 0 (no regression)."""
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 80.0,
+            "total_lines": 10000,
+            "covered_lines": 8000,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4000, "coverage_percent": 80.0},
+                "frontend": {"total_lines": 3000, "covered_lines": 2400, "coverage_percent": 80.0},
+                "scripts": {"total_lines": 2000, "covered_lines": 1600, "coverage_percent": 80.0}
+            }
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        # All components improve
+        def mock_backend():
+            return {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0}
+
+        def mock_frontend():
+            return {"total_lines": 3000, "covered_lines": 2700, "coverage_percent": 90.0}
+
+        def mock_scripts():
+            return {"total_lines": 2000, "covered_lines": 1800, "coverage_percent": 90.0}
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
+        monkeypatch.setattr(cuc, "get_scripts_coverage", mock_scripts)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+
+    def test_skips_baseline_check_when_file_missing(self, tmp_path, monkeypatch):
+        """When baseline file doesn't exist, should fall through to threshold check only."""
+        # No baseline file exists
+        (tmp_path / "baseline.json").unlink(missing_ok=True)
+
+        monkeypatch.setenv("BASELINE_FILE", "")
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        def mock_coverage(name):
+            return {"total_lines": 1000, "covered_lines": 800, "coverage_percent": 80.0}
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
+        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+
+        # Should exit 0 (threshold check passes, baseline check is skipped)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+
+    def test_baseline_file_path_configurable(self, tmp_path, monkeypatch):
+        """Verify BASELINE_FILE env var controls which file is read."""
+        # Create multiple baseline files
+        baseline_file1 = tmp_path / "baseline.json"
+        baseline_file2 = tmp_path / "old-baseline.json"
+
+        baseline_file1.write_text(json.dumps({
+            "coverage_percent": 83.15,
+            "total_lines": 10000,
+            "covered_lines": 8315,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
+                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
+                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            }
+        }))
+
+        baseline_data1 = json.loads(baseline_file1.read_text())
+
+        baseline_file2.write_text(json.dumps({
+            "coverage_percent": 85.0,
+            "total_lines": 10000,
+            "covered_lines": 8500,
+            "breakdown": {
+                "backend": {"total_lines": 5000, "covered_lines": 4250, "coverage_percent": 85.0},
+                "frontend": {"total_lines": 3000, "covered_lines": 2550, "coverage_percent": 85.0},
+                "scripts": {"total_lines": 2000, "covered_lines": 1700, "coverage_percent": 85.0}
+            }
+        }))
+
+        baseline_data2 = json.loads(baseline_file2.read_text())
+
+        # Use baseline_file1
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file1))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+
+        def mock_coverage(name):
+            return baseline_data1["breakdown"][name]
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
+        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0  # Passes since current matches baseline_file1
+
+        # Now use baseline_file2
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file2))
+
+        def mock_coverage2():
+            return baseline_data2["breakdown"]["backend"]
+
+        monkeypatch.setattr(cuc, "get_backend_coverage", mock_coverage2)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_coverage2)
+        monkeypatch.setattr(cuc, "get_scripts_coverage", mock_coverage2)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0  # New run is better than old baseline
