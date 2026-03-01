@@ -107,6 +107,27 @@ class TestExtractAcs:
         assert "AC1.1.1" in result
         assert "AC2.1.1" in result
 
+    def test_skips_tombstone_and_summary_lines(self, tmp_path, monkeypatch):
+        """AC IDs in tombstone/removal notes and summary lines are NOT extracted."""
+        content = (
+            "| AC9.1.1 | PDF analyzer exists |\n"
+            "*(AC9.8.1 removed \u2014 duplicate of AC9.3.x)*\n"
+            "- Total AC IDs: 31 (AC9.8.2\u20139.8.10 removed as duplicates)\n"
+            "*(AC10.2.1 removed \u2014 canonical copy is AC12.1.1 in EPIC-012)*\n"
+            "| AC10.1.1 | OTEL settings in config |\n"
+        )
+        self._write_epic(tmp_path, "EPIC-009.pdf-fixture-generation.md", content)
+        self._write_epic(tmp_path, "EPIC-010.signoz-logging.md", "")  # empty placeholder
+        monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
+        result = gar.extract_acs()
+        # Real AC definitions should be extracted
+        assert "AC9.1.1" in result
+        assert "AC10.1.1" in result
+        # Tombstone/summary references should NOT be extracted
+        assert "AC9.8.1" not in result
+        assert "AC9.8.2" not in result
+        assert "AC10.2.1" not in result
+
 
 class TestWriteRegistry:
     """write_registry produces a valid YAML file from AC dict."""

@@ -191,7 +191,7 @@ def main() -> int:
         # Default behavior: only load feature registry
         registry_paths = [Path("docs/ac_registry.yaml")]
 
-    # Load infra registry if specified
+    # Load infra registry if it exists
     infra_registry_path = Path(args.infra_registry)
     if infra_registry_path.exists():
         acs = load_multiple_registries(registry_paths + [infra_registry_path])
