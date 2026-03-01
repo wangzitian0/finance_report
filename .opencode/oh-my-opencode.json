@@ -20,35 +20,27 @@
     },
     "prometheus": {
       "replace_plan": true,
-      "model": "github-copilot/claude-sonnet-4.6",
+      "model": "openai/gpt-5.2",
       "skills": ["agents-rules", "tools-index"]
     },
     "oracle": {
-      "model": "github-copilot/claude-opus-4.6",
+      "model": "openai/gpt-5.2",
       "skills": ["agents-rules", "tools-index"]
-    },
-    "librarian": {
-      "model": "zai-coding-plan/glm-5",
-      "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser", "headed-internal-browser"]
-    },
-    "explore": {
-      "model": "zai-coding-plan/glm-4.7",
-      "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser"]
-    },
-    "multimodal-looker": {
-      "model": "zai-coding-plan/glm-4.6v",
-      "skills": ["agents-rules", "tools-index"]
-    },
-    "metis": {
-      "model": "github-copilot/claude-sonnet-4.6",
-      "skills": ["agents-rules"]
     },
     "momus": {
+      "model": "openai/gpt-5.2",
+      "skills": ["agents-rules"]
+    },
+    "metis": {
       "model": "github-copilot/claude-opus-4.6",
       "skills": ["agents-rules"]
     },
+    "hephaestus": {
+      "model": "openai/gpt-5.3-codex",
+      "skills": ["agents-rules", "tools-index"]
+    },
     "atlas": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "zai-coding-plan/glm-5",
       "skills": [
         "agents-rules",
         "tools-index",
@@ -63,6 +55,18 @@
         "domain/github-operations",
         "professional/backend-development"
       ]
+    },
+    "explore": {
+      "model": "zai-coding-plan/glm-4.7",
+      "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser"]
+    },
+    "librarian": {
+      "model": "google/antigravity-gemini-3-flash",
+      "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser", "headed-internal-browser"]
+    },
+    "multimodal-looker": {
+      "model": "zai-coding-plan/glm-4.6v",
+      "skills": ["agents-rules", "tools-index"]
     }
   },
   "categories": {
@@ -75,24 +79,28 @@
       "description": "Frontend, UI/UX, design, styling"
     },
     "ultrabrain": {
-      "model": "github-copilot/gpt-5.3-codex",
+      "model": "openai/gpt-5.3-codex",
       "description": "Deep logical reasoning, complex architecture decisions"
     },
+    "deep": {
+      "model": "openai/gpt-5.3-codex",
+      "description": "Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding."
+    },
+    "artistry": {
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Complex problem-solving with unconventional, creative approaches - beyond standard patterns"
+    },
+    "writing": {
+      "model": "zai-coding-plan/glm-5",
+      "description": "Documentation, prose, technical writing"
+    },
     "unspecified-low": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "zai-coding-plan/glm-5",
       "description": "Tasks that don't fit other categories, low effort required"
     },
     "unspecified-high": {
       "model": "github-copilot/claude-opus-4.6",
       "description": "Tasks that don't fit other categories, high effort required"
-    },
-    "deep": {
-      "model": "github-copilot/claude-sonnet-4.6",
-      "description": "Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding."
-    },
-    "artistry": {
-      "model": "github-copilot/claude-sonnet-4.6",
-      "description": "Complex problem-solving with unconventional, creative approaches - beyond standard patterns"
     }
   },
   "skills": {
@@ -104,7 +112,7 @@
     ]
   },
   "background_task": {
-    "defaultConcurrency": 3,
+    "defaultConcurrency": 5,
     "staleTimeoutMs": 180000,
     "providerConcurrency": {
       "anthropic": 3,
@@ -114,11 +122,13 @@
     },
     "modelConcurrency": {
       "github-copilot/claude-opus-4.6": 2,
-      "github-copilot/claude-sonnet-4.6": 5,
-      "github-copilot/gpt-5.3-codex": 3,
-      "zai-coding-plan/glm-5": 1,
-      "zai-coding-plan/glm-4.7": 3,
-      "zai-coding-plan/glm-4.6v": 10
+      "github-copilot/claude-sonnet-4.6": 3,
+      "openai/gpt-5.2": 4,
+      "openai/gpt-5.3-codex": 3,
+      "zai-coding-plan/glm-5": 5,
+      "zai-coding-plan/glm-4.7": 10,
+      "zai-coding-plan/glm-4.6v": 10,
+      "google/antigravity-gemini-3-flash": 8
     }
   },
   "git_master": {
