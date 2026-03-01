@@ -1,53 +1,113 @@
 {
-  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/v3.2.1/assets/oh-my-opencode.schema.json",
-  "google_auth": true,
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "sisyphus": {
-      "model": "copilot/claude-sonnet-4.5",
-      "description": "Main orchestrator with full domain knowledge and documentation skills",
-      "prompt_append": "You are Sisyphus. Handle most tasks directly with skills, including documentation. Delegate only to: explore/librarian (parallel grep), frontend-ui-ux-engineer (visual work), oracle (architecture)."
+      "model": "github-copilot/claude-sonnet-4.6",
+      "skills": [
+        "agents-rules",
+        "tools-index",
+        "domain/development",
+        "domain/schema",
+        "domain/accounting",
+        "domain/reconciliation",
+        "domain/infra-operations",
+        "domain/secrets-management",
+        "domain/github-operations",
+        "professional/backend-development"
+      ]
     },
-    "explore": {
-      "model": "zai-coding-plan/glm-4.7-flash",
-      "description": "Blazing fast codebase exploration (use as parallel grep)"
+    "prometheus": {
+      "replace_plan": true,
+      "model": "github-copilot/claude-sonnet-4.6",
+      "skills": ["agents-rules", "tools-index"]
+    },
+    "oracle": {
+      "model": "openai/gpt-5.2",
+      "skills": ["agents-rules", "tools-index"]
     },
     "librarian": {
-      "model": "zai-coding-plan/glm-4.7",
-      "description": "External documentation and OSS exploration"
+      "model": "zai-coding-plan/glm-5",
+      "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser", "headed-internal-browser"]
     },
-    "frontend-ui-ux-engineer": {
-      "model": "copilot/claude-sonnet-4.5",
-      "description": "UI/UX design and visual implementation (mandatory for styling)"
+    "explore": {
+      "model": "zai-coding-plan/glm-4.7",
+      "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser"]
     },
     "multimodal-looker": {
       "model": "zai-coding-plan/glm-4.6v",
-      "description": "Image and multimodal content analysis"
+      "skills": ["agents-rules", "tools-index"]
+    },
+    "metis": {
+      "model": "github-copilot/claude-sonnet-4.6",
+      "skills": ["agents-rules"]
+    },
+    "momus": {
+      "model": "openai/gpt-5.2",
+      "skills": ["agents-rules"]
+    },
+    "atlas": {
+      "model": "zai-coding-plan/glm-4.7",
+      "skills": ["agents-rules"]
     }
   },
   "categories": {
     "quick": {
-      "model": "zai-coding-plan/glm-4.7-flash"
-    },
-    "unspecified-low": {
-      "model": "zai-coding-plan/glm-4.7"
+      "model": "zai-coding-plan/glm-4.7",
+      "description": "Trivial tasks - single file changes, typo fixes"
     },
     "visual-engineering": {
-      "model": "copilot/claude-sonnet-4.5"
+      "model": "google/antigravity-gemini-3-flash",
+      "description": "Frontend, UI/UX, design, styling"
+    },
+    "ultrabrain": {
+      "model": "openai/gpt-5.3-codex",
+      "description": "Deep logical reasoning, complex architecture decisions"
+    },
+    "unspecified-low": {
+      "model": "zai-coding-plan/glm-4.7",
+      "description": "Tasks that don't fit other categories, low effort required"
+    },
+    "unspecified-high": {
+      "model": "openai/gpt-5.2",
+      "description": "Tasks that don't fit other categories, high effort required"
+    },
+    "deep": {
+      "model": "github-copilot/claude-sonnet-4.6",
+      "description": "Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding."
+    },
+    "artistry": {
+      "model": "github-copilot/claude-sonnet-4.6",
+      "description": "Complex problem-solving with unconventional, creative approaches - beyond standard patterns"
     }
   },
   "skills": {
-    "enable": [
-      "domain/development",
-      "domain/schema",
-      "domain/accounting",
-      "domain/reconciliation",
-      "domain/infra-operations",
-      "domain/secrets-management",
-      "domain/github-operations",
-      "professional/backend-development",
-      "professional/frontend-react",
-      "professional/ui-ux-design",
-      "meta/skill-writer"
+    "sources": [
+      {
+        "path": ".opencode/skills",
+        "recursive": true
+      }
     ]
+  },
+  "background_task": {
+    "defaultConcurrency": 3,
+    "staleTimeoutMs": 180000,
+    "providerConcurrency": {
+      "anthropic": 3,
+      "openai": 5,
+      "google": 10,
+      "zai-coding-plan": 14
+    },
+    "modelConcurrency": {
+      "openai/gpt-5.2": 3,
+      "openai/gpt-5.3-codex": 3,
+      "github-copilot/claude-sonnet-4.6": 5,
+      "zai-coding-plan/glm-5": 1,
+      "zai-coding-plan/glm-4.7": 3,
+      "zai-coding-plan/glm-4.6v": 10
+    }
+  },
+  "git_master": {
+    "commit_footer": true,
+    "include_co_authored_by": true
   }
 }
