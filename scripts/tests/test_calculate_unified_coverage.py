@@ -418,7 +418,7 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
+                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
                 "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
                 "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
             }
@@ -442,7 +442,7 @@ class TestBaselineComparison:
             cuc.main()
         assert exc.value.code == 0
 
-    def test_fails_when_unified_drops_below_baseline(self, tmp_path, monkeypatch):
+    def test_fails_when_unified_drops_below_baseline(self, tmp_path, monkeypatch, capfd):
         """When unified coverage drops below baseline, expect exit 1 with message."""
         # Setup baseline file
         baseline_file = tmp_path / "baseline.json"
@@ -451,7 +451,7 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
+                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
                 "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
                 "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
             }
@@ -486,8 +486,9 @@ class TestBaselineComparison:
             cuc.main()
         assert exc.value.code == 1
         # Check stderr contains both baseline and current values
-        assert "82.0" in cuc.sys.stderr
-        assert "83.15" in cuc.sys.stderr
+        captured = capfd.readouterr()
+        assert "82.0" in captured.err
+        assert "83.15" in captured.err
 
     def test_fails_when_backend_drops_despite_unified_ok(self, tmp_path, monkeypatch):
         """When backend drops significantly despite unified staying ok, expect exit 1."""
@@ -498,7 +499,7 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
+                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
                 "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
                 "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
             }
@@ -508,7 +509,7 @@ class TestBaselineComparison:
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
 
-        # Mock: backend drops 93.98% → 90.0%, unified stays 83.15%
+        # Mock: backend drops 94.0% → 90.0%, unified stays 83.15%
         def mock_backend():
             return {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0}
 
@@ -646,9 +647,9 @@ class TestBaselineComparison:
         def mock_coverage(name):
             return {"total_lines": 1000, "covered_lines": 800, "coverage_percent": 80.0}
 
-        monkeypatch.setattr(cuc, "get_backend_coverage", mock_coverage)
-        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_coverage)
-        monkeypatch.setattr(cuc, "get_scripts_coverage", mock_coverage)
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
+        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
 
         # Should exit 0 (threshold check passes, baseline check is skipped)
         with pytest.raises(SystemExit) as exc:
@@ -672,6 +673,8 @@ class TestBaselineComparison:
             }
         }))
 
+        baseline_data1 = json.loads(baseline_file1.read_text())
+
         baseline_file2.write_text(json.dumps({
             "coverage_percent": 85.0,
             "total_lines": 10000,
@@ -683,12 +686,14 @@ class TestBaselineComparison:
             }
         }))
 
+        baseline_data2 = json.loads(baseline_file2.read_text())
+
         # Use baseline_file1
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file1))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
 
         def mock_coverage(name):
-            return baseline_file1["breakdown"][name]
+            return baseline_data1["breakdown"][name]
 
         monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
         monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
@@ -701,8 +706,8 @@ class TestBaselineComparison:
         # Now use baseline_file2
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file2))
 
-        def mock_coverage2(name):
-            return {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0}  # New run
+        def mock_coverage2():
+            return baseline_data2["breakdown"]["backend"]
 
         monkeypatch.setattr(cuc, "get_backend_coverage", mock_coverage2)
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_coverage2)
