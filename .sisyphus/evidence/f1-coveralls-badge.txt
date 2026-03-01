@@ -1,0 +1,27 @@
+# F1 Scenario 3: Coveralls Badge Verification
+# Date: 2026-03-01
+
+## Main Branch Coverage (Coveralls API)
+- Endpoint: https://coveralls.io/github/wangzitian0/finance_report.json?branch=main
+- covered_percent: 94.48%
+- repo_name: wangzitian0/finance_report
+- badge_url: https://s3.amazonaws.com/assets.coveralls.io/badges/coveralls_94.svg
+
+## PR Branch Coverage (Coveralls API)
+- Endpoint: https://coveralls.io/github/wangzitian0/finance_report.json?branch=test/coverage-95pct-round1
+- covered_percent: 94.48%
+
+## Coverage Uploads in CI (PR #308, Run 22488773193)
+- Upload unified coverage to Coveralls: SUCCESS
+- Upload backend to Coveralls (per-flag): SUCCESS
+- Upload frontend to Coveralls (per-flag): SUCCESS
+
+## Badge in README
+- Badge reference: [![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
+
+## Notes
+- Coveralls shows 94.48% which is the backend-only percentage
+- Unified coverage (87.79%) includes frontend+scripts in addition
+- Badge correctly updates from CI uploads
+
+## Verdict: ✅ PASS - Coveralls receiving uploads, badge shows ≥80%

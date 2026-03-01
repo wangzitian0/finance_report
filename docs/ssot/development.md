@@ -203,6 +203,97 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 - Branch coverage: Required (via `--cov-branch`)
 - See [TDD Transformation Plan](./tdd.md) for details
 
+### No-Regression Coverage Gate
+
+The CI workflow enforces a **no-regression policy** for test coverage, preventing silent coverage drops between main branch commits.
+
+#### How It Works
+
+1. **Baseline Storage**: The coverage baseline is stored in `unified-coverage.json` at the repository root.
+   - Created automatically on the first successful CI run on `main` branch
+   - Updated automatically on each subsequent `main` branch push (if coverage changes)
+   - Committed by GitHub Actions bot with `[skip ci]` flag to prevent infinite loops
+
+2. **Comparison Logic**: 
+   - Before calculating final coverage, the `unified-coverage` job reads `unified-coverage.json` if it exists
+   - Compares current coverage against baseline for **all components**: unified, backend, frontend, scripts
+   - Uses `round(x, 2)` for floating-point comparison (same precision as JSON output)
+   - **Zero tolerance**: If ANY component is below baseline (`current < baseline`), CI fails immediately
+   - If baseline file doesn't exist, skips comparison and falls through to `COVERAGE_THRESHOLD` check (safety net)
+
+3. **Fail Conditions**:
+   - Unified coverage drops below baseline: `❌ Unified coverage {current:.2f}% is below baseline {baseline:.2f}%`
+   - Backend component drops below baseline: `❌ backend coverage {current:.2f}% is below baseline {baseline:.2f}%`
+   - Frontend component drops below baseline: `❌ frontend coverage {current:.2f}% is below baseline {baseline:.2f}%`
+   - Scripts component drops below baseline: `❌ scripts coverage {current:.2f}% is below baseline {baseline:.2f}%`
+   - All components at or above baseline: `✅ No regression: all coverage at or above baseline`
+
+#### Manual Baseline Reset
+
+If you need to manually reset the baseline (e.g., after major refactoring):
+
+```bash
+# Option 1: Update baseline to current state
+git pull origin main
+# Make your changes, then:
+git add unified-coverage.json && git commit -m "chore: manually reset coverage baseline" && git push
+
+# Option 2: Remove baseline temporarily
+git rm unified-coverage.json && git commit -m "chore: remove coverage baseline for testing" && git push
+```
+
+**Warning**: Removing the baseline disables the no-regression gate until the next main branch push recreates it.
+
+#### Environment Variables
+
+- `BASELINE_FILE`: Path to baseline JSON file (default: `unified-coverage.json`)
+- `COVERAGE_THRESHOLD`: Safety net threshold (default: `80`, raised from `40`)
+
+#### Test Coverage
+
+Unit tests in `scripts/tests/test_calculate_unified_coverage.py::TestBaselineComparison` verify:
+- Equal coverage passes (no regression)
+- Coverage drops fail with clear error messages
+- Component-level drop detection (unified ok but individual component drops)
+- Baseline file path configurable via `BASELINE_FILE`
+
+### CI Job Structure
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
+
+```
+lint → backend shards → frontend → unified-coverage → finish
+```
+
+#### Job Details
+
+| Job | Purpose | Runs On | Dependencies |
+|------|----------|----------|--------------|
+| **lint** | Static analysis (ruff check + format check) | None (first job) |
+| **backend** (Shards 1-4) | Backend unit + integration tests | `needs: [lint]` |
+| **frontend** | Frontend build + tests | None (runs in parallel with backend) |
+| **unified-coverage** | Calculate unified coverage, compare to baseline, update Coveralls | `needs: [backend, frontend]` |
+| **finish** | Aggregate all job results, fail if any job failed | `needs: [backend, frontend, lint, unified-coverage]` |
+
+#### Key Changes (CI Coverage Improvements)
+
+1. **Standalone Lint Job**: Previously embedded in backend shard 1, now runs independently
+   - Fast failure: Lint failures surface in ~1 min instead of waiting for backend shard 1 to complete (~10 min)
+   - All backend shards depend on lint: `needs: [lint]`
+
+2. **Coveralls Upload Fixes**: All three Coveralls upload steps now have `github-token` authentication
+   - Prevents silent upload failures (badge stays current)
+   - `continue-on-error: true` preserved (Coveralls downtime ≠ CI failure)
+
+3. **Baseline Auto-Update**: On main branch pushes, the `unified-coverage` job automatically commits `unified-coverage.json`
+   - Only runs on `github.ref == 'refs/heads/main' && github.event_name == 'push'`
+   - Uses `BASELINE_UPDATE_PAT` secret for authentication
+   - Conditional commit: Only commits if baseline file changed (`if ! git diff --staged --quiet`)
+   - Commit message: `[skip ci]` prevents infinite loops
+
+4. **Coverage Threshold Update**: Raised from `40%` to `80%` (closer to actual unified coverage of ~87%)
+   - Baseline comparison is primary gate; threshold remains as safety net
+
 ### Common Commands
 
 ```bash

@@ -1,0 +1,59 @@
+# F1 Scenario 1: Coverage Maintained (CI should pass)
+# Date: 2026-03-01
+# PR: https://github.com/wangzitian0/finance_report/pull/308
+# CI Run: https://github.com/wangzitian0/finance_report/actions/runs/22488773193
+
+## Local Test Results
+- pytest scripts/tests/test_calculate_unified_coverage.py: 50/50 PASSED (0.10s)
+
+## CI Run Results
+- CI Run ID: 22488773193
+- Branch: test/coverage-95pct-round1
+- Event: pull_request
+- Overall Status: SUCCESS
+
+## Job Results
+- Frontend Build & Test: SUCCESS
+- Backend Tests (Shard 1/4): SUCCESS
+- Backend Tests (Shard 2/4): SUCCESS
+- Backend Tests (Shard 3/4): SUCCESS
+- Backend Tests (Shard 4/4): SUCCESS
+- Calculate Unified Coverage: SUCCESS
+- finish: SUCCESS
+
+## Unified Coverage Output
+- Backend: 94.48% (6,401/6,775 lines)
+- Frontend: 85.08% (1,420/1,669 lines)
+- Scripts: 68.02% (1,404/2,064 lines)
+- UNIFIED: 87.79% (9,225/10,508 lines)
+- Threshold: 40% (met)
+
+## Lint Job
+- Standalone lint job: PRESENT in local ci.yml (lines 15-42)
+- backend needs: [lint] dependency: PRESENT (line 46)
+- Lint ran on Shard 1 (skipped on 2-4): SUCCESS
+- Note: GitHub PR CI uses merge commit, so standalone lint job may resolve
+  differently than local ci.yml
+
+## Finish Job Output
+Backend: success
+Frontend: success
+Unified Coverage: success
+✅ All checks passed!
+
+## Coveralls Uploads (in Calculate Unified Coverage job)
+- Upload unified coverage to Coveralls: SUCCESS
+- Upload backend to Coveralls (per-flag): SUCCESS
+- Upload frontend to Coveralls (per-flag): SUCCESS
+
+## Scripts Tests (ran in CI)
+- 312 passed, 2 skipped in 2.60s
+
+## Observations
+1. COVERAGE_THRESHOLD in CI was 40 (from main's ci.yml), not 80 (our branch)
+   This is expected: GitHub reads workflow from merge commit base
+2. Local ci.yml correctly has COVERAGE_THRESHOLD: 80
+3. Once merged to main, the 80 threshold will take effect
+4. Coverage 87.79% exceeds both thresholds (40 and 80)
+
+## Verdict: ✅ PASS - CI green with coverage maintained
