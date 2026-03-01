@@ -248,6 +248,57 @@ def main() -> None:
     # Calculate unified coverage
     unified = calculate_unified_coverage(backend, frontend, scripts)
     
+    # Baseline comparison
+    baseline_file = os.environ.get("BASELINE_FILE", "unified-coverage.json")
+    baseline_path = ROOT_DIR / baseline_file
+    
+    try:
+        if baseline_path.exists():
+            with open(baseline_path, "r") as f:
+                baseline = json.load(f)
+            
+            # Compare each component against baseline
+            baseline_breakdown = baseline.get("breakdown", {})
+            baseline_unified = baseline.get("coverage_percent", 0)
+            
+            # Unified coverage comparison (zero tolerance)
+            if round(unified["coverage_percent"], 2) < round(baseline_unified, 2):
+                print(f"❌ Unified coverage {unified['coverage_percent']:.2f}% is below baseline {baseline_unified:.2f}%", file=sys.stderr)
+                sys.exit(1)
+            
+            # Component breakdown comparison (if available)
+            components_to_check = []
+            if "backend" in baseline_breakdown:
+                components_to_check.append(("backend", backend, baseline_breakdown["backend"]))
+            if "frontend" in baseline_breakdown:
+                components_to_check.append(("frontend", frontend, baseline_breakdown["frontend"]))
+            if "scripts" in baseline_breakdown:
+                components_to_check.append(("scripts", scripts, baseline_breakdown["scripts"]))
+            
+            for component_name, current_data, baseline_data in components_to_check:
+                current_percent = current_data["coverage_percent"]
+                baseline_percent = baseline_data["coverage_percent"]
+                if round(current_percent, 2) < round(baseline_percent, 2):
+                    print(f"❌ {component_name} coverage {current_percent:.2f}% is below baseline {baseline_percent:.2f}%", file=sys.stderr)
+                    sys.exit(1)
+            
+            print("✅ No regression: all coverage at or above baseline")
+        else:
+            print(f"⚠️  Baseline file not found: {baseline_path}", file=sys.stderr)
+            print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
+            
+    except FileNotFoundError:
+        print(f"⚠️  Baseline file not found: {baseline_path}", file=sys.stderr)
+        print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
+    except json.JSONDecodeError:
+        print(f"⚠️  Invalid baseline file: {baseline_path}", file=sys.stderr)
+        print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️  Error reading baseline file: {e}", file=sys.stderr)
+        print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
+    
+    # Exit with appropriate code
+    threshold = int(os.environ.get("COVERAGE_THRESHOLD", "80"))
     print("\n" + "=" * 60)
     print("🎯 UNIFIED COVERAGE")
     print("=" * 60)
@@ -262,7 +313,7 @@ def main() -> None:
         json.dump(unified, f, indent=2)
     print(f"\n📄 Report saved to: {output_path}")
     
-    # Exit with appropriate code
+    # Exit with appropriate code (safety net after baseline check)
     threshold = int(os.environ.get("COVERAGE_THRESHOLD", "80"))
     if unified["coverage_percent"] >= threshold:
         print(f"✅ Coverage ({unified['coverage_percent']}%) meets threshold ({threshold}%)")
