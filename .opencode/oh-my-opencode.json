@@ -92,7 +92,7 @@
     "defaultConcurrency": 3,
     "staleTimeoutMs": 180000,
     "providerConcurrency": {
-      "anthropic": 3,
+      "github-copilot": 3,
       "openai": 5,
       "google": 10,
       "zai-coding-plan": 14
