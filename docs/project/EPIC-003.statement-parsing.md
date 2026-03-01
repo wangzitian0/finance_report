@@ -142,13 +142,13 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.4.2 | Unsupported File Type | `test_parse_document_unsupported_type` | `extraction/test_extraction_flow.py` | P1 |
 | AC3.4.3 | Extraction Timeout | `test_extraction_timeout_raises_error` | `extraction/test_pdf_parsing.py` | P1 |
 
-### AC3.5: API & E2E
-
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC3.5.1 | Full Upload Flow | `test_statement_upload_full_flow` | `e2e/test_statement_upload_e2e.py` | P0 |
 | AC3.5.2 | File Size Limit | `test_upload_file_exceeds_10mb_limit` | `extraction/test_pdf_parsing.py` | P1 |
 | AC3.5.3 | Model Selection Flow | `test_model_selection_and_upload` | `e2e/test_statement_upload_e2e.py` | P1 |
+| AC3.5.4 | Extraction Flow Tests | `test_extraction_flow` | `extraction/test_extraction_flow.py` | P0 |
+| AC3.5.5 | Statement Parsing Supervisor | `test_statement_parsing_supervisor` | `extraction/test_statement_parsing_supervisor.py` | P1 |
 
 **Traceability Result**:
 - Total AC IDs: 15

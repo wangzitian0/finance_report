@@ -185,18 +185,9 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.10.4 | API error behavior for missing/invalid resources | `test_journal_router_errors.py` suite | `accounting/test_journal_router_errors.py` | P1 |
 
 ### AC2.11: Must-Have Acceptance Criteria Traceability
-
-| ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC2.11.1 | Accounting equation always satisfied | `test_accounting_equation_holds_with_all_account_types()`, `test_accounting_equation_holds()` | `accounting/test_accounting_equation.py`, `accounting/test_accounting_integration.py` | P0 |
-| AC2.11.2 | All posted entries balanced | `test_post_unbalanced_entry_rejected()`, `test_unbalanced_entry_fails()` | `accounting/test_accounting_integration.py`, `accounting/test_accounting.py` | P0 |
-| AC2.11.3 | No float usage for monetary amounts | `test_float_injection_safety()` | `accounting/test_decimal_safety.py` | P0 |
 | AC2.11.4 | Multi-currency requires fx_rate | `test_fx_rate_required_for_non_base_currency()` | `accounting/test_accounting.py` | P0 |
-| AC2.11.5 | Posted entries cannot be edited | `test_posted_entry_status_immutable_via_direct_update()` | `accounting/test_accounting_equation.py` | P0 |
-| AC2.11.6 | API response performance benchmark scenario documented | Locust benchmark scenario (`/health`, accounting flows) | `apps/backend/tests/locustfile.py` | P1 |
-
-**Test Coverage Summary**:
-- Total AC IDs: 57
+- Total AC IDs: 52 (AC2.11.1–2.11.3, AC2.11.5–2.11.6 removed as intra-EPIC summary duplicates; traced in AC2.5, AC2.2, AC2.8, AC2.3 respectively)
 - Requirements converted to AC IDs: 100% (EPIC-002 checklist + must-have standards)
 - Requirements with test references: 100%
 - Test files: 11
