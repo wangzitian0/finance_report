@@ -229,24 +229,10 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 | AC9.7.2 | Main script supports --output parameter | Manual verification | `generate_pdf_fixtures.py` usage | P0 |
 | AC9.7.3 | Analyzer CLI supports input/output | Manual verification | `analyze_pdf.py` usage | P0 |
 
-### AC9.8: Must-Have Acceptance Criteria Traceability
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC9.8.1 | Format analyzer extracts template | Manual verification | `analyze_pdf.py` | P0 |
-| AC9.8.2 | Template contains only format info | Manual verification | Template YAML files | P0 |
-| AC9.8.3 | Generated DBS PDF parseable | Manual verification | DBS adapter + generated PDF | P0 |
-| AC9.8.4 | Generated CMB PDF parseable | Manual verification | CMB adapter + generated PDF | P0 |
-| AC9.8.5 | Generated Mari PDF parseable | Manual verification | Mari adapter + generated PDF | P0 |
-| AC9.8.6 | Balance calculations correct | Manual verification | Generated PDF | P0 |
-| AC9.8.7 | Date formats match real PDFs | Manual verification | Generated PDF | P0 |
-| AC9.8.8 | Generated PDFs use fictional data | Manual verification | Generated PDF + fake_data.py | P0 |
-| AC9.8.9 | Format templates committed to repo | Manual verification | Git | P0 |
-| AC9.8.10 | Real PDFs NOT committed | Manual verification | `.gitignore` + Git | P0 |
-
+*(AC9.8.x section removed — these were intra-EPIC summary duplicates of AC9.3.x, AC9.5.x, AC9.6.x, and AC9.7.x)*
 **Traceability Result**:
-- Total AC IDs: 41
-- Requirements converted to AC IDs: 100% (EPIC-009 checklist + must-have standards)
+- Total AC IDs: 31 (AC9.8.1–9.8.10 removed as duplicates of AC9.3, AC9.5, AC9.6, AC9.7 series)
+- Requirements converted to AC IDs: 100% (EPIC-009 checklist)
 - Requirements with implemented test references: 70% (30% manual verification required for PDF parsing)
 - Test files: 6 modules
 - Note: Phase 2 parser integration tests are marked as pending implementation

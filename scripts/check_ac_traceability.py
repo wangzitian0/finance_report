@@ -58,6 +58,20 @@ def load_registry(registry_path: Path) -> list[AC]:
     ]
 
 
+def load_multiple_registries(registry_paths: list[Path]) -> list[AC]:
+    """Load multiple AC registries and return combined AC list."""
+    all_acs: list[AC] = []
+    ac_id_set = set()
+    for registry_path in registry_paths:
+        acs = load_registry(registry_path)
+        for ac in acs:
+            # Avoid duplicates: use AC ID as unique identifier
+            if ac.id not in ac_id_set:
+                all_acs.append(ac)
+                ac_id_set.add(ac.id)
+    return all_acs
+
+
 def find_test_files(test_dirs: list[Path]) -> list[Path]:
     test_files: list[Path] = []
     for base in test_dirs:
@@ -145,7 +159,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Check that every mandatory AC has at least one test reference."
     )
-    parser.add_argument("--registry", default="docs/ac_registry.yaml")
+    parser.add_argument(
+        "--registry",
+        action="append",
+        default=None,
+        help="Path to feature AC registry (can be specified multiple times)",
+    )
+    parser.add_argument(
+        "--infra-registry",
+        default="docs/infra_registry.yaml",
+        help="Path to infrastructure AC registry (default: docs/infra_registry.yaml)",
+    )
     parser.add_argument(
         "--test-dirs", nargs="+", default=["apps/backend/tests", "apps/frontend/src"]
     )
@@ -156,11 +180,27 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    registry_path = Path(args.registry)
     test_dirs = [Path(d) for d in args.test_dirs]
 
-    acs = load_registry(registry_path)
-    print(f"Loaded {len(acs)} ACs from {registry_path}")
+    # Load registries
+    registry_paths: list[Path] = []
+    if args.registry is not None:
+        # Backward compatible: support multiple --registry flags
+        registry_paths = [Path(r) for r in args.registry]
+    else:
+        # Default behavior: only load feature registry
+        registry_paths = [Path("docs/ac_registry.yaml")]
+
+    # Load infra registry if specified
+    infra_registry_path = Path(args.infra_registry)
+    if infra_registry_path.exists():
+        acs = load_multiple_registries(registry_paths + [infra_registry_path])
+        print(
+            f"Loaded {len(acs)} ACs from {len(registry_paths)} feature registries + infra registry"
+        )
+    else:
+        acs = load_multiple_registries(registry_paths)
+        print(f"Loaded {len(acs)} ACs from {len(registry_paths)} feature registries")
 
     test_files = find_test_files(test_dirs)
     print(f"Scanning {len(test_files)} test files in: {[str(d) for d in test_dirs]}")

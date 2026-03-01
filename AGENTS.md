@@ -240,7 +240,15 @@ AI must use this cascade structure before processing tasks:
 ### Development Work Order (TDD-First)
 10. **EPIC → ACx.y.z → Test → Code → Doc** — This is the mandatory work sequence:
     1. **EPIC**: Anchor task to a project EPIC in `docs/project/`
-    2. **ACx.y.z**: Register acceptance criteria in `docs/ac_registry.yaml` before writing any code
+    2. **ACx.y.z**: Register acceptance criteria per type in the appropriate registry before writing any code:
+   - **Feature ACs** (user-facing behavior) → `docs/ac_registry.yaml`
+   - **Infrastructure/Tooling ACs** (tooling, deployment, logging, meta-testing) → `docs/infra_registry.yaml`
+
+   **Classification guide**:
+   - Feature = User-facing behavior (UI, APIs, business logic)
+   - Infra = Tooling, deployment, logging, meta-testing
+
+   Reference: [docs/ssot/tdd.md](docs/ssot/tdd.md)
     3. **Test**: Write failing tests that reference the AC IDs (red phase)
     4. **Code**: Write minimal code to make the tests pass (green phase)
     5. **Doc**: Update SSOT docs and README to reflect the change

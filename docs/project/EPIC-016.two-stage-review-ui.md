@@ -345,4 +345,272 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ---
 
-*Last updated: February 2026*
+*Last updated: March 2026*
+
+---
+
+## 📋 Acceptance Criteria — Coverage Registry
+
+> The following sections canonicalize all AC16.x.x IDs present in `docs/ac_registry.yaml` that extend beyond the Must Have / Nice to Have tables above. They are generated from test docstrings and grouped by functional area.
+
+### AC16.3 — Statement Validation Service (Extended Coverage)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.3.1 | `validate_balance_chain` raises `ValueError` when statement not found | ⏳ |
+| AC16.3.2 | `_get_opening_balance` falls back to `opening_balance` when no prev statement exists | ⏳ |
+| AC16.3.3 | `_get_opening_balance` uses prev statement `closing_balance` when available | ⏳ |
+| AC16.3.4 | `reject_statement` without reason clears `validation_error` | ⏳ |
+| AC16.3.5 | `edit_and_approve` raises `ValueError` when balance is still invalid after edits | ⏳ |
+| AC16.3.6 | `_get_statement_for_update` raises `ValueError` when wrong `user_id` supplied | ⏳ |
+
+### AC16.4 — Consistency Checks Service (Extended Coverage)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.4.1 | `detect_duplicates` runs global scan when no `statement_id` provided | ⏳ |
+| AC16.4.2 | `detect_duplicates` is idempotent — does not create duplicate checks on re-run | ⏳ |
+| AC16.4.3 | `detect_transfer_pairs` runs global scan when no `statement_id` provided | ⏳ |
+| AC16.4.4 | `resolve_check` raises `ValueError` on invalid action | ⏳ |
+| AC16.4.5 | `resolve_check` raises `ValueError` when check not found or belongs to wrong user | ⏳ |
+| AC16.4.6 | `resolve_check` sets `FLAGGED` status when `action=flag` | ⏳ |
+| AC16.4.7 | `get_pending_checks` filters results by severity | ⏳ |
+
+### AC16.5 — Frontend Auth Utility (`lib/auth`)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.5.1 | `getUserId` returns `null` when not set | ⏳ |
+| AC16.5.2 | `getUserId` returns stored `userId` from `localStorage` | ⏳ |
+| AC16.5.3 | `setUser` stores `userId`, `email`, and optional `token` | ⏳ |
+| AC16.5.4 | `clearUser` removes all auth keys from `localStorage` | ⏳ |
+| AC16.5.5 | `isAuthenticated` returns `false` when no token, `true` when token exists | ⏳ |
+
+### AC16.6 — Frontend Date Utility (`lib/date`)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.6.1 | `formatDateInput` formats `Date` as `YYYY-MM-DD` with zero-padded month and day | ⏳ |
+
+### AC16.7 — Frontend Theme Utility (`lib/theme`)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.7.1 | `getTheme` returns stored value or system preference | ⏳ |
+| AC16.7.2 | `setTheme` adds/removes `dark` CSS class and saves to `localStorage` | ⏳ |
+| AC16.7.3 | `toggleTheme` switches between dark and light | ⏳ |
+| AC16.7.4 | `initTheme` applies stored or system theme on load | ⏳ |
+
+### AC16.8 — Frontend AI Models Utility (`lib/aiModels`)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.8.1 | `fetchAiModels` calls `/api/ai/models` with no params when no options provided | ⏳ |
+| AC16.8.2 | `fetchAiModels` appends `modality` query param when provided | ⏳ |
+| AC16.8.3 | `fetchAiModels` appends `free_only=true` when `freeOnly` is set | ⏳ |
+
+### AC16.9 — Frontend Currencies Hook (`hooks/useCurrencies`)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.9.1 | `useCurrencies` returns default currencies while loading | ⏳ |
+| AC16.9.2 | `useCurrencies` updates currencies from API response | ⏳ |
+| AC16.9.3 | `useCurrencies` falls back to defaults on API error | ⏳ |
+
+### AC16.10 — Frontend API Client (`lib/api`)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.10.1 | `apiFetch` returns JSON on `200` response | ⏳ |
+| AC16.10.2 | `apiFetch` returns `undefined` on `204 No Content` | ⏳ |
+| AC16.10.3 | `apiFetch` throws error with `detail` message on non-ok response | ⏳ |
+| AC16.10.4 | `apiFetch` throws on non-JSON error text | ⏳ |
+| AC16.10.5 | `apiFetch` calls `handle401Redirect` on `401` response | ⏳ |
+| AC16.10.6 | `resetRedirectGuard` resets the redirect guard state | ⏳ |
+| AC16.10.7 | `apiDelete` succeeds on `200` response | ⏳ |
+| AC16.10.8 | `apiDelete` throws on non-ok response | ⏳ |
+| AC16.10.9 | `apiStream` returns response and `sessionId` on success | ⏳ |
+| AC16.10.10 | `apiStream` throws on non-ok response | ⏳ |
+| AC16.10.11 | `apiUpload` returns JSON on `200` response | ⏳ |
+| AC16.10.12 | `apiUpload` returns `undefined` on `204 No Content` | ⏳ |
+| AC16.10.13 | `apiFetch` normalizes path without leading slash | ⏳ |
+| AC16.10.14 | `apiFetch` includes `Authorization` header when token is present | ⏳ |
+
+### AC16.11 — Dev Tooling / Infra Scripts (Infra)
+
+> These ACs cover `scripts/debug.py`, `scripts/cleanup_orphaned_dbs.py`, `scripts/cli.py`, `scripts/dev_backend.py`, and `scripts/dev_frontend.py`.
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.11.1 | `debug` — `detect_environment` returns `CI` when `GITHUB_ACTIONS` is true | ⏳ |
+| AC16.11.2 | `debug` — `detect_environment` returns `LOCAL` when `docker ps` succeeds | ⏳ |
+| AC16.11.3 | `debug` — `detect_environment` falls back to `PRODUCTION` on docker failure | ⏳ |
+| AC16.11.4 | `debug` — `validate_hostname` rejects empty and leading-hyphen hostnames | ⏳ |
+| AC16.11.5 | `debug` — `validate_username` enforces unix-safe pattern | ⏳ |
+| AC16.11.6 | `debug` — `get_container_name` maps known service names by environment | ⏳ |
+| AC16.11.7 | `debug` — `list_containers` prints all mapped containers for an environment | ⏳ |
+| AC16.11.8 | `cleanup_orphaned_dbs` — `extract_namespace` handles worker suffix and invalid names | ⏳ |
+| AC16.11.9 | `cleanup_orphaned_dbs` — `load_active_namespaces` returns `[]` when file missing or corrupt | ⏳ |
+| AC16.11.10 | `cleanup_orphaned_dbs` — `get_container_runtime` returns first available runtime | ⏳ |
+| AC16.11.11 | `cleanup_orphaned_dbs` — `list_test_databases` parses psql output and handles subprocess errors | ⏳ |
+| AC16.11.12 | `cleanup_orphaned_dbs` — `cleanup_orphaned` returns error when runtime missing | ⏳ |
+| AC16.11.13 | `cleanup_orphaned_dbs` — `cleanup_orphaned` returns success when no test databases found | ⏳ |
+| AC16.11.14 | `cleanup_orphaned_dbs` — `cleanup_orphaned` skips active namespace databases | ⏳ |
+| AC16.11.15 | `cleanup_orphaned_dbs` — `cleanup_orphaned` cleans all databases in `--all` mode | ⏳ |
+| AC16.11.16 | `cli` — `get_compose_cmd` prefers podman then docker and exits when unavailable | ⏳ |
+| AC16.11.17 | `cli` — `cmd_test` routes frontend/e2e/perf/tests and lifecycle modes correctly | ⏳ |
+| AC16.11.18 | `cli` — `cmd_clean` routes db/containers/default cleanup targets correctly | ⏳ |
+| AC16.11.19 | `dev_backend` — `check_database_ready` returns `false` on migration subprocess errors | ⏳ |
+| AC16.11.20 | `dev_frontend` — `cleanup` terminates tracked process and exits cleanly | ⏳ |
+| AC16.11.21 | `debug` — `view_remote_logs_docker` exits when `VPS_HOST` is missing | ⏳ |
+| AC16.11.22 | `debug` — `view_remote_logs_docker` exits on invalid VPS hostnames | ⏳ |
+| AC16.11.23 | `debug` — `view_remote_logs_docker` exits on invalid VPS usernames | ⏳ |
+| AC16.11.24 | `debug` — `view_local_logs` builds docker logs command with tail and follow | ⏳ |
+| AC16.11.25 | `debug` — `main` routes `logs` command to signoz handler when `method=signoz` | ⏳ |
+| AC16.11.26 | `debug` — `main` routes `status` command to local log view with status tail | ⏳ |
+| AC16.11.27 | `debug` — `main` routes `containers` command to `list_containers` | ⏳ |
+| AC16.11.28 | `dev_backend` — `check_database_ready` returns `true` when migration subprocess succeeds | ⏳ |
+| AC16.11.29 | `dev_backend` — `cleanup` terminates tracked process and exits cleanly | ⏳ |
+| AC16.11.30 | `cleanup_orphaned_dbs` — `drop_database` returns `true` in dry-run mode | ⏳ |
+| AC16.11.31 | `cleanup_orphaned_dbs` — `main` forwards parsed flags to `cleanup_orphaned` | ⏳ |
+
+### AC16.12 — Frontend Pages (Core Pages Coverage)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.12.1 | Dashboard page shows loading state before API responses resolve | ⏳ |
+| AC16.12.2 | Dashboard page renders error fallback and retry action when API request fails | ⏳ |
+| AC16.12.3 | Dashboard page renders KPI, charts, and recent activity when API requests succeed | ⏳ |
+| AC16.12.4 | Dashboard page renders empty-state copy when trend or activity datasets are empty | ⏳ |
+| AC16.12.5 | Login page submits login payload and redirects on success | ⏳ |
+| AC16.12.6 | Login page toggles register mode and switches endpoint for submit | ⏳ |
+| AC16.12.7 | Login page shows API error messages and resets loading state on failure | ⏳ |
+| AC16.12.8 | Ping-pong page loads initial state and displays current ping/pong value | ⏳ |
+| AC16.12.9 | Ping-pong page toggles state and updates toggle count on button click | ⏳ |
+| AC16.12.10 | Ping-pong page renders retry flow when initial load fails | ⏳ |
+| AC16.12.11 | Reports page renders all report cards with links for available reports | ⏳ |
+| AC16.12.12 | Reports page displays accounting equation section content | ⏳ |
+
+### AC16.13 — Test Lifecycle Infrastructure (Infra)
+
+> These ACs cover `scripts/test_backend.py` / `scripts/test_lifecycle.py` and test infrastructure helpers.
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.13.1 | `test_lifecycle` — `sanitize_namespace` normalizes branch/workspace names | ⏳ |
+| AC16.13.2 | `test_lifecycle` — `get_namespace` honors `BRANCH_NAME` and optional `WORKSPACE_ID` | ⏳ |
+| AC16.13.3 | `test_lifecycle` — `get_namespace` falls back to git branch plus path hash when env vars absent | ⏳ |
+| AC16.13.4 | `test_lifecycle` — `get_test_db_name` and `get_s3_bucket` format names deterministically | ⏳ |
+| AC16.13.5 | `test_lifecycle` — `load_active_namespaces` returns `[]` on missing or corrupted tracker file | ⏳ |
+| AC16.13.6 | `test_lifecycle` — `register_namespace` and `unregister_namespace` update active namespace tracker | ⏳ |
+| AC16.13.7 | `test_lifecycle` — `get_container_runtime` detects podman/docker and returns `None` when absent | ⏳ |
+| AC16.13.8 | `test_lifecycle` — `is_db_ready` returns `false` on `pg_isready` subprocess failure | ⏳ |
+| AC16.13.9 | `test_lifecycle` — `cleanup_worker_databases` skips invalid namespace values | ⏳ |
+| AC16.13.10 | `test_lifecycle` — `cleanup_worker_databases` drops valid worker DB names and skips invalid names | ⏳ |
+| AC16.13.11 | `test_lifecycle` — `_get_changed_files` maps backend python paths into module import names | ⏳ |
+| AC16.13.12 | `generate_test_pdfs` — `generate_statement` writes table rows and closing balance from `Decimal` transactions | ⏳ |
+
+### AC16.14 — Frontend Report Pages and Statements Page
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.14.1 | Balance-sheet page renders loading and error retry states | ⏳ |
+| AC16.14.2 | Balance-sheet page renders totals and account sections on successful fetch | ⏳ |
+| AC16.14.3 | Balance-sheet page toggles account tree expansion controls | ⏳ |
+| AC16.14.4 | Income-statement page renders loading and error retry states | ⏳ |
+| AC16.14.5 | Income-statement page renders KPI cards and category lists on success | ⏳ |
+| AC16.14.6 | Income-statement page tag filters can be selected and cleared | ⏳ |
+| AC16.14.7 | Cash-flow page renders loading and error retry states | ⏳ |
+| AC16.14.8 | Cash-flow page renders summary and section cards on success | ⏳ |
+| AC16.14.9 | Cash-flow page renders sankey chart when summary exists | ⏳ |
+| AC16.14.10 | Statements page renders loading, error, empty, and populated states | ⏳ |
+| AC16.14.11 | Statements page enables polling when parsing status is present | ⏳ |
+| AC16.14.12 | Statements page delete action calls delete API and toast on confirm | ⏳ |
+
+### AC16.15 — Frontend Accounts and Assets Pages
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.15.1 | Accounts page renders loading and error retry states | ⏳ |
+| AC16.15.2 | Accounts page renders grouped account cards and type filters on successful fetch | ⏳ |
+| AC16.15.3 | Accounts page delete action confirms and calls delete API with success toast | ⏳ |
+| AC16.15.4 | Assets page renders loading and error retry states | ⏳ |
+| AC16.15.5 | Assets page renders grouped positions and status filters on successful fetch | ⏳ |
+| AC16.15.6 | Assets page reconcile action calls API and shows toast summary | ⏳ |
+
+### AC16.16 — Frontend App Structure (Root, Layout, Journal Page)
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.16.1 | Root page redirects to dashboard | ⏳ |
+| AC16.16.2 | Main layout renders children through `AppShell` wrapper | ⏳ |
+| AC16.16.3 | Chat page renders advisor client within suspense boundary | ⏳ |
+| AC16.16.4 | Reconciliation entry pages render workbench and unmatched board components | ⏳ |
+| AC16.16.5 | Journal page renders error state and retries loading entries | ⏳ |
+| AC16.16.6 | Journal page filters entries by status and renders totals | ⏳ |
+| AC16.16.7 | Journal page draft actions post and delete entries with API calls | ⏳ |
+| AC16.16.8 | Journal page void flow submits reason and refreshes entries | ⏳ |
+
+### AC16.17 — Stage 2 Review Queue Page and Root Layout
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.17.1 | Stage 2 review queue shows failure fallback and supports retry | ⏳ |
+| AC16.17.2 | Stage 2 review queue indicates unresolved checks and disables batch approval | ⏳ |
+| AC16.17.3 | Stage 2 review queue performs batch reject and approve API workflows | ⏳ |
+| AC16.17.4 | Stage 2 review queue resolves consistency checks through dialog actions | ⏳ |
+| AC16.17.5 | Root layout composes `Providers` and `AuthGuard` around children | ⏳ |
+| AC16.17.6 | `Providers` wraps children with `QueryClientProvider` | ⏳ |
+| AC16.17.7 | API catch-all handlers return JSON `503` for all HTTP methods | ⏳ |
+
+### AC16.18 — Statement Detail and Stage 1 Review Pages
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.18.1 | Statement detail page loads statement data and renders parsed transactions summary | ⏳ |
+| AC16.18.2 | Statement detail page approve and reject actions call corresponding APIs | ⏳ |
+| AC16.18.3 | Statement detail page retry action posts retry API and refreshes data | ⏳ |
+| AC16.18.4 | Statement review page shows error fallback and supports retry | ⏳ |
+| AC16.18.5 | Statement review page disables approve when balance validation fails | ⏳ |
+| AC16.18.6 | Statement review page approve and reject actions call APIs and navigate back to statements | ⏳ |
+
+### AC16.19 — App Shell, Auth, Shared Components, and Chat
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.19.1 | App shell renders workspace providers and main content with collapse-aware layout | ⏳ |
+| AC16.19.2 | Auth guard redirects unauthenticated protected routes and allows public routes | ⏳ |
+| AC16.19.3 | Sidebar shows auth-aware actions and logout triggers `clearUser` plus login redirect | ⏳ |
+| AC16.19.4 | Workspace tabs derive route labels and invoke add/set/remove tab handlers | ⏳ |
+| AC16.19.5 | Chat page client enforces disclaimer consent and passes initial prompt into chat panel | ⏳ |
+| AC16.19.6 | Chat widget hides on chat route and toggles panel visibility elsewhere | ⏳ |
+| AC16.19.7 | Confirm dialog handles required input, cancel, and confirm interactions | ⏳ |
+| AC16.19.8 | Confirm dialog responds to escape key and backdrop click when not loading | ⏳ |
+| AC16.19.9 | Toast provider shows, dismisses, and auto-expires notifications | ⏳ |
+| AC16.19.10 | Bar and pie chart components render semantic labels and filtered data | ⏳ |
+| AC16.19.11 | Trend chart renders line/area paths and point labels for provided series | ⏳ |
+
+### AC16.20 — Reconciliation Workbench and Chat Panel Components
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.20.1 | Reconciliation workbench loads stats and pending queue with default selection | ⏳ |
+| AC16.20.2 | Reconciliation workbench triggers run, accept, reject, and batch accept APIs | ⏳ |
+| AC16.20.3 | Unmatched board loads transactions and creates journal entry for selected item | ⏳ |
+| AC16.20.4 | Unmatched board flag and ignore actions update list and local state | ⏳ |
+| AC16.20.5 | Chat panel sends streaming responses, loads suggestions/history, and clears session | ⏳ |
+
+### AC16.21 — Account Form, Journal Entry Form, Sankey Chart, Workspace Provider
+
+| AC ID | Description | Status |
+|-------|-------------|--------|
+| AC16.21.1 | Account form modal create mode submits normalized payload and closes on success | ⏳ |
+| AC16.21.2 | Account form modal edit mode pre-fills values and submits update payload | ⏳ |
+| AC16.21.3 | Account form modal surfaces API errors and field validation feedback | ⏳ |
+| AC16.21.4 | Journal entry form loads account options and enforces balanced double-entry totals | ⏳ |
+| AC16.21.5 | Journal entry form creates draft entries with normalized line amounts and optional posting | ⏳ |
+| AC16.21.6 | Journal entry form supports dynamic line add/remove and submit-time error handling | ⏳ |
+| AC16.21.7 | Sankey chart builds empty-state and data-state options for inflow and outflow links | ⏳ |
+| AC16.21.8 | Sankey chart recomputes theme-aware colors when root theme attributes change | ⏳ |
+| AC16.21.9 | Workspace provider restores tabs from storage and persists active workspace updates | ⏳ |
+| AC16.21.10 | Workspace provider handles tab deduplication, removal, and cross-tab storage sync | ⏳ |
