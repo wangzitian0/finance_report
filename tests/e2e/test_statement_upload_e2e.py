@@ -72,7 +72,7 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
     await model_select.select_option(index=0)
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -106,7 +106,7 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
 
     await page.locator("#institution").fill("E2E Model Test Bank")
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,

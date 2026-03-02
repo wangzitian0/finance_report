@@ -11,6 +11,7 @@ Run: moon run :test -- --e2e
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -100,7 +101,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
     await model_select.select_option(index=0)
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -127,11 +128,9 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
 
     # === AC8.12.3: Detail page shows transactions ===
     await statement_row.click()
-    await page.wait_for_load_state("networkidle")
-
-    assert "/statements/" in page.url, (
-        f"Expected statement detail page, got: {page.url}"
-    )
+    # Wait for navigation to /statements/{id} explicitly — wait_for_load_state('networkidle')
+    # can resolve before the Next.js router commits the URL change.
+    await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
     await expect(page.locator("span.badge", has_text="parsed")).to_be_visible(
         timeout=15_000
