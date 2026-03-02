@@ -96,10 +96,15 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
-        lambda r: "/api/statements/upload" in r.url and r.status in (200, 201, 202),
+        lambda r: "/api/statements/upload" in r.url,
         timeout=60_000,  # Upload may take up to 60s on cold-start
-    ):
+    ) as resp_info:
         await page.get_by_role("button", name="Upload & Parse Statement").click()
+    upload_resp = await resp_info.value
+    assert upload_resp.status in (200, 201, 202), (
+        f"Upload endpoint returned unexpected status {upload_resp.status} — "
+        f"expected 2xx. Response body: {await upload_resp.text()}"
+    )
 
     # === AC8.12.2: Poll until "parsed" status badge appears in the list ===
     # The list page polls via TanStack Query every 3 s — we wait up to PARSING_TIMEOUT_MS.

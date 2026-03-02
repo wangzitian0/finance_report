@@ -69,9 +69,15 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
-        lambda r: "/api/statements/upload" in r.url and r.status in (200, 201, 202)
-    ):
+        lambda r: "/api/statements/upload" in r.url,
+        timeout=60_000,  # Upload may take up to 60s on cold-start
+    ) as resp_info:
         await page.get_by_role("button", name="Upload & Parse Statement").click()
+    upload_resp = await resp_info.value
+    assert upload_resp.status in (200, 201, 202), (
+        f"Upload endpoint returned unexpected status {upload_resp.status} — "
+        f"expected 2xx. Response body: {await upload_resp.text()}"
+    )
 
     statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
     await expect(statement_row).to_be_visible(timeout=15_000)
@@ -97,9 +103,15 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
     await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
-        lambda r: "/api/statements/upload" in r.url and r.status in (200, 201, 202)
-    ):
+        lambda r: "/api/statements/upload" in r.url,
+        timeout=60_000,  # Upload may take up to 60s on cold-start
+    ) as resp_info:
         await page.get_by_role("button", name="Upload & Parse Statement").click()
+    upload_resp = await resp_info.value
+    assert upload_resp.status in (200, 201, 202), (
+        f"Upload endpoint returned unexpected status {upload_resp.status} — "
+        f"expected 2xx. Response body: {await upload_resp.text()}"
+    )
 
     await expect(
         page.locator("a").filter(has_text="E2E Model Test Bank").first
