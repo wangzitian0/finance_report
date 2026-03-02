@@ -92,12 +92,13 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
         )
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
-    # Wait for AI model dropdown to have a selected value — the <select> is React-controlled.
-    # Waiting for option[1] to attach is insufficient: React state (selectedModel) may still
-    # be "" even after options render. We must wait for the select value to be non-empty.
+    # Wait for AI model dropdown options to load, then explicitly select one.
+    # not_to_have_value('') alone can time out when the default model fails validation
+    # (component sets selectedModel='') — select_option always fires onChange.
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
-    await expect(model_select).not_to_have_value("", timeout=15_000)
+    await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
+    await model_select.select_option(index=0)
     await page.set_input_files("#file-upload", str(pdf_path))
     await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
 
