@@ -98,6 +98,8 @@ def test_load_reconciliation_config_env_overrides():
         config = load_reconciliation_config(force_reload=True)
         assert config.auto_accept == 90
         assert config.pending_review == 50
+    # Restore cache to defaults after env patch exits
+    load_reconciliation_config(force_reload=True)
 
 
 def test_load_reconciliation_config_yaml_fallback():
@@ -109,6 +111,8 @@ def test_load_reconciliation_config_yaml_fallback():
         config = load_reconciliation_config(force_reload=True)
         # Assuming the mock might trigger fallback due to missing yaml or other issues
         assert isinstance(config, ReconciliationConfig)
+    # Restore cache to defaults after Path mock exits
+    load_reconciliation_config(force_reload=True)
 
 
 def test_normalize_text_edge_cases():
@@ -903,6 +907,8 @@ scoring:
         assert config.amount_percent == Decimal("0.01")
         assert config.amount_absolute == Decimal("0.20")
         assert config.date_days == 10
+    # Restore cache to defaults after Path mock exits
+    load_reconciliation_config(force_reload=True)
 
 
 async def test_validate_layer_consistency_empty_statement_ids(db: AsyncSession):
