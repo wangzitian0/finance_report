@@ -92,6 +92,64 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
   })
 
+  it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
+        total_assets: 5000,
+        total_liabilities: 1000,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({
+        currency: "USD",
+        trends: [
+          { period_start: "2025-12-01", total_income: 1000, total_expenses: 800, net_income: 200 },
+          { period_start: "2026-01-01", total_income: 3500, total_expenses: 1200, net_income: 2300 },
+        ],
+      })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ points: [] })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
+    expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument()
+    expect(screen.getByText("This Month \u2014 Expenses")).toBeInTheDocument()
+    expect(screen.getByText("This Month \u2014 Net")).toBeInTheDocument()
+    expect(screen.getByText("Surplus")).toBeInTheDocument()
+  })
+
+  it("AC16.23.2 This Month KPI cards link to income statement report and show deficit when net is negative", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [],
+        total_assets: 0,
+        total_liabilities: 0,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({
+        currency: "USD",
+        trends: [{ period_start: "2026-01-01", total_income: 2000, total_expenses: 2500, net_income: -500 }],
+      })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
+    const links = screen.getAllByRole("link", { name: /This Month/i })
+    expect(links.length).toBeGreaterThanOrEqual(1)
+    links.forEach((link) => expect(link).toHaveAttribute("href", "/reports/income-statement"))
+    expect(screen.getByText("Deficit")).toBeInTheDocument()
+  })
+
   it("AC16.12.4 renders empty-state messages for missing datasets", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
