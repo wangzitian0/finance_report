@@ -8,6 +8,7 @@ batch processing scenarios, and error handling.
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -18,6 +19,7 @@ from src.models import (
     JournalEntryStatus,
     ReconciliationStatus,
 )
+from src.services.accounting import ValidationError
 from src.services.review_queue import (
     accept_match,
     batch_accept,
@@ -417,6 +419,42 @@ async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user
 
 
 @pytest.mark.asyncio
+async def test_create_entry_from_txn_falls_back_when_linked_account_not_owned(db, test_user):
+    other_user_id = uuid4()
+    other_users_account = await AccountFactory.create_async(
+        db,
+        user_id=other_user_id,
+        name="Other User Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id, account_id=other_users_account.id)
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="IN",
+        amount=Decimal("120.00"),
+        txn_date=date(2025, 2, 5),
+        description="Unowned linked account fallback",
+    )
+    await db.commit()
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+
+    bank_account_ids = {line.account_id for line in entry.lines}
+    assert other_users_account.id not in bank_account_ids
+
+    default_bank = await get_or_create_account(
+        db,
+        name="Bank - Main",
+        account_type=AccountType.ASSET,
+        currency="SGD",
+        user_id=test_user.id,
+    )
+    assert default_bank.id in bank_account_ids
+
+
+@pytest.mark.asyncio
 async def test_create_entry_sets_txn_pending(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
     txn = await BankStatementTransactionFactory.create_async(
@@ -430,3 +468,19 @@ async def test_create_entry_sets_txn_pending(db, test_user):
     await create_entry_from_txn(db, txn, user_id=test_user.id)
     await db.refresh(txn)
     assert txn.status == BankStatementTransactionStatus.PENDING
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, test_user):
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="IN",
+        amount=Decimal("10.00"),
+    )
+    await db.commit()
+
+    with patch("src.services.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")):
+        with pytest.raises(ValueError, match="Generated entry does not balance"):
+            await create_entry_from_txn(db, txn, user_id=test_user.id)

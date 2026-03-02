@@ -1,10 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.fx import _cache, _FxRateCache, clear_fx_cache
+from src.services.fx import FxRateError, PrefetchedFxRates, _cache, _FxRateCache, clear_fx_cache
 
 
 @pytest.fixture
@@ -73,3 +73,48 @@ class TestFxRateCache:
         assert _cache.get("test_global") == Decimal("1")
         clear_fx_cache()
         assert _cache.get("test_global") is None
+
+
+class TestPrefetchedFxRates:
+    @pytest.mark.asyncio
+    async def test_prefetch_propagates_fx_rate_error(self):
+        prefetched = PrefetchedFxRates()
+
+        with patch("src.services.fx.get_exchange_rate", new_callable=AsyncMock) as mock_get_rate:
+            mock_get_rate.side_effect = FxRateError("missing")
+
+            with pytest.raises(FxRateError, match="missing"):
+                await prefetched.prefetch(
+                    db=MagicMock(),
+                    pairs=[("USD", "SGD", datetime.now(UTC).date(), None, None)],
+                )
+
+
+class TestPrefetchedFxRatesNonFxRateError:
+    """Test ExceptionGroup re-raise when non-FxRateError (lines 259->258, 261)."""
+
+    @pytest.mark.asyncio
+    async def test_prefetch_reraises_non_fx_rate_exception_group(self):
+        """AC5.7.1 – ExceptionGroup containing non-FxRateError is re-raised as-is."""
+        prefetched = PrefetchedFxRates()
+
+        with patch("src.services.fx.get_exchange_rate", new_callable=AsyncMock) as mock_get_rate:
+            mock_get_rate.side_effect = ValueError("unexpected error")
+
+            with pytest.raises((ExceptionGroup, ValueError)):
+                await prefetched.prefetch(
+                    db=MagicMock(),
+                    pairs=[("USD", "SGD", datetime.now(UTC).date(), None, None)],
+                )
+
+    @pytest.mark.asyncio
+    async def test_prefetch_empty_pairs_returns_immediately(self):
+        """AC5.7.2 – Empty pairs list returns without calling get_exchange_rate (line 250 branch)."""
+        prefetched = PrefetchedFxRates()
+
+        with patch("src.services.fx.get_exchange_rate", new_callable=AsyncMock) as mock_get_rate:
+            await prefetched.prefetch(
+                db=MagicMock(),
+                pairs=[],
+            )
+            mock_get_rate.assert_not_called()

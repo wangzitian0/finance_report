@@ -1,5 +1,6 @@
 """Tests for OpenRouter streaming utilities."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -8,6 +9,7 @@ from httpx_sse import ServerSentEvent
 
 from src.services.openrouter_streaming import (
     OpenRouterStreamError,
+    _stream_openrouter_base,
     accumulate_stream,
     stream_openrouter_chat,
     stream_openrouter_json,
@@ -17,7 +19,7 @@ from src.services.openrouter_streaming import (
 class MockAsyncIterator:
     """Helper to create async iterators for testing."""
 
-    def __init__(self, items: list[any]):
+    def __init__(self, items: list[Any]):
         self.items = items
         self.index = 0
 
@@ -491,3 +493,33 @@ class TestAccumulateStream:
         stream = mock_stream_generator([])
         result = await accumulate_stream(stream)
         assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_stream_base_includes_response_format_payload() -> None:
+    events = [ServerSentEvent(data='{"choices":[{"delta":{"content":"{}"}}]}'), ServerSentEvent(data="[DONE]")]
+    mock_event_source = MagicMock()
+    mock_event_source.response.status_code = 200
+    mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    mock_client.__aenter__.return_value = mock_client
+
+    with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+            mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+            chunks = []
+            async for chunk in _stream_openrouter_base(
+                messages=[{"role": "user", "content": "json"}],
+                model="test-model",
+                api_key="test-key",
+                timeout=30,
+                connect_timeout=10,
+                response_format={"type": "json_object"},
+                mode_label="test",
+            ):
+                chunks.append(chunk)
+
+            assert chunks == ["{}"]
+            assert mock_aconnect.call_args.kwargs["json"]["response_format"] == {"type": "json_object"}

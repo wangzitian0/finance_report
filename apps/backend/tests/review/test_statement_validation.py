@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models import Account, AccountType, BankStatement, BankStatementStatus, BankStatementTransaction
 from src.models.statement import Stage1Status
 from src.services.statement_validation import (
     BALANCE_TOLERANCE,
@@ -499,3 +499,215 @@ class TestEditAndApproveEdgeCases:
 
         with pytest.raises(ValueError, match="Balance still invalid after edits"):
             await edit_and_approve(db, stmt.id, user_id, [])
+
+    async def test_edit_and_approve_updates_all_fields_and_ignores_unknown_txn(self, db, user_id):
+        stmt = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="test.pdf",
+            file_hash="hash_edit_all",
+            original_filename="test.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("900.00"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add(stmt)
+        txn_id = uuid4()
+        txn = BankStatementTransaction(
+            id=txn_id,
+            statement_id=stmt.id,
+            txn_date=date(2024, 1, 10),
+            description="Old text",
+            amount=Decimal("100.00"),
+            direction="OUT",
+            reference=None,
+            status="pending",
+            confidence="high",
+        )
+        db.add(txn)
+        await db.flush()
+
+        updated = await edit_and_approve(
+            db,
+            stmt.id,
+            user_id,
+            [
+                {"txn_id": str(uuid4()), "description": "should be ignored"},
+                {
+                    "txn_id": str(txn_id),
+                    "amount": "100.00",
+                    "description": "Updated text",
+                    "txn_date": date(2024, 1, 12),
+                    "direction": "OUT",
+                    "reference": "REF-123",
+                },
+            ],
+        )
+
+        assert updated.status == BankStatementStatus.APPROVED
+        assert updated.stage1_status == Stage1Status.EDITED
+        assert txn.description == "Updated text"
+        assert txn.txn_date == date(2024, 1, 12)
+        assert txn.reference == "REF-123"
+
+
+class TestValidateBalanceChainAdditionalBranches:
+    async def test_no_period_start_and_null_opening_falls_back_to_zero(self, db, user_id):
+        stmt = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="nopstart.pdf",
+            file_hash="hash_no_period_start",
+            original_filename="nopstart.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=None,
+            period_end=date(2024, 3, 31),
+            opening_balance=None,
+            closing_balance=Decimal("25.00"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add(stmt)
+        db.add(
+            BankStatementTransaction(
+                id=uuid4(),
+                statement_id=stmt.id,
+                txn_date=date(2024, 3, 15),
+                description="Deposit",
+                amount=Decimal("25.00"),
+                direction="IN",
+                status="pending",
+                confidence="high",
+            )
+        )
+        await db.flush()
+
+        result = await validate_balance_chain(db, stmt.id)
+        assert result["opening_balance"] == "0"
+        assert result["calculated_closing"] == "25.00"
+        assert result["closing_match"] is True
+
+    async def test_opening_balance_uses_matching_account_only(self, db, user_id):
+        matching_account_id = uuid4()
+        other_account_id = uuid4()
+
+        db.add_all(
+            [
+                Account(
+                    id=matching_account_id,
+                    user_id=user_id,
+                    name="Main Account",
+                    type=AccountType.ASSET,
+                    currency="USD",
+                ),
+                Account(
+                    id=other_account_id,
+                    user_id=user_id,
+                    name="Other Account",
+                    type=AccountType.ASSET,
+                    currency="USD",
+                ),
+            ]
+        )
+
+        db.add(
+            BankStatement(
+                id=uuid4(),
+                user_id=user_id,
+                file_path="other.pdf",
+                file_hash="hash_other_account",
+                original_filename="other.pdf",
+                institution="Test Bank",
+                currency="USD",
+                account_id=other_account_id,
+                period_start=date(2024, 1, 1),
+                period_end=date(2024, 1, 31),
+                opening_balance=Decimal("10.00"),
+                closing_balance=Decimal("2000.00"),
+                status=BankStatementStatus.APPROVED,
+            )
+        )
+        current = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="current.pdf",
+            file_hash="hash_current_account",
+            original_filename="current.pdf",
+            institution="Test Bank",
+            currency="USD",
+            account_id=matching_account_id,
+            period_start=date(2024, 2, 1),
+            period_end=date(2024, 2, 29),
+            opening_balance=Decimal("500.00"),
+            closing_balance=Decimal("550.00"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add(current)
+        db.add(
+            BankStatementTransaction(
+                id=uuid4(),
+                statement_id=current.id,
+                txn_date=date(2024, 2, 10),
+                description="Deposit",
+                amount=Decimal("50.00"),
+                direction="IN",
+                status="pending",
+                confidence="high",
+            )
+        )
+        await db.flush()
+
+        result = await validate_balance_chain(db, current.id)
+        assert result["opening_balance"] == "500.00"
+        assert result["closing_match"] is True
+
+
+class TestEditAndApproveSelectiveFields:
+    async def test_edit_and_approve_without_amount_description_or_direction(self, db, user_id):
+        stmt = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="selective.pdf",
+            file_hash="hash_selective",
+            original_filename="selective.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("900.00"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add(stmt)
+        txn_id = uuid4()
+        txn = BankStatementTransaction(
+            id=txn_id,
+            statement_id=stmt.id,
+            txn_date=date(2024, 1, 7),
+            description="Original",
+            amount=Decimal("100.00"),
+            direction="OUT",
+            reference=None,
+            status="pending",
+            confidence="high",
+        )
+        db.add(txn)
+        await db.flush()
+
+        updated = await edit_and_approve(
+            db,
+            stmt.id,
+            user_id,
+            [{"txn_id": str(txn_id), "txn_date": date(2024, 1, 9), "reference": "R-9"}],
+        )
+
+        assert updated.status == BankStatementStatus.APPROVED
+        assert txn.amount == Decimal("100.00")
+        assert txn.description == "Original"
+        assert txn.direction == "OUT"
+        assert txn.txn_date == date(2024, 1, 9)
+        assert txn.reference == "R-9"

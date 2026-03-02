@@ -1,9 +1,12 @@
+from datetime import date
 from decimal import Decimal  # noqa: F401
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from src.models.statement import BankStatementStatus, ConfidenceLevel
 from src.services.extraction import ExtractionError, ExtractionService
@@ -471,7 +474,7 @@ def test_validate_external_url_exception_path():
     service = ExtractionService()
     # Passing a non-string type (int) will make urlparse raise or behave unexpectedly
     # triggering the except Exception catch-all.
-    assert service._validate_external_url(None) is False
+    assert service._validate_external_url(cast(str, None)) is False
 
 
 # ---------------------------------------------------------------------------
@@ -722,7 +725,7 @@ async def test_extract_no_models_tried_fallback_error():
     """No models tried (all empty) -> fallback raise (line 604)."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.primary_model = None  # None model
+    service.primary_model = ""
 
     with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
         await service.extract_financial_data(
@@ -955,4 +958,67 @@ async def test_parse_document_csv_no_institution():
             user_id=uuid4(),
             file_type="csv",
             file_content=b"some,csv,data",
+        )
+
+
+@pytest.mark.asyncio
+async def test_dual_write_layer2_integrity_error_is_non_fatal():
+    service = ExtractionService()
+    db = AsyncMock()
+
+    with patch("src.services.extraction.DeduplicationService") as mock_dedup_cls:
+        mock_dedup = mock_dedup_cls.return_value
+        mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
+
+        txn = MagicMock()
+        txn.direction = "IN"
+        txn.txn_date = date(2025, 1, 1)
+        txn.amount = Decimal("1.00")
+        txn.description = "txn"
+        txn.reference = None
+        txn.statement.currency = "SGD"
+
+        await service._dual_write_layer2(
+            db=db,
+            user_id=uuid4(),
+            file_path=Path("statement.pdf"),
+            file_hash="abc123",
+            original_filename="statement.pdf",
+            institution="DBS",
+            transactions=[txn],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage – AC8.12.x (extraction private URL paths)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_pdf_private_url_raises():
+    """AC8.12.4 – PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
+        await service.extract_financial_data(
+            file_content=None,
+            institution="DBS",
+            file_type="pdf",
+            file_url="http://localhost:9000/private-bucket/file.pdf",
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_image_private_url_raises():
+    """AC8.12.5 – Image with private URL logs warning and raises ExtractionError (else branch 416->426)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
+        await service.extract_financial_data(
+            file_content=None,
+            institution="DBS",
+            file_type="png",
+            file_url="http://192.168.1.100/internal/image.png",
         )

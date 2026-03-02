@@ -718,3 +718,93 @@ class TestCalculateAccountBalanceInCurrency:
         """Test balance is zero for account with no entries."""
         balance = await calculate_account_balance_in_currency(db, usd_asset_account)
         assert balance == Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage tests – AC8.12.x
+# ---------------------------------------------------------------------------
+
+class TestCalculateAccountBalanceInCurrencyLiability:
+    """Test liability/equity accounts return negated balance (line 141 else branch)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_negated_balance_for_liability_account(self, db: AsyncSession, test_user_id):
+        """AC8.12.1 – Liability accounts return -net_balance so coverage hits else branch."""
+        liability_account = Account(
+            user_id=test_user_id,
+            name="Loan USD",
+            code="LIAB-USD-001",
+            type=AccountType.LIABILITY,
+            currency="USD",
+            is_active=True,
+        )
+        db.add(liability_account)
+        await db.flush()
+
+        entry = JournalEntry(
+            user_id=test_user_id,
+            entry_date=date(2025, 1, 1),
+            memo="Liability test",
+            status=JournalEntryStatus.POSTED,
+            source_type=JournalEntrySourceType.MANUAL,
+        )
+        db.add(entry)
+        await db.flush()
+
+        debit_line = JournalLine(
+            journal_entry_id=entry.id,
+            account_id=liability_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("200"),
+            currency="USD",
+            fx_rate=Decimal("1"),
+        )
+        credit_line = JournalLine(
+            journal_entry_id=entry.id,
+            account_id=liability_account.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("500"),
+            currency="USD",
+            fx_rate=Decimal("1"),
+        )
+        db.add_all([debit_line, credit_line])
+        await db.commit()
+
+        balance = await calculate_account_balance_in_currency(db, liability_account)
+        # net_balance = debit - credit = 200 - 500 = -300; liability => return -(-300) = 300
+        assert balance == Decimal("300")
+
+
+class TestGetOrCreateFxGainLossAccountFlushError:
+    """Test SQLAlchemyError during flush raises RevaluationError (lines 261-262)."""
+
+    @pytest.mark.asyncio
+    async def test_flush_error_raises_revaluation_error(self, db: AsyncSession, test_user_id):
+        """AC8.12.2 – SQLAlchemyError on flush is wrapped in RevaluationError."""
+        from sqlalchemy.exc import SQLAlchemyError
+        from unittest.mock import AsyncMock, patch
+
+        with patch.object(db, "flush", new_callable=AsyncMock) as mock_flush:
+            mock_flush.side_effect = SQLAlchemyError("constraint violation")
+            with pytest.raises(RevaluationError, match="Failed to create FX gain/loss account"):
+                await get_or_create_fx_gain_loss_account(db, test_user_id)
+
+
+class TestCalculateUnrealizedFxGainsNoneFiltering:
+    """Test that accounts where reval is None are filtered out (line 209 branch)."""
+
+    @pytest.mark.asyncio
+    async def test_none_revaluation_skipped(self, db: AsyncSession, test_user_id, usd_asset_account):
+        """AC8.12.3 – Accounts that return None from calculate_unrealized_fx_for_account are skipped."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "src.services.fx_revaluation.calculate_unrealized_fx_for_account",
+            new_callable=AsyncMock,
+        ) as mock_calc:
+            mock_calc.return_value = None
+
+            result = await calculate_unrealized_fx_gains(db, test_user_id, date(2025, 1, 31))
+
+        assert result.accounts_revalued == []
+        assert result.total_unrealized_gain_loss == Decimal("0")
