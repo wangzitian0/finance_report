@@ -2,7 +2,7 @@
 
 > **SSOT Key**: `coverage`
 > **Version**: 2.0.0
-> **Last Updated**: 2026-02-27
+> **Last Updated**: 2026-03-02
 
 This document defines the **Unified Test Coverage System** for the Finance Report project.
 
@@ -22,16 +22,16 @@ unified_coverage = total_covered_lines / total_executable_lines
                    (backend_executable + frontend_executable + scripts_executable)
 ```
 
-**CI Threshold**: ≥ **40%** unified coverage (enforced via `COVERAGE_THRESHOLD` env var in CI)
+**CI Gate**: No-regression baseline comparison (zero tolerance for drops). No fixed minimum threshold enforced.
 
 **Current state** (as of this branch):
 
 | Component | Covered | Executable | Coverage |
 |-----------|---------|------------|----------|
-| Backend   | 5,808   | 6,180      | 93.98%   |
-| Frontend  | 238     | 1,669      | 14.26%   |
-| Scripts   | 937     | 2,061      | 45.46%   |
-| **Unified** | **6,983** | **9,910** | **70.46%** |
+| Backend   | 5,808   | 6,180      | 94.48%   |
+| Frontend  | 1,420   | 1,669      | 85.08%   |
+| Scripts   | 1,402   | 2,061      | 68.02%   |
+| **Unified** | **8,630** | **9,910** | **87.08%** |
 
 ---
 
@@ -83,7 +83,7 @@ jobs:
     # Downloads all artifacts
     # Merges backend shards → coverage/backend.lcov
     # Runs: python scripts/calculate_unified_coverage.py
-    # Fails if unified coverage < COVERAGE_THRESHOLD (default: 40)
+    # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
 ```
 
 ### Coverage Calculation
@@ -93,7 +93,36 @@ jobs:
 1. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
 2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
 3. Aggregates backend + frontend + scripts covered/executable counts
-4. Reports unified percentage and exits 1 if below threshold
+4. Reports unified percentage and exits 1 if coverage dropped below baseline
+
+---
+
+### Coverage Gate
+
+The CI workflow uses baseline comparison to prevent coverage regressions. There is no fixed minimum threshold.
+
+- **Rationale**: No-regression is the primary gate; coverage must not drop from the committed baseline.
+
+#### How It Works
+1. **Primary gate**: Baseline comparison (zero tolerance for drops)
+   - Compares current coverage against `unified-coverage.json` baseline
+   - Fails CI if ANY component drops below baseline
+   - See [No-Regression Coverage Gate](./development.md#no-regression-coverage-gate) for details
+2. **Safety net**: Threshold check (optional)
+   - `COVERAGE_THRESHOLD` defaults to `0` (disabled)
+   - Set explicitly in CI if a minimum floor is desired
+   - Acts as fallback when baseline file doesn't exist
+#### Adjusting the Threshold
+
+The threshold may be adjusted based on project needs:
+
+- **Raise threshold**: When a minimum floor is desired (e.g., set to 80 for a hard floor)
+- **Lower threshold**: Set to 0 to disable (default)
+- **Update process**:
+  1. Update `COVERAGE_THRESHOLD` in `.github/workflows/ci.yml`
+  2. Update this documentation
+  3. Ensure current coverage exceeds new threshold
+**Note**: If no threshold is set (`COVERAGE_THRESHOLD=0` or unset), only the no-regression baseline gate applies.
 
 ---
 
@@ -117,8 +146,8 @@ python scripts/calculate_unified_coverage.py
 
 | Mode    | Backend | Frontend (vitest) | Unified (CI) |
 |---------|---------|-------------------|--------------|
-| CI      | 99%     | ~14% lines        | 40%          |
-| Local   | 99%     | ~14% lines        | N/A          |
+| CI      | 99%     | ~85% lines        | 80%          |
+| Local   | 99%     | ~85% lines        | N/A          |
 
 > **Note**: Frontend vitest thresholds are auto-updated by `autoUpdate: true` in `vitest.config.ts`. They reflect actual measured coverage across all 50 source files (including untested pages that score 0%), so the threshold is intentionally low while overall quality is tracked at the unified level.
 
