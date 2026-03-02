@@ -718,3 +718,219 @@ async def test_extract_no_models_tried_fallback_error():
             institution="DBS",
             file_type="pdf",
         )
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage tests: _safe_date None, _extract_status_code,
+# _validate_balance/_compute_confidence wrappers, _build_media_payload image,
+# OUT direction, OpenRouterStreamError timeout/generic, non-dict JSON,
+# ExtractionError re-raise, PDF/image with valid external URL
+# ---------------------------------------------------------------------------
+
+
+def test_safe_date_none_or_empty():
+    """_safe_date with None or empty string raises ValueError (lines 56-58)."""
+    service = ExtractionService()
+    with pytest.raises(ValueError, match="Date is required"):
+        service._safe_date(None)
+    with pytest.raises(ValueError, match="Date is required"):
+        service._safe_date("")
+
+
+def test_extract_status_code():
+    """_extract_status_code parses HTTP status codes (lines 352-354)."""
+    service = ExtractionService()
+    assert service._extract_status_code("HTTP 429: Quota Exceeded") == "429"
+    assert service._extract_status_code("HTTP 500 Internal Server Error") == "500"
+    assert service._extract_status_code("no status code here") is None
+    assert service._extract_status_code("") is None
+
+
+def test_validate_balance_wrapper():
+    """_validate_balance delegates to validate_balance (line 112-113)."""
+    service = ExtractionService()
+    result = service._validate_balance({
+        "opening_balance": "100.00",
+        "closing_balance": "200.00",
+        "transactions": [{"amount": "100.00", "direction": "IN"}],
+    })
+    assert isinstance(result, dict)
+
+
+def test_compute_confidence_wrapper():
+    """_compute_confidence delegates to compute_confidence_score (line 116-117)."""
+    service = ExtractionService()
+    balance_result = {"balance_valid": True, "opening": "100.00", "closing": "200.00"}
+    extracted = {
+        "opening_balance": "100.00",
+        "closing_balance": "200.00",
+        "transactions": [{"amount": "100.00", "direction": "IN", "date": "2023-01-15", "description": "Test"}],
+    }
+    score = service._compute_confidence(extracted, balance_result)
+    assert isinstance(score, int)
+
+
+def test_build_media_payload_image():
+    """_build_media_payload returns image_url for non-PDF (line 141)."""
+    service = ExtractionService()
+    result = service._build_media_payload(
+        file_type="png",
+        mime_type="image/png",
+        data="data:image/png;base64,iVBOR",
+    )
+    assert result["type"] == "image_url"
+    assert result["image_url"]["url"] == "data:image/png;base64,iVBOR"
+
+
+@pytest.mark.asyncio
+async def test_parse_document_out_direction():
+    """Transaction with direction=OUT subtracts from net_transactions (line 288)."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "period_start": "2023-01-01",
+            "period_end": "2023-01-31",
+            "opening_balance": "500.00",
+            "closing_balance": "350.00",
+            "transactions": [
+                {
+                    "date": "2023-01-10",
+                    "amount": "150.00",
+                    "direction": "OUT",
+                    "description": "ATM Withdrawal",
+                },
+            ],
+        }
+    )
+    statement, transactions = await service.parse_document(
+        file_path=Path("test.pdf"),
+        institution="DBS",
+        user_id=uuid4(),
+        file_content=b"content",
+    )
+    assert len(transactions) == 1
+    assert transactions[0].direction == "OUT"
+
+
+@pytest.mark.asyncio
+async def test_extract_non_dict_json_response():
+    """AI returning a JSON array instead of object raises ExtractionError (line 517-518)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.return_value = '[{"amount": "100.00"}]'  # Array, not object
+        with pytest.raises(ExtractionError, match="strict JSON object.*no arrays"):
+            await service.extract_financial_data(
+                file_content=b"content",
+                institution="DBS",
+                file_type="pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_openrouter_timeout_error():
+    """OpenRouterStreamError with timeout message (lines 556-564)."""
+    from src.services.openrouter_streaming import OpenRouterStreamError
+
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+        mock_stream.side_effect = OpenRouterStreamError("Request timed out after 30s")
+        with pytest.raises(ExtractionError, match="timed out"):
+            await service.extract_financial_data(
+                file_content=b"content",
+                institution="DBS",
+                file_type="pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_openrouter_generic_http_error():
+    """OpenRouterStreamError with generic HTTP error (lines 565-577)."""
+    from src.services.openrouter_streaming import OpenRouterStreamError
+
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+        mock_stream.side_effect = OpenRouterStreamError("HTTP 502: Bad Gateway")
+        with pytest.raises(ExtractionError, match="failed.*HTTP 502"):
+            await service.extract_financial_data(
+                file_content=b"content",
+                institution="DBS",
+                file_type="pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_extraction_error_reraise():
+    """ExtractionError raised during streaming is re-raised, not wrapped (line 579-580)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.side_effect = ExtractionError("Custom extraction failure")
+        with pytest.raises(ExtractionError, match="Custom extraction failure"):
+            await service.extract_financial_data(
+                file_content=b"content",
+                institution="DBS",
+                file_type="pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_with_valid_external_url():
+    """PDF extraction with valid external file_url (lines 393-398)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    valid_json = '{"account_last4": "9999", "transactions": []}'
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.return_value = valid_json
+        result = await service.extract_financial_data(
+            file_content=None,
+            institution="DBS",
+            file_type="pdf",
+            file_url="https://example.com/statement.pdf",
+        )
+    assert result["account_last4"] == "9999"
+
+
+@pytest.mark.asyncio
+async def test_extract_image_with_valid_external_url():
+    """Image extraction with valid external file_url (lines 416-422)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    valid_json = '{"account_last4": "8888", "transactions": []}'
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.return_value = valid_json
+        result = await service.extract_financial_data(
+            file_content=None,
+            institution="DBS",
+            file_type="png",
+            file_url="https://example.com/statement.png",
+        )
+    assert result["account_last4"] == "8888"
+
+
+@pytest.mark.asyncio
+async def test_parse_document_csv_no_institution():
+    """CSV parsing without institution raises ExtractionError (line 221-222)."""
+    service = ExtractionService()
+    with pytest.raises(ExtractionError, match="Institution is required for CSV parsing"):
+        await service.parse_document(
+            file_path=Path("test.csv"),
+            institution=None,
+            user_id=uuid4(),
+            file_type="csv",
+            file_content=b"some,csv,data",
+        )

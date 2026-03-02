@@ -293,9 +293,11 @@ class TestCmdDev:
         """Given --infra flag, should start infrastructure."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(SimpleNamespace(
-            infra=True, backend=False, frontend=False, migrate=False, check=False
-        ))
+        cli.cmd_dev(
+            SimpleNamespace(
+                infra=True, backend=False, frontend=False, migrate=False, check=False
+            )
+        )
         assert len(calls) == 1
         assert "--profile" in calls[0]["cmd"]
         assert "infra" in calls[0]["cmd"]
@@ -304,27 +306,33 @@ class TestCmdDev:
         """Given --backend flag, should run dev_backend.py."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(SimpleNamespace(
-            infra=False, backend=True, frontend=False, migrate=False, check=False
-        ))
+        cli.cmd_dev(
+            SimpleNamespace(
+                infra=False, backend=True, frontend=False, migrate=False, check=False
+            )
+        )
         assert any("dev_backend.py" in str(c["cmd"]) for c in calls)
 
     def test_dev_frontend(self, monkeypatch):
         """Given --frontend flag, should run dev_frontend.py."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(SimpleNamespace(
-            infra=False, backend=False, frontend=True, migrate=False, check=False
-        ))
+        cli.cmd_dev(
+            SimpleNamespace(
+                infra=False, backend=False, frontend=True, migrate=False, check=False
+            )
+        )
         assert any("dev_frontend.py" in str(c["cmd"]) for c in calls)
 
     def test_dev_migrate(self, monkeypatch):
         """Given --migrate flag, should run alembic upgrade head."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(SimpleNamespace(
-            infra=False, backend=False, frontend=False, migrate=True, check=False
-        ))
+        cli.cmd_dev(
+            SimpleNamespace(
+                infra=False, backend=False, frontend=False, migrate=True, check=False
+            )
+        )
         assert any("alembic" in str(c["cmd"]) for c in calls)
         assert any("head" in str(c["cmd"]) for c in calls)
 
@@ -332,18 +340,22 @@ class TestCmdDev:
         """Given --check flag, should run boot module."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(SimpleNamespace(
-            infra=False, backend=False, frontend=False, migrate=False, check=True
-        ))
+        cli.cmd_dev(
+            SimpleNamespace(
+                infra=False, backend=False, frontend=False, migrate=False, check=True
+            )
+        )
         assert any("src.boot" in str(c["cmd"]) for c in calls)
 
     def test_dev_no_flags_prints_instructions(self, monkeypatch, capsys):
         """Given no flags, should start infra and print instructions."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(SimpleNamespace(
-            infra=False, backend=False, frontend=False, migrate=False, check=False
-        ))
+        cli.cmd_dev(
+            SimpleNamespace(
+                infra=False, backend=False, frontend=False, migrate=False, check=False
+            )
+        )
         captured = capsys.readouterr()
         assert "--backend" in captured.out
         assert "--frontend" in captured.out
@@ -404,14 +416,18 @@ class TestCmdCleanAll:
         """Given --all flag, should pass --all to cleanup script."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_clean(SimpleNamespace(db=False, containers=False, force=False, all=True))
+        cli.cmd_clean(
+            SimpleNamespace(db=False, containers=False, force=False, all=True)
+        )
         assert calls[0]["cmd"] == ["bash", "scripts/cleanup_dev_resources.sh", "--all"]
 
     def test_clean_default(self, monkeypatch):
         """Given no flags, should run cleanup script without flags."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_clean(SimpleNamespace(db=False, containers=False, force=False, all=False))
+        cli.cmd_clean(
+            SimpleNamespace(db=False, containers=False, force=False, all=False)
+        )
         assert calls[0]["cmd"] == ["bash", "scripts/cleanup_dev_resources.sh"]
 
 
@@ -423,8 +439,12 @@ class TestCmdTestSmart:
         calls = _mock_run(monkeypatch)
         cli.cmd_test(
             SimpleNamespace(
-                frontend=False, e2e=False, perf=False,
-                fast=False, smart=True, ephemeral=False,
+                frontend=False,
+                e2e=False,
+                perf=False,
+                fast=False,
+                smart=True,
+                ephemeral=False,
             ),
             [],
         )
@@ -480,3 +500,200 @@ class TestMainDispatch:
         cmd = calls[0]["cmd"]
         assert "-k" in cmd
         assert "mytest" in cmd
+
+
+# ---------------------------------------------------------------------------
+# dev_backend.main() and dev_frontend.main() coverage
+# ---------------------------------------------------------------------------
+
+
+class TestDevBackendMain:
+    """Cover dev_backend.main() execution path (lines 100-134, 138)."""
+
+    def test_main_success_path(self, monkeypatch):
+        """When DB ready and proc exits normally, main() should complete without error."""
+        monkeypatch.setattr(dev_backend, "check_database_ready", lambda: True)
+
+        import signal as _signal
+
+        monkeypatch.setattr(_signal, "signal", lambda *args: None)
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: 0,
+            wait=lambda **kw: 0,
+            terminate=lambda: None,
+        )
+        monkeypatch.setattr(
+            dev_backend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
+        )
+
+        dev_backend.main()
+        assert dev_backend._started_resources["uvicorn_proc"] is fake_proc
+
+    def test_main_exits_when_db_not_ready(self, monkeypatch):
+        """When DB check fails, main() should sys.exit(1)."""
+        monkeypatch.setattr(dev_backend, "check_database_ready", lambda: False)
+
+        import signal as _signal
+
+        monkeypatch.setattr(_signal, "signal", lambda *args: None)
+
+        with pytest.raises(SystemExit) as exc:
+            dev_backend.main()
+        assert exc.value.code == 1
+
+    def test_main_keyboard_interrupt_calls_cleanup(self, monkeypatch):
+        """When proc.wait() raises KeyboardInterrupt, cleanup() should be called."""
+        monkeypatch.setattr(dev_backend, "check_database_ready", lambda: True)
+
+        import signal as _signal
+
+        monkeypatch.setattr(_signal, "signal", lambda *args: None)
+
+        wait_calls = [0]
+
+        def smart_wait(**kwargs):
+            wait_calls[0] += 1
+            if wait_calls[0] == 1:  # bare wait() in main() — raise interrupt
+                raise KeyboardInterrupt
+            # 2nd call from cleanup() — return normally
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: None,
+            wait=smart_wait,
+            terminate=lambda: None,
+        )
+        monkeypatch.setattr(
+            dev_backend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            dev_backend.main()
+        assert exc.value.code == 0
+
+    def test_get_compose_cmd_returns_podman(self, monkeypatch):
+        """get_compose_cmd() in dev_backend tries podman then docker."""
+
+        def fake_run(cmd, capture_output=False, check=False):
+            if cmd[0] == "podman":
+                return SimpleNamespace(returncode=0)
+            raise dev_backend.subprocess.CalledProcessError(1, cmd)
+
+        monkeypatch.setattr(dev_backend.subprocess, "run", fake_run)
+        result = dev_backend.get_compose_cmd()
+        assert result == ["podman", "compose"]
+
+    def test_get_compose_cmd_returns_empty_when_none(self, monkeypatch):
+        """get_compose_cmd() returns [] when neither podman nor docker found."""
+
+        def raise_fnf(*a, **k):
+            raise FileNotFoundError()
+
+        monkeypatch.setattr(dev_backend.subprocess, "run", raise_fnf)
+        result = dev_backend.get_compose_cmd()
+        assert result == []
+
+    def test_cleanup_timeout_kills_process(self, monkeypatch):
+        """When proc.wait() times out, cleanup() should kill the process."""
+        killed = []
+
+        def raise_timeout(timeout=5):
+            raise dev_backend.subprocess.TimeoutExpired("proc", timeout)
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: None,
+            terminate=lambda: None,
+            wait=raise_timeout,
+            kill=lambda: killed.append(True),
+        )
+        dev_backend._started_resources["uvicorn_proc"] = fake_proc
+        with pytest.raises(SystemExit):
+            dev_backend.cleanup()
+        assert killed, "kill() should have been called on timeout"
+
+
+class TestDevFrontendMain:
+    """Cover dev_frontend.main() execution path (lines 49-69, 73)."""
+
+    def test_main_success_path(self, monkeypatch):
+        """When proc exits normally, main() should complete without error."""
+        import signal as _signal
+
+        monkeypatch.setattr(_signal, "signal", lambda *args: None)
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: 0,
+            wait=lambda **kw: 0,
+            terminate=lambda: None,
+        )
+        monkeypatch.setattr(
+            dev_frontend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
+        )
+
+        dev_frontend.main()
+        assert dev_frontend._started_resources["next_proc"] is fake_proc
+
+    def test_main_keyboard_interrupt_calls_cleanup(self, monkeypatch):
+        """When proc.wait() raises KeyboardInterrupt, cleanup() should be called."""
+        import signal as _signal
+
+        monkeypatch.setattr(_signal, "signal", lambda *args: None)
+
+        wait_calls = [0]
+
+        def smart_wait(**kwargs):
+            wait_calls[0] += 1
+            if wait_calls[0] == 1:  # bare wait() in main() — raise interrupt
+                raise KeyboardInterrupt
+            # 2nd call from cleanup() — return normally
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: None,
+            wait=smart_wait,
+            terminate=lambda: None,
+        )
+        monkeypatch.setattr(
+            dev_frontend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            dev_frontend.main()
+        assert exc.value.code == 0
+
+    def test_cleanup_timeout_kills_process(self, monkeypatch):
+        """When proc.wait() times out, cleanup() should kill the process."""
+        killed = []
+
+        def raise_timeout(timeout=5):
+            raise dev_frontend.subprocess.TimeoutExpired("proc", timeout)
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: None,
+            terminate=lambda: None,
+            wait=raise_timeout,
+            kill=lambda: killed.append(True),
+        )
+        dev_frontend._started_resources["next_proc"] = fake_proc
+        with pytest.raises(SystemExit):
+            dev_frontend.cleanup()
+        assert killed, "kill() should have been called on timeout"
+
+    def test_main_custom_app_url(self, monkeypatch, capsys):
+        """When NEXT_PUBLIC_APP_URL is set, main() should print it."""
+        import signal as _signal
+
+        monkeypatch.setattr(_signal, "signal", lambda *args: None)
+        monkeypatch.setenv("NEXT_PUBLIC_APP_URL", "http://localhost:9000")
+
+        fake_proc = SimpleNamespace(
+            poll=lambda: 0,
+            wait=lambda **kw: 0,
+            terminate=lambda: None,
+        )
+        monkeypatch.setattr(
+            dev_frontend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
+        )
+
+        dev_frontend.main()
+        captured = capsys.readouterr()
+        assert "http://localhost:9000" in captured.out
