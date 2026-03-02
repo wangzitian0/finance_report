@@ -96,26 +96,33 @@ class TestConfigContract:
             or "sqlite" in settings.database_url  # Allow sqlite for testing
         ), f"Invalid database URL: {settings.database_url}. Expected postgresql+asyncpg:// or sqlite://"
 
-    def test_db_pool_size_config_default(self):
+    def test_db_pool_size_config_default(self, monkeypatch):
         """AC12.20.1: Ensure DB_POOL_SIZE has the expected default."""
-        from src.config import settings
+        monkeypatch.delenv("DB_POOL_SIZE", raising=False)
+        from src.config import Settings
 
-        assert hasattr(settings, "db_pool_size")
-        assert settings.db_pool_size == 5
+        s = Settings()
+        assert hasattr(s, "db_pool_size")
+        assert s.db_pool_size == 5
 
-    def test_db_pool_max_overflow_config_default(self):
+    def test_db_pool_max_overflow_config_default(self, monkeypatch):
         """AC12.20.2: Ensure DB_POOL_MAX_OVERFLOW has the expected default."""
-        from src.config import settings
+        monkeypatch.delenv("DB_POOL_MAX_OVERFLOW", raising=False)
+        from src.config import Settings
 
-        assert hasattr(settings, "db_pool_max_overflow")
-        assert settings.db_pool_max_overflow == 10
+        s = Settings()
+        assert hasattr(s, "db_pool_max_overflow")
+        assert s.db_pool_max_overflow == 10
 
-    def test_db_pool_config_positive_integer(self):
-        """AC12.20.3: Ensure pool config values are positive integers."""
-        from src.config import settings
+    def test_db_pool_config_valid_range(self, monkeypatch):
+        """AC12.20.3: Ensure pool config values are within valid range (pool_size >= 1, max_overflow >= 0)."""
+        monkeypatch.delenv("DB_POOL_SIZE", raising=False)
+        monkeypatch.delenv("DB_POOL_MAX_OVERFLOW", raising=False)
+        from src.config import Settings
 
-        assert settings.db_pool_size > 0
-        assert settings.db_pool_max_overflow >= 0
+        s = Settings()
+        assert s.db_pool_size >= 1
+        assert s.db_pool_max_overflow >= 0
 
     def test_db_pool_size_env_override(self, monkeypatch):
         """AC12.20.4: Ensure DB_POOL_SIZE env var actually overrides the setting."""
