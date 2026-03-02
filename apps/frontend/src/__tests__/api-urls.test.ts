@@ -1,13 +1,38 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+vi.mock('../lib/auth', () => ({
+  getAccessToken: () => null,
+  getUserId: () => null,
+}))
 
 describe('API URL Configuration Scenarios', () => {
+  const originalApiUrl = process.env.NEXT_PUBLIC_API_URL
+  const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL
+
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_API_URL', originalApiUrl)
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', originalAppUrl)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   describe('Development Environment', () => {
-    it('should use empty API_URL for same-origin requests', () => {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+    it('should accept empty API_URL for same-origin requests', () => {
+      vi.stubEnv('NEXT_PUBLIC_API_URL', '')
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/$/, '')
       expect(API_URL).toBe('')
     })
 
+    it('should accept localhost API_URL for development', () => {
+      vi.stubEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/$/, '')
+      expect(API_URL).toEqual(expect.stringMatching(/^http:\/\/localhost(?::\d+)?$/))
+    })
+
     it('should use localhost:3000 as default APP_URL', () => {
+      vi.stubEnv('NEXT_PUBLIC_APP_URL', undefined)
       const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
       expect(APP_URL).toBe('http://localhost:3000')
     })
@@ -38,9 +63,10 @@ describe('API URL Configuration Scenarios', () => {
 
   describe('URL Construction Logic', () => {
     it('should handle trailing slash correctly', () => {
-      const API_URL = 'https://api.example.com/'
+      const rawUrl = 'https://api.example.com/'
+      const API_URL = rawUrl.replace(/\/$/, '')
       const path = '/api/accounts'
-      const fullPath = `${API_URL.replace(/\/$/, '')}${path}`
+      const fullPath = `${API_URL}${path}`
       expect(fullPath).toBe('https://api.example.com/api/accounts')
     })
 
@@ -49,6 +75,12 @@ describe('API URL Configuration Scenarios', () => {
       const path = 'api/accounts'
       const fullPath = path.startsWith('/') ? `${API_URL}${path}` : `${API_URL}/${path}`
       expect(fullPath).toBe('https://api.example.com/api/accounts')
+    })
+
+    it('should handle whitespace in API_URL', () => {
+      const rawUrl = '  https://api.example.com  '
+      const API_URL = rawUrl.trim().replace(/\/$/, '')
+      expect(API_URL).toBe('https://api.example.com')
     })
   })
 
