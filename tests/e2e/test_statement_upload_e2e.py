@@ -6,8 +6,11 @@ Run with: moon run :test -- --e2e
 """
 
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -53,12 +56,26 @@ def _get_test_pdf() -> Path:
     )
 
 
+def _unique_pdf_copy(src: Path) -> Path:
+    """Copy *src* to a temp dir with a unique timestamped name.
+
+    The backend deduplicates uploads by filename/hash.  Re-using the same
+    fixture PDF across CI runs causes 409 Conflict errors.  A fresh copy with
+    a unique name avoids this without modifying backend behaviour.
+    """
+    suffix = int(time.time() * 1000) % 1_000_000
+    tmp = Path(tempfile.mkdtemp())
+    dest = tmp / f"{src.stem}_{suffix}{src.suffix}"
+    shutil.copy2(src, dest)
+    return dest
+
+
 @pytest.mark.e2e
 async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     """AC8.4.3: Upload PDF → wait for processing → verify statement appears."""
     _skip_if_no_url()
 
-    pdf_path = _get_test_pdf()
+    pdf_path = _unique_pdf_copy(_get_test_pdf())
 
     page = authenticated_page
     await page.goto(_get_url("/statements"))
@@ -94,7 +111,7 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
     """AC8.4.2: Select AI model from dropdown → upload → verify model persisted."""
     _skip_if_no_url()
 
-    pdf_path = _get_test_pdf()
+    pdf_path = _unique_pdf_copy(_get_test_pdf())
 
     page = authenticated_page
     await page.goto(_get_url("/statements"))

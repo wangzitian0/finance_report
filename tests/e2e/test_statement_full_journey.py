@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -76,12 +79,26 @@ def _get_dbs_pdf_path() -> Path:
     return pdfs[-1]
 
 
+def _unique_pdf_copy(src: Path) -> Path:
+    """Copy *src* to a temp dir with a unique timestamped name.
+
+    The backend deduplicates uploads by filename/hash.  Re-using the same
+    fixture PDF across CI runs causes 409 Conflict errors.  A fresh copy with
+    a unique name avoids this without modifying backend behaviour.
+    """
+    suffix = int(time.time() * 1000) % 1_000_000
+    tmp = Path(tempfile.mkdtemp())
+    dest = tmp / f"{src.stem}_{suffix}{src.suffix}"
+    shutil.copy2(src, dest)
+    return dest
+
+
 @pytest.mark.e2e
 @pytest.mark.tier3
 async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     """AC8.12.1–AC8.12.5: DBS PDF → parse → approve → balance sheet."""
     page = authenticated_page
-    pdf_path = _get_dbs_pdf_path()
+    pdf_path = _unique_pdf_copy(_get_dbs_pdf_path())
 
     # === AC8.12.1: Upload PDF ===
     await page.goto(_get_url("/statements"))
