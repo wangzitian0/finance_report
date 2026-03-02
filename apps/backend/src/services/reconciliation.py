@@ -13,7 +13,7 @@ from itertools import combinations
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -42,6 +42,110 @@ from src.services.processing_account import (
 )
 
 logger = get_logger(__name__)
+
+@dataclass(frozen=True)
+class ReconciliationStats:
+    """Reconciliation statistics dataclass."""
+
+    total_transactions: int
+    matched_transactions: int
+    unmatched_transactions: int
+    pending_review: int
+    auto_accepted: int
+    match_rate: float
+    score_distribution: dict[str, int] | None = None
+
+
+async def get_reconciliation_stats(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    include_distribution: bool = False,
+) -> ReconciliationStats:
+    """Get reconciliation statistics for a user.
+
+    Queries bank transactions and matches to compute statistics.
+    """
+    # Base query for transactions
+    txn_base = (
+        select(func.count(BankStatementTransaction.id))
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(BankStatement.user_id == user_id)
+    )
+
+    # Transaction status counts
+    total_result = await db.execute(txn_base)
+    matched_result = await db.execute(
+        txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED)
+    )
+    unmatched_result = await db.execute(
+        txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+    )
+
+    total = total_result.scalar_one()
+    matched = matched_result.scalar_one()
+    unmatched = unmatched_result.scalar_one()
+
+    # Match status counts
+    pending_result = await db.execute(
+        select(func.count(ReconciliationMatch.id))
+        .join(
+            BankStatementTransaction,
+            ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
+        )
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(BankStatement.user_id == user_id)
+        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+    )
+    auto_result = await db.execute(
+        select(func.count(ReconciliationMatch.id))
+        .join(
+            BankStatementTransaction,
+            ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
+        )
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(BankStatement.user_id == user_id)
+        .where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED)
+    )
+
+    pending = pending_result.scalar_one()
+    auto = auto_result.scalar_one()
+
+    # Score distribution (optional)
+    score_distribution: dict[str, int] | None = None
+    if include_distribution:
+        score_result = await db.execute(
+            select(ReconciliationMatch.match_score)
+            .join(BankStatementTransaction)
+            .join(BankStatement)
+            .where(BankStatement.user_id == user_id)
+        )
+        scores = score_result.scalars().all()
+        buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}
+        for score in scores:
+            if score < 60:
+                buckets["0-59"] += 1
+            elif score < 80:
+                buckets["60-79"] += 1
+            elif score < 90:
+                buckets["80-89"] += 1
+            else:
+                buckets["90-100"] += 1
+        score_distribution = buckets
+
+    # Compute match rate with zero-division guard
+    match_rate = float(round((matched / total) * 100, 2)) if total else 0.0
+
+    return ReconciliationStats(
+        total_transactions=total,
+        matched_transactions=matched,
+        unmatched_transactions=unmatched,
+        pending_review=pending,
+        auto_accepted=auto,
+        match_rate=match_rate,
+        score_distribution=score_distribution,
+    )
+
 
 
 @dataclass(frozen=True)

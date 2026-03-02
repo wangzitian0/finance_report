@@ -271,3 +271,65 @@ class TestDualWriteLayer2:
 
         assert statement is not None
         assert len(transactions) == 2
+
+
+
+    async def test_dual_write_integrity_error_silent(
+        self, db, test_user, sample_file_content, monkeypatch
+    ):
+        """Test that IntegrityError (duplicate upload) is silently handled."""
+        from sqlalchemy.exc import IntegrityError
+
+        from src.services.deduplication import dual_write_layer2
+
+        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
+
+        file_hash = hashlib.sha256(sample_file_content).hexdigest()
+
+        # Create a test BankStatementTransaction with eager-loaded statement
+        from src.models import BankStatement, BankStatementTransaction
+
+        stmt = BankStatement(
+            user_id=test_user.id,
+            file_path="test_statement.pdf",
+            file_hash=file_hash,
+            original_filename="test_statement.pdf",
+            institution="DBS",
+            account_last4="1234",
+            currency="SGD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("1500.00"),
+        )
+        db.add(stmt)
+        await db.flush()
+
+        txn = BankStatementTransaction(
+            statement=stmt,  # Eager-loaded statement relationship
+            txn_date=date(2024, 1, 15),
+            description="Salary Deposit",
+            amount=Decimal("3000.00"),
+            direction="IN",
+            reference="SAL001",
+        )
+        transactions = [txn]
+
+        # Mock create_uploaded_document to raise IntegrityError
+        with patch(
+            "src.services.deduplication.DeduplicationService.create_uploaded_document",
+            side_effect=IntegrityError("INSERT", [], Exception("duplicate")),
+        ):
+            # Should not raise - IntegrityError is silently handled
+            result = await dual_write_layer2(
+                db=db,
+                user_id=test_user.id,
+                file_path=Path("test_statement.pdf"),
+                file_hash=file_hash,
+                original_filename="test_statement.pdf",
+                institution="DBS",
+                transactions=transactions,
+            )
+
+        # Function should return None on IntegrityError
+        assert result is None

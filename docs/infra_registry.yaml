@@ -994,3 +994,8 @@ acs:
     epic_name: two-stage-review-ui
     description: 'generate_test_pdfs — generate_statement writes table rows and closing balance from Decimal transactions'
     mandatory: true
+  - id: AC12.18.7.1
+    epic: 12
+    epic_name: foundation-libs
+    description: 'get_reconciliation_stats() function extracts reconciliation stats queries from AIAdvisorService'
+    mandatory: true

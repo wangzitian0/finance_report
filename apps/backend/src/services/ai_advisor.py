@@ -13,25 +13,21 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.logger import get_logger
 from src.models import (
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     ChatMessage,
     ChatMessageRole,
     ChatSession,
     ChatSessionStatus,
-    ReconciliationMatch,
-    ReconciliationStatus,
 )
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
 from src.services.openrouter_streaming import stream_openrouter_chat
+from src.services.reconciliation import get_reconciliation_stats
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -391,34 +387,7 @@ class AIAdvisorService:
         except ReportError:
             top_expenses = "N/A"
 
-        txn_base = (
-            select(func.count(BankStatementTransaction.id))
-            .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-            .where(BankStatement.user_id == user_id)
-        )
-        total_result = await db.execute(txn_base)
-        matched_result = await db.execute(
-            txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED)
-        )
-        unmatched_result = await db.execute(
-            txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-        )
-        pending_result = await db.execute(
-            select(func.count(ReconciliationMatch.id))
-            .join(
-                BankStatementTransaction,
-                ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
-            )
-            .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-            .where(BankStatement.user_id == user_id)
-            .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        )
-
-        total = total_result.scalar_one()
-        matched = matched_result.scalar_one()
-        unmatched = unmatched_result.scalar_one()
-        pending = pending_result.scalar_one()
-        match_rate = float(round((matched / total) * 100, 2)) if total else 0.0
+        stats = await get_reconciliation_stats(db, user_id)
 
         context.update(
             {
@@ -428,9 +397,9 @@ class AIAdvisorService:
                 "monthly_income": self._format_money(monthly_income, currency),
                 "monthly_expenses": self._format_money(monthly_expenses, currency),
                 "top_expenses": top_expenses or "N/A",
-                "unmatched_count": str(unmatched),
-                "match_rate": f"{match_rate}%",
-                "pending_review": str(pending),
+                "unmatched_count": str(stats.unmatched_transactions),
+                "match_rate": f"{stats.match_rate}%",
+                "pending_review": str(stats.pending_review),
             }
         )
 
