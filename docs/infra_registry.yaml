@@ -700,6 +700,7 @@ acs:
   - id: AC12.20.1
     epic: 12
     epic_name: foundation-libs
+
     description: 'DB_POOL_SIZE config field exists with default'
     mandatory: true
   - id: AC12.20.2
@@ -746,6 +747,16 @@ acs:
     epic: 12
     epic_name: foundation-libs
     description: 'BaseAppException FastAPI handler returns structured JSON with error_id, detail, and correct status_code'
+    mandatory: true
+  - id: AC12.22.1
+    epic: 12
+    epic_name: foundation-libs
+    description: 'Move 6 inline schemas from statements router to review module'
+    mandatory: true
+  - id: AC12.22.2
+    epic: 12
+    epic_name: foundation-libs
+    description: 'Extract background task functions from statements router to statement_parsing service'
     mandatory: true
   # EPIC-014: ttd-transformation
   - id: AC14.1.1
@@ -993,14 +1004,4 @@ acs:
     epic: 16
     epic_name: two-stage-review-ui
     description: 'generate_test_pdfs — generate_statement writes table rows and closing balance from Decimal transactions'
-    mandatory: true
-  - id: AC12.18.7.1
-    epic: 12
-    epic_name: foundation-libs
-    description: 'get_reconciliation_stats() function extracts reconciliation stats queries from AIAdvisorService'
-    mandatory: true
-  - id: AC12.18.7.2
-    epic: 12
-    epic_name: foundation-libs
-    description: 'Pure scoring helpers _find_transfer_candidates, _find_many_to_one_candidates, _find_normal_candidates extracted from execute_matching()'
     mandatory: true

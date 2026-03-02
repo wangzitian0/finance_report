@@ -64,6 +64,15 @@ from src.schemas.user import (
     UserUpdate,
 )
 
+from src.schemas.review import (
+    BatchApproveRequest,
+    BatchRejectRequest,
+    ConsistencyCheckListResponse,
+    ConsistencyCheckResponse,
+    ResolveCheckRequest,
+    Stage2ReviewQueueResponse,
+)
+
 from .extraction import (
     BankStatementListResponse,
     BankStatementResponse,
@@ -98,6 +107,8 @@ __all__ = [
     "BankStatementUploadRequest",
     "BankTransactionSummary",
     "BatchAcceptRequest",
+    "BatchApproveRequest",
+    "BatchRejectRequest",
     "BreakdownPeriod",
     "BreakdownType",
     "CashFlowItem",
@@ -110,6 +121,8 @@ __all__ = [
     "ChatSessionResponse",
     "ChatSuggestionsResponse",
     "ConfidenceLevelEnum",
+    "ConsistencyCheckResponse",
+    "ConsistencyCheckListResponse",
     "IncomeStatementResponse",
     "JournalEntryCreate",
     "JournalEntryListResponse",
@@ -130,9 +143,11 @@ __all__ = [
     "ReconciliationStatsResponse",
     "ReconciliationStatusEnum",
     "RegisterRequest",
+    "ResolveCheckRequest",
     "RetryParsingRequest",
     "RetryStatementRequest",
     "StatementDecisionRequest",
+    "Stage2ReviewQueueResponse",
     "TransactionUpdateRequest",
     "TrendPeriod",
     "UnmatchedTransactionsResponse",
