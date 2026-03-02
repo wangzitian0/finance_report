@@ -251,8 +251,6 @@ class DeduplicationService:
         return doc
 
 
-
-
 async def dual_write_layer2(
     db: Any,
     user_id: UUID,

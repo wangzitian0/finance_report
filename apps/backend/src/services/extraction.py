@@ -937,4 +937,3 @@ class ExtractionService:
             "period_end": period_end.isoformat() if period_end else None,
             "transactions": transactions,
         }
-

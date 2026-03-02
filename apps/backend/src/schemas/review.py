@@ -89,7 +89,6 @@ class BankStatementWithStage1Response(BankStatementResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 # --- Stage 2 Review Schemas (moved from routers/statements.py) ---
 
 

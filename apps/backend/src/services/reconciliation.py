@@ -43,6 +43,7 @@ from src.services.processing_account import (
 
 logger = get_logger(__name__)
 
+
 @dataclass(frozen=True)
 class ReconciliationStats:
     """Reconciliation statistics dataclass."""
@@ -145,7 +146,6 @@ async def get_reconciliation_stats(
         match_rate=match_rate,
         score_distribution=score_distribution,
     )
-
 
 
 @dataclass(frozen=True)
@@ -919,6 +919,7 @@ def _find_normal_candidates(
         if best_match and best_match.score >= config.pending_review:
             results.append((txn, best_match))
     return results
+
 
 async def execute_matching(
     db: AsyncSession,
