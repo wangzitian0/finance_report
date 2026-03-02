@@ -622,7 +622,7 @@ async def test_record_message_refresh_exception_logs_warning(db: AsyncSession, t
     await db.commit()
     await db.refresh(session)
     async def always_raise(obj):
-            raise RuntimeError("simulated refresh failure")
+        raise RuntimeError("simulated refresh failure")
     monkeypatch.setattr(db, "refresh", always_raise)
 
     # Should not raise — the exception is swallowed and a warning is logged

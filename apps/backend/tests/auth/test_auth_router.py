@@ -111,6 +111,7 @@ async def test_get_me_user_not_found(public_client):
 
 @pytest.mark.asyncio
 async def test_register_integrity_error_race_condition(monkeypatch):
+    """AC1.7.4: Register endpoint handles IntegrityError race on duplicate email."""
     from fastapi import HTTPException, Request
 
     from src.routers import auth as auth_router

@@ -763,6 +763,7 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
 
 @pytest.mark.asyncio
 async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> None:
+    """AC4.6.6: Pattern score cache reuses merchant token score across transactions."""
     user_id = uuid4()
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 6, 10))
     bank = Account(user_id=user_id, name="Bank - Cache", type=AccountType.ASSET, currency="SGD")
@@ -824,6 +825,7 @@ async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> 
 
 @pytest.mark.asyncio
 async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSession) -> None:
+    """AC4.6.7: Many-to-one skips unbalanced candidates and leaves transactions unmatched."""
     user_id = uuid4()
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 7, 1))
     bank = Account(user_id=user_id, name="Bank - M2O", type=AccountType.ASSET, currency="SGD")
@@ -881,6 +883,7 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
 
 @pytest.mark.asyncio
 async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession) -> None:
+    """AC4.6.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
     user_id = uuid4()
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 8, 1))
     db.add(statement)
@@ -927,6 +930,7 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
 
 @pytest.mark.asyncio
 async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch) -> None:
+    """AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
     user_id = uuid4()
     monkeypatch.setattr("src.config.settings.enable_4_layer_read", True)
 
@@ -976,6 +980,7 @@ async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncS
 
 @pytest.mark.asyncio
 async def test_execute_matching_three_entry_combination_skips_unbalanced_member(db: AsyncSession) -> None:
+    """AC4.7.3: Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped."""
     user_id = uuid4()
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 9, 12))
     db.add(statement)
@@ -1035,6 +1040,7 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
 
 @pytest.mark.asyncio
 async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(db: AsyncSession, monkeypatch) -> None:
+    """AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
     user_id = uuid4()
     monkeypatch.setattr("src.config.settings.enable_4_layer_read", True)
 

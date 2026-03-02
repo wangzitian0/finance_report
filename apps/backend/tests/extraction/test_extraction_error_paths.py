@@ -963,6 +963,7 @@ async def test_parse_document_csv_no_institution():
 
 @pytest.mark.asyncio
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
+    """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
     service = ExtractionService()
     db = AsyncMock()
 

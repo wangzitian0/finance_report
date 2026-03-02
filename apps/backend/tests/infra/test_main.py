@@ -330,8 +330,9 @@ class TestConfig:
         assert "gemini" in settings.primary_model.lower()
         assert settings.primary_model.startswith("google/")
         assert settings.s3_bucket == "statements"
+
+    def test_config_database_url(self):
         """AC7.6.1: Database URL is properly configured."""
         from src.config import Settings
-
         settings = Settings()
         assert "postgresql" in settings.database_url or "sqlite" in settings.database_url

@@ -519,6 +519,7 @@ class TestDeduplicationService:
 
     @pytest.mark.asyncio
     async def test_upsert_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
+        """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (transaction)."""
         service = DeduplicationService()
         doc1 = uuid4()
         doc2 = uuid4()
@@ -553,6 +554,7 @@ class TestDeduplicationService:
 
     @pytest.mark.asyncio
     async def test_upsert_atomic_position_handles_non_list_source_documents(self, db, test_user):
+        """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""
         service = DeduplicationService()
         doc1 = uuid4()
         doc2 = uuid4()

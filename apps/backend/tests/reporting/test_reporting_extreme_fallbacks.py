@@ -182,6 +182,7 @@ async def test_reporting_cash_flow_account_lookup_coverage(db: AsyncSession, tes
 
 @pytest.mark.asyncio
 async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test_user_id):
+    """AC5.6.7: Net income FX aggregation raises when source FX rates are unavailable."""
     account = Account(user_id=test_user_id, name="USD Income", type=AccountType.INCOME, currency="USD")
     db.add(account)
     await db.flush()
@@ -207,6 +208,7 @@ async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test
 
 @pytest.mark.asyncio
 async def test_net_income_sql_detects_missing_fx_map_row() -> None:
+    """AC5.6.7: Net income FX aggregation detects missing FX map row (data consistency)."""
     fake_db = MagicMock()
 
     currency_dates_result = MagicMock()
@@ -234,6 +236,7 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
 
 @pytest.mark.asyncio
 async def test_account_trend_raises_when_prefetched_rate_missing(db: AsyncSession, test_user_id):
+    """AC5.6.8: Account trend raises when prefetched non-base FX rate is missing."""
     account = Account(user_id=test_user_id, name="USD Trend", type=AccountType.ASSET, currency="USD")
     db.add(account)
     await db.flush()
@@ -261,6 +264,7 @@ async def test_account_trend_raises_when_prefetched_rate_missing(db: AsyncSessio
 
 @pytest.mark.asyncio
 async def test_category_breakdown_raises_when_prefetched_rate_missing(db: AsyncSession, test_user_id):
+    """AC5.6.9: Category breakdown raises when prefetched non-base FX rate is missing."""
     expense = Account(user_id=test_user_id, name="USD Expense", type=AccountType.EXPENSE, currency="USD")
     bank = Account(user_id=test_user_id, name="USD Bank", type=AccountType.ASSET, currency="USD")
     db.add_all([expense, bank])
@@ -306,6 +310,7 @@ async def test_category_breakdown_raises_when_prefetched_rate_missing(db: AsyncS
 
 @pytest.mark.asyncio
 async def test_cash_flow_raises_when_start_date_rate_missing(db: AsyncSession, test_user_id):
+    """AC5.6.10: Cash flow raises when start-date non-base FX rate is missing."""
     bank = Account(user_id=test_user_id, name="USD Cash Before", type=AccountType.ASSET, currency="USD")
     offset = Account(user_id=test_user_id, name="USD Equity Before", type=AccountType.EQUITY, currency="USD")
     db.add_all([bank, offset])
@@ -347,6 +352,7 @@ async def test_cash_flow_raises_when_start_date_rate_missing(db: AsyncSession, t
 
 @pytest.mark.asyncio
 async def test_cash_flow_raises_when_end_date_rate_missing(db: AsyncSession, test_user_id):
+    """AC5.6.10 AC5.6.11: Cash flow raises when end-date rate missing; FxRateError propagated."""
     bank = Account(user_id=test_user_id, name="USD Cash During", type=AccountType.ASSET, currency="USD")
     offset = Account(user_id=test_user_id, name="USD Equity During", type=AccountType.EQUITY, currency="USD")
     db.add_all([bank, offset])
