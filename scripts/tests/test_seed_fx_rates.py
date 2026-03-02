@@ -1,18 +1,51 @@
 """Tests for scripts/seed_fx_rates.py"""
-
 import sys
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
+# ---------------------------------------------------------------------------
+# Inject lightweight stubs for heavy backend dependencies BEFORE importing
+# seed_fx_rates, so the test suite works in the CI scripts environment which
+# only installs: pytest, pytest-cov, pyyaml, pydantic, pydantic-settings.
+# (sqlalchemy and the full src.* package tree are NOT available there.)
+# ---------------------------------------------------------------------------
+_settings_stub = SimpleNamespace(database_url="postgresql+asyncpg://localhost/test")
+
+# sqlalchemy stubs (select/delete/FxRate are all mocked out by the tests)
+_sqla_stub = MagicMock()
+for _mod in (
+    "sqlalchemy",
+    "sqlalchemy.ext",
+    "sqlalchemy.ext.asyncio",
+):
+    sys.modules.setdefault(_mod, _sqla_stub)
+
+# src.config stub
+_src_config_stub = MagicMock()
+_src_config_stub.settings = _settings_stub
+sys.modules.setdefault("src", MagicMock())
+sys.modules.setdefault("src.config", _src_config_stub)
+
+# src.models.market_data stub — FxRate needs class-level attribute access
+# (select(FxRate).where(FxRate.rate_date == ...) and FxRate(**kwargs))
+_FxRateStub = MagicMock()
+_FxRateStub.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
+_src_models_stub = MagicMock()
+_src_models_market_data_stub = MagicMock()
+_src_models_market_data_stub.FxRate = _FxRateStub
+sys.modules.setdefault("src.models", _src_models_stub)
+sys.modules.setdefault("src.models.market_data", _src_models_market_data_stub)
+# ---------------------------------------------------------------------------
 SCRIPTS_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
+import seed_fx_rates  # noqa: E402 — must come after sys.modules stubs
 
-import seed_fx_rates
+# Bind settings stub onto the module so patch.object works correctly
+seed_fx_rates.settings = _settings_stub
 
 
 class TestGetDatabaseUrl:
