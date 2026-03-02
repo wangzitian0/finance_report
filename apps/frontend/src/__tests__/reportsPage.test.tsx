@@ -29,4 +29,18 @@ describe("ReportsPage", () => {
     expect(screen.getByText("Liabilities")).toBeInTheDocument()
     expect(screen.getByText("Equity")).toBeInTheDocument()
   })
+
+  it("AC16.23.5 renders SVG icons for report cards (no emoji)", () => {
+    render(<ReportsPage />)
+
+    // Lucide icons replace emoji — no raw emoji text should appear
+    const emojiChars = ["\uD83D\uDCCA", "\uD83D\uDCC8", "\uD83D\uDCB0"]
+    emojiChars.forEach((emoji) => {
+      expect(screen.queryByText(emoji)).toBeNull()
+    })
+
+    // SVG elements are rendered for each report card icon
+    const svgs = document.querySelectorAll("svg")
+    expect(svgs.length).toBeGreaterThanOrEqual(3)
+  })
 })

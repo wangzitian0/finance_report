@@ -136,4 +136,95 @@ describe("AssetsPage", () => {
     expect(showToastMock).toHaveBeenCalledWith("Reconciled 3 positions (1 created, 2 updated, 0 disposed)", "success")
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/assets/positions")))
   })
+
+  it("AC16.23.3 renders portfolio KPI cards when positions are loaded", async () => {
+    mockedApiFetch.mockResolvedValue({
+      items: [
+        {
+          id: "p1",
+          user_id: "u1",
+          account_id: "acc1",
+          account_name: "IBKR",
+          asset_identifier: "AAPL",
+          quantity: "10",
+          cost_basis: "1500",
+          acquisition_date: "2025-01-01",
+          disposal_date: null,
+          status: "active",
+          currency: "USD",
+          created_at: "2025-01-01",
+          updated_at: "2025-01-02",
+        },
+        {
+          id: "p2",
+          user_id: "u1",
+          account_id: "acc1",
+          account_name: "IBKR",
+          asset_identifier: "TSLA",
+          quantity: "5",
+          cost_basis: "900",
+          acquisition_date: "2025-03-01",
+          disposal_date: "2025-11-01",
+          status: "disposed",
+          currency: "USD",
+          created_at: "2025-03-01",
+          updated_at: "2025-11-01",
+        },
+      ],
+      total: 2,
+    } satisfies ManagedPositionListResponse)
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Total Positions")).toBeInTheDocument())
+    expect(screen.getByText("2")).toBeInTheDocument()
+    expect(screen.getByText("Active Holdings")).toBeInTheDocument()
+    expect(screen.getByText("1")).toBeInTheDocument()
+    expect(screen.getByText("Total Cost Basis")).toBeInTheDocument()
+    expect(screen.getByText("Book value (no market price yet)")).toBeInTheDocument()
+  })
+
+  it("AC16.23.4 renders currency allocation breakdown when multiple currencies present", async () => {
+    mockedApiFetch.mockResolvedValue({
+      items: [
+        {
+          id: "p1",
+          user_id: "u1",
+          account_id: "acc1",
+          account_name: "IBKR",
+          asset_identifier: "AAPL",
+          quantity: "10",
+          cost_basis: "1500",
+          acquisition_date: "2025-01-01",
+          disposal_date: null,
+          status: "active",
+          currency: "USD",
+          created_at: "2025-01-01",
+          updated_at: "2025-01-02",
+        },
+        {
+          id: "p3",
+          user_id: "u1",
+          account_id: "acc2",
+          account_name: "MOOMOO",
+          asset_identifier: "9988.HK",
+          quantity: "100",
+          cost_basis: "800",
+          acquisition_date: "2025-06-01",
+          disposal_date: null,
+          status: "active",
+          currency: "HKD",
+          created_at: "2025-06-01",
+          updated_at: "2025-06-02",
+        },
+      ],
+      total: 2,
+    } satisfies ManagedPositionListResponse)
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Allocation by Currency")).toBeInTheDocument())
+    expect(screen.getByText("USD")).toBeInTheDocument()
+    expect(screen.getByText("HKD")).toBeInTheDocument()
+  })
 })

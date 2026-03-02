@@ -2379,6 +2379,31 @@ acs:
     epic_name: two-stage-review-ui
     description: 'All service methods mutating pending_review enforce user_id ownership'
     mandatory: true
+  - id: AC16.23.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Dashboard This Month KPI row shows income, expenses, net from last trend period'
+    mandatory: true
+  - id: AC16.23.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Dashboard This Month KPI cards link to income statement report'
+    mandatory: true
+  - id: AC16.23.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Assets page shows portfolio KPI cards (total positions, active, cost basis) when positions loaded'
+    mandatory: true
+  - id: AC16.23.4
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Assets page shows currency allocation breakdown when multiple currencies present'
+    mandatory: true
+  - id: AC16.23.5
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Reports page renders Lucide SVG icons instead of emoji for all report cards'
+    mandatory: true
   # EPIC-017: portfolio-management
   - id: AC17.1.1
     epic: 17
