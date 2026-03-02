@@ -36,6 +36,8 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | [reporting.md](./reporting.md) | `reporting` | Financial reports, multi-currency consolidation, and calculations |
 | [ai.md](./ai.md) | `ai` | AI advisor prompt policy, context scope, and safety controls |
 | [market_data.md](./market_data.md) | `market_data` | FX rates, stock prices, data sources, and sync schedule |
+| [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Data trust hierarchy — source_type enum, conflict resolution rules, and API contract |
+| [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Cross-cutting `pending_review` state machine for Stage 1 (statement import) and Stage 2 (reconciliation) |
 
 ## 🗺️ Recommended Reading Order
 

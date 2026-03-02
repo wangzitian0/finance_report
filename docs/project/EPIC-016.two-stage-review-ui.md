@@ -614,3 +614,16 @@ Stage 2: Run-Level Review (Consistency Checks)
 | AC16.21.8 | Sankey chart recomputes theme-aware colors when root theme attributes change | ⏳ |
 | AC16.21.9 | Workspace provider restores tabs from storage and persists active workspace updates | ⏳ |
 | AC16.21.10 | Workspace provider handles tab deduplication, removal, and cross-tab storage sync | ⏳ |
+
+### AC16.22 — Confirmation Workflow (cross-cutting `pending_review` state machine)
+
+> See authoritative definition: [docs/ssot/confirmation-workflow.md](../ssot/confirmation-workflow.md)
+
+| AC ID | Description | Test Function | File | Priority |
+|-------|-------------|---------------|------|----------|
+| AC16.22.1 | Stage 1 `pending_review → approved` transition requires balance delta ≤ 0.001 USD | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | P0 |
+| AC16.22.2 | Stage 1 `pending_review → rejected` transition triggers re-parse | `test_reject_statement_triggers_reparse` | `review/test_statement_validation.py` | P0 |
+| AC16.22.3 | Stage 2 `pending_review → accepted` transition blocked when unresolved checks exist | `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | P0 |
+| AC16.22.4 | Journal entry created only on `accepted` transition, never on `pending_review` | `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | P0 |
+| AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
+| AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_wrong_user_id_rejected` | `review/test_review_workflow.py` | P1 |

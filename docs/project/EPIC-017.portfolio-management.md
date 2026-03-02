@@ -229,19 +229,85 @@ Build a **100% self-developed** investment portfolio management system with comp
 
 ---
 
+## 🧪 Test Cases
+
+> **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
+> **Coverage**: See `apps/backend/tests/portfolio/`
+
+### AC17.1: Holdings & P&L Tracking
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.1.1 | Holdings Summary | `test_get_holdings` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.1.2 | FIFO Cost Basis | `test_calculate_realized_pnl_fifo` | `portfolio/test_cost_basis_methods.py` | P0 |
+| AC17.1.3 | LIFO Cost Basis | `test_calculate_realized_pnl_lifo` | `portfolio/test_cost_basis_methods.py` | P0 |
+| AC17.1.4 | Average Cost Basis | `test_calculate_realized_pnl_avgcost` | `portfolio/test_cost_basis_methods.py` | P0 |
+| AC17.1.5 | Unrealized P&L Calculation | `test_calculate_unrealized_pnl` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.1.6 | Manual Price Update | `test_update_market_prices` | `portfolio/test_portfolio_service.py` | P1 |
+
+### AC17.2: Performance Metrics
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.2.1 | XIRR Accuracy (within 0.01% of Excel) | `test_calculate_xirr` | `portfolio/test_performance_metrics.py` | P0 |
+| AC17.2.2 | Time-Weighted Return | `test_calculate_time_weighted_return` | `portfolio/test_performance_metrics.py` | P0 |
+| AC17.2.3 | Money-Weighted Return | `test_calculate_money_weighted_return` | `portfolio/test_performance_metrics.py` | P1 |
+
+### AC17.3: Asset Allocation
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.3.1 | Sector Allocation Breakdown | `test_get_sector_allocation` | `portfolio/test_allocation_service.py` | P1 |
+| AC17.3.2 | Geography Allocation Breakdown | `test_get_geography_allocation` | `portfolio/test_allocation_service.py` | P1 |
+| AC17.3.3 | Asset Class Allocation Breakdown | `test_get_asset_class_allocation` | `portfolio/test_allocation_service.py` | P1 |
+
+### AC17.4: Brokerage Statement Parsing
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_statement` | `portfolio/test_brokerage_parsing.py` | P0 |
+| AC17.4.2 | Futu Statement Parsing | `test_parse_futu_statement` | `portfolio/test_brokerage_parsing.py` | P1 |
+| AC17.4.3 | Interactive Brokers Parsing | `test_parse_interactive_brokers_statement` | `portfolio/test_brokerage_parsing.py` | P1 |
+| AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo` | `portfolio/test_brokerage_parsing.py` | P1 |
+| AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_futu` | `portfolio/test_brokerage_parsing.py` | P1 |
+
+### AC17.5: Investment Accounting (Journal Entries)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.5.1 | Buy Transaction → Journal Entry | `test_process_buy_transaction` | `portfolio/test_brokerage_parsing.py` | P0 |
+| AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `test_process_sell_transaction` | `portfolio/test_brokerage_parsing.py` | P0 |
+| AC17.5.3 | Dividend → Journal Entry → Income Statement | `test_process_dividend_transaction` | `portfolio/test_brokerage_parsing.py` | P0 |
+| AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_balance_sheet` | `portfolio/test_portfolio_service.py` | P0 |
+
+### AC17.6: Integration & End-to-End
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.6.1 | Full Buy/Sell Cycle | `test_end_to_end_buy_sell_cycle` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.6.2 | Dividend Accrual to Income | `test_dividend_accrual_to_income` | `portfolio/test_portfolio_service.py` | P0 |
+
+**Traceability Result**:
+- Total AC IDs: 22
+- Requirements converted to AC IDs: 100% (EPIC-017 Must Have checklist)
+- Requirements with test references: 100%
+- Test files: 4
+
+---
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
 
 | Standard | Verification | Weight |
 |------|----------|------|
-| **XIRR calculation accuracy within 0.01%** | Compare with Excel XIRR (`test_calculate_xirr()`) | 🔴 Critical |
-| **Cost basis methods (FIFO/LIFO/AvgCost) accurate** | Unit tests with mock transactions | 🔴 Critical |
-| **Brokerage statements auto-parsed (Moomoo, Futu, IB)** | Integration tests with fixture PDFs | Required |
-| **Manual price update UI functional** | Manual UI test | Required |
-| **Holdings dashboard shows real-time P&L** | Integration test (price update → dashboard refresh) | Required |
-| **Dividend income → journal entry → income statement** | End-to-end test | Required |
-| **Asset allocation charts accurate** | Unit tests (allocation service) | Required |
+| **XIRR calculation accuracy within 0.01%** | AC17.2.1: `test_calculate_xirr` | 🔴 Critical |
+| **Cost basis methods (FIFO/LIFO/AvgCost) accurate** | AC17.1.2–AC17.1.4 | 🔴 Critical |
+| **Brokerage statements auto-parsed (Moomoo, Futu, IB)** | AC17.4.1–AC17.4.3 | Required |
+| **Manual price update UI functional** | AC17.1.6: `test_update_market_prices` | Required |
+| **Holdings dashboard shows real-time P&L** | AC17.6.1: `test_end_to_end_buy_sell_cycle` | Required |
+| **Dividend income → journal entry → income statement** | AC17.5.3, AC17.6.2 | Required |
+| **Asset allocation charts accurate** | AC17.3.1–AC17.3.3 | Required |
 
 ### 🌟 Nice to Have
 
