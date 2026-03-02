@@ -1160,7 +1160,7 @@ async def test_income_recording(client, test_user):
     entry = entry_resp.json()
     assert entry["status"] == "draft"
     assert len(entry["lines"]) == 2
-    debits = [l for l in entry["lines"] if l["direction"] == "DEBIT"]
+    debits = [line for line in entry["lines"] if line["direction"] == "DEBIT"]
     assert debits[0]["amount"] == "5000.00"
 
 
@@ -1198,7 +1198,7 @@ async def test_credit_card_spend(client, test_user):
     assert entry_resp.status_code == 201
     entry = entry_resp.json()
     assert entry["status"] == "draft"
-    credits = [l for l in entry["lines"] if l["direction"] == "CREDIT"]
+    credits = [line for line in entry["lines"] if line["direction"] == "CREDIT"]
     assert credits[0]["amount"] == "2000.00"
 
 
@@ -1319,8 +1319,8 @@ async def test_split_transaction(client, test_user):
     entry = entry_resp.json()
     assert entry["status"] == "draft"
     assert len(entry["lines"]) == 3
-    debits = [l for l in entry["lines"] if l["direction"] == "DEBIT"]
-    credits = [l for l in entry["lines"] if l["direction"] == "CREDIT"]
+    debits = [line for line in entry["lines"] if line["direction"] == "DEBIT"]
+    credits = [line for line in entry["lines"] if line["direction"] == "CREDIT"]
     assert len(debits) == 2
     assert len(credits) == 1
     assert credits[0]["amount"] == "100.00"
