@@ -68,3 +68,24 @@ def raise_gateway_timeout(detail: str, *, cause: Exception | None = None) -> NoR
         status_code=status.HTTP_504_GATEWAY_TIMEOUT,
         detail=detail,
     ) from cause
+
+
+class BaseAppException(Exception):
+    """Base exception with error_id for structured frontend consumption.
+
+    Attributes:
+        error_id: Machine-readable error identifier for frontend handling.
+        message: Human-readable error description.
+        status_code: HTTP status code this exception maps to.
+    """
+
+    def __init__(
+        self,
+        error_id: str,
+        message: str,
+        status_code: int = 500,
+    ) -> None:
+        super().__init__(message)
+        self.error_id = error_id
+        self.message = message
+        self.status_code = status_code

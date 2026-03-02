@@ -95,3 +95,24 @@ class TestConfigContract:
             "postgresql+asyncpg://" in settings.database_url
             or "sqlite" in settings.database_url  # Allow sqlite for testing
         ), f"Invalid database URL: {settings.database_url}. Expected postgresql+asyncpg:// or sqlite://"
+
+    def test_db_pool_size_config_default(self):
+        """AC12.20.1: Ensure DB_POOL_SIZE has the expected default."""
+        from src.config import settings
+
+        assert hasattr(settings, "db_pool_size")
+        assert settings.db_pool_size == 5
+
+    def test_db_max_overflow_config_default(self):
+        """AC12.20.2: Ensure DB_MAX_OVERFLOW has the expected default."""
+        from src.config import settings
+
+        assert hasattr(settings, "db_pool_max_overflow")
+        assert settings.db_pool_max_overflow == 10
+
+    def test_db_pool_config_positive_integer(self):
+        """AC12.20.3: Ensure pool config values are positive integers."""
+        from src.config import settings
+
+        assert settings.db_pool_size > 0
+        assert settings.db_pool_max_overflow >= 0

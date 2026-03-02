@@ -80,11 +80,11 @@ These scenarios represent the "Vertical Slices" of user value.
 
 ### Phase 2: Manual Journal Entries (11-30)
 - [x] **Simple Expense**: User pays $5.00 for coffee using "Wallet" (Manual Entry). *(test_core_journeys.py::test_simple_expense_entry)*
-- [ ] **Income Recording**: User records $5,000 salary deposit into "DBS Savings".
-- [ ] **Credit Card Spend**: User buys a laptop ($2,000) using "Citi Rewards".
-- [ ] **Credit Card Repayment**: User pays off "Citi Rewards" ($2,000) from "DBS Savings".
-- [ ] **Internal Transfer**: User moves $500 from "DBS Savings" to "Wallet" (ATM Withdrawal).
-- [ ] **Split Transaction**: User spends $100 at supermarket: $80 "Groceries", $20 "Household" (1 Debit, 2 Credits).
+- [x] **Income Recording**: User records $5,000 salary deposit into "DBS Savings". *(test_core_journeys.py::test_income_recording)*
+- [x] **Credit Card Spend**: User buys a laptop ($2,000) using "Citi Rewards". *(test_core_journeys.py::test_credit_card_spend)*
+- [x] **Credit Card Repayment**: User pays off "Citi Rewards" ($2,000) from "DBS Savings". *(test_core_journeys.py::test_credit_card_repayment)*
+- [x] **Internal Transfer**: User moves $500 from "DBS Savings" to "Wallet" (ATM Withdrawal). *(test_core_journeys.py::test_internal_transfer)*
+- [x] **Split Transaction**: User spends $100 at supermarket: $80 "Groceries", $20 "Household" (1 Debit, 2 Credits). *(test_core_journeys.py::test_split_transaction)*
 - [ ] **Refund Processing**: User receives $50 refund to "Citi Rewards" for returned item.
 - [ ] **Foreign Expense (Manual FX)**: User spends 10 USD on "Wise USD", records as 13.50 SGD equivalent.
 - [x] **Void Entry**: User voids a duplicate coffee transaction (System generates reversal). *(test_core_journeys.py::test_void_journal_entry)*
@@ -295,10 +295,20 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.10.8 | User registration flow | `test_traceability_user_registration()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.9 | Authentication validation | `test_traceability_authentication_validation()` | `e2e/test_core_journeys.py` | P0 |
 
+### AC8.11: Phase 2 — Core Financial Journeys
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC8.11.1 | Income Recording | `test_income_recording()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.11.2 | Credit Card Spend | `test_credit_card_spend()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.11.3 | Credit Card Repayment | `test_credit_card_repayment()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.11.4 | Internal Transfer | `test_internal_transfer()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.11.5 | Split Transaction | `test_split_transaction()` | `e2e/test_core_journeys.py` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 49
+- Total AC IDs: 54
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 45/49 (91.8%)**
+- **ACs with passing Tier 1 tests: 50/54 (92.6%)**
 - ACs covered by AC group:
   - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
   - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
@@ -310,9 +320,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.8: 5/5 (100% — health, accounts, journal, reports, recon)
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
-- Test files: 1 fully implemented (`e2e/test_core_journeys.py` — 41 tests), 1 existing (`e2e/test_statement_upload_e2e.py`), 3 Playwright (skip without env)
+  - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
+- Test files: 1 fully implemented (`e2e/test_core_journeys.py` — 46 tests), 1 existing (`e2e/test_statement_upload_e2e.py`), 3 Playwright (skip without env)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 91.8% with 41 Tier 1 tests covering 45/49 ACs
+- **Current state**: 92.6% with 46 Tier 1 tests covering 50/54 ACs
 
 ---
 

@@ -26,10 +26,10 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ### Must Have (P0)
 - [x] Distributed tracing with trace_id in all logs
 - [ ] Service-layer uses `flush()`, router-layer owns `commit()`
-- [ ] Connection pool size configurable via environment
+- [x] Connection pool size configurable via environment
 
 ### Should Have (P1)
-- [ ] Unified `BaseAppException` with error IDs
+- [x] Unified `BaseAppException` with error IDs
 - [ ] API-wide rate limiting (not just auth endpoints)
 - [ ] Metrics endpoint for Prometheus
 
@@ -195,12 +195,29 @@ This EPIC addresses technical debt in the foundational libraries that all module
 |----|-----------|---------------|------|----------|
 | AC12.19.1 | Moon workspace configuration files exist | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | P0 |
 
+### AC12.20: Database - Connection Pool Configuration
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.20.1 | DB_POOL_SIZE config field exists with default | `test_db_pool_size_config_default()` | `infra/test_config_contract.py` | P1 |
+| AC12.20.2 | DB_MAX_OVERFLOW config field exists with default | `test_db_max_overflow_config_default()` | `infra/test_config_contract.py` | P1 |
+| AC12.20.3 | Pool config is positive integer | `test_db_pool_config_positive_integer()` | `infra/test_config_contract.py` | P1 |
+
+### AC12.21: Exceptions - BaseAppException
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.21.1 | BaseAppException has error_id attribute | `test_base_app_exception_has_error_id()` | `infra/test_exceptions.py` | P1 |
+| AC12.21.2 | BaseAppException has status_code attribute | `test_base_app_exception_has_status_code()` | `infra/test_exceptions.py` | P1 |
+| AC12.21.3 | BaseAppException is subclass of Exception | `test_base_app_exception_is_exception()` | `infra/test_exceptions.py` | P1 |
+| AC12.21.4 | BaseAppException can be raised and caught | `test_base_app_exception_raise_and_catch()` | `infra/test_exceptions.py` | P1 |
+
 **Test Coverage Summary**:
-- Total AC IDs: 42
+- Total AC IDs: 49
 - Requirements converted to AC IDs: 100% (EPIC-012 infrastructure work)
 - Requirements with test references: 100%
-- Test files: 3 (`test_logger.py`, `test_config_contract.py`, `test_epic_001_contracts.py`)
-- Overall coverage: Logging and config infrastructure verified
+- Test files: 4 (`test_logger.py`, `test_config_contract.py`, `test_epic_001_contracts.py`, `test_exceptions.py`)
+- Overall coverage: Logging, config infrastructure, pool config, and exception hierarchy verified
 
 ---
 
@@ -269,8 +286,8 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | 0 | Audit & Documentation | ✅ Complete | This EPIC |
 | 1 | Distributed Tracing (H1) | ✅ Complete | Pending |
 | 2 | Transaction Boundaries (H2) | ⏳ Pending | - |
-| 3 | Connection Pool Config (M1) | ⏳ Pending | - |
-| 4 | Exception Hierarchy (M2) | ⏳ Pending | - |
+| 3 | Connection Pool Config (M1) | ✅ Complete | This PR |
+| 4 | Exception Hierarchy (M2) | ✅ Complete | This PR |
 | 5 | Rate Limiting (M3) | ⏳ Pending | - |
 | 6 | Metrics Endpoint (M4) | ⏳ Pending | - |
 

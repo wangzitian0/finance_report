@@ -1118,3 +1118,209 @@ async def test_traceability_authentication_validation(public_client):
         },
     )
     assert resp.status_code in [401, 422]
+
+
+# ---------------------------------------------------------------------------
+# AC8.11: Phase 2 — Core Financial Journeys
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.e2e
+async def test_income_recording(client, test_user):
+    # AC8.11.1: Income Recording
+    # GIVEN a user has an income account and a bank account
+    # WHEN recording $5,000 salary deposit as a journal entry
+    # THEN the entry is created: Debit Bank (ASSET), Credit Salary Income (INCOME)
+    bank_resp = await client.post(
+        "/accounts",
+        json={"name": "DBS Savings Income", "type": "ASSET", "currency": "SGD"},
+    )
+    assert bank_resp.status_code == 201
+    bank_id = bank_resp.json()["id"]
+
+    income_resp = await client.post(
+        "/accounts",
+        json={"name": "Salary Income", "type": "INCOME", "currency": "SGD"},
+    )
+    assert income_resp.status_code == 201
+    income_id = income_resp.json()["id"]
+
+    entry_resp = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": date.today().isoformat(),
+            "memo": "Monthly salary",
+            "lines": [
+                {"account_id": bank_id, "direction": "DEBIT", "amount": "5000.00", "currency": "SGD"},
+                {"account_id": income_id, "direction": "CREDIT", "amount": "5000.00", "currency": "SGD"},
+            ],
+        },
+    )
+    assert entry_resp.status_code == 201
+    entry = entry_resp.json()
+    assert entry["status"] == "draft"
+    assert len(entry["lines"]) == 2
+    debits = [l for l in entry["lines"] if l["direction"] == "DEBIT"]
+    assert debits[0]["amount"] == "5000.00"
+
+
+@pytest.mark.e2e
+async def test_credit_card_spend(client, test_user):
+    # AC8.11.2: Credit Card Spend
+    # GIVEN a user has an expense account and a credit card liability account
+    # WHEN recording a $2,000 laptop purchase on credit card
+    # THEN the entry: Debit Equipment Expense (EXPENSE), Credit Citi Rewards (LIABILITY)
+    expense_resp = await client.post(
+        "/accounts",
+        json={"name": "Equipment", "type": "EXPENSE", "currency": "SGD"},
+    )
+    assert expense_resp.status_code == 201
+    expense_id = expense_resp.json()["id"]
+
+    cc_resp = await client.post(
+        "/accounts",
+        json={"name": "Citi Rewards CC", "type": "LIABILITY", "currency": "SGD"},
+    )
+    assert cc_resp.status_code == 201
+    cc_id = cc_resp.json()["id"]
+
+    entry_resp = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": date.today().isoformat(),
+            "memo": "Laptop purchase on credit card",
+            "lines": [
+                {"account_id": expense_id, "direction": "DEBIT", "amount": "2000.00", "currency": "SGD"},
+                {"account_id": cc_id, "direction": "CREDIT", "amount": "2000.00", "currency": "SGD"},
+            ],
+        },
+    )
+    assert entry_resp.status_code == 201
+    entry = entry_resp.json()
+    assert entry["status"] == "draft"
+    credits = [l for l in entry["lines"] if l["direction"] == "CREDIT"]
+    assert credits[0]["amount"] == "2000.00"
+
+
+@pytest.mark.e2e
+async def test_credit_card_repayment(client, test_user):
+    # AC8.11.3: Credit Card Repayment
+    # GIVEN a user has a bank account and a credit card liability account
+    # WHEN paying off the credit card from bank account
+    # THEN the entry: Debit Citi Rewards CC (LIABILITY), Credit DBS Savings (ASSET)
+    bank_resp = await client.post(
+        "/accounts",
+        json={"name": "DBS Savings Repay", "type": "ASSET", "currency": "SGD"},
+    )
+    assert bank_resp.status_code == 201
+    bank_id = bank_resp.json()["id"]
+
+    cc_resp = await client.post(
+        "/accounts",
+        json={"name": "Citi CC Repay", "type": "LIABILITY", "currency": "SGD"},
+    )
+    assert cc_resp.status_code == 201
+    cc_id = cc_resp.json()["id"]
+
+    entry_resp = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": date.today().isoformat(),
+            "memo": "Credit card repayment",
+            "lines": [
+                {"account_id": cc_id, "direction": "DEBIT", "amount": "2000.00", "currency": "SGD"},
+                {"account_id": bank_id, "direction": "CREDIT", "amount": "2000.00", "currency": "SGD"},
+            ],
+        },
+    )
+    assert entry_resp.status_code == 201
+    entry = entry_resp.json()
+    assert entry["status"] == "draft"
+    assert len(entry["lines"]) == 2
+
+
+@pytest.mark.e2e
+async def test_internal_transfer(client, test_user):
+    # AC8.11.4: Internal Transfer
+    # GIVEN a user has two asset accounts
+    # WHEN moving $500 from DBS Savings to Wallet (ATM withdrawal)
+    # THEN the entry: Debit Wallet (ASSET), Credit DBS Savings (ASSET)
+    savings_resp = await client.post(
+        "/accounts",
+        json={"name": "DBS Savings Transfer", "type": "ASSET", "currency": "SGD"},
+    )
+    assert savings_resp.status_code == 201
+    savings_id = savings_resp.json()["id"]
+
+    wallet_resp = await client.post(
+        "/accounts",
+        json={"name": "Wallet Transfer", "type": "ASSET", "currency": "SGD"},
+    )
+    assert wallet_resp.status_code == 201
+    wallet_id = wallet_resp.json()["id"]
+
+    entry_resp = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": date.today().isoformat(),
+            "memo": "ATM withdrawal to wallet",
+            "lines": [
+                {"account_id": wallet_id, "direction": "DEBIT", "amount": "500.00", "currency": "SGD"},
+                {"account_id": savings_id, "direction": "CREDIT", "amount": "500.00", "currency": "SGD"},
+            ],
+        },
+    )
+    assert entry_resp.status_code == 201
+    entry = entry_resp.json()
+    assert entry["status"] == "draft"
+    assert entry["memo"] == "ATM withdrawal to wallet"
+
+
+@pytest.mark.e2e
+async def test_split_transaction(client, test_user):
+    # AC8.11.5: Split Transaction
+    # GIVEN a user has one asset and two expense accounts
+    # WHEN recording a $100 supermarket trip split: $80 Groceries + $20 Household
+    # THEN the entry: 1 Credit (ASSET $100), 2 Debits (EXPENSE $80 + $20) — all balanced
+    bank_resp = await client.post(
+        "/accounts",
+        json={"name": "Wallet Split", "type": "ASSET", "currency": "SGD"},
+    )
+    assert bank_resp.status_code == 201
+    bank_id = bank_resp.json()["id"]
+
+    groceries_resp = await client.post(
+        "/accounts",
+        json={"name": "Groceries", "type": "EXPENSE", "currency": "SGD"},
+    )
+    assert groceries_resp.status_code == 201
+    groceries_id = groceries_resp.json()["id"]
+
+    household_resp = await client.post(
+        "/accounts",
+        json={"name": "Household", "type": "EXPENSE", "currency": "SGD"},
+    )
+    assert household_resp.status_code == 201
+    household_id = household_resp.json()["id"]
+
+    entry_resp = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": date.today().isoformat(),
+            "memo": "Supermarket — split purchase",
+            "lines": [
+                {"account_id": groceries_id, "direction": "DEBIT", "amount": "80.00", "currency": "SGD"},
+                {"account_id": household_id, "direction": "DEBIT", "amount": "20.00", "currency": "SGD"},
+                {"account_id": bank_id, "direction": "CREDIT", "amount": "100.00", "currency": "SGD"},
+            ],
+        },
+    )
+    assert entry_resp.status_code == 201
+    entry = entry_resp.json()
+    assert entry["status"] == "draft"
+    assert len(entry["lines"]) == 3
+    debits = [l for l in entry["lines"] if l["direction"] == "DEBIT"]
+    credits = [l for l in entry["lines"] if l["direction"] == "CREDIT"]
+    assert len(debits) == 2
+    assert len(credits) == 1
+    assert credits[0]["amount"] == "100.00"
