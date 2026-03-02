@@ -303,13 +303,13 @@ class TestFileSizeLimit:
             )
             return stmt, []
 
-        from src.routers import statements as stmt_router
+        from src.services.extraction import ExtractionService
+        monkeypatch.setattr(ExtractionService, "parse_document", fake_parse)
 
-        monkeypatch.setattr(
-            stmt_router.ExtractionService,
-            "parse_document",
-            fake_parse,
-        )
+
+
+
+
 
         response = await client.post(
             "/statements/upload",

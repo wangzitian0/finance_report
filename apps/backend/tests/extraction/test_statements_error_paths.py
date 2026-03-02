@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.models.statement import BankStatement, BankStatementStatus
-from src.routers.statements import _handle_parse_failure
+from src.services.statement_parsing import handle_parse_failure
 
 
 @pytest.mark.asyncio
@@ -48,7 +48,7 @@ async def test_handle_parse_failure_rollback_fails(db):
     await db.refresh(statement)
 
     with patch.object(db, "rollback", side_effect=SQLAlchemyError("Rollback failed")):
-        await _handle_parse_failure(db=db, statement=statement, message="Test error")
+        await handle_parse_failure(db=db, statement=statement, message="Test error")
 
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.REJECTED
@@ -89,7 +89,7 @@ async def test_handle_parse_failure_statement_not_found(db):
 
     fake_statement = MagicMock()
     fake_statement.id = statement_id
-    await _handle_parse_failure(db=db, statement=fake_statement, message="Test error")
+    await handle_parse_failure(db=db, statement=fake_statement, message="Test error")
 
 
 @pytest.mark.asyncio
@@ -131,4 +131,4 @@ async def test_handle_parse_failure_commit_fails(db):
             raise SQLAlchemyError("Commit failed")
 
     with patch.object(db, "commit", side_effect=failing_commit):
-        await _handle_parse_failure(db=db, statement=statement, message="Test error")
+        await handle_parse_failure(db=db, statement=statement, message="Test error")

@@ -57,13 +57,6 @@ from src.schemas.reporting import (
     IncomeStatementResponse,
     TrendPeriod,
 )
-from src.schemas.user import (
-    UserCreate,
-    UserListResponse,
-    UserResponse,
-    UserUpdate,
-)
-
 from src.schemas.review import (
     BatchApproveRequest,
     BatchRejectRequest,
@@ -71,6 +64,12 @@ from src.schemas.review import (
     ConsistencyCheckResponse,
     ResolveCheckRequest,
     Stage2ReviewQueueResponse,
+)
+from src.schemas.user import (
+    UserCreate,
+    UserListResponse,
+    UserResponse,
+    UserUpdate,
 )
 
 from .extraction import (

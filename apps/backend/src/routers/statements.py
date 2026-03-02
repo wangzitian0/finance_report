@@ -3,8 +3,6 @@
 import asyncio
 import hashlib
 import mimetypes
-import time
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -12,9 +10,7 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
@@ -35,11 +31,17 @@ from src.schemas import (
 )
 from src.schemas.review import (
     BalanceValidationResult,
+    BatchApproveRequest,
+    BatchRejectRequest,
+    ConsistencyCheckListResponse,
+    ConsistencyCheckResponse,
     EditAndApproveRequest,
+    ResolveCheckRequest,
     SetOpeningBalanceRequest,
+    Stage2ReviewQueueResponse,
     StatementReviewResponse,
 )
-from src.services import ExtractionError, ExtractionService, StorageError, StorageService
+from src.services import StorageError, StorageService
 from src.services.consistency_checks import (
     get_pending_checks,
     has_unresolved_checks,
@@ -47,6 +49,7 @@ from src.services.consistency_checks import (
     run_all_consistency_checks,
 )
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
+from src.services.statement_parsing import parse_statement_background
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
     edit_and_approve,
@@ -76,218 +79,12 @@ def _track_task(task: asyncio.Task[None]) -> None:
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
 
 
-# --- Schemas for Two-Stage Review ---
-
-
-class ConsistencyCheckResponse(BaseModel):
-    id: UUID
-    check_type: CheckType
-    status: CheckStatus
-    related_txn_ids: list[str]
-    details: dict
-    severity: str
-    resolved_at: datetime | None = None
-    resolution_note: str | None = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ConsistencyCheckListResponse(BaseModel):
-    items: list[ConsistencyCheckResponse]
-    total: int
-
-
-class ResolveCheckRequest(BaseModel):
-    action: str = Field(..., description="approve, reject, or flag")
-    note: str | None = None
-
-
-class BatchApproveRequest(BaseModel):
-    match_ids: list[UUID] = Field(default_factory=list)
-
-
-class BatchRejectRequest(BaseModel):
-    match_ids: list[UUID] = Field(default_factory=list)
-
-
-class Stage2ReviewQueueResponse(BaseModel):
-    pending_matches: list[dict]
-    consistency_checks: list[ConsistencyCheckResponse]
-    has_unresolved_checks: bool
 
 
 # --- Helper functions ---
 
 
-async def _handle_parse_failure(
-    statement: BankStatement,
-    db: AsyncSession,
-    *,
-    message: str | None,
-) -> None:
-    statement_id = statement.id
-    try:
-        await db.rollback()
-    except Exception as rollback_exc:
-        logger.warning(
-            "Rollback failed during parse failure handling",
-            statement_id=str(statement_id),
-            rollback_error=str(rollback_exc),
-        )
-    try:
-        refreshed = await db.get(BankStatement, statement_id)
-        if refreshed is None:
-            logger.error(
-                "Statement not found after rollback",
-                statement_id=str(statement_id),
-                reason=message,
-            )
-            return
-        refreshed.status = BankStatementStatus.REJECTED
-        refreshed.validation_error = message[:500] if message else message
-        refreshed.confidence_score = 0
-        refreshed.balance_validated = False
-        await db.commit()
-        logger.error("Statement parsing failed", statement_id=str(refreshed.id), reason=message)
-    except Exception as inner_exc:
-        logger.exception(
-            "Failed to mark statement as rejected",
-            statement_id=str(statement_id),
-            original_error=message,
-            inner_error=str(inner_exc),
-        )
 
-
-async def _parse_statement_background(
-    *,
-    statement_id: UUID,
-    filename: str,
-    institution: str | None,
-    user_id: UUID,
-    account_id: UUID | None,
-    file_hash: str,
-    storage_key: str,
-    content: bytes,
-    model: str | None,
-    session_maker: async_sessionmaker[AsyncSession],
-    request_id: str | None = None,
-) -> None:
-    # Bind request_id to context for this background task
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id, statement_id=str(statement_id), task="parse_statement"
-    )
-
-    logger.info("Starting background parsing", filename=filename)
-    start_time = time.perf_counter()
-
-    async with session_maker() as session:
-        statement = await session.get(
-            BankStatement,
-            statement_id,
-            options=[selectinload(BankStatement.transactions)],
-        )
-        if not statement:
-            logger.error("Statement not found in DB for background parsing")
-            return
-
-        async def update_progress(progress: int) -> None:
-            statement.parsing_progress = progress
-            await session.commit()
-
-        await update_progress(5)
-
-        storage = StorageService()
-        file_url = None
-        try:
-            file_url = await run_in_threadpool(storage.generate_presigned_url, key=storage_key, public=True)
-        except StorageError as exc:
-            logger.warning(
-                "Could not generate public presigned URL",
-                error=str(exc),
-                statement_id=str(statement_id),
-            )
-
-        await update_progress(10)
-
-        file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
-        if file_type == "pdf" and not file_url:
-            logger.info(
-                "No public URL available for PDF; will use base64-encoded content",
-                statement_id=str(statement_id),
-            )
-
-        service = ExtractionService()
-        try:
-            await update_progress(20)
-            parsed_statement, transactions = await service.parse_document(
-                file_path=Path(filename),
-                institution=institution,
-                user_id=user_id,
-                file_type=file_type,
-                account_id=account_id,
-                file_content=content,
-                file_hash=file_hash,
-                file_url=file_url,
-                original_filename=filename,
-                force_model=model,
-                db=session,
-            )
-            logger.info(
-                "Background task enqueued for statement parsing",
-                statement_id=str(statement_id),
-                model_to_use=model,
-                will_use_force_model=bool(model),
-                file_type=file_type,
-            )
-            await update_progress(70)
-        except ExtractionError as exc:
-            await _handle_parse_failure(statement, session, message=str(exc))
-            return
-        except Exception as exc:
-            logger.exception("Background parsing failed unexpectedly")
-            await _handle_parse_failure(statement, session, message=f"Parsing failed: {exc}")
-            return
-
-        try:
-            statement.institution = parsed_statement.institution
-            statement.account_last4 = parsed_statement.account_last4
-            statement.currency = parsed_statement.currency
-            statement.period_start = parsed_statement.period_start
-            statement.period_end = parsed_statement.period_end
-            statement.opening_balance = parsed_statement.opening_balance
-            statement.closing_balance = parsed_statement.closing_balance
-            await session.commit()
-
-            await update_progress(80)
-
-            for existing_tx in list(statement.transactions):
-                await session.delete(existing_tx)
-            await session.flush()
-
-            if settings.enable_layer_0_write:
-                for txn in transactions:
-                    txn.statement = statement
-                statement.transactions = list(transactions)
-
-            await update_progress(90)
-
-            statement.confidence_score = parsed_statement.confidence_score
-            statement.balance_validated = parsed_statement.balance_validated
-            statement.validation_error = parsed_statement.validation_error
-            statement.status = parsed_statement.status
-
-            await update_progress(100)
-            duration = time.perf_counter() - start_time
-            logger.info(
-                "Background parsing completed",
-                duration_ms=round(duration * 1000, 2),
-                transactions_count=len(transactions),
-            )
-        except Exception as exc:
-            logger.exception("Failed to finalize statement parsing")
-            await _handle_parse_failure(statement, session, message=f"Finalize failed: {exc}")
 
 
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -395,7 +192,7 @@ async def upload_statement(
         raise_internal_error("Failed to persist statement metadata", cause=exc)
 
     task = asyncio.create_task(
-        _parse_statement_background(
+        parse_statement_background(
             statement_id=statement_id,
             filename=filename,
             institution=institution,
@@ -476,7 +273,7 @@ async def retry_statement_parsing(
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 
     task = asyncio.create_task(
-        _parse_statement_background(
+        parse_statement_background(
             statement_id=statement.id,
             filename=statement.original_filename,
             institution=statement.institution,

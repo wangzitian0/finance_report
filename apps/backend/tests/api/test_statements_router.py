@@ -25,6 +25,7 @@ from fastapi import HTTPException, UploadFile, status
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers import statements as statements_router
 from src.schemas import StatementDecisionRequest
+from src.services import ExtractionError, statement_parsing as statement_parsing_mod
 
 pytestmark = pytest.mark.asyncio
 
@@ -125,7 +126,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -281,7 +282,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
         return statement, [transaction]
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -349,7 +350,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -453,10 +454,10 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
         force_model=None,
         db=None,
     ):
-        raise statements_router.ExtractionError("Failed to parse PDF")
+        raise ExtractionError("Failed to parse PDF")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -577,7 +578,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -670,7 +671,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -697,7 +698,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
     mock_parse = AsyncMock()
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         mock_parse,
     )
@@ -738,7 +739,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -777,10 +778,10 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         force_model=None,
         db=None,
     ):
-        raise statements_router.ExtractionError("Retry failed")
+        raise ExtractionError("Retry failed")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_retry_fail,
     )
@@ -880,7 +881,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
         raise Exception("Fatal background error")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document_fail,
     )
@@ -924,7 +925,7 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
         raise Exception("Fatal background retry error")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document_fail,
     )

@@ -287,10 +287,10 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
             raise StorageError("Presigned fail")
         return func(*args, **kwargs)
 
-    monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
+    monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
     mock_parse = AsyncMock(side_effect=ExtractionError("API key not configured"))
-    monkeypatch.setattr("src.routers.statements.ExtractionService.parse_document", mock_parse)
+    monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
 
     await parse_statement_background(
         statement_id=sid,

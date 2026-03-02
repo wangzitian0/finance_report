@@ -221,7 +221,7 @@ class TestBackgroundTaskDirtyData:
     async def test_background_task_with_dirty_account_last4_succeeds(self, db, monkeypatch):
         """Full background task flow: dirty AI response → sanitized → saved → PARSED/APPROVED."""
         from src.database import create_session_maker_from_db
-    from src.services.statement_parsing import parse_statement_background
+        from src.services.statement_parsing import parse_statement_background
 
         sid = uuid4()
         uid = uuid4()
@@ -256,13 +256,13 @@ class TestBackgroundTaskDirtyData:
             original_filename="test.pdf",
         )
         mock_parse = AsyncMock(return_value=(parsed_stmt, []))
-        monkeypatch.setattr("src.routers.statements.ExtractionService.parse_document", mock_parse)
+        monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
 
         # Mock storage presigned URL
         async def mock_run_in_threadpool(func, *args, **kwargs):
             return "https://example.com/presigned"
 
-        monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
+        monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
         await parse_statement_background(
             statement_id=sid,
@@ -427,7 +427,7 @@ class TestCascadingFailureRecovery:
             handler_called_with = {"statement_id": statement.id, "message": message}
             return await handle_parse_failure(statement, db_session, message=message)
 
-        monkeypatch.setattr("src.routers.statements._handle_parse_failure", spy_handler)
+        monkeypatch.setattr("src.services.statement_parsing.handle_parse_failure", spy_handler)
 
         original_commit = AsyncSession.commit
         fail_next_commit = False
@@ -465,17 +465,17 @@ class TestCascadingFailureRecovery:
             return (parsed_stmt, [])
 
         monkeypatch.setattr(
-            "src.routers.statements.ExtractionService.parse_document",
+            "src.services.extraction.ExtractionService.parse_document",
             parse_then_arm_failure,
         )
 
         async def mock_run_in_threadpool(func, *args, **kwargs):
             return "https://example.com/presigned"
 
-        monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
+        monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
         from src.database import create_session_maker_from_db
-    from src.services.statement_parsing import parse_statement_background
+        from src.services.statement_parsing import parse_statement_background
 
         try:
             await parse_statement_background(

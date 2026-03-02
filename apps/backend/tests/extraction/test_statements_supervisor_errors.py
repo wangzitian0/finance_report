@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from src.database import create_session_maker_from_db
 from src.models.statement import BankStatement, BankStatementStatus
 from src.routers.statements import (
-    _parse_statement_background,
     approve_statement,
     delete_statement,
     get_statement,
@@ -23,7 +22,8 @@ from src.routers.statements import (
     reject_statement,
     retry_statement_parsing,
     upload_statement,
-)
+    )
+from src.services.statement_parsing import parse_statement_background
 from src.schemas import StatementDecisionRequest
 from src.services.statement_parsing_supervisor import (
     run_parsing_supervisor,
@@ -192,7 +192,7 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
 
     # Background parsing not found
     session_maker = create_session_maker_from_db(db)
-    await _parse_statement_background(
+    await parse_statement_background(
         statement_id=uuid4(),
         filename="f",
         institution="i",
@@ -243,7 +243,7 @@ async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_parse_statement_background_error_paths(db, test_user):
+async def test_parse_statement_background_error_paths(db, test_user, monkeypatch):
     """Test background parsing error handlers."""
     sid = uuid4()
     uid = test_user.id
@@ -269,7 +269,7 @@ async def test_parse_statement_background_error_paths(db, test_user):
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.side_effect = StorageError("S3 Fail")
 
-        await _parse_statement_background(
+        await parse_statement_background(
             statement_id=sid,
             filename="f",
             institution="i",
@@ -295,11 +295,11 @@ async def test_parse_statement_background_error_paths(db, test_user):
 
         from src.services.extraction import ExtractionError
 
-        with patch("src.routers.statements.ExtractionService") as mock_ext_cls:
-            mock_ext = mock_ext_cls.return_value
-            mock_ext.parse_document.side_effect = ExtractionError("Parse Fail")
+        mock_parse = AsyncMock(side_effect=ExtractionError("Parse Fail"))
+        monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)
 
-            await _parse_statement_background(
+
+        await parse_statement_background(
                 statement_id=sid,
                 filename="f",
                 institution="i",
@@ -312,9 +312,9 @@ async def test_parse_statement_background_error_paths(db, test_user):
                 session_maker=session_maker,
             )
 
-            await db.refresh(statement)
-            assert statement.status == BankStatementStatus.REJECTED
-            assert "Parse Fail" in statement.validation_error
+        await db.refresh(statement)
+        assert statement.status == BankStatementStatus.REJECTED
+        assert "Parse Fail" in statement.validation_error
 
     # 3. Generic Exception in background
     statement.status = BankStatementStatus.PARSING
@@ -323,11 +323,11 @@ async def test_parse_statement_background_error_paths(db, test_user):
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.return_value = "http://url"
 
-        with patch("src.routers.statements.ExtractionService") as mock_ext_cls:
-            mock_ext = mock_ext_cls.return_value
-            mock_ext.parse_document.side_effect = Exception("Unknown")
+        mock_parse = AsyncMock(side_effect=Exception("Unknown"))
+        monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)
 
-            await _parse_statement_background(
+
+        await parse_statement_background(
                 statement_id=sid,
                 filename="f",
                 institution="i",
@@ -340,9 +340,9 @@ async def test_parse_statement_background_error_paths(db, test_user):
                 session_maker=session_maker,
             )
 
-            await db.refresh(statement)
-            assert statement.status == BankStatementStatus.REJECTED
-            assert "Unknown" in statement.validation_error
+        await db.refresh(statement)
+        assert statement.status == BankStatementStatus.REJECTED
+        assert "Unknown" in statement.validation_error
 
 
 @pytest.mark.asyncio

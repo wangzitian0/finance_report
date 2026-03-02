@@ -279,6 +279,13 @@ This EPIC addresses technical debt in the foundational libraries that all module
 
 ---
 
+### AC12.20: Schemas - Move Inline Schemas to Dedicated Modules
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.20.1 | Move 6 inline schemas from statements router to review module | N/A (mechanical) | N/A | P0 |
+
+
 ## 📊 Progress Tracking
 
 | Phase | Task | Status | PR |
