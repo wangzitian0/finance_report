@@ -185,6 +185,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.10.4 | API error behavior for missing/invalid resources | `test_journal_router_errors.py` suite | `accounting/test_journal_router_errors.py` | P1 |
 
 ### AC2.11: Must-Have Acceptance Criteria Traceability
+| ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
 | AC2.11.4 | Multi-currency requires fx_rate | `test_fx_rate_required_for_non_base_currency()` | `accounting/test_accounting.py` | P0 |
 - Total AC IDs: 52 (AC2.11.1–2.11.3, AC2.11.5–2.11.6 removed as intra-EPIC summary duplicates; traced in AC2.5, AC2.2, AC2.8, AC2.3 respectively)

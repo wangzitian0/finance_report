@@ -43,7 +43,7 @@ def load_registry(registry_path: Path) -> list[AC]:
         print("  Run: python scripts/generate_ac_registry.py", file=sys.stderr)
         sys.exit(1)
 
-    with open(registry_path) as f:
+    with open(registry_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     return [

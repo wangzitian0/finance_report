@@ -11,7 +11,7 @@ OUTPUT_INFRA = "docs/infra_registry.yaml"
 OUTPUT = OUTPUT_FEATURE
 
 # EPIC classification: which EPICs are feature vs infra
-FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16}
+FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17}
 INFRA_EPICS = {7, 9, 10, 12, 14}
 
 # EPIC-016 sub-classification: these AC16.XX.x groups route to infra
