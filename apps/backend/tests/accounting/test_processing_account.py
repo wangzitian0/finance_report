@@ -982,3 +982,72 @@ class TestDescriptionScoringEdgeCases:
 
         score = _score_description_match("Transfer", "   ")
         assert score == 0.0
+
+class TestPairConfidenceEdgeCases:
+    """
+    GIVEN _calculate_pair_confidence is called with edge-case inputs
+    WHEN processing_account_id is None
+    THEN it falls back to finding the first DEBIT line (lines 204-208)
+    """
+
+    def _make_entry(self, lines_data, memo="test"):
+        from types import SimpleNamespace
+        mock_lines = []
+        for acct_id, direction, amount in lines_data:
+            mock_lines.append(SimpleNamespace(account_id=acct_id, direction=direction, amount=amount))
+        return SimpleNamespace(memo=memo, entry_date=date.today(), lines=mock_lines)
+
+    def test_pair_confidence_none_processing_account_id(self):
+        from src.services.processing_account import _calculate_pair_confidence
+
+        acct_a = uuid4()
+        acct_b = uuid4()
+
+        out_entry = self._make_entry([
+            (acct_a, Direction.DEBIT, Decimal("100.00")),
+            (acct_b, Direction.CREDIT, Decimal("100.00")),
+        ])
+        in_entry = self._make_entry([
+            (acct_b, Direction.DEBIT, Decimal("100.00")),
+            (acct_a, Direction.CREDIT, Decimal("100.00")),
+        ])
+
+        score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
+
+        assert score > 0
+        assert breakdown["amount"] == 100.0
+
+    def test_pair_confidence_no_debit_line_fallback(self):
+        from src.services.processing_account import _calculate_pair_confidence
+
+        acct_a = uuid4()
+        acct_b = uuid4()
+
+        out_entry = self._make_entry([
+            (acct_a, Direction.CREDIT, Decimal("100.00")),
+        ])
+        in_entry = self._make_entry([
+            (acct_b, Direction.CREDIT, Decimal("100.00")),
+        ])
+
+        score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
+
+        assert breakdown["amount"] == 100.0
+
+    def test_pair_confidence_no_matching_line_in_in_entry(self):
+        from src.services.processing_account import _calculate_pair_confidence
+
+        acct_a = uuid4()
+        acct_b = uuid4()
+
+        out_entry = self._make_entry([
+            (acct_a, Direction.DEBIT, Decimal("100.00")),
+            (acct_b, Direction.CREDIT, Decimal("100.00")),
+        ])
+        in_entry = self._make_entry([
+            (acct_b, Direction.DEBIT, Decimal("50.00")),
+        ])
+
+        score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
+
+        assert breakdown["amount"] == 0.0

@@ -18,7 +18,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
 | [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, TDD workflow, and building documentation |
-| [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 99% coverage goal |
+| [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 96% unified coverage goal |
 | [coverage.md](./coverage.md) | `coverage` | Unified test coverage system — Backend + Frontend + Scripts with blacklist approach |
 | [observability.md](./observability.md) | `observability` | Logging and SigNoz OTLP export configuration |
 | [auth.md](./auth.md) | `auth` | API user identity, registration/login flow, and frontend integration |

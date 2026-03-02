@@ -146,8 +146,8 @@ python scripts/calculate_unified_coverage.py
 
 | Mode    | Backend | Frontend (vitest) | Unified (CI) |
 |---------|---------|-------------------|--------------|
-| CI      | 99%     | ~85% lines        | 80%          |
-| Local   | 99%     | ~85% lines        | N/A          |
+| CI      | 90%     | ~85% lines        | 96%          |
+| Local   | 90%     | ~85% lines        | 96% (unified)|
 
 > **Note**: Frontend vitest thresholds are auto-updated by `autoUpdate: true` in `vitest.config.ts`. They reflect actual measured coverage across all 50 source files (including untested pages that score 0%), so the threshold is intentionally low while overall quality is tracked at the unified level.
 

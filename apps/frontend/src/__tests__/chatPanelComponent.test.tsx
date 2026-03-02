@@ -86,4 +86,55 @@ describe("ChatPanel", () => {
 
     await waitFor(() => expect(mockedApiDelete).toHaveBeenCalledWith("/api/chat/session/sess-1"))
   })
+
+  it("handles model selection", async () => {
+    render(<ChatPanel variant="page" />)
+    const select = await screen.findByLabelText(/ai model/i) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "model-1" } })
+    expect(select.value).toBe("model-1")
+    expect(localStorage.getItem("ai_chat_model_v1")).toBe("model-1")
+  })
+
+  it("sends message via enter key", async () => {
+    render(<ChatPanel variant="page" />)
+    const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "Hello AI" } })
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false })
+    await waitFor(() => expect(mockedApiStream).toHaveBeenCalled())
+  })
+
+  it("sends message via button", async () => {
+    render(<ChatPanel variant="page" />)
+    const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "Hello AI 2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    await waitFor(() => expect(mockedApiStream).toHaveBeenCalled())
+  })
+
+  it("handles initialPrompt", async () => {
+    render(<ChatPanel variant="page" initialPrompt="Analyze my data" />)
+    await waitFor(() => expect(mockedApiStream).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      body: expect.stringContaining("Analyze my data")
+    })))
+  })
+
+  it("handles missing stream reader", async () => {
+    mockedApiStream.mockResolvedValue({ response: { body: null } as any, sessionId: "sess-3" })
+    render(<ChatPanel variant="page" />)
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "Hello" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    await waitFor(() => expect(screen.getByText("No response stream available.")).toBeInTheDocument())
+  })
+
+  it("handles send message error", async () => {
+    mockedApiStream.mockRejectedValue(new Error("Network Fail"))
+    render(<ChatPanel variant="page" />)
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "Hello" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    await waitFor(() => expect(screen.getAllByText("Network Fail").length).toBeGreaterThan(0))
+  })
 })

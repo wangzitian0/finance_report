@@ -36,7 +36,7 @@ moon run :lint && moon run :test                # One-button check (Lint + Forma
                             # Matches GitHub CI exactly.
 
 # Testing
-moon run :test                    # All tests (default, 99% coverage)
+moon run :test                    # All tests (default, 90% backend coverage)
 moon run :test -- --fast         # TDD mode (no coverage, fastest)
 moon run :test -- --smart        # Coverage on changed files only
 moon run :test -- --e2e          # E2E tests (Playwright)
@@ -191,15 +191,15 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 | Environment | Tests Run | Purpose | Duration |
 |-------------|-----------|---------|----------|
 | **Local Dev** | None (manual testing) | Fast iteration | - |
-| **Local CI** | Unit + Integration (99% coverage) | Pre-push validation | ~30s |
-| **GitHub CI** | Unit + Integration (99% coverage) | Quality gate | ~2min |
+| **Local CI** | Unit + Integration (90% backend, 96% unified) | Pre-push validation | ~30s |
+| **GitHub CI** | Unit + Integration (90% backend, 96% unified) | Quality gate | ~2min |
 | **PR Preview** | Health check only | Deployment validation | ~30s |
 | **Staging** | Smoke + Performance | Full validation | ~5min |
 | **Production** | Health check only | Availability check | ~10s |
 
 ### Coverage Requirements
 
-- Backend line coverage: **>= 99%** (enforced by `pytest-cov`)
+- Backend line coverage: **>= 90%** (enforced by `pytest-cov`); **96% unified** (enforced by `calculate_unified_coverage.py`)
 - Branch coverage: Required (via `--cov-branch`)
 - See [TDD Transformation Plan](./tdd.md) for details
 

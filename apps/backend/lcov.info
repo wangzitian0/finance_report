@@ -1,0 +1,9377 @@
+SF:src/auth.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:14,1
+DA:17,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:38,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:56,1
+LF:24
+LH:24
+FN:17,56,get_current_user_id
+FNDA:1,get_current_user_id
+FNF:1
+FNH:1
+BRDA:23,0,jump to line 24,1
+BRDA:23,0,jump to line 30,1
+BRDA:31,0,jump to line 32,1
+BRDA:31,0,jump to line 38,1
+BRDA:49,0,jump to line 50,1
+BRDA:49,0,jump to line 56,1
+BRF:6
+BRH:6
+end_of_record
+SF:src/boot.py
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:18,1
+DA:19,1
+DA:21,1
+DA:22,1
+DA:24,1
+DA:26,1
+DA:27,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:36,1
+DA:37,1
+DA:41,1
+DA:44,1
+DA:47,1
+DA:48,1
+DA:53,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:62,1
+DA:63,1
+DA:64,1
+DA:67,1
+DA:70,1
+DA:72,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:77,1
+DA:80,1
+DA:81,1
+DA:82,1
+DA:83,1
+DA:84,1
+DA:87,1
+DA:88,1
+DA:92,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:98,1
+DA:100,1
+DA:101,1
+DA:103,1
+DA:104,1
+DA:106,1
+DA:107,1
+DA:109,1
+DA:110,1
+DA:111,1
+DA:114,1
+DA:127,1
+DA:135,1
+DA:136,1
+DA:137,1
+DA:138,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:143,1
+DA:144,1
+DA:146,1
+DA:147,1
+DA:148,1
+DA:149,1
+DA:150,1
+DA:151,1
+DA:152,1
+DA:154,1
+DA:155,1
+DA:156,1
+DA:158,0
+DA:160,1
+DA:162,1
+DA:163,1
+DA:165,1
+DA:167,1
+DA:168,1
+DA:169,1
+DA:170,1
+DA:171,1
+DA:173,1
+DA:174,1
+DA:176,1
+DA:177,1
+DA:178,1
+DA:179,1
+DA:180,1
+DA:181,1
+DA:183,1
+DA:184,1
+DA:186,1
+DA:187,1
+DA:188,1
+DA:190,1
+DA:191,1
+DA:193,1
+DA:194,1
+DA:195,1
+DA:196,1
+DA:198,1
+DA:199,1
+DA:200,1
+DA:202,1
+DA:203,1
+DA:204,1
+DA:205,1
+DA:206,1
+DA:207,1
+DA:208,1
+DA:209,1
+DA:211,1
+DA:212,1
+DA:214,1
+DA:215,1
+DA:217,1
+DA:218,1
+DA:219,1
+DA:220,1
+DA:228,1
+DA:230,1
+DA:231,1
+DA:232,1
+DA:233,1
+DA:234,1
+DA:236,1
+DA:237,1
+DA:239,1
+DA:240,1
+DA:242,1
+DA:244,1
+DA:245,1
+DA:246,1
+DA:247,1
+DA:251,1
+DA:252,1
+DA:253,1
+DA:255,1
+DA:256,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:261,1
+DA:262,1
+DA:264,1
+DA:265,1
+DA:267,1
+DA:269,1
+DA:270,1
+DA:271,1
+DA:280,1
+DA:281,1
+DA:282,1
+DA:284,1
+DA:285,1
+DA:286,1
+DA:294,1
+DA:295,1
+DA:302,1
+DA:303,1
+DA:304,1
+DA:307,1
+DA:308,0
+DA:310,0
+DA:311,0
+DA:312,0
+DA:314,0
+DA:316,0
+DA:317,0
+DA:318,0
+DA:319,0
+DA:320,0
+DA:322,0
+DA:323,0
+DA:324,0
+DA:326,0
+DA:327,0
+LF:188
+LH:172
+FN:48,101,Bootloader.validate
+FNDA:1,Bootloader.validate
+FN:104,160,Bootloader.print_config
+FNDA:1,Bootloader.print_config
+FN:163,171,Bootloader._check_static_config
+FNDA:1,Bootloader._check_static_config
+FN:174,191,Bootloader._check_database
+FNDA:1,Bootloader._check_database
+FN:194,209,Bootloader._check_redis
+FNDA:1,Bootloader._check_redis
+FN:212,234,Bootloader._check_s3
+FNDA:1,Bootloader._check_s3
+FN:237,262,Bootloader._check_openrouter
+FNDA:1,Bootloader._check_openrouter
+FN:265,304,Bootloader._check_vault_secrets
+FNDA:1,Bootloader._check_vault_secrets
+FNF:8
+FNH:8
+BRDA:56,0,jump to line 57,1
+BRDA:56,0,jump to line 62,1
+BRDA:57,0,jump to line 58,1
+BRDA:57,0,jump to line 60,1
+BRDA:62,0,jump to line 63,1
+BRDA:62,0,jump to line 67,1
+BRDA:72,0,jump to line 74,1
+BRDA:72,0,jump to line 80,1
+BRDA:81,0,jump to line 82,1
+BRDA:81,0,jump to line 94,1
+BRDA:82,0,jump to line 83,1
+BRDA:82,0,jump to line 87,1
+BRDA:87,0,jump to line 88,1
+BRDA:87,0,jump to line 92,1
+BRDA:94,0,jump to line 95,1
+BRDA:94,0,jump to line 100,1
+BRDA:95,0,jump to line 96,1
+BRDA:95,0,jump to line 98,1
+BRDA:106,0,jump to line 107,1
+BRDA:106,0,jump to line 109,1
+BRDA:135,0,jump to line 136,1
+BRDA:135,0,jump to line 140,1
+BRDA:137,0,jump to line 135,1
+BRDA:137,0,jump to line 138,1
+BRDA:141,0,jump to line 142,1
+BRDA:141,0,jump to line 146,1
+BRDA:149,0,jump to line 150,1
+BRDA:149,0,jump to line 154,1
+BRDA:151,0,jump to line 149,1
+BRDA:151,0,jump to line 152,1
+BRDA:154,0,jump to line 155,1
+BRDA:154,0,jump to line 158,0
+BRDA:155,0,jump to line 156,1
+BRDA:155,0,jump to line 160,1
+BRDA:195,0,jump to line 196,1
+BRDA:195,0,jump to line 198,1
+BRDA:239,0,jump to line 240,1
+BRDA:239,0,jump to line 242,1
+BRDA:251,0,jump to line 252,1
+BRDA:251,0,jump to line 255,1
+BRDA:269,0,jump to line 270,1
+BRDA:269,0,jump to line 280,1
+BRDA:284,0,jump to line 285,1
+BRDA:284,0,jump to line 294,1
+BRDA:307,0,jump to line 308,0
+BRDA:307,0,exit the module,1
+BRDA:322,0,jump to line 323,-
+BRDA:322,0,jump to line 326,-
+BRF:48
+BRH:44
+end_of_record
+SF:src/config.py
+DA:9,1
+DA:11,1
+DA:12,1
+DA:15,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:24,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:37,1
+DA:38,1
+DA:41,1
+DA:51,1
+DA:64,1
+DA:67,1
+DA:70,1
+DA:71,1
+DA:72,1
+DA:73,1
+DA:77,1
+DA:78,1
+DA:79,1
+DA:80,1
+DA:87,1
+DA:88,1
+DA:89,1
+DA:92,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:100,1
+DA:107,1
+DA:110,1
+DA:113,1
+DA:114,1
+DA:115,1
+DA:116,1
+DA:119,1
+DA:120,1
+DA:123,1
+DA:127,1
+DA:131,1
+DA:137,1
+DA:141,1
+DA:145,1
+DA:151,1
+DA:156,1
+DA:157,1
+DA:159,1
+DA:169,1
+DA:170,1
+DA:172,1
+DA:181,1
+LF:65
+LH:65
+FN:15,21,parse_comma_list
+FNDA:1,parse_comma_list
+FN:24,38,parse_key_value_pairs
+FNDA:1,parse_key_value_pairs
+FN:157,167,Settings.cors_origins
+FNDA:1,Settings.cors_origins
+FN:170,178,Settings.fallback_models
+FNDA:1,Settings.fallback_models
+FNF:4
+FNH:4
+BRDA:17,0,jump to line 18,1
+BRDA:17,0,jump to line 19,1
+BRDA:19,0,jump to line 20,1
+BRDA:19,0,jump to line 21,1
+BRDA:26,0,jump to line 27,1
+BRDA:26,0,jump to line 28,1
+BRDA:29,0,jump to line 30,1
+BRDA:29,0,jump to line 38,1
+BRDA:31,0,jump to line 32,1
+BRDA:31,0,jump to line 33,1
+BRDA:36,0,jump to line 29,1
+BRDA:36,0,jump to line 37,1
+BRF:12
+BRH:12
+end_of_record
+SF:src/constants/error_ids.py
+DA:4,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:28,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:34,1
+DA:37,1
+DA:38,1
+LF:22
+LH:22
+end_of_record
+SF:src/database.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:12,1
+DA:14,1
+DA:17,1
+DA:20,1
+DA:23,1
+DA:29,1
+DA:36,1
+DA:39,1
+DA:51,1
+DA:52,1
+DA:53,1
+DA:56,1
+DA:62,1
+DA:65,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:78,1
+DA:80,1
+DA:81,1
+DA:87,0
+DA:88,1
+DA:90,1
+DA:97,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:102,1
+DA:104,1
+DA:107,1
+DA:113,1
+DA:115,1
+DA:116,1
+LF:38
+LH:37
+FN:39,53,set_test_session_maker
+FNDA:1,set_test_session_maker
+FN:56,62,get_test_session_maker
+FNDA:1,get_test_session_maker
+FN:65,94,create_session_maker_from_db
+FNDA:1,create_session_maker_from_db
+FN:97,104,get_db
+FNDA:1,get_db
+FN:107,116,init_db
+FNDA:1,init_db
+FNF:5
+FNH:5
+BRDA:73,0,jump to line 74,1
+BRDA:73,0,jump to line 75,1
+BRDA:75,0,jump to line 76,1
+BRDA:75,0,jump to line 78,1
+BRDA:80,0,jump to line 81,1
+BRDA:80,0,jump to line 90,1
+BRDA:81,0,jump to line 87,0
+BRDA:81,0,jump to line 88,1
+BRF:8
+BRH:7
+end_of_record
+SF:src/deps.py
+DA:15,1
+DA:16,1
+DA:18,1
+DA:19,1
+DA:21,1
+DA:22,1
+DA:24,1
+DA:25,1
+DA:27,1
+LF:9
+LH:9
+end_of_record
+SF:src/logger.py
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:18,1
+DA:19,1
+DA:20,1
+DA:22,1
+DA:24,1
+DA:25,1
+DA:28,1
+DA:29,1
+DA:38,1
+DA:49,1
+DA:50,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:60,1
+DA:61,1
+DA:64,1
+DA:65,1
+DA:67,1
+DA:69,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:79,1
+DA:81,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:88,1
+DA:94,1
+DA:95,1
+DA:97,1
+DA:98,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:109,1
+DA:110,1
+DA:113,1
+DA:114,1
+DA:115,1
+DA:117,1
+DA:118,1
+DA:119,1
+DA:122,1
+DA:123,1
+DA:124,1
+DA:126,1
+DA:127,1
+DA:128,1
+DA:129,1
+DA:132,1
+DA:133,1
+DA:134,0
+DA:135,0
+DA:143,1
+DA:145,1
+DA:146,1
+DA:149,1
+DA:150,1
+DA:152,1
+DA:153,1
+DA:156,1
+DA:159,1
+DA:161,1
+DA:162,1
+DA:164,1
+DA:170,1
+DA:174,1
+DA:175,1
+DA:177,1
+DA:182,1
+DA:185,1
+DA:187,1
+DA:195,1
+DA:196,1
+DA:220,1
+DA:221,1
+DA:222,1
+DA:224,1
+DA:225,1
+DA:227,1
+DA:228,1
+DA:231,1
+DA:233,1
+DA:234,1
+DA:243,1
+DA:244,1
+DA:266,1
+DA:267,1
+DA:268,1
+DA:270,1
+DA:271,1
+DA:273,1
+DA:274,1
+DA:277,1
+DA:279,1
+DA:280,1
+DA:289,1
+DA:308,1
+DA:309,1
+DA:311,1
+DA:312,1
+DA:313,1
+DA:314,1
+DA:316,1
+DA:317,1
+DA:318,1
+DA:320,1
+DA:321,1
+DA:322,1
+DA:323,1
+DA:329,1
+DA:330,1
+DA:331,1
+DA:332,1
+DA:340,1
+DA:342,1
+DA:343,1
+DA:344,1
+DA:345,1
+DA:347,1
+DA:348,1
+DA:349,1
+DA:351,1
+DA:352,1
+DA:353,1
+DA:354,1
+DA:360,1
+DA:361,1
+DA:362,1
+DA:363,1
+DA:371,1
+DA:373,1
+DA:375,1
+DA:376,1
+DA:377,1
+DA:379,1
+DA:387,1
+DA:410,1
+DA:412,1
+DA:419,1
+DA:420,1
+DA:422,1
+LF:156
+LH:154
+FN:28,35,_build_processors
+FNDA:1,_build_processors
+FN:38,61,_add_trace_context
+FNDA:1,_add_trace_context
+FN:64,69,_select_renderer
+FNDA:1,_select_renderer
+FN:72,76,_build_otlp_logs_endpoint
+FNDA:1,_build_otlp_logs_endpoint
+FN:79,85,_build_otel_resource
+FNDA:1,_build_otel_resource
+FN:88,119,_configure_otel_tracing
+FNDA:1,_configure_otel_tracing
+FN:122,153,_configure_otel_logging
+FNDA:1,_configure_otel_logging
+FN:156,182,configure_logging
+FNDA:1,configure_logging
+FN:185,187,get_logger
+FNDA:1,get_logger
+FN:196,240,log_timing
+FNDA:1,log_timing
+FN:244,286,async_log_timing
+FNDA:1,async_log_timing
+FN:289,379,log_external_api
+FNDA:1,log_external_api
+FN:308,377,log_external_api.decorator
+FNDA:1,log_external_api.decorator
+FN:312,340,log_external_api.decorator.async_wrapper
+FNDA:1,log_external_api.decorator.async_wrapper
+FN:343,371,log_external_api.decorator.sync_wrapper
+FNDA:1,log_external_api.decorator.sync_wrapper
+FN:387,422,log_exception
+FNDA:1,log_exception
+FNF:16
+FNH:16
+BRDA:54,0,jump to line 56,1
+BRDA:54,0,jump to line 61,1
+BRDA:65,0,jump to line 67,1
+BRDA:65,0,jump to line 69,1
+BRDA:74,0,jump to line 75,1
+BRDA:74,0,jump to line 76,1
+BRDA:94,0,jump to line 95,1
+BRDA:94,0,jump to line 97,1
+BRDA:114,0,jump to line 115,1
+BRDA:114,0,jump to line 117,0
+BRDA:123,0,jump to line 124,1
+BRDA:123,0,jump to line 126,1
+BRDA:316,0,jump to line 317,1
+BRDA:316,0,jump to line 320,1
+BRDA:347,0,jump to line 348,1
+BRDA:347,0,jump to line 351,1
+BRDA:375,0,jump to line 376,1
+BRDA:375,0,jump to line 377,1
+BRDA:419,0,jump to line 420,1
+BRDA:419,0,jump to line 422,1
+BRF:20
+BRH:19
+end_of_record
+SF:src/models/account.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:14,1
+DA:20,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:30,1
+DA:38,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:47,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:53,1
+DA:54,1
+LF:30
+LH:30
+FN:53,54,Account.__repr__
+FNDA:1,Account.__repr__
+FNF:1
+FNH:1
+end_of_record
+SF:src/models/base.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:11,1
+DA:14,1
+DA:17,1
+DA:20,1
+DA:23,1
+DA:26,1
+DA:29,1
+LF:12
+LH:12
+end_of_record
+SF:src/models/chat.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:14,1
+DA:17,1
+DA:20,1
+DA:21,1
+DA:24,1
+DA:27,1
+DA:28,1
+DA:29,1
+DA:32,1
+DA:35,1
+DA:37,1
+DA:38,1
+DA:44,1
+DA:46,1
+DA:50,1
+DA:51,1
+DA:54,1
+DA:57,1
+DA:59,1
+DA:65,1
+DA:66,1
+DA:67,1
+DA:68,1
+DA:69,1
+DA:70,1
+DA:74,1
+DA:76,1
+DA:77,1
+LF:36
+LH:36
+FN:50,51,ChatSession.__repr__
+FNDA:1,ChatSession.__repr__
+FN:76,77,ChatMessage.__repr__
+FNDA:1,ChatMessage.__repr__
+FNF:2
+FNH:2
+end_of_record
+SF:src/models/consistency_check.py
+DA:1,1
+DA:2,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:18,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:25,1
+DA:26,1
+DA:28,1
+DA:36,1
+DA:46,1
+DA:48,1
+DA:50,1
+DA:52,1
+DA:53,1
+LF:25
+LH:25
+end_of_record
+SF:src/models/journal.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:20,1
+DA:21,1
+DA:23,1
+DA:24,1
+DA:30,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:39,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:48,1
+DA:51,1
+DA:52,1
+DA:55,1
+DA:62,1
+DA:64,1
+DA:65,1
+DA:66,1
+DA:75,1
+DA:76,1
+DA:86,1
+DA:87,1
+DA:89,1
+DA:93,1
+DA:94,1
+DA:97,1
+DA:105,1
+DA:106,1
+DA:108,1
+DA:111,1
+DA:114,1
+DA:122,1
+DA:123,1
+DA:124,1
+DA:125,1
+DA:126,1
+DA:128,1
+DA:129,1
+DA:131,1
+DA:132,1
+LF:51
+LH:51
+FN:93,94,JournalEntry.__repr__
+FNDA:1,JournalEntry.__repr__
+FN:131,132,JournalLine.__repr__
+FNDA:1,JournalLine.__repr__
+FNF:2
+FNH:2
+end_of_record
+SF:src/models/layer1.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:13,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:22,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:31,1
+DA:45,1
+DA:46,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:52,1
+DA:62,1
+DA:73,1
+DA:79,1
+DA:80,1
+LF:27
+LH:27
+FN:79,80,UploadedDocument.__repr__
+FNDA:1,UploadedDocument.__repr__
+FNF:1
+FNH:1
+end_of_record
+SF:src/models/layer2.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:15,1
+DA:18,1
+DA:19,1
+DA:22,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:34,1
+DA:48,1
+DA:49,1
+DA:51,1
+DA:52,1
+DA:53,1
+DA:61,1
+DA:62,1
+DA:63,1
+DA:65,1
+DA:71,1
+DA:77,1
+DA:78,1
+DA:81,1
+DA:91,1
+DA:92,1
+DA:94,1
+DA:95,1
+DA:98,1
+DA:99,1
+DA:100,1
+DA:103,1
+DA:106,1
+DA:115,1
+DA:116,1
+DA:118,1
+DA:124,1
+DA:130,1
+DA:131,1
+LF:48
+LH:48
+FN:77,78,AtomicTransaction.__repr__
+FNDA:1,AtomicTransaction.__repr__
+FN:130,134,AtomicPosition.__repr__
+FNDA:1,AtomicPosition.__repr__
+FNF:2
+FNH:2
+end_of_record
+SF:src/models/layer3.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:19,1
+DA:20,1
+DA:22,1
+DA:23,1
+DA:31,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:39,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:47,1
+DA:55,1
+DA:56,1
+DA:60,1
+DA:61,1
+DA:62,1
+DA:63,1
+DA:65,1
+DA:74,1
+DA:75,1
+DA:77,1
+DA:83,1
+DA:89,1
+DA:90,1
+DA:93,1
+DA:100,1
+DA:101,1
+DA:103,1
+DA:109,1
+DA:115,1
+DA:121,1
+DA:122,1
+DA:124,1
+DA:134,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:145,1
+DA:148,1
+DA:149,1
+DA:152,1
+DA:155,1
+DA:156,1
+DA:157,1
+DA:160,1
+DA:168,1
+DA:170,1
+DA:176,1
+DA:178,1
+DA:179,1
+DA:182,1
+DA:192,1
+DA:197,1
+DA:203,1
+DA:204,1
+DA:206,1
+DA:216,1
+DA:218,1
+DA:220,1
+LF:67
+LH:67
+end_of_record
+SF:src/models/layer4.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:19,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:27,1
+DA:35,1
+DA:36,1
+DA:38,1
+DA:47,1
+DA:48,1
+DA:50,1
+DA:56,1
+DA:58,1
+DA:64,1
+DA:68,1
+LF:24
+LH:24
+end_of_record
+SF:src/models/market_data.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:16,1
+DA:19,1
+DA:20,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:40,1
+DA:41,1
+LF:20
+LH:20
+FN:40,41,FxRate.__repr__
+FNDA:1,FxRate.__repr__
+FNF:1
+FNH:1
+end_of_record
+SF:src/models/ping_state.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:11,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:23,1
+LF:11
+LH:11
+end_of_record
+SF:src/models/portfolio.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:14,1
+DA:20,1
+DA:23,1
+DA:24,1
+DA:27,1
+DA:35,1
+DA:37,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:47,1
+DA:59,1
+DA:60,0
+DA:63,1
+DA:66,1
+DA:67,1
+DA:70,1
+DA:78,1
+DA:80,1
+DA:81,1
+DA:82,1
+DA:83,1
+DA:85,1
+DA:97,1
+DA:98,0
+LF:34
+LH:32
+FN:59,60,DividendIncome.__repr__
+FNDA:0,DividendIncome.__repr__
+FN:97,98,MarketDataOverride.__repr__
+FNDA:0,MarketDataOverride.__repr__
+FNF:2
+FNH:0
+end_of_record
+SF:src/models/reconciliation.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:19,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:26,1
+DA:29,1
+DA:32,1
+DA:34,1
+DA:39,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:47,1
+DA:55,1
+DA:56,1
+DA:62,1
+DA:66,1
+LF:26
+LH:26
+end_of_record
+SF:src/models/statement.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:14,1
+DA:20,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:30,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:38,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:46,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:55,1
+DA:58,1
+DA:59,1
+DA:61,1
+DA:63,1
+DA:64,1
+DA:65,1
+DA:67,1
+DA:68,1
+DA:69,1
+DA:70,1
+DA:71,1
+DA:72,1
+DA:73,1
+DA:75,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:86,1
+DA:87,1
+DA:97,1
+DA:102,1
+DA:106,1
+DA:111,1
+DA:118,1
+DA:121,1
+DA:123,1
+DA:129,1
+DA:130,1
+DA:131,1
+DA:132,1
+DA:133,1
+DA:134,1
+DA:135,1
+DA:136,1
+DA:145,1
+DA:153,1
+DA:154,1
+DA:156,1
+DA:160,1
+LF:69
+LH:69
+end_of_record
+SF:src/models/user.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:10,1
+DA:13,1
+DA:15,1
+DA:16,1
+DA:17,1
+LF:9
+LH:9
+end_of_record
+SF:src/prompts/ai_advisor.py
+DA:3,1
+DA:5,1
+DA:7,1
+DA:8,1
+DA:11,1
+DA:13,1
+DA:14,1
+LF:7
+LH:7
+FN:11,40,get_ai_advisor_prompt
+FNDA:1,get_ai_advisor_prompt
+FNF:1
+FNH:1
+end_of_record
+SF:src/prompts/statement.py
+DA:3,1
+DA:54,1
+DA:74,1
+DA:153,1
+DA:155,1
+DA:156,1
+DA:157,1
+DA:159,1
+DA:160,1
+DA:161,1
+DA:162,1
+DA:163,1
+DA:164,1
+LF:13
+LH:13
+FN:153,164,get_parsing_prompt
+FNDA:1,get_parsing_prompt
+FNF:1
+FNH:1
+BRDA:156,0,jump to line 157,1
+BRDA:156,0,jump to line 164,1
+BRDA:159,0,jump to line 160,1
+BRDA:159,0,jump to line 164,1
+BRDA:160,0,jump to line 159,1
+BRDA:160,0,jump to line 161,1
+BRF:6
+BRH:6
+end_of_record
+SF:src/rate_limit.py
+DA:19,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:24,1
+DA:26,1
+DA:27,1
+DA:29,1
+DA:32,1
+DA:33,1
+DA:36,1
+DA:37,1
+DA:38,1
+DA:41,1
+DA:42,1
+DA:45,1
+DA:46,1
+DA:49,1
+DA:55,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:61,1
+DA:62,1
+DA:63,1
+DA:64,1
+DA:65,1
+DA:67,1
+DA:69,1
+DA:71,1
+DA:72,1
+DA:73,1
+DA:75,1
+DA:77,1
+DA:79,1
+DA:80,1
+DA:82,1
+DA:84,1
+DA:85,1
+DA:86,1
+DA:87,1
+DA:88,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:98,1
+DA:100,1
+DA:102,1
+DA:103,1
+DA:104,1
+DA:106,1
+DA:107,1
+DA:108,1
+DA:109,1
+DA:111,1
+DA:113,1
+DA:114,1
+DA:115,1
+DA:116,1
+DA:117,1
+DA:119,1
+DA:120,1
+DA:122,1
+DA:123,1
+DA:124,1
+DA:126,1
+DA:127,1
+DA:129,1
+DA:131,1
+DA:132,1
+DA:133,1
+DA:134,1
+DA:135,1
+DA:137,1
+DA:138,1
+DA:139,1
+DA:141,1
+DA:143,1
+DA:144,1
+DA:148,1
+DA:156,1
+LF:85
+LH:85
+FN:55,67,RateLimiter.__init__
+FNDA:1,RateLimiter.__init__
+FN:69,73,RateLimiter.is_allowed
+FNDA:1,RateLimiter.is_allowed
+FN:75,109,RateLimiter._is_allowed_redis
+FNDA:1,RateLimiter._is_allowed_redis
+FN:111,127,RateLimiter._is_allowed_local
+FNDA:1,RateLimiter._is_allowed_local
+FN:129,139,RateLimiter.reset
+FNDA:1,RateLimiter.reset
+FN:141,144,RateLimiter.close
+FNDA:1,RateLimiter.close
+FNF:6
+FNH:6
+BRDA:61,0,jump to line 62,1
+BRDA:61,0,return from function '__init__',1
+BRDA:71,0,jump to line 72,1
+BRDA:71,0,jump to line 73,1
+BRDA:85,0,jump to line 86,1
+BRDA:85,0,jump to line 91,1
+BRDA:87,0,jump to line 88,1
+BRDA:87,0,jump to line 91,0
+BRDA:100,0,jump to line 102,1
+BRDA:100,0,jump to line 106,1
+BRDA:116,0,jump to line 117,1
+BRDA:116,0,jump to line 119,1
+BRDA:122,0,jump to line 123,1
+BRDA:122,0,jump to line 126,1
+BRDA:131,0,jump to line 132,1
+BRDA:131,0,jump to line 137,1
+BRDA:138,0,jump to line 139,1
+BRDA:138,0,jump to the function exit,1
+BRDA:143,0,jump to line 144,1
+BRDA:143,0,return from function 'close',0
+BRF:20
+BRH:18
+end_of_record
+SF:src/routers/accounts.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:17,1
+DA:23,1
+DA:25,1
+DA:26,1
+DA:29,1
+DA:30,1
+DA:35,1
+DA:36,1
+DA:38,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:45,1
+DA:46,1
+DA:59,1
+DA:63,1
+DA:64,1
+DA:65,1
+DA:67,1
+DA:68,1
+DA:69,1
+DA:70,1
+DA:71,1
+DA:72,1
+DA:74,1
+DA:77,1
+DA:78,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:86,1
+DA:87,1
+DA:89,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:96,1
+DA:97,1
+DA:103,1
+DA:104,1
+DA:105,1
+DA:106,1
+DA:107,1
+DA:108,1
+DA:110,1
+DA:112,1
+DA:113,1
+DA:114,1
+DA:117,1
+DA:118,1
+DA:123,1
+DA:124,1
+DA:125,1
+DA:126,1
+DA:127,1
+DA:129,1
+DA:130,1
+DA:131,1
+DA:133,1
+DA:134,1
+LF:67
+LH:67
+FN:30,42,create_account
+FNDA:1,create_account
+FN:46,74,list_accounts
+FNDA:1,list_accounts
+FN:78,93,get_account
+FNDA:1,get_account
+FN:97,114,update_account
+FNDA:1,update_account
+FN:118,134,delete_account
+FNDA:1,delete_account
+FNF:5
+FNH:5
+BRDA:64,0,jump to line 65,1
+BRDA:64,0,jump to line 67,1
+BRDA:68,0,jump to line 69,1
+BRDA:68,0,jump to line 74,1
+BRDA:70,0,jump to line 71,1
+BRDA:70,0,jump to line 72,1
+BRDA:130,0,jump to line 131,1
+BRDA:130,0,jump to line 133,1
+BRF:8
+BRH:8
+end_of_record
+SF:src/routers/ai_models.py
+DA:1,1
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:13,1
+DA:15,1
+DA:16,1
+DA:19,1
+DA:20,1
+DA:24,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:38,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,0
+DA:45,1
+DA:46,1
+DA:47,1
+DA:48,1
+DA:49,1
+DA:51,1
+DA:53,1
+DA:63,1
+LF:30
+LH:29
+FN:20,67,list_models
+FNDA:1,list_models
+FNF:1
+FNH:1
+BRDA:42,0,jump to line 43,1
+BRDA:42,0,jump to line 51,1
+BRDA:43,0,jump to line 44,0
+BRDA:43,0,jump to line 45,1
+BRDA:45,0,jump to line 46,1
+BRDA:45,0,jump to line 47,1
+BRDA:47,0,jump to line 48,1
+BRDA:47,0,jump to line 49,1
+BRF:8
+BRH:7
+end_of_record
+SF:src/routers/assets.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:19,1
+DA:20,1
+DA:22,1
+DA:23,1
+DA:25,1
+DA:28,1
+DA:29,1
+DA:37,1
+DA:45,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:56,1
+DA:57,1
+DA:60,1
+DA:61,1
+DA:67,1
+DA:69,1
+DA:70,1
+DA:71,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:79,1
+DA:80,1
+DA:85,1
+DA:87,1
+DA:88,1
+DA:89,1
+DA:90,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:99,1
+DA:106,1
+DA:116,1
+DA:117,1
+DA:129,1
+DA:136,1
+DA:137,1
+DA:146,1
+DA:147,1
+DA:148,1
+DA:150,1
+LF:61
+LH:61
+FN:29,57,list_positions
+FNDA:1,list_positions
+FN:61,76,get_position
+FNDA:1,get_position
+FN:80,113,reconcile_positions
+FNDA:1,reconcile_positions
+FN:117,159,get_position_depreciation
+FNDA:1,get_position_depreciation
+FNF:4
+FNH:4
+BRDA:50,0,jump to line 51,1
+BRDA:50,0,jump to line 56,1
+BRDA:52,0,jump to line 53,1
+BRDA:52,0,jump to line 54,0
+BRDA:70,0,jump to line 71,1
+BRDA:70,0,jump to line 73,1
+BRDA:74,0,jump to line 75,1
+BRDA:74,0,jump to line 76,0
+BRF:8
+BRH:6
+end_of_record
+SF:src/routers/auth.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:19,1
+DA:20,1
+DA:24,1
+DA:27,1
+DA:33,1
+DA:35,1
+DA:36,1
+DA:38,1
+DA:40,1
+DA:43,1
+DA:45,1
+DA:46,1
+DA:47,1
+DA:48,1
+DA:51,1
+DA:53,1
+DA:54,1
+DA:57,1
+DA:59,1
+DA:62,1
+DA:63,1
+DA:70,1
+DA:77,1
+DA:78,1
+DA:80,1
+DA:81,1
+DA:83,1
+DA:88,1
+DA:89,1
+DA:90,1
+DA:91,0
+DA:93,0
+DA:94,0
+DA:95,1
+DA:98,1
+DA:100,1
+DA:102,1
+DA:111,1
+DA:112,1
+DA:119,1
+DA:125,1
+DA:126,1
+DA:128,1
+DA:129,1
+DA:133,1
+DA:135,1
+DA:142,1
+DA:144,1
+DA:146,1
+DA:155,1
+DA:156,1
+DA:162,1
+DA:163,1
+DA:165,1
+DA:166,1
+DA:168,1
+LF:69
+LH:66
+FN:27,40,_get_client_ip
+FNDA:1,_get_client_ip
+FN:43,48,_check_rate_limit
+FNDA:1,_check_rate_limit
+FN:51,54,hash_password
+FNDA:1,hash_password
+FN:57,59,verify_password
+FNDA:1,verify_password
+FN:63,108,register
+FNDA:1,register
+FN:112,152,login
+FNDA:1,login
+FN:156,174,get_me
+FNDA:1,get_me
+FNF:7
+FNH:7
+BRDA:33,0,jump to line 35,1
+BRDA:33,0,jump to line 40,1
+BRDA:36,0,jump to line 38,1
+BRDA:36,0,jump to line 40,0
+BRDA:47,0,jump to line 48,1
+BRDA:47,0,return from function '_check_rate_limit',1
+BRDA:80,0,jump to line 81,1
+BRDA:80,0,jump to line 83,1
+BRDA:128,0,jump to line 129,1
+BRDA:128,0,jump to line 135,1
+BRDA:165,0,jump to line 166,1
+BRDA:165,0,jump to line 168,1
+BRF:12
+BRH:11
+end_of_record
+SF:src/routers/chat.py
+DA:3,1
+DA:5,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:27,1
+DA:28,1
+DA:31,1
+DA:32,1
+DA:38,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:47,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:61,1
+DA:62,1
+DA:63,1
+DA:64,0
+DA:66,1
+DA:70,1
+DA:71,1
+DA:72,1
+DA:74,1
+DA:77,1
+DA:78,1
+DA:85,1
+DA:87,1
+DA:88,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:98,1
+DA:101,1
+DA:102,1
+DA:103,1
+DA:105,1
+DA:129,1
+DA:136,1
+DA:145,1
+DA:153,1
+DA:154,1
+DA:155,0
+DA:158,1
+DA:159,1
+DA:160,1
+DA:161,1
+DA:162,1
+DA:164,1
+DA:165,1
+DA:166,1
+DA:167,1
+DA:168,1
+DA:173,1
+DA:187,1
+DA:190,1
+DA:191,1
+DA:197,1
+DA:200,1
+DA:201,1
+DA:202,1
+DA:203,1
+DA:204,1
+DA:207,1
+DA:208,1
+DA:213,1
+DA:214,1
+DA:221,1
+DA:228,1
+DA:229,1
+LF:88
+LH:86
+FN:32,74,chat_message
+FNDA:1,chat_message
+FN:78,187,chat_history
+FNDA:1,chat_history
+FN:191,204,delete_session
+FNDA:1,delete_session
+FN:208,229,suggestions
+FNDA:1,suggestions
+FNF:4
+FNH:4
+BRDA:39,0,jump to line 40,1
+BRDA:39,0,jump to line 50,1
+BRDA:42,0,jump to line 43,1
+BRDA:42,0,jump to line 48,1
+BRDA:48,0,jump to line 49,1
+BRDA:48,0,jump to line 50,1
+BRDA:60,0,jump to line 61,1
+BRDA:60,0,jump to line 62,1
+BRDA:62,0,jump to line 63,1
+BRDA:62,0,jump to line 64,0
+BRDA:70,0,jump to line 71,1
+BRDA:70,0,jump to line 74,1
+BRDA:87,0,jump to line 88,1
+BRDA:87,0,jump to line 129,1
+BRDA:95,0,jump to line 96,1
+BRDA:95,0,jump to line 98,1
+BRDA:154,0,jump to line 155,0
+BRDA:154,0,jump to line 158,1
+BRDA:160,0,jump to line 161,1
+BRDA:160,0,jump to line 164,1
+BRDA:164,0,jump to line 165,1
+BRDA:164,0,jump to line 187,1
+BRDA:167,0,jump to line 168,1
+BRDA:167,0,jump to line 173,0
+BRDA:201,0,jump to line 202,1
+BRDA:201,0,jump to line 203,1
+BRF:26
+BRH:23
+end_of_record
+SF:src/routers/journal.py
+DA:1,1
+DA:2,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:16,1
+DA:22,1
+DA:24,1
+DA:27,1
+DA:28,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:47,0
+DA:48,0
+DA:51,1
+DA:52,1
+DA:62,1
+DA:64,1
+DA:65,1
+DA:66,1
+DA:67,1
+DA:68,1
+DA:69,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:77,1
+DA:84,1
+DA:85,1
+DA:87,1
+DA:88,1
+DA:91,1
+DA:92,1
+DA:97,1
+DA:103,1
+DA:105,1
+DA:106,1
+DA:108,1
+DA:111,1
+DA:112,1
+DA:117,1
+DA:118,1
+DA:119,1
+DA:120,1
+DA:121,1
+DA:122,1
+DA:123,1
+DA:126,1
+DA:127,1
+DA:133,1
+DA:134,1
+DA:135,1
+DA:136,1
+DA:137,1
+DA:138,1
+DA:141,1
+DA:142,1
+DA:147,1
+DA:150,1
+DA:152,1
+DA:153,1
+DA:155,1
+DA:156,1
+DA:158,1
+DA:159,1
+LF:72
+LH:70
+FN:28,48,create_entry
+FNDA:1,create_entry
+FN:52,88,list_journal_entries
+FNDA:1,list_journal_entries
+FN:92,108,get_journal_entry
+FNDA:1,get_journal_entry
+FN:112,123,post_entry
+FNDA:1,post_entry
+FN:127,138,void_entry
+FNDA:1,void_entry
+FN:142,159,delete_journal_entry
+FNDA:1,delete_journal_entry
+FNF:6
+FNH:6
+BRDA:64,0,jump to line 65,1
+BRDA:64,0,jump to line 66,1
+BRDA:66,0,jump to line 67,1
+BRDA:66,0,jump to line 68,1
+BRDA:68,0,jump to line 69,1
+BRDA:68,0,jump to line 72,1
+BRDA:105,0,jump to line 106,1
+BRDA:105,0,jump to line 108,1
+BRDA:152,0,jump to line 153,1
+BRDA:152,0,jump to line 155,1
+BRDA:155,0,jump to line 156,1
+BRDA:155,0,jump to line 158,1
+BRF:12
+BRH:12
+end_of_record
+SF:src/routers/portfolio.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:19,1
+DA:22,1
+DA:24,1
+DA:25,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:35,1
+DA:37,1
+DA:38,1
+DA:42,1
+DA:46,1
+DA:47,1
+DA:54,1
+DA:61,1
+DA:62,1
+DA:68,1
+DA:70,1
+DA:72,1
+DA:73,1
+DA:76,1
+DA:77,1
+DA:85,1
+DA:93,1
+DA:94,1
+DA:96,1
+DA:97,1
+DA:98,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:103,1
+DA:104,1
+DA:105,1
+DA:111,1
+DA:112,1
+DA:114,1
+DA:116,1
+DA:117,1
+DA:118,1
+DA:119,1
+DA:120,1
+DA:121,1
+DA:123,1
+DA:124,1
+DA:125,1
+DA:126,1
+DA:127,1
+DA:128,1
+DA:131,1
+DA:132,1
+DA:138,1
+DA:144,1
+DA:150,1
+DA:151,1
+DA:154,1
+DA:155,1
+DA:161,1
+DA:167,1
+DA:173,1
+DA:174,1
+DA:177,1
+DA:178,1
+DA:184,1
+DA:190,1
+DA:196,1
+DA:197,1
+DA:200,1
+DA:201,1
+DA:207,1
+DA:214,1
+DA:224,1
+DA:230,1
+DA:232,1
+DA:233,1
+LF:88
+LH:88
+FN:47,73,get_holdings
+FNDA:1,get_holdings
+FN:77,128,get_performance
+FNDA:1,get_performance
+FN:132,151,get_sector_allocation
+FNDA:1,get_sector_allocation
+FN:155,174,get_geography_allocation
+FNDA:1,get_geography_allocation
+FN:178,197,get_asset_class_allocation
+FNDA:1,get_asset_class_allocation
+FN:201,233,update_prices
+FNDA:1,update_prices
+FNF:6
+FNH:6
+BRDA:103,0,jump to line 104,1
+BRDA:103,0,jump to line 114,1
+BRF:2
+BRH:2
+end_of_record
+SF:src/routers/reconciliation.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:22,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:43,1
+DA:45,1
+DA:46,1
+DA:49,1
+DA:50,1
+DA:53,1
+DA:54,1
+DA:63,1
+DA:69,1
+DA:70,1
+DA:71,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:90,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:98,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:106,1
+DA:108,1
+DA:109,1
+DA:111,1
+DA:117,1
+DA:120,1
+DA:121,1
+DA:126,1
+DA:127,1
+DA:132,1
+DA:133,1
+DA:135,1
+DA:141,1
+DA:143,1
+DA:144,1
+DA:146,1
+DA:153,1
+DA:154,1
+DA:155,1
+DA:156,1
+DA:158,1
+DA:166,1
+DA:167,1
+DA:174,1
+DA:181,1
+DA:182,1
+DA:183,1
+DA:185,1
+DA:186,1
+DA:187,1
+DA:188,1
+DA:197,1
+DA:203,1
+DA:204,1
+DA:205,1
+DA:206,1
+DA:208,1
+DA:211,1
+DA:212,1
+DA:218,1
+DA:219,1
+DA:220,1
+DA:229,1
+DA:236,1
+DA:237,1
+DA:239,1
+DA:242,1
+DA:243,1
+DA:249,1
+DA:250,1
+DA:251,1
+DA:252,1
+DA:253,1
+DA:254,1
+DA:255,0
+DA:256,1
+DA:257,1
+DA:258,1
+DA:265,1
+DA:266,1
+DA:272,1
+DA:273,1
+DA:274,1
+DA:275,1
+DA:276,1
+DA:277,1
+DA:278,0
+DA:279,1
+DA:280,1
+DA:281,1
+DA:288,1
+DA:289,1
+DA:295,1
+DA:296,1
+DA:297,1
+DA:298,1
+DA:300,1
+DA:301,1
+DA:306,1
+DA:307,1
+DA:308,1
+DA:316,1
+DA:319,1
+DA:320,1
+DA:325,1
+DA:328,1
+DA:334,1
+DA:340,1
+DA:347,1
+DA:355,1
+DA:356,1
+DA:357,1
+DA:358,1
+DA:359,1
+DA:361,1
+DA:367,1
+DA:368,1
+DA:369,1
+DA:370,1
+DA:371,1
+DA:372,1
+DA:373,1
+DA:374,1
+DA:375,1
+DA:377,1
+DA:379,1
+DA:381,1
+DA:392,1
+DA:393,1
+DA:400,1
+DA:409,1
+DA:411,1
+DA:417,1
+DA:419,1
+DA:422,1
+DA:423,1
+DA:429,1
+DA:435,1
+DA:436,1
+DA:437,1
+DA:438,1
+DA:439,1
+DA:440,1
+DA:443,1
+DA:444,1
+DA:450,1
+DA:456,1
+DA:457,1
+DA:458,1
+DA:459,1
+DA:460,1
+LF:166
+LH:164
+FN:49,50,_entry_total_amount
+FNDA:1,_entry_total_amount
+FN:53,60,_build_entry_summary
+FNDA:1,_build_entry_summary
+FN:63,87,_build_match_response
+FNDA:1,_build_match_response
+FN:90,117,_load_entry_summaries
+FNDA:1,_load_entry_summaries
+FN:121,163,run_reconciliation
+FNDA:1,run_reconciliation
+FN:167,208,list_matches
+FNDA:1,list_matches
+FN:212,239,pending_review_queue
+FNDA:1,pending_review_queue
+FN:243,262,accept_match
+FNDA:1,accept_match
+FN:266,285,reject_match
+FNDA:1,reject_match
+FN:289,316,batch_accept
+FNDA:1,batch_accept
+FN:320,389,reconciliation_stats
+FNDA:1,reconciliation_stats
+FN:393,419,list_unmatched
+FNDA:1,list_unmatched
+FN:423,440,create_entry
+FNDA:1,create_entry
+FN:444,460,list_anomalies
+FNDA:1,list_anomalies
+FNF:14
+FNH:14
+BRDA:70,0,jump to line 71,1
+BRDA:70,0,jump to line 74,1
+BRDA:72,0,jump to line 70,1
+BRDA:72,0,jump to line 73,1
+BRDA:96,0,jump to line 97,1
+BRDA:96,0,jump to line 108,1
+BRDA:97,0,jump to line 96,1
+BRDA:97,0,jump to line 98,1
+BRDA:108,0,jump to line 109,1
+BRDA:108,0,jump to line 111,1
+BRDA:126,0,jump to line 127,1
+BRDA:126,0,jump to line 135,1
+BRDA:132,0,jump to line 133,1
+BRDA:132,0,jump to line 135,1
+BRDA:153,0,jump to line 154,1
+BRDA:153,0,jump to line 155,1
+BRDA:181,0,jump to line 182,1
+BRDA:181,0,jump to line 183,1
+BRDA:203,0,jump to line 204,1
+BRDA:203,0,jump to line 205,1
+BRDA:253,0,jump to line 254,1
+BRDA:253,0,jump to line 255,0
+BRDA:276,0,jump to line 277,1
+BRDA:276,0,jump to line 278,0
+BRDA:297,0,jump to line 298,1
+BRDA:297,0,jump to line 300,1
+BRDA:369,0,jump to line 370,1
+BRDA:369,0,jump to line 379,1
+BRDA:370,0,jump to line 371,1
+BRDA:370,0,jump to line 372,1
+BRDA:372,0,jump to line 373,1
+BRDA:372,0,jump to line 374,1
+BRDA:374,0,jump to line 375,1
+BRDA:374,0,jump to line 377,1
+BRDA:436,0,jump to line 437,1
+BRDA:436,0,jump to line 438,1
+BRDA:457,0,jump to line 458,1
+BRDA:457,0,jump to line 459,1
+BRF:38
+BRH:36
+end_of_record
+SF:src/routers/reports.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:29,1
+DA:37,1
+DA:39,1
+DA:40,1
+DA:43,1
+DA:44,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:54,1
+DA:55,1
+DA:57,1
+DA:60,1
+DA:63,1
+DA:66,1
+DA:69,1
+DA:70,1
+DA:73,1
+DA:74,1
+DA:81,1
+DA:82,1
+DA:88,1
+DA:89,1
+DA:95,1
+DA:96,1
+DA:99,1
+DA:100,1
+DA:110,1
+DA:111,1
+DA:120,1
+DA:121,1
+DA:128,1
+DA:129,1
+DA:132,1
+DA:133,1
+DA:141,1
+DA:142,1
+DA:149,1
+DA:150,1
+DA:157,1
+DA:158,1
+DA:161,1
+DA:162,1
+DA:170,1
+DA:171,1
+DA:178,1
+DA:179,1
+DA:186,1
+DA:187,1
+DA:190,1
+DA:191,1
+DA:199,1
+DA:200,1
+DA:201,1
+DA:208,1
+DA:209,1
+DA:216,1
+DA:217,1
+DA:220,1
+DA:221,1
+DA:232,1
+DA:233,1
+DA:235,1
+DA:236,1
+DA:237,1
+DA:243,1
+DA:244,1
+DA:249,1
+DA:250,1
+DA:251,1
+DA:252,1
+DA:253,1
+DA:254,1
+DA:255,1
+DA:256,1
+DA:257,1
+DA:258,1
+DA:265,1
+DA:266,1
+DA:267,1
+DA:268,1
+DA:269,1
+DA:270,1
+DA:271,1
+DA:272,1
+DA:274,0
+DA:275,1
+DA:276,1
+DA:281,1
+DA:283,1
+DA:284,1
+DA:285,1
+LF:108
+LH:107
+FN:44,57,get_available_currencies
+FNDA:1,get_available_currencies
+FN:74,96,balance_sheet
+FNDA:1,balance_sheet
+FN:100,129,income_statement
+FNDA:1,income_statement
+FN:133,158,cash_flow
+FNDA:1,cash_flow
+FN:162,187,account_trend
+FNDA:1,account_trend
+FN:191,217,category_breakdown
+FNDA:1,category_breakdown
+FN:221,289,export_report
+FNDA:1,export_report
+FNF:7
+FNH:7
+BRDA:54,0,jump to line 55,1
+BRDA:54,0,jump to line 57,1
+BRDA:236,0,jump to line 237,1
+BRDA:236,0,jump to line 255,1
+BRDA:244,0,jump to line 249,1
+BRDA:244,0,jump to line 251,1
+BRDA:249,0,jump to line 244,1
+BRDA:249,0,jump to line 250,1
+BRDA:255,0,jump to line 256,1
+BRDA:255,0,jump to line 274,0
+BRDA:256,0,jump to line 257,1
+BRDA:256,0,jump to line 258,1
+BRDA:266,0,jump to line 267,1
+BRDA:266,0,jump to line 269,1
+BRDA:267,0,jump to line 266,1
+BRDA:267,0,jump to line 268,1
+BRF:16
+BRH:15
+end_of_record
+SF:src/routers/statements.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:36,1
+DA:42,1
+DA:43,1
+DA:49,1
+DA:50,1
+DA:57,1
+DA:65,1
+DA:67,1
+DA:68,1
+DA:71,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:82,1
+DA:89,1
+DA:90,1
+DA:94,1
+DA:97,1
+DA:102,1
+DA:103,1
+DA:104,1
+DA:107,1
+DA:108,1
+DA:111,1
+DA:112,1
+DA:115,1
+DA:124,1
+DA:130,1
+DA:131,1
+DA:132,1
+DA:133,1
+DA:134,1
+DA:139,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:147,1
+DA:148,1
+DA:149,1
+DA:150,1
+DA:151,1
+DA:152,1
+DA:153,1
+DA:154,1
+DA:155,1
+DA:163,1
+DA:178,1
+DA:182,1
+DA:183,1
+DA:185,1
+DA:186,1
+DA:191,1
+DA:192,1
+DA:193,1
+DA:195,1
+DA:196,1
+DA:197,1
+DA:199,1
+DA:201,1
+DA:202,1
+DA:203,1
+DA:204,1
+DA:205,1
+DA:206,1
+DA:212,1
+DA:214,1
+DA:215,1
+DA:216,1
+DA:221,1
+DA:222,1
+DA:223,1
+DA:224,1
+DA:237,1
+DA:244,1
+DA:245,1
+DA:246,1
+DA:247,1
+DA:248,1
+DA:249,1
+DA:250,1
+DA:251,1
+DA:253,1
+DA:254,1
+DA:255,1
+DA:256,1
+DA:257,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:261,1
+DA:263,1
+DA:265,1
+DA:266,0
+DA:267,1
+DA:269,1
+DA:270,1
+DA:271,1
+DA:272,1
+DA:274,1
+DA:276,1
+DA:277,1
+DA:278,1
+DA:279,1
+DA:281,1
+DA:282,1
+DA:283,1
+DA:288,0
+DA:289,0
+DA:290,0
+DA:293,1
+DA:294,1
+DA:308,1
+DA:309,1
+DA:311,1
+DA:321,1
+DA:322,1
+DA:324,1
+DA:325,1
+DA:326,1
+DA:328,1
+DA:329,1
+DA:332,1
+DA:333,1
+DA:335,1
+DA:336,1
+DA:337,1
+DA:339,1
+DA:340,1
+DA:341,1
+DA:342,1
+DA:343,1
+DA:344,1
+DA:345,1
+DA:346,1
+DA:348,1
+DA:349,1
+DA:351,1
+DA:352,1
+DA:353,1
+DA:359,1
+DA:360,1
+DA:361,1
+DA:363,1
+DA:381,1
+DA:382,1
+DA:383,1
+DA:384,1
+DA:385,1
+DA:386,1
+DA:387,1
+DA:388,1
+DA:389,1
+DA:390,1
+DA:395,1
+DA:397,1
+DA:412,1
+DA:414,1
+DA:417,1
+DA:418,1
+DA:421,1
+DA:422,1
+DA:429,1
+DA:431,1
+DA:437,1
+DA:439,1
+DA:440,1
+DA:442,1
+DA:447,1
+DA:449,1
+DA:451,1
+DA:452,1
+DA:453,1
+DA:454,1
+DA:455,1
+DA:456,1
+DA:457,1
+DA:458,1
+DA:459,1
+DA:462,1
+DA:463,1
+DA:464,1
+DA:465,1
+DA:472,1
+DA:473,1
+DA:474,1
+DA:475,1
+DA:476,1
+DA:478,1
+DA:493,1
+DA:496,1
+DA:499,1
+DA:501,1
+DA:504,1
+DA:505,1
+DA:510,1
+DA:516,1
+DA:518,1
+DA:521,1
+DA:523,1
+DA:529,1
+DA:530,1
+DA:535,1
+DA:544,1
+DA:546,1
+DA:554,1
+DA:556,1
+DA:562,1
+DA:563,1
+DA:569,1
+DA:575,1
+DA:577,1
+DA:578,1
+DA:580,1
+DA:583,1
+DA:584,1
+DA:590,1
+DA:596,1
+DA:598,1
+DA:599,1
+DA:601,1
+DA:602,1
+DA:605,1
+DA:606,1
+DA:613,1
+DA:619,1
+DA:621,1
+DA:622,1
+DA:624,1
+DA:625,1
+DA:626,1
+DA:628,1
+DA:630,1
+DA:633,1
+DA:634,1
+DA:637,1
+DA:638,1
+DA:645,1
+DA:651,1
+DA:653,1
+DA:654,1
+DA:656,1
+DA:657,1
+DA:658,1
+DA:660,1
+DA:662,1
+DA:665,1
+DA:666,1
+DA:669,1
+DA:670,1
+DA:676,1
+DA:679,1
+DA:681,1
+DA:682,1
+DA:685,1
+DA:686,1
+DA:687,1
+DA:688,1
+DA:689,1
+DA:690,1
+DA:698,1
+DA:699,1
+DA:705,1
+DA:706,1
+DA:712,1
+DA:718,1
+DA:720,1
+DA:721,1
+DA:723,1
+DA:724,1
+DA:725,1
+DA:726,1
+DA:727,1
+DA:728,1
+DA:734,1
+DA:736,1
+DA:751,1
+DA:754,1
+DA:755,1
+DA:761,1
+DA:762,1
+DA:763,1
+DA:764,1
+DA:765,1
+DA:767,1
+DA:770,1
+DA:771,1
+DA:774,1
+DA:775,1
+DA:782,1
+DA:783,1
+DA:784,1
+DA:785,1
+DA:786,1
+DA:788,1
+DA:791,1
+DA:792,1
+DA:795,1
+DA:796,1
+DA:803,1
+DA:804,1
+DA:805,1
+DA:806,1
+DA:807,1
+DA:808,1
+DA:810,1
+DA:813,1
+DA:814,1
+DA:817,1
+DA:818,1
+DA:825,1
+DA:826,1
+DA:827,1
+DA:828,1
+DA:829,1
+DA:831,1
+DA:834,1
+DA:835,1
+DA:838,1
+DA:839,1
+DA:844,1
+DA:854,1
+DA:855,1
+DA:856,1
+DA:865,1
+DA:867,1
+DA:874,1
+DA:875,1
+DA:881,1
+DA:884,1
+DA:885,1
+DA:886,1
+DA:888,1
+DA:889,1
+DA:891,1
+DA:897,1
+DA:898,1
+DA:905,1
+DA:906,1
+DA:907,1
+DA:908,1
+DA:909,1
+DA:911,1
+DA:914,1
+DA:915,1
+DA:924,1
+DA:932,1
+DA:934,1
+DA:935,1
+DA:936,1
+DA:937,1
+DA:938,1
+DA:939,1
+DA:941,1
+DA:942,1
+DA:944,1
+DA:945,1
+DA:947,1
+DA:953,1
+DA:954,1
+DA:960,1
+DA:961,1
+DA:967,1
+DA:968,1
+DA:970,1
+DA:980,1
+DA:982,1
+DA:983,1
+DA:984,1
+DA:985,1
+DA:986,1
+DA:988,1
+DA:990,1
+DA:996,1
+DA:997,1
+DA:1003,1
+DA:1004,1
+DA:1006,1
+DA:1016,1
+DA:1018,1
+DA:1019,1
+DA:1020,1
+DA:1021,1
+DA:1022,1
+DA:1024,1
+DA:1026,1
+DA:1032,1
+DA:1034,1
+DA:1035,1
+LF:412
+LH:408
+FN:74,76,_track_task
+FNDA:1,_track_task
+FN:124,160,_handle_parse_failure
+FNDA:1,_handle_parse_failure
+FN:163,290,_parse_statement_background
+FNDA:1,_parse_statement_background
+FN:195,197,_parse_statement_background.update_progress
+FNDA:1,_parse_statement_background.update_progress
+FN:294,418,upload_statement
+FNDA:1,upload_statement
+FN:422,501,retry_statement_parsing
+FNDA:1,retry_statement_parsing
+FN:505,526,list_statements
+FNDA:1,list_statements
+FN:530,559,list_pending_review
+FNDA:1,list_pending_review
+FN:563,580,get_statement
+FNDA:1,get_statement
+FN:584,602,list_statement_transactions
+FNDA:1,list_statement_transactions
+FN:606,634,approve_statement
+FNDA:1,approve_statement
+FN:638,666,reject_statement
+FNDA:1,reject_statement
+FN:670,699,delete_statement
+FNDA:1,delete_statement
+FN:706,751,get_statement_for_review
+FNDA:1,get_statement_for_review
+FN:755,771,approve_statement_stage1
+FNDA:1,approve_statement_stage1
+FN:775,792,reject_statement_stage1
+FNDA:1,reject_statement_stage1
+FN:796,814,edit_and_approve_statement
+FNDA:1,edit_and_approve_statement
+FN:818,835,set_statement_opening_balance
+FNDA:1,set_statement_opening_balance
+FN:839,871,get_stage2_review_queue
+FNDA:1,get_stage2_review_queue
+FN:875,894,run_stage2_checks
+FNDA:1,run_stage2_checks
+FN:898,911,resolve_consistency_check
+FNDA:1,resolve_consistency_check
+FN:915,950,list_consistency_checks
+FNDA:1,list_consistency_checks
+FN:954,993,batch_approve_matches
+FNDA:1,batch_approve_matches
+FN:997,1029,batch_reject_matches
+FNDA:1,batch_reject_matches
+FN:1032,1035,wait_for_parse_tasks
+FNDA:1,wait_for_parse_tasks
+FNF:25
+FNH:25
+BRDA:141,0,jump to line 142,1
+BRDA:141,0,jump to line 148,1
+BRDA:191,0,jump to line 192,1
+BRDA:191,0,jump to line 195,1
+BRDA:215,0,jump to line 216,1
+BRDA:215,0,jump to line 221,1
+BRDA:265,0,jump to line 266,0
+BRDA:265,0,jump to line 267,1
+BRDA:269,0,jump to line 270,1
+BRDA:269,0,jump to line 274,0
+BRDA:270,0,jump to line 271,1
+BRDA:270,0,jump to line 272,1
+BRDA:321,0,jump to line 322,1
+BRDA:321,0,jump to line 324,1
+BRDA:325,0,jump to line 326,1
+BRDA:325,0,jump to line 328,1
+BRDA:332,0,jump to line 333,1
+BRDA:332,0,jump to line 335,1
+BRDA:335,0,jump to line 336,1
+BRDA:335,0,jump to line 348,0
+BRDA:336,0,jump to line 337,1
+BRDA:336,0,jump to line 339,1
+BRDA:343,0,jump to line 344,1
+BRDA:343,0,jump to line 345,1
+BRDA:345,0,jump to line 346,1
+BRDA:345,0,jump to line 348,1
+BRDA:439,0,jump to line 440,1
+BRDA:439,0,jump to line 442,1
+BRDA:442,0,jump to line 447,1
+BRDA:442,0,jump to line 449,1
+BRDA:451,0,jump to line 452,1
+BRDA:451,0,jump to line 462,1
+BRDA:456,0,jump to line 457,1
+BRDA:456,0,jump to line 458,1
+BRDA:458,0,jump to line 459,1
+BRDA:458,0,jump to line 462,1
+BRDA:577,0,jump to line 578,1
+BRDA:577,0,jump to line 580,1
+BRDA:598,0,jump to line 599,1
+BRDA:598,0,jump to line 601,1
+BRDA:621,0,jump to line 622,1
+BRDA:621,0,jump to line 624,1
+BRDA:625,0,jump to line 626,1
+BRDA:625,0,jump to line 628,0
+BRDA:653,0,jump to line 654,1
+BRDA:653,0,jump to line 656,1
+BRDA:657,0,jump to line 658,1
+BRDA:657,0,jump to line 660,0
+BRDA:681,0,jump to line 682,1
+BRDA:681,0,jump to line 685,1
+BRDA:685,0,jump to line 686,1
+BRDA:685,0,jump to line 698,0
+BRDA:720,0,jump to line 721,1
+BRDA:720,0,jump to line 723,1
+BRDA:855,0,jump to line 856,1
+BRDA:855,0,jump to line 865,1
+BRDA:885,0,jump to line 886,1
+BRDA:885,0,jump to line 888,1
+BRDA:934,0,jump to line 935,1
+BRDA:934,0,jump to line 937,1
+BRDA:937,0,jump to line 938,1
+BRDA:937,0,jump to line 941,1
+BRDA:960,0,jump to line 961,1
+BRDA:960,0,jump to line 967,1
+BRDA:967,0,jump to line 968,1
+BRDA:967,0,jump to line 970,1
+BRDA:983,0,jump to line 984,1
+BRDA:983,0,jump to line 988,1
+BRDA:1003,0,jump to line 1004,1
+BRDA:1003,0,jump to line 1006,1
+BRDA:1019,0,jump to line 1020,1
+BRDA:1019,0,jump to line 1024,1
+BRDA:1034,0,jump to line 1035,1
+BRDA:1034,0,return from function 'wait_for_parse_tasks',1
+BRF:74
+BRH:68
+end_of_record
+SF:src/routers/users.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:14,1
+DA:16,1
+DA:19,1
+DA:21,1
+DA:22,1
+DA:25,1
+DA:27,0
+DA:30,1
+DA:31,1
+DA:36,1
+DA:37,1
+DA:39,1
+DA:40,1
+DA:42,1
+DA:46,1
+DA:47,1
+DA:48,1
+DA:50,1
+DA:53,1
+DA:54,1
+DA:60,1
+DA:61,1
+DA:63,1
+DA:64,1
+DA:66,1
+DA:72,1
+DA:73,1
+DA:78,1
+DA:79,1
+DA:81,1
+DA:82,1
+DA:84,1
+DA:87,1
+DA:88,1
+DA:94,1
+DA:95,1
+DA:97,1
+DA:98,1
+DA:100,1
+DA:101,1
+DA:102,1
+DA:103,1
+DA:104,1
+DA:105,1
+DA:107,1
+DA:108,1
+DA:110,1
+LF:55
+LH:54
+FN:19,22,hash_password
+FNDA:1,hash_password
+FN:25,27,get_current_user_id
+FNDA:0,get_current_user_id
+FN:31,50,create_user
+FNDA:1,create_user
+FN:54,69,list_users
+FNDA:1,list_users
+FN:73,84,get_user
+FNDA:1,get_user
+FN:88,110,update_user
+FNDA:1,update_user
+FNF:6
+FNH:5
+BRDA:39,0,jump to line 40,1
+BRDA:39,0,jump to line 42,1
+BRDA:81,0,jump to line 82,1
+BRDA:81,0,jump to line 84,1
+BRDA:97,0,jump to line 98,1
+BRDA:97,0,jump to line 100,1
+BRDA:100,0,jump to line 101,1
+BRDA:100,0,jump to line 107,0
+BRDA:103,0,jump to line 104,1
+BRDA:103,0,jump to line 105,1
+BRF:10
+BRH:9
+end_of_record
+SF:src/schemas/account.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:14,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:25,1
+DA:28,1
+DA:31,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:37,1
+DA:38,1
+DA:41,1
+DA:48,1
+DA:53,1
+LF:22
+LH:22
+end_of_record
+SF:src/schemas/ai_models.py
+DA:3,1
+DA:5,1
+DA:7,1
+DA:10,1
+DA:13,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:21,1
+DA:24,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:31,1
+DA:34,1
+DA:35,1
+DA:36,1
+LF:19
+LH:19
+end_of_record
+SF:src/schemas/assets.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:14,1
+DA:24,1
+DA:27,1
+DA:32,1
+DA:35,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:46,1
+DA:59,1
+LF:19
+LH:19
+end_of_record
+SF:src/schemas/auth.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:10,1
+DA:15,1
+DA:18,1
+DA:25,1
+DA:30,1
+DA:33,1
+DA:35,1
+LF:11
+LH:11
+end_of_record
+SF:src/schemas/base.py
+DA:3,1
+DA:5,1
+DA:7,1
+DA:10,1
+DA:13,1
+DA:16,1
+LF:6
+LH:6
+end_of_record
+SF:src/schemas/chat.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:10,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:18,1
+DA:21,1
+DA:22,1
+DA:25,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:33,1
+DA:36,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:48,1
+DA:56,1
+DA:65,1
+DA:66,1
+DA:67,1
+DA:70,1
+DA:76,1
+LF:27
+LH:27
+end_of_record
+SF:src/schemas/extraction.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:9,1
+DA:14,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:25,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:33,1
+DA:36,1
+DA:39,1
+DA:42,1
+DA:47,1
+DA:50,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:65,1
+DA:75,1
+DA:76,1
+DA:84,1
+DA:87,1
+DA:104,1
+DA:109,1
+DA:111,1
+DA:114,1
+DA:117,1
+DA:120,1
+LF:37
+LH:37
+end_of_record
+SF:src/schemas/journal.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:14,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:23,1
+DA:26,1
+DA:29,1
+DA:32,1
+DA:41,1
+DA:46,1
+DA:47,1
+DA:50,1
+DA:55,1
+DA:56,1
+DA:58,1
+DA:59,1
+DA:61,1
+DA:62,1
+DA:64,1
+DA:67,1
+DA:73,1
+DA:74,1
+DA:80,1
+DA:83,1
+LF:31
+LH:31
+FN:56,64,JournalEntryCreate.validate_balanced
+FNDA:1,JournalEntryCreate.validate_balanced
+FNF:1
+FNH:1
+BRDA:61,0,jump to line 62,1
+BRDA:61,0,jump to line 64,1
+BRF:2
+BRH:2
+end_of_record
+SF:src/schemas/ping.py
+DA:3,1
+DA:5,1
+DA:8,1
+DA:13,1
+DA:15,1
+LF:5
+LH:5
+end_of_record
+SF:src/schemas/portfolio.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:14,1
+DA:28,1
+DA:30,1
+DA:32,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:39,1
+DA:50,1
+DA:62,1
+DA:71,1
+DA:81,1
+DA:84,1
+DA:101,1
+DA:102,1
+DA:103,1
+LF:23
+LH:23
+end_of_record
+SF:src/schemas/reconciliation.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:14,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:24,1
+DA:27,1
+DA:39,1
+DA:49,1
+DA:52,1
+DA:64,1
+DA:65,1
+DA:68,1
+DA:71,1
+DA:74,1
+DA:75,1
+DA:78,1
+DA:87,1
+DA:93,1
+DA:105,1
+DA:108,1
+LF:29
+LH:29
+end_of_record
+SF:src/schemas/reporting.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:10,1
+DA:13,1
+DA:19,1
+DA:23,1
+DA:27,1
+DA:38,1
+DA:48,1
+DA:53,1
+DA:62,1
+DA:65,1
+DA:66,1
+DA:67,1
+DA:70,1
+DA:78,1
+DA:82,1
+DA:87,1
+DA:90,1
+DA:91,1
+DA:92,1
+DA:95,1
+DA:98,1
+DA:99,1
+DA:102,1
+DA:110,1
+DA:114,1
+DA:120,1
+DA:126,1
+DA:129,1
+DA:140,1
+DA:145,1
+LF:35
+LH:35
+end_of_record
+SF:src/schemas/review.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:16,1
+DA:19,1
+DA:30,1
+DA:45,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:54,1
+DA:55,1
+DA:57,1
+DA:60,1
+DA:62,1
+DA:63,1
+DA:64,1
+DA:65,1
+DA:66,1
+DA:69,1
+DA:70,1
+DA:73,1
+DA:74,1
+DA:77,1
+DA:82,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:86,1
+DA:88,1
+LF:34
+LH:34
+end_of_record
+SF:src/schemas/user.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:9,1
+DA:12,1
+DA:18,1
+DA:24,1
+DA:27,1
+DA:30,1
+DA:37,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:48,1
+LF:18
+LH:18
+FN:41,45,UserResponse.ensure_timezone_aware
+FNDA:1,UserResponse.ensure_timezone_aware
+FNF:1
+FNH:1
+BRDA:43,0,jump to line 44,1
+BRDA:43,0,jump to line 45,1
+BRF:2
+BRH:2
+end_of_record
+SF:src/security.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:20,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:27,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:41,1
+LF:24
+LH:24
+FN:14,24,create_access_token
+FNDA:1,create_access_token
+FN:27,41,decode_access_token
+FNDA:1,decode_access_token
+FNF:2
+FNH:2
+BRDA:17,0,jump to line 18,1
+BRDA:17,0,jump to line 20,1
+BRF:2
+BRH:2
+end_of_record
+SF:src/services/account_service.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:12,1
+DA:16,1
+DA:20,1
+DA:21,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:36,1
+DA:38,1
+DA:45,1
+DA:47,1
+DA:49,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:62,1
+DA:65,1
+DA:73,1
+DA:74,1
+DA:77,1
+DA:78,1
+DA:79,1
+DA:80,1
+DA:82,1
+DA:83,1
+DA:84,1
+DA:86,1
+DA:87,1
+DA:88,1
+DA:90,1
+DA:93,1
+DA:94,1
+DA:95,1
+DA:97,1
+DA:98,1
+DA:100,1
+DA:103,1
+DA:104,1
+DA:105,1
+DA:107,1
+DA:108,1
+DA:109,1
+DA:111,1
+DA:112,1
+DA:114,1
+LF:51
+LH:51
+FN:20,33,create_account
+FNDA:1,create_account
+FN:36,62,get_or_create_processing_account
+FNDA:1,get_or_create_processing_account
+FN:65,90,list_accounts
+FNDA:1,list_accounts
+FN:93,100,get_account
+FNDA:1,get_account
+FN:103,114,update_account
+FNDA:1,update_account
+FNF:5
+FNH:5
+BRDA:47,0,jump to line 49,1
+BRDA:47,0,jump to line 62,1
+BRDA:77,0,jump to line 78,1
+BRDA:77,0,jump to line 79,1
+BRDA:79,0,jump to line 80,1
+BRDA:79,0,jump to line 82,1
+BRDA:97,0,jump to line 98,1
+BRDA:97,0,jump to line 100,1
+BRDA:107,0,jump to line 108,1
+BRDA:107,0,jump to line 111,1
+BRDA:108,0,jump to line 107,0
+BRDA:108,0,jump to line 109,1
+BRF:12
+BRH:11
+end_of_record
+SF:src/services/accounting.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:23,1
+DA:26,1
+DA:29,1
+DA:32,1
+DA:35,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:47,1
+DA:57,1
+DA:58,1
+DA:60,1
+DA:61,1
+DA:63,1
+DA:64,1
+DA:67,1
+DA:85,1
+DA:86,1
+DA:87,1
+DA:88,1
+DA:89,1
+DA:90,1
+DA:94,1
+DA:103,1
+DA:112,1
+DA:113,1
+DA:115,1
+DA:116,1
+DA:119,1
+DA:124,1
+DA:125,1
+DA:127,1
+DA:130,1
+DA:140,1
+DA:141,1
+DA:143,1
+DA:144,1
+DA:166,1
+DA:167,1
+DA:169,1
+DA:170,1
+DA:171,1
+DA:172,1
+DA:173,1
+DA:175,1
+DA:177,1
+DA:180,1
+DA:194,1
+DA:195,1
+DA:197,1
+DA:199,1
+DA:207,1
+DA:208,1
+DA:210,1
+DA:211,1
+DA:219,1
+DA:222,1
+DA:231,1
+DA:238,1
+DA:239,1
+DA:241,1
+DA:242,1
+DA:243,1
+DA:253,1
+DA:255,1
+DA:257,1
+DA:258,1
+DA:260,1
+DA:261,1
+DA:262,1
+DA:265,1
+DA:280,1
+DA:285,1
+DA:287,1
+DA:288,1
+DA:289,1
+DA:290,1
+DA:291,1
+DA:292,1
+DA:294,1
+DA:295,1
+DA:299,1
+DA:300,1
+DA:301,1
+DA:302,1
+DA:307,1
+DA:308,1
+DA:309,1
+DA:311,1
+DA:312,1
+DA:313,1
+DA:314,1
+DA:316,1
+DA:319,1
+DA:336,1
+DA:337,1
+DA:339,1
+DA:340,1
+DA:341,1
+DA:342,1
+DA:343,1
+DA:344,1
+DA:347,1
+DA:350,1
+DA:357,1
+DA:358,1
+DA:361,1
+DA:362,1
+DA:363,1
+DA:373,1
+DA:376,1
+DA:377,1
+DA:378,1
+DA:379,1
+DA:381,1
+DA:382,1
+DA:384,1
+LF:126
+LH:126
+FN:35,44,validate_fx_rates
+FNDA:1,validate_fx_rates
+FN:47,64,validate_journal_balance
+FNDA:1,validate_journal_balance
+FN:67,127,calculate_account_balance
+FNDA:1,calculate_account_balance
+FN:130,177,calculate_account_balances
+FNDA:1,calculate_account_balances
+FN:180,219,verify_accounting_equation
+FNDA:1,verify_accounting_equation
+FN:222,262,create_journal_entry
+FNDA:1,create_journal_entry
+FN:265,316,post_journal_entry
+FNDA:1,post_journal_entry
+FN:319,384,void_journal_entry
+FNDA:1,void_journal_entry
+FNF:8
+FNH:8
+BRDA:42,0,jump to line 43,1
+BRDA:42,0,return from function 'validate_fx_rates',1
+BRDA:43,0,jump to line 42,1
+BRDA:43,0,jump to line 44,1
+BRDA:57,0,jump to line 58,1
+BRDA:57,0,jump to line 60,1
+BRDA:63,0,jump to line 64,1
+BRDA:63,0,return from function 'validate_journal_balance',1
+BRDA:87,0,jump to line 88,1
+BRDA:87,0,jump to line 89,1
+BRDA:89,0,jump to line 90,1
+BRDA:89,0,jump to line 94,1
+BRDA:124,0,jump to line 125,1
+BRDA:124,0,jump to line 127,1
+BRDA:140,0,jump to line 141,1
+BRDA:140,0,jump to line 143,1
+BRDA:170,0,jump to line 171,1
+BRDA:170,0,jump to line 177,1
+BRDA:172,0,jump to line 173,1
+BRDA:172,0,jump to line 175,1
+BRDA:207,0,jump to line 208,1
+BRDA:207,0,jump to line 210,1
+BRDA:242,0,jump to line 243,1
+BRDA:242,0,jump to line 255,1
+BRDA:257,0,jump to line 258,1
+BRDA:257,0,jump to line 260,1
+BRDA:287,0,jump to line 288,1
+BRDA:287,0,jump to line 289,1
+BRDA:289,0,jump to line 290,1
+BRDA:289,0,jump to line 291,1
+BRDA:291,0,jump to line 292,1
+BRDA:291,0,jump to line 294,1
+BRDA:299,0,jump to line 300,1
+BRDA:299,0,jump to line 307,1
+BRDA:300,0,jump to line 299,1
+BRDA:300,0,jump to line 301,1
+BRDA:301,0,jump to line 299,1
+BRDA:301,0,jump to line 302,1
+BRDA:307,0,jump to line 308,1
+BRDA:307,0,jump to line 311,1
+BRDA:308,0,jump to line 307,1
+BRDA:308,0,jump to line 309,1
+BRDA:339,0,jump to line 340,1
+BRDA:339,0,jump to line 341,1
+BRDA:341,0,jump to line 342,1
+BRDA:341,0,jump to line 343,1
+BRDA:343,0,jump to line 344,1
+BRDA:343,0,jump to line 347,1
+BRDA:361,0,jump to line 362,1
+BRDA:361,0,jump to line 376,1
+BRF:50
+BRH:50
+end_of_record
+SF:src/services/ai_advisor.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:42,1
+DA:44,1
+DA:45,1
+DA:47,1
+DA:60,1
+DA:73,1
+DA:88,1
+DA:94,1
+DA:99,1
+DA:131,1
+DA:134,1
+DA:137,1
+DA:138,1
+DA:139,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:145,1
+DA:148,1
+DA:149,1
+DA:150,1
+DA:152,1
+DA:153,1
+DA:154,1
+DA:155,1
+DA:156,1
+DA:157,1
+DA:158,1
+DA:159,1
+DA:160,1
+DA:161,1
+DA:163,1
+DA:164,1
+DA:165,1
+DA:167,1
+DA:168,1
+DA:169,1
+DA:170,1
+DA:171,1
+DA:174,1
+DA:177,1
+DA:179,1
+DA:180,1
+DA:181,1
+DA:184,1
+DA:186,1
+DA:187,1
+DA:188,1
+DA:189,1
+DA:190,1
+DA:193,1
+DA:195,1
+DA:198,1
+DA:199,1
+DA:202,1
+DA:203,1
+DA:206,1
+DA:207,1
+DA:210,1
+DA:211,1
+DA:214,1
+DA:215,1
+DA:228,1
+DA:230,1
+DA:233,1
+DA:235,1
+DA:236,1
+DA:237,1
+DA:238,1
+DA:239,1
+DA:240,1
+DA:243,1
+DA:245,1
+DA:248,1
+DA:251,1
+DA:254,1
+DA:255,1
+DA:256,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:261,1
+DA:262,1
+DA:263,1
+DA:264,1
+DA:265,1
+DA:267,1
+DA:268,1
+DA:269,1
+DA:270,1
+DA:271,1
+DA:272,1
+DA:275,1
+DA:278,1
+DA:279,1
+DA:280,1
+DA:281,1
+DA:282,1
+DA:284,1
+DA:293,1
+DA:294,1
+DA:296,1
+DA:297,1
+DA:299,1
+DA:300,1
+DA:301,1
+DA:302,1
+DA:304,1
+DA:305,1
+DA:306,1
+DA:307,1
+DA:309,1
+DA:310,1
+DA:311,1
+DA:312,1
+DA:314,1
+DA:315,1
+DA:316,1
+DA:317,1
+DA:319,1
+DA:320,1
+DA:321,1
+DA:322,1
+DA:323,1
+DA:324,1
+DA:325,1
+DA:326,1
+DA:327,1
+DA:328,1
+DA:330,1
+DA:331,1
+DA:332,1
+DA:333,1
+DA:335,1
+DA:336,1
+DA:338,1
+DA:352,1
+DA:354,1
+DA:355,1
+DA:357,1
+DA:359,1
+DA:360,1
+DA:361,1
+DA:362,1
+DA:363,1
+DA:364,1
+DA:365,1
+DA:366,1
+DA:367,1
+DA:368,1
+DA:369,1
+DA:371,1
+DA:372,1
+DA:375,1
+DA:376,1
+DA:377,1
+DA:378,1
+DA:379,1
+DA:381,1
+DA:382,1
+DA:389,1
+DA:390,1
+DA:391,1
+DA:392,1
+DA:394,1
+DA:399,1
+DA:400,1
+DA:403,1
+DA:406,1
+DA:417,1
+DA:418,1
+DA:419,1
+DA:420,1
+DA:421,1
+DA:423,1
+DA:437,1
+DA:439,1
+DA:446,1
+DA:447,1
+DA:453,1
+DA:454,1
+DA:455,1
+DA:456,1
+DA:457,1
+DA:458,1
+DA:459,1
+DA:461,1
+DA:462,1
+DA:468,1
+DA:469,1
+DA:470,1
+DA:471,1
+DA:473,1
+DA:481,1
+DA:482,1
+DA:483,1
+DA:491,1
+DA:492,1
+DA:493,1
+DA:494,1
+DA:495,1
+DA:496,1
+DA:497,1
+DA:498,0
+DA:499,0
+DA:500,1
+DA:502,1
+DA:503,1
+DA:509,1
+DA:510,1
+DA:511,1
+DA:512,1
+DA:513,1
+DA:514,1
+DA:515,1
+DA:516,1
+DA:518,1
+DA:527,1
+DA:528,1
+DA:529,1
+DA:531,1
+DA:532,1
+DA:533,1
+DA:534,1
+DA:535,1
+DA:536,0
+DA:537,0
+DA:538,1
+DA:539,1
+DA:541,1
+DA:542,1
+DA:543,1
+DA:544,1
+DA:546,1
+DA:547,1
+DA:548,1
+DA:549,1
+DA:550,1
+DA:551,1
+DA:553,1
+DA:555,1
+DA:563,1
+DA:564,1
+DA:565,1
+DA:566,1
+DA:567,1
+DA:569,1
+DA:576,1
+DA:579,1
+DA:580,1
+DA:582,1
+DA:583,1
+DA:584,0
+DA:585,1
+DA:587,1
+DA:588,1
+DA:589,1
+DA:590,1
+DA:591,1
+DA:592,1
+DA:593,1
+DA:602,1
+DA:603,1
+DA:604,0
+DA:605,0
+DA:611,0
+DA:613,1
+DA:614,1
+DA:620,1
+DA:622,1
+DA:623,0
+DA:630,0
+DA:632,1
+DA:633,1
+DA:634,1
+DA:636,1
+DA:637,1
+LF:296
+LH:286
+FN:148,150,ResponseCache.__init__
+FNDA:1,ResponseCache.__init__
+FN:152,161,ResponseCache.get
+FNDA:1,ResponseCache.get
+FN:163,165,ResponseCache.set
+FNDA:1,ResponseCache.set
+FN:167,171,ResponseCache.prune
+FNDA:1,ResponseCache.prune
+FN:177,181,detect_language
+FNDA:1,detect_language
+FN:184,190,normalize_question
+FNDA:1,normalize_question
+FN:193,195,estimate_tokens
+FNDA:1,estimate_tokens
+FN:198,199,_matches_any
+FNDA:1,_matches_any
+FN:202,203,is_prompt_injection
+FNDA:1,is_prompt_injection
+FN:206,207,is_sensitive_request
+FNDA:1,is_sensitive_request
+FN:210,211,is_non_financial
+FNDA:1,is_non_financial
+FN:214,225,is_write_request
+FNDA:1,is_write_request
+FN:228,230,redact_sensitive
+FNDA:1,redact_sensitive
+FN:233,240,ensure_disclaimer
+FNDA:1,ensure_disclaimer
+FN:243,248,build_refusal
+FNDA:1,build_refusal
+FN:254,256,StreamRedactor.__init__
+FNDA:1,StreamRedactor.__init__
+FN:258,265,StreamRedactor.process
+FNDA:1,StreamRedactor.process
+FN:267,272,StreamRedactor.flush
+FNDA:1,StreamRedactor.flush
+FN:278,282,AIAdvisorService.__init__
+FNDA:1,AIAdvisorService.__init__
+FN:284,350,AIAdvisorService.chat_stream
+FNDA:1,AIAdvisorService.chat_stream
+FN:352,437,AIAdvisorService.get_financial_context
+FNDA:1,AIAdvisorService.get_financial_context
+FN:439,471,AIAdvisorService._get_or_create_session
+FNDA:1,AIAdvisorService._get_or_create_session
+FN:473,500,AIAdvisorService._record_message
+FNDA:1,AIAdvisorService._record_message
+FN:502,516,AIAdvisorService._load_history
+FNDA:1,AIAdvisorService._load_history
+FN:518,561,AIAdvisorService._stream_and_store
+FNDA:1,AIAdvisorService._stream_and_store
+FN:563,574,AIAdvisorService._cached_stream
+FNDA:1,AIAdvisorService._cached_stream
+FN:564,567,AIAdvisorService._cached_stream.generator
+FNDA:1,AIAdvisorService._cached_stream.generator
+FN:576,620,AIAdvisorService._stream_openrouter
+FNDA:1,AIAdvisorService._stream_openrouter
+FN:622,630,AIAdvisorService._stream_model
+FNDA:0,AIAdvisorService._stream_model
+FN:632,634,AIAdvisorService._format_money
+FNDA:1,AIAdvisorService._format_money
+FN:636,637,AIAdvisorService._chunk_text
+FNDA:1,AIAdvisorService._chunk_text
+FNF:31
+FNH:30
+BRDA:155,0,jump to line 156,1
+BRDA:155,0,jump to line 157,1
+BRDA:158,0,jump to line 159,1
+BRDA:158,0,jump to line 161,1
+BRDA:170,0,jump to line 171,1
+BRDA:170,0,return from function 'prune',1
+BRDA:179,0,jump to line 180,1
+BRDA:179,0,jump to line 181,1
+BRDA:188,0,jump to line 189,1
+BRDA:188,0,jump to line 190,1
+BRDA:236,0,jump to line 237,1
+BRDA:236,0,jump to line 238,1
+BRDA:238,0,jump to line 239,1
+BRDA:238,0,jump to line 240,0
+BRDA:260,0,jump to line 261,1
+BRDA:260,0,jump to line 263,1
+BRDA:268,0,jump to line 269,1
+BRDA:268,0,jump to line 270,1
+BRDA:299,0,jump to line 300,1
+BRDA:299,0,jump to line 304,1
+BRDA:304,0,jump to line 305,1
+BRDA:304,0,jump to line 309,1
+BRDA:309,0,jump to line 310,1
+BRDA:309,0,jump to line 314,1
+BRDA:314,0,jump to line 315,1
+BRDA:314,0,jump to line 319,1
+BRDA:325,0,jump to line 326,1
+BRDA:325,0,jump to line 330,1
+BRDA:335,0,jump to line 336,1
+BRDA:335,0,jump to line 338,1
+BRDA:446,0,jump to line 447,1
+BRDA:446,0,jump to line 461,1
+BRDA:454,0,jump to line 455,1
+BRDA:454,0,jump to line 456,1
+BRDA:492,0,jump to line 493,1
+BRDA:492,0,jump to line 494,1
+BRDA:512,0,jump to line 513,1
+BRDA:512,0,jump to line 516,1
+BRDA:513,0,jump to line 514,1
+BRDA:513,0,jump to line 515,1
+BRDA:532,0,jump to line 533,1
+BRDA:532,0,jump to line 541,1
+BRDA:535,0,jump to line 532,1
+BRDA:535,0,jump to line 536,0
+BRDA:542,0,jump to line 543,1
+BRDA:542,0,jump to line 546,0
+BRDA:548,0,jump to line 549,1
+BRDA:548,0,jump to line 553,0
+BRDA:550,0,jump to line 551,1
+BRDA:550,0,jump to line 553,0
+BRDA:565,0,jump to line 566,1
+BRDA:565,0,return from function 'generator',1
+BRDA:583,0,jump to line 584,0
+BRDA:583,0,jump to line 585,1
+BRDA:587,0,jump to line 588,1
+BRDA:587,0,jump to line 613,1
+BRDA:589,0,jump to line 590,1
+BRDA:589,0,jump to line 591,1
+BRDA:613,0,jump to line 614,1
+BRDA:613,0,return from function '_stream_openrouter',0
+BRDA:623,0,jump to line 630,-
+BRDA:623,0,return from function '_stream_model',-
+BRF:62
+BRH:53
+end_of_record
+SF:src/services/allocation.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:19,1
+DA:22,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:29,1
+DA:31,1
+DA:33,1
+DA:41,1
+DA:52,1
+DA:56,1
+DA:57,1
+DA:59,1
+DA:60,1
+DA:62,1
+DA:63,1
+DA:64,1
+DA:65,1
+DA:66,1
+DA:73,1
+DA:75,1
+DA:78,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:87,1
+DA:88,1
+DA:89,1
+DA:90,1
+DA:91,1
+DA:93,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:105,1
+DA:106,1
+DA:109,1
+DA:125,1
+DA:126,1
+DA:128,1
+DA:129,1
+DA:132,1
+DA:148,1
+DA:149,1
+DA:151,1
+DA:152,1
+DA:155,1
+DA:171,1
+DA:172,1
+DA:174,1
+DA:175,1
+DA:176,1
+DA:177,0
+DA:179,1
+DA:180,1
+DA:182,1
+DA:183,1
+LF:71
+LH:70
+FN:25,29,AllocationBreakdown.__init__
+FNDA:1,AllocationBreakdown.__init__
+FN:31,38,AllocationBreakdown.to_dict
+FNDA:1,AllocationBreakdown.to_dict
+FN:41,75,_get_active_positions_with_atomics
+FNDA:1,_get_active_positions_with_atomics
+FN:78,106,_build_allocation
+FNDA:1,_build_allocation
+FN:109,129,get_sector_allocation
+FNDA:1,get_sector_allocation
+FN:132,152,get_geography_allocation
+FNDA:1,get_geography_allocation
+FN:155,183,get_asset_class_allocation
+FNDA:1,get_asset_class_allocation
+FN:174,180,get_asset_class_allocation._asset_class_key
+FNDA:1,get_asset_class_allocation._asset_class_key
+FNF:8
+FNH:8
+BRDA:63,0,jump to line 64,1
+BRDA:63,0,jump to line 75,1
+BRDA:65,0,jump to line 63,1
+BRDA:65,0,jump to line 66,1
+BRDA:87,0,jump to line 88,1
+BRDA:87,0,jump to line 93,1
+BRDA:94,0,jump to line 95,1
+BRDA:94,0,jump to line 105,1
+BRDA:125,0,jump to line 126,1
+BRDA:125,0,jump to line 128,1
+BRDA:148,0,jump to line 149,1
+BRDA:148,0,jump to line 151,1
+BRDA:171,0,jump to line 172,1
+BRDA:171,0,jump to line 174,1
+BRDA:176,0,jump to line 177,0
+BRDA:176,0,jump to line 179,1
+BRF:16
+BRH:15
+end_of_record
+SF:src/services/anomaly.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:15,1
+DA:16,1
+DA:24,1
+DA:31,1
+DA:32,1
+DA:34,1
+DA:41,1
+DA:42,1
+DA:44,1
+DA:45,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:65,1
+DA:66,1
+DA:67,1
+DA:75,1
+DA:76,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:93,1
+DA:94,1
+DA:102,1
+LF:35
+LH:35
+FN:24,102,detect_anomalies
+FNDA:1,detect_anomalies
+FNF:1
+FNH:1
+BRDA:44,0,jump to line 45,1
+BRDA:44,0,jump to line 53,1
+BRDA:54,0,jump to line 55,1
+BRDA:54,0,jump to line 93,0
+BRDA:66,0,jump to line 67,1
+BRDA:66,0,jump to line 75,1
+BRDA:84,0,jump to line 85,1
+BRDA:84,0,jump to line 93,1
+BRDA:93,0,jump to line 94,1
+BRDA:93,0,jump to line 102,1
+BRF:10
+BRH:9
+end_of_record
+SF:src/services/assets.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:19,1
+DA:22,1
+DA:25,1
+DA:28,1
+DA:29,1
+DA:32,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:39,1
+DA:40,1
+DA:53,1
+DA:56,1
+DA:63,1
+DA:69,1
+DA:70,1
+DA:72,1
+DA:81,1
+DA:88,1
+DA:89,1
+DA:92,1
+DA:93,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:103,1
+DA:115,1
+DA:117,1
+DA:131,1
+DA:137,1
+DA:138,1
+DA:140,1
+DA:142,1
+DA:143,0
+DA:150,0
+DA:151,0
+DA:152,0
+DA:155,1
+DA:157,1
+DA:158,1
+DA:159,1
+DA:165,1
+DA:167,1
+DA:173,1
+DA:174,1
+DA:176,1
+DA:177,1
+DA:178,1
+DA:179,1
+DA:185,1
+DA:186,1
+DA:188,1
+DA:189,1
+DA:190,1
+DA:191,1
+DA:193,1
+DA:194,1
+DA:195,1
+DA:196,1
+DA:200,1
+DA:201,1
+DA:202,1
+DA:213,1
+DA:214,1
+DA:216,1
+DA:217,1
+DA:225,1
+DA:227,1
+DA:229,1
+DA:235,1
+DA:236,1
+DA:238,1
+DA:239,1
+DA:246,1
+DA:247,1
+DA:249,1
+DA:251,1
+DA:264,1
+DA:265,1
+DA:267,1
+DA:268,1
+DA:270,1
+DA:271,1
+DA:273,1
+DA:274,1
+DA:276,1
+DA:277,1
+DA:279,1
+DA:280,1
+DA:281,0
+DA:283,1
+DA:284,1
+DA:285,1
+DA:286,1
+DA:289,1
+DA:290,1
+DA:291,1
+DA:293,1
+DA:294,1
+DA:295,1
+DA:296,1
+DA:297,0
+DA:298,1
+DA:299,1
+DA:300,1
+DA:301,0
+DA:303,1
+DA:305,1
+DA:306,1
+DA:308,1
+DA:319,1
+DA:330,1
+DA:331,1
+DA:332,1
+DA:334,1
+LF:132
+LH:125
+FN:56,70,AssetService.get_position
+FNDA:1,AssetService.get_position
+FN:72,101,AssetService.get_positions
+FNDA:1,AssetService.get_positions
+FN:103,225,AssetService.reconcile_positions
+FNDA:1,AssetService.reconcile_positions
+FN:227,249,AssetService._get_or_create_broker_account
+FNDA:1,AssetService._get_or_create_broker_account
+FN:251,317,AssetService.calculate_depreciation
+FNDA:1,AssetService.calculate_depreciation
+FN:319,340,AssetService.get_depreciation_schedule
+FNDA:1,AssetService.get_depreciation_schedule
+FNF:6
+FNH:6
+BRDA:88,0,jump to line 89,1
+BRDA:88,0,jump to line 92,1
+BRDA:93,0,jump to line 94,1
+BRDA:93,0,jump to line 95,1
+BRDA:140,0,jump to line 142,1
+BRDA:140,0,jump to line 216,1
+BRDA:142,0,jump to line 143,0
+BRDA:142,0,jump to line 155,1
+BRDA:158,0,jump to line 159,1
+BRDA:158,0,jump to line 165,1
+BRDA:176,0,jump to line 177,1
+BRDA:176,0,jump to line 200,1
+BRDA:178,0,jump to line 179,1
+BRDA:178,0,jump to line 188,0
+BRDA:188,0,jump to line 189,1
+BRDA:188,0,jump to line 193,1
+BRDA:195,0,jump to line 140,0
+BRDA:195,0,jump to line 196,1
+BRDA:200,0,jump to line 140,0
+BRDA:200,0,jump to line 201,1
+BRDA:238,0,jump to line 239,1
+BRDA:238,0,jump to line 249,1
+BRDA:264,0,jump to line 265,1
+BRDA:264,0,jump to line 267,1
+BRDA:267,0,jump to line 268,1
+BRDA:267,0,jump to line 270,1
+BRDA:276,0,jump to line 277,1
+BRDA:276,0,jump to line 279,1
+BRDA:280,0,jump to line 281,0
+BRDA:280,0,jump to line 283,1
+BRDA:283,0,jump to line 284,1
+BRDA:283,0,jump to line 289,1
+BRDA:294,0,jump to line 295,1
+BRDA:294,0,jump to line 303,1
+BRDA:296,0,jump to line 297,0
+BRDA:296,0,jump to line 298,1
+BRDA:300,0,jump to line 294,1
+BRDA:300,0,jump to line 301,0
+BRDA:331,0,jump to line 332,1
+BRDA:331,0,jump to line 334,1
+BRF:40
+BRH:33
+end_of_record
+SF:src/services/classification.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:18,1
+DA:21,1
+DA:24,1
+DA:26,1
+DA:32,1
+DA:33,1
+DA:35,1
+DA:37,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:46,1
+DA:47,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:57,0
+DA:59,1
+DA:63,1
+DA:64,1
+DA:65,1
+DA:67,1
+DA:68,1
+DA:69,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:77,1
+DA:78,1
+DA:86,1
+DA:87,1
+DA:89,1
+DA:90,1
+LF:49
+LH:48
+FN:24,33,ClassificationService.get_active_rules
+FNDA:1,ClassificationService.get_active_rules
+FN:35,57,ClassificationService._match_rule
+FNDA:1,ClassificationService._match_rule
+FN:59,90,ClassificationService.apply_rules
+FNDA:1,ClassificationService.apply_rules
+FNF:3
+FNH:3
+BRDA:39,0,jump to line 40,1
+BRDA:39,0,jump to line 46,1
+BRDA:41,0,jump to line 42,1
+BRDA:41,0,jump to line 43,1
+BRDA:46,0,jump to line 47,1
+BRDA:46,0,jump to line 57,0
+BRDA:48,0,jump to line 49,1
+BRDA:48,0,jump to line 50,1
+BRDA:64,0,jump to line 65,1
+BRDA:64,0,jump to line 67,1
+BRDA:68,0,jump to line 69,1
+BRDA:68,0,jump to line 89,1
+BRDA:72,0,jump to line 73,1
+BRDA:72,0,jump to line 77,1
+BRDA:73,0,jump to line 72,1
+BRDA:73,0,jump to line 74,1
+BRDA:77,0,jump to line 68,1
+BRDA:77,0,jump to line 78,1
+BRF:18
+BRH:17
+end_of_record
+SF:src/services/consistency_checks.py
+DA:1,1
+DA:2,1
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:14,1
+DA:17,1
+DA:22,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:35,1
+DA:36,1
+DA:37,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:46,1
+DA:47,1
+DA:49,1
+DA:50,1
+DA:52,1
+DA:53,0
+DA:55,1
+DA:56,1
+DA:57,1
+DA:60,1
+DA:68,1
+DA:69,1
+DA:71,1
+DA:84,1
+DA:85,1
+DA:87,1
+DA:88,1
+DA:89,1
+DA:92,1
+DA:97,1
+DA:105,1
+DA:106,1
+DA:107,1
+DA:108,1
+DA:109,1
+DA:111,1
+DA:112,1
+DA:113,1
+DA:115,1
+DA:116,1
+DA:117,1
+DA:118,1
+DA:119,1
+DA:120,1
+DA:121,1
+DA:123,1
+DA:124,1
+DA:126,1
+DA:127,1
+DA:128,1
+DA:129,1
+DA:130,0
+DA:132,1
+DA:133,1
+DA:134,1
+DA:137,1
+DA:145,1
+DA:146,1
+DA:147,1
+DA:149,1
+DA:163,1
+DA:164,1
+DA:165,1
+DA:166,1
+DA:168,1
+DA:169,1
+DA:170,1
+DA:173,1
+DA:178,1
+DA:184,1
+DA:185,1
+DA:187,1
+DA:188,1
+DA:190,1
+DA:191,1
+DA:192,1
+DA:193,1
+DA:194,1
+DA:197,1
+DA:205,1
+DA:206,1
+DA:207,0
+DA:208,0
+DA:209,0
+DA:210,1
+DA:211,0
+DA:213,1
+DA:226,1
+DA:227,1
+DA:229,1
+DA:230,1
+DA:231,1
+DA:234,1
+DA:239,1
+DA:240,1
+DA:241,1
+DA:242,1
+DA:243,1
+DA:246,1
+DA:253,1
+DA:259,1
+DA:260,1
+DA:261,1
+DA:263,1
+DA:264,1
+DA:265,1
+DA:266,1
+DA:267,1
+DA:268,1
+DA:270,1
+DA:272,1
+DA:273,1
+DA:274,1
+DA:276,1
+DA:277,1
+DA:280,1
+DA:288,1
+DA:296,1
+DA:297,1
+DA:298,1
+DA:299,1
+DA:301,1
+DA:302,1
+DA:305,1
+DA:309,1
+DA:315,1
+LF:143
+LH:137
+FN:17,89,detect_duplicates
+FNDA:1,detect_duplicates
+FN:92,170,detect_transfer_pairs
+FNDA:1,detect_transfer_pairs
+FN:173,231,detect_anomalies_batch
+FNDA:1,detect_anomalies_batch
+FN:234,243,run_all_consistency_checks
+FNDA:1,run_all_consistency_checks
+FN:246,277,resolve_check
+FNDA:1,resolve_check
+FN:280,302,get_pending_checks
+FNDA:1,get_pending_checks
+FN:305,315,has_unresolved_checks
+FNDA:1,has_unresolved_checks
+FNF:7
+FNH:7
+BRDA:29,0,jump to line 30,1
+BRDA:29,0,jump to line 35,1
+BRDA:40,0,jump to line 41,1
+BRDA:40,0,jump to line 46,1
+BRDA:42,0,jump to line 43,1
+BRDA:42,0,jump to line 44,1
+BRDA:49,0,jump to line 50,1
+BRDA:49,0,jump to line 87,1
+BRDA:50,0,jump to line 49,0
+BRDA:50,0,jump to line 52,1
+BRDA:52,0,jump to line 53,0
+BRDA:52,0,jump to line 55,1
+BRDA:56,0,jump to line 49,1
+BRDA:56,0,jump to line 57,1
+BRDA:68,0,jump to line 69,1
+BRDA:68,0,jump to line 71,1
+BRDA:87,0,jump to line 88,1
+BRDA:87,0,jump to line 89,1
+BRDA:105,0,jump to line 106,1
+BRDA:105,0,jump to line 111,1
+BRDA:117,0,jump to line 118,1
+BRDA:117,0,jump to line 123,1
+BRDA:118,0,jump to line 117,1
+BRDA:118,0,jump to line 119,1
+BRDA:119,0,jump to line 120,1
+BRDA:119,0,jump to line 121,0
+BRDA:126,0,jump to line 127,1
+BRDA:126,0,jump to line 168,1
+BRDA:128,0,jump to line 126,1
+BRDA:128,0,jump to line 129,1
+BRDA:129,0,jump to line 130,0
+BRDA:129,0,jump to line 132,1
+BRDA:133,0,jump to line 128,0
+BRDA:133,0,jump to line 134,1
+BRDA:145,0,jump to line 146,1
+BRDA:145,0,jump to line 149,1
+BRDA:168,0,jump to line 169,1
+BRDA:168,0,jump to line 170,1
+BRDA:184,0,jump to line 185,1
+BRDA:184,0,jump to line 187,0
+BRDA:191,0,jump to line 192,1
+BRDA:191,0,jump to line 229,1
+BRDA:193,0,jump to line 191,1
+BRDA:193,0,jump to line 194,1
+BRDA:206,0,jump to line 207,0
+BRDA:206,0,jump to line 210,1
+BRDA:207,0,jump to line 206,-
+BRDA:207,0,jump to line 208,-
+BRDA:210,0,jump to line 211,0
+BRDA:210,0,jump to line 213,1
+BRDA:229,0,jump to line 230,1
+BRDA:229,0,jump to line 231,1
+BRDA:260,0,jump to line 261,1
+BRDA:260,0,jump to line 263,1
+BRDA:263,0,jump to line 264,1
+BRDA:263,0,jump to line 265,1
+BRDA:265,0,jump to line 266,1
+BRDA:265,0,jump to line 267,1
+BRDA:267,0,jump to line 268,1
+BRDA:267,0,jump to line 270,1
+BRDA:273,0,jump to line 274,1
+BRDA:273,0,jump to line 276,1
+BRDA:296,0,jump to line 297,1
+BRDA:296,0,jump to line 298,1
+BRDA:298,0,jump to line 299,1
+BRDA:298,0,jump to line 301,1
+BRF:66
+BRH:56
+end_of_record
+SF:src/services/deduplication.py
+DA:1,1
+DA:2,1
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:16,1
+DA:19,1
+DA:20,1
+DA:32,1
+DA:40,1
+DA:41,1
+DA:43,1
+DA:44,1
+DA:54,1
+DA:60,1
+DA:61,1
+DA:63,1
+DA:81,1
+DA:83,1
+DA:87,1
+DA:88,1
+DA:90,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:98,0
+DA:100,1
+DA:101,1
+DA:102,1
+DA:103,1
+DA:105,1
+DA:113,1
+DA:115,1
+DA:126,1
+DA:127,1
+DA:129,1
+DA:138,1
+DA:140,1
+DA:158,1
+DA:160,1
+DA:164,1
+DA:165,1
+DA:167,1
+DA:172,1
+DA:173,1
+DA:174,1
+DA:175,0
+DA:177,1
+DA:178,1
+DA:179,1
+DA:180,1
+DA:182,1
+DA:190,1
+DA:192,1
+DA:203,1
+DA:204,1
+DA:206,1
+DA:215,1
+DA:217,1
+DA:230,1
+DA:237,1
+DA:238,1
+DA:240,1
+DA:248,1
+LF:69
+LH:67
+FN:20,41,DeduplicationService.calculate_transaction_hash
+FNDA:1,DeduplicationService.calculate_transaction_hash
+FN:44,61,DeduplicationService.calculate_position_hash
+FNDA:1,DeduplicationService.calculate_position_hash
+FN:63,138,DeduplicationService.upsert_atomic_transaction
+FNDA:1,DeduplicationService.upsert_atomic_transaction
+FN:140,215,DeduplicationService.upsert_atomic_position
+FNDA:1,DeduplicationService.upsert_atomic_position
+FN:217,248,DeduplicationService.create_uploaded_document
+FNDA:1,DeduplicationService.create_uploaded_document
+FNF:5
+FNH:5
+BRDA:95,0,jump to line 96,1
+BRDA:95,0,jump to line 115,1
+BRDA:97,0,jump to line 98,0
+BRDA:97,0,jump to line 100,1
+BRDA:100,0,jump to line 101,1
+BRDA:100,0,jump to line 105,1
+BRDA:172,0,jump to line 173,1
+BRDA:172,0,jump to line 192,1
+BRDA:174,0,jump to line 175,0
+BRDA:174,0,jump to line 177,1
+BRDA:177,0,jump to line 178,1
+BRDA:177,0,jump to line 182,1
+BRF:12
+BRH:10
+end_of_record
+SF:src/services/extraction.py
+DA:1,1
+DA:2,1
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:13,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:27,1
+DA:28,1
+DA:35,1
+DA:38,1
+DA:41,1
+DA:44,1
+DA:47,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:54,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:61,1
+DA:62,1
+DA:67,1
+DA:69,1
+DA:71,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:77,1
+DA:78,1
+DA:79,1
+DA:80,1
+DA:82,1
+DA:83,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:94,1
+DA:96,1
+DA:98,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:104,1
+DA:105,1
+DA:106,1
+DA:107,1
+DA:109,1
+DA:111,1
+DA:113,1
+DA:115,1
+DA:117,1
+DA:119,1
+DA:124,1
+DA:125,1
+DA:133,1
+DA:134,1
+DA:141,1
+DA:146,1
+DA:159,1
+DA:160,1
+DA:161,1
+DA:162,1
+DA:163,1
+DA:166,1
+DA:167,1
+DA:170,1
+DA:171,1
+DA:172,1
+DA:173,1
+DA:174,1
+DA:176,1
+DA:180,1
+DA:181,1
+DA:183,1
+DA:184,0
+DA:185,0
+DA:191,0
+DA:193,1
+DA:208,1
+DA:209,1
+DA:217,1
+DA:218,1
+DA:219,1
+DA:220,1
+DA:221,1
+DA:222,1
+DA:223,1
+DA:224,1
+DA:225,1
+DA:233,1
+DA:235,1
+DA:236,1
+DA:238,1
+DA:253,1
+DA:254,1
+DA:255,1
+DA:256,1
+DA:257,1
+DA:260,1
+DA:261,1
+DA:262,1
+DA:265,1
+DA:266,1
+DA:273,1
+DA:275,1
+DA:276,1
+DA:277,1
+DA:278,1
+DA:280,1
+DA:281,1
+DA:282,1
+DA:283,1
+DA:284,1
+DA:285,1
+DA:286,1
+DA:288,1
+DA:290,1
+DA:291,1
+DA:292,1
+DA:294,1
+DA:307,1
+DA:310,1
+DA:315,1
+DA:318,1
+DA:319,1
+DA:321,1
+DA:322,1
+DA:323,1
+DA:325,1
+DA:333,1
+DA:334,1
+DA:344,1
+DA:346,1
+DA:347,1
+DA:348,1
+DA:349,1
+DA:350,1
+DA:352,1
+DA:353,1
+DA:354,1
+DA:356,1
+DA:366,1
+DA:367,1
+DA:369,1
+DA:370,1
+DA:373,1
+DA:380,1
+DA:382,1
+DA:384,1
+DA:386,1
+DA:387,1
+DA:388,1
+DA:393,1
+DA:394,1
+DA:395,1
+DA:401,1
+DA:403,1
+DA:404,1
+DA:409,1
+DA:410,1
+DA:411,1
+DA:416,1
+DA:417,1
+DA:418,0
+DA:424,1
+DA:426,1
+DA:427,1
+DA:432,1
+DA:439,1
+DA:440,1
+DA:453,1
+DA:454,1
+DA:456,1
+DA:458,1
+DA:467,1
+DA:468,1
+DA:470,1
+DA:471,1
+DA:472,1
+DA:473,1
+DA:474,1
+DA:482,1
+DA:490,1
+DA:492,1
+DA:493,1
+DA:495,1
+DA:505,1
+DA:506,1
+DA:509,1
+DA:511,1
+DA:512,1
+DA:513,1
+DA:515,1
+DA:516,1
+DA:517,1
+DA:518,1
+DA:519,1
+DA:520,1
+DA:521,1
+DA:522,1
+DA:524,1
+DA:535,1
+DA:536,1
+DA:540,1
+DA:542,1
+DA:543,1
+DA:545,1
+DA:546,1
+DA:547,1
+DA:554,1
+DA:555,1
+DA:556,1
+DA:557,1
+DA:563,1
+DA:564,1
+DA:566,1
+DA:576,1
+DA:577,1
+DA:578,1
+DA:579,1
+DA:580,1
+DA:581,1
+DA:582,1
+DA:584,1
+DA:590,1
+DA:592,1
+DA:594,1
+DA:595,1
+DA:596,1
+DA:602,1
+DA:604,1
+DA:606,1
+DA:611,1
+DA:612,1
+DA:613,1
+DA:615,1
+DA:616,1
+DA:618,1
+DA:620,1
+DA:621,1
+DA:622,1
+DA:629,1
+DA:631,1
+DA:632,1
+DA:633,1
+DA:635,1
+DA:636,1
+DA:637,1
+DA:639,1
+DA:640,1
+DA:641,1
+DA:643,1
+DA:645,1
+DA:654,1
+DA:655,1
+DA:656,1
+DA:657,1
+DA:658,1
+DA:659,1
+DA:660,1
+DA:662,1
+DA:664,1
+DA:665,1
+DA:666,1
+DA:667,1
+DA:668,1
+DA:669,1
+DA:670,1
+DA:671,1
+DA:672,1
+DA:674,1
+DA:675,1
+DA:676,1
+DA:677,1
+DA:678,1
+DA:679,1
+DA:681,1
+DA:682,1
+DA:683,1
+DA:684,1
+DA:685,1
+DA:690,1
+DA:692,1
+DA:693,1
+DA:694,1
+DA:695,1
+DA:701,1
+DA:703,1
+DA:704,1
+DA:706,1
+DA:707,1
+DA:708,1
+DA:709,1
+DA:710,1
+DA:711,1
+DA:713,1
+DA:720,1
+DA:722,1
+DA:723,1
+DA:725,1
+DA:735,1
+DA:736,1
+DA:737,1
+DA:738,1
+DA:740,1
+DA:741,1
+DA:742,1
+DA:743,1
+DA:744,1
+DA:745,1
+DA:747,1
+DA:748,1
+DA:749,1
+DA:750,1
+DA:751,1
+DA:752,1
+DA:753,1
+DA:759,1
+DA:761,1
+DA:762,1
+DA:763,1
+DA:769,1
+DA:771,1
+DA:772,1
+DA:773,1
+DA:775,1
+DA:777,1
+DA:779,1
+DA:789,1
+DA:790,1
+DA:791,1
+DA:792,1
+DA:794,1
+DA:795,1
+DA:796,1
+DA:797,1
+DA:798,1
+DA:799,1
+DA:801,1
+DA:802,1
+DA:803,1
+DA:804,1
+DA:810,1
+DA:812,1
+DA:813,1
+DA:815,1
+DA:816,1
+DA:817,1
+DA:818,1
+DA:819,1
+DA:820,1
+DA:822,1
+DA:829,1
+DA:831,1
+DA:833,1
+DA:843,1
+DA:844,1
+DA:845,1
+DA:846,1
+DA:849,1
+DA:850,1
+DA:851,1
+DA:852,1
+DA:853,1
+DA:855,1
+DA:856,1
+DA:857,1
+DA:858,1
+DA:864,1
+DA:866,1
+DA:867,1
+DA:868,1
+DA:869,1
+DA:870,1
+DA:872,1
+DA:878,1
+DA:879,1
+DA:880,1
+DA:881,1
+DA:882,1
+DA:883,1
+DA:884,1
+DA:885,1
+DA:886,1
+DA:887,1
+DA:889,1
+DA:896,1
+DA:898,1
+DA:903,1
+DA:905,1
+DA:907,1
+DA:916,1
+DA:917,1
+DA:918,1
+DA:919,1
+DA:921,1
+DA:922,1
+DA:928,1
+DA:930,1
+DA:938,1
+DA:945,1
+DA:956,1
+DA:958,1
+DA:966,1
+DA:968,1
+DA:969,1
+DA:978,1
+DA:979,1
+DA:980,1
+DA:981,1
+DA:983,1
+DA:995,1
+DA:997,1
+DA:1004,1
+DA:1006,0
+DA:1011,1
+DA:1013,1
+DA:1022,1
+LF:439
+LH:434
+FN:47,52,ExtractionService.__init__
+FNDA:1,ExtractionService.__init__
+FN:54,67,ExtractionService._safe_date
+FNDA:1,ExtractionService._safe_date
+FN:69,80,ExtractionService._safe_decimal
+FNDA:1,ExtractionService._safe_decimal
+FN:83,94,ExtractionService._sanitize_account_last4
+FNDA:1,ExtractionService._sanitize_account_last4
+FN:96,109,ExtractionService._compute_event_confidence
+FNDA:1,ExtractionService._compute_event_confidence
+FN:111,113,ExtractionService._validate_balance
+FNDA:1,ExtractionService._validate_balance
+FN:115,117,ExtractionService._compute_confidence
+FNDA:1,ExtractionService._compute_confidence
+FN:119,144,ExtractionService._build_media_payload
+FNDA:1,ExtractionService._build_media_payload
+FN:146,191,ExtractionService._validate_external_url
+FNDA:1,ExtractionService._validate_external_url
+FN:193,350,ExtractionService.parse_document
+FNDA:1,ExtractionService.parse_document
+FN:352,354,ExtractionService._extract_status_code
+FNDA:1,ExtractionService._extract_status_code
+FN:356,604,ExtractionService.extract_financial_data
+FNDA:1,ExtractionService.extract_financial_data
+FN:606,943,ExtractionService._parse_csv_content
+FNDA:1,ExtractionService._parse_csv_content
+FN:643,660,ExtractionService._parse_csv_content.parse_date
+FNDA:1,ExtractionService._parse_csv_content.parse_date
+FN:662,672,ExtractionService._parse_csv_content.parse_amount
+FNDA:1,ExtractionService._parse_csv_content.parse_amount
+FN:674,679,ExtractionService._parse_csv_content.find_header
+FNDA:1,ExtractionService._parse_csv_content.find_header
+FN:945,1022,ExtractionService._dual_write_layer2
+FNDA:1,ExtractionService._dual_write_layer2
+FNF:17
+FNH:17
+BRDA:56,0,jump to line 57,1
+BRDA:56,0,jump to line 59,1
+BRDA:71,0,jump to line 72,1
+BRDA:71,0,jump to line 77,1
+BRDA:72,0,jump to line 73,1
+BRDA:72,0,jump to line 74,1
+BRDA:74,0,jump to line 75,1
+BRDA:74,0,jump to line 76,1
+BRDA:91,0,jump to line 92,1
+BRDA:91,0,jump to line 93,1
+BRDA:100,0,jump to line 101,1
+BRDA:100,0,jump to line 104,1
+BRDA:133,0,jump to line 134,1
+BRDA:133,0,jump to line 141,1
+BRDA:162,0,jump to line 163,1
+BRDA:162,0,jump to line 166,1
+BRDA:166,0,jump to line 167,1
+BRDA:166,0,jump to line 170,1
+BRDA:172,0,jump to line 173,1
+BRDA:172,0,jump to line 180,0
+BRDA:180,0,jump to line 181,1
+BRDA:180,0,jump to line 183,1
+BRDA:218,0,jump to line 219,1
+BRDA:218,0,jump to line 224,1
+BRDA:219,0,jump to line 220,1
+BRDA:219,0,jump to line 221,1
+BRDA:221,0,jump to line 222,1
+BRDA:221,0,jump to line 223,1
+BRDA:224,0,jump to line 225,1
+BRDA:224,0,jump to line 233,1
+BRDA:255,0,jump to line 256,1
+BRDA:255,0,jump to line 310,1
+BRDA:256,0,jump to line 257,1
+BRDA:256,0,jump to line 260,1
+BRDA:261,0,jump to line 262,1
+BRDA:261,0,jump to line 265,1
+BRDA:265,0,jump to line 266,1
+BRDA:265,0,jump to line 275,1
+BRDA:285,0,jump to line 286,1
+BRDA:285,0,jump to line 288,1
+BRDA:333,0,jump to line 334,1
+BRDA:333,0,jump to line 344,1
+BRDA:347,0,jump to line 348,1
+BRDA:347,0,jump to line 350,1
+BRDA:366,0,jump to line 367,1
+BRDA:366,0,jump to line 369,1
+BRDA:369,0,jump to line 370,1
+BRDA:369,0,jump to line 373,1
+BRDA:384,0,jump to line 386,1
+BRDA:384,0,jump to line 409,1
+BRDA:386,0,jump to line 387,1
+BRDA:386,0,jump to line 393,1
+BRDA:393,0,jump to line 394,1
+BRDA:393,0,jump to line 403,0
+BRDA:394,0,jump to line 395,1
+BRDA:394,0,jump to line 401,1
+BRDA:403,0,jump to line 404,1
+BRDA:403,0,jump to line 432,1
+BRDA:409,0,jump to line 410,1
+BRDA:409,0,jump to line 416,1
+BRDA:416,0,jump to line 417,1
+BRDA:416,0,jump to line 426,0
+BRDA:417,0,jump to line 418,0
+BRDA:417,0,jump to line 424,1
+BRDA:426,0,jump to line 427,1
+BRDA:426,0,jump to line 432,1
+BRDA:453,0,jump to line 454,1
+BRDA:453,0,jump to line 456,1
+BRDA:470,0,jump to line 471,1
+BRDA:470,0,jump to line 592,1
+BRDA:471,0,jump to line 472,1
+BRDA:471,0,jump to line 473,1
+BRDA:492,0,jump to line 493,1
+BRDA:492,0,jump to line 511,1
+BRDA:511,0,jump to line 512,1
+BRDA:511,0,jump to line 515,1
+BRDA:517,0,jump to line 518,1
+BRDA:517,0,jump to line 519,1
+BRDA:546,0,jump to line 547,1
+BRDA:546,0,jump to line 556,1
+BRDA:556,0,jump to line 557,1
+BRDA:556,0,jump to line 566,1
+BRDA:594,0,jump to line 595,1
+BRDA:594,0,jump to line 604,1
+BRDA:615,0,jump to line 616,1
+BRDA:615,0,jump to line 618,1
+BRDA:621,0,jump to line 622,1
+BRDA:621,0,jump to line 629,1
+BRDA:632,0,jump to line 633,1
+BRDA:632,0,jump to line 635,1
+BRDA:655,0,jump to line 656,1
+BRDA:655,0,jump to line 660,1
+BRDA:664,0,jump to line 665,1
+BRDA:664,0,jump to line 666,1
+BRDA:667,0,jump to line 668,1
+BRDA:667,0,jump to line 669,1
+BRDA:675,0,jump to line 676,1
+BRDA:675,0,jump to line 679,1
+BRDA:676,0,jump to line 675,1
+BRDA:676,0,jump to line 677,1
+BRDA:681,0,jump to line 682,1
+BRDA:681,0,jump to line 740,1
+BRDA:692,0,jump to line 693,1
+BRDA:692,0,jump to line 921,1
+BRDA:694,0,jump to line 695,1
+BRDA:694,0,jump to line 703,1
+BRDA:706,0,jump to line 707,1
+BRDA:706,0,jump to line 709,1
+BRDA:709,0,jump to line 710,1
+BRDA:709,0,jump to line 713,1
+BRDA:735,0,jump to line 736,1
+BRDA:735,0,jump to line 737,1
+BRDA:737,0,jump to line 692,0
+BRDA:737,0,jump to line 738,1
+BRDA:740,0,jump to line 741,1
+BRDA:740,0,jump to line 794,1
+BRDA:747,0,jump to line 748,1
+BRDA:747,0,jump to line 921,1
+BRDA:749,0,jump to line 750,1
+BRDA:749,0,jump to line 751,0
+BRDA:752,0,jump to line 753,1
+BRDA:752,0,jump to line 761,1
+BRDA:762,0,jump to line 763,1
+BRDA:762,0,jump to line 771,1
+BRDA:772,0,jump to line 773,1
+BRDA:772,0,jump to line 775,1
+BRDA:789,0,jump to line 790,1
+BRDA:789,0,jump to line 791,1
+BRDA:791,0,jump to line 747,0
+BRDA:791,0,jump to line 792,1
+BRDA:794,0,jump to line 795,1
+BRDA:794,0,jump to line 849,1
+BRDA:801,0,jump to line 802,1
+BRDA:801,0,jump to line 921,1
+BRDA:803,0,jump to line 804,1
+BRDA:803,0,jump to line 812,1
+BRDA:815,0,jump to line 816,1
+BRDA:815,0,jump to line 818,1
+BRDA:818,0,jump to line 819,1
+BRDA:818,0,jump to line 822,1
+BRDA:843,0,jump to line 844,1
+BRDA:843,0,jump to line 845,1
+BRDA:845,0,jump to line 801,0
+BRDA:845,0,jump to line 846,1
+BRDA:855,0,jump to line 856,1
+BRDA:855,0,jump to line 921,1
+BRDA:857,0,jump to line 858,1
+BRDA:857,0,jump to line 866,1
+BRDA:866,0,jump to line 867,1
+BRDA:866,0,jump to line 879,1
+BRDA:868,0,jump to line 869,1
+BRDA:868,0,jump to line 872,1
+BRDA:879,0,jump to line 880,1
+BRDA:879,0,jump to line 898,1
+BRDA:882,0,jump to line 883,1
+BRDA:882,0,jump to line 885,1
+BRDA:885,0,jump to line 886,1
+BRDA:885,0,jump to line 889,1
+BRDA:916,0,jump to line 917,1
+BRDA:916,0,jump to line 918,1
+BRDA:918,0,jump to line 855,1
+BRDA:918,0,jump to line 919,1
+BRDA:921,0,jump to line 922,1
+BRDA:921,0,jump to line 930,1
+BRDA:979,0,jump to line 980,1
+BRDA:979,0,jump to line 997,1
+BRF:166
+BRH:158
+end_of_record
+SF:src/services/fx.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:16,1
+DA:19,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:37,1
+DA:38,1
+DA:39,1
+DA:40,1
+DA:41,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:54,1
+DA:57,1
+DA:60,1
+DA:62,1
+DA:65,1
+DA:66,1
+DA:69,1
+DA:76,1
+DA:77,1
+DA:79,1
+DA:80,1
+DA:82,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:87,1
+DA:95,1
+DA:96,1
+DA:98,1
+DA:99,1
+DA:101,1
+DA:102,1
+DA:104,1
+DA:105,1
+DA:108,1
+DA:116,1
+DA:117,1
+DA:119,1
+DA:120,1
+DA:122,1
+DA:123,1
+DA:125,1
+DA:126,1
+DA:127,1
+DA:128,1
+DA:130,1
+DA:137,1
+DA:138,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:143,1
+DA:145,1
+DA:146,1
+DA:149,1
+DA:160,1
+DA:161,1
+DA:163,1
+DA:164,1
+DA:166,1
+DA:167,1
+DA:169,1
+DA:171,1
+DA:174,1
+DA:181,1
+DA:190,1
+DA:193,1
+DA:194,1
+DA:196,1
+DA:204,1
+DA:205,1
+DA:206,1
+DA:207,1
+DA:209,1
+DA:210,1
+DA:212,1
+DA:213,1
+DA:215,1
+DA:224,1
+DA:225,1
+DA:226,1
+DA:227,1
+DA:229,1
+DA:230,1
+DA:232,1
+DA:238,1
+DA:240,1
+DA:241,1
+DA:242,1
+DA:243,1
+DA:245,1
+DA:246,1
+DA:248,1
+DA:249,1
+DA:250,0
+DA:252,1
+DA:253,1
+DA:254,1
+DA:255,1
+DA:256,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:261,0
+LF:130
+LH:128
+FN:29,32,_FxRateCache.__init__
+FNDA:1,_FxRateCache.__init__
+FN:34,41,_FxRateCache.get
+FNDA:1,_FxRateCache.get
+FN:43,54,_FxRateCache.set
+FNDA:1,_FxRateCache.set
+FN:60,62,clear_fx_cache
+FNDA:1,clear_fx_cache
+FN:65,66,_normalize_currency
+FNDA:1,_normalize_currency
+FN:69,105,get_exchange_rate
+FNDA:1,get_exchange_rate
+FN:108,146,get_average_rate
+FNDA:1,get_average_rate
+FN:149,171,convert_amount
+FNDA:1,convert_amount
+FN:174,187,convert_to_base
+FNDA:1,convert_to_base
+FN:193,194,PrefetchedFxRates.__init__
+FNDA:1,PrefetchedFxRates.__init__
+FN:196,213,PrefetchedFxRates.get_rate
+FNDA:1,PrefetchedFxRates.get_rate
+FN:215,230,PrefetchedFxRates.set_rate
+FNDA:1,PrefetchedFxRates.set_rate
+FN:232,261,PrefetchedFxRates.prefetch
+FNDA:1,PrefetchedFxRates.prefetch
+FN:240,246,PrefetchedFxRates.prefetch._fetch_one
+FNDA:1,PrefetchedFxRates.prefetch._fetch_one
+FNF:14
+FNH:14
+BRDA:36,0,jump to line 37,1
+BRDA:36,0,jump to line 38,1
+BRDA:38,0,jump to line 39,1
+BRDA:38,0,jump to line 41,1
+BRDA:44,0,jump to line 45,1
+BRDA:44,0,jump to line 54,1
+BRDA:48,0,jump to line 49,1
+BRDA:48,0,jump to line 54,0
+BRDA:51,0,jump to line 52,1
+BRDA:51,0,jump to line 54,1
+BRDA:79,0,jump to line 80,1
+BRDA:79,0,jump to line 82,1
+BRDA:84,0,jump to line 85,1
+BRDA:84,0,jump to line 87,1
+BRDA:98,0,jump to line 99,1
+BRDA:98,0,jump to line 101,1
+BRDA:101,0,jump to line 102,1
+BRDA:101,0,jump to line 104,1
+BRDA:119,0,jump to line 120,1
+BRDA:119,0,jump to line 122,1
+BRDA:122,0,jump to line 123,1
+BRDA:122,0,jump to line 125,1
+BRDA:127,0,jump to line 128,1
+BRDA:127,0,jump to line 130,1
+BRDA:140,0,jump to line 141,1
+BRDA:140,0,jump to line 142,1
+BRDA:142,0,jump to line 143,1
+BRDA:142,0,jump to line 145,1
+BRDA:163,0,jump to line 164,1
+BRDA:163,0,jump to line 166,1
+BRDA:166,0,jump to line 167,1
+BRDA:166,0,jump to line 169,1
+BRDA:206,0,jump to line 207,1
+BRDA:206,0,jump to line 209,1
+BRDA:209,0,jump to line 210,1
+BRDA:209,0,jump to line 212,1
+BRDA:226,0,jump to line 227,1
+BRDA:226,0,jump to line 229,1
+BRDA:242,0,jump to line 243,1
+BRDA:242,0,jump to line 245,1
+BRDA:249,0,jump to line 250,0
+BRDA:249,0,jump to line 252,1
+BRDA:254,0,jump to line 255,1
+BRDA:254,0,jump to the function exit,1
+BRDA:258,0,jump to line 259,1
+BRDA:258,0,jump to line 261,0
+BRDA:259,0,jump to line 258,0
+BRDA:259,0,jump to line 260,1
+BRF:48
+BRH:44
+end_of_record
+SF:src/services/fx_revaluation.py
+DA:9,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:31,1
+DA:33,1
+DA:35,1
+DA:38,1
+DA:39,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:47,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:54,1
+DA:55,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:63,1
+DA:68,1
+DA:70,1
+DA:78,1
+DA:79,1
+DA:82,1
+DA:87,1
+DA:89,1
+DA:92,1
+DA:102,1
+DA:116,1
+DA:130,1
+DA:131,1
+DA:133,1
+DA:134,1
+DA:136,1
+DA:138,1
+DA:139,1
+DA:141,0
+DA:144,1
+DA:155,1
+DA:157,1
+DA:158,1
+DA:160,1
+DA:161,1
+DA:167,1
+DA:168,1
+DA:172,1
+DA:175,1
+DA:177,1
+DA:179,1
+DA:191,1
+DA:201,1
+DA:202,1
+DA:204,1
+DA:205,1
+DA:207,1
+DA:208,1
+DA:209,1
+DA:210,1
+DA:211,1
+DA:213,1
+DA:221,1
+DA:230,1
+DA:239,1
+DA:240,1
+DA:242,1
+DA:243,1
+DA:244,1
+DA:246,1
+DA:247,1
+DA:249,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:261,0
+DA:262,0
+DA:264,1
+DA:270,1
+DA:273,1
+DA:287,1
+DA:289,1
+DA:290,1
+DA:294,1
+DA:296,1
+DA:298,1
+DA:305,1
+DA:306,1
+DA:308,1
+DA:310,1
+DA:313,1
+DA:314,1
+DA:316,1
+DA:318,1
+DA:328,1
+DA:331,1
+DA:332,1
+DA:334,1
+DA:336,1
+DA:346,1
+DA:348,1
+DA:349,1
+DA:351,1
+DA:352,1
+DA:354,1
+DA:355,0
+DA:357,1
+DA:360,1
+DA:375,1
+DA:377,1
+DA:378,1
+DA:383,1
+DA:385,1
+DA:387,1
+DA:396,1
+DA:397,1
+DA:399,1
+DA:402,1
+DA:404,1
+DA:407,1
+DA:409,1
+LF:134
+LH:130
+FN:63,79,get_foreign_currency_accounts
+FNDA:1,get_foreign_currency_accounts
+FN:82,89,calculate_account_balance_in_currency
+FNDA:1,calculate_account_balance_in_currency
+FN:92,141,calculate_account_historical_cost
+FNDA:1,calculate_account_historical_cost
+FN:144,188,calculate_unrealized_fx_for_account
+FNDA:1,calculate_unrealized_fx_for_account
+FN:191,227,calculate_unrealized_fx_gains
+FNDA:1,calculate_unrealized_fx_gains
+FN:230,270,get_or_create_fx_gain_loss_account
+FNDA:1,get_or_create_fx_gain_loss_account
+FN:273,357,create_revaluation_entry
+FNDA:1,create_revaluation_entry
+FN:360,399,run_period_end_revaluation
+FNDA:1,run_period_end_revaluation
+FN:402,404,is_revaluation_entry
+FNDA:1,is_revaluation_entry
+FN:407,409,get_revaluation_entries_filter
+FNDA:1,get_revaluation_entries_filter
+FNF:10
+FNH:10
+BRDA:138,0,jump to line 139,1
+BRDA:138,0,jump to line 141,0
+BRDA:157,0,jump to line 158,1
+BRDA:157,0,jump to line 160,1
+BRDA:207,0,jump to line 208,1
+BRDA:207,0,jump to line 213,1
+BRDA:209,0,jump to line 207,0
+BRDA:209,0,jump to line 210,1
+BRDA:246,0,jump to line 247,1
+BRDA:246,0,jump to line 249,1
+BRDA:289,0,jump to line 290,1
+BRDA:289,0,jump to line 296,1
+BRDA:310,0,jump to line 313,1
+BRDA:310,0,jump to line 331,1
+BRDA:313,0,jump to line 314,1
+BRDA:313,0,jump to line 316,1
+BRDA:331,0,jump to line 332,1
+BRDA:331,0,jump to line 334,1
+BRDA:354,0,jump to line 355,0
+BRDA:354,0,jump to line 357,1
+BRDA:377,0,jump to line 378,1
+BRDA:377,0,jump to line 385,1
+BRDA:396,0,jump to line 397,1
+BRDA:396,0,jump to line 399,0
+BRF:24
+BRH:20
+end_of_record
+SF:src/services/openrouter_models.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:13,1
+DA:14,1
+DA:17,1
+DA:21,1
+DA:23,1
+DA:24,1
+DA:28,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:34,1
+DA:35,1
+DA:41,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:47,0
+DA:49,1
+DA:50,1
+DA:51,0
+DA:53,1
+DA:54,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:61,1
+DA:62,1
+DA:63,1
+DA:64,1
+DA:66,1
+DA:73,1
+DA:75,1
+DA:78,1
+DA:79,1
+DA:80,1
+DA:81,1
+DA:82,1
+DA:83,1
+DA:84,1
+DA:87,1
+DA:89,1
+DA:90,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:95,1
+DA:104,1
+DA:105,1
+DA:106,1
+DA:107,1
+DA:108,1
+DA:111,1
+DA:113,1
+DA:114,1
+DA:117,1
+DA:118,1
+DA:120,1
+DA:121,1
+DA:122,1
+DA:123,1
+DA:129,1
+DA:131,1
+DA:132,1
+DA:133,1
+DA:134,1
+DA:141,1
+DA:143,1
+DA:148,1
+LF:77
+LH:75
+FN:31,75,fetch_model_catalog
+FNDA:1,fetch_model_catalog
+FN:78,84,_to_decimal
+FNDA:1,_to_decimal
+FN:87,101,normalize_model_entry
+FNDA:1,normalize_model_entry
+FN:104,108,model_matches_modality
+FNDA:1,model_matches_modality
+FN:111,114,is_model_known
+FNDA:1,is_model_known
+FN:117,148,get_model_info
+FNDA:1,get_model_info
+FNF:6
+FNH:6
+BRDA:33,0,jump to line 34,1
+BRDA:33,0,jump to line 43,1
+BRDA:46,0,jump to line 47,0
+BRDA:46,0,jump to line 49,1
+BRDA:50,0,jump to line 51,0
+BRDA:50,0,jump to line 53,1
+BRDA:79,0,jump to line 80,1
+BRDA:79,0,jump to line 81,1
+BRDA:105,0,jump to line 106,1
+BRDA:105,0,jump to line 107,1
+BRDA:131,0,jump to line 132,1
+BRDA:131,0,jump to line 143,1
+BRDA:132,0,jump to line 131,1
+BRDA:132,0,jump to line 133,1
+BRF:14
+BRH:12
+end_of_record
+SF:src/services/openrouter_streaming.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:14,1
+DA:17,1
+DA:20,1
+DA:30,1
+DA:31,1
+DA:34,1
+DA:50,1
+DA:51,1
+DA:52,1
+DA:53,1
+DA:55,1
+DA:56,1
+DA:58,1
+DA:63,1
+DA:64,0
+DA:66,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:78,1
+DA:85,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:98,1
+DA:99,1
+DA:101,1
+DA:111,1
+DA:113,1
+DA:114,1
+DA:116,1
+DA:118,1
+DA:119,1
+DA:121,1
+DA:122,1
+DA:124,1
+DA:126,1
+DA:127,1
+DA:130,1
+DA:131,1
+DA:132,1
+DA:133,1
+DA:134,1
+DA:140,1
+DA:144,1
+DA:145,1
+DA:146,1
+DA:148,1
+DA:151,1
+DA:152,1
+DA:153,1
+DA:158,1
+DA:160,1
+DA:161,1
+DA:162,1
+DA:163,1
+DA:164,1
+DA:165,1
+DA:167,1
+DA:168,1
+DA:172,1
+DA:175,1
+DA:176,1
+DA:182,1
+DA:183,1
+DA:188,1
+DA:189,1
+DA:200,1
+DA:219,1
+DA:229,1
+DA:232,1
+DA:248,1
+DA:258,1
+DA:261,1
+DA:263,1
+DA:264,1
+DA:265,1
+DA:266,1
+LF:87
+LH:86
+FN:20,31,OpenRouterStreamError.__init__
+FNDA:1,OpenRouterStreamError.__init__
+FN:34,197,_stream_openrouter_base
+FNDA:1,_stream_openrouter_base
+FN:200,229,stream_openrouter_json
+FNDA:1,stream_openrouter_json
+FN:232,258,stream_openrouter_chat
+FNDA:1,stream_openrouter_chat
+FN:261,266,accumulate_stream
+FNDA:1,accumulate_stream
+FNF:5
+FNH:5
+BRDA:50,0,jump to line 51,1
+BRDA:50,0,jump to line 52,1
+BRDA:52,0,jump to line 53,1
+BRDA:52,0,jump to line 55,1
+BRDA:55,0,jump to line 56,1
+BRDA:55,0,jump to line 58,0
+BRDA:63,0,jump to line 64,0
+BRDA:63,0,jump to line 66,1
+BRDA:95,0,jump to line 96,1
+BRDA:95,0,jump to line 113,1
+BRDA:116,0,jump to line 118,1
+BRDA:116,0,jump to line 175,0
+BRDA:118,0,jump to line 119,1
+BRDA:118,0,jump to line 121,1
+BRDA:121,0,jump to line 122,1
+BRDA:121,0,jump to line 124,1
+BRDA:130,0,jump to line 131,1
+BRDA:130,0,jump to line 144,1
+BRDA:145,0,jump to line 146,1
+BRDA:145,0,jump to line 148,1
+BRDA:152,0,jump to line 153,1
+BRDA:152,0,jump to line 160,1
+BRDA:162,0,jump to line 116,1
+BRDA:162,0,jump to line 163,1
+BRDA:175,0,jump to line 176,1
+BRDA:175,0,jump to line 182,1
+BRDA:182,0,jump to line 183,1
+BRDA:182,0,jump to line 188,1
+BRDA:219,0,jump to line 229,1
+BRDA:219,0,return from function 'stream_openrouter_json',1
+BRDA:248,0,jump to line 258,1
+BRDA:248,0,return from function 'stream_openrouter_chat',1
+BRDA:264,0,jump to line 265,1
+BRDA:264,0,jump to line 266,1
+BRF:34
+BRH:31
+end_of_record
+SF:src/services/performance.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:7,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:16,1
+DA:19,1
+DA:22,1
+DA:25,1
+DA:28,1
+DA:31,1
+DA:34,1
+DA:37,1
+DA:58,1
+DA:59,1
+DA:62,1
+DA:71,1
+DA:82,1
+DA:84,1
+DA:85,1
+DA:87,1
+DA:90,1
+DA:113,1
+DA:114,1
+DA:117,1
+DA:118,1
+DA:119,1
+DA:122,1
+DA:126,1
+DA:127,1
+DA:132,1
+DA:133,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:143,1
+DA:146,1
+DA:150,1
+DA:151,1
+DA:154,1
+DA:155,1
+DA:157,1
+DA:158,1
+DA:159,1
+DA:160,1
+DA:161,1
+DA:168,1
+DA:170,1
+DA:171,1
+DA:172,1
+DA:175,1
+DA:176,1
+DA:179,1
+DA:180,1
+DA:184,1
+DA:185,1
+DA:186,1
+DA:187,1
+DA:188,1
+DA:189,1
+DA:192,1
+DA:213,1
+DA:214,1
+DA:215,1
+DA:217,1
+DA:218,1
+DA:219,1
+DA:220,1
+DA:221,1
+DA:223,1
+DA:224,1
+DA:225,1
+DA:227,1
+DA:228,1
+DA:231,1
+DA:249,1
+DA:250,1
+DA:251,1
+DA:253,1
+DA:254,1
+DA:256,1
+DA:257,1
+DA:259,1
+DA:260,1
+DA:261,1
+DA:262,1
+DA:263,1
+DA:265,1
+DA:266,1
+DA:268,1
+DA:269,1
+DA:270,1
+DA:272,1
+DA:273,1
+DA:275,1
+DA:278,1
+DA:304,1
+DA:305,1
+DA:308,1
+DA:315,1
+DA:316,1
+DA:318,1
+DA:319,1
+DA:320,1
+DA:328,1
+DA:329,1
+DA:331,1
+DA:332,1
+DA:333,1
+DA:334,1
+DA:338,1
+DA:339,1
+DA:341,1
+DA:344,1
+DA:368,1
+DA:371,1
+DA:389,1
+DA:393,1
+DA:394,1
+DA:397,1
+DA:398,1
+DA:400,1
+DA:401,1
+DA:402,1
+DA:403,1
+DA:404,1
+DA:411,1
+DA:413,1
+LF:133
+LH:133
+FN:37,87,batch_latest_atomic_positions
+FNDA:1,batch_latest_atomic_positions
+FN:90,189,calculate_xirr
+FNDA:1,calculate_xirr
+FN:192,228,_xirr_newton
+FNDA:1,_xirr_newton
+FN:231,275,_xirr_bisection
+FNDA:1,_xirr_bisection
+FN:253,254,_xirr_bisection.npv
+FNDA:1,_xirr_bisection.npv
+FN:278,341,calculate_time_weighted_return
+FNDA:1,calculate_time_weighted_return
+FN:344,368,calculate_money_weighted_return
+FNDA:1,calculate_money_weighted_return
+FN:371,413,_get_portfolio_value
+FNDA:1,_get_portfolio_value
+FNF:8
+FNH:8
+BRDA:58,0,jump to line 59,1
+BRDA:58,0,jump to line 62,1
+BRDA:113,0,jump to line 114,1
+BRDA:113,0,jump to line 117,1
+BRDA:132,0,jump to line 133,1
+BRDA:132,0,jump to line 146,1
+BRDA:158,0,jump to line 159,1
+BRDA:158,0,jump to line 170,1
+BRDA:160,0,jump to line 158,0
+BRDA:160,0,jump to line 161,1
+BRDA:170,0,jump to line 171,1
+BRDA:170,0,jump to line 175,1
+BRDA:175,0,jump to line 176,1
+BRDA:175,0,jump to line 179,1
+BRDA:217,0,jump to line 218,1
+BRDA:217,0,jump to line 228,1
+BRDA:220,0,jump to line 221,1
+BRDA:220,0,jump to line 223,1
+BRDA:224,0,jump to line 225,1
+BRDA:224,0,jump to line 227,1
+BRDA:259,0,jump to line 260,1
+BRDA:259,0,jump to line 261,1
+BRDA:261,0,jump to line 262,1
+BRDA:261,0,jump to line 275,1
+BRDA:265,0,jump to line 266,1
+BRDA:265,0,jump to line 268,1
+BRDA:268,0,jump to line 269,1
+BRDA:268,0,jump to line 272,1
+BRDA:319,0,jump to line 320,1
+BRDA:319,0,jump to line 331,1
+BRDA:331,0,jump to line 332,1
+BRDA:331,0,jump to line 338,1
+BRDA:332,0,jump to line 333,1
+BRDA:332,0,jump to line 334,1
+BRDA:401,0,jump to line 402,1
+BRDA:401,0,jump to line 413,1
+BRDA:403,0,jump to line 401,1
+BRDA:403,0,jump to line 404,1
+BRF:38
+BRH:37
+end_of_record
+SF:src/services/pii_redaction.py
+DA:7,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:14,1
+DA:16,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:27,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:34,1
+DA:35,1
+DA:36,1
+DA:37,1
+DA:38,1
+DA:43,1
+DA:48,1
+DA:51,1
+DA:53,1
+DA:56,1
+DA:58,1
+DA:67,1
+DA:68,1
+DA:70,1
+DA:71,1
+DA:73,1
+DA:74,1
+DA:76,1
+DA:77,0
+DA:79,1
+DA:80,0
+DA:82,1
+DA:91,1
+DA:94,1
+DA:95,1
+DA:97,1
+DA:98,1
+DA:100,1
+DA:102,1
+DA:103,1
+DA:104,1
+DA:105,1
+DA:107,1
+DA:113,1
+DA:120,1
+DA:121,1
+DA:122,1
+DA:123,1
+DA:124,1
+LF:57
+LH:55
+FN:67,91,detect_pii
+FNDA:1,detect_pii
+FN:94,117,redact_text
+FNDA:1,redact_text
+FN:120,124,mask_account_number
+FNDA:1,mask_account_number
+FNF:3
+FNH:3
+BRDA:70,0,jump to line 71,1
+BRDA:70,0,jump to line 91,1
+BRDA:71,0,jump to line 70,1
+BRDA:71,0,jump to line 73,1
+BRDA:73,0,jump to line 74,1
+BRDA:73,0,jump to line 82,1
+BRDA:76,0,jump to line 77,0
+BRDA:76,0,jump to line 79,1
+BRDA:79,0,jump to line 80,0
+BRDA:79,0,jump to line 82,1
+BRDA:97,0,jump to line 98,1
+BRDA:97,0,jump to line 100,1
+BRDA:103,0,jump to line 104,1
+BRDA:103,0,jump to line 107,1
+BRDA:121,0,jump to line 122,1
+BRDA:121,0,jump to line 123,1
+BRF:16
+BRH:14
+end_of_record
+SF:src/services/portfolio.py
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:15,1
+DA:16,1
+DA:17,1
+DA:25,1
+DA:27,1
+DA:30,1
+DA:33,1
+DA:36,1
+DA:39,1
+DA:42,1
+DA:45,1
+DA:48,1
+DA:51,1
+DA:54,1
+DA:57,1
+DA:83,1
+DA:86,1
+DA:92,1
+DA:93,1
+DA:95,1
+DA:96,1
+DA:98,1
+DA:99,1
+DA:101,1
+DA:103,1
+DA:105,1
+DA:108,1
+DA:111,1
+DA:112,1
+DA:119,1
+DA:126,1
+DA:128,1
+DA:129,1
+DA:130,1
+DA:133,1
+DA:134,1
+DA:135,1
+DA:137,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:144,1
+DA:145,1
+DA:146,1
+DA:147,1
+DA:148,1
+DA:150,1
+DA:170,1
+DA:172,1
+DA:173,1
+DA:175,1
+DA:200,1
+DA:201,1
+DA:204,1
+DA:213,1
+DA:214,1
+DA:216,1
+DA:217,1
+DA:226,1
+DA:227,1
+DA:228,1
+DA:230,1
+DA:233,1
+DA:234,1
+DA:235,1
+DA:238,1
+DA:239,1
+DA:246,1
+DA:254,1
+DA:255,1
+DA:258,1
+DA:260,1
+DA:261,1
+DA:263,1
+DA:265,1
+DA:266,1
+DA:268,1
+DA:284,1
+DA:285,1
+DA:287,1
+DA:289,1
+DA:290,1
+DA:299,1
+DA:321,1
+DA:324,1
+DA:330,1
+DA:331,1
+DA:333,1
+DA:334,1
+DA:336,1
+DA:337,1
+DA:338,1
+DA:339,1
+DA:341,1
+DA:343,1
+DA:346,1
+DA:349,1
+DA:350,1
+DA:357,1
+DA:364,1
+DA:366,1
+DA:367,1
+DA:368,1
+DA:371,1
+DA:372,1
+DA:373,1
+DA:374,1
+DA:376,1
+DA:394,1
+DA:395,1
+DA:397,1
+DA:399,1
+DA:400,1
+DA:410,1
+DA:430,1
+DA:432,1
+DA:434,1
+DA:439,1
+DA:440,1
+DA:442,1
+DA:443,1
+DA:455,1
+DA:458,1
+DA:466,1
+DA:467,1
+DA:469,1
+DA:482,1
+DA:483,1
+DA:485,1
+DA:502,1
+DA:504,1
+DA:505,1
+DA:506,1
+DA:507,1
+DA:508,1
+DA:510,1
+DA:511,1
+DA:512,1
+DA:513,1
+DA:515,1
+DA:516,1
+DA:518,1
+DA:521,1
+DA:522,1
+DA:523,1
+DA:525,1
+DA:527,1
+DA:542,1
+DA:567,1
+DA:574,1
+DA:575,1
+DA:577,1
+DA:578,1
+DA:581,1
+DA:589,1
+DA:590,1
+DA:592,1
+DA:594,1
+DA:595,1
+DA:596,1
+DA:599,1
+DA:601,1
+DA:620,1
+DA:627,1
+DA:628,1
+LF:175
+LH:175
+FN:57,173,PortfolioService.get_holdings
+FNDA:1,PortfolioService.get_holdings
+FN:175,297,PortfolioService.calculate_realized_pnl
+FNDA:1,PortfolioService.calculate_realized_pnl
+FN:299,408,PortfolioService.calculate_unrealized_pnl
+FNDA:1,PortfolioService.calculate_unrealized_pnl
+FN:410,483,PortfolioService.update_market_prices
+FNDA:1,PortfolioService.update_market_prices
+FN:485,540,PortfolioService.get_portfolio_summary
+FNDA:1,PortfolioService.get_portfolio_summary
+FN:542,599,PortfolioService._get_latest_price
+FNDA:1,PortfolioService._get_latest_price
+FN:601,628,PortfolioService._get_latest_atomic
+FNDA:1,PortfolioService._get_latest_atomic
+FNF:7
+FNH:7
+BRDA:92,0,jump to line 93,1
+BRDA:92,0,jump to line 95,1
+BRDA:98,0,jump to line 99,1
+BRDA:98,0,jump to line 101,1
+BRDA:103,0,jump to line 105,1
+BRDA:103,0,jump to line 172,1
+BRDA:111,0,jump to line 112,1
+BRDA:111,0,jump to line 128,1
+BRDA:134,0,jump to line 135,1
+BRDA:134,0,jump to line 137,1
+BRDA:145,0,jump to line 146,1
+BRDA:145,0,jump to line 150,1
+BRDA:200,0,jump to line 201,1
+BRDA:200,0,jump to line 204,1
+BRDA:216,0,jump to line 217,1
+BRDA:216,0,jump to line 226,1
+BRDA:230,0,jump to line 233,1
+BRDA:230,0,jump to line 284,1
+BRDA:238,0,jump to line 239,1
+BRDA:238,0,jump to line 254,1
+BRDA:260,0,jump to line 261,1
+BRDA:260,0,jump to line 263,1
+BRDA:284,0,jump to line 285,1
+BRDA:284,0,jump to line 287,1
+BRDA:333,0,jump to line 334,1
+BRDA:333,0,jump to line 336,1
+BRDA:341,0,jump to line 343,1
+BRDA:341,0,jump to line 394,1
+BRDA:349,0,jump to line 350,1
+BRDA:349,0,jump to line 366,1
+BRDA:394,0,jump to line 395,1
+BRDA:394,0,jump to line 397,1
+BRDA:432,0,jump to line 434,1
+BRDA:432,0,jump to line 482,1
+BRDA:442,0,jump to line 443,1
+BRDA:442,0,jump to line 458,1
+BRDA:510,0,jump to line 511,1
+BRDA:510,0,jump to line 521,1
+BRDA:515,0,jump to line 516,1
+BRDA:515,0,jump to line 518,1
+BRDA:522,0,jump to line 523,1
+BRDA:522,0,jump to line 525,1
+BRDA:577,0,jump to line 578,1
+BRDA:577,0,jump to line 581,1
+BRDA:592,0,jump to line 594,1
+BRDA:592,0,jump to line 599,1
+BRDA:594,0,jump to line 595,1
+BRDA:594,0,jump to line 596,1
+BRF:48
+BRH:48
+end_of_record
+SF:src/services/processing_account.py
+DA:14,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:20,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:26,1
+DA:34,1
+DA:37,1
+DA:48,1
+DA:49,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:58,1
+DA:61,1
+DA:62,1
+DA:65,1
+DA:66,1
+DA:67,1
+DA:68,1
+DA:71,1
+DA:80,1
+DA:81,1
+DA:83,1
+DA:84,1
+DA:87,1
+DA:97,1
+DA:100,1
+DA:101,1
+DA:104,1
+DA:105,1
+DA:108,1
+DA:109,1
+DA:112,1
+DA:113,1
+DA:116,1
+DA:117,1
+DA:119,1
+DA:120,1
+DA:123,1
+DA:133,1
+DA:134,1
+DA:137,1
+DA:138,1
+DA:140,1
+DA:141,1
+DA:144,1
+DA:147,1
+DA:148,1
+DA:149,1
+DA:152,1
+DA:155,1
+DA:165,1
+DA:168,1
+DA:169,1
+DA:172,1
+DA:173,1
+DA:176,1
+DA:177,1
+DA:180,1
+DA:181,1
+DA:184,1
+DA:187,1
+DA:204,1
+DA:205,1
+DA:206,1
+DA:207,1
+DA:208,1
+DA:209,1
+DA:210,1
+DA:211,1
+DA:212,1
+DA:213,1
+DA:214,1
+DA:215,1
+DA:216,1
+DA:217,1
+DA:218,1
+DA:221,1
+DA:222,1
+DA:223,1
+DA:226,1
+DA:229,1
+DA:236,1
+DA:243,1
+DA:246,1
+DA:267,1
+DA:270,1
+DA:279,1
+DA:282,1
+DA:283,1
+DA:285,1
+DA:286,1
+DA:287,1
+DA:289,1
+DA:290,1
+DA:292,1
+DA:293,1
+DA:294,1
+DA:297,1
+DA:298,1
+DA:301,1
+DA:302,1
+DA:303,1
+DA:304,1
+DA:305,1
+DA:306,1
+DA:307,0
+DA:309,1
+DA:310,1
+DA:311,1
+DA:318,1
+DA:319,1
+DA:320,1
+DA:321,1
+DA:322,1
+DA:324,1
+DA:327,1
+DA:350,1
+DA:351,1
+DA:352,1
+DA:353,1
+DA:355,1
+DA:357,1
+DA:365,1
+DA:380,1
+DA:381,1
+DA:382,1
+DA:384,1
+DA:385,1
+DA:388,1
+DA:411,1
+DA:412,1
+DA:413,1
+DA:414,1
+DA:416,1
+DA:418,1
+DA:426,1
+DA:441,1
+DA:442,1
+DA:443,1
+DA:445,1
+DA:446,1
+DA:449,1
+DA:459,1
+DA:462,1
+DA:469,1
+DA:472,1
+DA:474,1
+DA:477,1
+DA:494,1
+DA:496,1
+DA:505,1
+DA:508,1
+DA:509,1
+DA:510,1
+DA:520,1
+LF:162
+LH:161
+FN:71,84,detect_transfer_pattern
+FNDA:1,detect_transfer_pattern
+FN:87,120,_score_amount_match
+FNDA:1,_score_amount_match
+FN:123,152,_score_description_match
+FNDA:1,_score_description_match
+FN:155,184,_score_date_proximity
+FNDA:1,_score_date_proximity
+FN:187,243,_calculate_pair_confidence
+FNDA:1,_calculate_pair_confidence
+FN:246,324,find_transfer_pairs
+FNDA:1,find_transfer_pairs
+FN:327,385,create_transfer_out_entry
+FNDA:1,create_transfer_out_entry
+FN:388,446,create_transfer_in_entry
+FNDA:1,create_transfer_in_entry
+FN:449,474,get_processing_balance
+FNDA:1,get_processing_balance
+FN:477,520,get_unpaired_transfers
+FNDA:1,get_unpaired_transfers
+FNF:10
+FNH:10
+BRDA:80,0,jump to line 81,1
+BRDA:80,0,jump to line 83,1
+BRDA:100,0,jump to line 101,1
+BRDA:100,0,jump to line 104,1
+BRDA:104,0,jump to line 105,1
+BRDA:104,0,jump to line 108,1
+BRDA:108,0,jump to line 109,1
+BRDA:108,0,jump to line 112,1
+BRDA:112,0,jump to line 113,1
+BRDA:112,0,jump to line 116,1
+BRDA:116,0,jump to line 117,1
+BRDA:116,0,jump to line 119,1
+BRDA:133,0,jump to line 134,1
+BRDA:133,0,jump to line 137,1
+BRDA:140,0,jump to line 141,1
+BRDA:140,0,jump to line 144,1
+BRDA:168,0,jump to line 169,1
+BRDA:168,0,jump to line 172,1
+BRDA:172,0,jump to line 173,1
+BRDA:172,0,jump to line 176,1
+BRDA:176,0,jump to line 177,1
+BRDA:176,0,jump to line 180,1
+BRDA:180,0,jump to line 181,1
+BRDA:180,0,jump to line 184,1
+BRDA:204,0,jump to line 205,1
+BRDA:204,0,jump to line 209,1
+BRDA:205,0,jump to line 206,1
+BRDA:205,0,jump to line 209,1
+BRDA:206,0,jump to line 205,1
+BRDA:206,0,jump to line 207,1
+BRDA:211,0,jump to line 212,1
+BRDA:211,0,jump to line 215,1
+BRDA:212,0,jump to line 211,1
+BRDA:212,0,jump to line 213,1
+BRDA:215,0,jump to line 216,1
+BRDA:215,0,jump to line 221,1
+BRDA:216,0,jump to line 215,1
+BRDA:216,0,jump to line 217,1
+BRDA:285,0,jump to line 286,1
+BRDA:285,0,jump to line 297,1
+BRDA:286,0,jump to line 285,0
+BRDA:286,0,jump to line 287,1
+BRDA:287,0,jump to line 286,1
+BRDA:287,0,jump to line 289,1
+BRDA:289,0,jump to line 290,1
+BRDA:289,0,jump to line 292,1
+BRDA:292,0,jump to line 293,1
+BRDA:292,0,jump to line 294,0
+BRDA:303,0,jump to line 304,1
+BRDA:303,0,jump to line 324,1
+BRDA:305,0,jump to line 306,1
+BRDA:305,0,jump to line 320,1
+BRDA:306,0,jump to line 307,0
+BRDA:306,0,jump to line 309,1
+BRDA:310,0,jump to line 305,1
+BRDA:310,0,jump to line 311,1
+BRDA:318,0,jump to line 305,0
+BRDA:318,0,jump to line 319,1
+BRDA:320,0,jump to line 303,1
+BRDA:320,0,jump to line 321,1
+BRDA:350,0,jump to line 351,1
+BRDA:350,0,jump to line 352,1
+BRDA:352,0,jump to line 353,1
+BRDA:352,0,jump to line 355,1
+BRDA:381,0,jump to line 382,1
+BRDA:381,0,jump to line 384,1
+BRDA:411,0,jump to line 412,1
+BRDA:411,0,jump to line 413,1
+BRDA:413,0,jump to line 414,1
+BRDA:413,0,jump to line 416,1
+BRDA:442,0,jump to line 443,1
+BRDA:442,0,jump to line 445,1
+BRDA:509,0,jump to line 510,1
+BRDA:509,0,jump to line 520,1
+BRF:74
+BRH:70
+end_of_record
+SF:src/services/reconciliation.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:20,1
+DA:21,1
+DA:22,1
+DA:36,1
+DA:37,1
+DA:44,1
+DA:47,1
+DA:48,1
+DA:51,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:63,1
+DA:64,1
+DA:67,1
+DA:68,1
+DA:71,1
+DA:74,1
+DA:76,1
+DA:79,1
+DA:81,1
+DA:82,1
+DA:83,1
+DA:84,1
+DA:85,1
+DA:88,1
+DA:101,1
+DA:103,1
+DA:106,1
+DA:112,1
+DA:113,1
+DA:115,1
+DA:116,1
+DA:118,1
+DA:119,1
+DA:120,1
+DA:121,1
+DA:122,1
+DA:124,1
+DA:125,1
+DA:126,1
+DA:127,1
+DA:128,1
+DA:129,1
+DA:130,1
+DA:132,1
+DA:144,1
+DA:145,1
+DA:152,1
+DA:153,1
+DA:154,1
+DA:155,1
+DA:156,1
+DA:157,1
+DA:159,1
+DA:160,1
+DA:163,1
+DA:165,1
+DA:166,1
+DA:169,1
+DA:171,1
+DA:172,1
+DA:173,1
+DA:174,1
+DA:175,1
+DA:176,1
+DA:177,1
+DA:178,1
+DA:179,1
+DA:180,1
+DA:181,1
+DA:184,1
+DA:191,1
+DA:192,1
+DA:193,1
+DA:195,1
+DA:196,1
+DA:197,1
+DA:198,1
+DA:199,1
+DA:200,1
+DA:201,1
+DA:202,1
+DA:203,1
+DA:205,1
+DA:206,1
+DA:209,1
+DA:211,1
+DA:212,1
+DA:213,1
+DA:216,1
+DA:225,1
+DA:226,1
+DA:227,1
+DA:228,1
+DA:229,1
+DA:232,1
+DA:234,1
+DA:235,1
+DA:236,1
+DA:239,1
+DA:242,1
+DA:244,1
+DA:245,1
+DA:246,1
+DA:247,1
+DA:248,1
+DA:249,1
+DA:251,1
+DA:252,1
+DA:253,1
+DA:254,1
+DA:255,1
+DA:256,1
+DA:257,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:262,1
+DA:263,1
+DA:264,1
+DA:265,1
+DA:266,1
+DA:267,1
+DA:268,1
+DA:269,1
+DA:271,1
+DA:274,1
+DA:280,1
+DA:297,1
+DA:298,1
+DA:299,1
+DA:301,1
+DA:302,1
+DA:303,1
+DA:304,1
+DA:305,1
+DA:306,1
+DA:307,1
+DA:308,1
+DA:309,1
+DA:310,1
+DA:313,1
+DA:323,1
+DA:324,1
+DA:325,1
+DA:328,1
+DA:329,1
+DA:330,1
+DA:332,1
+DA:345,1
+DA:346,1
+DA:347,1
+DA:349,1
+DA:350,1
+DA:351,1
+DA:352,1
+DA:353,1
+DA:356,1
+DA:358,1
+DA:365,1
+DA:368,1
+DA:382,1
+DA:383,1
+DA:385,1
+DA:387,1
+DA:388,1
+DA:389,1
+DA:390,1
+DA:392,1
+DA:393,1
+DA:396,1
+DA:397,1
+DA:400,1
+DA:412,1
+DA:413,1
+DA:414,1
+DA:415,1
+DA:417,1
+DA:418,1
+DA:419,1
+DA:420,1
+DA:421,1
+DA:423,1
+DA:424,1
+DA:426,1
+DA:428,1
+DA:435,1
+DA:436,1
+DA:437,1
+DA:438,1
+DA:440,1
+DA:441,1
+DA:448,1
+DA:452,1
+DA:453,1
+DA:454,1
+DA:455,1
+DA:456,1
+DA:457,1
+DA:458,1
+DA:459,1
+DA:460,1
+DA:461,1
+DA:462,1
+DA:465,1
+DA:472,1
+DA:473,1
+DA:475,1
+DA:482,1
+DA:485,1
+DA:491,1
+DA:492,1
+DA:494,1
+DA:495,1
+DA:496,1
+DA:498,1
+DA:499,1
+DA:503,1
+DA:504,1
+DA:506,1
+DA:507,1
+DA:509,1
+DA:513,1
+DA:514,1
+DA:516,1
+DA:517,1
+DA:518,1
+DA:520,1
+DA:521,1
+DA:523,1
+DA:524,1
+DA:535,1
+DA:536,1
+DA:538,1
+DA:539,1
+DA:549,1
+DA:550,1
+DA:560,1
+DA:568,1
+DA:570,1
+DA:577,1
+DA:578,1
+DA:580,1
+DA:581,1
+DA:584,1
+DA:590,1
+DA:591,1
+DA:597,1
+DA:602,1
+DA:603,1
+DA:606,1
+DA:614,1
+DA:616,1
+DA:617,1
+DA:619,1
+DA:626,1
+DA:627,1
+DA:628,1
+DA:629,1
+DA:630,1
+DA:632,1
+DA:633,1
+DA:635,1
+DA:636,1
+DA:642,1
+DA:643,1
+DA:644,1
+DA:647,1
+DA:648,1
+DA:650,1
+DA:657,1
+DA:659,1
+DA:660,1
+DA:661,1
+DA:662,1
+DA:664,1
+DA:665,1
+DA:668,1
+DA:670,1
+DA:671,1
+DA:672,1
+DA:673,1
+DA:674,1
+DA:675,1
+DA:676,0
+DA:677,1
+DA:678,1
+DA:679,1
+DA:683,1
+DA:684,1
+DA:685,0
+DA:688,1
+DA:689,1
+DA:691,1
+DA:692,1
+DA:695,1
+DA:696,1
+DA:701,1
+DA:703,1
+DA:704,1
+DA:712,1
+DA:715,1
+DA:723,1
+DA:724,1
+DA:726,1
+DA:727,1
+DA:728,1
+DA:729,1
+DA:731,1
+DA:737,1
+DA:738,1
+DA:746,1
+DA:749,1
+DA:757,1
+DA:758,1
+DA:760,1
+DA:761,1
+DA:762,1
+DA:763,1
+DA:765,1
+DA:771,1
+DA:772,1
+DA:782,1
+DA:783,1
+DA:785,1
+DA:786,1
+DA:787,1
+DA:788,1
+DA:789,1
+DA:790,1
+DA:791,1
+DA:792,1
+DA:798,1
+DA:799,1
+DA:801,1
+DA:803,1
+DA:804,1
+DA:805,0
+DA:807,1
+DA:818,1
+DA:819,1
+DA:822,1
+DA:823,1
+DA:825,1
+DA:826,1
+DA:831,1
+DA:832,1
+DA:833,0
+DA:834,1
+DA:835,1
+DA:836,1
+DA:837,1
+DA:838,1
+DA:839,0
+DA:840,0
+DA:841,1
+DA:843,1
+DA:849,1
+DA:850,0
+DA:852,1
+DA:854,1
+DA:855,1
+DA:857,1
+DA:858,1
+DA:859,1
+DA:861,1
+DA:862,1
+DA:863,1
+DA:864,1
+DA:865,1
+DA:866,1
+DA:867,1
+DA:869,1
+DA:870,1
+DA:874,1
+DA:875,1
+DA:876,1
+DA:877,1
+DA:878,1
+DA:879,1
+DA:880,1
+DA:881,1
+DA:882,1
+DA:888,1
+DA:890,1
+DA:892,1
+DA:893,1
+DA:894,1
+DA:896,1
+DA:899,1
+DA:900,1
+DA:902,1
+DA:903,1
+DA:904,1
+DA:905,1
+DA:906,1
+DA:907,1
+DA:908,1
+DA:909,1
+DA:918,1
+DA:919,1
+DA:920,1
+DA:922,1
+DA:923,1
+DA:924,0
+DA:925,1
+DA:926,1
+DA:927,1
+DA:928,1
+DA:929,1
+DA:938,1
+DA:939,1
+DA:940,1
+DA:942,1
+DA:943,1
+DA:944,1
+DA:945,1
+DA:947,1
+DA:948,1
+DA:949,1
+DA:950,1
+DA:951,1
+DA:952,1
+DA:953,1
+DA:955,1
+DA:960,1
+DA:966,1
+DA:967,1
+DA:969,1
+DA:971,1
+DA:972,1
+DA:974,1
+DA:975,1
+DA:976,1
+DA:978,1
+DA:980,1
+DA:981,1
+DA:982,1
+DA:983,1
+DA:984,1
+DA:985,1
+DA:988,1
+DA:989,1
+DA:990,1
+DA:992,1
+DA:993,1
+DA:997,1
+DA:998,1
+DA:999,1
+DA:1000,0
+DA:1005,1
+DA:1006,1
+DA:1013,1
+DA:1014,1
+DA:1015,1
+DA:1016,1
+DA:1024,1
+DA:1026,1
+DA:1029,1
+DA:1031,1
+LF:481
+LH:472
+FN:74,76,entry_total_amount
+FNDA:1,entry_total_amount
+FN:79,85,is_entry_balanced
+FNDA:1,is_entry_balanced
+FN:106,160,load_reconciliation_config
+FNDA:1,load_reconciliation_config
+FN:163,166,normalize_text
+FNDA:1,normalize_text
+FN:169,181,score_description
+FNDA:1,score_description
+FN:184,206,score_amount
+FNDA:1,score_amount
+FN:209,213,is_cross_period
+FNDA:1,is_cross_period
+FN:216,239,score_date
+FNDA:1,score_date
+FN:242,271,score_business_logic
+FNDA:1,score_business_logic
+FN:274,310,extract_merchant_tokens
+FNDA:1,extract_merchant_tokens
+FN:313,353,score_pattern
+FNDA:1,score_pattern
+FN:356,365,weighted_total
+FNDA:1,weighted_total
+FN:368,397,prune_candidates
+FNDA:1,prune_candidates
+FN:400,445,calculate_match_score
+FNDA:1,calculate_match_score
+FN:448,462,build_many_to_one_groups
+FNDA:1,build_many_to_one_groups
+FN:465,482,find_candidates
+FNDA:1,find_candidates
+FN:485,557,_validate_layer_consistency
+FNDA:1,_validate_layer_consistency
+FN:560,581,_get_pending_layer2_transactions
+FNDA:1,_get_pending_layer2_transactions
+FN:584,603,_get_existing_active_match
+FNDA:1,_get_existing_active_match
+FN:606,1026,execute_matching
+FNDA:1,execute_matching
+FN:659,662,execute_matching.get_candidates_for_date
+FNDA:1,execute_matching.get_candidates_for_date
+FN:670,679,execute_matching.get_cached_pattern_score
+FNDA:1,execute_matching.get_cached_pattern_score
+FN:1029,1031,auto_accept
+FNDA:1,auto_accept
+FNF:23
+FNH:23
+BRDA:112,0,jump to line 113,1
+BRDA:112,0,jump to line 115,1
+BRDA:118,0,jump to line 119,1
+BRDA:118,0,jump to line 152,0
+BRDA:124,0,jump to line 125,1
+BRDA:124,0,jump to line 152,1
+BRDA:154,0,jump to line 155,1
+BRDA:154,0,jump to line 156,1
+BRDA:156,0,jump to line 157,1
+BRDA:156,0,jump to line 159,1
+BRDA:171,0,jump to line 172,1
+BRDA:171,0,jump to line 173,1
+BRDA:175,0,jump to line 176,1
+BRDA:175,0,jump to line 177,1
+BRDA:192,0,jump to line 193,1
+BRDA:192,0,jump to line 195,1
+BRDA:196,0,jump to line 197,1
+BRDA:196,0,jump to line 198,1
+BRDA:198,0,jump to line 199,1
+BRDA:198,0,jump to line 200,1
+BRDA:200,0,jump to line 201,1
+BRDA:200,0,jump to line 202,1
+BRDA:202,0,jump to line 203,1
+BRDA:202,0,jump to line 205,1
+BRDA:211,0,jump to line 212,1
+BRDA:211,0,jump to line 213,1
+BRDA:226,0,jump to line 227,1
+BRDA:226,0,jump to line 228,1
+BRDA:228,0,jump to line 229,1
+BRDA:228,0,jump to line 232,1
+BRDA:232,0,jump to line 234,1
+BRDA:232,0,jump to line 239,1
+BRDA:234,0,jump to line 235,1
+BRDA:234,0,jump to line 236,1
+BRDA:251,0,jump to line 252,1
+BRDA:251,0,jump to line 262,1
+BRDA:252,0,jump to line 253,1
+BRDA:252,0,jump to line 254,1
+BRDA:254,0,jump to line 255,1
+BRDA:254,0,jump to line 256,1
+BRDA:256,0,jump to line 257,1
+BRDA:256,0,jump to line 258,1
+BRDA:258,0,jump to line 259,1
+BRDA:258,0,jump to line 260,1
+BRDA:262,0,jump to line 263,1
+BRDA:262,0,jump to line 271,1
+BRDA:263,0,jump to line 264,1
+BRDA:263,0,jump to line 265,1
+BRDA:265,0,jump to line 266,1
+BRDA:265,0,jump to line 267,1
+BRDA:267,0,jump to line 268,1
+BRDA:267,0,jump to line 269,1
+BRDA:299,0,jump to line 301,1
+BRDA:299,0,jump to line 310,1
+BRDA:301,0,jump to line 302,1
+BRDA:301,0,jump to line 303,1
+BRDA:303,0,jump to line 304,1
+BRDA:303,0,jump to line 305,1
+BRDA:305,0,jump to line 306,1
+BRDA:305,0,jump to line 307,1
+BRDA:308,0,jump to line 299,1
+BRDA:308,0,jump to line 309,1
+BRDA:324,0,jump to line 325,1
+BRDA:324,0,jump to line 328,1
+BRDA:346,0,jump to line 347,1
+BRDA:346,0,jump to line 349,1
+BRDA:350,0,jump to line 351,1
+BRDA:350,0,jump to line 353,1
+BRDA:351,0,jump to line 350,1
+BRDA:351,0,jump to line 352,1
+BRDA:382,0,jump to line 383,1
+BRDA:382,0,jump to line 385,1
+BRDA:388,0,jump to line 389,1
+BRDA:388,0,jump to line 396,1
+BRDA:423,0,jump to line 424,1
+BRDA:423,0,jump to line 426,1
+BRDA:435,0,jump to line 436,1
+BRDA:435,0,jump to line 440,1
+BRDA:454,0,jump to line 455,1
+BRDA:454,0,jump to line 462,1
+BRDA:456,0,jump to line 457,1
+BRDA:456,0,jump to line 458,1
+BRDA:458,0,jump to line 459,1
+BRDA:458,0,jump to line 460,1
+BRDA:491,0,jump to line 492,1
+BRDA:491,0,jump to line 494,1
+BRDA:498,0,jump to line 499,1
+BRDA:498,0,return from function '_validate_layer_consistency',1
+BRDA:506,0,jump to line 507,1
+BRDA:506,0,jump to line 509,1
+BRDA:523,0,jump to line 524,1
+BRDA:523,0,jump to line 535,1
+BRDA:538,0,jump to line 539,1
+BRDA:538,0,jump to line 549,1
+BRDA:549,0,jump to line 498,1
+BRDA:549,0,jump to line 550,1
+BRDA:577,0,jump to line 578,1
+BRDA:577,0,jump to line 580,1
+BRDA:590,0,jump to line 591,1
+BRDA:590,0,jump to line 597,1
+BRDA:616,0,jump to line 617,1
+BRDA:616,0,jump to line 619,1
+BRDA:626,0,jump to line 627,1
+BRDA:626,0,jump to line 629,1
+BRDA:629,0,jump to line 630,1
+BRDA:629,0,jump to line 632,1
+BRDA:635,0,jump to line 636,1
+BRDA:635,0,jump to line 642,1
+BRDA:642,0,jump to line 643,1
+BRDA:642,0,jump to line 647,1
+BRDA:672,0,jump to line 673,1
+BRDA:672,0,jump to line 674,1
+BRDA:675,0,jump to line 676,0
+BRDA:675,0,jump to line 677,1
+BRDA:683,0,jump to line 684,1
+BRDA:683,0,jump to line 782,1
+BRDA:684,0,jump to line 685,0
+BRDA:684,0,jump to line 688,1
+BRDA:688,0,jump to line 683,1
+BRDA:688,0,jump to line 689,1
+BRDA:695,0,jump to line 696,1
+BRDA:695,0,jump to line 703,1
+BRDA:703,0,jump to line 704,1
+BRDA:703,0,jump to line 737,1
+BRDA:726,0,jump to line 727,1
+BRDA:726,0,jump to line 728,0
+BRDA:728,0,jump to line 729,1
+BRDA:728,0,jump to line 731,0
+BRDA:737,0,jump to line 683,0
+BRDA:737,0,jump to line 738,1
+BRDA:760,0,jump to line 761,1
+BRDA:760,0,jump to line 762,0
+BRDA:762,0,jump to line 763,1
+BRDA:762,0,jump to line 765,0
+BRDA:783,0,jump to line 785,1
+BRDA:783,0,jump to line 874,1
+BRDA:785,0,jump to line 786,1
+BRDA:785,0,jump to line 787,1
+BRDA:790,0,jump to line 791,1
+BRDA:790,0,jump to line 792,1
+BRDA:803,0,jump to line 804,1
+BRDA:803,0,jump to line 825,1
+BRDA:804,0,jump to line 805,0
+BRDA:804,0,jump to line 807,1
+BRDA:819,0,jump to line 803,0
+BRDA:819,0,jump to line 822,1
+BRDA:825,0,jump to line 783,0
+BRDA:825,0,jump to line 826,1
+BRDA:831,0,jump to line 783,1
+BRDA:831,0,jump to line 832,1
+BRDA:832,0,jump to line 833,0
+BRDA:832,0,jump to line 834,1
+BRDA:835,0,jump to line 836,1
+BRDA:835,0,jump to line 843,1
+BRDA:838,0,jump to line 839,0
+BRDA:838,0,jump to line 841,1
+BRDA:849,0,jump to line 850,0
+BRDA:849,0,jump to line 852,1
+BRDA:857,0,jump to line 858,1
+BRDA:857,0,jump to line 861,1
+BRDA:863,0,jump to line 864,1
+BRDA:863,0,jump to line 869,1
+BRDA:864,0,jump to line 865,1
+BRDA:864,0,jump to line 866,0
+BRDA:866,0,jump to line 831,0
+BRDA:866,0,jump to line 867,1
+BRDA:869,0,jump to line 831,0
+BRDA:869,0,jump to line 870,1
+BRDA:874,0,jump to line 875,1
+BRDA:874,0,jump to line 997,1
+BRDA:875,0,jump to line 876,1
+BRDA:875,0,jump to line 877,1
+BRDA:878,0,jump to line 879,1
+BRDA:878,0,jump to line 882,1
+BRDA:879,0,jump to line 880,1
+BRDA:879,0,jump to line 881,1
+BRDA:892,0,jump to line 893,1
+BRDA:892,0,jump to line 902,1
+BRDA:893,0,jump to line 894,1
+BRDA:893,0,jump to line 896,1
+BRDA:899,0,jump to line 892,1
+BRDA:899,0,jump to line 900,1
+BRDA:902,0,jump to line 903,1
+BRDA:902,0,jump to line 922,1
+BRDA:903,0,jump to line 904,1
+BRDA:903,0,jump to line 905,1
+BRDA:907,0,jump to line 908,1
+BRDA:907,0,jump to line 909,1
+BRDA:919,0,jump to line 902,1
+BRDA:919,0,jump to line 920,1
+BRDA:922,0,jump to line 923,1
+BRDA:922,0,jump to line 942,1
+BRDA:923,0,jump to line 924,0
+BRDA:923,0,jump to line 925,1
+BRDA:927,0,jump to line 928,1
+BRDA:927,0,jump to line 929,1
+BRDA:939,0,jump to line 922,0
+BRDA:939,0,jump to line 940,1
+BRDA:942,0,jump to line 943,1
+BRDA:942,0,jump to line 947,1
+BRDA:943,0,jump to line 944,1
+BRDA:943,0,jump to line 945,0
+BRDA:948,0,jump to line 949,1
+BRDA:948,0,jump to line 955,1
+BRDA:951,0,jump to line 952,1
+BRDA:951,0,jump to line 953,1
+BRDA:966,0,jump to line 967,1
+BRDA:966,0,jump to line 969,1
+BRDA:974,0,jump to line 975,1
+BRDA:974,0,jump to line 978,1
+BRDA:980,0,jump to line 981,1
+BRDA:980,0,jump to line 992,1
+BRDA:981,0,jump to line 982,1
+BRDA:981,0,jump to line 983,1
+BRDA:983,0,jump to line 874,0
+BRDA:983,0,jump to line 984,1
+BRDA:988,0,jump to line 874,1
+BRDA:988,0,jump to line 989,1
+BRDA:989,0,jump to line 988,0
+BRDA:989,0,jump to line 990,1
+BRDA:992,0,jump to line 874,1
+BRDA:992,0,jump to line 993,1
+BRDA:999,0,jump to line 1000,0
+BRDA:999,0,jump to line 1013,1
+BRF:224
+BRH:201
+end_of_record
+SF:src/services/reporting.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:14,1
+DA:16,1
+DA:17,1
+DA:18,1
+DA:19,1
+DA:28,1
+DA:30,1
+DA:32,1
+DA:35,1
+DA:38,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:44,1
+DA:47,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:56,1
+DA:59,1
+DA:60,1
+DA:61,1
+DA:62,1
+DA:65,1
+DA:66,1
+DA:69,1
+DA:70,1
+DA:71,1
+DA:74,1
+DA:75,1
+DA:76,1
+DA:79,1
+DA:80,1
+DA:81,1
+DA:82,1
+DA:83,1
+DA:87,1
+DA:90,1
+DA:91,1
+DA:92,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:97,1
+DA:98,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:102,1
+DA:103,1
+DA:104,1
+DA:105,1
+DA:106,1
+DA:108,1
+DA:110,1
+DA:111,1
+DA:112,1
+DA:113,1
+DA:115,1
+DA:118,1
+DA:121,1
+DA:122,1
+DA:123,1
+DA:135,1
+DA:136,1
+DA:142,1
+DA:145,1
+DA:152,1
+DA:153,1
+DA:155,1
+DA:156,1
+DA:157,1
+DA:158,1
+DA:159,1
+DA:161,1
+DA:169,1
+DA:170,1
+DA:172,1
+DA:173,1
+DA:175,1
+DA:177,1
+DA:180,1
+DA:190,1
+DA:200,1
+DA:201,1
+DA:203,1
+DA:204,1
+DA:206,1
+DA:207,1
+DA:209,1
+DA:211,1
+DA:212,1
+DA:213,1
+DA:215,1
+DA:218,1
+DA:240,1
+DA:253,1
+DA:254,1
+DA:256,1
+DA:257,1
+DA:260,1
+DA:273,1
+DA:283,1
+DA:284,1
+DA:286,1
+DA:287,1
+DA:289,1
+DA:290,1
+DA:293,1
+DA:294,1
+DA:295,1
+DA:296,1
+DA:297,1
+DA:298,1
+DA:301,1
+DA:309,1
+DA:310,1
+DA:312,1
+DA:313,1
+DA:321,1
+DA:322,1
+DA:324,1
+DA:325,0
+DA:327,1
+DA:335,1
+DA:337,1
+DA:353,1
+DA:354,1
+DA:356,1
+DA:358,1
+DA:359,1
+DA:360,1
+DA:361,1
+DA:362,1
+DA:363,0
+DA:366,1
+DA:367,1
+DA:368,1
+DA:370,1
+DA:373,1
+DA:381,1
+DA:382,1
+DA:383,1
+DA:385,1
+DA:386,1
+DA:387,1
+DA:388,1
+DA:389,1
+DA:390,1
+DA:395,1
+DA:397,1
+DA:398,1
+DA:399,1
+DA:401,1
+DA:402,1
+DA:403,1
+DA:405,1
+DA:406,1
+DA:407,1
+DA:411,1
+DA:412,1
+DA:413,1
+DA:414,1
+DA:415,1
+DA:416,1
+DA:421,1
+DA:423,1
+DA:427,1
+DA:428,1
+DA:430,1
+DA:446,1
+DA:457,1
+DA:458,1
+DA:460,1
+DA:462,1
+DA:463,1
+DA:465,1
+DA:467,1
+DA:468,1
+DA:470,1
+DA:472,1
+DA:482,1
+DA:484,1
+DA:485,1
+DA:487,1
+DA:488,1
+DA:489,1
+DA:490,1
+DA:493,1
+DA:495,1
+DA:497,1
+DA:498,1
+DA:499,1
+DA:502,1
+DA:503,1
+DA:504,1
+DA:505,1
+DA:506,1
+DA:507,1
+DA:512,1
+DA:514,1
+DA:515,1
+DA:516,1
+DA:517,1
+DA:518,1
+DA:519,1
+DA:520,1
+DA:521,1
+DA:522,1
+DA:524,1
+DA:526,1
+DA:527,1
+DA:528,1
+DA:530,1
+DA:532,1
+DA:533,1
+DA:535,1
+DA:536,1
+DA:545,1
+DA:546,1
+DA:556,1
+DA:557,1
+DA:564,1
+DA:565,1
+DA:571,1
+DA:573,1
+DA:575,1
+DA:576,1
+DA:579,1
+DA:580,1
+DA:581,1
+DA:582,1
+DA:584,1
+DA:590,1
+DA:592,1
+DA:594,1
+DA:595,1
+DA:596,1
+DA:597,1
+DA:599,1
+DA:601,1
+DA:602,1
+DA:604,1
+DA:605,1
+DA:606,1
+DA:610,1
+DA:613,1
+DA:615,1
+DA:619,1
+DA:620,1
+DA:621,1
+DA:622,1
+DA:623,1
+DA:624,1
+DA:634,1
+DA:653,1
+DA:662,1
+DA:663,1
+DA:664,1
+DA:665,1
+DA:666,1
+DA:668,1
+DA:669,1
+DA:670,1
+DA:671,1
+DA:672,1
+DA:673,1
+DA:674,1
+DA:676,1
+DA:678,1
+DA:692,1
+DA:693,1
+DA:695,1
+DA:696,1
+DA:697,1
+DA:698,1
+DA:700,1
+DA:701,1
+DA:702,1
+DA:703,1
+DA:704,1
+DA:705,1
+DA:711,1
+DA:713,1
+DA:714,1
+DA:716,1
+DA:717,1
+DA:718,1
+DA:719,1
+DA:720,1
+DA:722,0
+DA:724,1
+DA:725,1
+DA:727,1
+DA:734,1
+DA:735,1
+DA:737,1
+DA:746,1
+DA:754,1
+DA:763,1
+DA:764,1
+DA:765,1
+DA:766,1
+DA:768,1
+DA:769,1
+DA:770,1
+DA:771,1
+DA:772,1
+DA:773,1
+DA:775,1
+DA:777,1
+DA:778,1
+DA:779,1
+DA:781,1
+DA:797,1
+DA:798,1
+DA:800,1
+DA:801,1
+DA:802,1
+DA:803,1
+DA:805,1
+DA:806,1
+DA:807,1
+DA:808,1
+DA:809,1
+DA:810,1
+DA:815,1
+DA:817,1
+DA:818,1
+DA:819,1
+DA:820,1
+DA:821,1
+DA:823,0
+DA:825,1
+DA:826,1
+DA:827,1
+DA:828,1
+DA:830,1
+DA:838,1
+DA:839,1
+DA:841,1
+DA:850,1
+DA:865,1
+DA:866,1
+DA:868,1
+DA:870,1
+DA:871,1
+DA:872,1
+DA:874,1
+DA:876,1
+DA:890,1
+DA:891,1
+DA:893,1
+DA:908,1
+DA:909,1
+DA:911,1
+DA:912,1
+DA:913,1
+DA:914,1
+DA:915,1
+DA:916,1
+DA:917,1
+DA:919,1
+DA:920,1
+DA:921,1
+DA:922,1
+DA:923,1
+DA:924,1
+DA:929,1
+DA:931,1
+DA:932,1
+DA:933,1
+DA:934,1
+DA:935,1
+DA:936,1
+DA:938,0
+DA:940,1
+DA:941,1
+DA:942,1
+DA:943,1
+DA:944,1
+DA:945,1
+DA:947,1
+DA:948,1
+DA:949,1
+DA:950,1
+DA:951,1
+DA:952,1
+DA:954,0
+DA:956,1
+DA:957,1
+DA:958,1
+DA:959,1
+DA:960,1
+DA:961,1
+DA:963,1
+DA:964,1
+DA:965,1
+DA:966,1
+DA:967,1
+DA:969,1
+DA:970,1
+DA:971,1
+DA:973,1
+DA:974,1
+DA:975,1
+DA:976,1
+DA:977,1
+DA:979,1
+DA:980,1
+DA:981,1
+DA:982,1
+DA:984,1
+DA:985,1
+DA:986,1
+DA:988,1
+DA:989,1
+DA:990,1
+DA:991,1
+DA:992,1
+DA:993,1
+DA:999,1
+DA:1000,1
+DA:1001,1
+DA:1002,1
+DA:1003,1
+DA:1004,1
+DA:1005,1
+DA:1006,1
+DA:1008,1
+DA:1009,1
+DA:1011,1
+DA:1012,1
+DA:1013,1
+DA:1015,1
+DA:1016,1
+DA:1017,1
+DA:1018,1
+DA:1020,1
+DA:1029,1
+LF:452
+LH:446
+FN:47,50,_normalize_currency
+FNDA:1,_normalize_currency
+FN:53,56,_signed_amount
+FNDA:1,_signed_amount
+FN:59,62,_quantize_money
+FNDA:1,_quantize_money
+FN:65,66,_month_start
+FNDA:1,_month_start
+FN:69,71,_month_end
+FNDA:1,_month_end
+FN:74,76,_quarter_start
+FNDA:1,_quarter_start
+FN:79,83,_add_months
+FNDA:1,_add_months
+FN:90,115,_iter_periods
+FNDA:1,_iter_periods
+FN:118,132,_build_account_lines
+FNDA:1,_build_account_lines
+FN:135,142,_load_accounts
+FNDA:1,_load_accounts
+FN:145,177,_get_fx_rates_map
+FNDA:1,_get_fx_rates_map
+FN:180,257,_aggregate_balances_sql
+FNDA:1,_aggregate_balances_sql
+FN:260,370,_aggregate_net_income_sql
+FNDA:1,_aggregate_net_income_sql
+FN:373,443,generate_balance_sheet
+FNDA:1,generate_balance_sheet
+FN:446,650,generate_income_statement
+FNDA:1,generate_income_statement
+FN:653,751,get_account_trend
+FNDA:1,get_account_trend
+FN:754,847,get_category_breakdown
+FNDA:1,get_category_breakdown
+FN:850,1037,generate_cash_flow
+FNDA:1,generate_cash_flow
+FN:973,977,generate_cash_flow.is_cash_account
+FNDA:1,generate_cash_flow.is_cash_account
+FNF:19
+FNH:19
+BRDA:48,0,jump to line 49,1
+BRDA:48,0,jump to line 50,1
+BRDA:54,0,jump to line 55,1
+BRDA:54,0,jump to line 56,1
+BRDA:60,0,jump to line 61,1
+BRDA:60,0,jump to line 62,1
+BRDA:94,0,jump to line 95,1
+BRDA:94,0,jump to line 115,1
+BRDA:95,0,jump to line 96,1
+BRDA:95,0,jump to line 99,1
+BRDA:99,0,jump to line 100,1
+BRDA:99,0,jump to line 103,1
+BRDA:103,0,jump to line 104,1
+BRDA:103,0,jump to line 108,1
+BRDA:112,0,jump to line 94,1
+BRDA:112,0,jump to line 113,1
+BRDA:155,0,jump to line 156,1
+BRDA:155,0,jump to line 177,1
+BRDA:157,0,jump to line 158,1
+BRDA:157,0,jump to line 161,1
+BRDA:172,0,jump to line 173,1
+BRDA:172,0,jump to line 175,1
+BRDA:200,0,jump to line 201,1
+BRDA:200,0,jump to line 203,1
+BRDA:206,0,jump to line 207,1
+BRDA:206,0,jump to line 209,1
+BRDA:212,0,jump to line 213,1
+BRDA:212,0,jump to line 215,1
+BRDA:253,0,jump to line 254,1
+BRDA:253,0,jump to line 256,1
+BRDA:283,0,jump to line 284,1
+BRDA:283,0,jump to line 286,1
+BRDA:289,0,jump to line 290,1
+BRDA:289,0,jump to line 293,1
+BRDA:294,0,jump to line 295,1
+BRDA:294,0,jump to line 337,1
+BRDA:296,0,jump to line 297,1
+BRDA:296,0,jump to line 301,1
+BRDA:312,0,jump to line 313,1
+BRDA:312,0,jump to line 335,1
+BRDA:324,0,jump to line 325,0
+BRDA:324,0,jump to line 327,1
+BRDA:353,0,jump to line 354,1
+BRDA:353,0,jump to line 356,1
+BRDA:359,0,jump to line 360,1
+BRDA:359,0,jump to line 370,1
+BRDA:362,0,jump to line 363,0
+BRDA:362,0,jump to line 366,1
+BRDA:397,0,jump to line 398,1
+BRDA:397,0,jump to line 401,1
+BRDA:398,0,jump to line 397,1
+BRDA:398,0,jump to line 399,1
+BRDA:457,0,jump to line 458,1
+BRDA:457,0,jump to line 460,1
+BRDA:462,0,jump to line 463,1
+BRDA:462,0,jump to line 465,1
+BRDA:487,0,jump to line 488,1
+BRDA:487,0,jump to line 502,1
+BRDA:488,0,jump to line 489,1
+BRDA:488,0,jump to line 490,0
+BRDA:493,0,jump to line 487,1
+BRDA:493,0,jump to line 495,1
+BRDA:503,0,jump to line 504,1
+BRDA:503,0,jump to line 514,1
+BRDA:515,0,jump to line 516,1
+BRDA:515,0,jump to line 524,1
+BRDA:516,0,jump to line 517,1
+BRDA:516,0,jump to line 526,1
+BRDA:517,0,jump to line 516,1
+BRDA:517,0,jump to line 518,1
+BRDA:518,0,jump to line 517,1
+BRDA:518,0,jump to line 519,1
+BRDA:520,0,jump to line 517,1
+BRDA:520,0,jump to line 521,1
+BRDA:526,0,jump to line 527,1
+BRDA:526,0,jump to line 601,1
+BRDA:527,0,jump to line 528,1
+BRDA:527,0,jump to line 530,1
+BRDA:530,0,jump to line 526,1
+BRDA:530,0,jump to line 532,1
+BRDA:533,0,jump to line 535,1
+BRDA:533,0,jump to line 573,1
+BRDA:582,0,jump to line 584,1
+BRDA:582,0,jump to line 592,1
+BRDA:596,0,jump to line 597,1
+BRDA:596,0,jump to line 599,1
+BRDA:620,0,jump to line 621,1
+BRDA:620,0,jump to line 634,1
+BRDA:665,0,jump to line 666,1
+BRDA:665,0,jump to line 668,1
+BRDA:669,0,jump to line 670,1
+BRDA:669,0,jump to line 671,1
+BRDA:671,0,jump to line 672,1
+BRDA:671,0,jump to line 673,1
+BRDA:673,0,jump to line 674,1
+BRDA:673,0,jump to line 676,1
+BRDA:696,0,jump to line 697,1
+BRDA:696,0,jump to line 700,1
+BRDA:697,0,jump to line 696,1
+BRDA:697,0,jump to line 698,1
+BRDA:701,0,jump to line 702,1
+BRDA:701,0,jump to line 713,1
+BRDA:716,0,jump to line 717,1
+BRDA:716,0,jump to line 737,1
+BRDA:718,0,jump to line 719,1
+BRDA:718,0,jump to line 724,1
+BRDA:719,0,jump to line 720,1
+BRDA:719,0,jump to line 722,0
+BRDA:763,0,jump to line 764,1
+BRDA:763,0,jump to line 765,1
+BRDA:768,0,jump to line 769,1
+BRDA:768,0,jump to line 770,1
+BRDA:770,0,jump to line 771,1
+BRDA:770,0,jump to line 772,1
+BRDA:772,0,jump to line 773,1
+BRDA:772,0,jump to line 775,1
+BRDA:801,0,jump to line 802,1
+BRDA:801,0,jump to line 805,1
+BRDA:802,0,jump to line 801,1
+BRDA:802,0,jump to line 803,1
+BRDA:806,0,jump to line 807,1
+BRDA:806,0,jump to line 817,1
+BRDA:817,0,jump to line 818,1
+BRDA:817,0,jump to line 830,1
+BRDA:819,0,jump to line 820,1
+BRDA:819,0,jump to line 825,1
+BRDA:820,0,jump to line 821,1
+BRDA:820,0,jump to line 823,0
+BRDA:827,0,jump to line 817,0
+BRDA:827,0,jump to line 828,1
+BRDA:865,0,jump to line 866,1
+BRDA:865,0,jump to line 868,1
+BRDA:912,0,jump to line 913,1
+BRDA:912,0,jump to line 915,1
+BRDA:913,0,jump to line 912,1
+BRDA:913,0,jump to line 914,1
+BRDA:915,0,jump to line 916,1
+BRDA:915,0,jump to line 919,1
+BRDA:916,0,jump to line 915,1
+BRDA:916,0,jump to line 917,1
+BRDA:920,0,jump to line 921,1
+BRDA:920,0,jump to line 931,1
+BRDA:932,0,jump to line 933,1
+BRDA:932,0,jump to line 947,1
+BRDA:934,0,jump to line 935,1
+BRDA:934,0,jump to line 940,1
+BRDA:935,0,jump to line 936,1
+BRDA:935,0,jump to line 938,0
+BRDA:942,0,jump to line 932,0
+BRDA:942,0,jump to line 943,1
+BRDA:943,0,jump to line 944,1
+BRDA:943,0,jump to line 945,0
+BRDA:948,0,jump to line 949,1
+BRDA:948,0,jump to line 963,1
+BRDA:950,0,jump to line 951,1
+BRDA:950,0,jump to line 956,1
+BRDA:951,0,jump to line 952,1
+BRDA:951,0,jump to line 954,0
+BRDA:958,0,jump to line 948,0
+BRDA:958,0,jump to line 959,1
+BRDA:959,0,jump to line 960,1
+BRDA:959,0,jump to line 961,1
+BRDA:964,0,jump to line 965,1
+BRDA:964,0,jump to line 969,1
+BRDA:974,0,jump to line 975,1
+BRDA:974,0,jump to line 976,1
+BRDA:979,0,jump to line 980,1
+BRDA:979,0,jump to line 984,1
+BRDA:980,0,jump to line 979,1
+BRDA:980,0,jump to line 981,1
+BRDA:988,0,jump to line 989,1
+BRDA:988,0,jump to line 1011,1
+BRDA:989,0,jump to line 990,1
+BRDA:989,0,jump to line 991,1
+BRDA:999,0,jump to line 1000,1
+BRDA:999,0,jump to line 1002,1
+BRDA:1002,0,jump to line 1003,1
+BRDA:1002,0,jump to line 1008,1
+BRDA:1003,0,jump to line 1004,1
+BRDA:1003,0,jump to line 1005,1
+BRF:180
+BRH:169
+end_of_record
+SF:src/services/reporting_snapshot.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:12,1
+DA:15,1
+DA:28,1
+DA:35,1
+DA:36,1
+DA:38,1
+DA:40,1
+DA:41,1
+DA:43,1
+DA:54,1
+DA:55,1
+DA:62,1
+DA:63,1
+DA:64,1
+DA:66,1
+DA:67,1
+DA:76,1
+DA:77,1
+DA:78,1
+DA:80,1
+DA:81,1
+DA:83,1
+DA:84,1
+DA:92,1
+LF:29
+LH:29
+FN:15,41,ReportingSnapshotService.get_snapshot
+FNDA:1,ReportingSnapshotService.get_snapshot
+FN:43,92,ReportingSnapshotService.create_snapshot
+FNDA:1,ReportingSnapshotService.create_snapshot
+FNF:2
+FNH:2
+BRDA:35,0,jump to line 36,1
+BRDA:35,0,jump to line 38,1
+BRDA:63,0,jump to line 64,1
+BRDA:63,0,jump to line 66,1
+BRF:4
+BRH:4
+end_of_record
+SF:src/services/review_queue.py
+DA:3,1
+DA:4,1
+DA:6,1
+DA:7,1
+DA:8,1
+DA:10,1
+DA:11,1
+DA:25,1
+DA:26,1
+DA:29,1
+DA:37,1
+DA:48,1
+DA:51,1
+DA:69,1
+DA:78,1
+DA:79,1
+DA:80,1
+DA:82,1
+DA:83,1
+DA:85,1
+DA:88,1
+DA:89,1
+DA:90,1
+DA:96,1
+DA:99,1
+DA:102,1
+DA:103,1
+DA:104,1
+DA:108,1
+DA:109,1
+DA:110,1
+DA:111,1
+DA:113,1
+DA:114,1
+DA:115,1
+DA:118,1
+DA:119,1
+DA:120,1
+DA:122,1
+DA:123,1
+DA:126,1
+DA:133,1
+DA:142,1
+DA:143,1
+DA:144,1
+DA:146,1
+DA:147,1
+DA:149,1
+DA:150,1
+DA:151,1
+DA:152,1
+DA:153,1
+DA:155,1
+DA:156,1
+DA:159,1
+DA:162,1
+DA:170,1
+DA:171,1
+DA:174,1
+DA:185,1
+DA:186,1
+DA:187,1
+DA:188,1
+DA:189,1
+DA:197,1
+DA:199,1
+DA:200,1
+DA:201,1
+DA:202,1
+DA:205,1
+DA:206,1
+DA:207,1
+DA:210,1
+DA:212,1
+DA:213,1
+DA:214,1
+DA:215,1
+DA:218,1
+DA:219,1
+DA:220,1
+DA:222,1
+DA:223,1
+DA:224,1
+DA:225,1
+DA:226,1
+DA:228,1
+DA:229,1
+DA:232,1
+DA:241,1
+DA:248,1
+DA:249,1
+DA:250,1
+DA:252,1
+DA:258,1
+DA:259,1
+DA:260,1
+DA:261,1
+DA:264,1
+DA:275,1
+DA:278,1
+DA:279,1
+DA:280,1
+DA:282,1
+DA:285,1
+DA:286,1
+DA:287,1
+DA:290,1
+DA:292,1
+DA:294,1
+DA:301,1
+DA:302,1
+DA:309,1
+DA:310,1
+DA:312,1
+DA:319,1
+DA:320,1
+DA:322,1
+DA:331,1
+DA:340,1
+DA:350,1
+DA:351,1
+DA:352,0
+DA:353,0
+DA:355,1
+DA:356,1
+DA:357,1
+DA:358,1
+DA:359,1
+LF:128
+LH:126
+FN:29,48,get_pending_items
+FNDA:1,get_pending_items
+FN:51,123,accept_match
+FNDA:1,accept_match
+FN:126,156,reject_match
+FNDA:1,reject_match
+FN:162,229,batch_accept
+FNDA:1,batch_accept
+FN:232,261,get_or_create_account
+FNDA:1,get_or_create_account
+FN:264,359,create_entry_from_txn
+FNDA:1,create_entry_from_txn
+FNF:6
+FNH:6
+BRDA:79,0,jump to line 80,1
+BRDA:79,0,jump to line 82,1
+BRDA:82,0,jump to line 83,1
+BRDA:82,0,jump to line 85,1
+BRDA:88,0,jump to line 89,1
+BRDA:88,0,jump to line 108,1
+BRDA:103,0,jump to line 104,1
+BRDA:103,0,jump to line 108,1
+BRDA:110,0,jump to line 111,1
+BRDA:110,0,jump to line 113,0
+BRDA:113,0,jump to line 114,1
+BRDA:113,0,jump to line 122,1
+BRDA:118,0,jump to line 119,1
+BRDA:118,0,jump to line 122,1
+BRDA:119,0,jump to line 118,1
+BRDA:119,0,jump to line 120,1
+BRDA:143,0,jump to line 144,1
+BRDA:143,0,jump to line 146,1
+BRDA:146,0,jump to line 147,1
+BRDA:146,0,jump to line 149,1
+BRDA:152,0,jump to line 153,1
+BRDA:152,0,jump to line 155,0
+BRDA:170,0,jump to line 171,1
+BRDA:170,0,jump to line 174,1
+BRDA:188,0,jump to line 189,1
+BRDA:188,0,jump to line 197,1
+BRDA:200,0,jump to line 201,1
+BRDA:200,0,jump to line 205,1
+BRDA:201,0,jump to line 200,1
+BRDA:201,0,jump to line 202,1
+BRDA:206,0,jump to line 207,1
+BRDA:206,0,jump to line 212,1
+BRDA:212,0,jump to line 213,1
+BRDA:212,0,jump to line 228,1
+BRDA:219,0,jump to line 220,1
+BRDA:219,0,jump to line 222,0
+BRDA:222,0,jump to line 212,1
+BRDA:222,0,jump to line 223,1
+BRDA:223,0,jump to line 212,1
+BRDA:223,0,jump to line 224,1
+BRDA:225,0,jump to line 223,0
+BRDA:225,0,jump to line 226,1
+BRDA:249,0,jump to line 250,1
+BRDA:249,0,jump to line 252,1
+BRDA:279,0,jump to line 280,1
+BRDA:279,0,jump to line 282,1
+BRDA:286,0,jump to line 287,1
+BRDA:286,0,jump to line 292,1
+BRDA:292,0,jump to line 294,1
+BRDA:292,0,jump to line 301,1
+BRDA:301,0,jump to line 302,1
+BRDA:301,0,jump to line 312,1
+BRF:52
+BRH:48
+end_of_record
+SF:src/services/statement_parsing_supervisor.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:11,1
+DA:12,1
+DA:13,1
+DA:15,1
+DA:17,1
+DA:18,1
+DA:21,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:28,1
+DA:33,1
+DA:35,1
+DA:36,1
+DA:37,1
+DA:38,1
+DA:39,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:46,1
+DA:48,1
+DA:49,1
+DA:50,1
+DA:51,1
+DA:52,0
+DA:53,1
+DA:54,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+LF:37
+LH:36
+FN:21,43,reset_stale_parsing_jobs
+FNDA:1,reset_stale_parsing_jobs
+FN:46,59,run_parsing_supervisor
+FNDA:1,run_parsing_supervisor
+FNF:2
+FNH:2
+BRDA:35,0,jump to line 36,1
+BRDA:35,0,jump to line 41,1
+BRDA:41,0,jump to line 42,1
+BRDA:41,0,jump to line 43,1
+BRDA:48,0,jump to line 49,1
+BRDA:48,0,return from function 'run_parsing_supervisor',1
+BRDA:51,0,jump to line 52,0
+BRDA:51,0,jump to line 56,1
+BRF:8
+BRH:7
+end_of_record
+SF:src/services/statement_validation.py
+DA:1,1
+DA:2,1
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:15,1
+DA:19,1
+DA:22,1
+DA:23,1
+DA:24,1
+DA:26,1
+DA:27,1
+DA:29,1
+DA:30,1
+DA:31,1
+DA:32,1
+DA:34,0
+DA:36,1
+DA:38,1
+DA:40,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:56,1
+DA:60,1
+DA:61,0
+DA:63,1
+DA:65,1
+DA:66,1
+DA:68,1
+DA:71,1
+DA:73,1
+DA:74,1
+DA:76,1
+DA:79,1
+DA:84,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:94,1
+DA:97,1
+DA:102,1
+DA:104,1
+DA:105,1
+DA:109,1
+DA:110,1
+DA:111,1
+DA:112,1
+DA:113,1
+DA:115,1
+DA:116,1
+DA:119,1
+DA:125,1
+DA:126,1
+DA:127,1
+DA:128,1
+DA:129,1
+DA:130,1
+DA:132,1
+DA:133,1
+DA:136,1
+DA:142,1
+DA:144,1
+DA:145,1
+DA:146,1
+DA:147,1
+DA:148,1
+DA:149,1
+DA:150,1
+DA:151,1
+DA:152,1
+DA:153,1
+DA:154,1
+DA:155,1
+DA:156,1
+DA:158,1
+DA:160,1
+DA:161,1
+DA:163,1
+DA:164,1
+DA:165,1
+DA:166,1
+DA:168,1
+DA:169,1
+DA:172,1
+DA:178,1
+DA:179,1
+DA:181,1
+DA:182,1
+DA:185,1
+DA:191,1
+DA:201,1
+LF:96
+LH:94
+FN:15,49,validate_balance_chain
+FNDA:1,validate_balance_chain
+FN:52,76,_get_opening_balance
+FNDA:1,_get_opening_balance
+FN:79,94,_get_statement_for_update
+FNDA:1,_get_statement_for_update
+FN:97,116,approve_statement
+FNDA:1,approve_statement
+FN:119,133,reject_statement
+FNDA:1,reject_statement
+FN:136,169,edit_and_approve
+FNDA:1,edit_and_approve
+FN:172,182,set_opening_balance
+FNDA:1,set_opening_balance
+FN:185,201,get_pending_stage1_review
+FNDA:1,get_pending_stage1_review
+FNF:8
+FNH:8
+BRDA:23,0,jump to line 24,1
+BRDA:23,0,jump to line 26,1
+BRDA:30,0,jump to line 31,1
+BRDA:30,0,jump to line 36,1
+BRDA:31,0,jump to line 32,1
+BRDA:31,0,jump to line 34,0
+BRDA:53,0,jump to line 54,1
+BRDA:53,0,jump to line 56,1
+BRDA:60,0,jump to line 61,0
+BRDA:60,0,jump to line 63,1
+BRDA:65,0,jump to line 66,1
+BRDA:65,0,jump to line 68,0
+BRDA:73,0,jump to line 74,1
+BRDA:73,0,jump to line 76,1
+BRDA:92,0,jump to line 93,1
+BRDA:92,0,jump to line 94,1
+BRDA:104,0,jump to line 105,1
+BRDA:104,0,jump to line 109,1
+BRDA:129,0,jump to line 130,1
+BRDA:129,0,jump to line 132,1
+BRDA:144,0,jump to line 145,1
+BRDA:144,0,jump to line 158,1
+BRDA:146,0,jump to line 144,0
+BRDA:146,0,jump to line 147,1
+BRDA:147,0,jump to line 148,1
+BRDA:147,0,jump to line 149,0
+BRDA:149,0,jump to line 150,1
+BRDA:149,0,jump to line 151,0
+BRDA:151,0,jump to line 152,1
+BRDA:151,0,jump to line 153,1
+BRDA:153,0,jump to line 154,1
+BRDA:153,0,jump to line 155,0
+BRDA:155,0,jump to line 144,1
+BRDA:155,0,jump to line 156,1
+BRDA:160,0,jump to line 161,1
+BRDA:160,0,jump to line 163,1
+BRF:36
+BRH:29
+end_of_record
+SF:src/services/storage.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:8,1
+DA:9,1
+DA:10,1
+DA:12,1
+DA:13,1
+DA:15,1
+DA:18,1
+DA:22,1
+DA:25,1
+DA:26,1
+DA:28,1
+DA:29,1
+DA:30,1
+DA:40,1
+DA:41,1
+DA:42,1
+DA:43,1
+DA:52,1
+DA:53,1
+DA:54,1
+DA:55,1
+DA:56,1
+DA:57,1
+DA:58,1
+DA:59,1
+DA:60,1
+DA:61,1
+DA:62,1
+DA:63,1
+DA:68,1
+DA:69,1
+DA:70,1
+DA:72,1
+DA:73,1
+DA:74,1
+DA:75,1
+DA:77,1
+DA:85,1
+DA:86,1
+DA:87,1
+DA:88,1
+DA:89,1
+DA:90,1
+DA:96,1
+DA:97,1
+DA:98,1
+DA:100,1
+DA:114,1
+DA:116,1
+DA:117,1
+DA:123,1
+DA:125,1
+DA:126,1
+DA:128,1
+DA:129,1
+DA:134,1
+DA:135,1
+DA:142,1
+DA:144,1
+DA:146,1
+DA:147,1
+DA:148,1
+DA:149,1
+DA:150,1
+DA:151,1
+DA:152,1
+DA:154,1
+DA:156,1
+DA:157,1
+DA:158,1
+DA:159,1
+DA:160,1
+DA:161,1
+LF:76
+LH:76
+FN:28,50,StorageService.__init__
+FNDA:1,StorageService.__init__
+FN:52,75,StorageService._ensure_bucket
+FNDA:1,StorageService._ensure_bucket
+FN:77,98,StorageService.upload_bytes
+FNDA:1,StorageService.upload_bytes
+FN:100,142,StorageService.generate_presigned_url
+FNDA:1,StorageService.generate_presigned_url
+FN:144,152,StorageService.get_object
+FNDA:1,StorageService.get_object
+FN:154,161,StorageService.delete_object
+FNDA:1,StorageService.delete_object
+FNF:6
+FNH:6
+BRDA:41,0,jump to line 42,1
+BRDA:41,0,return from function '__init__',1
+BRDA:54,0,jump to line 55,1
+BRDA:54,0,jump to line 56,1
+BRDA:60,0,jump to line 61,1
+BRDA:60,0,jump to line 72,1
+BRDA:62,0,jump to line 63,1
+BRDA:62,0,jump to line 68,1
+BRDA:86,0,jump to line 87,1
+BRDA:86,0,jump to line 88,1
+BRDA:116,0,jump to line 117,1
+BRDA:116,0,jump to line 125,1
+BRF:12
+BRH:12
+end_of_record
+SF:src/services/validation.py
+DA:3,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:9,1
+DA:11,1
+DA:14,1
+DA:19,1
+DA:20,1
+DA:21,1
+DA:23,1
+DA:24,1
+DA:25,1
+DA:26,1
+DA:27,1
+DA:29,1
+DA:31,1
+DA:32,1
+DA:33,1
+DA:42,1
+DA:44,1
+DA:45,1
+DA:46,1
+DA:48,1
+DA:57,1
+DA:59,1
+DA:66,1
+DA:69,1
+DA:79,1
+DA:80,1
+DA:82,1
+DA:83,1
+DA:86,1
+DA:87,1
+DA:89,1
+DA:90,1
+DA:91,1
+DA:92,1
+DA:93,1
+DA:94,1
+DA:95,1
+DA:96,1
+DA:99,1
+DA:100,1
+DA:101,1
+DA:104,1
+DA:105,1
+DA:106,1
+DA:107,1
+DA:108,1
+DA:109,1
+DA:110,1
+DA:111,1
+DA:112,1
+DA:113,1
+DA:114,1
+DA:117,1
+DA:118,1
+DA:119,1
+DA:120,1
+DA:121,1
+DA:124,1
+DA:127,1
+DA:128,1
+DA:130,1
+DA:133,1
+DA:138,1
+DA:139,1
+DA:140,1
+DA:141,1
+DA:142,1
+DA:143,1
+DA:144,1
+DA:145,1
+DA:146,0
+DA:147,0
+DA:149,1
+DA:150,1
+DA:152,1
+DA:153,1
+DA:154,1
+DA:155,1
+DA:156,1
+DA:157,1
+DA:158,1
+DA:159,1
+DA:161,1
+DA:162,1
+DA:163,1
+DA:165,1
+DA:166,0
+DA:167,1
+DA:168,1
+DA:171,1
+DA:173,1
+DA:174,1
+DA:176,1
+DA:177,1
+DA:179,1
+DA:180,1
+DA:182,1
+DA:183,1
+DA:185,1
+DA:186,1
+DA:188,1
+DA:189,1
+DA:190,1
+DA:193,1
+DA:195,1
+DA:196,1
+DA:197,1
+DA:198,1
+DA:199,1
+DA:200,1
+DA:201,1
+LF:115
+LH:112
+FN:14,39,validate_balance
+FNDA:1,validate_balance
+FN:42,54,validate_balance_explicit
+FNDA:1,validate_balance_explicit
+FN:57,66,validate_completeness
+FNDA:1,validate_completeness
+FN:69,130,compute_confidence_score
+FNDA:1,compute_confidence_score
+FN:133,168,_score_balance_progression
+FNDA:1,_score_balance_progression
+FN:171,190,_score_currency_consistency
+FNDA:1,_score_currency_consistency
+FN:193,201,route_by_threshold
+FNDA:1,route_by_threshold
+FNF:7
+FNH:7
+BRDA:24,0,jump to line 25,1
+BRDA:24,0,jump to line 31,1
+BRDA:26,0,jump to line 27,1
+BRDA:26,0,jump to line 29,1
+BRDA:79,0,jump to line 80,1
+BRDA:79,0,jump to line 82,1
+BRDA:86,0,jump to line 87,1
+BRDA:86,0,jump to line 89,1
+BRDA:91,0,jump to line 92,1
+BRDA:91,0,jump to line 93,1
+BRDA:93,0,jump to line 94,1
+BRDA:93,0,jump to line 99,1
+BRDA:106,0,jump to line 107,1
+BRDA:106,0,jump to line 108,1
+BRDA:108,0,jump to line 109,1
+BRDA:108,0,jump to line 110,1
+BRDA:118,0,jump to line 119,1
+BRDA:118,0,jump to line 120,1
+BRDA:120,0,jump to line 121,1
+BRDA:120,0,jump to line 124,1
+BRDA:139,0,jump to line 140,1
+BRDA:139,0,jump to line 149,1
+BRDA:143,0,jump to line 139,1
+BRDA:143,0,jump to line 144,1
+BRDA:149,0,jump to line 150,1
+BRDA:149,0,jump to line 152,1
+BRDA:155,0,jump to line 156,1
+BRDA:155,0,jump to line 165,1
+BRDA:158,0,jump to line 159,1
+BRDA:158,0,jump to line 161,1
+BRDA:162,0,jump to line 155,1
+BRDA:162,0,jump to line 163,1
+BRDA:165,0,jump to line 166,0
+BRDA:165,0,jump to line 167,1
+BRDA:173,0,jump to line 174,1
+BRDA:173,0,jump to line 176,1
+BRDA:179,0,jump to line 180,1
+BRDA:179,0,jump to line 182,1
+BRDA:182,0,jump to line 183,1
+BRDA:182,0,jump to line 188,1
+BRDA:195,0,jump to line 196,1
+BRDA:195,0,jump to line 197,1
+BRDA:197,0,jump to line 198,1
+BRDA:197,0,jump to line 199,1
+BRDA:199,0,jump to line 200,1
+BRDA:199,0,jump to line 201,1
+BRF:46
+BRH:45
+end_of_record
+SF:src/utils/exceptions.py
+DA:3,1
+DA:5,1
+DA:8,1
+DA:9,1
+DA:15,1
+DA:16,1
+DA:22,1
+DA:23,1
+DA:29,1
+DA:30,1
+DA:36,1
+DA:37,1
+DA:43,1
+DA:44,1
+DA:45,1
+DA:52,1
+DA:53,1
+DA:59,1
+DA:60,1
+DA:66,1
+DA:67,1
+LF:21
+LH:21
+FN:8,12,raise_not_found
+FNDA:1,raise_not_found
+FN:15,19,raise_bad_request
+FNDA:1,raise_bad_request
+FN:22,26,raise_unauthorized
+FNDA:1,raise_unauthorized
+FN:29,33,raise_conflict
+FNDA:1,raise_conflict
+FN:36,40,raise_too_large
+FNDA:1,raise_too_large
+FN:43,49,raise_too_many_requests
+FNDA:1,raise_too_many_requests
+FN:52,56,raise_internal_error
+FNDA:1,raise_internal_error
+FN:59,63,raise_service_unavailable
+FNDA:1,raise_service_unavailable
+FN:66,70,raise_gateway_timeout
+FNDA:1,raise_gateway_timeout
+FNF:9
+FNH:9
+end_of_record

@@ -447,3 +447,274 @@ async def test_handle_parse_failure_none_message(db):
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.validation_error is None
+
+# ---------------------------------------------------------------------------
+# _safe_decimal with default parameter (line 76)
+# ---------------------------------------------------------------------------
+
+
+def test_safe_decimal_with_default_value():
+    service = ExtractionService()
+    # When value is None but default is provided, should use the default
+    result = service._safe_decimal(None, default="42.50")
+    assert result == Decimal("42.50")
+
+
+# ---------------------------------------------------------------------------
+# _validate_external_url exception catch path (lines 184-191)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_external_url_exception_path():
+    """Exercise the generic except branch in _validate_external_url (lines 184-191)."""
+    service = ExtractionService()
+    # Passing a non-string type (int) will make urlparse raise or behave unexpectedly
+    # triggering the except Exception catch-all.
+    assert service._validate_external_url(None) is False
+
+
+# ---------------------------------------------------------------------------
+# parse_document: non-string date (line 261-262), invalid date strings (265-273),
+# invalid amount (282-283)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_parse_document_non_string_date():
+    """Transaction date as non-string type triggers str() conversion (lines 261-262)."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "period_start": "2023-01-01",
+            "period_end": "2023-01-31",
+            "opening_balance": "100.00",
+            "closing_balance": "200.00",
+            "transactions": [
+                {
+                    "date": True,  # bool, not str -> triggers str() conversion -> 'True'
+                    "amount": "100.00",
+                    "direction": "IN",
+                    "description": "Bool date",
+                },
+            ],
+        }
+    )
+    # str(True) -> 'True' which is not ISO format -> should raise
+    with pytest.raises(ExtractionError, match="Invalid transaction date format"):
+        await service.parse_document(
+            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+        )
+
+
+@pytest.mark.asyncio
+async def test_parse_document_skips_none_date_string():
+    """Date value 'None' and 'null' should be skipped, not raise (lines 265-273)."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "period_start": "2023-01-01",
+            "period_end": "2023-01-31",
+            "opening_balance": "100.00",
+            "closing_balance": "200.00",
+            "transactions": [
+                {
+                    "date": "None",
+                    "amount": "50.00",
+                    "direction": "IN",
+                    "description": "None string date",
+                },
+                {
+                    "date": "null",
+                    "amount": "70.00",
+                    "direction": "IN",
+                    "description": "Null string date",
+                },
+                {
+                    "date": "2023-01-15",
+                    "amount": "100.00",
+                    "direction": "IN",
+                    "description": "Valid",
+                },
+            ],
+        }
+    )
+    # 'None' and 'null' dates should be skipped, only valid one remains
+    statement, transactions = await service.parse_document(
+        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    )
+    assert len(transactions) == 1
+    assert transactions[0].description == "Valid"
+
+
+@pytest.mark.asyncio
+async def test_parse_document_invalid_amount():
+    """Invalid amount string triggers ExtractionError (lines 282-283)."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "period_start": "2023-01-01",
+            "period_end": "2023-01-31",
+            "opening_balance": "100.00",
+            "closing_balance": "200.00",
+            "transactions": [
+                {
+                    "date": "2023-01-15",
+                    "amount": "not-a-number",
+                    "direction": "IN",
+                    "description": "Bad amount",
+                },
+            ],
+        }
+    )
+    with pytest.raises(ExtractionError, match="Invalid transaction amount"):
+        await service.parse_document(
+            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+        )
+
+
+# ---------------------------------------------------------------------------
+# extract_financial_data: PDF with file_url only, rejected (lines 393-407)
+# Image with file_url only, rejected (lines 416-430)
+# force_model (line 454), empty model in list (line 472),
+# empty AI response (lines 493-509), return_raw (lines 512-513),
+# ValueError/TypeError/KeyError/AttributeError (lines 581-590),
+# fallback raise (line 604)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_with_internal_file_url_rejected():
+    """PDF extraction with file_url only, internal URL rejected -> no media_payload -> error (lines 393-407)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
+        await service.extract_financial_data(
+            file_content=None,
+            institution="DBS",
+            file_type="pdf",
+            file_url="http://minio:9000/bucket/file.pdf",  # internal URL -> rejected
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_image_with_internal_file_url_rejected():
+    """Image extraction with file_url only, internal URL rejected -> error (lines 416-430)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
+        await service.extract_financial_data(
+            file_content=None,
+            institution="DBS",
+            file_type="png",
+            file_url="http://192.168.1.1:9000/bucket/file.png",  # private IP -> rejected
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_force_model():
+    """force_model parameter sets models list to [force_model] (line 454)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    valid_json = '{"account_last4": "1234", "transactions": []}'
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.return_value = valid_json
+        result = await service.extract_financial_data(
+            file_content=b"content",
+            institution="DBS",
+            file_type="pdf",
+            force_model="google/gemini-2.0-test",
+        )
+    assert result["account_last4"] == "1234"
+    # Verify the stream was called with the force_model
+    call_kwargs = mock_stream.call_args
+    assert call_kwargs.kwargs.get("model") == "google/gemini-2.0-test" or call_kwargs[1].get("model") == "google/gemini-2.0-test"
+
+
+@pytest.mark.asyncio
+async def test_extract_empty_model_in_list_skipped():
+    """Empty/falsy model in models list -> continue (line 472)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    service.primary_model = ""  # Empty string model
+
+    # With empty primary_model, the only model is "", which should be skipped
+    # Then we fall to line 604: raise last_error or ExtractionError(...)
+    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
+        await service.extract_financial_data(
+            file_content=b"content",
+            institution="DBS",
+            file_type="pdf",
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_empty_ai_response():
+    """Empty AI response triggers error and continue (lines 493-509)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.return_value = ""  # Empty response
+        with pytest.raises(ExtractionError, match="All 1 models failed.*empty_response"):
+            await service.extract_financial_data(
+                file_content=b"content",
+                institution="DBS",
+                file_type="pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_return_raw():
+    """return_raw=True returns raw AI response (lines 512-513)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    raw_content = '{"account_last4": "1234", "transactions": []}'
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.return_value = raw_content
+        result = await service.extract_financial_data(
+            file_content=b"content",
+            institution="DBS",
+            file_type="pdf",
+            return_raw=True,
+        )
+    assert "choices" in result
+    assert result["choices"][0]["message"]["content"] == raw_content
+
+
+@pytest.mark.asyncio
+async def test_extract_value_error_during_extraction():
+    """ValueError/TypeError/KeyError/AttributeError during extraction (lines 581-590)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
+         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+        mock_accum.side_effect = ValueError("some programming error")
+        with pytest.raises(ExtractionError, match="Internal error: ValueError"):
+            await service.extract_financial_data(
+                file_content=b"content",
+                institution="DBS",
+                file_type="pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_no_models_tried_fallback_error():
+    """No models tried (all empty) -> fallback raise (line 604)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    service.primary_model = None  # None model
+
+    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
+        await service.extract_financial_data(
+            file_content=b"content",
+            institution="DBS",
+            file_type="pdf",
+        )

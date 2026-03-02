@@ -956,3 +956,786 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
     await db.refresh(statement)
     # Background task sets status to PARSING before parsing, then REJECTED on error
     assert statement.status in (BankStatementStatus.PARSING, BankStatementStatus.REJECTED)
+
+
+
+# ============================================================================
+# Tests for uncovered lines: Two-Stage Review, Delete, Batch, Consistency
+# ============================================================================
+
+
+async def test_handle_parse_failure_inner_exception(db, test_user, monkeypatch):
+    """Given a statement whose post-rollback refresh raises an exception,
+    When _handle_parse_failure runs,
+    Then it logs the inner exception without propagating it (lines 154-155).
+    """
+    statement = build_statement(test_user.id, "hash_inner_exc", 50)
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    # Create a mock session that succeeds on rollback but fails on get()
+    mock_session = AsyncMock(spec=db)
+    mock_session.rollback = AsyncMock()
+    mock_session.get = AsyncMock(side_effect=Exception("DB completely down"))
+    mock_session.commit = AsyncMock()
+
+    # Build a fake statement obj to pass in
+    fake_stmt = MagicMock()
+    fake_stmt.id = statement_id
+
+    # Should not raise - it catches inner exceptions
+    await statements_router._handle_parse_failure(
+        fake_stmt, mock_session, message="parse error"
+    )
+    mock_session.get.assert_awaited_once()
+
+
+async def test_handle_parse_failure_statement_not_found_after_rollback(db, test_user):
+    """Given a statement that doesn't exist after rollback,
+    When _handle_parse_failure runs,
+    Then it returns early without error (line 147).
+    """
+    mock_session = AsyncMock(spec=db)
+    mock_session.rollback = AsyncMock()
+    mock_session.get = AsyncMock(return_value=None)
+
+    fake_stmt = MagicMock()
+    fake_stmt.id = statements_router.UUID("00000000-0000-0000-0000-000000000099")
+
+    # Should return without error
+    await statements_router._handle_parse_failure(
+        fake_stmt, mock_session, message="parse error"
+    )
+    mock_session.get.assert_awaited_once()
+
+
+async def test_handle_parse_failure_rollback_fails(db, test_user):
+    """Given a session where rollback itself raises,
+    When _handle_parse_failure runs,
+    Then it catches rollback error and still tries to mark statement as rejected.
+    """
+    statement = build_statement(test_user.id, "hash_rb_fail", 50)
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    mock_session = AsyncMock(spec=db)
+    mock_session.rollback = AsyncMock(side_effect=Exception("Rollback failed"))
+    # After rollback fails, it still tries to get + update
+    mock_session.get = AsyncMock(return_value=None)
+
+    fake_stmt = MagicMock()
+    fake_stmt.id = statement_id
+
+    await statements_router._handle_parse_failure(
+        fake_stmt, mock_session, message="parse error"
+    )
+    mock_session.rollback.assert_awaited_once()
+
+
+async def test_delete_statement_success(db, test_user, monkeypatch):
+    """Given an existing statement with a file_path,
+    When delete_statement is called,
+    Then it deletes from storage and DB (lines 685-698).
+    """
+    statement = build_statement(test_user.id, "hash_del", 90)
+    statement.file_path = "statements/user/file.pdf"
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
+
+    await statements_router.delete_statement(
+        statement_id=statement_id, db=db, user_id=test_user.id
+    )
+
+    deleted = await db.get(BankStatement, statement_id)
+    assert deleted is None
+
+
+async def test_delete_statement_not_found(db, test_user):
+    """Given a non-existent statement,
+    When delete_statement is called,
+    Then it raises 404.
+    """
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.delete_statement(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_delete_statement_storage_error_still_deletes(db, test_user, monkeypatch):
+    """Given a statement whose storage delete fails,
+    When delete_statement is called,
+    Then the DB record is still deleted to avoid zombie records (lines 690-696).
+    """
+    statement = build_statement(test_user.id, "hash_del_err", 90)
+    statement.file_path = "statements/user/file.pdf"
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    mock_storage = MagicMock()
+    mock_storage.delete_object.side_effect = statements_router.StorageError("S3 Down")
+    monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    await statements_router.delete_statement(
+        statement_id=statement_id, db=db, user_id=test_user.id
+    )
+
+    deleted = await db.get(BankStatement, statement_id)
+    assert deleted is None
+
+
+async def test_get_statement_for_review(db, test_user, monkeypatch):
+    """Given an existing statement with transactions,
+    When get_statement_for_review is called,
+    Then it returns review data with balance validation (lines 712-751).
+    """
+    statement = build_statement(test_user.id, "hash_review", 75)
+    db.add(statement)
+    await db.commit()
+    await db.refresh(statement)
+    statement_id = statement.id
+
+    monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
+
+    result = await statements_router.get_statement_for_review(
+        statement_id=statement_id, db=db, user_id=test_user.id
+    )
+
+    assert result.id == statement_id
+    assert result.balance_validation_result is not None
+    assert hasattr(result.balance_validation_result, "opening_balance")
+    assert hasattr(result.balance_validation_result, "closing_match")
+
+
+async def test_get_statement_for_review_not_found(db, test_user):
+    """Given a non-existent statement,
+    When get_statement_for_review is called,
+    Then it raises 404.
+    """
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.get_statement_for_review(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_get_statement_for_review_storage_error(db, test_user, monkeypatch):
+    """Given a statement where presigned URL generation fails,
+    When get_statement_for_review is called,
+    Then it still returns data with pdf_url=None (lines 727-732).
+    """
+    statement = build_statement(test_user.id, "hash_review_s3", 75)
+    db.add(statement)
+    await db.commit()
+    await db.refresh(statement)
+    statement_id = statement.id
+
+    mock_storage = MagicMock()
+    mock_storage.generate_presigned_url.side_effect = statements_router.StorageError("S3 Down")
+    monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    result = await statements_router.get_statement_for_review(
+        statement_id=statement_id, db=db, user_id=test_user.id
+    )
+
+    assert result.id == statement_id
+    assert result.pdf_url is None
+
+
+async def test_approve_statement_stage1_success(db, test_user, monkeypatch):
+    """Given a parsed statement with matching balances,
+    When approve_statement_stage1 is called,
+    Then it approves the statement (lines 761-771).
+    """
+    statement = build_statement(test_user.id, "hash_s1_approve", 80)
+    statement.status = BankStatementStatus.PARSED
+    # With no transactions, calculated_closing = opening_balance = 100.
+    # Set closing_balance to match so validation passes.
+    statement.closing_balance = Decimal("100.00")
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement_id, db=db, user_id=test_user.id
+    )
+    assert result.status == BankStatementStatus.APPROVED
+
+
+async def test_approve_statement_stage1_balance_mismatch(db, test_user):
+    """Given a statement where closing balance doesn't match calculations,
+    When approve_statement_stage1 is called,
+    Then it raises 400 (lines 764-765).
+    """
+    statement = build_statement(test_user.id, "hash_s1_mismatch", 80)
+    statement.closing_balance = Decimal("999.99")  # Wrong closing balance
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement_id, db=db, user_id=test_user.id
+        )
+    assert exc.value.status_code == 400
+    assert "Balance mismatch" in exc.value.detail
+
+
+async def test_reject_statement_stage1_success(db, test_user):
+    """Given a parsed statement,
+    When reject_statement_stage1 is called,
+    Then it rejects the statement (lines 782-792).
+    """
+    statement = build_statement(test_user.id, "hash_s1_reject", 80)
+    statement.status = BankStatementStatus.PARSED
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    result = await statements_router.reject_statement_stage1(
+        statement_id=statement_id,
+        decision=StatementDecisionRequest(notes="Bad data"),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.status == BankStatementStatus.REJECTED
+
+
+async def test_reject_statement_stage1_not_found(db, test_user):
+    """Given a non-existent statement,
+    When reject_statement_stage1 is called,
+    Then it raises 400 (ValueError from service).
+    """
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.reject_statement_stage1(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            decision=StatementDecisionRequest(notes="Bad"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == 400
+
+
+async def test_edit_and_approve_statement_success(db, test_user):
+    """Given a statement with transactions,
+    When edit_and_approve_statement is called with valid edits,
+    Then it applies edits and approves (lines 803-814).
+    """
+    from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+    statement = build_statement(test_user.id, "hash_edit_approve", 80)
+    db.add(statement)
+    await db.commit()
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 15),
+        description="Test Txn",
+        amount=Decimal("10.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+    txn_id = txn.id
+    statement_id = statement.id
+    edit_req = EditAndApproveRequest(
+        edits=[TransactionEditRequest(
+            txn_id=txn_id,
+            amount=Decimal("10.00"),
+            description="Test Txn",
+            txn_date=date(2025, 1, 15),
+            direction="IN",
+        )]
+    )
+    result = await statements_router.edit_and_approve_statement(
+        statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
+    )
+    assert result.status == BankStatementStatus.APPROVED
+
+
+async def test_edit_and_approve_statement_balance_invalid(db, test_user):
+    """Given a statement where edits result in balance mismatch,
+    When edit_and_approve_statement is called,
+    Then it raises 400 (lines 807-808).
+    """
+    from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+    statement = build_statement(test_user.id, "hash_edit_bad", 80)
+    db.add(statement)
+    await db.commit()
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 15),
+        description="Test Txn",
+        amount=Decimal("10.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+    statement_id = statement.id
+    # Change amount to something that breaks the balance
+    edit_req = EditAndApproveRequest(
+        edits=[TransactionEditRequest(
+            txn_id=txn.id,
+            amount=Decimal("99999.00"),
+            description="Test Txn",
+            txn_date=date(2025, 1, 15),
+            direction="IN",
+        )]
+    )
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.edit_and_approve_statement(
+            statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
+        )
+    assert exc.value.status_code == 400
+
+
+async def test_set_opening_balance_success(db, test_user):
+    """Given a parsed statement,
+    When set_statement_opening_balance is called,
+    Then it sets the manual opening balance (lines 825-835).
+    """
+    from src.schemas.review import SetOpeningBalanceRequest
+
+    statement = build_statement(test_user.id, "hash_ob", 80)
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    result = await statements_router.set_statement_opening_balance(
+        statement_id=statement_id,
+        request=SetOpeningBalanceRequest(opening_balance=Decimal("500.00")),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.id == statement_id
+
+
+async def test_set_opening_balance_not_found(db, test_user):
+    """Given a non-existent statement,
+    When set_statement_opening_balance is called,
+    Then it raises 400.
+    """
+    from src.schemas.review import SetOpeningBalanceRequest
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.set_statement_opening_balance(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            request=SetOpeningBalanceRequest(opening_balance=Decimal("100.00")),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == 400
+
+
+async def test_get_stage2_review_queue_empty(db, test_user):
+    """Given no pending matches or checks,
+    When get_stage2_review_queue is called,
+    Then it returns empty queue (lines 844-867).
+    """
+    result = await statements_router.get_stage2_review_queue(
+        db=db, user_id=test_user.id
+    )
+
+    assert result.pending_matches == []
+    assert result.consistency_checks == []
+    assert result.has_unresolved_checks is False
+
+
+async def test_get_stage2_review_queue_with_pending_match(db, test_user):
+    """Given a statement with a pending-review reconciliation match,
+    When get_stage2_review_queue is called,
+    Then it returns the match in pending_matches (lines 844-863).
+    """
+    from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+
+    statement = build_statement(test_user.id, "hash_s2_queue", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 15),
+        description="Payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        match_score=75,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await statements_router.get_stage2_review_queue(
+        db=db, user_id=test_user.id
+    )
+
+    assert len(result.pending_matches) == 1
+    assert result.pending_matches[0]["status"] == "pending_review"
+
+
+async def test_run_stage2_checks_success(db, test_user):
+    """Given an existing statement,
+    When run_stage2_checks is called,
+    Then it runs consistency checks and returns results (lines 881-891).
+    """
+    statement = build_statement(test_user.id, "hash_s2_checks", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    result = await statements_router.run_stage2_checks(
+        statement_id=statement_id, db=db, user_id=test_user.id
+    )
+
+    assert result.total >= 0
+    assert isinstance(result.items, list)
+
+
+async def test_run_stage2_checks_not_found(db, test_user):
+    """Given a non-existent statement,
+    When run_stage2_checks is called,
+    Then it raises 404.
+    """
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.run_stage2_checks(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_resolve_consistency_check_success(db, test_user):
+    """Given a pending consistency check,
+    When resolve_consistency_check is called with action='approve',
+    Then it resolves the check (lines 905-911).
+    """
+    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+
+    check = ConsistencyCheck(
+        user_id=test_user.id,
+        check_type=CheckType.DUPLICATE,
+        status=CheckStatus.PENDING,
+        related_txn_ids=["txn1", "txn2"],
+        details={"count": 2, "amount": "100.00"},
+        severity="high",
+    )
+    db.add(check)
+    await db.commit()
+    await db.refresh(check)
+    check_id = check.id
+
+    result = await statements_router.resolve_consistency_check(
+        check_id=check_id,
+        request=statements_router.ResolveCheckRequest(action="approve", note="Looks fine"),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.status == CheckStatus.APPROVED
+    assert result.resolution_note == "Looks fine"
+
+
+async def test_resolve_consistency_check_invalid_action(db, test_user):
+    """Given a pending consistency check,
+    When resolve_consistency_check is called with an invalid action,
+    Then it raises 400.
+    """
+    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+
+    check = ConsistencyCheck(
+        user_id=test_user.id,
+        check_type=CheckType.DUPLICATE,
+        status=CheckStatus.PENDING,
+        related_txn_ids=["txn1"],
+        details={"count": 1},
+        severity="high",
+    )
+    db.add(check)
+    await db.commit()
+    await db.refresh(check)
+    check_id = check.id
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.resolve_consistency_check(
+            check_id=check_id,
+            request=statements_router.ResolveCheckRequest(action="invalid"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == 400
+
+
+async def test_resolve_consistency_check_not_found(db, test_user):
+    """Given a non-existent check ID,
+    When resolve_consistency_check is called,
+    Then it raises 400.
+    """
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.resolve_consistency_check(
+            check_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            request=statements_router.ResolveCheckRequest(action="approve"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == 400
+
+
+async def test_list_consistency_checks_empty(db, test_user):
+    """Given no consistency checks,
+    When list_consistency_checks is called,
+    Then it returns an empty list (lines 924-947).
+    """
+    result = await statements_router.list_consistency_checks(
+        db=db, user_id=test_user.id
+    )
+
+    assert result.total == 0
+    assert result.items == []
+
+
+async def test_list_consistency_checks_with_filters(db, test_user):
+    """Given multiple consistency checks,
+    When list_consistency_checks is called with status and type filters,
+    Then it returns filtered results (lines 934-939).
+    """
+    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+
+    check1 = ConsistencyCheck(
+        user_id=test_user.id,
+        check_type=CheckType.DUPLICATE,
+        status=CheckStatus.PENDING,
+        related_txn_ids=["txn1"],
+        details={"count": 1},
+        severity="high",
+    )
+    check2 = ConsistencyCheck(
+        user_id=test_user.id,
+        check_type=CheckType.TRANSFER_PAIR,
+        status=CheckStatus.APPROVED,
+        related_txn_ids=["txn2"],
+        details={"amount": "50.00"},
+        severity="medium",
+    )
+    db.add(check1)
+    db.add(check2)
+    await db.commit()
+
+    # Filter by status
+    result = await statements_router.list_consistency_checks(
+        db=db, user_id=test_user.id, status=CheckStatus.PENDING
+    )
+    assert result.total == 1
+    assert result.items[0].check_type == CheckType.DUPLICATE
+
+    # Filter by check_type
+    result2 = await statements_router.list_consistency_checks(
+        db=db, user_id=test_user.id, check_type=CheckType.TRANSFER_PAIR
+    )
+    assert result2.total == 1
+    assert result2.items[0].status == CheckStatus.APPROVED
+
+
+async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user):
+    """Given unresolved consistency checks,
+    When batch_approve_matches is called,
+    Then it returns error (lines 960-965).
+    """
+    from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+
+    check = ConsistencyCheck(
+        user_id=test_user.id,
+        check_type=CheckType.DUPLICATE,
+        status=CheckStatus.PENDING,
+        related_txn_ids=["txn1"],
+        details={"count": 1},
+        severity="high",
+    )
+    db.add(check)
+    await db.commit()
+
+    result = await statements_router.batch_approve_matches(
+        request=statements_router.BatchApproveRequest(match_ids=[]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is False
+    assert "unresolved" in result["error"]
+
+
+async def test_batch_approve_matches_empty_list(db, test_user):
+    """Given no unresolved checks and empty match_ids,
+    When batch_approve_matches is called,
+    Then it returns success with 0 approved (line 968).
+    """
+    result = await statements_router.batch_approve_matches(
+        request=statements_router.BatchApproveRequest(match_ids=[]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["approved_count"] == 0
+
+
+async def test_batch_approve_matches_success(db, test_user):
+    """Given pending-review matches and no unresolved checks,
+    When batch_approve_matches is called with match IDs,
+    Then it approves all matching records (lines 970-993).
+    """
+    from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+
+    statement = build_statement(test_user.id, "hash_batch_app", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 15),
+        description="Payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        match_score=75,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+    await db.refresh(match)
+    match_id = match.id
+
+    result = await statements_router.batch_approve_matches(
+        request=statements_router.BatchApproveRequest(match_ids=[match_id]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["approved_count"] == 1
+
+
+async def test_batch_reject_matches_empty_list(db, test_user):
+    """Given empty match_ids,
+    When batch_reject_matches is called,
+    Then it returns success with 0 rejected (line 1003-1004).
+    """
+    result = await statements_router.batch_reject_matches(
+        request=statements_router.BatchRejectRequest(match_ids=[]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["rejected_count"] == 0
+
+
+async def test_batch_reject_matches_success(db, test_user):
+    """Given pending-review matches,
+    When batch_reject_matches is called with match IDs,
+    Then it rejects all matching records (lines 1006-1029).
+    """
+    from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+
+    statement = build_statement(test_user.id, "hash_batch_rej", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 15),
+        description="Payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        match_score=70,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+    await db.refresh(match)
+    match_id = match.id
+
+    result = await statements_router.batch_reject_matches(
+        request=statements_router.BatchRejectRequest(match_ids=[match_id]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["rejected_count"] == 1
+
+
+async def test_wait_for_parse_tasks_empty():
+    """Given no pending parse tasks,
+    When wait_for_parse_tasks is called,
+    Then it returns immediately (line 1034->exit).
+    """
+    # Clear any pending tasks
+    statements_router._PENDING_PARSE_TASKS.clear()
+    await statements_router.wait_for_parse_tasks()
+    # Should just return without error
+
+
+async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test_user):
+    """Given a rejected statement and an invalid model ID,
+    When retry is called with that model,
+    Then it raises 400 (line 457).
+    """
+    from src.schemas import RetryParsingRequest
+
+    statement = build_statement(test_user.id, "hash_retry_inv", 80)
+    statement.status = BankStatementStatus.REJECTED
+    db.add(statement)
+    await db.commit()
+
+    async def fake_get_model_info(model_id: str):
+        return None
+
+    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.retry_statement_parsing(
+            statement_id=statement.id,
+            request=RetryParsingRequest(model="unknown/model"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Invalid model selection" in exc.value.detail

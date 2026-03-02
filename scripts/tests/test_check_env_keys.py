@@ -479,3 +479,142 @@ class TestGenerateFixSuggestions:
         captured = capsys.readouterr()
         assert ".env.example" in captured.out
         assert "DEBUG=" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: print_report undocumented keys (lines 222-224)
+# ---------------------------------------------------------------------------
+
+
+class TestPrintReportEdgeCases:
+    def test_prints_undocumented_keys(self, capsys):
+        """print_report prints undocumented keys in .env.example (lines 221-224)."""
+        result = {
+            "ctmpl_keys": {"KEY1"},
+            "config_env_names": {"KEY1", "SECRET_KEY"},
+            "env_example_keys": {"KEY1"},
+            "missing_in_config": set(),
+            "undocumented_in_example": {"SECRET_KEY"},
+            "suspicious_extra_keys": set(),
+            "is_consistent": False,
+        }
+        print_report(result)
+        captured = capsys.readouterr()
+        assert "Undocumented" in captured.out
+        assert "SECRET_KEY" in captured.out
+        assert "Inconsistency found" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: main() function (lines 260-290, 294)
+# ---------------------------------------------------------------------------
+
+
+class TestMainFunction:
+    def test_main_exits_0_when_consistent(self, monkeypatch, tmp_path):
+        """main() exits 0 when all sources are consistent (lines 260-290)."""
+        from check_env_keys import main
+
+        ctmpl_file = tmp_path / "repo" / "finance_report" / "finance_report" / "10.app" / "secrets.ctmpl"
+        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
+        ctmpl_file.write_text("DATABASE_URL={{ with secret \"...\" }}{{ .Data.data.url }}{{ end }}\n")
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    database_url: str = "postgres://localhost/db"
+""")
+
+        env_file = tmp_path / ".env.example"
+        env_file.write_text("DATABASE_URL=postgres://localhost/db\n")
+
+        monkeypatch.setattr("check_env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+
+    def test_main_exits_1_when_inconsistent(self, monkeypatch, tmp_path):
+        """main() exits 1 when inconsistency found."""
+        from check_env_keys import main
+
+        ctmpl_file = tmp_path / "repo" / "finance_report" / "finance_report" / "10.app" / "secrets.ctmpl"
+        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
+        ctmpl_file.write_text("DATABASE_URL=val\nMISSING_KEY=val\n")
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    database_url: str = "default"
+""")
+
+        env_file = tmp_path / ".env.example"
+        env_file.write_text("DATABASE_URL=default\n")
+
+        monkeypatch.setattr("check_env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+
+    def test_main_with_diff_flag(self, monkeypatch, tmp_path):
+        """main() with --diff flag shows verbose output."""
+        from check_env_keys import main
+
+        ctmpl_file = tmp_path / "repo" / "finance_report" / "finance_report" / "10.app" / "secrets.ctmpl"
+        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
+        ctmpl_file.write_text("DATABASE_URL=val\n")
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    database_url: str = "default"
+""")
+
+        env_file = tmp_path / ".env.example"
+        env_file.write_text("DATABASE_URL=default\n")
+
+        monkeypatch.setattr("check_env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(sys, "argv", ["check_env_keys.py", "--diff"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+
+    def test_main_with_fix_flag(self, monkeypatch, tmp_path):
+        """main() with --fix flag generates suggestions."""
+        from check_env_keys import main
+
+        ctmpl_file = tmp_path / "repo" / "finance_report" / "finance_report" / "10.app" / "secrets.ctmpl"
+        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
+        ctmpl_file.write_text("DATABASE_URL=val\nMISSING_KEY=val\n")
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    database_url: str = "default"
+""")
+
+        env_file = tmp_path / ".env.example"
+        env_file.write_text("DATABASE_URL=default\n")
+
+        monkeypatch.setattr("check_env_keys.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(sys, "argv", ["check_env_keys.py", "--fix"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1

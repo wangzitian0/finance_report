@@ -271,3 +271,123 @@ class TestFileIO:
         assert path.exists()
         content = json.loads(path.read_text())
         assert content == {"key": "value"}
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: mask_company_name with empty words (line 41)
+# ---------------------------------------------------------------------------
+
+
+class TestMaskCompanyNameEdgeCases:
+    def test_pte_ltd_with_no_company_words(self):
+        """mask_company_name where company_part has no words (line 40-41)."""
+        result = mask_company_name(" PTE LTD")
+        assert "PTE LTD" in result
+
+    def test_pte_ltd_company_part_short_no_words(self):
+        """mask_company_name with very short company_part > 3 chars, no words."""
+        result = mask_company_name("ABCD PTE LTD")
+        assert "PTE LTD" in result
+        assert "***BCD" in result
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: replace_company_match with empty words (line 80)
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizeDescriptionEdgeCases:
+    def test_company_suffix_with_single_word_before(self):
+        """Regex match for company suffix pattern."""
+        desc = "PAYMENT TO ACME PTE LTD"
+        result = sanitize_description(desc)
+        # The regex matches words before company suffix and masks them
+        assert "LTD" in result
+        assert "***" in result
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: main() function (lines 153-186, 190)
+# ---------------------------------------------------------------------------
+
+
+class TestMainFunction:
+    def test_main_sanitizes_fixture_files(self, tmp_path, monkeypatch):
+        """main() iterates JSON fixtures and sanitizes them (lines 153-186)."""
+        import importlib
+        module = importlib.import_module("sanitize_fixtures")
+
+        fixtures_dir = tmp_path / "apps" / "backend" / "tests" / "fixtures"
+        fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+        fixture1 = fixtures_dir / "bank_statement.json"
+        fixture1.write_text(json.dumps({
+            "opening_balance": "1000.00",
+            "closing_balance": "1500.00",
+            "events": [{"description": "Card 1234-5678-9012-3456 payment"}]
+        }))
+
+        summary = fixtures_dir / "summary.json"
+        summary.write_text(json.dumps([
+            {"success": True, "opening_balance": "2000.00", "closing_balance": "2500.00"},
+            {"success": False, "error": "parse failed"}
+        ]))
+
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        monkeypatch.setattr(module, "__file__", str(scripts_dir / "sanitize_fixtures.py"))
+
+        module.main()
+
+        result = json.loads(fixture1.read_text())
+        assert result["opening_balance"] == "300000.00"
+        assert "XXXX-XXXX-XXXX-3456" in result["events"][0]["description"]
+
+        summary_result = json.loads(summary.read_text())
+        assert summary_result[0]["opening_balance"] == "300000.00"
+        assert summary_result[1]["success"] is False
+
+    def test_main_skips_summary_json_in_glob(self, tmp_path, monkeypatch):
+        """main() skips summary.json during glob iteration (line 156-157)."""
+        import importlib
+        module = importlib.import_module("sanitize_fixtures")
+
+        fixtures_dir = tmp_path / "apps" / "backend" / "tests" / "fixtures"
+        fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+        summary = fixtures_dir / "summary.json"
+        summary.write_text(json.dumps([
+            {"success": True, "opening_balance": "500.00", "closing_balance": "600.00"}
+        ]))
+
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        monkeypatch.setattr(module, "__file__", str(scripts_dir / "sanitize_fixtures.py"))
+
+        module.main()
+
+        result = json.loads(summary.read_text())
+        assert result[0]["opening_balance"] == "300000.00"
+
+    def test_main_no_summary_file(self, tmp_path, monkeypatch, capsys):
+        """main() handles missing summary.json gracefully (line 173)."""
+        import importlib
+        module = importlib.import_module("sanitize_fixtures")
+
+        fixtures_dir = tmp_path / "apps" / "backend" / "tests" / "fixtures"
+        fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+        fixture = fixtures_dir / "test.json"
+        fixture.write_text(json.dumps({
+            "opening_balance": "100.00",
+            "closing_balance": "200.00"
+        }))
+
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        monkeypatch.setattr(module, "__file__", str(scripts_dir / "sanitize_fixtures.py"))
+
+        module.main()
+
+        captured = capsys.readouterr()
+        assert "Sanitization complete" in captured.out

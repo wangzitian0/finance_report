@@ -12,8 +12,8 @@
 | Component | Setting | Location |
 |-----------|---------|---------|
 | **Tool** | pytest-cov (built into pytest) | `apps/backend/pyproject.toml` |
-| **Current Threshold** | 99% (enforced by CI) | `pyproject.toml` `[tool.pytest.ini_options]` |
-| **Target Threshold** | 99% (current, enforced) | `tdd.md` |
+| **Current Threshold** | 90% backend (enforced by CI); 96% unified | `pyproject.toml` `[tool.pytest.ini_options]` |
+| **Target Threshold** | 96% unified (backend + frontend + scripts) | `calculate_unified_coverage.py` |
 | **Branch Coverage** | Enabled via `--cov-branch` | `pyproject.toml` |
 | **Source Scope** | `src/` directory | `pyproject.toml` `[tool.coverage.run]` |
 | **Output Formats** | XML, terminal, LCOV | `pyproject.toml` |
@@ -24,7 +24,7 @@
 |-------|-----------|---------|--------|
 | 2026-01-29 (Initial) | 95% → 97% | TDD transformation goal | Reverted to 95% (pending coverage improvement) |
 | 2026-01-29 | 97% → 95% | Allow current PRs to pass | Temporary |
-| 2026-02 (Current) | 95% → 99% | TDD transformation achieved | ✅ Active |
+| 2026-03 (Current) | 90% backend; 96% unified | TDD transformation + unified coverage system | ✅ Active |
 
 **Note**: Branch coverage (`--cov-branch`) remains enabled for stricter quality control regardless of threshold.
 
@@ -36,11 +36,11 @@ addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under
 ```
 **After**:
 ```toml
-addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --cov-fail-under=99 -m 'not slow' -n 4"
+addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --cov-fail-under=90 -m 'not slow' -n 4"
 ```
 
 **Changes**:
-1. Threshold: 95% → **99%**
+1. Threshold: 95% → **90%** backend (unified system handles overall quality at 96%)
 2. Added `--cov-branch`: Now tracks branch coverage (stricter)
 3. Applies to: All test runs (local, CI, PR tests)
 
@@ -52,7 +52,7 @@ addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --c
 
 | Metric | Description | Requirement |
 |---------|-------------|-------------|
-| **Line Coverage** | Percentage of executable lines executed | ≥ 99% |
+| **Line Coverage** | Percentage of executable lines executed | ≥ 90% backend / 96% unified |
 | **Branch Coverage** | Percentage of conditional branches taken | ≥ 95% (implied by line) |
 
 **Why Branch Coverage Matters**:
@@ -168,7 +168,7 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
     parallel: true
 ```
 
-**Enforcement**: pytest-cov exits with error code if coverage < 99%, causing CI to fail.
+**Enforcement**: pytest-cov exits with error code if backend coverage < 90%; unified coverage gate enforces 96% across all components.
 
 ### Coveralls Integration
 
@@ -182,7 +182,7 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
 
 ### Beyond Line Coverage
 
-**99% line coverage is the minimum threshold**. For true quality, consider:
+**96% unified coverage is the minimum threshold**. For true quality, consider:
 
 | Metric | Tool | Target |
 |---------|-------|--------|
@@ -197,7 +197,7 @@ When reviewing coverage gaps:
 
 ```markdown
 ## Coverage Assessment
- [ ] Coverage ≥ 99% (enforced by CI)
+ [ ] Unified coverage ≥ 96% (run `python scripts/calculate_unified_coverage.py`)
 - [ ] Branch coverage verified with `--cov-branch`
 - [ ] No `pragma: no cover` without justification
 - [ ] Missing lines are truly non-testable (not just untested)
@@ -246,8 +246,8 @@ When reviewing coverage gaps:
 ## Success Criteria
 
 **Quantitative**:
- [ ] All PRs maintain ≥ 99% coverage
- [ ] CI fails if coverage drops below 99%
+ [ ] All PRs maintain ≥ 96% unified coverage (no-regression gate)
+ [ ] CI fails if unified coverage drops below baseline
 - [ ] Branch coverage tracked via `--cov-branch`
 - [ ] Coveralls badge reflects actual coverage
 

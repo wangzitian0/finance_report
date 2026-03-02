@@ -153,7 +153,19 @@ describe('apiDelete', () => {
     const { apiDelete } = await import('../lib/api');
     await expect(apiDelete('/api/resource/missing')).rejects.toThrow('Delete failed with 404');
   });
-});
+
+  it('AC16.10.15 handles 401 redirect in apiDelete', async () => {
+    const fetchMock = makeFetchMock(401, {});
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { href: '' } });
+
+    const { apiDelete, resetRedirectGuard } = await import('../lib/api');
+    resetRedirectGuard();
+    await expect(apiDelete('/api/delete-unauth')).rejects.toThrow('Authentication required');
+    expect(window.location.href).toBe('/login');
+  });
+  });
+
 
 describe('apiStream', () => {
   beforeEach(() => {
@@ -230,4 +242,52 @@ describe('apiUpload', () => {
     const result = await apiUpload('/api/upload', fd);
     expect(result).toBeUndefined();
   });
-});
+
+  it('AC16.10.16 includes Authorization header when token present', async () => {
+    localStorageMock.setItem('finance_access_token', 'upload-token');
+    const fetchMock = makeFetchMock(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiUpload } = await import('../lib/api');
+    const fd = new FormData();
+    await apiUpload('/api/upload', fd);
+
+    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(calledHeaders['Authorization']).toBe('Bearer upload-token');
+  });
+
+  it('AC16.10.17 handles 401 redirect in apiUpload', async () => {
+    const fetchMock = makeFetchMock(401, {});
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { href: '' } });
+
+    const { apiUpload, resetRedirectGuard } = await import('../lib/api');
+    resetRedirectGuard();
+    const fd = new FormData();
+    await expect(apiUpload('/api/upload-unauth', fd)).rejects.toThrow('Authentication required');
+    expect(window.location.href).toBe('/login');
+  });
+
+  it('AC16.10.18 throws with detail message on JSON error response', async () => {
+    const fetchMock = makeFetchMock(400, { detail: 'Upload limit exceeded' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiUpload } = await import('../lib/api');
+    const fd = new FormData();
+    await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Upload limit exceeded');
+  });
+
+  it('AC16.10.19 throws with raw text on non-JSON error response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve('Server Crash'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiUpload } = await import('../lib/api');
+    const fd = new FormData();
+    await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Server Crash');
+  });
+  });
+

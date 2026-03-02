@@ -1,5 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import type { ReactNode } from "react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementDetailPage from "@/app/(main)/statements/[id]/page"
@@ -19,8 +18,8 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
   default: ({ isOpen, onConfirm, onCancel, confirmLabel }: { isOpen: boolean; onConfirm: (reason?: string) => void; onCancel: () => void; confirmLabel?: string }) =>
     isOpen ? (
       <div>
-        <button onClick={() => onConfirm("mock reason")}>Confirm {confirmLabel || "Confirm"}</button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={() => onConfirm("mock reason")}>Confirm {confirmLabel || "Confirm"}</button>
+        <button type="button" onClick={onCancel}>Cancel</button>
       </div>
     ) : null,
 }))
@@ -125,4 +124,29 @@ describe("StatementDetailPage", () => {
       }),
     )
   })
+
+  it("shows not found state", async () => {
+    mockedApiFetch.mockResolvedValueOnce(null)
+    render(<StatementDetailPage />)
+    await waitFor(() => expect(screen.getByText("Statement not found")).toBeInTheDocument())
+  })
+
+  it("handles confirm dialog cancel", async () => {
+    mockedApiFetch.mockResolvedValueOnce(parsedStatement)
+    render(<StatementDetailPage />)
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+    fireEvent.click(screen.getByText("Cancel"))
+    expect(screen.queryByText("Confirm Approve")).not.toBeInTheDocument()
+  })
+
+  it("stops polling after consecutive errors", async () => {
+    const parsingState = { ...parsedStatement, status: "parsing", parsing_progress: 50 }
+    mockedApiFetch.mockResolvedValueOnce(parsingState)
+    mockedApiFetch.mockRejectedValue(new Error("Poll Failure"))
+    render(<StatementDetailPage />)
+    await waitFor(() => expect(screen.getByText(/Parsing in progress/)).toBeInTheDocument(), { timeout: 3000 })
+    await waitFor(() => expect(screen.getByText(/Auto-refresh Stopped/)).toBeInTheDocument(), { timeout: 15000 })
+  }, 20000)
 })
+
