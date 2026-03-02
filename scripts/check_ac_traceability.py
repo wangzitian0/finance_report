@@ -199,6 +199,13 @@ def main() -> int:
             f"Loaded {len(acs)} ACs from {len(registry_paths)} feature registries + infra registry"
         )
     else:
+        # If infra registry was explicitly specified (non-default), error out
+        if args.infra_registry != "docs/infra_registry.yaml":
+            print(
+                f"ERROR: Infra registry file not found at: {infra_registry_path}",
+                file=sys.stderr,
+            )
+            return 1
         acs = load_multiple_registries(registry_paths)
         print(f"Loaded {len(acs)} ACs from {len(registry_paths)} feature registries")
 

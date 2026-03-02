@@ -277,6 +277,8 @@ class TestMain:
             SAMPLE_REGISTRY_YAML,
             "# AC1.1.1\n# AC1.1.2\n",
         )
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -284,7 +286,7 @@ class TestMain:
                 "--registry",
                 str(reg),
                 "--infra-registry",
-                str(tmp_path / "nonexistent_infra.yaml"),
+                str(empty_infra),
                 "--test-dirs",
                 str(test_dir),
             ],
@@ -297,6 +299,8 @@ class TestMain:
             SAMPLE_REGISTRY_YAML,
             "no ac references here\n",
         )
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -304,7 +308,7 @@ class TestMain:
                 "--registry",
                 str(reg),
                 "--infra-registry",
-                str(tmp_path / "nonexistent_infra.yaml"),
+                str(empty_infra),
                 "--test-dirs",
                 str(test_dir),
             ],
@@ -317,6 +321,8 @@ class TestMain:
             SAMPLE_REGISTRY_YAML,
             "no ac references here\n",
         )
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -324,7 +330,7 @@ class TestMain:
                 "--registry",
                 str(reg),
                 "--infra-registry",
-                str(tmp_path / "nonexistent_infra.yaml"),
+                str(empty_infra),
                 "--test-dirs",
                 str(test_dir),
                 "--report-only",
