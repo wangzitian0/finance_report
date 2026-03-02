@@ -57,16 +57,22 @@ def _get_test_pdf() -> Path:
 
 
 def _unique_pdf_copy(src: Path) -> Path:
-    """Copy *src* to a temp dir with a unique timestamped name.
+    """Copy *src* to a temp dir with a unique name AND unique content.
 
-    The backend deduplicates uploads by filename/hash.  Re-using the same
-    fixture PDF across CI runs causes 409 Conflict errors.  A fresh copy with
-    a unique name avoids this without modifying backend behaviour.
+    The backend deduplicates uploads by SHA-256 hash of file content.  Simply
+    renaming the file does not avoid a 409 — the hash must differ too.  We
+    append a PDF comment (valid trailing bytes) so each CI run produces a
+    distinct hash, making uploads idempotent against a persistent test DB.
     """
+    import uuid
+
     suffix = int(time.time() * 1000) % 1_000_000
     tmp = Path(tempfile.mkdtemp())
     dest = tmp / f"{src.stem}_{suffix}{src.suffix}"
     shutil.copy2(src, dest)
+    # Append a unique PDF comment to change the SHA-256 hash.
+    with open(dest, "ab") as f:
+        f.write(f"\n%% E2E test run {uuid.uuid4()}\n".encode())
     return dest
 
 
@@ -89,7 +95,9 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
     await model_select.select_option(index=0)
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
+        timeout=5_000
+    )
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -123,7 +131,9 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
 
     await page.locator("#institution").fill("E2E Model Test Bank")
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
+        timeout=5_000
+    )
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,

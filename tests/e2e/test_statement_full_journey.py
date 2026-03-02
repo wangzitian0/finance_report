@@ -44,6 +44,7 @@ def _get_dbs_pdf_path() -> Path:
     environments that lack the pdf_fixtures dependencies (reportlab, yaml).
     """
     from datetime import datetime
+
     root = Path(__file__).resolve().parents[2]
     dbs_dir = root / "scripts" / "pdf_fixtures" / "output" / "dbs"
     yymm = datetime.now().strftime("%y%m")
@@ -80,16 +81,22 @@ def _get_dbs_pdf_path() -> Path:
 
 
 def _unique_pdf_copy(src: Path) -> Path:
-    """Copy *src* to a temp dir with a unique timestamped name.
+    """Copy *src* to a temp dir with a unique name AND unique content.
 
-    The backend deduplicates uploads by filename/hash.  Re-using the same
-    fixture PDF across CI runs causes 409 Conflict errors.  A fresh copy with
-    a unique name avoids this without modifying backend behaviour.
+    The backend deduplicates uploads by SHA-256 hash of file content.  Simply
+    renaming the file does not avoid a 409 — the hash must differ too.  We
+    append a PDF comment (valid trailing bytes) so each CI run produces a
+    distinct hash, making uploads idempotent against a persistent test DB.
     """
+    import uuid
+
     suffix = int(time.time() * 1000) % 1_000_000
     tmp = Path(tempfile.mkdtemp())
     dest = tmp / f"{src.stem}_{suffix}{src.suffix}"
     shutil.copy2(src, dest)
+    # Append a unique PDF comment to change the SHA-256 hash.
+    with open(dest, "ab") as f:
+        f.write(f"\n%% E2E test run {uuid.uuid4()}\n".encode())
     return dest
 
 
@@ -118,12 +125,16 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
     await model_select.select_option(index=0)
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
+        timeout=5_000
+    )
 
-    async with page.expect_response(
-        lambda r: "/api/statements/upload" in r.url,
-        timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
-    ) as resp_info:
+    async with (
+        page.expect_response(
+            lambda r: "/api/statements/upload" in r.url,
+            timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
+        ) as resp_info
+    ):
         await page.get_by_role("button", name="Upload & Parse Statement").click()
     upload_resp = await resp_info.value
     assert upload_resp.status in (200, 201, 202), (
@@ -141,7 +152,29 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
         .filter(has_text=INSTITUTION_LABEL)
         .locator("span.badge", has_text="parsed")
     )
-    await expect(parsed_badge).to_be_visible(timeout=PARSING_TIMEOUT_MS)
+    rejected_badge = (
+        page.locator("a")
+        .filter(has_text=INSTITUTION_LABEL)
+        .locator("span.badge", has_text="rejected")
+    )
+    # Poll until parsed, but fail fast if rejected appears (AI parsing error).
+    # This avoids waiting the full PARSING_TIMEOUT_MS when the AI service fails.
+    import asyncio
+
+    deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
+    while asyncio.get_event_loop().time() < deadline:
+        if await rejected_badge.is_visible():
+            pytest.fail(
+                "Statement parsing failed (status=rejected) — AI service may be "
+                "unavailable or misconfigured on the test environment."
+            )
+        if await parsed_badge.is_visible():
+            break
+        await page.wait_for_timeout(3_000)
+    else:
+        pytest.fail(
+            f"Statement never reached 'parsed' status within {PARSING_TIMEOUT_MS}ms"
+        )
 
     # === AC8.12.3: Detail page shows transactions ===
     await statement_row.click()
