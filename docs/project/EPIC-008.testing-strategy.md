@@ -305,10 +305,20 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.11.4 | Internal Transfer | `test_internal_transfer()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.11.5 | Split Transaction | `test_split_transaction()` | `e2e/test_core_journeys.py` | P0 |
 
+### AC8.13: Tier 3 Browser E2E — Full Statement Journey
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC8.13.1 | DBS PDF upload → appears in list | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.2 | Polling → parsed status visible | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.3 | Detail page shows transactions | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.4 | Approve → redirect to /statements | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.5 | Balance sheet report loads | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 54
+- Total AC IDs: 59
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 50/54 (92.6%)**
+- **ACs with passing Tier 1 tests: 50/59 (84.7%); 5 additional covered by Tier 3 E2E (AC8.13)**
 - ACs covered by AC group:
   - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
   - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
@@ -321,9 +331,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-- Test files: 1 fully implemented (`e2e/test_core_journeys.py` — 46 tests), 1 existing (`e2e/test_statement_upload_e2e.py`), 3 Playwright (skip without env)
+  - AC8.13: 5/5 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report)
+- Test files: 1 fully implemented (`e2e/test_core_journeys.py` — 46 tests), 1 existing (`e2e/test_statement_upload_e2e.py`), 1 new Tier 3 (`tests/e2e/test_statement_full_journey.py`), 3 Playwright (skip without env)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 92.6% with 46 Tier 1 tests covering 50/54 ACs
+- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 5/5 Tier 3 ACs
 
 ---
 
@@ -335,6 +346,7 @@ These scenarios represent the "Vertical Slices" of user value.
 |------|------|------|-------|----------|
 | `tests/e2e/test_core_journeys.py` | API E2E | Tier 1 | 41 | Health, accounts CRUD, journal entries, reports, reconciliation, auth, statement upload/flow, CI/CD integration, traceability |
 | `tests/e2e/test_statement_upload_e2e.py` | Playwright | Tier 3 | 2 | Statement upload + model selection (skips without `FRONTEND_URL`) |
+| `tests/e2e/test_statement_full_journey.py` | Playwright | Tier 3 | 1 | Full journey: DBS PDF upload → parse polling → detail/transactions → approve → balance sheet (AC8.13.1–5) |
 | `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |
 | `tests/e2e/conftest.py` | Fixtures | — | — | Shared session user, browser context, auth injection |
@@ -414,6 +426,11 @@ These scenarios represent the "Vertical Slices" of user value.
    - **Reason**: Backend AI parsing returns 0 transactions instead of expected 15
    - **Tracking**: PR #142 comments
    - **Fix Required**: Backend team to investigate Gemini parsing flow
+
+4. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
+   - **Status**: Implemented — requires `APP_URL` pointing to a running frontend+backend
+   - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
+   - **Note**: `test_statement_upload_e2e.py` stale selectors also fixed in this PR
 
 2. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
 
