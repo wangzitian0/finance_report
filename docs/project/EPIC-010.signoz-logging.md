@@ -99,18 +99,14 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.1.3 | Fallback to stdout when OTEL vars absent | Manual verification | `apps/backend/src/logger.py` | P0 |
 
 ### AC10.2: OTLP Endpoint Construction
-
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC10.2.1 | Build OTLP endpoint adds suffix | `test_build_otlp_logs_endpoint_adds_suffix()` | `infra/test_logger.py` | P0 |
 | AC10.2.2 | Build OTLP endpoint preserves logs path | `test_build_otlp_logs_endpoint_preserves_logs_path()` | `infra/test_logger.py` | P0 |
+*(AC10.2.1 removed — canonical copy is AC12.1.1 in EPIC-012)*
 
 ### AC10.3: Renderer Selection
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC10.3.1 | Select renderer uses console in debug | `test_select_renderer_uses_console_in_debug()` | `infra/test_logger.py` | P0 |
-| AC10.3.2 | Select renderer uses JSON in production | `test_select_renderer_uses_json_in_production()` | `infra/test_logger.py` | P0 |
+*(AC10.3.1 and AC10.3.2 removed — canonical copies are AC12.2.1 and AC12.2.2 in EPIC-012)*
 
 ### AC10.4: OTEL Configuration & Error Handling
 
@@ -150,7 +146,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.7.7 | Structured JSON logs in non-debug | `test_select_renderer_uses_json_in_production()` | `infra/test_logger.py` | P0 |
 
 **Traceability Result**:
-- Total AC IDs: 21
+- Total AC IDs: 18 (AC10.2.1, AC10.3.1, AC10.3.2 removed as duplicates of EPIC-012 canonical ACs)
 - Requirements converted to AC IDs: 100% (EPIC-010 checklist + must-have standards)
 - Requirements with implemented test references: 90% (10% manual verification required)
 - Test files: 1
