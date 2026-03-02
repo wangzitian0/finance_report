@@ -57,26 +57,33 @@ export default function AssetsPage() {
     });
 
     const positions = data?.items ?? [];
-
+    const activePositions = positions.filter((p) => p.status === "active");
     const groupedByBroker = positions.reduce((groups, pos) => {
         const broker = pos.account_name ?? "Unknown";
         if (!groups[broker]) groups[broker] = [];
         groups[broker].push(pos);
         return groups;
     }, {} as Record<string, ManagedPosition[]>);
-
     const totalsByCurrency = positions.reduce((totals, pos) => {
         const currency = pos.currency || "USD";
         totals[currency] = (totals[currency] || 0) + parseFloat(pos.cost_basis);
         return totals;
     }, {} as Record<string, number>);
+    const totalCostBasis = Object.values(totalsByCurrency).reduce((s, v) => s + v, 0);
+    const allocationByCurrency = Object.entries(totalsByCurrency)
+        .sort((a, b) => b[1] - a[1])
+        .map(([currency, total]) => ({
+            currency,
+            total,
+            pct: totalCostBasis > 0 ? (total / totalCostBasis) * 100 : 0,
+        }));
 
     return (
         <div className="p-6">
             <div className="page-header flex items-center justify-between">
                 <div>
-                    <h1 className="page-title">Assets</h1>
-                    <p className="page-description">Your investment holdings across brokers</p>
+                    <h1 className="page-title">Portfolio Performance</h1>
+                    <p className="page-description">Track your investment holdings and performance across all brokers</p>
                 </div>
                 <button
                     onClick={() => reconcileMutation.mutate()}
@@ -93,6 +100,57 @@ export default function AssetsPage() {
                     Reconcile Positions
                 </button>
             </div>
+
+            {/* Portfolio KPI cards — shown after first load */}
+            {!isLoading && !error && positions.length > 0 && (
+                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                    <div className="card p-5">
+                        <p className="text-xs text-muted uppercase tracking-wide">Total Positions</p>
+                        <p className="text-2xl font-semibold mt-1">{positions.length}</p>
+                        <p className="text-xs text-muted mt-1">{Object.keys(groupedByBroker).length} broker{Object.keys(groupedByBroker).length !== 1 ? "s" : ""}</p>
+                    </div>
+                    <div className="card p-5">
+                        <p className="text-xs text-muted uppercase tracking-wide">Active Holdings</p>
+                        <p className="text-2xl font-semibold text-[var(--success)] mt-1">{activePositions.length}</p>
+                        <p className="text-xs text-muted mt-1">{positions.length - activePositions.length} disposed</p>
+                    </div>
+                    <div className="card p-5">
+                        <p className="text-xs text-muted uppercase tracking-wide">Total Cost Basis</p>
+                        <p className="text-2xl font-semibold mt-1">
+                            {allocationByCurrency.map((a, i) => (
+                                <span key={a.currency} className="block text-xl leading-snug">
+                                    {i > 0 && <span className="text-base text-muted">+ </span>}
+                                    {formatCurrency(a.total.toString(), a.currency)}
+                                </span>
+                            ))}
+                        </p>
+                        <p className="text-xs text-muted mt-1">Book value (no market price yet)</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Currency allocation breakdown */}
+            {!isLoading && !error && allocationByCurrency.length > 1 && (
+                <div className="card p-5 mb-6">
+                    <p className="text-xs text-muted uppercase tracking-wide mb-3">Allocation by Currency</p>
+                    <div className="space-y-2">
+                        {allocationByCurrency.map((a) => (
+                            <div key={a.currency} className="flex items-center gap-3">
+                                <span className="w-10 text-xs font-mono font-medium text-right">{a.currency}</span>
+                                <div className="flex-1 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full bg-[var(--accent)]"
+                                        style={{ width: `${a.pct}%` }}
+                                    />
+                                </div>
+                                <span className="w-14 text-xs text-muted text-right">{a.pct.toFixed(1)}%</span>
+                                <span className="text-xs text-muted">{formatCurrency(a.total.toString(), a.currency)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
 
             <div className="flex items-center justify-between mb-6">
                 <div className="flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit">

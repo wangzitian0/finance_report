@@ -161,6 +161,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* This Month KPI Cards */}
+      {incomeStatement && incomeStatement.trends.length > 0 && (() => {
+        const latest = incomeStatement.trends[incomeStatement.trends.length - 1];
+        const monthIncome = toNumber(latest.total_income);
+        const monthExpense = toNumber(latest.total_expenses);
+        const monthNet = monthIncome - monthExpense;
+        const currency = incomeStatement.currency;
+        const fmtOpts = { maximumFractionDigits: 0 } as const;
+        return (
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
+            <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
+              <p className="text-xs text-muted uppercase tracking-wide">This Month — Income</p>
+              <p className="text-2xl font-semibold text-[var(--success)] mt-1">{formatCurrencyLocale(monthIncome, currency, "en-US", fmtOpts)}</p>
+              <p className="text-xs text-muted mt-1">{new Date(latest.period_start).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+            </Link>
+            <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
+              <p className="text-xs text-muted uppercase tracking-wide">This Month — Expenses</p>
+              <p className="text-2xl font-semibold text-[var(--error)] mt-1">{formatCurrencyLocale(monthExpense, currency, "en-US", fmtOpts)}</p>
+              <p className="text-xs text-muted mt-1">Total outflows</p>
+            </Link>
+            <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
+              <p className="text-xs text-muted uppercase tracking-wide">This Month — Net</p>
+              <p className={`text-2xl font-semibold mt-1 ${monthNet >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{formatCurrencyLocale(monthNet, currency, "en-US", fmtOpts)}</p>
+              <p className="text-xs text-muted mt-1">{monthNet >= 0 ? "Surplus" : "Deficit"}</p>
+            </Link>
+          </div>
+        );
+      })()}
+
+
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <div className="card p-5">

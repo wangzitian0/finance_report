@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { BarChart2, TrendingUp, DollarSign } from "lucide-react";
 
 const reports = [
-    { id: "balance-sheet", title: "Balance Sheet", description: "Assets, liabilities, and equity at a point in time", icon: "📊", href: "/reports/balance-sheet", available: true },
-    { id: "income-statement", title: "Income Statement", description: "Revenue and expenses over a period", icon: "📈", href: "/reports/income-statement", available: true },
-    { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: "💰", href: "/reports/cash-flow", available: true },
+    { id: "balance-sheet", title: "Balance Sheet", description: "Assets, liabilities, and equity at a point in time", icon: BarChart2, href: "/reports/balance-sheet", available: true },
+    { id: "income-statement", title: "Income Statement", description: "Revenue and expenses over a period", icon: TrendingUp, href: "/reports/income-statement", available: true },
+    { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: DollarSign, href: "/reports/cash-flow", available: true },
 ];
 
 export default function ReportsPage() {
@@ -36,14 +37,17 @@ export default function ReportsPage() {
 }
 
 interface ReportCardProps {
-    report: { id: string; title: string; description: string; icon: string; href: string; available: boolean };
+    report: { id: string; title: string; description: string; icon: React.ComponentType<{ className?: string }>; href: string; available: boolean };
 }
 
 function ReportCard({ report }: ReportCardProps) {
+    const Icon = report.icon;
     const content = (
-        <div className={`card p-5 transition-colors ${report.available ? "hover:border-[var(--accent)]" : "opacity-60"}`}>
+        <div className={`card p-5 transition-colors cursor-pointer ${report.available ? "hover:border-[var(--accent)]" : "opacity-60"}`}>
             <div className="flex items-start justify-between mb-3">
-                <span className="text-3xl">{report.icon}</span>
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)]">
+                    <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
+                </div>
                 {!report.available && <span className="badge badge-muted">Coming Soon</span>}
             </div>
             <h3 className="font-semibold text-[var(--accent)] mb-1">{report.title}</h3>
@@ -51,7 +55,7 @@ function ReportCard({ report }: ReportCardProps) {
             {report.available && (
                 <div className="mt-3 flex items-center text-xs text-muted">
                     <span>View report</span>
-                    <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                 </div>
