@@ -1,6 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 
 describe("auth utilities SSR", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("returns null for all getters when window is undefined", async () => {
         vi.stubGlobal("window", undefined);
         
@@ -10,7 +14,5 @@ describe("auth utilities SSR", () => {
         expect(getUserEmail()).toBeNull();
         expect(getAccessToken()).toBeNull();
         expect(isAuthenticated()).toBe(false);
-        
-        vi.unstubAllGlobals();
     });
 });

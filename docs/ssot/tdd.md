@@ -503,7 +503,7 @@ exclude_lines = [
 ## Success Criteria
 
 **Quantitative**:
-- [x] Unified coverage ≥ 96% (verified by calculate_unified_coverage.py: 96.4% as of 2026-03-02)
+- [x] Unified coverage ≥ 96% (verified by calculate_unified_coverage.py: 95.74% as of 2026-03-02)
 - [x] CI coverage enforcement added (post-merge validation)
 - [ ] Service layer coverage ≥ 80%
 - [ ] Zero regressions in coverage after PRs

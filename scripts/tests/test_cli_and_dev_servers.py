@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -194,9 +195,6 @@ def test_AC16_11_20_dev_frontend_cleanup_terminates_and_exits(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         dev_frontend.cleanup()
     assert exc.value.code == 0
-
-
-from unittest.mock import MagicMock, patch
 
 
 def _mock_run(monkeypatch):

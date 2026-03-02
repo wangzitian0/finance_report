@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import ChatPanel from "@/components/ChatPanel"
 import { apiDelete, apiFetch, apiStream } from "@/lib/api"
@@ -66,6 +66,10 @@ describe("ChatPanel", () => {
 
     mockedApiStream.mockResolvedValue({ response: streamingResponse("Assistant answer") as Response, sessionId: "sess-2" })
     mockedApiDelete.mockResolvedValue({ ok: true })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it("AC16.20.5 loads suggestions/history and streams reply", async () => {

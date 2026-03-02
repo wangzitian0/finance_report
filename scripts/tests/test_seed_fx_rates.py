@@ -260,13 +260,9 @@ class TestMain:
         monkeypatch.setattr("sys.argv", ["seed_fx_rates.py", "--env", "local"])
 
         with patch(
-            "seed_fx_rates.seed_fx_rates", new_callable=lambda: lambda: AsyncMock()
+            "seed_fx_rates.seed_fx_rates",
         ):
-            mock_coro = AsyncMock()
-            with (
-                patch("seed_fx_rates.seed_fx_rates", return_value=mock_coro()),
-                patch("seed_fx_rates.asyncio.run") as mock_run,
-            ):
+            with patch("seed_fx_rates.asyncio.run") as mock_run:
                 seed_fx_rates.main()
 
         captured = capsys.readouterr()
@@ -295,6 +291,7 @@ class TestMain:
             seed_fx_rates.main()
 
         # The argument to asyncio.run should be seed_fx_rates("local")
+        assert len(calls) == 1, "asyncio.run should have been called once"
 
     def test_main_staging_env(self, capsys, monkeypatch):
         """Given --env staging, should pass 'staging' to seed_fx_rates."""

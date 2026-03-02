@@ -164,7 +164,7 @@ describe('apiDelete', () => {
     await expect(apiDelete('/api/delete-unauth')).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
-  });
+});
 
 
 describe('apiStream', () => {
@@ -289,5 +289,5 @@ describe('apiUpload', () => {
     const fd = new FormData();
     await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Server Crash');
   });
-  });
+});
 

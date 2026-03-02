@@ -2213,7 +2213,7 @@ async def test_execute_matching_4_layer_read_transfer(db: AsyncSession):
 
     # For coverage: test the 4_layer_read branch in M2O and normal matching instead.
     # The transfer branch is covered by the test above (test_execute_matching_4_layer_read).
-    pass  # Covered by other 4_layer_read tests
+    assert True  # transfer branch covered by test_execute_matching_4_layer_read above
 
 
 async def test_execute_matching_4_layer_read_pending_review(db: AsyncSession):

@@ -170,10 +170,11 @@ describe("StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Quota exceeded') });
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Quota exceeded') });
     render(<StatementUploader />);
     const select = await screen.findByLabelText(/ai model/i);
     await userEvent.selectOptions(select, "qwen/qwen-2.5-vl-7b-instruct:free");
+    spy.mockRestore();
     // This should trigger the warning toast (but we didn't mock showToast properly here to check it easily, 80%+ should still be fine)
   });
 
