@@ -958,7 +958,6 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
     assert statement.status in (BankStatementStatus.PARSING, BankStatementStatus.REJECTED)
 
 
-
 # ============================================================================
 # Tests for uncovered lines: Two-Stage Review, Delete, Batch, Consistency
 # ============================================================================
@@ -985,9 +984,7 @@ async def test_handle_parse_failure_inner_exception(db, test_user, monkeypatch):
     fake_stmt.id = statement_id
 
     # Should not raise - it catches inner exceptions
-    await statements_router._handle_parse_failure(
-        fake_stmt, mock_session, message="parse error"
-    )
+    await statements_router._handle_parse_failure(fake_stmt, mock_session, message="parse error")
     mock_session.get.assert_awaited_once()
 
 
@@ -1004,9 +1001,7 @@ async def test_handle_parse_failure_statement_not_found_after_rollback(db, test_
     fake_stmt.id = statements_router.UUID("00000000-0000-0000-0000-000000000099")
 
     # Should return without error
-    await statements_router._handle_parse_failure(
-        fake_stmt, mock_session, message="parse error"
-    )
+    await statements_router._handle_parse_failure(fake_stmt, mock_session, message="parse error")
     mock_session.get.assert_awaited_once()
 
 
@@ -1028,9 +1023,7 @@ async def test_handle_parse_failure_rollback_fails(db, test_user):
     fake_stmt = MagicMock()
     fake_stmt.id = statement_id
 
-    await statements_router._handle_parse_failure(
-        fake_stmt, mock_session, message="parse error"
-    )
+    await statements_router._handle_parse_failure(fake_stmt, mock_session, message="parse error")
     mock_session.rollback.assert_awaited_once()
 
 
@@ -1047,9 +1040,7 @@ async def test_delete_statement_success(db, test_user, monkeypatch):
 
     monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
 
-    await statements_router.delete_statement(
-        statement_id=statement_id, db=db, user_id=test_user.id
-    )
+    await statements_router.delete_statement(statement_id=statement_id, db=db, user_id=test_user.id)
 
     deleted = await db.get(BankStatement, statement_id)
     assert deleted is None
@@ -1084,9 +1075,7 @@ async def test_delete_statement_storage_error_still_deletes(db, test_user, monke
     mock_storage.delete_object.side_effect = statements_router.StorageError("S3 Down")
     monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
 
-    await statements_router.delete_statement(
-        statement_id=statement_id, db=db, user_id=test_user.id
-    )
+    await statements_router.delete_statement(statement_id=statement_id, db=db, user_id=test_user.id)
 
     deleted = await db.get(BankStatement, statement_id)
     assert deleted is None
@@ -1105,9 +1094,7 @@ async def test_get_statement_for_review(db, test_user, monkeypatch):
 
     monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
 
-    result = await statements_router.get_statement_for_review(
-        statement_id=statement_id, db=db, user_id=test_user.id
-    )
+    result = await statements_router.get_statement_for_review(statement_id=statement_id, db=db, user_id=test_user.id)
 
     assert result.id == statement_id
     assert result.balance_validation_result is not None
@@ -1144,9 +1131,7 @@ async def test_get_statement_for_review_storage_error(db, test_user, monkeypatch
     mock_storage.generate_presigned_url.side_effect = statements_router.StorageError("S3 Down")
     monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
 
-    result = await statements_router.get_statement_for_review(
-        statement_id=statement_id, db=db, user_id=test_user.id
-    )
+    result = await statements_router.get_statement_for_review(statement_id=statement_id, db=db, user_id=test_user.id)
 
     assert result.id == statement_id
     assert result.pdf_url is None
@@ -1165,9 +1150,7 @@ async def test_approve_statement_stage1_success(db, test_user, monkeypatch):
     db.add(statement)
     await db.commit()
     statement_id = statement.id
-    result = await statements_router.approve_statement_stage1(
-        statement_id=statement_id, db=db, user_id=test_user.id
-    )
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert result.status == BankStatementStatus.APPROVED
 
 
@@ -1183,9 +1166,7 @@ async def test_approve_statement_stage1_balance_mismatch(db, test_user):
     statement_id = statement.id
 
     with pytest.raises(HTTPException) as exc:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement_id, db=db, user_id=test_user.id
-        )
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert exc.value.status_code == 400
     assert "Balance mismatch" in exc.value.detail
 
@@ -1232,6 +1213,7 @@ async def test_edit_and_approve_statement_success(db, test_user):
     Then it applies edits and approves (lines 803-814).
     """
     from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+
     statement = build_statement(test_user.id, "hash_edit_approve", 80)
     db.add(statement)
     await db.commit()
@@ -1248,13 +1230,15 @@ async def test_edit_and_approve_statement_success(db, test_user):
     txn_id = txn.id
     statement_id = statement.id
     edit_req = EditAndApproveRequest(
-        edits=[TransactionEditRequest(
-            txn_id=txn_id,
-            amount=Decimal("10.00"),
-            description="Test Txn",
-            txn_date=date(2025, 1, 15),
-            direction="IN",
-        )]
+        edits=[
+            TransactionEditRequest(
+                txn_id=txn_id,
+                amount=Decimal("10.00"),
+                description="Test Txn",
+                txn_date=date(2025, 1, 15),
+                direction="IN",
+            )
+        ]
     )
     result = await statements_router.edit_and_approve_statement(
         statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
@@ -1268,6 +1252,7 @@ async def test_edit_and_approve_statement_balance_invalid(db, test_user):
     Then it raises 400 (lines 807-808).
     """
     from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+
     statement = build_statement(test_user.id, "hash_edit_bad", 80)
     db.add(statement)
     await db.commit()
@@ -1284,13 +1269,15 @@ async def test_edit_and_approve_statement_balance_invalid(db, test_user):
     statement_id = statement.id
     # Change amount to something that breaks the balance
     edit_req = EditAndApproveRequest(
-        edits=[TransactionEditRequest(
-            txn_id=txn.id,
-            amount=Decimal("99999.00"),
-            description="Test Txn",
-            txn_date=date(2025, 1, 15),
-            direction="IN",
-        )]
+        edits=[
+            TransactionEditRequest(
+                txn_id=txn.id,
+                amount=Decimal("99999.00"),
+                description="Test Txn",
+                txn_date=date(2025, 1, 15),
+                direction="IN",
+            )
+        ]
     )
     with pytest.raises(HTTPException) as exc:
         await statements_router.edit_and_approve_statement(
@@ -1343,9 +1330,7 @@ async def test_get_stage2_review_queue_empty(db, test_user):
     When get_stage2_review_queue is called,
     Then it returns empty queue (lines 844-867).
     """
-    result = await statements_router.get_stage2_review_queue(
-        db=db, user_id=test_user.id
-    )
+    result = await statements_router.get_stage2_review_queue(db=db, user_id=test_user.id)
 
     assert result.pending_matches == []
     assert result.consistency_checks == []
@@ -1384,9 +1369,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     db.add(match)
     await db.commit()
 
-    result = await statements_router.get_stage2_review_queue(
-        db=db, user_id=test_user.id
-    )
+    result = await statements_router.get_stage2_review_queue(db=db, user_id=test_user.id)
 
     assert len(result.pending_matches) == 1
     assert result.pending_matches[0]["status"] == "pending_review"
@@ -1403,9 +1386,7 @@ async def test_run_stage2_checks_success(db, test_user):
     await db.commit()
     statement_id = statement.id
 
-    result = await statements_router.run_stage2_checks(
-        statement_id=statement_id, db=db, user_id=test_user.id
-    )
+    result = await statements_router.run_stage2_checks(statement_id=statement_id, db=db, user_id=test_user.id)
 
     assert result.total >= 0
     assert isinstance(result.items, list)
@@ -1506,9 +1487,7 @@ async def test_list_consistency_checks_empty(db, test_user):
     When list_consistency_checks is called,
     Then it returns an empty list (lines 924-947).
     """
-    result = await statements_router.list_consistency_checks(
-        db=db, user_id=test_user.id
-    )
+    result = await statements_router.list_consistency_checks(db=db, user_id=test_user.id)
 
     assert result.total == 0
     assert result.items == []
@@ -1542,9 +1521,7 @@ async def test_list_consistency_checks_with_filters(db, test_user):
     await db.commit()
 
     # Filter by status
-    result = await statements_router.list_consistency_checks(
-        db=db, user_id=test_user.id, status=CheckStatus.PENDING
-    )
+    result = await statements_router.list_consistency_checks(db=db, user_id=test_user.id, status=CheckStatus.PENDING)
     assert result.total == 1
     assert result.items[0].check_type == CheckType.DUPLICATE
 

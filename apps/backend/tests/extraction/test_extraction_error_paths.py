@@ -448,6 +448,7 @@ async def test_handle_parse_failure_none_message(db):
     assert statement.status == BankStatementStatus.REJECTED
     assert statement.validation_error is None
 
+
 # ---------------------------------------------------------------------------
 # _safe_decimal with default parameter (line 76)
 # ---------------------------------------------------------------------------
@@ -618,8 +619,10 @@ async def test_extract_force_model():
 
     valid_json = '{"account_last4": "1234", "transactions": []}'
 
-    with patch("src.services.extraction.stream_openrouter_json") as mock_stream, \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json") as mock_stream,
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
             file_content=b"content",
@@ -630,7 +633,10 @@ async def test_extract_force_model():
     assert result["account_last4"] == "1234"
     # Verify the stream was called with the force_model
     call_kwargs = mock_stream.call_args
-    assert call_kwargs.kwargs.get("model") == "google/gemini-2.0-test" or call_kwargs[1].get("model") == "google/gemini-2.0-test"
+    assert (
+        call_kwargs.kwargs.get("model") == "google/gemini-2.0-test"
+        or call_kwargs[1].get("model") == "google/gemini-2.0-test"
+    )
 
 
 @pytest.mark.asyncio
@@ -656,8 +662,10 @@ async def test_extract_empty_ai_response():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.return_value = ""  # Empty response
         with pytest.raises(ExtractionError, match="All 1 models failed.*empty_response"):
             await service.extract_financial_data(
@@ -675,8 +683,10 @@ async def test_extract_return_raw():
 
     raw_content = '{"account_last4": "1234", "transactions": []}'
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.return_value = raw_content
         result = await service.extract_financial_data(
             file_content=b"content",
@@ -694,8 +704,10 @@ async def test_extract_value_error_during_extraction():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.side_effect = ValueError("some programming error")
         with pytest.raises(ExtractionError, match="Internal error: ValueError"):
             await service.extract_financial_data(
@@ -749,11 +761,13 @@ def test_extract_status_code():
 def test_validate_balance_wrapper():
     """_validate_balance delegates to validate_balance (line 112-113)."""
     service = ExtractionService()
-    result = service._validate_balance({
-        "opening_balance": "100.00",
-        "closing_balance": "200.00",
-        "transactions": [{"amount": "100.00", "direction": "IN"}],
-    })
+    result = service._validate_balance(
+        {
+            "opening_balance": "100.00",
+            "closing_balance": "200.00",
+            "transactions": [{"amount": "100.00", "direction": "IN"}],
+        }
+    )
     assert isinstance(result, dict)
 
 
@@ -818,8 +832,10 @@ async def test_extract_non_dict_json_response():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.return_value = '[{"amount": "100.00"}]'  # Array, not object
         with pytest.raises(ExtractionError, match="strict JSON object.*no arrays"):
             await service.extract_financial_data(
@@ -871,8 +887,10 @@ async def test_extract_extraction_error_reraise():
     service = ExtractionService()
     service.api_key = "test-key"
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.side_effect = ExtractionError("Custom extraction failure")
         with pytest.raises(ExtractionError, match="Custom extraction failure"):
             await service.extract_financial_data(
@@ -890,8 +908,10 @@ async def test_extract_pdf_with_valid_external_url():
 
     valid_json = '{"account_last4": "9999", "transactions": []}'
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
             file_content=None,
@@ -910,8 +930,10 @@ async def test_extract_image_with_valid_external_url():
 
     valid_json = '{"account_last4": "8888", "transactions": []}'
 
-    with patch("src.services.extraction.stream_openrouter_json"), \
-         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum:
+    with (
+        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
             file_content=None,

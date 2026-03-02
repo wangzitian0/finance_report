@@ -106,6 +106,5 @@ def test_decode_access_token_malformed():
     assert payload is None
     mock_warning.assert_called_once()
 
-
     assert decode_access_token("") is None
     assert decode_access_token(None) is None
