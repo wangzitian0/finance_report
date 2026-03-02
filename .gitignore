@@ -24,6 +24,9 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+*.lcov
+*.info
+coverage-scripts.lcov
 # unified-coverage.json is intentionally tracked (coverage baseline)
 coverage/
 
