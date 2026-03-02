@@ -975,7 +975,7 @@ apps/backend/tests/
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC14.1.1 | Backend coverage ≥ 99% enforced in CI | `test_coverage_threshold_enforced` | `infra/test_coverage_enforcement.py` | P0 |
+| AC14.1.1 | Backend coverage ≥ 90% enforced in CI (target: 99%; current threshold in pyproject.toml) | `test_coverage_threshold_enforced` | `infra/test_coverage_enforcement.py` | P0 |
 | AC14.1.2 | Pre-commit mypy hook blocks type errors before commit | `test_mypy_precommit_blocks_type_errors` | `infra/test_precommit_hooks.py` | P0 |
 | AC14.1.3 | validate_schemas.py exits non-zero when Pydantic fields lack Field() descriptions | `test_validate_schemas_fails_missing_desc` | `infra/test_validate_schemas.py` | P0 |
 | AC14.1.4 | check_env_keys.py detects missing keys across secrets.ctmpl, config.py, .env.example | `test_env_keys_three_way_sync` | `infra/test_check_env_keys.py` | P0 |

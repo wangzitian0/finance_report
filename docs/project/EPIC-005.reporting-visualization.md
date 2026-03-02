@@ -134,7 +134,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.1 | XIRR calculation accuracy ≤ 0.1% error | `test_xirr_calculation_accuracy` | `reporting/test_investment_reporting.py` | P0 |
+| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `test_xirr_calculation_accuracy` | `reporting/test_investment_reporting.py` | P0 |
 | AC5.6.2 | Annualized return (TWR) computed correctly | `test_time_weighted_return` | `reporting/test_investment_reporting.py` | P0 |
 | AC5.6.3 | Dividend yield = annual dividends / current value | `test_dividend_yield_calculation` | `reporting/test_investment_reporting.py` | P0 |
 | AC5.6.4 | Annualized income in income statement KPI block | `test_annualized_income_in_statement` | `reporting/test_investment_reporting.py` | P0 |
@@ -142,7 +142,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `test_mwr_matches_xirr_single_cashflow` | `reporting/test_investment_reporting.py` | P1 |
 
 **Traceability Result**:
-- Total AC IDs: 13
+- Total AC IDs: 19
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
 - Test files: 5

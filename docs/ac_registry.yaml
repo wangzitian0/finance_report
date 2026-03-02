@@ -535,7 +535,7 @@ acs:
   - id: AC4.6.3
     epic: 4
     epic_name: reconciliation-engine
-    description: 'source_type=manual_entry wins over auto_matched in conflict'
+    description: 'source_type=manual wins over auto_matched in conflict'
     mandatory: true
   - id: AC4.6.4
     epic: 4
@@ -616,7 +616,7 @@ acs:
   - id: AC5.6.1
     epic: 5
     epic_name: reporting-visualization
-    description: 'XIRR calculation accuracy ≤ 0.1% error'
+    description: 'XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR'
     mandatory: true
   - id: AC5.6.2
     epic: 5

@@ -10,10 +10,12 @@
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Enum Definition** | `apps/backend/src/models/journal.py` → `JournalEntrySourceType` | ORM enum values |
+| **Enum Definition** | `apps/backend/src/models/journal.py` → `JournalEntrySourceType` | ORM enum values — **Note**: values below are the **planned target** enum; see implementation status callout |
 | **Trust Logic** | `apps/backend/src/services/reconciliation.py` | Conflict resolution in matching |
 | **Router Usage** | `apps/backend/src/routers/journal.py` | `source_type` set on entry creation |
-
+> ⚠️ **Implementation Status (Planned)**: The four-value trust hierarchy (`manual`, `user_confirmed`, `auto_matched`, `auto_parsed`) is a **design target** for EPIC-013 / EPIC-016, not yet in production code.
+> The current `JournalEntrySourceType` enum in `journal.py` has values: `manual`, `bank_statement`, `system`, `fx_revaluation`.
+> All verification tests in §6 are marked ⏳ Planned accordingly.
 ---
 
 ## 2. Trust Hierarchy
@@ -93,7 +95,7 @@ The field is immutable after creation except via explicit promotion endpoints (S
 |----------|---------------|------|--------|
 | Source type stamped on manual entry creation | `test_source_type_stamped_on_create` | `reconciliation/test_source_type.py` | ⏳ Planned |
 | Auto-matched sets source_type=auto_matched | `test_auto_match_sets_source_type` | `reconciliation/test_source_type.py` | ⏳ Planned |
-| Stage-1 approve promotes to user_confirmed | `test_stage1_approve_promotes_source_type` | `reconciliation/test_source_type.py` | ⏳ Planned |
+| Stage-1 approve promotes to user_confirmed | `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | ⏳ Planned |
 | Manual entry wins over auto_parsed in conflict | `test_manual_wins_conflict_resolution` | `reconciliation/test_source_type.py` | ⏳ Planned |
 | source_type cannot be downgraded | `test_source_type_no_downgrade` | `reconciliation/test_source_type.py` | ⏳ Planned |
 

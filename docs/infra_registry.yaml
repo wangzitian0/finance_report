@@ -701,7 +701,7 @@ acs:
   - id: AC14.1.1
     epic: 14
     epic_name: ttd-transformation
-    description: 'Backend coverage ≥ 99% enforced in CI'
+    description: 'Backend coverage ≥ 90% enforced in CI (target: 99%; current threshold in pyproject.toml)'
     mandatory: true
   - id: AC14.1.2
     epic: 14

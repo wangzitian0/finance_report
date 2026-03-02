@@ -26,9 +26,9 @@ This section contains:
 **Planned (P1 - High Priority)**
 - [EPIC-017](./EPIC-017.portfolio-management.md) — Investment Portfolio Management (6-8 weeks) — 100% self-developed.
 
-**TODO (Design Needed)**
-- source_type Priority Logic — Conflict resolution when multiple sources report different values for the same transaction (see vision.md Decision 6). Extend EPIC-013 or EPIC-004.
-- Confirmation Workflow SSOT — Code uses `pending_review` status across 7 files but no SSOT document defines the workflow.
+~~**TODO (Design Needed)**~~
+- ~~source_type Priority Logic~~ ✅ **Resolved** — SSOT doc added: [source-type-priority.md](../ssot/source-type-priority.md) (EPIC-013 / EPIC-016 implementation planned).
+- ~~Confirmation Workflow SSOT~~ ✅ **Resolved** — SSOT doc added: [confirmation-workflow.md](../ssot/confirmation-workflow.md) defines the `pending_review` state machine for Stage 1 and Stage 2.
 
 **Done**
  [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
