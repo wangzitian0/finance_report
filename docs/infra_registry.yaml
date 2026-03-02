@@ -999,3 +999,8 @@ acs:
     epic_name: foundation-libs
     description: 'get_reconciliation_stats() function extracts reconciliation stats queries from AIAdvisorService'
     mandatory: true
+  - id: AC12.18.7.2
+    epic: 12
+    epic_name: foundation-libs
+    description: 'Pure scoring helpers _find_transfer_candidates, _find_many_to_one_candidates, _find_normal_candidates extracted from execute_matching()'
+    mandatory: true
