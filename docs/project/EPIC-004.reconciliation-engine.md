@@ -135,8 +135,18 @@ Automatically match bank transactions with journal entries, implementing intelli
 |----|-----------|---------------|------|----------|
 | AC4.5.1 | Anomaly Detection Core | `test_detect_anomalies_flags_expected_patterns` | `reconciliation/test_reconciliation_engine.py` | P2 |
 
+### AC4.6: Source Type Conflict & Transfer Detection
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.6.1 | 0.1 USD boundary: amount delta = 0.10 USD passes, 0.11 USD fails | `test_amount_tolerance_0_10_boundary` | `reconciliation/test_reconciliation_scoring.py` | P0 |
+| AC4.6.2 | Transfer detection: matching OUT/IN within ±3 days not mis-reconciled | `test_transfer_pair_not_double_counted` | `reconciliation/test_reconciliation_engine.py` | P0 |
+| AC4.6.3 | source_type=manual wins over auto_matched in conflict | `test_manual_source_wins_reconciliation` | `reconciliation/test_source_type.py` | P0 |
+| AC4.6.4 | Stage 2 batch approve blocked when duplicate flags unresolved | `test_batch_approve_blocked_by_duplicate` | `reconciliation/test_review_workflow.py` | P1 |
+| AC4.6.5 | Reconciliation score considers source_type weight (manual > auto) | `test_source_type_weight_in_scoring` | `reconciliation/test_reconciliation_scoring.py` | P1 |
+
 **Traceability Result**:
-- Total AC IDs: 12
+- Total AC IDs: 17
 - Requirements converted to AC IDs: 100% (EPIC-004 checklist + must-have standards)
 - Requirements with test references: 100%
 - Test files: 5

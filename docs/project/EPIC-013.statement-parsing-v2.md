@@ -198,6 +198,17 @@ Expected routing behavior remains threshold-based:
 - Test files: 1 (`test_extraction.py`)
 - Overall coverage: EPIC-013 implementation in progress
 
+### AC13.10: Source Type Priority & Conflict Resolution
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.10.1 | Source type stamped on manual entry creation | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC13.10.2 | Auto-match sets source_type=auto_matched | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC13.10.3 | Stage-1 approve promotes to user_confirmed | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC13.10.4 | Manual entry wins over auto_parsed in conflict | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC13.10.5 | source_type cannot be downgraded | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC13.10.6 | All four source_type values accepted by API | `TBD` | `TBD (test to be implemented)` | P1 |
+
 ---
 
 ## 📌 Future Work (from Vision Recovery Audit)

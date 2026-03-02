@@ -962,3 +962,22 @@ apps/backend/tests/
 ---
 
 *Last updated: February 9, 2026*
+
+
+---
+
+## 🧪 Infra Test Cases (Coverage Enforcement)
+
+> **Registry**: `docs/infra_registry.yaml`
+> **Coverage**: See `apps/backend/tests/infra/`
+
+### AC14.1: Coverage Enforcement Tooling
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC14.1.1 | Backend coverage ≥ 90% enforced locally via `pyproject.toml` (CI uses `--cov-fail-under=0`; target: 99%; local pre-push enforcement threshold: 90%) | `test_coverage_threshold_enforced` | `infra/test_coverage_enforcement.py` | P0 |
+| AC14.1.2 | Pre-commit mypy hook blocks type errors before commit | `test_mypy_precommit_blocks_type_errors` | `infra/test_precommit_hooks.py` | P0 |
+| AC14.1.3 | validate_schemas.py exits non-zero when Pydantic fields lack Field() descriptions | `test_validate_schemas_fails_missing_desc` | `infra/test_validate_schemas.py` | P0 |
+| AC14.1.4 | check_env_keys.py detects missing keys across secrets.ctmpl, config.py, .env.example | `test_env_keys_three_way_sync` | `infra/test_check_env_keys.py` | P0 |
+| AC14.1.5 | smoke_test.sh runs successfully against local docker environment | `test_smoke_test_local_pass` | `infra/test_smoke_test.py` | P1 |
+| AC14.1.6 | generate_ac_registry.py produces zero ghost ACs and zero overlap between feature and infra registries | `test_ac_registry_no_ghost_no_overlap` | `infra/test_ac_registry.py` | P1 |

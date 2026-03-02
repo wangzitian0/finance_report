@@ -130,8 +130,19 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.5.1 | Report Generation Error | `test_reports_router_errors_extended` | `reporting/test_reports_errors.py` | P1 |
 | AC5.5.2 | Router Error Handling | `TestReportsRouterErrors` | `reporting/test_reports_router_errors.py` | P1 |
 
+### AC5.6: Investment & Portfolio KPIs
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.2 | Annualized return (TWR) computed correctly | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.3 | Dividend yield = annual dividends / current value | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.4 | Annualized income in income statement KPI block | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `TBD` | `TBD (test to be implemented)` | P1 |
+
 **Traceability Result**:
-- Total AC IDs: 13
+- Total AC IDs: 19
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
 - Test files: 5
