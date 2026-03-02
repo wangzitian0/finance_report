@@ -183,6 +183,8 @@ jobs:
     name: Calculate Unified Coverage
     needs: [backend, frontend]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -244,7 +246,6 @@ jobs:
           git add -f unified-coverage.json
           if ! git diff --staged --quiet unified-coverage.json; then
             git commit -m 'chore: update coverage baseline [skip ci]'
-            git remote set-url origin https://x-access-token:${{ secrets.BASELINE_UPDATE_PAT }}@github.com/${{ github.repository }}.git
             git push origin HEAD:main
           else
             echo 'No changes to baseline detected'
