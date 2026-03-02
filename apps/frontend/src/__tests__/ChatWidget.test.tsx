@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ChatWidget from "@/components/ChatWidget"
@@ -46,41 +47,44 @@ describe("ChatWidget", () => {
   })
 
   it("AC16.20.1 toggles chat panel on button click", async () => {
+    const user = userEvent.setup()
     render(<ChatWidget />)
 
     const button = screen.getByRole("button", { name: /ask ai/i })
-    fireEvent.click(button)
+    await user.click(button)
 
     await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
     expect(screen.getByTestId("chat-panel")).toHaveAttribute("data-variant", "widget")
   })
 
   it("AC16.20.1 closes panel via onClose callback", async () => {
+    const user = userEvent.setup()
     render(<ChatWidget />)
 
     const button = screen.getByRole("button", { name: /ask ai/i })
-    fireEvent.click(button)
+    await user.click(button)
 
     await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
 
     const closeBtn = screen.getByTestId("close-btn")
-    fireEvent.click(closeBtn)
+    await user.click(closeBtn)
 
     await waitFor(() => expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument())
   })
 
   it("AC16.20.1 toggles panel visibility correctly", async () => {
+    const user = userEvent.setup()
     render(<ChatWidget />)
 
     const button = screen.getByRole("button", { name: /ask ai/i })
 
-    fireEvent.click(button)
+    await user.click(button)
     await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
 
-    fireEvent.click(button)
+    await user.click(button)
     await waitFor(() => expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument())
 
-    fireEvent.click(button)
+    await user.click(button)
     await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
   })
 })

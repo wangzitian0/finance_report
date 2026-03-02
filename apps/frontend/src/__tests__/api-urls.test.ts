@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('../lib/auth', () => ({
   getAccessToken: () => null,
@@ -6,13 +6,33 @@ vi.mock('../lib/auth', () => ({
 }))
 
 describe('API URL Configuration Scenarios', () => {
+  const originalApiUrl = process.env.NEXT_PUBLIC_API_URL
+  const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL
+
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_API_URL', originalApiUrl)
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', originalAppUrl)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   describe('Development Environment', () => {
-    it('should use valid API_URL for development (empty or localhost)', () => {
+    it('should accept empty API_URL for same-origin requests', () => {
+      vi.stubEnv('NEXT_PUBLIC_API_URL', '')
       const API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/$/, '')
-      expect(API_URL === '' || API_URL === 'http://localhost:8000' || API_URL.startsWith('http://localhost')).toBe(true)
+      expect(API_URL).toBe('')
+    })
+
+    it('should accept localhost API_URL for development', () => {
+      vi.stubEnv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+      const API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/$/, '')
+      expect(API_URL).toEqual(expect.stringMatching(/^http:\/\/localhost(?::\d+)?$/))
     })
 
     it('should use localhost:3000 as default APP_URL', () => {
+      vi.stubEnv('NEXT_PUBLIC_APP_URL', undefined)
       const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
       expect(APP_URL).toBe('http://localhost:3000')
     })

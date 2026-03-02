@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
@@ -14,7 +15,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next/link", () => ({
   __esModule: true,
-  default: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
+  default: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
     <a href={href} className={className}>
       {children}
     </a>
@@ -30,21 +31,35 @@ vi.mock("@/components/ChatPanel", () => ({
   ),
 }))
 
+function createLocalStorageStub(
+  onSetItem?: (key: string, value: string) => void,
+  initialData?: Record<string, string>,
+) {
+  const storage = new Map<string, string>(initialData ? Object.entries(initialData) : [])
+
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      if (onSetItem) {
+        onSetItem(key, value)
+      }
+      storage.set(key, value)
+    },
+    removeItem: (key: string) => storage.delete(key),
+    clear: () => storage.clear(),
+  })
+
+  return storage
+}
+
 describe("ChatPageClient", () => {
   beforeEach(() => {
     pushMock.mockReset()
     getMock.mockReset()
     setMock.mockReset()
 
-    const storage = new Map<string, string>()
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        setMock(key, value)
-        storage.set(key, value)
-      },
-      removeItem: (key: string) => storage.delete(key),
-      clear: () => storage.clear(),
+    createLocalStorageStub((key, value) => {
+      setMock(key, value)
     })
   })
 
@@ -104,13 +119,8 @@ describe("ChatPageClient", () => {
   })
 
   it("AC16.20.2 skips consent modal if already accepted", async () => {
-    const storage = new Map<string, string>([["ai_advisor_disclaimer_v1", "accepted"]])
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => storage.set(key, value),
-      removeItem: (key: string) => storage.delete(key),
-      clear: () => storage.clear(),
-    })
+    vi.unstubAllGlobals()
+    createLocalStorageStub(undefined, { ai_advisor_disclaimer_v1: "accepted" })
 
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
@@ -118,5 +128,3 @@ describe("ChatPageClient", () => {
     await waitFor(() => expect(screen.queryByText("Disclaimer")).not.toBeInTheDocument())
   })
 })
-
-
