@@ -235,63 +235,62 @@ Build a **100% self-developed** investment portfolio management system with comp
 > **Coverage**: See `apps/backend/tests/portfolio/`
 
 ### AC17.1: Holdings & P&L Tracking
-
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.1.1 | Holdings Summary | `test_get_holdings` | `portfolio/test_portfolio_service.py` | P0 |
-| AC17.1.2 | FIFO Cost Basis | `test_calculate_realized_pnl_fifo` | `portfolio/test_cost_basis_methods.py` | P0 |
-| AC17.1.3 | LIFO Cost Basis | `test_calculate_realized_pnl_lifo` | `portfolio/test_cost_basis_methods.py` | P0 |
-| AC17.1.4 | Average Cost Basis | `test_calculate_realized_pnl_avgcost` | `portfolio/test_cost_basis_methods.py` | P0 |
-| AC17.1.5 | Unrealized P&L Calculation | `test_calculate_unrealized_pnl` | `portfolio/test_portfolio_service.py` | P0 |
-| AC17.1.6 | Manual Price Update | `test_update_market_prices` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.1.1 | Holdings Summary | `test_get_holdings_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.1.2 | FIFO Cost Basis | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.1.3 | LIFO Cost Basis | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.1.4 | Average Cost Basis | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.1.5 | Unrealized P&L Calculation | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.1.6 | Manual Price Update | `test_update_prices_happy` | `portfolio/test_portfolio_service.py` | P1 |
 
 ### AC17.2: Performance Metrics
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.2.1 | XIRR Accuracy (within 0.01% of Excel) | `test_calculate_xirr` | `portfolio/test_performance_metrics.py` | P0 |
-| AC17.2.2 | Time-Weighted Return | `test_calculate_time_weighted_return` | `portfolio/test_performance_metrics.py` | P0 |
-| AC17.2.3 | Money-Weighted Return | `test_calculate_money_weighted_return` | `portfolio/test_performance_metrics.py` | P1 |
+| AC17.2.1 | XIRR Accuracy (within 0.01% of Excel) | `test_xirr_with_realistic_data` | `portfolio/test_performance_service.py` | P0 |
+| AC17.2.2 | Time-Weighted Return | `test_time_weighted_return_with_period` | `portfolio/test_performance_service.py` | P0 |
+| AC17.2.3 | Money-Weighted Return | `test_money_weighted_return_with_data` | `portfolio/test_performance_service.py` | P1 |
 
 ### AC17.3: Asset Allocation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.3.1 | Sector Allocation Breakdown | `test_get_sector_allocation` | `portfolio/test_allocation_service.py` | P1 |
-| AC17.3.2 | Geography Allocation Breakdown | `test_get_geography_allocation` | `portfolio/test_allocation_service.py` | P1 |
-| AC17.3.3 | Asset Class Allocation Breakdown | `test_get_asset_class_allocation` | `portfolio/test_allocation_service.py` | P1 |
+| AC17.3.1 | Sector Allocation Breakdown | `test_sector_allocation_with_positions` | `portfolio/test_allocation_service.py` | P1 |
+| AC17.3.2 | Geography Allocation Breakdown | `test_geography_allocation_with_positions` | `portfolio/test_allocation_service.py` | P1 |
+| AC17.3.3 | Asset Class Allocation Breakdown | `test_asset_class_allocation_with_positions` | `portfolio/test_allocation_service.py` | P1 |
 
 ### AC17.4: Brokerage Statement Parsing
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_statement` | `portfolio/test_brokerage_parsing.py` | P0 |
-| AC17.4.2 | Futu Statement Parsing | `test_parse_futu_statement` | `portfolio/test_brokerage_parsing.py` | P1 |
-| AC17.4.3 | Interactive Brokers Parsing | `test_parse_interactive_brokers_statement` | `portfolio/test_brokerage_parsing.py` | P1 |
-| AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo` | `portfolio/test_brokerage_parsing.py` | P1 |
-| AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_futu` | `portfolio/test_brokerage_parsing.py` | P1 |
+| AC17.4.1 | Moomoo Statement Parsing | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.4.2 | Futu Statement Parsing | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC17.4.3 | Interactive Brokers Parsing | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC17.4.4 | Broker Auto-Detection (Moomoo) | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC17.4.5 | Broker Auto-Detection (Futu) | `TBD` | `TBD (test to be implemented)` | P1 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.5.1 | Buy Transaction → Journal Entry | `test_process_buy_transaction` | `portfolio/test_brokerage_parsing.py` | P0 |
-| AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `test_process_sell_transaction` | `portfolio/test_brokerage_parsing.py` | P0 |
-| AC17.5.3 | Dividend → Journal Entry → Income Statement | `test_process_dividend_transaction` | `portfolio/test_brokerage_parsing.py` | P0 |
-| AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_balance_sheet` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.5.1 | Buy Transaction → Journal Entry | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.5.3 | Dividend → Journal Entry → Income Statement | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
 
 ### AC17.6: Integration & End-to-End
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.6.1 | Full Buy/Sell Cycle | `test_end_to_end_buy_sell_cycle` | `portfolio/test_portfolio_service.py` | P0 |
-| AC17.6.2 | Dividend Accrual to Income | `test_dividend_accrual_to_income` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.6.1 | Full Buy/Sell Cycle | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.6.2 | Dividend Accrual to Income | `TBD` | `TBD (test to be implemented)` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 22
 - Requirements converted to AC IDs: 100% (EPIC-017 Must Have checklist)
-- Requirements with test references: 100%
-- Test files: 4
+- Requirements with test references: 100% (some TBD — tests to be implemented)
+- Test files: 3 implemented (`test_portfolio_service.py`, `test_performance_service.py`, `test_allocation_service.py`); 3 TBD (`test_cost_basis_methods.py`, `test_brokerage_parsing.py`, integration tests)
 
 ---
 

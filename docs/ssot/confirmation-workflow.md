@@ -116,18 +116,18 @@ The following diagram shows how a bank statement travels from upload through to 
 
 | Endpoint | Input | Side Effect |
 |----------|-------|-------------|
-| `POST /api/statements/{id}/approve` | `statement_id`, bearer token | stage1_status → approved; queues to Stage 2 |
-| `POST /api/statements/{id}/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
-| `POST /api/statements/{id}/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates, approves if valid |
+| `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; balance chain validation enforced (≤ 0.001 USD); queues to Stage 2 |
+| `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
+| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates, approves if valid |
 | `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` with `stage1_status=pending_review` |
-
-### Stage 2 Endpoints (in `routers/reconciliation.py`)
+### Stage 2 Endpoints (reconciliation + statements routers)
 
 | Endpoint | Input | Side Effect |
 |----------|-------|-------------|
 | `POST /api/reconciliation/matches/{id}/accept` | `match_id`, bearer token | status → accepted; creates journal entry |
 | `POST /api/reconciliation/matches/{id}/reject` | `match_id`, bearer token | status → rejected |
-| `POST /api/reconciliation/review-queue/batch-approve` | `[match_id]`, bearer token | Accepts all; blocked if any check unresolved |
+| `POST /api/reconciliation/batch-accept` | `[match_id]`, bearer token | Accepts all provided matches; blocked if any related consistency check is unresolved; creates journal entries |
+| `POST /api/statements/batch-approve-matches` | `statement_id`, `[match_id]`, bearer token | Stage 2 batch acceptance scoped to a statement; updates `ReconciliationMatch.status` to `accepted` |
 | `GET /api/reconciliation/pending` | bearer token | Returns `[ReconciliationMatch]` with `status=pending_review` |
 
 ---
@@ -139,9 +139,9 @@ The following diagram shows how a bank statement travels from upload through to 
 | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | 0.001 USD tolerance passes |
 | `test_validate_balance_chain_exceeds_tolerance` | `review/test_statement_validation.py` | 0.0011 USD delta fails |
 | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | Approve blocked if balance bad |
-| `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks |
-| `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition |
-| `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | Stage 1 approve raises source_type to user_confirmed |
+| `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks (⏳ Planned) |
+| `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition (⏳ Planned) |
+| `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | Stage 1 approve raises source_type to user_confirmed (⏳ Planned) |
 
 ---
 

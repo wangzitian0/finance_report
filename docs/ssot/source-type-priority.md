@@ -11,7 +11,7 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Enum Definition** | `apps/backend/src/models/journal.py` → `JournalEntrySourceType` | ORM enum values — **Note**: values below are the **planned target** enum; see implementation status callout |
-| **Trust Logic** | `apps/backend/src/services/reconciliation.py` | Conflict resolution in matching |
+| **Trust Logic** | _TBD (not yet implemented)_ | Conflict resolution in matching |
 | **Router Usage** | `apps/backend/src/routers/journal.py` | `source_type` set on entry creation |
 > ⚠️ **Implementation Status (Planned)**: The four-value trust hierarchy (`manual`, `user_confirmed`, `auto_matched`, `auto_parsed`) is a **design target** for EPIC-013 / EPIC-016, not yet in production code.
 > The current `JournalEntrySourceType` enum in `journal.py` has values: `manual`, `bank_statement`, `system`, `fx_revaluation`.
@@ -77,14 +77,15 @@ stateDiagram-v2
 
 ## 5. API Contract
 
-`source_type` is a required field on `POST /api/journal/entries`:
+`source_type` is a required field on `POST /api/journal-entries`:
 
 ```json
 {
-  "source_type": "manual" | "user_confirmed" | "auto_matched" | "auto_parsed"
+  "source_type": "manual"
 }
 ```
 
+Allowed values: `manual`, `user_confirmed`, `auto_matched`, `auto_parsed` (planned target enum — see §1 Implementation Status).
 The field is immutable after creation except via explicit promotion endpoints (Stage-1 approve, review queue confirm).
 
 ---

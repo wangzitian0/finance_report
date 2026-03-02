@@ -134,12 +134,12 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `test_xirr_calculation_accuracy` | `reporting/test_investment_reporting.py` | P0 |
-| AC5.6.2 | Annualized return (TWR) computed correctly | `test_time_weighted_return` | `reporting/test_investment_reporting.py` | P0 |
-| AC5.6.3 | Dividend yield = annual dividends / current value | `test_dividend_yield_calculation` | `reporting/test_investment_reporting.py` | P0 |
-| AC5.6.4 | Annualized income in income statement KPI block | `test_annualized_income_in_statement` | `reporting/test_investment_reporting.py` | P0 |
-| AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_unrealized_pnl_in_balance_sheet` | `reporting/test_investment_reporting.py` | P0 |
-| AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `test_mwr_matches_xirr_single_cashflow` | `reporting/test_investment_reporting.py` | P1 |
+| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.2 | Annualized return (TWR) computed correctly | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.3 | Dividend yield = annual dividends / current value | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.4 | Annualized income in income statement KPI block | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `TBD` | `TBD (test to be implemented)` | P1 |
 
 **Traceability Result**:
 - Total AC IDs: 19
