@@ -272,11 +272,7 @@ class TestDualWriteLayer2:
         assert statement is not None
         assert len(transactions) == 2
 
-
-
-    async def test_dual_write_integrity_error_silent(
-        self, db, test_user, sample_file_content, monkeypatch
-    ):
+    async def test_dual_write_integrity_error_silent(self, db, test_user, sample_file_content, monkeypatch):
         """Test that IntegrityError (duplicate upload) is silently handled."""
         from sqlalchemy.exc import IntegrityError
 

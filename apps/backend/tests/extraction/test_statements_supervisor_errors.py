@@ -22,9 +22,9 @@ from src.routers.statements import (
     reject_statement,
     retry_statement_parsing,
     upload_statement,
-    )
-from src.services.statement_parsing import parse_statement_background
+)
 from src.schemas import StatementDecisionRequest
+from src.services.statement_parsing import parse_statement_background
 from src.services.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
@@ -298,19 +298,18 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         mock_parse = AsyncMock(side_effect=ExtractionError("Parse Fail"))
         monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)
 
-
         await parse_statement_background(
-                statement_id=sid,
-                filename="f",
-                institution="i",
-                user_id=uid,
-                account_id=None,
-                file_hash="h2",
-                storage_key="k",
-                content=b"",
-                model=None,
-                session_maker=session_maker,
-            )
+            statement_id=sid,
+            filename="f",
+            institution="i",
+            user_id=uid,
+            account_id=None,
+            file_hash="h2",
+            storage_key="k",
+            content=b"",
+            model=None,
+            session_maker=session_maker,
+        )
 
         await db.refresh(statement)
         assert statement.status == BankStatementStatus.REJECTED
@@ -326,19 +325,18 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         mock_parse = AsyncMock(side_effect=Exception("Unknown"))
         monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", mock_parse)
 
-
         await parse_statement_background(
-                statement_id=sid,
-                filename="f",
-                institution="i",
-                user_id=uid,
-                account_id=None,
-                file_hash="h2",
-                storage_key="k",
-                content=b"",
-                model=None,
-                session_maker=session_maker,
-            )
+            statement_id=sid,
+            filename="f",
+            institution="i",
+            user_id=uid,
+            account_id=None,
+            file_hash="h2",
+            storage_key="k",
+            content=b"",
+            model=None,
+            session_maker=session_maker,
+        )
 
         await db.refresh(statement)
         assert statement.status == BankStatementStatus.REJECTED

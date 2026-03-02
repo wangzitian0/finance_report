@@ -304,12 +304,8 @@ class TestFileSizeLimit:
             return stmt, []
 
         from src.services.extraction import ExtractionService
+
         monkeypatch.setattr(ExtractionService, "parse_document", fake_parse)
-
-
-
-
-
 
         response = await client.post(
             "/statements/upload",
