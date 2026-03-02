@@ -1,6 +1,7 @@
 """Integration tests for Auth Router."""
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User
@@ -106,3 +107,46 @@ async def test_get_me_user_not_found(public_client):
     # Dependency returns 401 for non-existent user
     assert response.status_code == 401
     assert response.json()["detail"] == "User not found"
+
+
+@pytest.mark.asyncio
+async def test_register_integrity_error_race_condition(monkeypatch):
+    """AC1.7.4: Register endpoint handles IntegrityError race on duplicate email."""
+    from fastapi import HTTPException, Request
+
+    from src.routers import auth as auth_router
+
+    class _Result:
+        @staticmethod
+        def scalar_one_or_none():
+            return None
+
+    class FakeDb:
+        async def execute(self, *_args, **_kwargs):
+            return _Result()
+
+        def add(self, _obj):
+            return None
+
+        async def commit(self):
+            raise IntegrityError("x", {}, Exception("dup"))
+
+        async def rollback(self):
+            return None
+
+        async def refresh(self, _obj):
+            return None
+
+    monkeypatch.setattr(auth_router, "_check_rate_limit", lambda *args, **kwargs: None)
+    monkeypatch.setattr(auth_router.register_rate_limiter, "reset", lambda *args, **kwargs: None)
+    monkeypatch.setattr(auth_router, "hash_password", lambda _password: "hashed")
+
+    scope = {"type": "http", "headers": [], "client": ("127.0.0.1", 1234)}
+    request = Request(scope)
+    payload = auth_router.RegisterRequest(email="race@example.com", password="password123", name="Race User")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth_router.register(request=request, data=payload, db=FakeDb())
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Email already registered"

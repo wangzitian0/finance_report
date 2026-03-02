@@ -1,4 +1,6 @@
 import os
+import runpy
+import sys
 import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -220,6 +222,88 @@ class TestBootloaderPrintConfig:
             Bootloader.print_config()
         captured = capsys.readouterr()
         assert "Fields using defaults:" in captured.out
+
+    def test_print_config_shows_no_defaults_when_all_env_present(self, mock_settings, capsys):
+        mock_settings.debug = True
+        mock_settings.environment = "development"
+        mock_settings.base_currency = "USD"
+        mock_settings.primary_model = "gemini"
+        mock_settings.s3_endpoint = "http://localhost:9000"
+        mock_settings.s3_bucket = "statements"
+        mock_settings.cors_origin_regex = ".*"
+        mock_settings.otel_exporter_otlp_endpoint = "http://otel:4317"
+        mock_settings.otel_service_name = "finance-report"
+        mock_settings.database_url = "secret"
+        mock_settings.redis_url = "redis://localhost:6379"
+        mock_settings.openrouter_api_key = "k"
+        mock_settings.s3_access_key = "key"
+        mock_settings.s3_secret_key = "secret"
+
+        with patch.dict(
+            os.environ,
+            {
+                "DEBUG": "true",
+                "ENVIRONMENT": "development",
+                "BASE_CURRENCY": "USD",
+                "PRIMARY_MODEL": "gemini",
+                "S3_ENDPOINT": "http://localhost:9000",
+                "S3_BUCKET": "statements",
+                "CORS_ORIGIN_REGEX": ".*",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel:4317",
+                "OTEL_SERVICE_NAME": "finance-report",
+            },
+            clear=False,
+        ):
+            Bootloader.print_config()
+        captured = capsys.readouterr()
+        assert "(none)" in captured.out
+
+
+class TestBootloaderMainEntrypoint:
+    def test_main_exits_zero_when_validation_passes(self):
+        def _run_success(coro):
+            coro.close()
+            return True
+
+        with (
+            patch.object(sys, "argv", ["boot.py", "--mode", "full"]),
+            patch("asyncio.run", side_effect=_run_success),
+            patch("sys.exit", side_effect=SystemExit(0)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("src.boot", run_name="__main__")
+
+        assert exc_info.value.code == 0
+
+    def test_main_exits_one_when_validation_fails(self):
+        def _run_failure(coro):
+            coro.close()
+            return False
+
+        with (
+            patch.object(sys, "argv", ["boot.py", "--mode", "critical"]),
+            patch("asyncio.run", side_effect=_run_failure),
+            patch("sys.exit", side_effect=SystemExit(1)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("src.boot", run_name="__main__")
+
+        assert exc_info.value.code == 1
+
+    def test_main_keyboard_interrupt_exits_130(self):
+        def _run_interrupt(coro):
+            coro.close()
+            raise KeyboardInterrupt
+
+        with (
+            patch.object(sys, "argv", ["boot.py", "--mode", "dry-run"]),
+            patch("asyncio.run", side_effect=_run_interrupt),
+            patch("sys.exit", side_effect=SystemExit(130)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            runpy.run_module("src.boot", run_name="__main__")
+
+        assert exc_info.value.code == 130
 
 
 class TestBootloaderDatabase:

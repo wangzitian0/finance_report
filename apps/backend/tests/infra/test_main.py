@@ -319,11 +319,13 @@ class TestModels:
 
 class TestConfig:
     """Tests for configuration."""
-
-    def test_config_defaults(self):
+    def test_config_defaults(self, monkeypatch):
         """AC7.6.1: Config has reasonable defaults matching expected patterns."""
         from src.config import Settings
 
+        # Clear S3_BUCKET so we test the class default, not whatever the test
+        # lifecycle script set for namespace isolation.
+        monkeypatch.delenv("S3_BUCKET", raising=False)
         settings = Settings()
         assert "gemini" in settings.primary_model.lower()
         assert settings.primary_model.startswith("google/")
@@ -332,6 +334,5 @@ class TestConfig:
     def test_config_database_url(self):
         """AC7.6.1: Database URL is properly configured."""
         from src.config import Settings
-
         settings = Settings()
         assert "postgresql" in settings.database_url or "sqlite" in settings.database_url

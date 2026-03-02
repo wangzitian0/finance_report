@@ -507,3 +507,17 @@ async def test_chat_with_model_validation_error():
         assert exc_info.value.status_code == 503
         assert "Unable to validate requested model" in exc_info.value.detail
         mock_is_model_known.assert_called_once_with("unknown_model")
+
+
+@pytest.mark.asyncio
+async def test_chat_history_returns_empty_sessions_for_no_rows() -> None:
+    from src.routers.chat import chat_history
+
+    main_result = MagicMock()
+    main_result.all.return_value = []
+
+    mock_db = MagicMock()
+    mock_db.execute = AsyncMock(return_value=main_result)
+
+    response = await chat_history(session_id=None, limit=20, db=mock_db, user_id=uuid4())
+    assert response.sessions == []

@@ -1,5 +1,7 @@
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -360,6 +362,65 @@ class TestDetectDuplicatesEdgeCases:
         checks = await detect_duplicates(db, user_id, approved_statement.id)
         assert len(checks) == 0
 
+    async def test_anchor_filter_skips_duplicate_groups_not_in_anchor_statement(self, db, user_id):
+        anchor_stmt = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="anchor.pdf",
+            file_hash="hash_anchor",
+            original_filename="anchor.pdf",
+            institution="Bank A",
+            currency="USD",
+            status=BankStatementStatus.APPROVED,
+        )
+        other_stmt = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="other.pdf",
+            file_hash="hash_other",
+            original_filename="other.pdf",
+            institution="Bank B",
+            currency="USD",
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add_all([anchor_stmt, other_stmt])
+        await db.flush()
+
+        db.add(
+            BankStatementTransaction(
+                id=uuid4(),
+                statement_id=anchor_stmt.id,
+                txn_date=date(2024, 1, 5),
+                description="Anchor Unique",
+                amount=Decimal("11.00"),
+                direction="OUT",
+                status="pending",
+            )
+        )
+        dup1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=other_stmt.id,
+            txn_date=date(2024, 1, 8),
+            description="Outside Anchor Dup",
+            amount=Decimal("20.00"),
+            direction="OUT",
+            status="pending",
+        )
+        dup2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=other_stmt.id,
+            txn_date=date(2024, 1, 8),
+            description="Outside Anchor Dup",
+            amount=Decimal("20.00"),
+            direction="OUT",
+            status="pending",
+        )
+        db.add_all([dup1, dup2])
+        await db.flush()
+
+        checks = await detect_duplicates(db, user_id, anchor_stmt.id)
+        assert checks == []
+
 
 class TestDetectTransferPairsEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id):
@@ -460,6 +521,70 @@ class TestDetectTransferPairsEdgeCases:
         checks2 = await detect_transfer_pairs(db, user_id, stmt1.id)
         assert len(checks2) == 0
 
+    async def test_transfer_pair_matching_skips_already_used_in_candidate(self, db, user_id):
+        stmt_out = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="out.pdf",
+            file_hash="hash_out_multi",
+            original_filename="out.pdf",
+            institution="Bank Out",
+            status=BankStatementStatus.APPROVED,
+        )
+        stmt_in = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="in.pdf",
+            file_hash="hash_in_multi",
+            original_filename="in.pdf",
+            institution="Bank In",
+            status=BankStatementStatus.APPROVED,
+        )
+        db.add_all([stmt_out, stmt_in])
+        await db.flush()
+
+        out_1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt_out.id,
+            txn_date=date(2024, 3, 1),
+            description="Transfer out 1",
+            amount=Decimal("100.00"),
+            direction="OUT",
+            status="pending",
+        )
+        out_2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt_out.id,
+            txn_date=date(2024, 3, 2),
+            description="Transfer out 2",
+            amount=Decimal("100.00"),
+            direction="OUT",
+            status="pending",
+        )
+        in_1 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt_in.id,
+            txn_date=date(2024, 3, 1),
+            description="Transfer in 1",
+            amount=Decimal("100.00"),
+            direction="IN",
+            status="pending",
+        )
+        in_2 = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=stmt_in.id,
+            txn_date=date(2024, 3, 2),
+            description="Transfer in 2",
+            amount=Decimal("100.00"),
+            direction="IN",
+            status="pending",
+        )
+        db.add_all([out_1, out_2, in_1, in_2])
+        await db.flush()
+
+        checks = await detect_transfer_pairs(db, user_id)
+        assert len(checks) == 2
+
 
 class TestResolveCheckEdgeCases:
     async def test_resolve_check_invalid_action_raises(self, db, user_id):
@@ -533,6 +658,43 @@ class TestResolveCheckEdgeCases:
 
         resolved = await resolve_check(db, check.id, "reject", user_id)
         assert resolved.status == CheckStatus.REJECTED
+
+
+class TestDetectAnomaliesEdgeCases:
+    async def test_detect_anomalies_batch_skips_existing_same_anomaly_type(self, db, user_id, approved_statement):
+        txn = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=approved_statement.id,
+            txn_date=date(2024, 4, 1),
+            description="Recurring Charge",
+            amount=Decimal("33.00"),
+            direction="OUT",
+            status="pending",
+        )
+        db.add(txn)
+        await db.flush()
+
+        db.add(
+            ConsistencyCheck(
+                id=uuid4(),
+                user_id=user_id,
+                check_type=CheckType.ANOMALY,
+                status=CheckStatus.PENDING,
+                related_txn_ids=[str(txn.id)],
+                details={"anomaly_type": "REPEATED_DESCRIPTION"},
+            )
+        )
+        await db.flush()
+
+        with patch(
+            "src.services.consistency_checks.detect_anomalies",
+            new=AsyncMock(
+                return_value=[SimpleNamespace(anomaly_type="REPEATED_DESCRIPTION", message="x", severity="low")]
+            ),
+        ):
+            checks = await detect_anomalies_batch(db, user_id, approved_statement.id)
+
+        assert checks == []
 
 
 class TestGetPendingChecksEdgeCases:

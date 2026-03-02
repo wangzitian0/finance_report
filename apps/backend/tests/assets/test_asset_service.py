@@ -2,6 +2,9 @@
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -399,3 +402,78 @@ class TestAssetService:
 
         assert result.disposed == 1
         assert result.updated == 0
+
+    async def test_reconcile_positions_skips_snapshot_with_null_fields(self, test_user):
+        service = AssetService()
+
+        broken_snapshot = SimpleNamespace(
+            id=uuid4(),
+            asset_identifier="BROKEN-ASSET",
+            quantity=None,
+            market_value=Decimal("100.00"),
+            broker="Moomoo",
+            currency="USD",
+            snapshot_date=date(2024, 1, 1),
+        )
+
+        query_result = MagicMock()
+        query_result.scalars.return_value.all.return_value = [broken_snapshot]
+
+        db = AsyncMock()
+        db.execute.return_value = query_result
+
+        result = await service.reconcile_positions(db, test_user.id)
+
+        assert result.skipped == 1
+        assert result.skipped_assets == ["BROKEN-ASSET"]
+        db.flush.assert_awaited_once()
+
+    async def test_calculate_depreciation_declining_balance_stops_at_salvage(self, test_user):
+        service = AssetService()
+
+        position = ManagedPosition(
+            id=uuid4(),
+            user_id=test_user.id,
+            account_id=uuid4(),
+            asset_identifier="EQ-SALVAGE",
+            quantity=Decimal("1"),
+            cost_basis=Decimal("1000.00"),
+            acquisition_date=date(2020, 1, 1),
+            status=PositionStatus.ACTIVE,
+            currency="USD",
+        )
+
+        result = service.calculate_depreciation(
+            position=position,
+            method="declining-balance",
+            useful_life_years=5,
+            salvage_value=Decimal("900.00"),
+            as_of_date=date(2025, 1, 1),
+        )
+
+        assert result.book_value == Decimal("900.00")
+
+    async def test_calculate_depreciation_non_negative_when_salvage_exceeds_cost(self, test_user):
+        service = AssetService()
+
+        position = ManagedPosition(
+            id=uuid4(),
+            user_id=test_user.id,
+            account_id=uuid4(),
+            asset_identifier="EQ-NON-NEGATIVE",
+            quantity=Decimal("1"),
+            cost_basis=Decimal("1000.00"),
+            acquisition_date=date(2024, 1, 1),
+            status=PositionStatus.ACTIVE,
+            currency="USD",
+        )
+
+        result = service.calculate_depreciation(
+            position=position,
+            method="straight-line",
+            useful_life_years=5,
+            salvage_value=Decimal("1500.00"),
+            as_of_date=date(2025, 1, 1),
+        )
+
+        assert result.accumulated_depreciation == Decimal("0.00")

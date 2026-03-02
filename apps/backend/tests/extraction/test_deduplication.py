@@ -516,3 +516,75 @@ class TestDeduplicationService:
                 )
                 all_records = result.scalars().all()
                 assert len(all_records) == 1, f"Race condition: {len(all_records)} duplicate records in database"
+
+    @pytest.mark.asyncio
+    async def test_upsert_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
+        """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (transaction)."""
+        service = DeduplicationService()
+        doc1 = uuid4()
+        doc2 = uuid4()
+
+        txn = await service.upsert_atomic_transaction(
+            db=db,
+            user_id=test_user.id,
+            txn_date=date(2024, 2, 1),
+            amount=Decimal("12.00"),
+            direction=TransactionDirection.OUT,
+            description="Bad source docs",
+            currency="SGD",
+            source_doc_id=doc1,
+            source_doc_type=DocumentType.BANK_STATEMENT,
+        )
+        txn.source_documents = {"bad": "shape"}
+        await db.flush()
+
+        txn2 = await service.upsert_atomic_transaction(
+            db=db,
+            user_id=test_user.id,
+            txn_date=date(2024, 2, 1),
+            amount=Decimal("12.00"),
+            direction=TransactionDirection.OUT,
+            description="Bad source docs",
+            currency="SGD",
+            source_doc_id=doc2,
+            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
+        )
+        assert isinstance(txn2.source_documents, list)
+        assert len(txn2.source_documents) == 1
+
+    @pytest.mark.asyncio
+    async def test_upsert_atomic_position_handles_non_list_source_documents(self, db, test_user):
+        """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""
+        service = DeduplicationService()
+        doc1 = uuid4()
+        doc2 = uuid4()
+
+        pos = await service.upsert_atomic_position(
+            db=db,
+            user_id=test_user.id,
+            snapshot_date=date(2024, 2, 1),
+            asset_identifier="MSFT",
+            quantity=Decimal("1"),
+            market_value=Decimal("100"),
+            currency="USD",
+            source_doc_id=doc1,
+            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
+            broker="IBKR",
+        )
+        pos.source_documents = {"bad": "shape"}
+        await db.flush()
+
+        pos2 = await service.upsert_atomic_position(
+            db=db,
+            user_id=test_user.id,
+            snapshot_date=date(2024, 2, 1),
+            asset_identifier="MSFT",
+            quantity=Decimal("1"),
+            market_value=Decimal("100"),
+            currency="USD",
+            source_doc_id=doc2,
+            source_doc_type=DocumentType.BANK_STATEMENT,
+            broker="IBKR",
+        )
+        assert isinstance(pos2.source_documents, list)
+        assert len(pos2.source_documents) == 1

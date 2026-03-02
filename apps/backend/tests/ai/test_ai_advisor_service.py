@@ -610,3 +610,82 @@ async def test_get_financial_context_filters_by_user(db: AsyncSession) -> None:
     assert context["unmatched_count"] == "1"
     assert context["pending_review"] == "1"
     assert context["match_rate"] == "50.0%"
+
+
+
+@pytest.mark.asyncio
+async def test_record_message_refresh_exception_logs_warning(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC6.13.1: Record message logs warning when db.refresh raises."""
+    service = AIAdvisorService()
+    session = ChatSession(user_id=test_user.id, status=ChatSessionStatus.ACTIVE, title=None)
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    async def always_raise(obj):
+        raise RuntimeError("simulated refresh failure")
+    monkeypatch.setattr(db, "refresh", always_raise)
+
+    # Should not raise — the exception is swallowed and a warning is logged
+    message = await service._record_message(db, session, ChatMessageRole.USER, "hello refresh error")
+    assert message is not None
+
+
+@pytest.mark.asyncio
+async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC6.13.2: preferred_model is prepended to the model list."""
+    service = AIAdvisorService()
+    service.primary_model = "primary"
+    service.fallback_models = []
+    called_with: list[str] = []
+
+    async def fake_stream_model(model: str, _messages: list[dict[str, str]]):
+        called_with.append(model)
+        yield "ok"
+
+    monkeypatch.setattr(service, "_stream_model", fake_stream_model)
+
+    results = []
+    async for chunk, model in service._stream_openrouter([{"role": "user", "content": "hi"}], "preferred"):
+        results.append((chunk, model))
+
+    # preferred model is tried first
+    assert called_with[0] == "preferred"
+    assert results == [("ok", "preferred")]
+
+
+@pytest.mark.asyncio
+async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC6.13.3: ValueError/TypeError in _stream_model raises AIAdvisorError."""
+    service = AIAdvisorService()
+    service.primary_model = "primary"
+    service.fallback_models = []
+
+    async def broken_stream_model(model: str, _messages: list[dict[str, str]]):
+        raise ValueError("bad internal state")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(service, "_stream_model", broken_stream_model)
+
+    with pytest.raises(AIAdvisorError, match="Internal error: ValueError"):
+        async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC6.13.4: _stream_model proxies chunks from stream_openrouter_chat."""
+    service = AIAdvisorService()
+    service.api_key = "test-key"
+
+    async def fake_stream_openrouter_chat(**_kwargs):
+        yield "chunk-a"
+        yield "chunk-b"
+
+    import src.services.ai_advisor as _mod
+    monkeypatch.setattr(_mod, "stream_openrouter_chat", fake_stream_openrouter_chat)
+
+    chunks = []
+    async for chunk in service._stream_model("some-model", [{"role": "user", "content": "hi"}]):
+        chunks.append(chunk)
+
+    assert chunks == ["chunk-a", "chunk-b"]

@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -13,6 +14,7 @@ from src.models import (
     Account,
     AccountEvent,
     AccountType,
+    AtomicTransaction,
     BankTransactionStatus,
     ConfidenceLevel,
     Direction,
@@ -23,12 +25,14 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
     Statement,
+    TransactionDirection,
     User,
 )
 from src.services.accounting import validate_journal_balance
 from src.services.anomaly import detect_anomalies
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
+    MatchCandidate,
     auto_accept,
     build_many_to_one_groups,
     execute_matching,
@@ -755,3 +759,345 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
     weekend_types = {item.anomaly_type for item in anomalies_weekend}
     assert "NEW_MERCHANT" in weekend_types
     assert "WEEKEND_LARGE" in weekend_types
+
+
+@pytest.mark.asyncio
+async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> None:
+    """AC4.6.6: Pattern score cache reuses merchant token score across transactions."""
+    user_id = uuid4()
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 6, 10))
+    bank = Account(user_id=user_id, name="Bank - Cache", type=AccountType.ASSET, currency="SGD")
+    expense = Account(user_id=user_id, name="Expense - Cache", type=AccountType.EXPENSE, currency="SGD")
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 6, 10),
+        memo="seed",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([statement, bank, expense, entry])
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=bank.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1.00"),
+                currency="SGD",
+            ),
+            AccountEvent(
+                statement_id=statement.id,
+                txn_date=date(2024, 6, 10),
+                description="ACME lunch",
+                amount=Decimal("10.00"),
+                direction="OUT",
+                status=BankTransactionStatus.PENDING,
+            ),
+            AccountEvent(
+                statement_id=statement.id,
+                txn_date=date(2024, 6, 11),
+                description="ACME dinner",
+                amount=Decimal("11.00"),
+                direction="OUT",
+                status=BankTransactionStatus.PENDING,
+            ),
+        ]
+    )
+    await db.commit()
+
+    with (
+        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
+        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0) as mock_score,
+    ):
+        await execute_matching(db, statement_id=statement.id, user_id=user_id)
+
+    assert mock_score.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSession) -> None:
+    """AC4.6.7: Many-to-one skips unbalanced candidates and leaves transactions unmatched."""
+    user_id = uuid4()
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 7, 1))
+    bank = Account(user_id=user_id, name="Bank - M2O", type=AccountType.ASSET, currency="SGD")
+    expense = Account(user_id=user_id, name="Expense - M2O", type=AccountType.EXPENSE, currency="SGD")
+    bad_entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 7, 1),
+        memo="Batch settlement",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([statement, bank, expense, bad_entry])
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=bad_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=bad_entry.id,
+                account_id=bank.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("90.00"),
+                currency="SGD",
+            ),
+            AccountEvent(
+                statement_id=statement.id,
+                txn_date=date(2024, 7, 1),
+                description="Batch payroll",
+                amount=Decimal("40.00"),
+                direction="OUT",
+                status=BankTransactionStatus.PENDING,
+            ),
+            AccountEvent(
+                statement_id=statement.id,
+                txn_date=date(2024, 7, 1),
+                description="Batch payroll",
+                amount=Decimal("60.00"),
+                direction="OUT",
+                status=BankTransactionStatus.PENDING,
+            ),
+        ]
+    )
+    await db.commit()
+
+    with patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]):
+        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
+
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession) -> None:
+    """AC4.6.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
+    user_id = uuid4()
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 8, 1))
+    db.add(statement)
+    await db.flush()
+    txn = AccountEvent(
+        statement_id=statement.id,
+        txn_date=date(2024, 8, 1),
+        description="Batch settlement",
+        amount=Decimal("100.00"),
+        direction="OUT",
+        status=BankTransactionStatus.PENDING,
+    )
+    db.add(txn)
+    await db.flush()
+    existing_match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=["11111111-1111-1111-1111-111111111111"],
+        match_score=95,
+        score_breakdown={"amount": 100.0},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(existing_match)
+    await db.commit()
+
+    candidate = MatchCandidate(
+        journal_entry_ids=["11111111-1111-1111-1111-111111111111"],
+        score=95,
+        breakdown={"amount": 100.0},
+    )
+
+    with (
+        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[[txn, txn]]),
+        patch("src.services.reconciliation.prune_candidates", return_value=[object()]),
+        patch("src.services.reconciliation.is_entry_balanced", return_value=True),
+        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=candidate),
+        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
+        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.services.reconciliation.entry_total_amount", return_value=Decimal("100.00")),
+    ):
+        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
+
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch) -> None:
+    """AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
+    user_id = uuid4()
+    monkeypatch.setattr("src.config.settings.enable_4_layer_read", True)
+
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 8, 10))
+    db.add(statement)
+    await db.flush()
+
+    txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2024, 8, 10),
+        description="Batch card settlement",
+        amount=Decimal("30.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash="m2o-layer2-atomic",
+        source_documents=[{"doc_id": str(uuid4())}],
+    )
+    db.add(txn)
+
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 8, 10),
+        memo="candidate",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.commit()
+
+    candidate = MatchCandidate(journal_entry_ids=[str(entry.id)], score=95, breakdown={"amount": 100.0})
+
+    with (
+        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
+        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[[txn]]),
+        patch("src.services.reconciliation.prune_candidates", return_value=[entry]),
+        patch("src.services.reconciliation.is_entry_balanced", return_value=True),
+        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=candidate),
+        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0),
+    ):
+        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
+
+    assert len(matches) == 1
+    assert matches[0].atomic_txn_id == txn.id
+    assert matches[0].bank_txn_id is None
+
+
+@pytest.mark.asyncio
+async def test_execute_matching_three_entry_combination_skips_unbalanced_member(db: AsyncSession) -> None:
+    """AC4.7.3: Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped."""
+    user_id = uuid4()
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 9, 12))
+    db.add(statement)
+    await db.flush()
+
+    txn = AccountEvent(
+        statement_id=statement.id,
+        txn_date=date(2024, 9, 12),
+        description="three-part settlement",
+        amount=Decimal("3.00"),
+        direction="OUT",
+        status=BankTransactionStatus.PENDING,
+    )
+    entry_a = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 9, 12),
+        memo="a",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    entry_b = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 9, 12),
+        memo="b",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    entry_c = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 9, 12),
+        memo="c",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([txn, entry_a, entry_b, entry_c])
+    await db.commit()
+
+    low_score = MatchCandidate(journal_entry_ids=[str(entry_a.id)], score=0, breakdown={"amount": 0.0})
+
+    with (
+        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
+        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[]),
+        patch("src.services.reconciliation.prune_candidates", return_value=[entry_a, entry_b, entry_c]),
+        patch(
+            "src.services.reconciliation.is_entry_balanced",
+            side_effect=lambda e: e.id != entry_c.id,
+        ),
+        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=low_score),
+        patch("src.services.reconciliation.entry_total_amount", return_value=Decimal("1.00")),
+        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0),
+    ):
+        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
+
+    assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(db: AsyncSession, monkeypatch) -> None:
+    """AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
+    user_id = uuid4()
+    monkeypatch.setattr("src.config.settings.enable_4_layer_read", True)
+
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 9, 1))
+    db.add(statement)
+    await db.flush()
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2024, 9, 1),
+        memo="Layer2 candidate",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    bank = Account(user_id=user_id, name="Bank L2", type=AccountType.ASSET, currency="SGD")
+    expense = Account(user_id=user_id, name="Expense L2", type=AccountType.EXPENSE, currency="SGD")
+    txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2024, 9, 1),
+        description="Office supplies",
+        amount=Decimal("50.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash="layer2-atomic-1",
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    )
+    db.add_all([entry, bank, expense, txn])
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("50.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=bank.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("50.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    candidate = MatchCandidate(journal_entry_ids=[str(entry.id)], score=99, breakdown={"amount": 100.0})
+    with (
+        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
+        patch("src.services.reconciliation.build_many_to_one_groups", return_value=[]),
+        patch("src.services.reconciliation.calculate_match_score", new_callable=AsyncMock, return_value=candidate),
+        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[("a", "b")]),
+        patch("src.services.reconciliation.score_pattern", new_callable=AsyncMock, return_value=0.0),
+    ):
+        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
+
+    assert len(matches) == 1
+    assert matches[0].atomic_txn_id == txn.id
+    assert matches[0].bank_txn_id is None
