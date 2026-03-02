@@ -77,7 +77,7 @@ stateDiagram-v2
 
 ## 5. API Contract
 
-`source_type` is a required field on `POST /api/journal-entries`:
+`source_type` is an **optional** field on `POST /api/journal-entries` (defaults to `manual` if omitted):
 
 ```json
 {

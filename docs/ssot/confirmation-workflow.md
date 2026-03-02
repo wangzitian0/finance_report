@@ -10,7 +10,7 @@
 
 | Concern | Location |
 |---------|----------|
-| `Stage1Status` enum | `apps/backend/src/models/statement.py` — `BankStatement.stage1_status` |
+| `Stage1Status` enum | `apps/backend/src/models/statement.py` — `BankStatement.stage1_status` (nullable; `None` at upload, set during review workflow) |
 | `Stage2Status` on match | `apps/backend/src/models/reconciliation.py` — `ReconciliationMatch.status` |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
 | Balance-chain validation | `apps/backend/src/services/statement_validation.py` |
@@ -24,7 +24,7 @@
 
 | Field | Model | Meaning |
 |-------|-------|---------|
-| `BankStatement.stage1_status = PENDING_REVIEW` | Stage 1 | Parsed statement awaiting user visual verification against the original PDF |
+| `BankStatement.stage1_status = PENDING_REVIEW` | Stage 1 | Parsed statement awaiting user visual verification against the original PDF (**nullable** — `None` after upload; set to `PENDING_REVIEW` when review is triggered) |
 | `ReconciliationMatch.status = PENDING_REVIEW` | Stage 2 | Reconciliation match scoring 60–84 pts, requiring human decision before journal entry creation |
 
 Both use the string value `"pending_review"` by convention, but the state machines they live in are independent.
@@ -119,7 +119,7 @@ The following diagram shows how a bank statement travels from upload through to 
 | `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; balance chain validation enforced (≤ 0.001 USD); queues to Stage 2 |
 | `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
 | `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates, approves if valid |
-| `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` with `stage1_status=pending_review` |
+| `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` where `status=PARSED` and `confidence_score` is 60–84 (does **not** filter on `stage1_status`) |
 ### Stage 2 Endpoints (reconciliation + statements routers)
 
 | Endpoint | Input | Side Effect |
