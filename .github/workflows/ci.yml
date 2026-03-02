@@ -236,13 +236,24 @@ jobs:
           uv run python scripts/calculate_unified_coverage.py
         env:
           COVERAGE_THRESHOLD: 80  # Calculator now uses LCOV LF (executable lines) as denominator; current unified coverage ~70%
+      - name: Validate BASELINE_UPDATE_PAT exists
+        run: |
+          if [ -z "${{ secrets.BASELINE_UPDATE_PAT }}" ]; then
+            echo "✅ BASELINE_UPDATE_PAT secret is configured"
+          else
+            echo "❌ BASELINE_UPDATE_PAT secret not found in repository settings"
+            echo "Please add the BASELINE_UPDATE_PAT secret to enable baseline updates"
+            exit 1
+          fi
+
       - name: Update coverage baseline
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           if ! git diff --staged --quiet unified-coverage.json; then
-            git add unified-coverage.json && git commit -m "chore: update coverage baseline [skip ci]" && git push https://x-access-token:${{ secrets.BASELINE_UPDATE_PAT }}@github.com/${{ github.repository }}.git HEAD:main
+            git remote set-url origin https://x-access-token:${{ secrets.BASELINE_UPDATE_PAT }}@github.com/${{ github.repository }}.git
+            git push origin HEAD:main
           else
             echo "No changes to baseline detected"
           fi

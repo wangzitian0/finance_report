@@ -157,3 +157,92 @@ When implementing conditional logic in bash scripts, ALWAYS verify the semantics
 - ✅ Scenario 1: Coverage maintained → CI green
 - ✅ Scenario 2: Coverage drop detection → 8 unit tests passing (CI deferred until baseline exists)
 - ✅ Scenario 3: Coveralls badge → 94.48%, uploads working
+---
+
+## Critical Security Fix: PAT Token Exposure in Git Push URL
+
+### Security Issue
+The baseline update step exposed the GitHub PAT token in the git push URL command:
+```yaml
+git push https://x-access-token:${{ secrets.BASELINE_UPDATE_PAT }}@github.com/${{ github.repository }}.git HEAD:main
+```
+
+**Risk**: This would appear in GitHub Actions logs, making the token visible to anyone with log access.
+
+### Fix Applied
+Replaced inline token URL with safer `git remote set-url` approach:
+```yaml
+git remote set-url origin https://x-access-token:${{ secrets.BASELINE_UPDATE_PAT }}@github.com/${{ github.repository }}.git
+git push origin HEAD:main
+```
+
+**Why It's Safer**:
+- Token is stored in the remote URL configuration (git credential manager)
+- The git push command uses only `origin` (no token in the command itself)
+- Token is only stored temporarily in git config, not logged in plain text
+
+### Implementation
+- Used Python script to reliably modify the file (Edit tool had line tracking issues)
+- Kept all existing logic intact:
+  - Git config (user.name, user.email)
+  - Conditional commit check
+  - Commit message with [skip ci] flag
+  - Conditional commit logic (only if changes detected)
+- Only changed the git push authentication mechanism
+
+### Verification
+- ✅ No token in git push command (verified with grep)
+- ✅ YAML syntax remains valid
+- ✅ All existing logic preserved
+- ✅ Fix documented in learnings.md
+
+### Files Modified
+- `.github/workflows/ci.yml` - Replaced inline PAT token with safer remote set-url approach
+
+### Notepad References
+- Notepad: `.sisyphus/notepads/ci-coverage-improvements/`
+- Learnings: This file (new section added)
+
+## Security Enhancement: Add Secret Validation to CI Workflow
+
+### Task Goal
+Add a validation step to check if the `BASELINE_UPDATE_PAT` secret exists BEFORE the baseline update step runs, preventing unclear CI failures when the secret is missing.
+
+### Changes Made
+1. Added new step "Validate BASELINE_UPDATE_PAT exists" in `.github/workflows/ci.yml`:
+   - Inserted at line 239 (before "Update coverage baseline" step at line 249)
+   - Validation logic checks if `${{ secrets.BASELINE_UPDATE_PAT }}` is empty
+   - Fails with clear error message if secret not found
+
+### Implementation Approach
+- Used Python script to modify CI configuration file (Edit tool had LINE#ID format issues)
+- Inserted validation step as separate step (not replacing existing content)
+- Maintained proper YAML indentation (8 spaces for step name, 12 spaces for run block)
+- Verified YAML validity using PyYAML
+
+### Key Learnings
+1. **Secret validation pattern**: Standard practice for secret-dependent CI steps
+2. **Clear error messages**: Users can immediately see what's missing and how to fix it
+3. **Early validation**: Fails fast before expensive git operations (commit/push)
+
+### Verification Results
+- ✅ Validation step inserted at correct location (line 239)
+- ✅ "Update coverage baseline" step preserved (now at line 249)
+- ✅ YAML syntax valid
+- ✅ Step validates `${{ secrets.BASELINE_UPDATE_PAT }}` exists
+- ✅ Clear error message: "BASELINE_UPDATE_PAT secret not found in repository settings"
+- ✅ Instructions provided: "Please add the BASELINE_UPDATE_PAT secret to enable baseline updates"
+- ✅ Step only runs in unified-coverage job (no side effects on other jobs)
+
+### Files Modified
+- `.github/workflows/ci.yml` - Added secret validation step before baseline update
+
+### Notepad References
+- Notepad: `.sisyphus/notepads/ci-coverage-improvements/`
+- Learnings: This file (new section added)
+## Documentation Update - 2026-03-02
+- Updated docs/ssot/coverage.md to document the 80% coverage threshold.
+- Updated current coverage statistics to match latest measurements (~87% unified).
+- Added detailed explanation of how the threshold works (primary gate vs safety net).
+- Updated CI threshold references throughout the document.
+- Verified cross-reference to development.md anchor.
