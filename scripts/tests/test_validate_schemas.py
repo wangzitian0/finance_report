@@ -381,3 +381,291 @@ class TestGenerateFixSuggestions:
         captured = capsys.readouterr()
         assert "name" in captured.out
         assert "description=" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: visit_AnnAssign outside class (line 47)
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaVisitorEdgeCases:
+    def test_ann_assign_outside_class_is_ignored(self, tmp_path):
+        """visit_AnnAssign returns early when current_class is None (line 47)."""
+        test_file = tmp_path / "test_model.py"
+        test_file.write_text("""
+# Module-level annotation, not inside any class
+top_level_var: int = 42
+
+class MyModel:
+    name: str
+""")
+        visitor = parse_file_for_schemas(test_file)
+        # top_level_var should NOT appear in fields
+        field_names = [f["name"] for f in visitor.fields]
+        assert "top_level_var" not in field_names
+        assert "name" in field_names
+
+    def test_subscript_target_ann_assign(self, tmp_path):
+        """visit_AnnAssign with subscript target (lines 52-59)."""
+        test_file = tmp_path / "test_model.py"
+        test_file.write_text("""
+from typing import Optional
+
+class MyModel:
+    name: str
+    optional_field: Optional[int] = None
+""")
+        visitor = parse_file_for_schemas(test_file)
+        field_names = [f["name"] for f in visitor.fields]
+        assert "name" in field_names
+        assert "optional_field" in field_names
+
+    def test_complex_subscript_target_skipped(self, tmp_path):
+        """visit_AnnAssign with non-Name subscript value returns (line 56-57)."""
+        import ast as stdlib_ast
+        visitor = SchemaVisitor()
+        visitor.current_class = "MyModel"
+        # Manually create a node with Subscript target where value is not Name
+        node = stdlib_ast.AnnAssign(
+            target=stdlib_ast.Subscript(
+                value=stdlib_ast.Attribute(
+                    value=stdlib_ast.Name(id="self", ctx=stdlib_ast.Load()),
+                    attr="data",
+                    ctx=stdlib_ast.Load(),
+                ),
+                slice=stdlib_ast.Constant(value=0),
+                ctx=stdlib_ast.Store(),
+            ),
+            annotation=stdlib_ast.Name(id="int", ctx=stdlib_ast.Load()),
+            value=stdlib_ast.Constant(value=0),
+            simple=0,
+        )
+        visitor.visit_AnnAssign(node)
+        assert len(visitor.fields) == 0
+
+    def test_non_name_non_subscript_target_skipped(self, tmp_path):
+        """visit_AnnAssign with target that's neither Name nor Subscript (line 58-59)."""
+        import ast as stdlib_ast
+        visitor = SchemaVisitor()
+        visitor.current_class = "MyModel"
+        node = stdlib_ast.AnnAssign(
+            target=stdlib_ast.Attribute(
+                value=stdlib_ast.Name(id="self", ctx=stdlib_ast.Load()),
+                attr="field",
+                ctx=stdlib_ast.Store(),
+            ),
+            annotation=stdlib_ast.Name(id="int", ctx=stdlib_ast.Load()),
+            value=None,
+            simple=0,
+        )
+        visitor.visit_AnnAssign(node)
+        assert len(visitor.fields) == 0
+
+    def test_empty_field_name_guard(self, tmp_path):
+        """visit_AnnAssign returns when field_name is empty (line 61-62)."""
+        import ast as stdlib_ast
+        visitor = SchemaVisitor()
+        visitor.current_class = "MyModel"
+        node = stdlib_ast.AnnAssign(
+            target=stdlib_ast.Name(id="", ctx=stdlib_ast.Store()),
+            annotation=stdlib_ast.Name(id="int", ctx=stdlib_ast.Load()),
+            value=None,
+            simple=1,
+        )
+        visitor.visit_AnnAssign(node)
+        assert len(visitor.fields) == 0
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: print_report file path + class display (lines 194-197)
+# ---------------------------------------------------------------------------
+
+
+class TestPrintReportEdgeCases:
+    def test_prints_file_path_and_class(self, capsys, tmp_path, monkeypatch):
+        """print_report shows file path relative to root and class (lines 193-197)."""
+        monkeypatch.setattr("validate_schemas.get_project_root", lambda: tmp_path)
+        config_result = {
+            "visitor": SchemaVisitor(),
+            "issues": [
+                {
+                    "type": "error",
+                    "file": str(tmp_path / "config.py"),
+                    "class": "Settings",
+                    "field": "database_url",
+                    "message": "Config field has no default value",
+                }
+            ],
+        }
+        schemas_result = {
+            "files_checked": 0,
+            "issues": [],
+            "total_fields": 0,
+        }
+        result = print_report(config_result, schemas_result)
+        assert result is False
+        captured = capsys.readouterr()
+        assert "Class: Settings" in captured.out
+        assert "Field: database_url" in captured.out
+        assert "File: config.py" in captured.out
+
+    def test_prints_issue_without_file(self, capsys):
+        """print_report handles issue without 'file' key."""
+        config_result = {
+            "visitor": SchemaVisitor(),
+            "issues": [
+                {
+                    "type": "error",
+                    "field": "x",
+                    "message": "Some error",
+                }
+            ],
+        }
+        schemas_result = {
+            "files_checked": 0,
+            "issues": [],
+            "total_fields": 0,
+        }
+        result = print_report(config_result, schemas_result)
+        assert result is False
+        captured = capsys.readouterr()
+        assert "ERROR" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: generate_fix_suggestions path fallback (line 230)
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateFixSuggestionsEdgeCases:
+    def test_fallback_when_file_not_under_project_root(self, capsys):
+        """generate_fix_suggestions falls back to absolute path (line 231-233)."""
+        config_result = {
+            "issues": [
+                {
+                    "type": "error",
+                    "file": "/some/random/path/config.py",
+                    "field": "db_url",
+                    "message": "Config field has no default value",
+                }
+            ]
+        }
+        schemas_result = {"issues": []}
+        generate_fix_suggestions(config_result, schemas_result)
+        captured = capsys.readouterr()
+        assert "/some/random/path/config.py" in captured.out
+        assert "db_url" in captured.out
+
+    def test_fix_for_missing_description(self, capsys):
+        """generate_fix_suggestions handles 'lacks Field(description=' issues."""
+        config_result = {"issues": []}
+        schemas_result = {
+            "issues": [
+                {
+                    "type": "warning",
+                    "file": "/tmp/schema.py",
+                    "class": "UserSchema",
+                    "field": "email",
+                    "message": "Schema field lacks Field(description=...)",
+                }
+            ]
+        }
+        generate_fix_suggestions(config_result, schemas_result)
+        captured = capsys.readouterr()
+        assert "email" in captured.out
+        assert "description=" in captured.out
+
+    def test_fix_with_unknown_file(self, capsys):
+        """generate_fix_suggestions handles issue without 'file' key."""
+        config_result = {
+            "issues": [
+                {
+                    "type": "error",
+                    "message": "Config field has no default value",
+                    "field": "x",
+                }
+            ]
+        }
+        schemas_result = {"issues": []}
+        generate_fix_suggestions(config_result, schemas_result)
+        captured = capsys.readouterr()
+        assert "unknown" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap: main() function (lines 247-269, 273)
+# ---------------------------------------------------------------------------
+
+
+class TestMain:
+    def test_main_exits_0_when_valid(self, monkeypatch, tmp_path):
+        """main() exits 0 when no issues found (lines 247-269)."""
+        from validate_schemas import main
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+class Settings:
+    debug: bool = False
+""")
+        schemas_dir = tmp_path / "apps" / "backend" / "src" / "schemas"
+        schemas_dir.mkdir(parents=True, exist_ok=True)
+        schema_file = schemas_dir / "user.py"
+        schema_file.write_text("""
+from pydantic import Field
+class UserSchema:
+    name: str = Field(description="The name")
+""")
+
+        monkeypatch.setattr(
+            "validate_schemas.get_project_root", lambda: tmp_path
+        )
+        monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+
+    def test_main_exits_1_when_issues(self, monkeypatch, tmp_path):
+        """main() exits 1 when issues found."""
+        from validate_schemas import main
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+class Settings:
+    database_url: str
+""")
+        schemas_dir = tmp_path / "apps" / "backend" / "src" / "schemas"
+        schemas_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(
+            "validate_schemas.get_project_root", lambda: tmp_path
+        )
+        monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+
+    def test_main_with_fix_flag(self, monkeypatch, tmp_path):
+        """main() with --fix flag generates suggestions (lines 266-267)."""
+        from validate_schemas import main
+
+        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+class Settings:
+    database_url: str
+""")
+        schemas_dir = tmp_path / "apps" / "backend" / "src" / "schemas"
+        schemas_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(
+            "validate_schemas.get_project_root", lambda: tmp_path
+        )
+        monkeypatch.setattr(sys, "argv", ["validate_schemas.py", "--fix"])
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1

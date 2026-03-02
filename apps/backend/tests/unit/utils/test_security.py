@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import jwt
-from freezegun import freeze_time
 
 from src.config import settings
 from src.security import create_access_token, decode_access_token
@@ -26,26 +25,26 @@ def test_create_access_token_with_custom_expiry():
     assert "exp" in decoded
 
 
-@freeze_time("2024-01-01 00:00:00")
 def test_create_access_token_with_default_expiry():
     """
     GIVEN a data payload without custom expiry
     WHEN creating an access token
-    THEN the token should use default expiry from settings
+    THEN the token should use default expiry from settings (else branch, line 18-20)
     """
+    before = datetime.now(UTC)
     data = {"sub": "user456"}
     token = create_access_token(data)
+    after = datetime.now(UTC)
 
     options = {"verify_exp": False}
     decoded = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm], options=options)
     assert decoded["sub"] == "user456"
     assert "exp" in decoded
 
-    fixed_now = datetime(2024, 1, 1, tzinfo=UTC)
     exp_datetime = datetime.fromtimestamp(decoded["exp"], tz=UTC)
-    expected_exp = fixed_now + timedelta(minutes=settings.access_token_expire_minutes)
-
-    assert abs((exp_datetime - expected_exp).total_seconds()) < 1
+    expected_min = before + timedelta(minutes=settings.access_token_expire_minutes) - timedelta(seconds=1)
+    expected_max = after + timedelta(minutes=settings.access_token_expire_minutes) + timedelta(seconds=1)
+    assert expected_min <= exp_datetime <= expected_max
 
 
 def test_decode_access_token_valid():
@@ -68,7 +67,7 @@ def test_decode_access_token_expired():
     """
     GIVEN an expired JWT token
     WHEN decoding the token
-    THEN it should return None and log debug message
+    THEN it should return None and log debug message (lines 32-34)
     """
     data = {"sub": "expired_user"}
     expires_delta = timedelta(seconds=-1)
@@ -107,6 +106,6 @@ def test_decode_access_token_malformed():
     assert payload is None
     mock_warning.assert_called_once()
 
-    # Add empty/None tests for extra robustness
+
     assert decode_access_token("") is None
     assert decode_access_token(None) is None

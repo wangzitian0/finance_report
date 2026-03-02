@@ -30,8 +30,7 @@ vi.mock("@/lib/auth", () => ({
   isAuthenticated: () => isAuthenticatedMock(),
 }))
 
-vi.mock("@/hooks/useWorkspace", () => ({
-  useWorkspace: () => ({
+let workspaceMockData = {
     isCollapsed: false,
     toggleSidebar: toggleSidebarMock,
     tabs: [{ id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }],
@@ -39,7 +38,10 @@ vi.mock("@/hooks/useWorkspace", () => ({
     addTab: addTabMock,
     removeTab: removeTabMock,
     setActiveTab: setActiveTabMock,
-  }),
+  }
+
+vi.mock("@/hooks/useWorkspace", () => ({
+  useWorkspace: () => workspaceMockData,
 }))
 
 describe("Sidebar and WorkspaceTabs", () => {
@@ -55,6 +57,15 @@ describe("Sidebar and WorkspaceTabs", () => {
     pathnameMock = "/dashboard"
     getUserEmailMock.mockReturnValue("user@example.com")
     isAuthenticatedMock.mockReturnValue(true)
+    workspaceMockData = {
+      isCollapsed: false,
+      toggleSidebar: toggleSidebarMock,
+      tabs: [{ id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }],
+      activeTabId: "tab-1",
+      addTab: addTabMock,
+      removeTab: removeTabMock,
+      setActiveTab: setActiveTabMock,
+    }
   })
 
   it("AC16.19.3 shows auth-aware sidebar actions and logout behavior", async () => {
@@ -79,5 +90,27 @@ describe("Sidebar and WorkspaceTabs", () => {
 
     fireEvent.click(screen.getByLabelText("Close Dashboard tab"))
     expect(removeTabMock).toHaveBeenCalledWith("tab-1")
-  })
-})
+  });
+
+  it("shows empty state when no tabs", async () => {
+    workspaceMockData = {
+      isCollapsed: false,
+      toggleSidebar: toggleSidebarMock,
+      tabs: [],
+      activeTabId: null,
+      addTab: addTabMock,
+      removeTab: removeTabMock,
+      setActiveTab: setActiveTabMock,
+    }
+    render(<WorkspaceTabs />)
+    expect(screen.getByText("No tabs open")).toBeInTheDocument()
+  });
+
+  it("derives labels for unknown paths", async () => {
+    pathnameMock = "/custom-page-name"
+    render(<WorkspaceTabs />)
+    await waitFor(() => expect(addTabMock).toHaveBeenCalledWith(expect.objectContaining({
+      label: "Custom Page Name"
+    })))
+  });
+});

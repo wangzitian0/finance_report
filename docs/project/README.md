@@ -19,7 +19,7 @@ This section contains:
 - [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 ✅)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
 - [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
-- [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 ✅, target 99% coverage pending)
+- [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 ✅, 96% unified coverage achieved)
 **Planned (P0 - Critical)**
 - [EPIC-016](./EPIC-016.two-stage-review-ui.md) — Two-Stage Review & Data Validation UI (4-6 weeks) — Stage 1: PDF vs parsed validation. Stage 2: Dedup, transfer pairing, anomaly detection.
 

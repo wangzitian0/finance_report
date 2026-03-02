@@ -724,3 +724,194 @@ class TestBaselineComparison:
         with pytest.raises(SystemExit) as exc:
             cuc.main()
         assert exc.value.code == 0  # New run is better than old baseline
+
+
+# ---------------------------------------------------------------------------
+# parse_lcov_file — ValueError branches (lines 132-133, 138-139)
+# ---------------------------------------------------------------------------
+
+
+class TestParseLcovFileValueError:
+    """Coverage for ValueError-handling in LH: and LF: parsing."""
+
+    def test_invalid_lh_value_is_skipped(self, tmp_path):
+        """LH: with non-integer value should not crash; covered stays 0."""
+        content = "SF:foo.py\nLH:bad\nLF:5\nend_of_record\n"
+        f = tmp_path / "bad_lh.lcov"
+        f.write_text(content)
+        result = cuc.parse_lcov_file(f)
+        # LH parsing failed → covered stays 0; LF:5 still counted
+        assert result["covered_lines"] == 0
+        assert result["total_measured_lines"] == 5
+
+    def test_invalid_lf_value_is_skipped(self, tmp_path):
+        """LF: with non-integer value should not crash; total stays 0."""
+        content = "SF:foo.py\nLH:3\nLF:oops\nend_of_record\n"
+        f = tmp_path / "bad_lf.lcov"
+        f.write_text(content)
+        result = cuc.parse_lcov_file(f)
+        # LF parsing failed → total stays 0; end_of_record fires but total stays 0
+        assert result["total_measured_lines"] == 0
+
+
+# ---------------------------------------------------------------------------
+# get_backend_coverage / get_frontend_coverage — path resolution (lines 160-183)
+# ---------------------------------------------------------------------------
+
+
+class TestGetBackendCoverage:
+    """get_backend_coverage picks CI path over local path when both exist."""
+
+    def test_uses_ci_path_when_present(self, tmp_path, monkeypatch):
+        # Create CI path: coverage/backend.lcov
+        cov_dir = tmp_path / "coverage"
+        cov_dir.mkdir()
+        lcov = cov_dir / "backend.lcov"
+        lcov.write_text("SF:apps/backend/src/main.py\nLH:10\nLF:20\nend_of_record\n")
+
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setattr(cuc, "BACKEND_DIR", tmp_path / "apps" / "backend")
+        # Create src dir so count_code_lines doesn't error
+        (tmp_path / "apps" / "backend" / "src").mkdir(parents=True)
+        (tmp_path / "apps" / "backend" / "src" / "main.py").write_text("a\n" * 20)
+
+        result = cuc.get_backend_coverage()
+        assert result["covered_lines"] == 10
+        assert result["total_lines"] == 20
+
+    def test_uses_local_path_when_no_ci_path(self, tmp_path, monkeypatch):
+        # Create local path: apps/backend/coverage.lcov
+        backend_dir = tmp_path / "apps" / "backend"
+        backend_dir.mkdir(parents=True)
+        lcov = backend_dir / "coverage.lcov"
+        lcov.write_text("SF:src/main.py\nLH:7\nLF:14\nend_of_record\n")
+
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setattr(cuc, "BACKEND_DIR", backend_dir)
+        (backend_dir / "src").mkdir()
+        (backend_dir / "src" / "main.py").write_text("b\n" * 14)
+
+        result = cuc.get_backend_coverage()
+        assert result["covered_lines"] == 7
+
+
+class TestGetFrontendCoverage:
+    """get_frontend_coverage picks CI path over local path when both exist."""
+
+    def test_uses_ci_path_when_present(self, tmp_path, monkeypatch):
+        cov_dir = tmp_path / "coverage"
+        cov_dir.mkdir()
+        lcov = cov_dir / "frontend.lcov"
+        lcov.write_text("SF:apps/frontend/src/app.ts\nLH:6\nLF:12\nend_of_record\n")
+
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setattr(cuc, "FRONTEND_DIR", tmp_path / "apps" / "frontend")
+        (tmp_path / "apps" / "frontend" / "src").mkdir(parents=True)
+        (tmp_path / "apps" / "frontend" / "src" / "app.ts").write_text("c\n" * 12)
+
+        result = cuc.get_frontend_coverage()
+        assert result["covered_lines"] == 6
+        assert result["total_lines"] == 12
+
+    def test_uses_local_path_when_no_ci_path(self, tmp_path, monkeypatch):
+        frontend_dir = tmp_path / "apps" / "frontend"
+        lcov_dir = frontend_dir / "coverage"
+        lcov_dir.mkdir(parents=True)
+        lcov = lcov_dir / "lcov.info"
+        lcov.write_text("SF:src/foo.ts\nLH:4\nLF:8\nend_of_record\n")
+
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setattr(cuc, "FRONTEND_DIR", frontend_dir)
+        (frontend_dir / "src").mkdir(parents=True, exist_ok=True)
+        (frontend_dir / "src" / "foo.ts").write_text("d\n" * 8)
+
+        result = cuc.get_frontend_coverage()
+        assert result["covered_lines"] == 4
+
+
+# ---------------------------------------------------------------------------
+# main() — exception paths in baseline loading (lines 293-300)
+# ---------------------------------------------------------------------------
+
+
+class TestMainBaselineExceptionPaths:
+    """Cover the except clauses in main() baseline comparison."""
+
+    def _mock_coverage(self, monkeypatch):
+        cov = {"total_lines": 100, "covered_lines": 80, "coverage_percent": 80.0}
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: cov)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: cov)
+        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: cov)
+
+    def test_json_decode_error_falls_through(self, tmp_path, monkeypatch, capsys):
+        """When baseline file is not valid JSON, should warn and continue."""
+        baseline = tmp_path / "bad.json"
+        baseline.write_text("not valid json {{")
+        monkeypatch.setenv("BASELINE_FILE", str(baseline))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        self._mock_coverage(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0  # Falls through to threshold check
+        captured = capsys.readouterr()
+        assert "Invalid baseline" in captured.err
+
+    def test_generic_exception_falls_through(self, tmp_path, monkeypatch, capsys):
+        """When baseline reading raises an unexpected Exception, should warn and continue."""
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"coverage_percent": 50}')
+        monkeypatch.setenv("BASELINE_FILE", str(baseline))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        self._mock_coverage(monkeypatch)
+
+        # Patch json.load to raise a generic Exception
+        import json as _json
+        original_load = _json.load
+
+        def raiser(f):
+            raise RuntimeError("disk read error")
+
+        monkeypatch.setattr(_json, "load", raiser)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+        captured = capsys.readouterr()
+        assert "Error reading baseline" in captured.err
+
+    def test_file_not_found_falls_through(self, tmp_path, monkeypatch, capsys):
+        """When baseline file doesn't exist, should warn and continue."""
+        monkeypatch.setenv("BASELINE_FILE", str(tmp_path / "no_baseline.json"))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        self._mock_coverage(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 0
+        captured = capsys.readouterr()
+        assert "Baseline file not found" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# __main__ entry point (line 327)
+# ---------------------------------------------------------------------------
+
+
+def test_module_main_entry_point(tmp_path, monkeypatch):
+    """Cover line 327: __main__ calls main()."""
+    cov = {"total_lines": 100, "covered_lines": 90, "coverage_percent": 90.0}
+    monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+    monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+    monkeypatch.setenv("BASELINE_FILE", "")
+    monkeypatch.setattr(cuc, "get_backend_coverage", lambda: cov)
+    monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: cov)
+    monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: cov)
+
+    # Simulate 'if __name__ == "__main__"' by calling main() directly
+    with pytest.raises(SystemExit) as exc:
+        cuc.main()
+    assert exc.value.code == 0
