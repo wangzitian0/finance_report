@@ -247,7 +247,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 #### Environment Variables
 
 - `BASELINE_FILE`: Path to baseline JSON file (default: `unified-coverage.json`)
-- `COVERAGE_THRESHOLD`: Safety net threshold (default: `80`, raised from `40`)
+- `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`, no minimum enforced; baseline comparison is the primary no-regression gate)
 
 #### Test Coverage
 

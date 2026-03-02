@@ -22,7 +22,7 @@ unified_coverage = total_covered_lines / total_executable_lines
                    (backend_executable + frontend_executable + scripts_executable)
 ```
 
-**CI Threshold**: ≥ **80%** unified coverage (enforced via `COVERAGE_THRESHOLD` env var in CI)
+**CI Gate**: No-regression baseline comparison (zero tolerance for drops). No fixed minimum threshold enforced.
 
 **Current state** (as of this branch):
 
@@ -83,7 +83,7 @@ jobs:
     # Downloads all artifacts
     # Merges backend shards → coverage/backend.lcov
     # Runs: python scripts/calculate_unified_coverage.py
-    # Fails if unified coverage < COVERAGE_THRESHOLD (default: 80)
+    # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
 ```
 
 ### Coverage Calculation
@@ -93,43 +93,36 @@ jobs:
 1. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
 2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
 3. Aggregates backend + frontend + scripts covered/executable counts
-4. Reports unified percentage and exits 1 if below threshold
+4. Reports unified percentage and exits 1 if coverage dropped below baseline
 
 ---
 
-### Coverage Threshold
+### Coverage Gate
 
-The CI workflow enforces a **minimum coverage threshold** to prevent coverage drops:
+The CI workflow uses baseline comparison to prevent coverage regressions. There is no fixed minimum threshold.
 
-- **Current threshold**: **80%** (unified coverage)
-- **Enforced in**: `.github/workflows/ci.yml` (COVERAGE_THRESHOLD environment variable)
-- **Current unified coverage**: ~87% (Backend 94.48%, Frontend 85.08%, Scripts 68.02%)
-- **Rationale**: Aligns with project's high-coverage goal while providing safety margin
+- **Rationale**: No-regression is the primary gate; coverage must not drop from the committed baseline.
 
 #### How It Works
-
 1. **Primary gate**: Baseline comparison (zero tolerance for drops)
    - Compares current coverage against `unified-coverage.json` baseline
    - Fails CI if ANY component drops below baseline
    - See [No-Regression Coverage Gate](./development.md#no-regression-coverage-gate) for details
-
-2. **Safety net**: Absolute threshold check
-   - If baseline missing, enforces minimum 80% unified coverage
-   - Prevents coverage from falling below acceptable level
+2. **Safety net**: Threshold check (optional)
+   - `COVERAGE_THRESHOLD` defaults to `0` (disabled)
+   - Set explicitly in CI if a minimum floor is desired
    - Acts as fallback when baseline file doesn't exist
-
 #### Adjusting the Threshold
 
 The threshold may be adjusted based on project needs:
 
-- **Raise threshold**: When coverage improves significantly (e.g., 80% → 85%)
-- **Lower threshold**: Temporarily for development branches (not recommended for main)
+- **Raise threshold**: When a minimum floor is desired (e.g., set to 80 for a hard floor)
+- **Lower threshold**: Set to 0 to disable (default)
 - **Update process**:
   1. Update `COVERAGE_THRESHOLD` in `.github/workflows/ci.yml`
   2. Update this documentation
   3. Ensure current coverage exceeds new threshold
-
-**Note**: The threshold should always be lower than actual coverage to provide a safety margin.
+**Note**: If no threshold is set (`COVERAGE_THRESHOLD=0` or unset), only the no-regression baseline gate applies.
 
 ---
 

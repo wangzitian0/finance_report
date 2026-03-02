@@ -249,7 +249,9 @@ def main() -> None:
     unified = calculate_unified_coverage(backend, frontend, scripts)
     
     # Baseline comparison
-    baseline_file = os.environ.get("BASELINE_FILE", "unified-coverage.json")
+    baseline_file = os.environ.get("BASELINE_FILE", "").strip()
+    if not baseline_file:
+        baseline_file = "unified-coverage.json"
     baseline_path = ROOT_DIR / baseline_file
     
     try:
