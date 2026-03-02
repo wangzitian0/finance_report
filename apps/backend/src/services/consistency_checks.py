@@ -314,6 +314,7 @@ async def has_unresolved_checks(
     )
     return result.scalar_one_or_none() is not None
 
+
 async def list_checks(
     db: AsyncSession,
     user_id: UUID,

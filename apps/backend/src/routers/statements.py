@@ -65,12 +65,7 @@ def _track_task(task: asyncio.Task[None]) -> None:
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
 
 
-
-
 # --- Helper functions ---
-
-
-
 
 
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -616,8 +611,6 @@ async def set_statement_opening_balance(
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
-
-
 
 
 async def wait_for_parse_tasks() -> None:

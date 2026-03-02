@@ -107,9 +107,7 @@ async def list_consistency_checks(
     offset: int = 0,
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""
-    checks, total = await list_checks(
-        db, user_id, status=status, check_type=check_type, limit=limit, offset=offset
-    )
+    checks, total = await list_checks(db, user_id, status=status, check_type=check_type, limit=limit, offset=offset)
 
     return ConsistencyCheckListResponse(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],

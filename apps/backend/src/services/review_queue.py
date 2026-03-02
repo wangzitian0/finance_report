@@ -358,6 +358,7 @@ async def create_entry_from_txn(
     await db.refresh(entry, ["lines"])
     return entry
 
+
 async def get_stage2_queue(
     db: AsyncSession,
     user_id: UUID,
