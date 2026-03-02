@@ -1893,6 +1893,7 @@ async def test_normal_matching_pending_review(db: AsyncSession):
 def test_build_many_to_one_groups_empty_description():
     """Cover line 457: build_many_to_one_groups skips txns with empty description."""
     from types import SimpleNamespace
+
     from src.services.reconciliation import build_many_to_one_groups
 
     txn1 = SimpleNamespace(description="", txn_date=date(2024, 1, 1), amount=Decimal("50.00"))
@@ -2175,7 +2176,6 @@ async def test_execute_matching_4_layer_read_no_candidates(db: AsyncSession):
 
 async def test_execute_matching_4_layer_read_transfer(db: AsyncSession):
     """Cover enable_4_layer_read transfer branches: lines 717, 726-728, 750-751, 760-762."""
-    from src.models.layer2 import AtomicTransaction
 
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-xfer-{uuid4()}@example.com", hashed_password="hashed")
