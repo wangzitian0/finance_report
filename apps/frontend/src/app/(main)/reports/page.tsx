@@ -43,7 +43,7 @@ interface ReportCardProps {
 function ReportCard({ report }: ReportCardProps) {
     const Icon = report.icon;
     const content = (
-        <div className={`card p-5 transition-colors cursor-pointer ${report.available ? "hover:border-[var(--accent)]" : "opacity-60"}`}>
+        <div className={`card p-5 transition-colors ${report.available ? "hover:border-[var(--accent)] cursor-pointer" : "opacity-60 cursor-default"}`}>
             <div className="flex items-start justify-between mb-3">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)]">
                     <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />

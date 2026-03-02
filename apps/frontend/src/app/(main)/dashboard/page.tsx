@@ -174,7 +174,7 @@ export default function DashboardPage() {
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Income</p>
               <p className="text-2xl font-semibold text-[var(--success)] mt-1">{formatCurrencyLocale(monthIncome, currency, "en-US", fmtOpts)}</p>
-              <p className="text-xs text-muted mt-1">{new Date(latest.period_start).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+              <p className="text-xs text-muted mt-1">{new Date(`${latest.period_start}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</p>
             </Link>
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Expenses</p>

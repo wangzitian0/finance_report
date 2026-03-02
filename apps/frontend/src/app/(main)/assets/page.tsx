@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { parseAmount } from "@/lib/currency";
 import { ManagedPosition, ManagedPositionListResponse, ReconcilePositionsResponse } from "@/lib/types";
 
 const STATUS_FILTERS = ["All", "active", "disposed"] as const;
@@ -66,16 +67,17 @@ export default function AssetsPage() {
     }, {} as Record<string, ManagedPosition[]>);
     const totalsByCurrency = positions.reduce((totals, pos) => {
         const currency = pos.currency || "USD";
-        totals[currency] = (totals[currency] || 0) + parseFloat(pos.cost_basis);
+        const existing = totals[currency] ?? parseAmount(0);
+        totals[currency] = existing.add(parseAmount(pos.cost_basis));
         return totals;
-    }, {} as Record<string, number>);
-    const totalCostBasis = Object.values(totalsByCurrency).reduce((s, v) => s + v, 0);
+    }, {} as Record<string, import("decimal.js").Decimal>);
+    const totalCostBasis = Object.values(totalsByCurrency).reduce((s, v) => s.add(v), parseAmount(0));
     const allocationByCurrency = Object.entries(totalsByCurrency)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => b[1].comparedTo(a[1]))
         .map(([currency, total]) => ({
             currency,
             total,
-            pct: totalCostBasis > 0 ? (total / totalCostBasis) * 100 : 0,
+            pct: totalCostBasis.isZero() ? 0 : total.div(totalCostBasis).times(100).toNumber(),
         }));
 
     return (
@@ -140,7 +142,7 @@ export default function AssetsPage() {
                                 <div className="flex-1 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
                                     <div
                                         className="h-full rounded-full bg-[var(--accent)]"
-                                        style={{ width: `${a.pct}%` }}
+                                        style={{ width: `${Math.min(100, Math.max(0, a.pct))}%` }}
                                     />
                                 </div>
                                 <span className="w-14 text-xs text-muted text-right">{a.pct.toFixed(1)}%</span>
@@ -227,9 +229,10 @@ export default function AssetsPage() {
                     {Object.entries(groupedByBroker).map(([broker, brokerPositions]) => {
                         const brokerTotalsByCurrency = brokerPositions.reduce((totals, p) => {
                             const currency = p.currency || "USD";
-                            totals[currency] = (totals[currency] || 0) + parseFloat(p.cost_basis);
+                            const existing = totals[currency] ?? parseAmount(0);
+                            totals[currency] = existing.add(parseAmount(p.cost_basis));
                             return totals;
-                        }, {} as Record<string, number>);
+                        }, {} as Record<string, import("decimal.js").Decimal>);
                         return (
                             <div key={broker} className="card">
                                 <div className="card-header flex items-center justify-between">
