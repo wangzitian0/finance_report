@@ -117,19 +117,17 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
         )
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
-    # Wait for the AI model dropdown to be populated and the backend default
-    # model to be auto-selected by React (selectedModel = data.default_model).
-    # We then re-fire select_option with the *same* current value so that React's
-    # onChange handler commits the selection — without overriding the default with
-    # an arbitrary alphabetically-first free model (select_option(index=0) bug).
+    # Fetch the default model from the backend API and select it explicitly.
+    # Using index=0 would pick openrouter/free — a random router that fails structured
+    # extraction. Selecting by value ensures we always use the backend-configured model.
+    models_resp = await page.evaluate(
+        "async () => { const r = await fetch('/api/ai/models?modality=image'); return r.json(); }"
+    )
+    default_model: str = models_resp.get("default_model") or models_resp["models"][0]["id"]
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
-    # Wait until the component has set a real model value (not empty string).
-    await expect(model_select).not_to_have_value("", timeout=15_000)
-    # Re-trigger onChange with the already-selected default model value.
-    current_model = await model_select.evaluate("el => el.value")
-    if current_model:
-        await model_select.select_option(value=current_model)
+    await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
+    await model_select.select_option(value=default_model)
     await page.set_input_files("#file-upload", str(pdf_path))
     await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
         timeout=5_000
