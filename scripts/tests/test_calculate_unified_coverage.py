@@ -428,6 +428,7 @@ class TestBaselineComparison:
         # Set up environment
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         # Mock all coverage functions to return same as baseline
         def mock_coverage(name):
@@ -461,6 +462,7 @@ class TestBaselineComparison:
         # Set up environment
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         # Mock unified coverage to drop (82.0% < 83.15%)
         current_data = {
@@ -508,6 +510,7 @@ class TestBaselineComparison:
 
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         # Mock: backend drops 94.0% → 90.0%, unified stays 83.15%
         def mock_backend():
@@ -545,6 +548,7 @@ class TestBaselineComparison:
 
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         # Frontend drops 61.77% → 60.0%
         def mock_backend():
@@ -581,6 +585,7 @@ class TestBaselineComparison:
 
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         # Scripts drops 68.02% → 65.0%
         def mock_backend():
@@ -617,6 +622,7 @@ class TestBaselineComparison:
 
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         # All components improve
         def mock_backend():
@@ -643,6 +649,7 @@ class TestBaselineComparison:
 
         monkeypatch.setenv("BASELINE_FILE", "")
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         def mock_coverage(name):
             return {"total_lines": 1000, "covered_lines": 800, "coverage_percent": 80.0}
@@ -691,6 +698,7 @@ class TestBaselineComparison:
         # Use baseline_file1
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file1))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
 
         def mock_coverage(name):
             return baseline_data1["breakdown"][name]
