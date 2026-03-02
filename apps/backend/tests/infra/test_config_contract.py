@@ -103,8 +103,8 @@ class TestConfigContract:
         assert hasattr(settings, "db_pool_size")
         assert settings.db_pool_size == 5
 
-    def test_db_max_overflow_config_default(self):
-        """AC12.20.2: Ensure DB_MAX_OVERFLOW has the expected default."""
+    def test_db_pool_max_overflow_config_default(self):
+        """AC12.20.2: Ensure DB_POOL_MAX_OVERFLOW has the expected default."""
         from src.config import settings
 
         assert hasattr(settings, "db_pool_max_overflow")
@@ -116,3 +116,25 @@ class TestConfigContract:
 
         assert settings.db_pool_size > 0
         assert settings.db_pool_max_overflow >= 0
+
+    def test_db_pool_size_env_override(self, monkeypatch):
+        """AC12.20.4: Ensure DB_POOL_SIZE env var actually overrides the setting."""
+        monkeypatch.setenv("DB_POOL_SIZE", "20")
+        import importlib
+
+        import src.config as config_module
+
+        importlib.reload(config_module)
+        s = config_module.Settings()
+        assert s.db_pool_size == 20
+
+    def test_db_pool_max_overflow_env_override(self, monkeypatch):
+        """AC12.20.5: Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting."""
+        monkeypatch.setenv("DB_POOL_MAX_OVERFLOW", "25")
+        import importlib
+
+        import src.config as config_module
+
+        importlib.reload(config_module)
+        s = config_module.Settings()
+        assert s.db_pool_max_overflow == 25

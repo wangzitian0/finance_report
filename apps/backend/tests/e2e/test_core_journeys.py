@@ -1126,7 +1126,7 @@ async def test_traceability_authentication_validation(public_client):
 
 
 @pytest.mark.e2e
-async def test_income_recording(client, test_user):
+async def test_income_recording(client):
     # AC8.11.1: Income Recording
     # GIVEN a user has an income account and a bank account
     # WHEN recording $5,000 salary deposit as a journal entry
@@ -1165,7 +1165,7 @@ async def test_income_recording(client, test_user):
 
 
 @pytest.mark.e2e
-async def test_credit_card_spend(client, test_user):
+async def test_credit_card_spend(client):
     # AC8.11.2: Credit Card Spend
     # GIVEN a user has an expense account and a credit card liability account
     # WHEN recording a $2,000 laptop purchase on credit card
@@ -1203,7 +1203,7 @@ async def test_credit_card_spend(client, test_user):
 
 
 @pytest.mark.e2e
-async def test_credit_card_repayment(client, test_user):
+async def test_credit_card_repayment(client):
     # AC8.11.3: Credit Card Repayment
     # GIVEN a user has a bank account and a credit card liability account
     # WHEN paying off the credit card from bank account
@@ -1240,7 +1240,7 @@ async def test_credit_card_repayment(client, test_user):
 
 
 @pytest.mark.e2e
-async def test_internal_transfer(client, test_user):
+async def test_internal_transfer(client):
     # AC8.11.4: Internal Transfer
     # GIVEN a user has two asset accounts
     # WHEN moving $500 from DBS Savings to Wallet (ATM withdrawal)
@@ -1277,7 +1277,7 @@ async def test_internal_transfer(client, test_user):
 
 
 @pytest.mark.e2e
-async def test_split_transaction(client, test_user):
+async def test_split_transaction(client):
     # AC8.11.5: Split Transaction
     # GIVEN a user has one asset and two expense accounts
     # WHEN recording a $100 supermarket trip split: $80 Groceries + $20 Household

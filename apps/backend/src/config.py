@@ -65,7 +65,7 @@ class Settings(BaseSettings):
 
     # Connection Pool (optional tuning)
     db_pool_size: int = Field(default=5, validation_alias="DB_POOL_SIZE")
-    db_pool_max_overflow: int = Field(default=10, validation_alias="DB_MAX_OVERFLOW")
+    db_pool_max_overflow: int = Field(default=10, validation_alias="DB_POOL_MAX_OVERFLOW")
 
     # Redis (optional for local, required for staging/prod)
     redis_url: str | None = None

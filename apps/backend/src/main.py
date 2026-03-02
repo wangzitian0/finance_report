@@ -1,7 +1,6 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
-import os
 import time
 import traceback
 from collections.abc import AsyncIterator
@@ -27,6 +26,7 @@ from src.routers import accounts, ai_models, assets, auth, chat, journal, portfo
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
+from src.utils.exceptions import BaseAppException
 
 # Initialize logging early
 configure_logging()
@@ -139,6 +139,26 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
         raise
 
 
+@app.exception_handler(BaseAppException)
+async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
+    """Handle BaseAppException: return structured JSON with error_id and correct HTTP status."""
+    logger.warning(
+        "Application exception",
+        error_id=exc.error_id,
+        status_code=exc.status_code,
+        message=exc.message,
+        request_id=structlog.contextvars.get_contextvars().get("request_id"),
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error_id": exc.error_id,
+            "detail": exc.message,
+            "request_id": structlog.contextvars.get_contextvars().get("request_id"),
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler to ensure JSON response."""
@@ -224,9 +244,8 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             content={
                 "status": "healthy" if all_healthy else "unhealthy",
                 "timestamp": datetime.now(UTC).isoformat(),
-                "git_sha": os.getenv("GIT_COMMIT_SHA", "unknown"),
+                "git_sha": settings.git_commit_sha,
                 "checks": checks,
-                "version": settings.git_commit_sha,
             },
         )
     except Exception as e:
