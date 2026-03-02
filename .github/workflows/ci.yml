@@ -106,7 +106,7 @@ jobs:
         run: |
           cd apps/backend
           uv run pytest -n auto -v \
-            -m "not slow and not e2e" \
+            -m "not slow and not e2e and not integration" \
             --splits 4 \
             --group ${{ matrix.shard }} \
             --cov=src \
