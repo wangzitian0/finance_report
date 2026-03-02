@@ -54,12 +54,13 @@ def _get_test_pdf() -> Path:
 
 
 @pytest.mark.e2e
-async def test_statement_upload_full_flow(page: Page) -> None:
+async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     """AC8.4.3: Upload PDF → wait for processing → verify statement appears."""
     _skip_if_no_url()
 
     pdf_path = _get_test_pdf()
 
+    page = authenticated_page
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("networkidle")
 
@@ -77,12 +78,13 @@ async def test_statement_upload_full_flow(page: Page) -> None:
 
 
 @pytest.mark.e2e
-async def test_model_selection_and_upload(page: Page) -> None:
+async def test_model_selection_and_upload(authenticated_page: Page) -> None:
     """AC8.4.2: Select AI model from dropdown → upload → verify model persisted."""
     _skip_if_no_url()
 
     pdf_path = _get_test_pdf()
 
+    page = authenticated_page
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("networkidle")
 
@@ -105,13 +107,14 @@ async def test_model_selection_and_upload(page: Page) -> None:
 
 
 @pytest.mark.e2e
-async def test_stale_model_id_auto_cleanup(page: Page) -> None:
+async def test_stale_model_id_auto_cleanup(authenticated_page: Page) -> None:
     """AC8.4.2: Stale localStorage model ID is cleaned up on page reload.
 
     Uses a deliberately invalid/fictional model ID that can never appear in the
     OpenRouter catalog, guaranteeing the stale-cleanup branch always fires.
     """
     _skip_if_no_url()
+    page = authenticated_page
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("networkidle")
 
