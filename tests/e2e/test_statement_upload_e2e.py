@@ -2,7 +2,7 @@
 
 Playwright tests for statement upload and model selection.
 Requires APP_URL or FRONTEND_URL env var pointing to a running frontend.
-Run with: moon run :test -- --e2e
+Run with: pytest tests/e2e/test_statement_upload_e2e.py
 """
 
 import os

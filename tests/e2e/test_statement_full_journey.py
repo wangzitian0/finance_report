@@ -5,7 +5,7 @@ DBS PDF upload → AI parsing (poll until parsed) → detail page review
 → approve via ConfirmDialog → balance sheet report verification
 
 Requires APP_URL env var pointing to a running frontend+backend.
-Run: moon run :test -- --e2e
+Run from repo root: pytest -m e2e tests/e2e/
 """
 
 from __future__ import annotations

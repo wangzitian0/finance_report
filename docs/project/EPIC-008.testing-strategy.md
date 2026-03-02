@@ -312,7 +312,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.1 | DBS PDF upload → appears in list | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.2 | Polling → parsed status visible | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.3 | Detail page shows transactions | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
-| AC8.13.4 | Approve → redirect to /statements | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.4 | Approve → status badge updates in-place on /statements/{id} (no redirect) | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.5 | Balance sheet report loads | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 
 **Traceability Result**:
@@ -332,9 +332,9 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
   - AC8.13: 5/5 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report)
-- Test files: 1 fully implemented (`e2e/test_core_journeys.py` — 46 tests), 1 existing (`e2e/test_statement_upload_e2e.py`), 1 new Tier 3 (`tests/e2e/test_statement_full_journey.py`), 3 Playwright (skip without env)
+- Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 1 new Tier 3 (`tests/e2e/test_statement_full_journey.py`), 3 Playwright (skip without `APP_URL` or `FRONTEND_URL`)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 5/5 Tier 3 ACs
+- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 5/5 Tier 3 ACs (total 59 ACs: 54 Tier 1 + 5 Tier 3)
 
 ---
 
