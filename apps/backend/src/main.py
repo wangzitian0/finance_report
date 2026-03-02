@@ -142,19 +142,20 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
 @app.exception_handler(BaseAppException)
 async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
     """Handle BaseAppException: return structured JSON with error_id and correct HTTP status."""
+    request_id = structlog.contextvars.get_contextvars().get("request_id")
     logger.warning(
         "Application exception",
         error_id=exc.error_id,
         status_code=exc.status_code,
         message=exc.message,
-        request_id=structlog.contextvars.get_contextvars().get("request_id"),
+        request_id=request_id,
     )
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error_id": exc.error_id,
             "detail": exc.message,
-            "request_id": structlog.contextvars.get_contextvars().get("request_id"),
+            "request_id": request_id,
         },
     )
 
@@ -244,6 +245,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             content={
                 "status": "healthy" if all_healthy else "unhealthy",
                 "timestamp": datetime.now(UTC).isoformat(),
+                "version": settings.git_commit_sha,
                 "git_sha": settings.git_commit_sha,
                 "checks": checks,
             },

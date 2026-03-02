@@ -16,10 +16,12 @@ class TestBaseAppException:
         exc = BaseAppException(error_id="ERR_002", message="bad request", status_code=400)
         assert exc.status_code == 400
 
-    def test_base_app_exception_default_status_code(self):
-        """AC12.21.3: BaseAppException defaults to status_code=500."""
+    def test_base_app_exception_is_subclass_of_exception(self):
+        """AC12.21.3: BaseAppException is subclass of Exception."""
         exc = BaseAppException(error_id="ERR_003", message="error")
         assert isinstance(exc, Exception)
+        """BaseAppException defaults to status_code=500 when not specified."""
+        exc = BaseAppException(error_id="ERR_003", message="error")
         assert exc.status_code == 500
 
     def test_base_app_exception_raise_and_catch(self):

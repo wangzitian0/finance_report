@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+TEST_DATE = date(2024, 6, 15)  # Fixed date constant for deterministic E2E tests
+
 # ---------------------------------------------------------------------------
 # AC8.1: Smoke Tests (Health Checks)
 # ---------------------------------------------------------------------------
@@ -192,7 +194,7 @@ async def test_simple_expense_entry(client, test_user):
     entry_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Coffee at Starbucks",
             "lines": [
                 {
@@ -235,7 +237,7 @@ async def test_void_journal_entry(client, test_user):
     create_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Duplicate payment",
             "lines": [
                 {
@@ -287,7 +289,7 @@ async def test_post_draft_entry(client, test_user):
     create_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Draft to post",
             "lines": [
                 {
@@ -332,7 +334,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
     response = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Unbalanced Entry",
             "lines": [
                 {
@@ -374,7 +376,7 @@ async def test_journal_entry_crud(client, test_user):
     create_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "CRUD Test Entry",
             "lines": [
                 {
@@ -439,7 +441,7 @@ async def test_reconciliation_engine_runs(client, db, test_user):
     await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Test Transaction",
             "lines": [
                 {
@@ -518,7 +520,7 @@ async def test_income_statement_report(client, test_user):
     WHEN requesting the income statement for a date range
     THEN it should return 200 with income and expenses sections
     """
-    today = date.today()
+    today = TEST_DATE
     start = (today - timedelta(days=30)).isoformat()
     end = today.isoformat()
 
@@ -541,7 +543,7 @@ async def test_cash_flow_report(client, test_user):
     WHEN requesting the cash flow report for a date range
     THEN it should return 200 with operating, investing, financing sections
     """
-    today = date.today()
+    today = TEST_DATE
     start = (today - timedelta(days=30)).isoformat()
     end = today.isoformat()
 
@@ -853,7 +855,7 @@ async def test_report_navigation_all_endpoints(client, test_user):
     WHEN requesting balance sheet, income statement, cash flow, and currencies
     THEN all four return 200 OK
     """
-    today = date.today()
+    today = TEST_DATE
     start = (today - timedelta(days=30)).isoformat()
     end = today.isoformat()
 
@@ -996,7 +998,7 @@ async def test_traceability_user_can_create_journal_entry(client, test_user):
     resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Traceability test entry",
             "lines": [
                 {
@@ -1047,7 +1049,7 @@ async def test_traceability_unbalanced_entry_rejected(client, test_user):
     resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Traceability unbalanced",
             "lines": [
                 {
@@ -1148,7 +1150,7 @@ async def test_income_recording(client):
     entry_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Monthly salary",
             "lines": [
                 {"account_id": bank_id, "direction": "DEBIT", "amount": "5000.00", "currency": "SGD"},
@@ -1187,7 +1189,7 @@ async def test_credit_card_spend(client):
     entry_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Laptop purchase on credit card",
             "lines": [
                 {"account_id": expense_id, "direction": "DEBIT", "amount": "2000.00", "currency": "SGD"},
@@ -1225,7 +1227,7 @@ async def test_credit_card_repayment(client):
     entry_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Credit card repayment",
             "lines": [
                 {"account_id": cc_id, "direction": "DEBIT", "amount": "2000.00", "currency": "SGD"},
@@ -1262,7 +1264,7 @@ async def test_internal_transfer(client):
     entry_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "ATM withdrawal to wallet",
             "lines": [
                 {"account_id": wallet_id, "direction": "DEBIT", "amount": "500.00", "currency": "SGD"},
@@ -1306,7 +1308,7 @@ async def test_split_transaction(client):
     entry_resp = await client.post(
         "/journal-entries",
         json={
-            "entry_date": date.today().isoformat(),
+            "entry_date": TEST_DATE.isoformat(),
             "memo": "Supermarket — split purchase",
             "lines": [
                 {"account_id": groceries_id, "direction": "DEBIT", "amount": "80.00", "currency": "SGD"},
