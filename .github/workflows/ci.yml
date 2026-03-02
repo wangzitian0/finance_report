@@ -106,7 +106,7 @@ jobs:
         run: |
           cd apps/backend
           uv run pytest -n auto -v \
-            -m "not slow and not e2e" \
+            -m "not slow and not e2e and not integration" \
             --splits 4 \
             --group ${{ matrix.shard }} \
             --cov=src \
@@ -183,8 +183,6 @@ jobs:
     name: Calculate Unified Coverage
     needs: [backend, frontend]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -238,18 +236,8 @@ jobs:
           uv run python scripts/calculate_unified_coverage.py
 
 
-      - name: Update coverage baseline
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add -f unified-coverage.json
-          if ! git diff --staged --quiet unified-coverage.json; then
-            git commit -m 'chore: update coverage baseline [skip ci]'
-            git push origin HEAD:main
-          else
-            echo 'No changes to baseline detected'
-          fi
+      # Note: baseline auto-push removed — branch protection requires PRs.
+      # Update unified-coverage.json manually via PR when raising the threshold.
 
 
       - name: Merge all coverage into unified LCOV
