@@ -117,13 +117,19 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
         )
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
-    # Wait for AI model dropdown options to load, then explicitly select one.
-    # not_to_have_value('') alone can time out when the default model fails validation
-    # (component sets selectedModel='') — select_option always fires onChange.
+    # Wait for the AI model dropdown to be populated and the backend default
+    # model to be auto-selected by React (selectedModel = data.default_model).
+    # We then re-fire select_option with the *same* current value so that React's
+    # onChange handler commits the selection — without overriding the default with
+    # an arbitrary alphabetically-first free model (select_option(index=0) bug).
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
-    await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
-    await model_select.select_option(index=0)
+    # Wait until the component has set a real model value (not empty string).
+    await expect(model_select).not_to_have_value("", timeout=15_000)
+    # Re-trigger onChange with the already-selected default model value.
+    current_model = await model_select.evaluate("el => el.value")
+    if current_model:
+        await model_select.select_option(value=current_model)
     await page.set_input_files("#file-upload", str(pdf_path))
     await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
         timeout=5_000
