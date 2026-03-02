@@ -97,7 +97,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
-        timeout=60_000,  # Upload may take up to 60s on cold-start
+        timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
     ) as resp_info:
         await page.get_by_role("button", name="Upload & Parse Statement").click()
     upload_resp = await resp_info.value
