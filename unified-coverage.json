@@ -1,0 +1,22 @@
+{
+  "total_lines": 10596,
+  "covered_lines": 9301,
+  "coverage_percent": 87.78,
+  "breakdown": {
+    "backend": {
+      "total_lines": 6775,
+      "covered_lines": 6401,
+      "coverage_percent": 94.48
+    },
+    "frontend": {
+      "total_lines": 1669,
+      "covered_lines": 1420,
+      "coverage_percent": 85.08
+    },
+    "scripts": {
+      "total_lines": 2152,
+      "covered_lines": 1480,
+      "coverage_percent": 68.77
+    }
+  }
+}

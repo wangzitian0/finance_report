@@ -24,7 +24,7 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
-unified-coverage.json
+# unified-coverage.json is intentionally tracked (coverage baseline)
 coverage/
 
 # PDF Fixtures: Input and Output directories
