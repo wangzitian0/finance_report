@@ -65,6 +65,11 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await page.wait_for_load_state("networkidle")
 
     await page.locator("#institution").fill("E2E Upload Test Bank")
+    # Wait for AI model dropdown to finish loading before setting file / clicking upload.
+    # Without this wait, selectedModel is empty and the frontend skips the request entirely.
+    model_select = page.locator("select#ai-model")
+    await expect(model_select).to_be_visible(timeout=15_000)
+    await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
     await page.set_input_files("#file-upload", str(pdf_path))
     await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
 
