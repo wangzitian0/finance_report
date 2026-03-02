@@ -870,7 +870,6 @@ def test_score_business_logic_out_unknown():
     assert score == 70.0
 
 
-
 # ---------------------------------------------------------------------------
 # Coverage boost tests for uncovered lines in reconciliation.py
 # ---------------------------------------------------------------------------
@@ -1208,20 +1207,22 @@ async def test_normal_matching_supersession_same_entries(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     txn = BankStatementTransaction(
@@ -1241,9 +1242,7 @@ async def test_normal_matching_supersession_same_entries(db: AsyncSession):
     await db.commit()
 
     # Reset txn to PENDING for re-matching
-    result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id)
-    )
+    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
     reloaded_txn = result.scalar_one()
     reloaded_txn.status = BankStatementTransactionStatus.PENDING
     await db.commit()
@@ -1281,20 +1280,22 @@ async def test_normal_matching_supersession_different_entries(db: AsyncSession):
     )
     db.add(entry1)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry1.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry1.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry1.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry1.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     txn = BankStatementTransaction(
@@ -1333,26 +1334,26 @@ async def test_normal_matching_supersession_different_entries(db: AsyncSession):
     )
     db.add(entry2)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry2.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry2.id,
-            account_id=expense_account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry2.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry2.id,
+                account_id=expense_account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     # Reset txn to PENDING
-    result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id)
-    )
+    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
     reloaded_txn = result.scalar_one()
     reloaded_txn.status = BankStatementTransactionStatus.PENDING
     await db.commit()
@@ -1363,9 +1364,7 @@ async def test_normal_matching_supersession_different_entries(db: AsyncSession):
     new_match_id = matches2[0].id
 
     # Old match should be superseded
-    result = await db.execute(
-        select(ReconciliationMatch).where(ReconciliationMatch.id == old_match_id)
-    )
+    result = await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id == old_match_id))
     old_match = result.scalar_one()
     assert old_match.status == ReconciliationStatus.SUPERSEDED
     assert old_match.superseded_by_id == new_match_id
@@ -1546,20 +1545,22 @@ async def test_many_to_one_supersession(db: AsyncSession):
     )
     db.add(entry1)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry1.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry1.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry1.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry1.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.commit()
 
     # First run: many-to-one matches
@@ -1588,27 +1589,27 @@ async def test_many_to_one_supersession(db: AsyncSession):
     )
     db.add(entry2)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry2.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry2.id,
-            account_id=expense_account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry2.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry2.id,
+                account_id=expense_account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     # Reset txns to PENDING
     for tid in [t1.id, t2.id]:
-        result = await db.execute(
-            select(BankStatementTransaction).where(BankStatementTransaction.id == tid)
-        )
+        result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == tid))
         reloaded = result.scalar_one()
         reloaded.status = BankStatementTransactionStatus.PENDING
     await db.commit()
@@ -1619,9 +1620,7 @@ async def test_many_to_one_supersession(db: AsyncSession):
 
     # Verify old matches are superseded
     for old_id in old_match_ids:
-        result = await db.execute(
-            select(ReconciliationMatch).where(ReconciliationMatch.id == old_id)
-        )
+        result = await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id == old_id))
         old_match = result.scalar_one()
         assert old_match.status == ReconciliationStatus.SUPERSEDED
 
@@ -1676,20 +1675,22 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("103.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("103.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("103.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("103.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.commit()
 
     # Use config with very high auto_accept to ensure PENDING_REVIEW
@@ -1715,9 +1716,7 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
                 assert m.status == ReconciliationStatus.PENDING_REVIEW
             # Txns should be PENDING (not MATCHED)
             for tid in [t1.id, t2.id]:
-                result = await db.execute(
-                    select(BankStatementTransaction).where(BankStatementTransaction.id == tid)
-                )
+                result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == tid))
                 reloaded = result.scalar_one()
                 assert reloaded.status == BankStatementTransactionStatus.PENDING
 
@@ -1755,20 +1754,22 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=expense_account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense_account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     txn = BankStatementTransaction(
@@ -1788,16 +1789,12 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
     await db.commit()
 
     # Verify entry is marked RECONCILED
-    result = await db.execute(
-        select(JournalEntry).where(JournalEntry.id == entry.id)
-    )
+    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id))
     reconciled_entry = result.scalar_one()
     assert reconciled_entry.status == JournalEntryStatus.RECONCILED
 
     # Verify txn is MATCHED
-    result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id)
-    )
+    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
     matched_txn = result.scalar_one()
     assert matched_txn.status == BankStatementTransactionStatus.MATCHED
 
@@ -1829,20 +1826,22 @@ async def test_normal_matching_pending_review(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     txn = BankStatementTransaction(
@@ -1877,12 +1876,9 @@ async def test_normal_matching_pending_review(db: AsyncSession):
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
 
         # Txn should be PENDING (not MATCHED)
-        result = await db.execute(
-            select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id)
-        )
+        result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
         reloaded = result.scalar_one()
         assert reloaded.status == BankStatementTransactionStatus.PENDING
-
 
 
 # ---------------------------------------------------------------------------
@@ -1893,6 +1889,7 @@ async def test_normal_matching_pending_review(db: AsyncSession):
 def test_build_many_to_one_groups_empty_description():
     """Cover line 457: build_many_to_one_groups skips txns with empty description."""
     from types import SimpleNamespace
+
     from src.services.reconciliation import build_many_to_one_groups
 
     txn1 = SimpleNamespace(description="", txn_date=date(2024, 1, 1), amount=Decimal("50.00"))
@@ -2103,20 +2100,22 @@ async def test_execute_matching_4_layer_read(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=expense_account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense_account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     # Create an AtomicTransaction (L2) — NOT matched yet
@@ -2175,7 +2174,6 @@ async def test_execute_matching_4_layer_read_no_candidates(db: AsyncSession):
 
 async def test_execute_matching_4_layer_read_transfer(db: AsyncSession):
     """Cover enable_4_layer_read transfer branches: lines 717, 726-728, 750-751, 760-762."""
-    from src.models.layer2 import AtomicTransaction
 
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-xfer-{uuid4()}@example.com", hashed_password="hashed")
@@ -2244,20 +2242,22 @@ async def test_execute_matching_4_layer_read_pending_review(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        ),
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.CREDIT,
-        ),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.DEBIT,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                amount=Decimal("100.00"),
+                direction=Direction.CREDIT,
+            ),
+        ]
+    )
     await db.flush()
 
     l2_txn = AtomicTransaction(
@@ -2327,10 +2327,16 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
     )
     db.add(entry_a)
     await db.flush()
-    db.add_all([
-        JournalLine(journal_entry_id=entry_a.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.DEBIT),
-        JournalLine(journal_entry_id=entry_a.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.CREDIT),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry_a.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.DEBIT
+            ),
+            JournalLine(
+                journal_entry_id=entry_a.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.CREDIT
+            ),
+        ]
+    )
 
     # Entry B: UNBALANCED (debit=60, credit=50)
     entry_b = JournalEntry(
@@ -2341,10 +2347,16 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
     )
     db.add(entry_b)
     await db.flush()
-    db.add_all([
-        JournalLine(journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("60.00"), direction=Direction.DEBIT),
-        JournalLine(journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.CREDIT),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("60.00"), direction=Direction.DEBIT
+            ),
+            JournalLine(
+                journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.CREDIT
+            ),
+        ]
+    )
     await db.flush()
 
     txn = BankStatementTransaction(
@@ -2390,10 +2402,16 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
     )
     db.add(entry)
     await db.flush()
-    db.add_all([
-        JournalLine(journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.DEBIT),
-        JournalLine(journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.CREDIT),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.DEBIT
+            ),
+            JournalLine(
+                journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.CREDIT
+            ),
+        ]
+    )
     await db.flush()
 
     # Load entry with lines+accounts for score_business_logic
@@ -2421,9 +2439,7 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
 
     config = DEFAULT_CONFIG
     # No history_score_override → calls score_pattern at line 426
-    candidate = await calculate_match_score(
-        db, txn, [loaded_entry], config, user_id=user_id
-    )
+    candidate = await calculate_match_score(db, txn, [loaded_entry], config, user_id=user_id)
     assert candidate.score > 0
     assert "history" in candidate.breakdown
 

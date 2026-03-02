@@ -18,7 +18,6 @@ This section contains:
 - [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
 - [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 ✅)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
-- [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
 - [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 ✅, 96% unified coverage achieved)
 **Planned (P0 - Critical)**
 - [EPIC-016](./EPIC-016.two-stage-review-ui.md) — Two-Stage Review & Data Validation UI (4-6 weeks) — Stage 1: PDF vs parsed validation. Stage 2: Dedup, transfer pairing, anomaly detection.
@@ -38,6 +37,7 @@ This section contains:
  [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
  [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
  [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
+ [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
  [EPIC-015](./EPIC-015.processing-account.md) — Processing Account Integration
 
 ## 🎯 Active Projects (EPICs)
@@ -56,7 +56,7 @@ This section contains:
 | [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | ✅ Complete | 0 | 1 week |
 | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | 🟡 In Progress (P0 ✅) | 5 | 4-5 weeks |
 | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation Libraries Enhancement | 🟡 In Progress | 0 | 2-3 weeks |
-| [EPIC-013](./EPIC-013.statement-parsing-v2.md) | Statement Parsing V2 | 🟡 In Progress | 2 | 3 weeks |
+| [EPIC-013](./EPIC-013.statement-parsing-v2.md) | Statement Parsing V2 | ✅ Complete | 2 | 3 weeks |
 | [EPIC-014](./EPIC-014.ttd-transformation.md) | TTD Transformation | 🟡 In Progress (P0 ✅) | 0 | 3-4 weeks |
 | [EPIC-015](./EPIC-015.processing-account.md) | Processing Account Integration | ✅ Complete | 3 | 2 weeks |
 | [EPIC-016](./EPIC-016.two-stage-review-ui.md) | Two-Stage Review & Data Validation UI | 🟡 Planned | 3 | 4-6 weeks |

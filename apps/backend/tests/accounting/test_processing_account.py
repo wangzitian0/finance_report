@@ -983,6 +983,7 @@ class TestDescriptionScoringEdgeCases:
         score = _score_description_match("Transfer", "   ")
         assert score == 0.0
 
+
 class TestPairConfidenceEdgeCases:
     """
     GIVEN _calculate_pair_confidence is called with edge-case inputs
@@ -992,6 +993,7 @@ class TestPairConfidenceEdgeCases:
 
     def _make_entry(self, lines_data, memo="test"):
         from types import SimpleNamespace
+
         mock_lines = []
         for acct_id, direction, amount in lines_data:
             mock_lines.append(SimpleNamespace(account_id=acct_id, direction=direction, amount=amount))
@@ -1003,14 +1005,18 @@ class TestPairConfidenceEdgeCases:
         acct_a = uuid4()
         acct_b = uuid4()
 
-        out_entry = self._make_entry([
-            (acct_a, Direction.DEBIT, Decimal("100.00")),
-            (acct_b, Direction.CREDIT, Decimal("100.00")),
-        ])
-        in_entry = self._make_entry([
-            (acct_b, Direction.DEBIT, Decimal("100.00")),
-            (acct_a, Direction.CREDIT, Decimal("100.00")),
-        ])
+        out_entry = self._make_entry(
+            [
+                (acct_a, Direction.DEBIT, Decimal("100.00")),
+                (acct_b, Direction.CREDIT, Decimal("100.00")),
+            ]
+        )
+        in_entry = self._make_entry(
+            [
+                (acct_b, Direction.DEBIT, Decimal("100.00")),
+                (acct_a, Direction.CREDIT, Decimal("100.00")),
+            ]
+        )
 
         score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
 
@@ -1023,12 +1029,16 @@ class TestPairConfidenceEdgeCases:
         acct_a = uuid4()
         acct_b = uuid4()
 
-        out_entry = self._make_entry([
-            (acct_a, Direction.CREDIT, Decimal("100.00")),
-        ])
-        in_entry = self._make_entry([
-            (acct_b, Direction.CREDIT, Decimal("100.00")),
-        ])
+        out_entry = self._make_entry(
+            [
+                (acct_a, Direction.CREDIT, Decimal("100.00")),
+            ]
+        )
+        in_entry = self._make_entry(
+            [
+                (acct_b, Direction.CREDIT, Decimal("100.00")),
+            ]
+        )
 
         score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
 
@@ -1040,13 +1050,17 @@ class TestPairConfidenceEdgeCases:
         acct_a = uuid4()
         acct_b = uuid4()
 
-        out_entry = self._make_entry([
-            (acct_a, Direction.DEBIT, Decimal("100.00")),
-            (acct_b, Direction.CREDIT, Decimal("100.00")),
-        ])
-        in_entry = self._make_entry([
-            (acct_b, Direction.DEBIT, Decimal("50.00")),
-        ])
+        out_entry = self._make_entry(
+            [
+                (acct_a, Direction.DEBIT, Decimal("100.00")),
+                (acct_b, Direction.CREDIT, Decimal("100.00")),
+            ]
+        )
+        in_entry = self._make_entry(
+            [
+                (acct_b, Direction.DEBIT, Decimal("50.00")),
+            ]
+        )
 
         score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
 

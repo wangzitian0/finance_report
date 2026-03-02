@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
 
+    # Connection Pool (optional tuning)
+    db_pool_size: int = Field(default=5, ge=1, validation_alias="DB_POOL_SIZE")
+    db_pool_max_overflow: int = Field(default=10, ge=0, validation_alias="DB_POOL_MAX_OVERFLOW")
+
     # Redis (optional for local, required for staging/prod)
     redis_url: str | None = None
 

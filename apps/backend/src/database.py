@@ -20,10 +20,16 @@ class Base(DeclarativeBase):
     pass
 
 
+# SQLite (used in tests) does not support pool_size / max_overflow arguments.
+# Only pass them for PostgreSQL connections.
+_pool_kwargs: dict = {"pool_pre_ping": True}
+if not settings.database_url.startswith("sqlite"):
+    _pool_kwargs["pool_size"] = settings.db_pool_size
+    _pool_kwargs["max_overflow"] = settings.db_pool_max_overflow
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
-    pool_pre_ping=True,
+    **_pool_kwargs,
 )
 
 async_session_maker = async_sessionmaker(

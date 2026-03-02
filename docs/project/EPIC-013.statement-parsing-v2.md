@@ -1,6 +1,6 @@
 # EPIC-013: Statement Parsing V2
 
-> Status: 🟡 In Progress
+> Status: ✅ Complete
 > Owner: Backend + Frontend
 > Scope: Statement extraction quality and review workflow visibility
 
