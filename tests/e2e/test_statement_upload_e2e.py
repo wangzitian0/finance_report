@@ -63,13 +63,13 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     page = authenticated_page
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("networkidle")
-
     await page.locator("#institution").fill("E2E Upload Test Bank")
-    # Wait for AI model dropdown to finish loading before setting file / clicking upload.
-    # Without this wait, selectedModel is empty and the frontend skips the request entirely.
+    # Wait for AI model dropdown to have a selected value — the <select> is React-controlled.
+    # Waiting for option[1] to attach is insufficient: React state (selectedModel) may still
+    # be "" even after options render. We must wait for the select value to be non-empty.
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
-    await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
+    await expect(model_select).not_to_have_value("", timeout=15_000)
     await page.set_input_files("#file-upload", str(pdf_path))
     await expect(page.get_by_text(pdf_path.name)).to_be_visible(timeout=5_000)
 
