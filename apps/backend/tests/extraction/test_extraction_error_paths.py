@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from src.models.statement import BankStatementStatus, ConfidenceLevel
+from src.services.deduplication import dual_write_layer2
 from src.services.extraction import ExtractionError, ExtractionService
 
 
@@ -238,7 +239,7 @@ def test_validate_external_url_invalid_cases():
 @pytest.mark.asyncio
 async def test_handle_parse_failure(db):
     from src.models import BankStatement
-    from src.routers.statements import _handle_parse_failure
+    from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = BankStatement(
@@ -253,7 +254,7 @@ async def test_handle_parse_failure(db):
     db.add(statement)
     await db.commit()
 
-    await _handle_parse_failure(statement, db, message="Something went wrong")
+    await handle_parse_failure(statement, db, message="Something went wrong")
 
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.REJECTED
@@ -265,7 +266,7 @@ async def test_handle_parse_failure(db):
 async def test_parse_statement_background_storage_error(db, monkeypatch):
     from src.database import create_session_maker_from_db
     from src.models import BankStatement
-    from src.routers.statements import _parse_statement_background
+    from src.services.statement_parsing import parse_statement_background
     from src.services.storage import StorageError
 
     sid = uuid4()
@@ -287,12 +288,12 @@ async def test_parse_statement_background_storage_error(db, monkeypatch):
             raise StorageError("Presigned fail")
         return func(*args, **kwargs)
 
-    monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
+    monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
     mock_parse = AsyncMock(side_effect=ExtractionError("API key not configured"))
-    monkeypatch.setattr("src.routers.statements.ExtractionService.parse_document", mock_parse)
+    monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
 
-    await _parse_statement_background(
+    await parse_statement_background(
         statement_id=sid,
         filename="f.pdf",
         institution="DBS",
@@ -365,7 +366,7 @@ class TestSanitizeAccountLast4:
 @pytest.mark.asyncio
 async def test_handle_parse_failure_truncates_long_message(db):
     from src.models import BankStatement
-    from src.routers.statements import _handle_parse_failure
+    from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = BankStatement(
@@ -381,7 +382,7 @@ async def test_handle_parse_failure_truncates_long_message(db):
     await db.commit()
 
     long_message = "x" * 1000
-    await _handle_parse_failure(statement, db, message=long_message)
+    await handle_parse_failure(statement, db, message=long_message)
 
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.REJECTED
@@ -395,7 +396,7 @@ async def test_handle_parse_failure_after_db_error(db):
     from sqlalchemy import text
 
     from src.models import BankStatement
-    from src.routers.statements import _handle_parse_failure
+    from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = BankStatement(
@@ -416,7 +417,7 @@ async def test_handle_parse_failure_after_db_error(db):
     except Exception as exc:
         assert "nonexistent_table_xyz" in str(exc)
 
-    await _handle_parse_failure(statement, db, message="DB error occurred")
+    await handle_parse_failure(statement, db, message="DB error occurred")
 
     # Rollback expires all ORM objects → re-fetch via saved PK
     result = await db.get(BankStatement, sid)
@@ -430,7 +431,7 @@ async def test_handle_parse_failure_after_db_error(db):
 @pytest.mark.asyncio
 async def test_handle_parse_failure_none_message(db):
     from src.models import BankStatement
-    from src.routers.statements import _handle_parse_failure
+    from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
     statement = BankStatement(
@@ -445,7 +446,7 @@ async def test_handle_parse_failure_none_message(db):
     db.add(statement)
     await db.commit()
 
-    await _handle_parse_failure(statement, db, message=None)
+    await handle_parse_failure(statement, db, message=None)
 
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.REJECTED
@@ -964,10 +965,8 @@ async def test_parse_document_csv_no_institution():
 @pytest.mark.asyncio
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
     """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
-    service = ExtractionService()
     db = AsyncMock()
-
-    with patch("src.services.extraction.DeduplicationService") as mock_dedup_cls:
+    with patch("src.services.deduplication.DeduplicationService") as mock_dedup_cls:
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
 
@@ -978,8 +977,7 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
         txn.description = "txn"
         txn.reference = None
         txn.statement.currency = "SGD"
-
-        await service._dual_write_layer2(
+        await dual_write_layer2(
             db=db,
             user_id=uuid4(),
             file_path=Path("statement.pdf"),

@@ -221,7 +221,7 @@ class TestBackgroundTaskDirtyData:
     async def test_background_task_with_dirty_account_last4_succeeds(self, db, monkeypatch):
         """Full background task flow: dirty AI response → sanitized → saved → PARSED/APPROVED."""
         from src.database import create_session_maker_from_db
-        from src.routers.statements import _parse_statement_background
+        from src.services.statement_parsing import parse_statement_background
 
         sid = uuid4()
         uid = uuid4()
@@ -256,15 +256,15 @@ class TestBackgroundTaskDirtyData:
             original_filename="test.pdf",
         )
         mock_parse = AsyncMock(return_value=(parsed_stmt, []))
-        monkeypatch.setattr("src.routers.statements.ExtractionService.parse_document", mock_parse)
+        monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
 
         # Mock storage presigned URL
         async def mock_run_in_threadpool(func, *args, **kwargs):
             return "https://example.com/presigned"
 
-        monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
+        monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
-        await _parse_statement_background(
+        await parse_statement_background(
             statement_id=sid,
             filename="test.pdf",
             institution="DBS",
@@ -306,7 +306,7 @@ class TestCascadingFailureRecovery:
     @pytest.mark.asyncio
     async def test_handle_parse_failure_after_data_error(self, db):
         """Simulate the exact production failure: commit DataError → handler recovers."""
-        from src.routers.statements import _handle_parse_failure
+        from src.services.statement_parsing import handle_parse_failure
 
         sid = uuid4()
         stmt = BankStatement(
@@ -335,7 +335,7 @@ class TestCascadingFailureRecovery:
         stub = BankStatement(id=sid)
 
         # _handle_parse_failure must recover from this error state
-        await _handle_parse_failure(stub, db, message="StringDataRightTruncationError: account_last4")
+        await handle_parse_failure(stub, db, message="StringDataRightTruncationError: account_last4")
 
         # Verify: statement is REJECTED, not stuck in PARSING
         result = await db.get(BankStatement, sid)
@@ -347,7 +347,7 @@ class TestCascadingFailureRecovery:
     @pytest.mark.asyncio
     async def test_handle_parse_failure_after_integrity_error(self, db):
         """Handler recovers after IntegrityError (e.g., duplicate file_hash)."""
-        from src.routers.statements import _handle_parse_failure
+        from src.services.statement_parsing import handle_parse_failure
 
         uid = uuid4()
         shared_hash = f"dup_hash_{uuid4().hex[:8]}"
@@ -387,7 +387,7 @@ class TestCascadingFailureRecovery:
 
         # Handler should recover
         stub2 = BankStatement(id=sid2)
-        await _handle_parse_failure(stub2, db, message="Integrity violation test")
+        await handle_parse_failure(stub2, db, message="Integrity violation test")
 
         result = await db.get(BankStatement, sid2)
         assert result is not None
@@ -404,7 +404,7 @@ class TestCascadingFailureRecovery:
         in production).  Instead we verify the handler is called with the
         correct arguments.
         """
-        from src.routers.statements import _handle_parse_failure
+        from src.services.statement_parsing import handle_parse_failure
 
         sid = uuid4()
         uid = uuid4()
@@ -425,9 +425,9 @@ class TestCascadingFailureRecovery:
         async def spy_handler(statement, db_session, *, message):
             nonlocal handler_called_with
             handler_called_with = {"statement_id": statement.id, "message": message}
-            return await _handle_parse_failure(statement, db_session, message=message)
+            return await handle_parse_failure(statement, db_session, message=message)
 
-        monkeypatch.setattr("src.routers.statements._handle_parse_failure", spy_handler)
+        monkeypatch.setattr("src.services.statement_parsing.handle_parse_failure", spy_handler)
 
         original_commit = AsyncSession.commit
         fail_next_commit = False
@@ -465,20 +465,20 @@ class TestCascadingFailureRecovery:
             return (parsed_stmt, [])
 
         monkeypatch.setattr(
-            "src.routers.statements.ExtractionService.parse_document",
+            "src.services.extraction.ExtractionService.parse_document",
             parse_then_arm_failure,
         )
 
         async def mock_run_in_threadpool(func, *args, **kwargs):
             return "https://example.com/presigned"
 
-        monkeypatch.setattr("src.routers.statements.run_in_threadpool", mock_run_in_threadpool)
+        monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
         from src.database import create_session_maker_from_db
-        from src.routers.statements import _parse_statement_background
+        from src.services.statement_parsing import parse_statement_background
 
         try:
-            await _parse_statement_background(
+            await parse_statement_background(
                 statement_id=sid,
                 filename="test.pdf",
                 institution="DBS",

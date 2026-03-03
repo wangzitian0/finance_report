@@ -32,7 +32,7 @@ from src.schemas.reconciliation import (
     UnmatchedTransactionsResponse,
 )
 from src.services.anomaly import detect_anomalies
-from src.services.reconciliation import execute_matching
+from src.services.reconciliation import execute_matching, get_reconciliation_stats
 from src.services.review_queue import (
     accept_match as accept_match_service,
     batch_accept as batch_accept_service,
@@ -322,70 +322,15 @@ async def reconciliation_stats(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationStatsResponse:
-    total_result = await db.execute(
-        select(func.count(BankStatementTransaction.id)).join(BankStatement).where(BankStatement.user_id == user_id)
-    )
-    matched_result = await db.execute(
-        select(func.count(BankStatementTransaction.id))
-        .join(BankStatement)
-        .where(BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED)
-        .where(BankStatement.user_id == user_id)
-    )
-    unmatched_result = await db.execute(
-        select(func.count(BankStatementTransaction.id))
-        .join(BankStatement)
-        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-        .where(BankStatement.user_id == user_id)
-    )
-    pending_result = await db.execute(
-        select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        .where(BankStatement.user_id == user_id)
-    )
-    auto_result = await db.execute(
-        select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED)
-        .where(BankStatement.user_id == user_id)
-    )
-
-    total = total_result.scalar_one()
-    matched = matched_result.scalar_one()
-    unmatched = unmatched_result.scalar_one()
-    pending = pending_result.scalar_one()
-    auto = auto_result.scalar_one()
-
-    score_result = await db.execute(
-        select(ReconciliationMatch.match_score)
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
-    )
-    scores = score_result.scalars().all()
-    buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}
-    for score in scores:
-        if score < 60:
-            buckets["0-59"] += 1
-        elif score < 80:
-            buckets["60-79"] += 1
-        elif score < 90:
-            buckets["80-89"] += 1
-        else:
-            buckets["90-100"] += 1
-
-    match_rate = float(round((matched / total) * 100, 2)) if total else 0.0
-
+    stats = await get_reconciliation_stats(db, user_id, include_distribution=True)
     return ReconciliationStatsResponse(
-        total_transactions=total,
-        matched_transactions=matched,
-        unmatched_transactions=unmatched,
-        pending_review=pending,
-        auto_accepted=auto,
-        match_rate=match_rate,
-        score_distribution=buckets,
+        total_transactions=stats.total_transactions,
+        matched_transactions=stats.matched_transactions,
+        unmatched_transactions=stats.unmatched_transactions,
+        pending_review=stats.pending_review,
+        auto_accepted=stats.auto_accepted,
+        match_rate=stats.match_rate,
+        score_distribution=stats.score_distribution or {},
     )
 
 

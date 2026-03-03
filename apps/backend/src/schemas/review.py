@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.models.consistency_check import CheckStatus, CheckType
 from src.models.statement import Stage1Status
 from src.schemas.extraction import (
     BankStatementResponse,
@@ -86,3 +87,45 @@ class BankStatementWithStage1Response(BankStatementResponse):
     manual_opening_balance: Decimal | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- Stage 2 Review Schemas (moved from routers/statements.py) ---
+
+
+class ConsistencyCheckResponse(BaseModel):
+    id: UUID
+    check_type: CheckType
+    status: CheckStatus
+    related_txn_ids: list[str]
+    details: dict
+    severity: str
+    resolved_at: datetime | None = None
+    resolution_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConsistencyCheckListResponse(BaseModel):
+    items: list[ConsistencyCheckResponse]
+    total: int
+
+
+class ResolveCheckRequest(BaseModel):
+    action: str = Field(..., description="approve, reject, or flag")
+    note: str | None = None
+
+
+class BatchApproveRequest(BaseModel):
+    match_ids: list[UUID] = Field(default_factory=list)
+
+
+class BatchRejectRequest(BaseModel):
+    match_ids: list[UUID] = Field(default_factory=list)
+
+
+class Stage2ReviewQueueResponse(BaseModel):
+    pending_matches: list[dict]
+    consistency_checks: list[ConsistencyCheckResponse]
+    has_unresolved_checks: bool

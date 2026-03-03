@@ -23,8 +23,11 @@ import pytest
 from fastapi import HTTPException, UploadFile, status
 
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
-from src.routers import statements as statements_router
+from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
+from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest
+from src.services import ExtractionError, statement_parsing as statement_parsing_mod
+from src.services.statement_parsing import handle_parse_failure
 
 pytestmark = pytest.mark.asyncio
 
@@ -125,7 +128,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -281,7 +284,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
         return statement, [transaction]
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -349,7 +352,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -453,10 +456,10 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
         force_model=None,
         db=None,
     ):
-        raise statements_router.ExtractionError("Failed to parse PDF")
+        raise ExtractionError("Failed to parse PDF")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -577,7 +580,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -670,7 +673,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -697,7 +700,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
     mock_parse = AsyncMock()
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         mock_parse,
     )
@@ -738,7 +741,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         return statement, []
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document,
     )
@@ -777,10 +780,10 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         force_model=None,
         db=None,
     ):
-        raise statements_router.ExtractionError("Retry failed")
+        raise ExtractionError("Retry failed")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_retry_fail,
     )
@@ -880,7 +883,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
         raise Exception("Fatal background error")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document_fail,
     )
@@ -924,7 +927,7 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
         raise Exception("Fatal background retry error")
 
     monkeypatch.setattr(
-        statements_router.ExtractionService,
+        statement_parsing_mod.ExtractionService,
         "parse_document",
         fake_parse_document_fail,
     )
@@ -984,7 +987,7 @@ async def test_handle_parse_failure_inner_exception(db, test_user, monkeypatch):
     fake_stmt.id = statement_id
 
     # Should not raise - it catches inner exceptions
-    await statements_router._handle_parse_failure(fake_stmt, mock_session, message="parse error")
+    await handle_parse_failure(fake_stmt, mock_session, message="parse error")
     mock_session.get.assert_awaited_once()
 
 
@@ -1001,7 +1004,7 @@ async def test_handle_parse_failure_statement_not_found_after_rollback(db, test_
     fake_stmt.id = statements_router.UUID("00000000-0000-0000-0000-000000000099")
 
     # Should return without error
-    await statements_router._handle_parse_failure(fake_stmt, mock_session, message="parse error")
+    await handle_parse_failure(fake_stmt, mock_session, message="parse error")
     mock_session.get.assert_awaited_once()
 
 
@@ -1023,7 +1026,7 @@ async def test_handle_parse_failure_rollback_fails(db, test_user):
     fake_stmt = MagicMock()
     fake_stmt.id = statement_id
 
-    await statements_router._handle_parse_failure(fake_stmt, mock_session, message="parse error")
+    await handle_parse_failure(fake_stmt, mock_session, message="parse error")
     mock_session.rollback.assert_awaited_once()
 
 
@@ -1330,7 +1333,7 @@ async def test_get_stage2_review_queue_empty(db, test_user):
     When get_stage2_review_queue is called,
     Then it returns empty queue (lines 844-867).
     """
-    result = await statements_router.get_stage2_review_queue(db=db, user_id=test_user.id)
+    result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
 
     assert result.pending_matches == []
     assert result.consistency_checks == []
@@ -1369,7 +1372,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     db.add(match)
     await db.commit()
 
-    result = await statements_router.get_stage2_review_queue(db=db, user_id=test_user.id)
+    result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
 
     assert len(result.pending_matches) == 1
     assert result.pending_matches[0]["status"] == "pending_review"
@@ -1386,7 +1389,7 @@ async def test_run_stage2_checks_success(db, test_user):
     await db.commit()
     statement_id = statement.id
 
-    result = await statements_router.run_stage2_checks(statement_id=statement_id, db=db, user_id=test_user.id)
+    result = await review_router.run_stage2_checks(statement_id=statement_id, db=db, user_id=test_user.id)
 
     assert result.total >= 0
     assert isinstance(result.items, list)
@@ -1398,7 +1401,7 @@ async def test_run_stage2_checks_not_found(db, test_user):
     Then it raises 404.
     """
     with pytest.raises(HTTPException) as exc:
-        await statements_router.run_stage2_checks(
+        await review_router.run_stage2_checks(
             statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
             db=db,
             user_id=test_user.id,
@@ -1426,9 +1429,9 @@ async def test_resolve_consistency_check_success(db, test_user):
     await db.refresh(check)
     check_id = check.id
 
-    result = await statements_router.resolve_consistency_check(
+    result = await review_router.resolve_consistency_check(
         check_id=check_id,
-        request=statements_router.ResolveCheckRequest(action="approve", note="Looks fine"),
+        request=ResolveCheckRequest(action="approve", note="Looks fine"),
         db=db,
         user_id=test_user.id,
     )
@@ -1458,9 +1461,9 @@ async def test_resolve_consistency_check_invalid_action(db, test_user):
     check_id = check.id
 
     with pytest.raises(HTTPException) as exc:
-        await statements_router.resolve_consistency_check(
+        await review_router.resolve_consistency_check(
             check_id=check_id,
-            request=statements_router.ResolveCheckRequest(action="invalid"),
+            request=ResolveCheckRequest(action="invalid"),
             db=db,
             user_id=test_user.id,
         )
@@ -1473,9 +1476,9 @@ async def test_resolve_consistency_check_not_found(db, test_user):
     Then it raises 400.
     """
     with pytest.raises(HTTPException) as exc:
-        await statements_router.resolve_consistency_check(
+        await review_router.resolve_consistency_check(
             check_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            request=statements_router.ResolveCheckRequest(action="approve"),
+            request=ResolveCheckRequest(action="approve"),
             db=db,
             user_id=test_user.id,
         )
@@ -1487,7 +1490,7 @@ async def test_list_consistency_checks_empty(db, test_user):
     When list_consistency_checks is called,
     Then it returns an empty list (lines 924-947).
     """
-    result = await statements_router.list_consistency_checks(db=db, user_id=test_user.id)
+    result = await review_router.list_consistency_checks(db=db, user_id=test_user.id)
 
     assert result.total == 0
     assert result.items == []
@@ -1521,12 +1524,12 @@ async def test_list_consistency_checks_with_filters(db, test_user):
     await db.commit()
 
     # Filter by status
-    result = await statements_router.list_consistency_checks(db=db, user_id=test_user.id, status=CheckStatus.PENDING)
+    result = await review_router.list_consistency_checks(db=db, user_id=test_user.id, status=CheckStatus.PENDING)
     assert result.total == 1
     assert result.items[0].check_type == CheckType.DUPLICATE
 
     # Filter by check_type
-    result2 = await statements_router.list_consistency_checks(
+    result2 = await review_router.list_consistency_checks(
         db=db, user_id=test_user.id, check_type=CheckType.TRANSFER_PAIR
     )
     assert result2.total == 1
@@ -1551,8 +1554,8 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
     db.add(check)
     await db.commit()
 
-    result = await statements_router.batch_approve_matches(
-        request=statements_router.BatchApproveRequest(match_ids=[]),
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[]),
         db=db,
         user_id=test_user.id,
     )
@@ -1566,8 +1569,8 @@ async def test_batch_approve_matches_empty_list(db, test_user):
     When batch_approve_matches is called,
     Then it returns success with 0 approved (line 968).
     """
-    result = await statements_router.batch_approve_matches(
-        request=statements_router.BatchApproveRequest(match_ids=[]),
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[]),
         db=db,
         user_id=test_user.id,
     )
@@ -1610,8 +1613,8 @@ async def test_batch_approve_matches_success(db, test_user):
     await db.refresh(match)
     match_id = match.id
 
-    result = await statements_router.batch_approve_matches(
-        request=statements_router.BatchApproveRequest(match_ids=[match_id]),
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[match_id]),
         db=db,
         user_id=test_user.id,
     )
@@ -1625,8 +1628,8 @@ async def test_batch_reject_matches_empty_list(db, test_user):
     When batch_reject_matches is called,
     Then it returns success with 0 rejected (line 1003-1004).
     """
-    result = await statements_router.batch_reject_matches(
-        request=statements_router.BatchRejectRequest(match_ids=[]),
+    result = await review_router.batch_reject_matches(
+        request=BatchRejectRequest(match_ids=[]),
         db=db,
         user_id=test_user.id,
     )
@@ -1669,8 +1672,8 @@ async def test_batch_reject_matches_success(db, test_user):
     await db.refresh(match)
     match_id = match.id
 
-    result = await statements_router.batch_reject_matches(
-        request=statements_router.BatchRejectRequest(match_ids=[match_id]),
+    result = await review_router.batch_reject_matches(
+        request=BatchRejectRequest(match_ids=[match_id]),
         db=db,
         user_id=test_user.id,
     )

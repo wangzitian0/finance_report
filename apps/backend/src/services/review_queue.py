@@ -357,3 +357,21 @@ async def create_entry_from_txn(
     await db.flush()
     await db.refresh(entry, ["lines"])
     return entry
+
+
+async def get_stage2_queue(
+    db: AsyncSession,
+    user_id: UUID,
+) -> list[ReconciliationMatch]:
+    """Return matches pending Stage 2 review for a user."""
+    result = await db.execute(
+        select(ReconciliationMatch)
+        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(
+            ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+            BankStatement.user_id == user_id,
+        )
+        .limit(50)
+    )
+    return list(result.scalars().all())

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -313,3 +313,39 @@ async def has_unresolved_checks(
         .limit(1)
     )
     return result.scalar_one_or_none() is not None
+
+
+async def list_checks(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    status: CheckStatus | None = None,
+    check_type: CheckType | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[ConsistencyCheck], int]:
+    """Return filtered consistency checks with total count."""
+    query = (
+        select(ConsistencyCheck)
+        .where(ConsistencyCheck.user_id == user_id)
+        .order_by(desc(ConsistencyCheck.created_at))
+        .limit(limit)
+        .offset(offset)
+    )
+
+    count_query = select(func.count()).select_from(ConsistencyCheck).where(ConsistencyCheck.user_id == user_id)
+
+    if status:
+        query = query.where(ConsistencyCheck.status == status)
+        count_query = count_query.where(ConsistencyCheck.status == status)
+    if check_type:
+        query = query.where(ConsistencyCheck.check_type == check_type)
+        count_query = count_query.where(ConsistencyCheck.check_type == check_type)
+
+    result = await db.execute(query)
+    checks = list(result.scalars().all())
+
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    return checks, total
