@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from src.models.statement import BankStatementStatus, ConfidenceLevel
+from src.services.deduplication import dual_write_layer2
 from src.services.extraction import ExtractionError, ExtractionService
 
 
@@ -964,10 +965,8 @@ async def test_parse_document_csv_no_institution():
 @pytest.mark.asyncio
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
     """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
-    service = ExtractionService()
     db = AsyncMock()
-
-    with patch("src.services.extraction.DeduplicationService") as mock_dedup_cls:
+    with patch("src.services.deduplication.DeduplicationService") as mock_dedup_cls:
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
 
@@ -978,8 +977,7 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
         txn.description = "txn"
         txn.reference = None
         txn.statement.currency = "SGD"
-
-        await service._dual_write_layer2(
+        await dual_write_layer2(
             db=db,
             user_id=uuid4(),
             file_path=Path("statement.pdf"),
