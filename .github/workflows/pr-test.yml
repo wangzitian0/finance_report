@@ -197,6 +197,7 @@ jobs:
             echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
             
             echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
+            echo "PRIMARY_MODEL=google/gemini-3-flash-preview"
             echo "COMPOSE_PROFILES=infra,app"
             
             # CRITICAL: Use unique hostnames in Dokploy shared network
