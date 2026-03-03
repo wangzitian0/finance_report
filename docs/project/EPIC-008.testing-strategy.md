@@ -427,14 +427,14 @@ These scenarios represent the "Vertical Slices" of user value.
    - **Tracking**: PR #142 comments
    - **Fix Required**: Backend team to investigate Gemini parsing flow
 
-4. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
+2. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
    - **Status**: Implemented — requires `APP_URL` pointing to a running frontend+backend
    - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
    - **Note**: `test_statement_upload_e2e.py` stale selectors also fixed in this PR
 
-2. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
+3. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
 
-3. **100 Scenario Coverage**:
+4. **100 Scenario Coverage**:
    - **Current**: 13 scenarios checked in Section 3 (of 100)
    - **Gap**: 87 scenarios from Phase 1-6 not yet automated
    - **Priority**: Low (core flows are covered, remaining are nice-to-have)

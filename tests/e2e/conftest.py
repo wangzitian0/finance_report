@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 class TestConfig:
     """Test configuration from environment variables."""
 
-    APP_URL = os.getenv("APP_URL", "http://localhost:3000")
+    APP_URL = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
     TEST_ENV = os.getenv("TEST_ENV", "staging").lower()
     EXPECTED_SHA = os.getenv("EXPECTED_SHA")
 

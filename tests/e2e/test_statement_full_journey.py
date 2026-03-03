@@ -1,5 +1,5 @@
 """
-Tier 3 Browser E2E: Full Statement Journey — AC8.12.1–AC8.12.5
+Tier 3 Browser E2E: Full Statement Journey — AC8.13.1–AC8.13.5
 
 DBS PDF upload → AI parsing (poll until parsed) → detail page review
 → approve via ConfirmDialog → balance sheet report verification
@@ -103,11 +103,11 @@ def _unique_pdf_copy(src: Path) -> Path:
 @pytest.mark.e2e
 @pytest.mark.tier3
 async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
-    """AC8.12.1–AC8.12.5: DBS PDF → parse → approve → balance sheet."""
+    """AC8.13.1–AC8.13.5: DBS PDF → parse → approve → balance sheet."""
     page = authenticated_page
     pdf_path = _unique_pdf_copy(_get_dbs_pdf_path())
 
-    # === AC8.12.1: Upload PDF ===
+    # === AC8.13.1: Upload PDF ===
     await page.goto(_get_url("/statements"))
     await page.wait_for_load_state("networkidle")
 
@@ -146,7 +146,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
         f"expected 2xx. Response body: {await upload_resp.text()}"
     )
 
-    # === AC8.12.2: Poll until "parsed" status badge appears in the list ===
+    # === AC8.13.2: Poll until "parsed" status badge appears in the list ===
     # The list page polls via TanStack Query every 3 s — we wait up to PARSING_TIMEOUT_MS.
     statement_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
     await expect(statement_row).to_be_visible(timeout=15_000)
@@ -180,7 +180,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
             f"Statement never reached 'parsed' status within {PARSING_TIMEOUT_MS}ms"
         )
 
-    # === AC8.12.3: Detail page shows transactions ===
+    # === AC8.13.3: Detail page shows transactions ===
     await statement_row.click()
     # Wait for navigation to /statements/{id} explicitly — wait_for_load_state('networkidle')
     # can resolve before the Next.js router commits the URL change.
@@ -194,7 +194,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     )
     await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10_000)
 
-    # === AC8.12.4: Approve via ConfirmDialog → badge changes to "approved" ===
+    # === AC8.13.4: Approve via ConfirmDialog → badge changes to "approved" ===
     await page.get_by_role("button", name="Approve").click()
     dialog = page.locator('[role="dialog"]')
     await expect(dialog).to_be_visible(timeout=5_000)
@@ -210,7 +210,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
         f"Expected to remain on statement detail page after approve, got: {page.url}"
     )
 
-    # === AC8.12.5: Balance sheet report loads ===
+    # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))
     await page.wait_for_load_state("networkidle")
 
