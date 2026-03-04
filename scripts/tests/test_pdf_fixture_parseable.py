@@ -327,3 +327,76 @@ def test_ac9_3_6_date_formats_correct_per_source(tmp_path: Path) -> None:
     assert all(DBS_DATE_PATTERN.match(row[0]) for row in dbs_rows)
     assert all(CMB_DATE_PATTERN.match(row[0]) for row in cmb_rows)
     assert all(MARI_DATE_PATTERN.match(row[0]) for row in mari_rows)
+
+# -- AC9.3.7: TemplateExtractor unit tests ------------------------------------
+
+def _get_template_extractor():
+    cls = import_module("analyzers.template_extractor").TemplateExtractor
+    return cls()
+
+
+def test_ac9_3_7_template_extractor_removes_sensitive_keys(tmp_path: Path) -> None:
+    """AC9.3.7 - TemplateExtractor strips keys matching sensitive tokens."""
+    extractor = _get_template_extractor()
+    analysis = {
+        "source": "dbs",
+        "account_number": "12345678",
+        "account_holder": "John Doe",
+        "balance": "5000.00",
+        "page_count": 2,
+    }
+    result = extractor._sanitize(analysis)
+    assert "account_number" not in result
+    assert "account_holder" not in result
+    assert "balance" not in result
+    assert result["source"] == "dbs"
+    assert result["page_count"] == 2
+
+
+def test_ac9_3_7_template_extractor_masks_amounts_in_strings(tmp_path: Path) -> None:
+    """AC9.3.7 - TemplateExtractor masks numeric amounts and accounts in strings."""
+    extractor = _get_template_extractor()
+    analysis = {
+        "label": "Transaction 1,234.56 processed",
+        "ref": "REF-12345678",
+    }
+    result = extractor._sanitize(analysis)
+    assert "1,234.56" not in result["label"]
+    assert "[REDACTED_AMOUNT]" in result["label"]
+    assert "12345678" not in result["ref"]
+    assert "[REDACTED_ACCOUNT]" in result["ref"]
+
+
+def test_ac9_3_7_template_extractor_handles_nested_and_lists(tmp_path: Path) -> None:
+    """AC9.3.7 - TemplateExtractor recurses into nested dicts and lists."""
+    extractor = _get_template_extractor()
+    analysis = {
+        "tables": [
+            {"name": "transactions", "row_count": 15},
+            {"balance": "100.00", "currency": "SGD"},
+        ],
+        "metadata": {"source": "dbs", "card_number": "4111111111111111"},
+    }
+    result = extractor._sanitize(analysis)
+    assert "name" not in result["tables"][0]
+    assert result["tables"][0]["row_count"] == 15
+    assert "balance" not in result["tables"][1]
+    assert result["tables"][1]["currency"] == "SGD"
+    assert "card_number" not in result["metadata"]
+    assert result["metadata"]["source"] == "dbs"
+
+
+def test_ac9_3_7_template_extractor_writes_yaml_file(tmp_path: Path) -> None:
+    """AC9.3.7 - TemplateExtractor.extract() writes sanitized YAML to disk."""
+    import yaml
+
+    extractor = _get_template_extractor()
+    analysis = {"source": "dbs", "page_count": 1}
+    out_path = tmp_path / "subdir" / "output.yaml"
+    result = extractor.extract(analysis, out_path)
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
+    loaded = yaml.safe_load(out_path.read_text())
+    assert loaded["source"] == "dbs"
+    assert loaded["page_count"] == 1
+    assert result == loaded

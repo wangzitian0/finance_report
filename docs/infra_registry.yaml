@@ -295,6 +295,11 @@ acs:
     epic_name: pdf-fixture-generation
     description: 'Date formats correct'
     mandatory: true
+  - id: AC9.3.7
+    epic: 9
+    epic_name: pdf-fixture-generation
+    description: 'TemplateExtractor sanitizes sensitive keys and masks values'
+    mandatory: true
   - id: AC9.4.1
     epic: 9
     epic_name: pdf-fixture-generation
