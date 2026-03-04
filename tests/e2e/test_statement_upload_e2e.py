@@ -76,6 +76,25 @@ def _unique_pdf_copy(src: Path) -> Path:
     return dest
 
 
+async def _find_statement_by_institution(page: Page, institution: str) -> dict | None:
+    response = await page.context.request.get(_get_url("/api/statements"))
+    if response.status != 200:
+        return None
+
+    payload = await response.json()
+    if isinstance(payload, list):
+        statements = payload
+    elif isinstance(payload, dict):
+        statements = payload.get("items") or payload.get("data") or []
+    else:
+        statements = []
+
+    for statement in statements:
+        if statement.get("institution") == institution:
+            return statement
+    return None
+
+
 @pytest.mark.e2e
 async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     """AC8.4.3: Upload PDF → wait for processing → verify statement appears."""
@@ -109,10 +128,36 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
         f"Upload endpoint returned unexpected status {upload_resp.status} — "
         f"expected 2xx. Response body: {await upload_resp.text()}"
     )
-
+    upload_body = await upload_resp.json()
+    statement_id = upload_body.get("id")
+    assert statement_id, f"Upload response missing 'id' field: {upload_body}"
+    # Statement row appears in the list with the institution name we provided.
     statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
     await expect(statement_row).to_be_visible(timeout=15_000)
-
+    # Verify the statement is immediately accessible via the API.
+    # Use page.evaluate() so the fetch runs inside the browser JS context,
+    # which has access to the JWT token stored in localStorage.
+    api_result = await page.evaluate(
+        """
+        async (url) => {
+            const token = localStorage.getItem('finance_access_token');
+            const resp = await fetch(url, {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            return { status: resp.status, body: await resp.json().catch(() => null) };
+        }
+        """,
+        _get_url(f"/api/statements/{statement_id}"),
+    )
+    assert api_result["status"] == 200, (
+        f"GET /api/statements/{statement_id} returned {api_result['status']}"
+    )
+    statement = api_result["body"]
+    assert statement and statement.get("id") == statement_id
+    # Status should be a valid in-progress or terminal value immediately after upload.
+    assert statement.get("status") in {"uploaded", "parsing", "parsed", "approved", "rejected"}, (
+        f"Unexpected statement status: {statement.get('status')}"
+    )
 
 @pytest.mark.e2e
 async def test_model_selection_and_upload(authenticated_page: Page) -> None:
