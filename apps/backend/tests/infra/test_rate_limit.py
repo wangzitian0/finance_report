@@ -149,12 +149,15 @@ async def test_global_rate_limit_middleware_blocks_after_limit(public_client: As
 
 @pytest.mark.asyncio
 async def test_global_rate_limit_middleware_allows_normal_requests(public_client: AsyncClient) -> None:
-    """Normal requests within limit should pass through."""
+    """Normal requests within limit should pass through (non-exempt path, limiter called)."""
     from src.rate_limit import api_rate_limiter
-
-    with patch.object(api_rate_limiter, "is_allowed", return_value=(True, 0)):
-        response = await public_client.get("/ping")
+    # Use a non-exempt path so the middleware actually invokes the rate limiter.
+    with patch.object(api_rate_limiter, "is_allowed", return_value=(True, 0)) as mock_is_allowed:
+        response = await public_client.post("/auth/login", json={"email": "x@x.com", "password": "x"})
+        # Whatever auth returns (e.g. 401), it must NOT be a 429 when allowed.
         assert response.status_code != 429
+        # Middleware must have consulted the rate limiter.
+        assert mock_is_allowed.called
 
 
 @pytest.mark.asyncio

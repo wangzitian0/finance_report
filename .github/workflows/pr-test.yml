@@ -291,7 +291,7 @@ jobs:
               deploy_epoch=$(date -d "$latest_started" +%s 2>/dev/null || date -d "${latest_started%.*}Z" +%s 2>/dev/null || echo "0")
               if [ "$deploy_epoch" -ge "$TRIGGER_EPOCH" ]; then
                 if [ "$latest_status" = "done" ]; then
-                  echo "\u2705 Deployment (started at $latest_started) completed successfully"
+                  printf '\u2705 Deployment (started at %s) completed successfully\n' "$latest_started"
                   exit 0
                 elif [ "$latest_status" = "error" ]; then
                   echo "::error::Deployment (started at $latest_started) failed"

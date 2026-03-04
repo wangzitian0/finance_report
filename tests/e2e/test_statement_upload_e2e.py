@@ -135,24 +135,18 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
     await expect(statement_row).to_be_visible(timeout=15_000)
     # Verify the statement is immediately accessible via the API.
-    # Use page.evaluate() so the fetch runs inside the browser JS context,
-    # which has access to the JWT token stored in localStorage.
-    api_result = await page.evaluate(
-        """
-        async (url) => {
-            const token = localStorage.getItem('finance_access_token');
-            const resp = await fetch(url, {
-                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-            });
-            return { status: resp.status, body: await resp.json().catch(() => null) };
-        }
-        """,
+    # Read the JWT from localStorage, then use Playwright's request API (no JS-in-browser needed).
+    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    api_resp = await page.request.get(
         _get_url(f"/api/statements/{statement_id}"),
+        headers=headers,
     )
-    assert api_result["status"] == 200, (
-        f"GET /api/statements/{statement_id} returned {api_result['status']}"
+    assert api_resp.status == 200, (
+        f"GET /api/statements/{statement_id} returned {api_resp.status} \u2014 "
+        f"response body: {await api_resp.text()}"
     )
-    statement = api_result["body"]
+    statement = await api_resp.json()
     assert statement and statement.get("id") == statement_id
     # Status should be a valid in-progress or terminal value immediately after upload.
     assert statement.get("status") in {"uploaded", "parsing", "parsed", "approved", "rejected"}, (

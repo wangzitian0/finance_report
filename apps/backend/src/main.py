@@ -147,6 +147,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset(
         "/ping",
         "/ping/toggle",
         "/docs",
+        "/docs/oauth2-redirect",
         "/openapi.json",
         "/redoc",
         "/metrics",
@@ -157,14 +158,13 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset(
 @app.middleware("http")
 async def global_rate_limit_middleware(request: Request, call_next: Any) -> Response:
     """Global API rate limiting middleware. Runs before logging middleware (LIFO order)."""
-    if request.url.path in _RATE_LIMIT_EXEMPT_PATHS:
+    path = request.url.path
+    if path in _RATE_LIMIT_EXEMPT_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
         return await call_next(request)
 
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    client_ip = (
-        forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host if request.client else "unknown")
-    )
-
+    # Use the actual remote address only; honoring X-Forwarded-For requires a
+    # trusted-proxy setup and is intentionally deferred to a future config option.
+    client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
     if not allowed:
         return JSONResponse(
