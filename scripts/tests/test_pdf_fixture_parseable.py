@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import re
-import sys
 from importlib import import_module
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "pdf_fixtures"))
 
 
 DBS_DATE_PATTERN = re.compile(r"^\d{2}/\d{2}/\d{4}$")
@@ -262,10 +259,14 @@ def test_ac9_3_5_balance_calculations_correct(tmp_path: Path) -> None:
 
     _, cmb_tables = _read_pdf_text_and_tables(cmb_path)
     cmb_rows = _extract_cmb_rows(cmb_tables)
-    # Opening balance is hardcoded in CMBGenerator; closing = last row's running balance
-    # CJK text unreliable on CI (no CJK fonts) - use table data instead
+    # CMB column layout (from cmb_generator.py): row[0]=date, row[1]=currency,
+    # row[2]=signed_amount (net delta, can be +/-), row[3]=running_balance,
+    # row[4]=description, row[5]=counterparty.
+    # row[2] is NOT a debit-only column — it is the signed net change.
+    # Summing row[2] gives total delta; closing = opening + sum(signed amounts).
+    # CJK text unreliable on CI (no CJK fonts) - use table data instead.
     cmb_opening = Decimal("10000.00")
-    cmb_closing = _parse_decimal(cmb_rows[-1][3])  # last row running balance
+    cmb_closing = _parse_decimal(cmb_rows[-1][3])  # last row's running balance
     cmb_delta = sum(_parse_decimal(row[2]) for row in cmb_rows)
     assert abs((cmb_opening + cmb_delta) - cmb_closing) <= Decimal("0.01")
 

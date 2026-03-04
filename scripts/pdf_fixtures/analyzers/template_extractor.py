@@ -56,7 +56,8 @@ class TemplateExtractor:
             "transaction_id",
             "reference",
         }
-        return any(token in lowered for token in sensitive_tokens)
+        key_tokens = re.split(r"[^a-z0-9]+", lowered)
+        return any(token in sensitive_tokens for token in key_tokens if token)
 
     @staticmethod
     def _mask_sensitive_string(value: str) -> str:
