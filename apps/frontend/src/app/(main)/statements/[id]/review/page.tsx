@@ -137,7 +137,7 @@ export default function StatementReviewPage() {
                 <div className="card p-12 text-center max-w-md mx-auto">
                     {error ? (
                         <>
-                            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <div className="w-12 h-12 bg-[var(--error-muted)] text-[var(--error)] rounded-full flex items-center justify-center mx-auto mb-4">
                                 <span className="text-xl font-bold">!</span>
                             </div>
                             <h2 className="text-lg font-medium mb-2">Failed to load statement</h2>

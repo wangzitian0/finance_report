@@ -156,9 +156,10 @@ export default function StatementDetailPage() {
         }
     };
 
-    const formatAmount = (amount: number, direction: string) => {
+    const formatAmount = (amount: number, direction: string, currency?: string | null) => {
         const sign = direction === "IN" ? "+" : "-";
-        return `${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const prefix = currency ? `${currency} ` : "";
+        return `${prefix}${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     const formatCurrency = (amount?: number | null) => {
@@ -254,6 +255,15 @@ export default function StatementDetailPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                    <Link
+                        href={`/statements/${statementId}/review`}
+                        className="btn-secondary flex items-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Review
+                    </Link>
                     {canRetry && (
                         <button
                             onClick={handleRetry}
@@ -409,7 +419,7 @@ export default function StatementDetailPage() {
                         <p className="text-sm">No transactions found</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="max-h-[600px] overflow-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-[var(--border)] bg-[var(--background-muted)]">
@@ -438,7 +448,7 @@ export default function StatementDetailPage() {
                                         <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
                                             txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
                                         }`}>
-                                            {formatAmount(txn.amount, txn.direction)}
+                                            {formatAmount(txn.amount, txn.direction, statement.currency)}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.currency || "—"}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrency(txn.balance_after) : "—"}</td>

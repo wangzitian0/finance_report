@@ -26,6 +26,9 @@ interface Stage2Data {
         match_score: number;
         status: string;
         created_at: string | null;
+        description?: string;
+        amount?: number;
+        txn_date?: string;
     }>;
     consistency_checks: ConsistencyCheck[];
     has_unresolved_checks: boolean;
@@ -211,7 +214,7 @@ export default function Stage2ReviewQueuePage() {
     return (
         <div className="p-6">
             <div className="mb-6">
-                <h1 className="page-title">Stage 2 Review Queue</h1>
+                <h1 className="page-title">Reconciliation Review Queue</h1>
                 <p className="page-description">
                     Review consistency checks and approve reconciliation matches
                 </p>
@@ -308,6 +311,7 @@ export default function Stage2ReviewQueuePage() {
                                                 />
                                             </th>
                                             <th className="text-left px-4 py-2 font-medium">Score</th>
+                                            <th className="text-left px-4 py-2 font-medium">Description</th>
                                             <th className="text-left px-4 py-2 font-medium">Status</th>
                                             <th className="text-left px-4 py-2 font-medium">Created</th>
                                         </tr>
@@ -342,6 +346,9 @@ export default function Stage2ReviewQueuePage() {
                                                     >
                                                         {match.match_score}
                                                     </span>
+                                                </td>
+                                                <td className="px-4 py-2 text-muted truncate max-w-[200px]">
+                                                    {match.description || "—"}
                                                 </td>
                                                 <td className="px-4 py-2">
                                                     <span className="badge badge-warning">{match.status}</span>
@@ -390,37 +397,66 @@ export default function Stage2ReviewQueuePage() {
                 </div>
             </div>
 
-            <ConfirmDialog
-                isOpen={resolveDialogOpen}
-                onCancel={() => !actionLoading && setResolveDialogOpen(false)}
-                onConfirm={(note) => handleResolveCheck("approve", note)}
-                title="Resolve Consistency Check"
-                message="Choose action: Approve (ignore), Reject (flag for fix), or Flag (needs review)."
-                confirmLabel="Approve"
-                loading={actionLoading}
-                showInput
-                inputLabel="Note (optional)"
-                inputPlaceholder="Add resolution note..."
-            >
-                <div className="mt-4 flex flex-wrap gap-2">
+{resolveDialogOpen && selectedCheck && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/60" onClick={() => !actionLoading && setResolveDialogOpen(false)} />
+        <div className="relative z-10 w-full max-w-md card animate-slide-up">
+            <div className="card-header">
+                <h2 className="text-lg font-semibold">Resolve Consistency Check</h2>
+            </div>
+            <div className="p-6 space-y-4">
+                <p className="text-sm text-muted">
+                    <span className="font-medium text-[var(--foreground)]">{selectedCheck.severity.toUpperCase()}</span>{" "}
+                    {getCheckTypeLabel(selectedCheck.check_type)} —{" "}
+                    {(selectedCheck.details.message as string | undefined) || JSON.stringify(selectedCheck.details)}
+                </p>
+                <div>
+                    <label className="block text-sm font-medium mb-1.5">Note (optional)</label>
+                    <input
+                        type="text"
+                        id="resolve-note"
+                        placeholder="Add resolution note..."
+                        className="input"
+                    />
+                </div>
+                <div className="flex gap-2 pt-2">
                     <button
                         type="button"
-                        onClick={() => handleResolveCheck("reject")}
-                        className="btn-secondary text-[var(--error)]"
+                        onClick={() => !actionLoading && setResolveDialogOpen(false)}
+                        className="btn-secondary flex-1"
+                        disabled={actionLoading}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleResolveCheck("reject", (document.getElementById("resolve-note") as HTMLInputElement)?.value)}
+                        className="btn-secondary flex-1 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
                         disabled={actionLoading}
                     >
                         Reject
                     </button>
                     <button
                         type="button"
-                        onClick={() => handleResolveCheck("flag")}
-                        className="btn-secondary text-[var(--warning)]"
+                        onClick={() => handleResolveCheck("flag", (document.getElementById("resolve-note") as HTMLInputElement)?.value)}
+                        className="btn-secondary flex-1 text-[var(--warning)] border-[var(--warning)]/30 hover:bg-[var(--warning-muted)]"
                         disabled={actionLoading}
                     >
                         Flag
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => handleResolveCheck("approve", (document.getElementById("resolve-note") as HTMLInputElement)?.value)}
+                        className="btn-primary flex-1"
+                        disabled={actionLoading}
+                    >
+                        {actionLoading ? "Processing..." : "Approve"}
+                    </button>
                 </div>
-            </ConfirmDialog>
+            </div>
+        </div>
+    </div>
+)}
         </div>
     );
 }

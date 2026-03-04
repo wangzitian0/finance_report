@@ -145,14 +145,14 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             <label className="block text-sm font-medium mb-1.5">Date *</label>
                             <input type="date" {...register("entry_date")} className="input" />
                             {errors.entry_date && (
-                                <p className="text-sm text-red-500 mt-1">{errors.entry_date.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{errors.entry_date.message}</p>
                             )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1.5">Memo *</label>
                             <input type="text" {...register("memo")} placeholder="Description" className="input" />
                             {errors.memo && (
-                                <p className="text-sm text-red-500 mt-1">{errors.memo.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{errors.memo.message}</p>
                             )}
                         </div>
                     </div>
@@ -228,7 +228,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             ))}
                         </div>
                         {errors.lines && "message" in errors.lines && (
-                            <p className="text-sm text-red-500 mt-1">{errors.lines.message}</p>
+                            <p className="text-sm text-[var(--error)] mt-1">{errors.lines.message}</p>
                         )}
                     </div>
 

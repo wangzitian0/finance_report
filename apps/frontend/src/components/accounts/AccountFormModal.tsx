@@ -127,7 +127,7 @@ export default function AccountFormModal({
                                 className="input"
                             />
                             {editForm.formState.errors.name && (
-                                <p className="text-sm text-red-500 mt-1">{editForm.formState.errors.name.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{editForm.formState.errors.name.message}</p>
                             )}
                         </div>
 
@@ -140,7 +140,7 @@ export default function AccountFormModal({
                                 className="input"
                             />
                             {editForm.formState.errors.code && (
-                                <p className="text-sm text-red-500 mt-1">{editForm.formState.errors.code.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{editForm.formState.errors.code.message}</p>
                             )}
                         </div>
 
@@ -175,7 +175,7 @@ export default function AccountFormModal({
                                 className="input"
                             />
                             {createForm.formState.errors.name && (
-                                <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.name.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.name.message}</p>
                             )}
                         </div>
 
@@ -188,7 +188,7 @@ export default function AccountFormModal({
                                 className="input"
                             />
                             {createForm.formState.errors.code && (
-                                <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.code.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.code.message}</p>
                             )}
                         </div>
 
@@ -203,7 +203,7 @@ export default function AccountFormModal({
                                     ))}
                                 </select>
                                 {createForm.formState.errors.type && (
-                                    <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.type.message}</p>
+                                    <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.type.message}</p>
                                 )}
                             </div>
                             <div>
@@ -216,7 +216,7 @@ export default function AccountFormModal({
                                     ))}
                                 </select>
                                 {createForm.formState.errors.currency && (
-                                    <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.currency.message}</p>
+                                    <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.currency.message}</p>
                                 )}
                             </div>
                         </div>
@@ -230,7 +230,7 @@ export default function AccountFormModal({
                                 className="input resize-none"
                             />
                             {createForm.formState.errors.description && (
-                                <p className="text-sm text-red-500 mt-1">{createForm.formState.errors.description.message}</p>
+                                <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.description.message}</p>
                             )}
                         </div>
 

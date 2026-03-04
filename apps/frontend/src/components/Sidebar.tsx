@@ -76,7 +76,7 @@ export function Sidebar() {
                     </div>
                     {!isCollapsed && (
                         <span className="font-semibold text-sm whitespace-nowrap">
-                            Finance
+                            Finance Report
                         </span>
                     )}
                 </div>
@@ -160,7 +160,7 @@ export function Sidebar() {
                         onClick={handleLogout}
                         className={`
                 w-full flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
-                text-red-500 hover:bg-red-500/10
+                text-[var(--error)] hover:bg-[var(--error-muted)]
                 transition-colors text-sm
                 ${isCollapsed ? "justify-center" : ""}
               `}
