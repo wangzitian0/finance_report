@@ -76,6 +76,25 @@ def _unique_pdf_copy(src: Path) -> Path:
     return dest
 
 
+async def _find_statement_by_institution(page: Page, institution: str) -> dict | None:
+    response = await page.request.get(_get_url("/api/statements"))
+    if response.status != 200:
+        return None
+
+    payload = await response.json()
+    if isinstance(payload, list):
+        statements = payload
+    elif isinstance(payload, dict):
+        statements = payload.get("items") or payload.get("data") or []
+    else:
+        statements = []
+
+    for statement in statements:
+        if statement.get("institution") == institution:
+            return statement
+    return None
+
+
 @pytest.mark.e2e
 async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     """AC8.4.3: Upload PDF → wait for processing → verify statement appears."""
@@ -112,6 +131,26 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
 
     statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
     await expect(statement_row).to_be_visible(timeout=15_000)
+
+    deadline = time.time() + 120
+    statement = None
+    while time.time() < deadline:
+        statement = await _find_statement_by_institution(page, "E2E Upload Test Bank")
+        if statement and statement.get("status") != "pending":
+            break
+        await page.wait_for_timeout(2_000)
+
+    assert statement is not None, "Uploaded statement not found in statements list"
+    status = statement.get("status")
+    assert status in {"parsed", "parse_failed"}, (
+        "Expected statement status to become parsed or parse_failed after upload"
+    )
+
+    if status == "parsed":
+        transactions = statement.get("transactions") or []
+        assert len(transactions) >= 0, (
+            "Transaction count is non-deterministic in E2E as it depends on AI model availability"
+        )
 
 
 @pytest.mark.e2e

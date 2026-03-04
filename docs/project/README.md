@@ -14,8 +14,6 @@ This section contains:
 
 **In Progress**
 - [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization
-- [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
-- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
 - [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 ✅)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
 - [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 ✅, 96% unified coverage achieved)
@@ -34,6 +32,8 @@ This section contains:
  [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
  [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing
  [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching
+ [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
+ [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
  [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
  [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
  [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
@@ -51,8 +51,8 @@ This section contains:
 | [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | 🟡 In Progress | 4 | 3 weeks |
 | [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | 🟡 In Progress (Refining) | 4 | 2 weeks |
 | [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | ✅ Complete | 0 | 1 week |
-| [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | 🟡 In Progress | 0 | 2 weeks |
-| [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | 🟡 In Progress | 2 | 2-3 weeks |
+| [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | ✅ Complete | 0 | 2 weeks |
+| [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | ✅ Complete | 2 | 2-3 weeks |
 | [EPIC-010](./EPIC-010.signoz-logging.md) | SigNoz Logging Integration | ✅ Complete | 0 | 1 week |
 | [EPIC-011](./EPIC-011.asset-lifecycle.md) | Asset Lifecycle Management | 🟡 In Progress (P0 ✅) | 5 | 4-5 weeks |
 | [EPIC-012](./EPIC-012.foundation-libs.md) | Foundation Libraries Enhancement | 🟡 In Progress | 0 | 2-3 weeks |

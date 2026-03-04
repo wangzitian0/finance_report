@@ -226,7 +226,7 @@ jobs:
       - name: Run scripts tests with coverage
         run: |
           printf '[run]\nomit = scripts/tests/*\n' > /tmp/scripts-coveragerc
-          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg pytest scripts/tests/ \
+          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest scripts/tests/ \
             --cov=scripts \
             --cov-config=/tmp/scripts-coveragerc \
             --cov-report=lcov:coverage/scripts.lcov \

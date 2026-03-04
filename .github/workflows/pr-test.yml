@@ -378,6 +378,12 @@ jobs:
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests
 
+      - name: Generate PDF fixtures for E2E tests
+        run: |
+          mkdir -p tmp/fixtures
+          cd scripts/pdf_fixtures
+          python generate_pdf_fixtures.py --source dbs --output ../../tmp/fixtures/
+
       - name: End-to-End Tests
         id: e2e_tests
         env:
