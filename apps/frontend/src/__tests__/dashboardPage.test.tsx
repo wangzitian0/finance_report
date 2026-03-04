@@ -207,4 +207,44 @@ describe("DashboardPage", () => {
     expect(screen.getByText("16 matched")).toBeInTheDocument()
   })
 
+  it("renders account selector and handles trend error when multiple assets exist", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [
+          { account_id: "a1", name: "Cash", amount: 5000 },
+          { account_id: "a2", name: "Savings", amount: 3000 },
+        ],
+        total_assets: 8000,
+        total_liabilities: 1000,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({ trends: [] })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+      // First trend fetch succeeds
+      .mockResolvedValueOnce({ points: [{ period_start: "2026-01-01", amount: 5000 }] })
+      // Second trend fetch (after account change) rejects
+      .mockRejectedValueOnce(new Error("trend fetch failed"))
+
+    render(<DashboardPage />)
+
+    // Wait for data to load
+    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
+
+    // Account selector should be visible with 2+ assets
+    const selector = screen.getByRole("combobox") as HTMLSelectElement
+    expect(selector).toBeInTheDocument()
+    expect(screen.getByText("Top Asset")).toBeInTheDocument()
+    expect(screen.getByText("Savings")).toBeInTheDocument()
+
+    // Change to Savings account (triggers trendAccountId path + failed trend fetch)
+    fireEvent.change(selector, { target: { value: "a2" } })
+
+    // Wait for the failed trend fetch to settle
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(7))
+  })
+
 })
