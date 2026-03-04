@@ -77,7 +77,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 
 async def _find_statement_by_institution(page: Page, institution: str) -> dict | None:
-    response = await page.request.get(_get_url("/api/statements"))
+    response = await page.context.request.get(_get_url("/api/statements"))
     if response.status != 200:
         return None
 
@@ -136,7 +136,7 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(statement_row).to_be_visible(timeout=15_000)
     # Verify the statement is immediately accessible via the API.
     # We do NOT wait for AI parsing to complete (that can take minutes on cold start).
-    resp = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
+    resp = await page.context.request.get(_get_url(f"/api/statements/{statement_id}"))
     assert resp.status == 200, f"GET /api/statements/{statement_id} returned {resp.status}"
     statement = await resp.json()
     assert statement.get("id") == statement_id
