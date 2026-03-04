@@ -286,7 +286,7 @@ jobs:
             fi
             status=$(echo "$response" | jq -r '.composeStatus // "unknown"')
             LAST_STATUS="$status"
-            latest_deploy=$(echo "$response" | jq -r '.deployments[-1] // {}')
+            latest_deploy=$(echo "$response" | jq -r '[.deployments[] // {}] | sort_by(.startedAt) | last // {}')
             latest_status=$(echo "$latest_deploy" | jq -r '.status // "unknown"')
             latest_started=$(echo "$latest_deploy" | jq -r '.startedAt // ""')
             LAST_DEPLOY_STATUS="$latest_status"
