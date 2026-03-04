@@ -210,6 +210,10 @@ jobs:
             echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"
             echo "OTEL_SERVICE_NAME=finance-report-backend"
             echo "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-$PR_NUMBER"
+
+            # Rate limiting: disable for E2E test environment to prevent false 429s
+            # All 23 E2E tests run from one IP, easily exhausting the production default
+            echo "API_RATE_LIMIT_REQUESTS=10000"
           } > .env.dokploy
           
           ENV_CONTENT=$(cat .env.dokploy)
