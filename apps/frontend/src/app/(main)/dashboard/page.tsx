@@ -172,8 +172,8 @@ export default function DashboardPage() {
               <p className="text-xs text-muted mt-1">As of {balanceSheet.as_of_date} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
             </div>
             {stats && (() => {
-              const total = (stats.auto_accepted ?? 0) + (stats.pending_review ?? 0) + (stats.unmatched_transactions ?? 0);
-              const clean = stats.auto_accepted ?? 0;
+              const total = stats.total_transactions ?? 0;
+              const clean = stats.matched_transactions ?? 0;
               const pct = total > 0 ? Math.round((clean / total) * 100) : 100;
               const barColor = pct >= 85 ? "var(--success)" : pct >= 60 ? "var(--warning)" : "var(--error)";
               return (

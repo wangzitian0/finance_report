@@ -102,7 +102,7 @@ export default function LoginPage() {
                             required
                             autoComplete="email"
                             placeholder="you@example.com"
-                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
+                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
                         />
                     </div>
 
@@ -123,7 +123,7 @@ export default function LoginPage() {
                             // SECURITY: Use appropriate autocomplete attribute for password managers
                             autoComplete={mode === "register" ? "new-password" : "current-password"}
                             placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"}
-                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
+                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
                         />
                     </div>
 

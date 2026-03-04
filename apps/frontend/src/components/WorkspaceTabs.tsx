@@ -27,7 +27,7 @@ const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/statements": { label: "Statements", Icon: FileText },
-    "/assets": { label: "Assets", Icon: Landmark },
+    "/assets": { label: "Portfolio", Icon: Landmark },
     "/reports": { label: "Reports", Icon: BarChart3 },
     "/reports/balance-sheet": { label: "Balance Sheet", Icon: BarChart3 },
     "/reports/income-statement": { label: "Income Statement", Icon: BarChart3 },
@@ -82,7 +82,7 @@ export function WorkspaceTabs() {
 
     return (
         <div className="h-11 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
-            <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-[var(--border)] h-full flex items-center mr-1">Tabs</span>
+            <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-[var(--border)] h-full flex items-center mr-1">Open Tabs</span>
             <div className="flex items-center gap-0.5 px-2">
                 {tabs.map((tab) => (
                     <TabItem
