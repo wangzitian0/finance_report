@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     )
 
     # Rate Limiting (global API protection)
-    api_rate_limit_requests: int = Field(default=100, ge=1, validation_alias="API_RATE_LIMIT_REQUESTS")
+    api_rate_limit_requests: int = Field(default=300, ge=1, validation_alias="API_RATE_LIMIT_REQUESTS")
     api_rate_limit_window: int = Field(default=60, ge=1, validation_alias="API_RATE_LIMIT_WINDOW")
 
     @cached_property
