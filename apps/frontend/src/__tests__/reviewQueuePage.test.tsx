@@ -67,7 +67,7 @@ describe("Stage2ReviewQueuePage", () => {
 
     await waitFor(() => expect(screen.getByText("Failed to load review queue")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))
-    await waitFor(() => expect(screen.getByText("Stage 2 Review Queue")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
   })
 
   it("AC16.17.2 shows unresolved-check warning and disables batch approval", async () => {
@@ -91,7 +91,7 @@ describe("Stage2ReviewQueuePage", () => {
 
     render(<Stage2ReviewQueuePage />)
 
-    await waitFor(() => expect(screen.getByText("Stage 2 Review Queue")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: "Select all" }))
     fireEvent.click(screen.getByRole("button", { name: "Reject" }))
@@ -129,7 +129,7 @@ describe("Stage2ReviewQueuePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/consistency-checks/c1/resolve", {
         method: "POST",
-        body: JSON.stringify({ action: "reject", note: undefined }),
+        body: JSON.stringify({ action: "reject", note: "" }),
       }),
     )
   })

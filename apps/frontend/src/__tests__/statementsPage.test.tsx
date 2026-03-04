@@ -25,6 +25,17 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }))
 
+vi.mock("@/components/ui/ConfirmDialog", () => ({
+  default: ({ isOpen, onConfirm, onCancel, title }: { isOpen: boolean; onConfirm: () => void; onCancel: () => void; title?: string; message?: string; confirmLabel?: string; confirmVariant?: string }) =>
+    isOpen ? (
+      <div data-testid="confirm-dialog">
+        <span>{title}</span>
+        <button onClick={onConfirm}>Confirm Delete</button>
+        <button onClick={onCancel}>Cancel Delete</button>
+      </div>
+    ) : null,
+}))
+
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))
@@ -35,12 +46,9 @@ describe("StatementsPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
-    vi.stubGlobal("confirm", vi.fn(() => true))
   })
-
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it("AC16.14.10 renders loading, error, empty, and populated states", async () => {
@@ -129,13 +137,15 @@ describe("StatementsPage", () => {
       .mockResolvedValueOnce({ items: [] })
 
     render(<StatementsPage />)
-
     await waitFor(() => expect(screen.getByText("delete.pdf")).toBeInTheDocument())
     fireEvent.click(screen.getByTitle("Delete Statement"))
-
+    // ConfirmDialog should now be open
+    await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Confirm Delete"))
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/s3", { method: "DELETE" })
     })
     expect(showToastMock).toHaveBeenCalledWith("Statement deleted successfully", "success")
-  })
+})
+
 })

@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import AccountsPage from "@/app/(main)/accounts/page"
 import { apiFetch } from "@/lib/api"
@@ -14,6 +14,17 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }))
 
+
+vi.mock("@/components/ui/ConfirmDialog", () => ({
+  default: ({ isOpen, onConfirm, onCancel, title }: { isOpen: boolean; onConfirm: () => void; onCancel: () => void; title?: string; message?: string; confirmLabel?: string; confirmVariant?: string }) =>
+    isOpen ? (
+      <div data-testid="confirm-dialog">
+        <span>{title}</span>
+        <button onClick={onConfirm}>Confirm Delete</button>
+        <button onClick={onCancel}>Cancel Delete</button>
+      </div>
+    ) : null,
+}))
 vi.mock("@/components/accounts/AccountFormModal", () => ({
   default: ({ isOpen, editAccount }: { isOpen: boolean; editAccount: Account | null }) =>
     isOpen ? <div>{editAccount ? `Edit:${editAccount.name}` : "Create Account Modal"}</div> : null,
@@ -42,11 +53,6 @@ describe("AccountsPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
-    vi.stubGlobal("confirm", vi.fn(() => true))
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it("AC16.15.1 renders loading and error retry states", async () => {
@@ -91,6 +97,9 @@ describe("AccountsPage", () => {
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Delete Account"))
+    // ConfirmDialog should now be open
+    await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Confirm Delete"))
 
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })

@@ -45,7 +45,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Welcome to Finance Report")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Unable to Load Dashboard")).toBeInTheDocument())
     expect(screen.getByText("dashboard failed")).toBeInTheDocument()
     const callCountBeforeRetry = mockedApiFetch.mock.calls.length
     fireEvent.click(screen.getByRole("button", { name: "Retry Connection" }))
@@ -168,7 +168,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />)
 
     await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
-    expect(screen.getByText("No trend data")).toBeInTheDocument()
+    expect(screen.getByText(/No trend data/)).toBeInTheDocument()
     expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
     expect(screen.getByText("No income data available.")).toBeInTheDocument()
     expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
