@@ -141,9 +141,17 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
 
 
 # Paths exempt from global API rate limiting
-_RATE_LIMIT_EXEMPT_PATHS = frozenset({
-    "/health", "/ping", "/ping/toggle", "/docs", "/openapi.json", "/redoc", "/metrics",
-})
+_RATE_LIMIT_EXEMPT_PATHS = frozenset(
+    {
+        "/health",
+        "/ping",
+        "/ping/toggle",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/metrics",
+    }
+)
 
 
 @app.middleware("http")
@@ -153,8 +161,8 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
         return await call_next(request)
 
     forwarded_for = request.headers.get("X-Forwarded-For")
-    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
-        request.client.host if request.client else "unknown"
+    client_ip = (
+        forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host if request.client else "unknown")
     )
 
     allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
