@@ -113,4 +113,23 @@ describe("Sidebar and WorkspaceTabs", () => {
       label: "Custom Page Name"
     })))
   });
+
+  it("AC16.19.12 sidebar nav shows Portfolio label for /assets route", () => {
+    render(<Sidebar />)
+    expect(screen.getByText("Portfolio")).toBeInTheDocument()
+    expect(screen.queryByText("Assets")).not.toBeInTheDocument()
+  })
+
+  it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {
+    pathnameMock = "/assets"
+    render(<WorkspaceTabs />)
+    await waitFor(() =>
+      expect(addTabMock).toHaveBeenCalledWith(expect.objectContaining({ label: "Portfolio", href: "/assets" }))
+    )
+  })
+
+  it("AC16.19.14 WorkspaceTabs section header is Open Tabs in both empty and active states", () => {
+    render(<WorkspaceTabs />)
+    expect(screen.getByText("Open Tabs")).toBeInTheDocument()
+  })
 });

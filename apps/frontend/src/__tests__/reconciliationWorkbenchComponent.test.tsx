@@ -126,4 +126,42 @@ describe("ReconciliationWorkbench", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reject" }))
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/reject", { method: "POST" }))
   })
+
+  it("AC16.20.6 score distribution renders 0% height for buckets with value 0", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) {
+        return Promise.resolve({
+          total_transactions: 10,
+          matched_transactions: 8,
+          unmatched_transactions: 2,
+          pending_review: 1,
+          auto_accepted: 7,
+          match_rate: 80,
+          score_distribution: { "90-100": 5, "80-89": 0, "60-79": 2, "0-59": 0 },
+        })
+      }
+      if (url.includes("/api/reconciliation/pending")) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Score Distribution")).toBeInTheDocument())
+    // Wait for the distribution bucket labels to be rendered (only present when stats is loaded)
+    await waitFor(() => expect(screen.getByText("90-100")).toBeInTheDocument())
+    // Buckets with value 0 must render height: 0%
+    const allDivs = Array.from(document.querySelectorAll("[style]"))
+    const zeroBars = allDivs.filter((el) => (el as HTMLElement).style.height === "0%")
+    expect(zeroBars.length).toBeGreaterThanOrEqual(2)
+    // Non-zero buckets must have height > 0%
+    const nonZeroBars = allDivs.filter((el) => {
+      const h = (el as HTMLElement).style.height
+      return h.endsWith("%") && h !== "0%"
+    })
+    expect(nonZeroBars.length).toBeGreaterThanOrEqual(2)
+  })
+
 })

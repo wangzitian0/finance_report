@@ -174,4 +174,37 @@ describe("DashboardPage", () => {
     expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
     expect(screen.getByText("No unmatched transactions.")).toBeInTheDocument()
   })
+
+  it("AC16.23.6 data health bar uses matched_transactions/total_transactions not auto_accepted", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [],
+        total_assets: 0,
+        total_liabilities: 0,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({ currency: "USD", trends: [] })
+      .mockResolvedValueOnce({
+        total_transactions: 20,
+        matched_transactions: 16,
+        unmatched_transactions: 4,
+        pending_review: 2,
+        auto_accepted: 4,
+        match_rate: 80,
+      })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Data health")).toBeInTheDocument())
+    // Should show 80% (= 16/20), NOT 20% (= 4/20 from auto_accepted)
+    expect(screen.getByText("80%")).toBeInTheDocument()
+    expect(screen.queryByText("20%")).not.toBeInTheDocument()
+    // Label shows matched count from matched_transactions
+    expect(screen.getByText("16 matched")).toBeInTheDocument()
+  })
+
 })
