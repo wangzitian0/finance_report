@@ -21,7 +21,7 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
-from src.rate_limit import auth_rate_limiter, register_rate_limiter
+from src.rate_limit import api_rate_limiter, auth_rate_limiter, register_rate_limiter
 from src.routers import accounts, ai_models, assets, auth, chat, journal, portfolio, reports, review, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Close rate limiters (Redis connections)
     auth_rate_limiter.close()
     register_rate_limiter.close()
+    api_rate_limiter.close()
 
     with suppress(asyncio.CancelledError):
         await supervisor_task
@@ -137,6 +138,33 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
             error=str(exc),
         )
         raise
+
+
+# Paths exempt from global API rate limiting
+_RATE_LIMIT_EXEMPT_PATHS = frozenset({
+    "/health", "/ping", "/ping/toggle", "/docs", "/openapi.json", "/redoc", "/metrics",
+})
+
+
+@app.middleware("http")
+async def global_rate_limit_middleware(request: Request, call_next: Any) -> Response:
+    """Global API rate limiting middleware. Runs before logging middleware (LIFO order)."""
+    if request.url.path in _RATE_LIMIT_EXEMPT_PATHS:
+        return await call_next(request)
+
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
+        request.client.host if request.client else "unknown"
+    )
+
+    allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded. Please try again later."},
+            headers={"Retry-After": str(retry_after)},
+        )
+    return await call_next(request)
 
 
 @app.exception_handler(BaseAppException)
@@ -192,6 +220,12 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# Prometheus metrics endpoint (optional, enabled by default)
+if settings.enable_metrics:
+    from prometheus_fastapi_instrumentator import Instrumentator  # noqa: PLC0415
+
+    Instrumentator().instrument(app).expose(app)
 
 # Include routers
 app.include_router(auth.router)

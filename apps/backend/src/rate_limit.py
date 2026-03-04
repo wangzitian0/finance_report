@@ -160,3 +160,13 @@ register_rate_limiter = RateLimiter(
         block_seconds=600,  # 10 minute block
     )
 )
+
+
+# Global rate limiter for all API endpoints (excluding health/docs/metrics)
+api_rate_limiter = RateLimiter(
+    RateLimitConfig(
+        max_requests=settings.api_rate_limit_requests,  # default: 100 req
+        window_seconds=settings.api_rate_limit_window,  # default: per 60s
+        block_seconds=60,  # 1 minute block
+    )
+)

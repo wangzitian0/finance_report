@@ -286,6 +286,22 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.22.1 | Move 6 inline schemas from statements router to review module | N/A (mechanical) | N/A | P0 |
 | AC12.22.2 | Extract background task schemas from inline/background definitions into dedicated modules | N/A (mechanical) | N/A | P0 |
 
+### AC12.23: Rate Limiting - Global API Middleware (M3)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.23.1 | Global rate limit middleware exempts /health | `test_global_rate_limit_middleware_exempts_health()` | `infra/test_rate_limit.py` | P1 |
+| AC12.23.2 | Global rate limit middleware returns 429 after limit exceeded | `test_global_rate_limit_middleware_blocks_after_limit()` | `infra/test_rate_limit.py` | P1 |
+| AC12.23.3 | Global rate limit middleware allows normal requests | `test_global_rate_limit_middleware_allows_normal_requests()` | `infra/test_rate_limit.py` | P1 |
+| AC12.23.4 | Global rate limit middleware exempts /docs | `test_global_rate_limit_middleware_exempts_docs()` | `infra/test_rate_limit.py` | P1 |
+
+### AC12.24: Metrics - Prometheus Endpoint (M4)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.24.1 | /metrics endpoint returns 200 OK | `test_metrics_endpoint_returns_200()` | `infra/test_metrics.py` | P1 |
+| AC12.24.2 | /metrics endpoint returns text/plain content type | `test_metrics_endpoint_content_type()` | `infra/test_metrics.py` | P1 |
+| AC12.24.3 | /metrics response contains Prometheus metric definitions | `test_metrics_endpoint_contains_prometheus_data()` | `infra/test_metrics.py` | P1 |
 
 ## 📊 Progress Tracking
 
@@ -296,8 +312,8 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | 2 | Transaction Boundaries (H2) | ⏳ Pending | - |
 | 3 | Connection Pool Config (M1) | ✅ Complete | This PR |
 | 4 | Exception Hierarchy (M2) | ✅ Complete | This PR |
-| 5 | Rate Limiting (M3) | ⏳ Pending | - |
-| 6 | Metrics Endpoint (M4) | ⏳ Pending | - |
+| 5 | Rate Limiting (M3) | ✅ Complete | This PR |
+| 6 | Metrics Endpoint (M4) | ✅ Complete | This PR |
 
 ---
 
