@@ -74,6 +74,7 @@ export function WorkspaceTabs() {
     if (tabs.length === 0) {
         return (
             <div className="h-11 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center px-3">
+                <span className="text-xs font-medium text-muted uppercase tracking-wider mr-3">Open Tabs</span>
                 <span className="text-muted text-sm">No tabs open</span>
             </div>
         );
@@ -81,6 +82,7 @@ export function WorkspaceTabs() {
 
     return (
         <div className="h-11 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
+            <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-[var(--border)] h-full flex items-center mr-1">Tabs</span>
             <div className="flex items-center gap-0.5 px-2">
                 {tabs.map((tab) => (
                     <TabItem

@@ -22,6 +22,10 @@ export default function JournalPage() {
     const [voidDialogOpen, setVoidDialogOpen] = useState(false);
     const [voidingEntryId, setVoidingEntryId] = useState<string | null>(null);
     const [voidLoading, setVoidLoading] = useState(false);
+    // Delete dialog state
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     const fetchEntries = useCallback(async () => {
         setLoading(true);
@@ -58,17 +62,33 @@ export default function JournalPage() {
         }
     };
 
-    const handleDeleteEntry = async (entryId: string) => {
-        if (!window.confirm("Are you sure you want to delete this journal entry?")) return;
+    const openDeleteDialog = (entryId: string) => {
+        setDeletingEntryId(entryId);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingEntryId) return;
+        setDeleteLoading(true);
         try {
-            await apiFetch(`/api/journal-entries/${entryId}`, { method: "DELETE" });
+            await apiFetch(`/api/journal-entries/${deletingEntryId}`, { method: "DELETE" });
             showToast("Draft entry deleted successfully", "success");
+            setDeleteDialogOpen(false);
+            setDeletingEntryId(null);
             fetchEntries();
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to delete entry";
             showToast(message, "error");
             setError(message);
+        } finally {
+            setDeleteLoading(false);
         }
+    };
+
+    const handleDeleteCancel = () => {
+        if (deleteLoading) return;
+        setDeleteDialogOpen(false);
+        setDeletingEntryId(null);
     };
 
     const openVoidDialog = (entryId: string) => {
@@ -205,26 +225,27 @@ export default function JournalPage() {
                                             </div>
                                             {entry.status === "draft" && (
                                                 <div className="flex gap-2">
-                                                    <button 
-                                                        onClick={() => handleDeleteEntry(entry.id)} 
-                                                        className="badge badge-error cursor-pointer hover:opacity-80"
+                                                    <button
+                                                        onClick={() => openDeleteDialog(entry.id)}
+                                                        className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
                                                     >
                                                         Delete
                                                     </button>
-                                                    <button 
-                                                        onClick={() => handlePostEntry(entry.id)} 
-                                                        className="badge badge-success cursor-pointer hover:opacity-80"
+                                                    <button
+                                                        onClick={() => handlePostEntry(entry.id)}
+                                                        className="btn-primary text-xs py-1 px-2"
                                                     >
                                                         Post
                                                     </button>
                                                 </div>
                                             )}
                                             {(entry.status === "posted" || entry.status === "reconciled") && (
-                                                <button onClick={() => openVoidDialog(entry.id)} className="badge badge-error cursor-pointer hover:opacity-80">
+                                                <button onClick={() => openVoidDialog(entry.id)} className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]">
                                                     Void
                                                 </button>
                                             )}
                                         </div>
+
                                     </div>
                                 </div>
                             );
@@ -248,6 +269,17 @@ export default function JournalPage() {
                 inputPlaceholder="Enter reason for voiding this entry..."
                 inputRequired
                 loading={voidLoading}
+            />
+
+            <ConfirmDialog
+                isOpen={deleteDialogOpen}
+                onCancel={handleDeleteCancel}
+                onConfirm={() => handleDeleteConfirm()}
+                title="Delete Journal Entry"
+                message="Are you sure you want to delete this journal entry? This action cannot be undone."
+                confirmLabel="Delete Entry"
+                confirmVariant="danger"
+                loading={deleteLoading}
             />
         </div>
     );

@@ -268,10 +268,15 @@ export default function ReconciliationWorkbench() {
           <h2 className="font-semibold">Score Distribution</h2>
           <span className="text-xs text-muted">Confidence bands</span>
         </div>
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-wrap items-end gap-4" style={{ height: "100px" }}>
           {distribution.map(([label, value]) => (
-            <div key={label} className="flex flex-col items-center gap-1">
-              <div className="w-10 rounded-md bg-[var(--accent)]" style={{ height: `${20 + (value / maxBucket) * 80}px` }} />
+            <div key={label} className="flex flex-col items-end gap-1" style={{ height: "100%" }}>
+              <div className="flex-1 flex items-end">
+                <div
+                  className="w-10 rounded-md bg-[var(--accent)] transition-all"
+                  style={{ height: maxBucket > 0 ? `${Math.max(10, Math.round((value / maxBucket) * 100))}%` : "10%" }}
+                />
+              </div>
               <div className="text-xs font-medium">{label}</div>
               <div className="text-xs text-muted">{value}</div>
             </div>

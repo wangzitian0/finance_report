@@ -440,8 +440,8 @@ export default function StatementDetailPage() {
                                         }`}>
                                             {formatAmount(txn.amount, txn.direction)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{txn.currency || "—"}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{txn.balance_after != null ? formatCurrency(txn.balance_after) : "—"}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.currency || "—"}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrency(txn.balance_after) : "—"}</td>
                                         <td className="px-4 py-3 text-center">
                                             <span className={`badge ${
                                                 txn.confidence === "high" ? "badge-success" :
