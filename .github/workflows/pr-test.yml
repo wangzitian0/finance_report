@@ -247,6 +247,11 @@ jobs:
           fi
           
           sleep 5
+          # Record exact time before triggering deploy (used by polling step)
+          TRIGGER_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "trigger_time=$TRIGGER_TIME" >> "$GITHUB_OUTPUT"
+          echo "Deploy trigger time: $TRIGGER_TIME"
+          
           
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
@@ -259,83 +264,49 @@ jobs:
       - name: Poll Deployment Status
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          TRIGGER_TIME: ${{ steps.deploy.outputs.trigger_time }}
         run: |
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
-          echo "Polling deployment status for $COMPOSE_ID..."
-          
-          # Track the start time to detect stale error status
-          START_TIME=$(date +%s)
+          echo "Polling deployment status for $COMPOSE_ID (triggered at $TRIGGER_TIME)..."
+          TRIGGER_EPOCH=$(date -d "$TRIGGER_TIME" +%s 2>/dev/null || echo "0")
           LAST_STATUS=""
           LAST_DEPLOY_STATUS=""
-          
           for i in $(seq 1 60); do
             response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
               "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" 2>&1)
             curl_exit=$?
-            
             if [ $curl_exit -ne 0 ]; then
               echo "::warning::Attempt $i/60: API request failed (curl exit $curl_exit)"
               sleep 5
               continue
             fi
-            
             status=$(echo "$response" | jq -r '.composeStatus // "unknown"')
             LAST_STATUS="$status"
-            
-            # Get the latest deployment status and time
             latest_deploy=$(echo "$response" | jq -r '.deployments[-1] // {}')
             latest_status=$(echo "$latest_deploy" | jq -r '.status // "unknown"')
             latest_started=$(echo "$latest_deploy" | jq -r '.startedAt // ""')
             LAST_DEPLOY_STATUS="$latest_status"
-            
-            echo "Attempt $i/60: composeStatus=$status, latestDeployment=$latest_status"
-            
-            # Check if latest deployment started after we triggered (within last 2 min)
+            echo "Attempt $i/60: composeStatus=$status, latestDeployment=$latest_status (startedAt=$latest_started)"
             if [ -n "$latest_started" ] && [ "$latest_started" != "null" ]; then
-              # Try multiple date formats for ISO 8601 parsing
-              deploy_time=$(date -d "$latest_started" +%s 2>/dev/null || \
-                           date -d "${latest_started%.*}Z" +%s 2>/dev/null || \
-                           echo "")
-              
-              if [ -z "$deploy_time" ]; then
-                echo "::warning::Could not parse timestamp: $latest_started (using fallback)"
-              else
-                time_diff=$((START_TIME - deploy_time))
-                
-                # If latest deployment is recent (within 120s of our start)
-                if [ "$time_diff" -lt 120 ] && [ "$time_diff" -gt -300 ]; then
-                  if [ "$latest_status" = "done" ]; then
-                    echo "✅ Latest deployment completed successfully"
-                    exit 0
-                  elif [ "$latest_status" = "error" ]; then
-                    echo "::error::Latest deployment failed"
-                    echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
-                    exit 1
-                  fi
+              deploy_epoch=$(date -d "$latest_started" +%s 2>/dev/null || date -d "${latest_started%.*}Z" +%s 2>/dev/null || echo "0")
+              if [ "$deploy_epoch" -ge "$TRIGGER_EPOCH" ]; then
+                if [ "$latest_status" = "done" ]; then
+                  echo "\u2705 Deployment (started at $latest_started) completed successfully"
+                  exit 0
+                elif [ "$latest_status" = "error" ]; then
+                  echo "::error::Deployment (started at $latest_started) failed"
+                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // \"unknown\")"' || true
+                  exit 1
                 fi
+              else
+                echo "  (predates trigger $TRIGGER_TIME -- ignoring)"
               fi
             fi
-            
-            # Fallback: check compose-level status after a grace period
-            if [ "$i" -gt 5 ]; then
-              if [ "$status" = "done" ] || [ "$status" = "running" ]; then
-                echo "✅ Deployment completed with status: $status"
-                exit 0
-              fi
-            fi
-            
             sleep 5
           done
-          
-          # Timeout - provide diagnostics
           echo "::error::Deployment did not complete within 5 minutes"
-          echo "=== FINAL STATE DIAGNOSTICS ==="
-          echo "Last composeStatus: $LAST_STATUS"
-          echo "Last deployment status: $LAST_DEPLOY_STATUS"
-          echo "Start time: $(date -d "@$START_TIME" 2>/dev/null || echo "$START_TIME")"
-          echo "API response (last 1000 chars):"
+          echo "Last composeStatus: $LAST_STATUS, Last deploy: $LAST_DEPLOY_STATUS"
           echo "$response" | tail -c 1000
-          echo "================================"
           exit 1
 
       - name: Wait for API readiness
