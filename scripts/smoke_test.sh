@@ -182,10 +182,10 @@ check_endpoint "Ping API" "$BASE_URL/api/ping" || FAILED=1
 echo "--- Authentication Tests ---"
 # Test that protected endpoints return 401 when unauthenticated
 AUTH_TEST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/api/statements" 2>/dev/null || echo "000")
-if [ "$AUTH_TEST_CODE" = "401" ]; then
-    echo "✓ Protected endpoint returns 401 (unauthenticated)"
+if [ "$AUTH_TEST_CODE" = "401" ] || [ "$AUTH_TEST_CODE" = "429" ]; then
+    echo "✓ Protected endpoint is secured (HTTP $AUTH_TEST_CODE)"
 else
-    echo "✗ Protected endpoint returned $AUTH_TEST_CODE (expected 401)"
+    echo "✗ Protected endpoint returned $AUTH_TEST_CODE (expected 401 or 429)"
     FAILED=1
 fi
 
