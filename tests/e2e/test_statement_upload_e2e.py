@@ -128,25 +128,28 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
         f"Upload endpoint returned unexpected status {upload_resp.status} — "
         f"expected 2xx. Response body: {await upload_resp.text()}"
     )
-
+    upload_body = await upload_resp.json()
+    statement_id = upload_body.get("id")
+    assert statement_id, f"Upload response missing 'id' field: {upload_body}"
     statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
     await expect(statement_row).to_be_visible(timeout=15_000)
-
+    # Poll by ID — institution may be overwritten by AI parser during processing.
+    # Matching by institution name is unreliable for this reason.
     deadline = time.time() + 120
     statement = None
     while time.time() < deadline:
-        statement = await _find_statement_by_institution(page, "E2E Upload Test Bank")
-        if statement and statement.get("status") != "pending":
-            break
+        resp = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
+        if resp.status == 200:
+            statement = await resp.json()
+            if statement.get("status") not in ("uploaded", "parsing"):
+                break
         await page.wait_for_timeout(2_000)
-
-    assert statement is not None, "Uploaded statement not found in statements list"
+    assert statement is not None, "Uploaded statement not found via API"
     status = statement.get("status")
-    assert status in {"parsed", "parse_failed"}, (
-        "Expected statement status to become parsed or parse_failed after upload"
+    assert status in {"parsed", "approved", "rejected"}, (
+        "Expected statement status to become parsed/approved/rejected after upload"
     )
-
-    if status == "parsed":
+    if status in {"parsed", "approved"}:
         transactions = statement.get("transactions") or []
         assert len(transactions) >= 0, (
             "Transaction count is non-deterministic in E2E as it depends on AI model availability"
