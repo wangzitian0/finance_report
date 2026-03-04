@@ -360,6 +360,29 @@ jobs:
           cd scripts/pdf_fixtures
           python generate_pdf_fixtures.py --source dbs --output ../../tmp/fixtures/
 
+      - name: Flush rate-limit Redis keys before E2E tests
+        env:
+          VPS_HOST: cloud.zitian.party
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+        run: |
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "::warning::VPS_SSH_KEY not configured. Skipping Redis flush."
+            exit 0
+          fi
+          
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          
+          REDIS_PORT=$((31000 + PR_NUMBER))
+          echo "Flushing rate_limit:* keys from Redis on port $REDIS_PORT..."
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=accept-new root@"$VPS_HOST" \
+            "redis-cli -p $REDIS_PORT --scan --pattern 'rate_limit:*' | xargs -r redis-cli -p $REDIS_PORT del || true"
+          echo "Redis rate-limit keys flushed"
+          
+          rm -f ~/.ssh/vps_key
+
       - name: End-to-End Tests
         id: e2e_tests
         env:
