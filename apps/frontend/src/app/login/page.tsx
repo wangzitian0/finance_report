@@ -46,29 +46,29 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--muted)]">
-            <div className="w-full max-w-md p-8 rounded-2xl bg-[var(--card)] shadow-2xl border border-[var(--border)]">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--background-muted)]">
+            <div className="w-full max-w-md p-8 rounded-2xl bg-[var(--background-card)] shadow-2xl border border-[var(--border)]">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--primary)] mb-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] mb-4">
                         <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
                     <h1 className="text-2xl font-bold text-[var(--foreground)]">Finance Report</h1>
-                    <p className="text-[var(--muted-foreground)] mt-1">
+                    <p className="text-[var(--foreground-muted)] mt-1">
                         Personal financial management
                     </p>
                 </div>
 
                 {/* Mode Toggle */}
-                <div className="flex mb-6 p-1 bg-[var(--muted)] rounded-lg">
+                <div className="flex mb-6 p-1 bg-[var(--background-muted)] rounded-lg">
                     <button
                         type="button"
                         onClick={() => setMode("login")}
                         className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${mode === "login"
-                            ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
-                            : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                            ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
+                            : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
                             }`}
                     >
                         Login
@@ -77,8 +77,8 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => setMode("register")}
                         className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${mode === "register"
-                            ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
-                            : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                            ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
+                            : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
                             }`}
                     >
                         Register
@@ -102,7 +102,7 @@ export default function LoginPage() {
                             required
                             autoComplete="email"
                             placeholder="you@example.com"
-                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
+                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
                         />
                     </div>
 
@@ -123,7 +123,7 @@ export default function LoginPage() {
                             // SECURITY: Use appropriate autocomplete attribute for password managers
                             autoComplete={mode === "register" ? "new-password" : "current-password"}
                             placeholder={mode === "register" ? "At least 8 characters" : "Enter your password"}
-                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
+                            className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all"
                         />
                     </div>
 
@@ -136,7 +136,7 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-[var(--accent)] to-[var(--primary)] text-white font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--background)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)] text-white font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--background)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? (
                             <span className="inline-flex items-center">
@@ -154,7 +154,7 @@ export default function LoginPage() {
                     </button>
                 </form>
 
-                <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
+                <p className="mt-6 text-center text-sm text-[var(--foreground-muted)]">
                     {mode === "login" ? (
                         <>
                             Don&apos;t have an account?{" "}

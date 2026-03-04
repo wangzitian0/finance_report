@@ -137,17 +137,17 @@ export default function BalanceSheetPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="card p-5">
+        <div className="card p-5" id="assets">
           <h2 className="font-semibold mb-3">Assets</h2>
           <div className="space-y-1">{assetsTree.length ? assetsTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)]">Total: {report ? formatCurrencyLocale(toNumber(report.total_assets), report.currency) : "—"}</div>
         </div>
-        <div className="card p-5">
+        <div className="card p-5" id="liabilities">
           <h2 className="font-semibold mb-3">Liabilities</h2>
           <div className="space-y-1">{liabilitiesTree.length ? liabilitiesTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--error)]">Total: {report ? formatCurrencyLocale(toNumber(report.total_liabilities), report.currency) : "—"}</div>
         </div>
-        <div className="card p-5">
+        <div className="card p-5" id="equity">
           <h2 className="font-semibold mb-3">Equity</h2>
           <div className="space-y-1">{equityTree.length ? equityTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold">Total: {report ? formatCurrencyLocale(toNumber(report.total_equity), report.currency) : "—"}</div>

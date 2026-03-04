@@ -16,11 +16,11 @@ vi.mock("@/components/journal/JournalEntryForm", () => ({
 }))
 
 vi.mock("@/components/ui/ConfirmDialog", () => ({
-  default: ({ isOpen, onConfirm, onCancel }: { isOpen: boolean; onConfirm: (reason?: string) => void; onCancel: () => void }) =>
+  default: ({ isOpen, onConfirm, onCancel, confirmLabel }: { isOpen: boolean; onConfirm: (reason?: string) => void; onCancel: () => void; confirmLabel?: string }) =>
     isOpen ? (
       <div>
-        <button onClick={() => onConfirm("void reason")}>Confirm Void</button>
-        <button onClick={onCancel}>Cancel Void</button>
+        <button onClick={() => onConfirm("void reason")}>{confirmLabel ?? "Confirm"}</button>
+        <button onClick={onCancel}>Cancel</button>
       </div>
     ) : null,
 }))
@@ -125,10 +125,11 @@ describe("JournalPage", () => {
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/d1/post", { method: "POST" }))
 
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Delete Entry" }))
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/d1", { method: "DELETE" }))
 
     fireEvent.click(screen.getAllByRole("button", { name: "Void" })[0])
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Void" }))
+    fireEvent.click(screen.getByRole("button", { name: "Void Entry" }))
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/p1/void", {
         method: "POST",
