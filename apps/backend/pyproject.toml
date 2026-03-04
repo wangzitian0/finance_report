@@ -29,7 +29,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",
     "httpx-sse>=0.4.3",
-    "prometheus-fastapi-instrumentator==7.1.0",
+
 ]
 
 [dependency-groups]

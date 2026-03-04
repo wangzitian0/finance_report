@@ -150,7 +150,6 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset(
         "/docs/oauth2-redirect",
         "/openapi.json",
         "/redoc",
-        "/metrics",
     }
 )
 
@@ -228,12 +227,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization"],
 )
-
-# Prometheus metrics endpoint (optional, enabled by default)
-if settings.enable_metrics:
-    from prometheus_fastapi_instrumentator import Instrumentator  # noqa: PLC0415
-
-    Instrumentator().instrument(app).expose(app)
 
 # Include routers
 app.include_router(auth.router)
