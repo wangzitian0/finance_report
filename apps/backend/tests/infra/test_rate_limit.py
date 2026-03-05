@@ -1,23 +1,12 @@
 """Tests for rate limiting functionality."""
 
 import uuid
-from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+from unittest.mock import patch
 
 from src.rate_limit import RateLimitConfig, RateLimiter
-
-
-def _make_limiter(*args, **kwargs) -> RateLimiter:
-    """Create a RateLimiter using in-memory storage (no Redis).
-
-    Unit tests test class behavior in isolation, independent of whether a
-    Redis instance is available in the test environment.
-    """
-    with patch("src.rate_limit.settings") as mock_settings:
-        mock_settings.redis_url = None
-        return RateLimiter(*args, **kwargs)
 
 
 def _unique_key() -> str:
@@ -27,7 +16,7 @@ def _unique_key() -> str:
 
 def test_rate_limiter_allows_requests_within_limit() -> None:
     """Requests within limit should be allowed."""
-    limiter = _make_limiter(RateLimitConfig(max_requests=3, window_seconds=60, block_seconds=300))
+    limiter = RateLimiter(RateLimitConfig(max_requests=3, window_seconds=60, block_seconds=300))
     key = _unique_key()
 
     for _ in range(3):
@@ -36,12 +25,11 @@ def test_rate_limiter_allows_requests_within_limit() -> None:
         assert retry_after == 0
 
     limiter.reset(key)
-    limiter.close()
 
 
 def test_rate_limiter_blocks_after_limit() -> None:
     """Requests exceeding limit should be blocked."""
-    limiter = _make_limiter(RateLimitConfig(max_requests=2, window_seconds=60, block_seconds=10))
+    limiter = RateLimiter(RateLimitConfig(max_requests=2, window_seconds=60, block_seconds=10))
     key = _unique_key()
 
     # First 2 requests allowed
@@ -54,12 +42,11 @@ def test_rate_limiter_blocks_after_limit() -> None:
     assert retry_after > 0
 
     limiter.reset(key)
-    limiter.close()
 
 
 def test_rate_limiter_different_keys_independent() -> None:
     """Different keys should have independent rate limits."""
-    limiter = _make_limiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300))
+    limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300))
     key1 = _unique_key()
     key2 = _unique_key()
 
@@ -72,12 +59,11 @@ def test_rate_limiter_different_keys_independent() -> None:
 
     limiter.reset(key1)
     limiter.reset(key2)
-    limiter.close()
 
 
 def test_rate_limiter_reset_clears_state() -> None:
     """Reset should clear rate limit state for a key."""
-    limiter = _make_limiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300))
+    limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300))
     key = _unique_key()
 
     # Exhaust limit
@@ -89,12 +75,11 @@ def test_rate_limiter_reset_clears_state() -> None:
     assert limiter.is_allowed(key)[0] is True
 
     limiter.reset(key)
-    limiter.close()
 
 
 def test_rate_limiter_returns_remaining_block_time() -> None:
     """Blocked requests should return remaining block time on subsequent attempts."""
-    limiter = _make_limiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=100))
+    limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=100))
     key = _unique_key()
 
     # First request allowed
@@ -111,15 +96,13 @@ def test_rate_limiter_returns_remaining_block_time() -> None:
     assert 0 < retry_after <= 100  # Remaining time
 
     limiter.reset(key)
-    limiter.close()
 
 
 def test_rate_limiter_reset_nonexistent_key_is_safe() -> None:
     """Reset on a key that doesn't exist should not raise."""
-    limiter = _make_limiter(RateLimitConfig(max_requests=5, window_seconds=60, block_seconds=300))
+    limiter = RateLimiter(RateLimitConfig(max_requests=5, window_seconds=60, block_seconds=300))
     # Should not raise
     limiter.reset(_unique_key())
-    limiter.close()
 
 
 @pytest.mark.asyncio
@@ -151,6 +134,7 @@ async def test_global_rate_limit_middleware_blocks_after_limit(public_client: As
 async def test_global_rate_limit_middleware_allows_normal_requests(public_client: AsyncClient) -> None:
     """Normal requests within limit should pass through (non-exempt path, limiter called)."""
     from src.rate_limit import api_rate_limiter
+
     # Use a non-exempt path so the middleware actually invokes the rate limiter.
     with patch.object(api_rate_limiter, "is_allowed", return_value=(True, 0)) as mock_is_allowed:
         response = await public_client.post("/auth/login", json={"email": "x@x.com", "password": "x"})

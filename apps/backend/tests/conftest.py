@@ -111,11 +111,6 @@ os.environ["S3_ENDPOINT"] = (
     normalize_url(os.environ.get("S3_ENDPOINT", "http://127.0.0.1:9000")) or "http://127.0.0.1:9000"
 )
 
-# Redis is optional (only for distributed rate limiting in production)
-# Do not set default - let tests run without Redis
-if "REDIS_URL" in os.environ:
-    os.environ["REDIS_URL"] = normalize_url(os.environ["REDIS_URL"]) or os.environ["REDIS_URL"]
-
 # Set ENVIRONMENT for pydantic settings
 os.environ["ENVIRONMENT"] = "testing"
 

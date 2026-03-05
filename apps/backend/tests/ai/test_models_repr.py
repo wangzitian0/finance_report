@@ -267,3 +267,38 @@ def test_atomic_position_repr():
     )
     result = repr(position)
     assert result == "<AtomicPosition 2024-01-15 AAPL 100 @ 15000.00 USD>"
+
+
+
+def test_dividend_income_repr():
+    """
+    GIVEN a DividendIncome instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with payment date, amount, and currency
+    """
+    from src.models.portfolio import DividendIncome
+
+    dividend = DividendIncome(
+        payment_date=date(2024, 3, 15),
+        amount="125.50",
+        currency="USD",
+    )
+    result = repr(dividend)
+    assert result == "<DividendIncome 2024-03-15 125.50 USD>"
+
+
+def test_market_data_override_repr():
+    """
+    GIVEN a MarketDataOverride instance
+    WHEN calling repr() on it
+    THEN it returns a formatted string with asset identifier, price, and date
+    """
+    from src.models.portfolio import MarketDataOverride
+
+    override = MarketDataOverride(
+        asset_identifier="AAPL",
+        price="185.50",
+        price_date=date(2024, 3, 15),
+    )
+    result = repr(override)
+    assert result == "<MarketDataOverride AAPL 185.50 on 2024-03-15>"

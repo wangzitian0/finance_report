@@ -21,7 +21,7 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
-from src.rate_limit import api_rate_limiter, auth_rate_limiter, register_rate_limiter
+from src.rate_limit import api_rate_limiter
 from src.routers import accounts, ai_models, assets, auth, chat, journal, portfolio, reports, review, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
@@ -82,11 +82,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     stop_event.set()
     supervisor_task.cancel()
-
-    # Close rate limiters (Redis connections)
-    auth_rate_limiter.close()
-    register_rate_limiter.close()
-    api_rate_limiter.close()
 
     with suppress(asyncio.CancelledError):
         await supervisor_task
@@ -264,10 +259,6 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             checks["database"] = True
         except Exception:
             checks["database"] = False
-
-        # Redis
-        redis_res = await Bootloader._check_redis()
-        checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
 
         # S3
         s3_res = await Bootloader._check_s3()

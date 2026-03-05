@@ -15,7 +15,6 @@ _ORIGINAL_CHECK_DATABASE = BootloaderClass._check_database
 def mock_settings():
     with patch("src.boot.settings") as mock:
         mock.database_url = "postgresql+asyncpg://test:test@localhost/test"
-        mock.redis_url = None
         mock.openrouter_api_key = None
         mock.s3_endpoint = "http://localhost:9000"
         mock.s3_access_key = "minio"
@@ -42,12 +41,6 @@ def mock_logger():
 @pytest.fixture
 def mock_db_check():
     with patch("src.boot.Bootloader._check_database", new_callable=AsyncMock) as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_redis_check():
-    with patch("src.boot.Bootloader._check_redis", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -87,36 +80,24 @@ class TestBootloader:
         mock_db_check.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_full_check_runs_all(self, mock_db_check, mock_redis_check, mock_minio_check, mock_settings):
+    async def test_full_check_runs_all(self, mock_db_check, mock_minio_check, mock_settings):
         """Full check must verify all services."""
         mock_db_check.return_value = ServiceStatus(service="database", status="ok", message="OK")
-        mock_redis_check.return_value = ServiceStatus(service="redis", status="ok", message="OK")
         mock_minio_check.return_value = ServiceStatus(service="minio", status="ok", message="OK")
 
         await Bootloader.validate(BootMode.FULL)
 
         mock_db_check.assert_called_once()
-        mock_redis_check.assert_called_once()
         mock_minio_check.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_full_check_warns_but_proceeds(self, mock_db_check, mock_redis_check, mock_minio_check):
+    async def test_full_check_warns_but_proceeds(self, mock_db_check, mock_minio_check):
         """Full check warns on optional service failure but doesn't exit."""
         mock_db_check.return_value = ServiceStatus(service="database", status="ok", message="OK")
-        mock_redis_check.return_value = ServiceStatus(service="redis", status="error", message="No Redis")
         mock_minio_check.return_value = ServiceStatus(service="minio", status="ok", message="OK")
 
         # Should not raise SystemExit
         await Bootloader.validate(BootMode.FULL)
-
-        mock_redis_check.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_check_redis_skipped_if_no_url(self, mock_settings):
-        """Redis check skipped if URL not configured."""
-        mock_settings.redis_url = None
-        status = await Bootloader._check_redis()
-        assert status.status == "skipped"
 
     @pytest.mark.asyncio
     async def test_check_s3_handles_client_error(self):
@@ -186,7 +167,6 @@ class TestBootloaderPrintConfig:
         mock_settings.otel_exporter_otlp_endpoint = None
         mock_settings.otel_service_name = "finance-report"
         mock_settings.database_url = "secret"
-        mock_settings.redis_url = None
         mock_settings.openrouter_api_key = None
         mock_settings.s3_access_key = "key"
         mock_settings.s3_secret_key = "secret"
@@ -196,7 +176,6 @@ class TestBootloaderPrintConfig:
         captured = capsys.readouterr()
         assert "Config loaded (DEBUG mode)" in captured.out
         assert "database_url: set" in captured.out
-        assert "redis_url: not set" in captured.out
 
     def test_print_config_shows_defaults_used(self, mock_settings, capsys):
         mock_settings.debug = True
@@ -209,7 +188,6 @@ class TestBootloaderPrintConfig:
         mock_settings.otel_exporter_otlp_endpoint = None
         mock_settings.otel_service_name = "finance-report"
         mock_settings.database_url = "secret"
-        mock_settings.redis_url = None
         mock_settings.openrouter_api_key = None
         mock_settings.s3_access_key = "key"
         mock_settings.s3_secret_key = "secret"
@@ -234,7 +212,6 @@ class TestBootloaderPrintConfig:
         mock_settings.otel_exporter_otlp_endpoint = "http://otel:4317"
         mock_settings.otel_service_name = "finance-report"
         mock_settings.database_url = "secret"
-        mock_settings.redis_url = "redis://localhost:6379"
         mock_settings.openrouter_api_key = "k"
         mock_settings.s3_access_key = "key"
         mock_settings.s3_secret_key = "secret"
@@ -343,34 +320,6 @@ class TestBootloaderDatabase:
             assert "Connection refused" in status.message
 
 
-class TestBootloaderRedis:
-    @pytest.mark.asyncio
-    async def test_check_redis_success(self, mock_settings):
-        mock_settings.redis_url = "redis://localhost:6379"
-        with patch("redis.asyncio.from_url") as mock_redis:
-            mock_client = AsyncMock()
-            mock_client.ping = AsyncMock(return_value=True)
-            mock_client.aclose = AsyncMock()
-            mock_redis.return_value = mock_client
-
-            status = await Bootloader._check_redis()
-
-            assert status.status == "ok"
-            assert status.service == "redis"
-            mock_client.ping.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_check_redis_failure(self, mock_settings):
-        mock_settings.redis_url = "redis://localhost:6379"
-        with patch("redis.asyncio.from_url") as mock_redis:
-            mock_redis.side_effect = Exception("Connection failed")
-
-            status = await Bootloader._check_redis()
-
-            assert status.status == "error"
-            assert "Connection failed" in status.message
-
-
 class TestBootloaderS3:
     @pytest.mark.asyncio
     async def test_check_s3_success(self, mock_settings):
@@ -448,10 +397,9 @@ class TestBootloaderOpenrouter:
 class TestBootloaderFullMode:
     @pytest.mark.asyncio
     async def test_full_mode_includes_openrouter(
-        self, mock_settings, mock_db_check, mock_redis_check, mock_minio_check, mock_openrouter_check
+        self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
     ):
         mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
-        mock_redis_check.return_value = ServiceStatus("redis", "ok", "OK")
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
         mock_openrouter_check.return_value = ServiceStatus("openrouter", "ok", "OK")
 
@@ -467,12 +415,10 @@ class TestBootloaderFullMode:
         mock_db_check.return_value = ServiceStatus("database", "warning", "Slow connection", 500.0)
 
         with (
-            patch.object(Bootloader, "_check_redis", new_callable=AsyncMock) as mock_redis,
             patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
             patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
             patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
-            mock_redis.return_value = ServiceStatus("redis", "ok", "OK")
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
             mock_openrouter.return_value = ServiceStatus("openrouter", "ok", "OK")
             mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
@@ -481,6 +427,25 @@ class TestBootloaderFullMode:
 
             assert result is True
             mock_logger.warning.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_full_mode_service_error_returns_false(self, mock_settings, mock_db_check, mock_logger):
+        """Full mode returns False (not sys.exit) when a service check has error status."""
+        mock_db_check.return_value = ServiceStatus("database", "error", "Connection refused")
+
+        with (
+            patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
+            patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
+            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
+        ):
+            mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
+            mock_openrouter.return_value = ServiceStatus("openrouter", "ok", "OK")
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+
+            result = await Bootloader.validate(BootMode.FULL)
+
+        assert result is False
+        mock_logger.error.assert_called()
 
 
 class TestBootloaderVaultSecrets:

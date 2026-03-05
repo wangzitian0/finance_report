@@ -21,7 +21,6 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "structlog>=25.5.0",
     "pyjwt>=2.10.1",
-    "redis>=7.1.0",
     "opentelemetry-sdk>=1.24.0",
     "opentelemetry-exporter-otlp-proto-http>=1.24.0",
     "opentelemetry-instrumentation-fastapi>=0.45b0",

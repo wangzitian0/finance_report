@@ -61,7 +61,6 @@ def test_AC16_11_7_list_containers_prints_all(capsys):
     assert "backend" in output
     assert "frontend" in output
     assert "postgres" in output
-    assert "redis" in output
 
 
 def test_AC16_11_21_view_remote_logs_docker_exits_when_vps_host_missing(monkeypatch):
@@ -171,6 +170,7 @@ def test_AC16_11_27_main_containers_path(monkeypatch):
 
 def test_view_local_logs_called_process_error(monkeypatch):
     """view_local_logs exits on CalledProcessError (lines 128-130)."""
+
     def raise_cpe(cmd, check=True):
         raise debug.subprocess.CalledProcessError(1, cmd)
 
@@ -182,6 +182,7 @@ def test_view_local_logs_called_process_error(monkeypatch):
 
 def test_view_local_logs_file_not_found(monkeypatch):
     """view_local_logs exits on FileNotFoundError (lines 131-133)."""
+
     def raise_fnf(cmd, check=True):
         raise FileNotFoundError("docker not found")
 
@@ -229,6 +230,7 @@ def test_view_remote_logs_docker_success(monkeypatch):
 
 def test_view_remote_logs_docker_called_process_error(monkeypatch):
     """view_remote_logs_docker exits on CalledProcessError (lines 195-197)."""
+
     def raise_cpe(cmd, check=True):
         raise debug.subprocess.CalledProcessError(1, cmd)
 
@@ -332,7 +334,9 @@ def test_main_logs_docker_remote_path(monkeypatch):
     monkeypatch.setattr(
         debug,
         "view_remote_logs_docker",
-        lambda service, env, tail=50, follow=False: calls.append((service, env, tail, follow)),
+        lambda service, env, tail=50, follow=False: calls.append(
+            (service, env, tail, follow)
+        ),
     )
     debug.main()
     assert calls == [(debug.Service.BACKEND, debug.Environment.PRODUCTION, 10, False)]
@@ -358,7 +362,9 @@ def test_main_status_remote_path(monkeypatch):
     monkeypatch.setattr(
         debug,
         "view_remote_logs_docker",
-        lambda service, env, tail=50, follow=False: calls.append((service, env, tail, follow)),
+        lambda service, env, tail=50, follow=False: calls.append(
+            (service, env, tail, follow)
+        ),
     )
     debug.main()
     assert calls == [(debug.Service.BACKEND, debug.Environment.PRODUCTION, 20, False)]

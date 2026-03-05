@@ -1,6 +1,6 @@
 # PR Test Environment Workflow - Triggered by PR events
 #
-# Each PR gets an isolated environment with its own DB/Redis/MinIO.
+# Each PR gets an isolated environment with its own DB/MinIO.
 # Uses docker-compose.yml from this repo (not infra2).
 
 name: PR Test Environment
@@ -172,7 +172,6 @@ jobs:
           # Range: 30000-34000 (Modulo 1000 to keep within range)
           PR_MOD=$((PR_NUMBER % 1000))
           DB_PORT=$((30000 + PR_MOD))
-          REDIS_PORT=$((31000 + PR_MOD))
           MINIO_API_PORT=$((32000 + PR_MOD))
           MINIO_CONSOLE_PORT=$((33000 + PR_MOD))
           
@@ -192,7 +191,6 @@ jobs:
             
             # Host binding: 127.0.0.1 to avoid exposing to public internet
             echo "DB_PORTS=127.0.0.1:$DB_PORT:5432"
-            echo "REDIS_PORTS=127.0.0.1:$REDIS_PORT:6379"
             echo "MINIO_API_PORTS=127.0.0.1:$MINIO_API_PORT:9000"
             echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
             
@@ -203,7 +201,6 @@ jobs:
             # CRITICAL: Use unique hostnames in Dokploy shared network
             # Container names with ENV_SUFFIX are used as hostnames
             echo "DB_HOST=finance-report-db-pr-$PR_NUMBER"
-            echo "REDIS_HOST=finance-report-redis-pr-$PR_NUMBER"
             echo "S3_HOST=finance-report-minio-pr-$PR_NUMBER"
             
             # SigNoz Logging (EPIC-010)
@@ -359,29 +356,6 @@ jobs:
           mkdir -p tmp/fixtures
           cd scripts/pdf_fixtures
           python generate_pdf_fixtures.py --source dbs --output ../../tmp/fixtures/
-
-      - name: Flush rate-limit Redis keys before E2E tests
-        env:
-          VPS_HOST: cloud.zitian.party
-          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-        run: |
-          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
-            echo "::warning::VPS_SSH_KEY not configured. Skipping Redis flush."
-            exit 0
-          fi
-          
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
-          chmod 600 ~/.ssh/vps_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          
-          REDIS_PORT=$((31000 + PR_NUMBER))
-          echo "Flushing rate_limit:* keys from Redis on port $REDIS_PORT..."
-          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=accept-new root@"$VPS_HOST" \
-            "redis-cli -p $REDIS_PORT --scan --pattern 'rate_limit:*' | xargs -r redis-cli -p $REDIS_PORT del || true"
-          echo "Redis rate-limit keys flushed"
-          
-          rm -f ~/.ssh/vps_key
 
       - name: End-to-End Tests
         id: e2e_tests
@@ -627,7 +601,7 @@ jobs:
             All temporary resources for this PR have been released:
             
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
-            - **Docker Volumes**: Cleaned (postgres_data, redis_data, minio_data)
+            - **Docker Volumes**: Cleaned (postgres_data, minio_data)
             - **GHCR Images**: Deleted (backend:pr-${{ needs.setup.outputs.pr_number }}, frontend:pr-${{ needs.setup.outputs.pr_number }})
             
             _Cleanup completed successfully._`;

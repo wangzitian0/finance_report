@@ -154,9 +154,9 @@ curl -sS -I -X OPTIONS "$BASE_URL/api/ping" \
     -H "Access-Control-Request-Method: GET" \
     | grep -qi "Access-Control-Allow-Origin" && echo "✓ CORS Headers" || { echo "✗ CORS Headers Missing"; FAILED=1; }
 
-# 2. Database & Redis Connectivity (Via Health Endpoint)
+# 2. Database Connectivity (Via Health Endpoint)
 # Ensure backend isn't just 'up' but actually 'connected' to its infra
-check_endpoint "DB/Redis Connectivity" "$BASE_URL/api/health" "healthy" || FAILED=1
+check_endpoint "DB Connectivity" "$BASE_URL/api/health" "healthy" || FAILED=1
 
 # 3. S3 Endpoint Validation (Network isolation check)
 # Fetch the S3 endpoint the backend is using (if exposed via a debug/config endpoint, 

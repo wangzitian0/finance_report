@@ -13,11 +13,6 @@ async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch
 
     monkeypatch.setattr(
         Bootloader,
-        "_check_redis",
-        AsyncMock(return_value=ServiceStatus("redis", "skipped", "Not configured")),
-    )
-    monkeypatch.setattr(
-        Bootloader,
         "_check_s3",
         AsyncMock(return_value=ServiceStatus("s3", "ok", "Reachable")),
     )
@@ -43,11 +38,9 @@ async def test_health_endpoint_structure(client: AsyncClient) -> None:
 
     checks = data["checks"]
     assert "database" in checks
-    assert "redis" in checks
     assert "s3" in checks
 
     assert isinstance(checks["database"], bool)
-    assert isinstance(checks["redis"], bool)
     assert isinstance(checks["s3"], bool)
 
 
@@ -78,40 +71,6 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
         assert data["checks"]["database"] is False
     finally:
         app.dependency_overrides.clear()
-
-
-@pytest.mark.asyncio
-async def test_health_passes_when_redis_not_configured(public_client: AsyncClient, monkeypatch) -> None:
-    """AC7.7.1: Health passes when Redis URL not set."""
-    monkeypatch.setattr("src.config.settings.redis_url", None)
-
-    response = await public_client.get("/health")
-
-    data = response.json()
-    assert data["checks"]["redis"] is True
-
-
-@pytest.mark.asyncio
-async def test_health_fails_when_redis_configured_but_unavailable(
-    public_client: AsyncClient,
-    monkeypatch,
-) -> None:
-    """AC7.7.2: Health fails when Redis configured but unreachable."""
-    monkeypatch.setattr("src.config.settings.redis_url", "redis://invalid:6379")
-
-    from src.boot import Bootloader, ServiceStatus
-
-    monkeypatch.setattr(
-        Bootloader,
-        "_check_redis",
-        AsyncMock(return_value=ServiceStatus("redis", "error", "Connection refused")),
-    )
-
-    response = await public_client.get("/health")
-
-    assert response.status_code == 503
-    data = response.json()
-    assert data["checks"]["redis"] is False
 
 
 @pytest.mark.asyncio
@@ -319,6 +278,7 @@ class TestModels:
 
 class TestConfig:
     """Tests for configuration."""
+
     def test_config_defaults(self, monkeypatch):
         """AC7.6.1: Config has reasonable defaults matching expected patterns."""
         from src.config import Settings
@@ -334,5 +294,6 @@ class TestConfig:
     def test_config_database_url(self):
         """AC7.6.1: Database URL is properly configured."""
         from src.config import Settings
+
         settings = Settings()
         assert "postgresql" in settings.database_url or "sqlite" in settings.database_url
