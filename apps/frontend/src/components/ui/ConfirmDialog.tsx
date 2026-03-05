@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState, useRef } from "react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -66,29 +67,7 @@ export default function ConfirmDialog({
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, loading, handleCancel]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-        const dialog = dialogRef.current;
-        if (!dialog) return;
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        first?.focus();
-        const trap = (e: KeyboardEvent) => {
-            if (e.key !== "Tab") return;
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last?.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first?.focus();
-            }
-        };
-        dialog.addEventListener("keydown", trap);
-        return () => dialog.removeEventListener("keydown", trap);
-    }, [isOpen]);
+    useFocusTrap(dialogRef, isOpen);
 
     if (!isOpen) return null;
 

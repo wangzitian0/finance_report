@@ -88,7 +88,7 @@ describe("ChatWidget", () => {
     await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
   })
 
-  it("closes panel on Escape key", async () => {
+  it("AC16.20.3 closes panel on Escape key", async () => {
     const user = userEvent.setup()
     render(<ChatWidget />)
 

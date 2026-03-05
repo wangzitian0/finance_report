@@ -92,7 +92,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(removeTabMock).toHaveBeenCalledWith("tab-1")
   });
 
-  it("shows empty state when no tabs", async () => {
+  it("AC16.19.4 shows empty state when no tabs", async () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -106,7 +106,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByText("No tabs open")).toBeInTheDocument()
   });
 
-  it("derives labels for unknown paths", async () => {
+  it("AC16.19.4 derives labels for unknown paths", async () => {
     pathnameMock = "/custom-page-name"
     render(<WorkspaceTabs />)
     await waitFor(() => expect(addTabMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -133,7 +133,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByText("Open Tabs")).toBeInTheDocument()
   })
 
-  it("navigates tabs with ArrowRight keyboard", () => {
+  it("AC16.19.15 navigates tabs with ArrowRight keyboard", () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -154,7 +154,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(pushMock).toHaveBeenCalledWith("/accounts")
   })
 
-  it("navigates tabs with ArrowLeft keyboard and wraps around", () => {
+  it("AC16.19.15 navigates tabs with ArrowLeft keyboard and wraps around", () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -175,7 +175,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(pushMock).toHaveBeenCalledWith("/accounts")
   })
 
-  it("renders tab ARIA attributes", () => {
+  it("AC16.19.15 renders tab ARIA attributes", () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,

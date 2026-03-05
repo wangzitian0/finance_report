@@ -218,7 +218,7 @@ export default function DashboardPage() {
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Income</p>
               <p className="text-2xl font-semibold text-[var(--success)] mt-1">{formatCurrencyLocale(monthIncome, currency, "en-US", fmtOpts)}</p>
-              <p className="text-xs text-muted mt-1">{formatDateDisplay(latest.period_start)}</p>
+              <p className="text-xs text-muted mt-1">{formatMonthLabel(latest.period_start)}</p>
             </Link>
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Expenses</p>

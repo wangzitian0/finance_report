@@ -5,6 +5,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { apiFetch } from "@/lib/api";
 import { formatAmount, isAmountZero, parseAmount, sumAmounts } from "@/lib/currency";
 import { Account, JournalEntry } from "@/lib/types";
@@ -47,29 +48,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
     const [postImmediately, setPostImmediately] = useState(false);
     const dialogRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!isOpen) return;
-        const dialog = dialogRef.current;
-        if (!dialog) return;
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        first?.focus();
-        const trap = (e: KeyboardEvent) => {
-            if (e.key !== "Tab") return;
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last?.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first?.focus();
-            }
-        };
-        dialog.addEventListener("keydown", trap);
-        return () => dialog.removeEventListener("keydown", trap);
-    }, [isOpen]);
+    useFocusTrap(dialogRef, isOpen);
 
     const {
         register,

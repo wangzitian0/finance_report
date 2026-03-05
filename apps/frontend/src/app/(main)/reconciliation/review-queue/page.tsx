@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useId, useState, useRef } from "react";
 import Link from "next/link";
 
-
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useToast } from "@/components/ui/Toast";
+
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
+
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 
 interface ConsistencyCheck {
@@ -78,29 +79,7 @@ export default function Stage2ReviewQueuePage() {
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [resolveDialogOpen, actionLoading]);
 
-    useEffect(() => {
-        if (!resolveDialogOpen) return;
-        const dialog = resolveDialogRef.current;
-        if (!dialog) return;
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        first?.focus();
-        const trap = (e: KeyboardEvent) => {
-            if (e.key !== "Tab") return;
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last?.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first?.focus();
-            }
-        };
-        dialog.addEventListener("keydown", trap);
-        return () => dialog.removeEventListener("keydown", trap);
-    }, [resolveDialogOpen]);
+    useFocusTrap(resolveDialogRef, resolveDialogOpen);
 
     const toggleMatch = (id: string) => {
         setSelectedMatches((prev) => {
@@ -397,7 +376,7 @@ export default function Stage2ReviewQueuePage() {
                                                     {match.description || "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-right font-medium">
-                                                    {match.amount != null ? formatCurrencyLocale(match.amount, "SGD") : "—"}
+                                                    {match.amount != null ? match.amount.toFixed(2) : "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-muted">
                                                     {match.txn_date ? formatDateDisplay(match.txn_date) : "—"}

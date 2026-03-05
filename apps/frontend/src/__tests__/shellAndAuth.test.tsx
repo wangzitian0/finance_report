@@ -99,7 +99,7 @@ describe("AppShell and AuthGuard", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"))
   })
 
-  it("shows loading skeleton for unauthenticated protected routes", () => {
+  it("AC16.19.2 shows loading skeleton for unauthenticated protected routes", () => {
     isAuthenticatedMock.mockReturnValue(false)
     const { container } = render(
       <AuthGuard><div>Protected Content</div></AuthGuard>,
@@ -108,7 +108,7 @@ describe("AppShell and AuthGuard", () => {
     expect(container.querySelector(".animate-pulse")).not.toBeNull()
   })
 
-  it("handles storage login event on login page", async () => {
+  it("AC16.19.2 handles storage login event on login page", async () => {
     pathnameMock = "/login"
     isAuthenticatedMock.mockReturnValue(false)
     render(<AuthGuard><div>Login Content</div></AuthGuard>)
@@ -117,7 +117,7 @@ describe("AppShell and AuthGuard", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/dashboard"))
   })
 
-  it("ignores unrelated storage events", async () => {
+  it("AC16.19.2 ignores unrelated storage events", async () => {
     pathnameMock = "/dashboard"
     isAuthenticatedMock.mockReturnValue(true)
     render(<AuthGuard><div>Content</div></AuthGuard>)

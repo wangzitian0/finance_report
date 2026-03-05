@@ -24,21 +24,21 @@ describe("formatDateInput", () => {
 });
 
 describe("formatDateDisplay", () => {
-    it("formats a Date object to en-US short date", () => {
+    it("AC16.6.2 formats a Date object to en-US short date", () => {
         const result = formatDateDisplay(new Date(2024, 0, 15));
         expect(result).toContain("Jan");
         expect(result).toContain("15");
         expect(result).toContain("2024");
     });
 
-    it("formats a date-only string (YYYY-MM-DD) correctly", () => {
+    it("AC16.6.2 formats a date-only string (YYYY-MM-DD) correctly", () => {
         const result = formatDateDisplay("2024-03-05");
         expect(result).toContain("Mar");
         expect(result).toContain("5");
         expect(result).toContain("2024");
     });
 
-    it("formats an ISO datetime string with T separator", () => {
+    it("AC16.6.2 formats an ISO datetime string with T separator", () => {
         const result = formatDateDisplay("2024-06-15T10:30:00Z");
         expect(result).toContain("Jun");
         expect(result).toContain("2024");
@@ -46,14 +46,14 @@ describe("formatDateDisplay", () => {
 });
 
 describe("formatDateTimeDisplay", () => {
-    it("formats a Date object with date and time", () => {
+    it("AC16.6.3 formats a Date object with date and time", () => {
         const result = formatDateTimeDisplay(new Date(2024, 5, 15, 14, 30));
         expect(result).toContain("Jun");
         expect(result).toContain("15");
         expect(result).toContain("2024");
     });
 
-    it("formats an ISO datetime string", () => {
+    it("AC16.6.3 formats an ISO datetime string", () => {
         const result = formatDateTimeDisplay("2024-03-05T10:30:00Z");
         expect(result).toContain("Mar");
         expect(result).toContain("2024");
@@ -61,7 +61,7 @@ describe("formatDateTimeDisplay", () => {
 });
 
 describe("formatMonthLabel", () => {
-    it("returns short month name from date string", () => {
+    it("AC16.6.4 returns short month name from date string", () => {
         expect(formatMonthLabel("2024-01-15")).toContain("Jan");
         expect(formatMonthLabel("2024-06-01")).toContain("Jun");
         expect(formatMonthLabel("2024-12-31")).toContain("Dec");

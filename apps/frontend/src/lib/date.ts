@@ -16,5 +16,6 @@ export const formatDateTimeDisplay = (value: string | Date): string => {
 };
 
 export const formatMonthLabel = (value: string): string => {
-  return new Date(value).toLocaleDateString("en-US", { month: "short" });
+  const safe = value.includes("T") ? value : value + "T00:00:00";
+  return new Date(safe).toLocaleDateString("en-US", { month: "short" });
 };
