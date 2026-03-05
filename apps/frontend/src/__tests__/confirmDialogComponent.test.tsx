@@ -50,4 +50,103 @@ describe("ConfirmDialog component", () => {
     if (backdrop) fireEvent.click(backdrop)
     expect(onCancel).toHaveBeenCalledTimes(2)
   })
+
+  it("AC16.19.16 renders dialog with ARIA attributes", () => {
+    const onConfirm = vi.fn()
+    const onCancel = vi.fn()
+
+    render(
+      <ConfirmDialog isOpen title="Test" message="Message" onConfirm={onConfirm} onCancel={onCancel} />,
+    )
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveAttribute("aria-modal", "true")
+    expect(dialog).toHaveAttribute("aria-labelledby")
+  })
+
+  it("AC16.19.16 blocks escape and backdrop when loading", () => {
+    const onConfirm = vi.fn()
+    const onCancel = vi.fn()
+
+    const { container } = render(
+      <ConfirmDialog isOpen loading title="Working" message="Wait" onConfirm={onConfirm} onCancel={onCancel} />,
+    )
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(onCancel).not.toHaveBeenCalled()
+
+    const backdrop = container.querySelector("[aria-hidden='true']")
+    if (backdrop) fireEvent.click(backdrop)
+    expect(onCancel).not.toHaveBeenCalled()
+
+    expect(screen.getByText("Processing...")).toBeInTheDocument()
+  })
+
+  it("AC16.19.16 renders nothing when not open", () => {
+    const { container } = render(
+      <ConfirmDialog isOpen={false} title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    expect(container.querySelector("[role='dialog']")).toBeNull()
+  })
+
+  it("AC16.19.16 shows danger variant styling", () => {
+    render(
+      <ConfirmDialog isOpen title="Delete" message="Sure?" confirmVariant="danger" confirmLabel="Delete" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    const deleteButton = screen.getByRole("button", { name: "Delete" })
+    expect(deleteButton.className).toContain("--error")
+  })
+
+  it("AC16.19.16 shows input label with required indicator", () => {
+    render(
+      <ConfirmDialog isOpen title="T" message="M" showInput inputRequired inputLabel="Reason" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    expect(screen.getByText("Reason")).toBeInTheDocument()
+    expect(screen.getByText("*")).toBeInTheDocument()
+  })
+
+  it("AC16.19.16 passes input value on confirm without required", () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmDialog isOpen title="T" message="M" showInput onConfirm={onConfirm} onCancel={vi.fn()} />,
+    )
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "note" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(onConfirm).toHaveBeenCalledWith("note")
+  })
+
+  it("AC16.19.16 renders children slot", () => {
+    render(
+      <ConfirmDialog isOpen title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()}>
+        <p>Extra info</p>
+      </ConfirmDialog>,
+    )
+    expect(screen.getByText("Extra info")).toBeInTheDocument()
+  })
+
+  it("AC16.19.17 traps focus with Tab and Shift+Tab", () => {
+    render(
+      <ConfirmDialog isOpen title="Focus" message="Trap" showInput onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+
+    const dialog = screen.getByRole("dialog")
+    const buttons = dialog.querySelectorAll<HTMLElement>("button, textarea")
+    const first = buttons[0]
+    const last = buttons[buttons.length - 1]
+
+    // Focus first element, then Shift+Tab should wrap to last
+    first?.focus()
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true })
+    expect(document.activeElement).toBe(last)
+
+    // Focus last element, then Tab should wrap to first
+    last?.focus()
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: false })
+    expect(document.activeElement).toBe(first)
+
+    // Non-Tab key should not affect focus
+    first?.focus()
+    fireEvent.keyDown(dialog, { key: "a" })
+    expect(document.activeElement).toBe(first)
+  })
 })

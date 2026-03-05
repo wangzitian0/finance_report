@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState, useRef } from "react";
 import Link from "next/link";
 
-
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useToast } from "@/components/ui/Toast";
+
 import { apiFetch } from "@/lib/api";
+
+import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 
 interface ConsistencyCheck {
     id: string;
@@ -44,6 +47,7 @@ export default function Stage2ReviewQueuePage() {
     const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
     const [selectedCheck, setSelectedCheck] = useState<ConsistencyCheck | null>(null);
     const [resolveNote, setResolveNote] = useState("");
+    const resolveDialogRef = useRef<HTMLDivElement>(null);
     const resolveTitleId = useId();
 
     const fetchData = useCallback(async () => {
@@ -62,7 +66,6 @@ export default function Stage2ReviewQueuePage() {
         fetchData();
     }, [fetchData]);
 
-    // ESC key handler for resolve dialog
     useEffect(() => {
         if (!resolveDialogOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -75,6 +78,8 @@ export default function Stage2ReviewQueuePage() {
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [resolveDialogOpen, actionLoading]);
+
+    useFocusTrap(resolveDialogRef, resolveDialogOpen);
 
     const toggleMatch = (id: string) => {
         setSelectedMatches((prev) => {
@@ -277,7 +282,7 @@ export default function Stage2ReviewQueuePage() {
                                             {(check.details.message as string | undefined) || JSON.stringify(check.details)}
                                         </p>
                                         <p className="text-xs text-muted mt-1">
-                                            {new Date(check.created_at).toLocaleString()}
+                                            {formatDateTimeDisplay(check.created_at)}
                                         </p>
                                     </div>
                                     <button
@@ -371,16 +376,16 @@ export default function Stage2ReviewQueuePage() {
                                                     {match.description || "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-right font-medium">
-                                                    {match.amount != null ? match.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                                                    {match.amount != null ? match.amount.toFixed(2) : "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-muted">
-                                                    {match.txn_date ? new Date(match.txn_date).toLocaleDateString() : "—"}
+                                                    {match.txn_date ? formatDateDisplay(match.txn_date) : "—"}
                                                 </td>
                                                 <td className="px-4 py-2">
                                                     <span className="badge badge-warning">{match.status}</span>
                                                 </td>
                                                 <td className="px-4 py-2 text-muted">
-                                                    {match.created_at ? new Date(match.created_at).toLocaleDateString() : "—"}
+                                                    {match.created_at ? formatDateDisplay(match.created_at) : "—"}
                                                 </td>
                                             </tr>
                                         ))}
@@ -426,7 +431,7 @@ export default function Stage2ReviewQueuePage() {
 {resolveDialogOpen && selectedCheck && (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="fixed inset-0 bg-black/60" onClick={() => { if (!actionLoading) { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); } }} aria-hidden="true" />
-        <div role="dialog" aria-modal="true" aria-labelledby={resolveTitleId} className="relative z-10 w-full max-w-md card animate-slide-up">
+        <div ref={resolveDialogRef} role="dialog" aria-modal="true" aria-labelledby={resolveTitleId} className="relative z-10 w-full max-w-md card animate-slide-up">
             <div className="card-header">
                 <h2 id={resolveTitleId} className="text-lg font-semibold">Resolve Consistency Check</h2>
             </div>
