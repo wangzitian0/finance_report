@@ -428,6 +428,25 @@ class TestBootloaderFullMode:
             assert result is True
             mock_logger.warning.assert_called()
 
+    @pytest.mark.asyncio
+    async def test_full_mode_service_error_returns_false(self, mock_settings, mock_db_check, mock_logger):
+        """Full mode returns False (not sys.exit) when a service check has error status."""
+        mock_db_check.return_value = ServiceStatus("database", "error", "Connection refused")
+
+        with (
+            patch.object(Bootloader, "_check_s3", new_callable=AsyncMock) as mock_s3,
+            patch.object(Bootloader, "_check_openrouter", new_callable=AsyncMock) as mock_openrouter,
+            patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
+        ):
+            mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
+            mock_openrouter.return_value = ServiceStatus("openrouter", "ok", "OK")
+            mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
+
+            result = await Bootloader.validate(BootMode.FULL)
+
+        assert result is False
+        mock_logger.error.assert_called()
+
 
 class TestBootloaderVaultSecrets:
     def test_vault_secrets_file_not_found(self):
