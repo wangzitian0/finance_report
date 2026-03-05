@@ -220,7 +220,7 @@ export default function JournalPage() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className="font-semibold">{entry.lines[0]?.currency ?? ""} {debits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                <div className="font-semibold">{entry.lines[0]?.currency ? `${entry.lines[0].currency} ` : ""}{debits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                                 <div className="text-xs text-muted">Total</div>
                                             </div>
                                             {entry.status === "draft" && (

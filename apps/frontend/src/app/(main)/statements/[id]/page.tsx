@@ -448,7 +448,7 @@ export default function StatementDetailPage() {
                                         <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
                                             txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
                                         }`}>
-                                            {formatAmount(txn.amount, txn.direction, statement.currency)}
+                                            {formatAmount(txn.amount, txn.direction, txn.currency ?? statement.currency)}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.currency || "—"}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrency(txn.balance_after) : "—"}</td>

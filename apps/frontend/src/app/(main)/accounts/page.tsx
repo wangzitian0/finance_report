@@ -41,11 +41,14 @@ export default function AccountsPage() {
         setDeleteDialogOpen(true);
     };
 
-    const handleDeleteConfirm = () => {
+    const handleDeleteConfirm = async () => {
         if (!deletingAccountId) return;
-        deleteMutation.mutate(deletingAccountId);
-        setDeleteDialogOpen(false);
-        setDeletingAccountId(null);
+        try {
+            await deleteMutation.mutateAsync(deletingAccountId);
+        } finally {
+            setDeleteDialogOpen(false);
+            setDeletingAccountId(null);
+        }
     };
 
     const handleModalSuccess = () => {
