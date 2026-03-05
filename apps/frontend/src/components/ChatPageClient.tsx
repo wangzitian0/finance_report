@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import ChatPanel from "@/components/ChatPanel";
@@ -12,16 +12,11 @@ const CONSENT_KEY = "ai_advisor_disclaimer_v1";
 export default function ChatPageClient() {
   const searchParams = useSearchParams();
   const initialPrompt = searchParams.get("prompt");
-  const [consentGiven, setConsentGiven] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(CONSENT_KEY) === "accepted";
+  });
   const dialogRef = useRef<HTMLDivElement>(null);
-
-  useFocusTrap(dialogRef, !consentGiven);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(CONSENT_KEY);
-    if (stored === "accepted") setConsentGiven(true);
-  }, []);
 
   const acceptConsent = () => {
     localStorage.setItem(CONSENT_KEY, "accepted");

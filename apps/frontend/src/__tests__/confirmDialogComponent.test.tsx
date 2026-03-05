@@ -51,7 +51,7 @@ describe("ConfirmDialog component", () => {
     expect(onCancel).toHaveBeenCalledTimes(2)
   })
 
-  it("AC16.19.9 renders dialog with ARIA attributes", () => {
+  it("AC16.19.16 renders dialog with ARIA attributes", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
 
@@ -64,7 +64,7 @@ describe("ConfirmDialog component", () => {
     expect(dialog).toHaveAttribute("aria-labelledby")
   })
 
-  it("AC16.19.9 blocks escape and backdrop when loading", () => {
+  it("AC16.19.16 blocks escape and backdrop when loading", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
 
@@ -82,14 +82,14 @@ describe("ConfirmDialog component", () => {
     expect(screen.getByText("Processing...")).toBeInTheDocument()
   })
 
-  it("AC16.19.9 renders nothing when not open", () => {
+  it("AC16.19.16 renders nothing when not open", () => {
     const { container } = render(
       <ConfirmDialog isOpen={false} title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
     expect(container.querySelector("[role='dialog']")).toBeNull()
   })
 
-  it("AC16.19.9 shows danger variant styling", () => {
+  it("AC16.19.16 shows danger variant styling", () => {
     render(
       <ConfirmDialog isOpen title="Delete" message="Sure?" confirmVariant="danger" confirmLabel="Delete" onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
@@ -97,7 +97,7 @@ describe("ConfirmDialog component", () => {
     expect(deleteButton.className).toContain("--error")
   })
 
-  it("AC16.19.9 shows input label with required indicator", () => {
+  it("AC16.19.16 shows input label with required indicator", () => {
     render(
       <ConfirmDialog isOpen title="T" message="M" showInput inputRequired inputLabel="Reason" onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
@@ -105,7 +105,7 @@ describe("ConfirmDialog component", () => {
     expect(screen.getByText("*")).toBeInTheDocument()
   })
 
-  it("AC16.19.9 passes input value on confirm without required", () => {
+  it("AC16.19.16 passes input value on confirm without required", () => {
     const onConfirm = vi.fn()
     render(
       <ConfirmDialog isOpen title="T" message="M" showInput onConfirm={onConfirm} onCancel={vi.fn()} />,
@@ -115,7 +115,7 @@ describe("ConfirmDialog component", () => {
     expect(onConfirm).toHaveBeenCalledWith("note")
   })
 
-  it("AC16.19.9 renders children slot", () => {
+  it("AC16.19.16 renders children slot", () => {
     render(
       <ConfirmDialog isOpen title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()}>
         <p>Extra info</p>
@@ -124,7 +124,7 @@ describe("ConfirmDialog component", () => {
     expect(screen.getByText("Extra info")).toBeInTheDocument()
   })
 
-  it("AC16.19.10 traps focus with Tab and Shift+Tab", () => {
+  it("AC16.19.17 traps focus with Tab and Shift+Tab", () => {
     render(
       <ConfirmDialog isOpen title="Focus" message="Trap" showInput onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )

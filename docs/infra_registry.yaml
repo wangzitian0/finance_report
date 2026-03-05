@@ -762,7 +762,21 @@ acs:
     epic_name: foundation-libs
     description: 'Global rate limit middleware exempts /docs'
     mandatory: true
-
+  - id: AC12.24.1
+    epic: 12
+    epic_name: foundation-libs
+    description: '~~/metrics endpoint returns 200 OK~~'
+    mandatory: true
+  - id: AC12.24.2
+    epic: 12
+    epic_name: foundation-libs
+    description: '~~/metrics endpoint returns text/plain~~'
+    mandatory: true
+  - id: AC12.24.3
+    epic: 12
+    epic_name: foundation-libs
+    description: '~~/metrics response contains Prometheus data~~'
+    mandatory: true
   # EPIC-014: ttd-transformation
   - id: AC14.1.1
     epic: 14
