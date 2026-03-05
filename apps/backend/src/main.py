@@ -83,11 +83,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     stop_event.set()
     supervisor_task.cancel()
 
-    # Close rate limiters (Redis connections)
-    auth_rate_limiter.close()
-    register_rate_limiter.close()
-    api_rate_limiter.close()
-
     with suppress(asyncio.CancelledError):
         await supervisor_task
     logger.info("Application shutting down")
@@ -264,10 +259,6 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
             checks["database"] = True
         except Exception:
             checks["database"] = False
-
-        # Redis
-        redis_res = await Bootloader._check_redis()
-        checks["redis"] = redis_res.status == "ok" or redis_res.status == "skipped"
 
         # S3
         s3_res = await Bootloader._check_s3()

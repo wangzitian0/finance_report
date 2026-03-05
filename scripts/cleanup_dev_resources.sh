@@ -27,7 +27,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # 1. Clean up containers
-SERVICES=("finance-report-db" "finance-report-redis" "finance-report-minio" "finance-report-minio-init")
+SERVICES=("finance-report-db" "finance-report-minio" "finance-report-minio-init")
 echo "🐳 Checking for lingering containers (${SERVICES[*]})..."
 
 if command -v docker >/dev/null 2>&1; then

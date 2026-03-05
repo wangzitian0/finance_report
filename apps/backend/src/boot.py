@@ -29,7 +29,7 @@ VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS = 3600
 
 class BootMode(str, Enum):
     CRITICAL = "critical"  # DB only (Fast fail for startup)
-    FULL = "full"  # DB + Redis + S3 + AI (Smoke tests)
+    FULL = "full"  # DB + S3 + AI (Smoke tests)
     DRY_RUN = "dry-run"  # Static config check only (CI lint)
 
 
@@ -71,7 +71,6 @@ class Bootloader:
 
         if mode == BootMode.FULL:
             # Add optional services for Full smoke test
-            results.append(await Bootloader._check_redis())
             results.append(await Bootloader._check_s3())
             results.append(await Bootloader._check_openrouter())
             results.append(Bootloader._check_vault_secrets())
@@ -126,7 +125,6 @@ class Bootloader:
         # Sensitive fields - only show "set"/"not set" status
         sensitive_fields = [
             "database_url",
-            "redis_url",
             "openrouter_api_key",
             "s3_access_key",
             "s3_secret_key",
@@ -189,24 +187,6 @@ class Bootloader:
         finally:
             if engine:
                 await engine.dispose()
-
-    @staticmethod
-    async def _check_redis() -> ServiceStatus:
-        if not settings.redis_url:
-            return ServiceStatus("redis", "skipped", "Not configured")
-
-        start = time.perf_counter()
-        try:
-            import redis.asyncio as aioredis
-
-            client = aioredis.from_url(settings.redis_url, decode_responses=True)
-            await client.ping()
-            await client.aclose()
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("redis", "ok", "Ping successful", duration_ms)
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("redis", "error", str(e), duration_ms)
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:

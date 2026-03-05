@@ -47,7 +47,6 @@ class Service(Enum):
     BACKEND = "backend"
     FRONTEND = "frontend"
     POSTGRES = "postgres"
-    REDIS = "redis"
 
 
 # Container name patterns per environment
@@ -56,25 +55,21 @@ CONTAINER_PATTERNS = {
         Service.BACKEND: "finance-report-backend",
         Service.FRONTEND: "finance-report-frontend",
         Service.POSTGRES: "finance-report-db",
-        Service.REDIS: "finance-report-redis",
     },
     Environment.CI: {
         Service.BACKEND: "finance-report-backend",
         Service.FRONTEND: "finance-report-frontend",
         Service.POSTGRES: "finance-report-db",
-        Service.REDIS: "finance-report-redis",
     },
     Environment.STAGING: {
         Service.BACKEND: "finance_report-backend-staging",
         Service.FRONTEND: "finance_report-frontend-staging",
         Service.POSTGRES: "finance_report-postgres-staging",
-        Service.REDIS: "finance_report-redis-staging",
     },
     Environment.PRODUCTION: {
         Service.BACKEND: "finance_report-backend",
         Service.FRONTEND: "finance_report-frontend",
         Service.POSTGRES: "finance_report-postgres",
-        Service.REDIS: "finance_report-redis",
     },
 }
 

@@ -64,12 +64,9 @@ def test_epic_001_docker_compose_contract() -> None:
     volumes = compose_data.get("volumes", {})
 
     assert "postgres" in services
-    assert "redis" in services
     assert services["postgres"]["image"].startswith("postgres:15")
-    assert services["redis"]["image"].startswith("redis:7")
 
     assert "postgres_data" in volumes
-    assert "redis_data" in volumes
 
 
 def test_epic_001_pre_commit_config_exists() -> None:

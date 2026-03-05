@@ -18,11 +18,11 @@ else
 fi
 
 echo "🐳 Found runtime: $RUNTIME"
-echo "🐘 Starting Infrastructure (Postgres, Redis, MinIO)..."
+echo "🐘 Starting Infrastructure (Postgres, MinIO)..."
 echo "   (Press Ctrl+C to stop)"
 
 # Execute compose command
 # Note: We use 'exec' so this script process is replaced by the runtime process,
 # ensuring signals like Ctrl+C are passed directly to docker/podman.
-# We explicitly enable the 'infra' profile to start DB/Redis/MinIO.
-exec $RUNTIME compose -f docker-compose.yml --profile infra up postgres redis minio minio-init
+# We explicitly enable the 'infra' profile to start DB/MinIO.
+exec $RUNTIME compose -f docker-compose.yml --profile infra up postgres minio minio-init

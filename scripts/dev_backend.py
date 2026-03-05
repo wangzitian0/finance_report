@@ -49,15 +49,15 @@ def get_compose_cmd() -> list[str]:
 def check_database_ready() -> bool:
     """Check if the database is accessible and run migrations."""
     print("🐘 Checking database connection...")
-    
+
     # We use a simple socket check or pg_isready via shell if available
     # But since we want to run migrations, let's just try to run alembic check/upgrade
     # If that works, the DB is ready.
-    
+
     try:
         # Check connectivity first to fail fast with a good message
         # (Optional: could use socket here, but alembic is the ultimate test)
-        pass 
+        pass
     except Exception:
         pass
 
@@ -68,13 +68,15 @@ def check_database_ready() -> bool:
             ["uv", "run", "alembic", "upgrade", "head"],
             cwd=REPO_ROOT / "apps" / "backend",
             check=True,
-            capture_output=True # Capture output to avoid noise if it fails
+            capture_output=True,  # Capture output to avoid noise if it fails
         )
         print("  ✓ Migrations completed (Database is ready)")
         return True
     except subprocess.CalledProcessError as e:
         print(f"\n❌ Error connecting to database or running migrations.")
-        print(f"   Stderr: {e.stderr.decode().strip() if e.stderr else 'Unknown error'}")
+        print(
+            f"   Stderr: {e.stderr.decode().strip() if e.stderr else 'Unknown error'}"
+        )
         print("\n💡 TIP: Did you forget to run the infrastructure?")
         print("   👉 Run 'moon run :infra' in a separate terminal first.")
         return False
@@ -83,7 +85,7 @@ def check_database_ready() -> bool:
 def cleanup(signum=None, frame=None):
     """Clean up resources."""
     print("\n🧹 Stopping uvicorn...")
-    
+
     proc = _started_resources.get("uvicorn_proc")
     if proc and proc.poll() is None:
         proc.terminate()
@@ -103,13 +105,12 @@ def main():
     # Set environment defaults (Localhost)
     os.environ.setdefault(
         "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report"
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report",
     )
     os.environ.setdefault("S3_ENDPOINT", "http://localhost:9000")
     os.environ.setdefault("S3_ACCESS_KEY", "minio")
     os.environ.setdefault("S3_SECRET_KEY", "minio_local_secret")
     os.environ.setdefault("S3_BUCKET", "statements")
-    os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 
     # Check dependencies
     if not check_database_ready():
@@ -122,7 +123,17 @@ def main():
     # Start uvicorn
     backend_dir = REPO_ROOT / "apps" / "backend"
     proc = subprocess.Popen(
-        ["uv", "run", "uvicorn", "src.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+        [
+            "uv",
+            "run",
+            "uvicorn",
+            "src.main:app",
+            "--reload",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
+        ],
         cwd=backend_dir,
     )
     _started_resources["uvicorn_proc"] = proc
