@@ -147,4 +147,61 @@ describe("ChatPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     await waitFor(() => expect(screen.getAllByText("Network Fail").length).toBeGreaterThan(0))
   })
+
+  it("handles suggestions fetch failure", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.reject(new Error("Suggestions fail"))
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({ sessions: [{ id: "sess-1", messages: [] }] })
+      }
+      return Promise.resolve({})
+    })
+    render(<ChatPanel variant="page" />)
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    expect(screen.queryByText("How is cash flow?")).not.toBeInTheDocument()
+  })
+
+  it("handles history fetch failure", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.resolve({ suggestions: ["Tip 1"] })
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.reject(new Error("History fail"))
+      }
+      return Promise.resolve({})
+    })
+    render(<ChatPanel variant="page" />)
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
+  })
+
+  it("handles AI model fetch failure", async () => {
+    mockedFetchAiModels.mockRejectedValue(new Error("Models fail"))
+    render(<ChatPanel variant="page" />)
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    const select = screen.queryByLabelText(/ai model/i)
+    if (select) {
+      expect((select as HTMLSelectElement).options.length).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it("falls back to first model when default_model not in list", async () => {
+    mockedFetchAiModels.mockResolvedValue({
+      models: [{
+        id: "model-alt",
+        name: "Alt Model",
+        is_free: true,
+        input_modalities: ["text"],
+        pricing: { prompt: "0", completion: "0" }
+      }],
+      default_model: "nonexistent-model",
+      fallback_models: [],
+    })
+    render(<ChatPanel variant="page" />)
+    const select = await screen.findByLabelText(/ai model/i) as HTMLSelectElement
+    await waitFor(() => expect(select.value).toBe("model-alt"))
+  })
 })

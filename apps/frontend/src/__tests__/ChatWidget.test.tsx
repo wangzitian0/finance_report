@@ -87,4 +87,16 @@ describe("ChatWidget", () => {
     await user.click(button)
     await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
   })
+
+  it("closes panel on Escape key", async () => {
+    const user = userEvent.setup()
+    render(<ChatWidget />)
+
+    const button = screen.getByRole("button", { name: /ask ai/i })
+    await user.click(button)
+    await waitFor(() => expect(screen.getByTestId("chat-panel")).toBeInTheDocument())
+
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument())
+  })
 })
