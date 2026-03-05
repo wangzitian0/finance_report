@@ -123,4 +123,30 @@ describe("ConfirmDialog component", () => {
     )
     expect(screen.getByText("Extra info")).toBeInTheDocument()
   })
+
+  it("traps focus with Tab and Shift+Tab", () => {
+    render(
+      <ConfirmDialog isOpen title="Focus" message="Trap" showInput onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+
+    const dialog = screen.getByRole("dialog")
+    const buttons = dialog.querySelectorAll<HTMLElement>("button, textarea")
+    const first = buttons[0]
+    const last = buttons[buttons.length - 1]
+
+    // Focus first element, then Shift+Tab should wrap to last
+    first?.focus()
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true })
+    expect(document.activeElement).toBe(last)
+
+    // Focus last element, then Tab should wrap to first
+    last?.focus()
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: false })
+    expect(document.activeElement).toBe(first)
+
+    // Non-Tab key should not affect focus
+    first?.focus()
+    fireEvent.keyDown(dialog, { key: "a" })
+    expect(document.activeElement).toBe(first)
+  })
 })
