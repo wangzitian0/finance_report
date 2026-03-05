@@ -107,7 +107,7 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument()
   })
 
-  it("AC16.12.8 toggles password visibility", () => {
+  it("AC16.12.13 toggles password visibility", () => {
     render(<LoginPage />)
 
     const passwordInput = screen.getByLabelText("Password") as HTMLInputElement
@@ -123,7 +123,7 @@ describe("LoginPage", () => {
     expect(passwordInput.type).toBe("password")
   })
 
-  it("AC16.12.9 shows error with alert role and aria-live", async () => {
+  it("AC16.12.14 shows error with alert role and aria-live", async () => {
     mockedApiFetch.mockRejectedValueOnce(new Error("bad request"))
     render(<LoginPage />)
 
@@ -138,7 +138,7 @@ describe("LoginPage", () => {
     })
   })
 
-  it("AC16.12.10 shows mode toggle links", () => {
+  it("AC16.12.15 shows mode toggle links", () => {
     render(<LoginPage />)
     const toggleParagraph = screen.getByText("Don't have an account?").closest("p")!
     const registerLink = toggleParagraph.querySelector("button")!
@@ -149,7 +149,7 @@ describe("LoginPage", () => {
     expect(screen.getByText("Don't have an account?")).toBeInTheDocument()
   })
 
-  it("AC16.12.11 shows loading spinner during submission", async () => {
+  it("AC16.12.16 shows loading spinner during submission", async () => {
     let resolvePromise: (v: unknown) => void
     mockedApiFetch.mockReturnValueOnce(new Promise((r) => { resolvePromise = r }))
 

@@ -115,11 +115,12 @@ export default function StatementsPage() {
                         </div>
                     </div>
                     <div className="h-1.5 bg-[var(--background-muted)] rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-[var(--accent)] rounded-full animate-pulse" 
-                            style={{ width: '60%' }} 
-                            role="progressbar"
+                        <div
+                            className="h-full bg-[var(--accent)] rounded-full animate-pulse"
+                            style={{ width: '60%' }}
+                            role="status"
                             aria-label="Loading statements"
+                            aria-live="polite"
                         />
                     </div>
                 </div>

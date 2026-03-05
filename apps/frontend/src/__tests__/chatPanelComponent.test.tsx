@@ -128,7 +128,7 @@ describe("ChatPanel", () => {
     })))
   })
 
-  it("AC16.20.6 handles missing stream reader", async () => {
+  it("AC16.20.7 handles missing stream reader", async () => {
     mockedApiStream.mockResolvedValue({ response: { body: null } as any, sessionId: "sess-3" })
     render(<ChatPanel variant="page" />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
@@ -138,7 +138,7 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.getByText("No response stream available.")).toBeInTheDocument())
   })
 
-  it("AC16.20.6 handles send message error", async () => {
+  it("AC16.20.7 handles send message error", async () => {
     mockedApiStream.mockRejectedValue(new Error("Network Fail"))
     render(<ChatPanel variant="page" />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
@@ -148,7 +148,7 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.getAllByText("Network Fail").length).toBeGreaterThan(0))
   })
 
-  it("AC16.20.6 handles suggestions fetch failure", async () => {
+  it("AC16.20.7 handles suggestions fetch failure", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.reject(new Error("Suggestions fail"))
@@ -163,7 +163,7 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("How is cash flow?")).not.toBeInTheDocument()
   })
 
-  it("AC16.20.6 handles history fetch failure", async () => {
+  it("AC16.20.7 handles history fetch failure", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: ["Tip 1"] })
@@ -178,7 +178,7 @@ describe("ChatPanel", () => {
     expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
   })
 
-  it("AC16.20.6 handles AI model fetch failure", async () => {
+  it("AC16.20.7 handles AI model fetch failure", async () => {
     mockedFetchAiModels.mockRejectedValue(new Error("Models fail"))
     render(<ChatPanel variant="page" />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
@@ -188,7 +188,7 @@ describe("ChatPanel", () => {
     }
   })
 
-  it("AC16.20.6 falls back to first model when default_model not in list", async () => {
+  it("AC16.20.7 falls back to first model when default_model not in list", async () => {
     mockedFetchAiModels.mockResolvedValue({
       models: [{
         id: "model-alt",
