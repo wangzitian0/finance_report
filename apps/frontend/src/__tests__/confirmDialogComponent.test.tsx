@@ -50,4 +50,77 @@ describe("ConfirmDialog component", () => {
     if (backdrop) fireEvent.click(backdrop)
     expect(onCancel).toHaveBeenCalledTimes(2)
   })
+
+  it("renders dialog with ARIA attributes", () => {
+    const onConfirm = vi.fn()
+    const onCancel = vi.fn()
+
+    render(
+      <ConfirmDialog isOpen title="Test" message="Message" onConfirm={onConfirm} onCancel={onCancel} />,
+    )
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveAttribute("aria-modal", "true")
+    expect(dialog).toHaveAttribute("aria-labelledby")
+  })
+
+  it("blocks escape and backdrop when loading", () => {
+    const onConfirm = vi.fn()
+    const onCancel = vi.fn()
+
+    const { container } = render(
+      <ConfirmDialog isOpen loading title="Working" message="Wait" onConfirm={onConfirm} onCancel={onCancel} />,
+    )
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(onCancel).not.toHaveBeenCalled()
+
+    const backdrop = container.querySelector("[aria-hidden='true']")
+    if (backdrop) fireEvent.click(backdrop)
+    expect(onCancel).not.toHaveBeenCalled()
+
+    expect(screen.getByText("Processing...")).toBeInTheDocument()
+  })
+
+  it("renders nothing when not open", () => {
+    const { container } = render(
+      <ConfirmDialog isOpen={false} title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    expect(container.querySelector("[role='dialog']")).toBeNull()
+  })
+
+  it("shows danger variant styling", () => {
+    render(
+      <ConfirmDialog isOpen title="Delete" message="Sure?" confirmVariant="danger" confirmLabel="Delete" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    const deleteButton = screen.getByRole("button", { name: "Delete" })
+    expect(deleteButton.className).toContain("--error")
+  })
+
+  it("shows input label with required indicator", () => {
+    render(
+      <ConfirmDialog isOpen title="T" message="M" showInput inputRequired inputLabel="Reason" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    )
+    expect(screen.getByText("Reason")).toBeInTheDocument()
+    expect(screen.getByText("*")).toBeInTheDocument()
+  })
+
+  it("passes input value on confirm without required", () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmDialog isOpen title="T" message="M" showInput onConfirm={onConfirm} onCancel={vi.fn()} />,
+    )
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "note" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(onConfirm).toHaveBeenCalledWith("note")
+  })
+
+  it("renders children slot", () => {
+    render(
+      <ConfirmDialog isOpen title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()}>
+        <p>Extra info</p>
+      </ConfirmDialog>,
+    )
+    expect(screen.getByText("Extra info")).toBeInTheDocument()
+  })
 })

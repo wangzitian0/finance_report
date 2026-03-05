@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { formatCurrencyLocale } from "@/lib/currency";
 
 interface BalanceValidationResult {
     opening_balance: string;
@@ -210,20 +211,20 @@ export default function StatementReviewPage() {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Opening Balance</div>
-                    <div className="text-lg font-semibold">{formatCurrency(data.opening_balance, data.currency)}</div>
+                    <div className="text-lg font-semibold">{formatCurrencyLocale(data.opening_balance ?? 0, data.currency || "SGD")}</div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Closing Balance</div>
-                    <div className="text-lg font-semibold">{formatCurrency(data.closing_balance, data.currency)}</div>
+                    <div className="text-lg font-semibold">{formatCurrencyLocale(data.closing_balance ?? 0, data.currency || "SGD")}</div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Calculated Closing</div>
                     <div className="text-lg font-semibold">
-                        {formatCurrency(
+                        {formatCurrencyLocale(
                             data.balance_validation_result
                                 ? parseFloat(data.balance_validation_result.calculated_closing)
-                                : null,
-                            data.currency
+                                : 0,
+                            data.currency || "SGD"
                         )}
                     </div>
                 </div>
@@ -254,7 +255,13 @@ export default function StatementReviewPage() {
                     </div>
                     <div className="flex-1 p-4 min-h-0">
                         {data.pdf_url ? (
-                            <iframe src={data.pdf_url} className="w-full h-full rounded border" title="PDF Preview" />
+                            <iframe 
+                                src={data.pdf_url} 
+                                className="w-full h-full rounded border" 
+                                title="Statement PDF preview"
+                            >
+                                <p>PDF preview not available. Use the data table below to review statement content.</p>
+                            </iframe>
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-muted">
                                 PDF preview not available
@@ -292,7 +299,7 @@ export default function StatementReviewPage() {
                                                 txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
                                             }`}
                                         >
-                                            {formatAmount(txn.amount, txn.direction)}
+                                            {txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, txn.currency || data.currency || "SGD")}
                                         </td>
                                         <td className="px-4 py-2 text-center">
                                             <span

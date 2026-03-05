@@ -6,6 +6,8 @@ import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { formatCurrencyLocale } from "@/lib/currency";
+import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry, JournalEntryListResponse, JournalLine } from "@/lib/types";
 
 const STATUS_FILTERS = ["All", "draft", "posted", "reconciled", "void"] as const;
@@ -211,7 +213,7 @@ export default function JournalPage() {
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-3 text-xs text-muted">
-                                                <span>{entry.entry_date}</span>
+                                                <span>{formatDateDisplay(entry.entry_date)}</span>
                                                 <span>•</span>
                                                 <span>{entry.lines.length} lines</span>
                                                 <span>•</span>
@@ -220,7 +222,7 @@ export default function JournalPage() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className="font-semibold">{entry.lines[0]?.currency ? `${entry.lines[0].currency} ` : ""}{debits.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                <div className="font-semibold">{formatCurrencyLocale(debits, entry.lines[0]?.currency || "SGD")}</div>
                                                 <div className="text-xs text-muted">Total</div>
                                             </div>
                                             {entry.status === "draft" && (

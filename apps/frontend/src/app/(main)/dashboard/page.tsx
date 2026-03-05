@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, FileText, BookOpen } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
-import { formatDateInput } from "@/lib/date";
+import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { BarChart } from "@/components/charts/BarChart";
 import { PieChart } from "@/components/charts/PieChart";
@@ -22,7 +22,6 @@ import {
 const CHART_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
-const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
 export default function DashboardPage() {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(null);
@@ -153,7 +152,7 @@ export default function DashboardPage() {
           <p className="text-2xl font-semibold text-[var(--success)] mt-1">
             {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_assets), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
-          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? new Date(balanceSheet.as_of_date + "T00:00:00").toLocaleDateString() : ""}</p>
+          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""}</p>
         </div>
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Liabilities</p>
@@ -179,7 +178,7 @@ export default function DashboardPage() {
               <p className={`text-4xl font-bold ${netAssets >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
                 {formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-xs text-muted mt-1">As of {new Date(balanceSheet.as_of_date + "T00:00:00").toLocaleDateString()} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
+              <p className="text-xs text-muted mt-1">As of {formatDateDisplay(balanceSheet.as_of_date)} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
             </div>
             {stats && (() => {
               const total = stats.total_transactions ?? 0;
@@ -219,7 +218,7 @@ export default function DashboardPage() {
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Income</p>
               <p className="text-2xl font-semibold text-[var(--success)] mt-1">{formatCurrencyLocale(monthIncome, currency, "en-US", fmtOpts)}</p>
-              <p className="text-xs text-muted mt-1">{new Date(`${latest.period_start}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</p>
+              <p className="text-xs text-muted mt-1">{formatDateDisplay(latest.period_start)}</p>
             </Link>
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Expenses</p>
@@ -306,7 +305,7 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {recentEntries?.items?.length ? recentEntries.items.map((e) => (
               <div key={e.id} className="flex justify-between p-3 rounded-md bg-[var(--background-muted)] text-sm">
-                <div><p className="font-medium">{e.memo || "Journal entry"}</p><p className="text-xs text-muted">{e.entry_date}</p></div>
+                <div><p className="font-medium">{e.memo || "Journal entry"}</p><p className="text-xs text-muted">{formatDateDisplay(e.entry_date)}</p></div>
                 <span className="badge badge-muted">{e.status}</span>
               </div>
             )) : <p className="text-sm text-muted">No recent journal entries.</p>}
@@ -317,7 +316,7 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {unmatched?.items?.length ? unmatched.items.map((t) => (
               <div key={t.id} className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
-                <div><p className="font-medium">{t.description}</p><p className="text-xs text-muted">{t.txn_date}</p></div>
+                <div><p className="font-medium">{t.description}</p><p className="text-xs text-muted">{formatDateDisplay(t.txn_date)}</p></div>
                 <span className="font-semibold">{balanceSheet ? formatCurrencyLocale(toNumber(t.amount), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : t.amount}</span>
               </div>
             )) : <p className="text-sm text-muted">No unmatched transactions.</p>}

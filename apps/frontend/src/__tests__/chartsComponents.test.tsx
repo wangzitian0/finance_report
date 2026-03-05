@@ -29,7 +29,7 @@ describe("Chart components", () => {
     expect(screen.getByText("Jan")).toBeInTheDocument()
     expect(screen.getByText("Feb")).toBeInTheDocument()
     expect(screen.getByText("Allocation")).toBeInTheDocument()
-    expect(screen.getByText("Cash")).toBeInTheDocument()
+    expect(screen.getAllByText("Cash")[0]).toBeInTheDocument()
     expect(screen.queryByText("Zero")).toBeNull()
   })
 

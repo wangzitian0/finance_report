@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useWorkspace, WorkspaceTab } from "@/hooks/useWorkspace";
 import {
@@ -57,7 +57,27 @@ function getRouteConfig(pathname: string): RouteConfig {
 
 export function WorkspaceTabs() {
     const pathname = usePathname();
+    const router = useRouter();
     const { tabs, activeTabId, addTab, removeTab, setActiveTab } = useWorkspace();
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            e.preventDefault();
+            const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
+            if (currentIndex === -1) return;
+
+            let nextIndex;
+            if (e.key === "ArrowRight") {
+                nextIndex = (currentIndex + 1) % tabs.length;
+            } else {
+                nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+            }
+
+            const nextTab = tabs[nextIndex];
+            setActiveTab(nextTab.id);
+            router.push(nextTab.href);
+        }
+    };
 
     useEffect(() => {
         if (pathname && pathname !== "/") {
@@ -83,7 +103,7 @@ export function WorkspaceTabs() {
     return (
         <div className="h-11 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
             <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-[var(--border)] h-full flex items-center mr-1">Open Tabs</span>
-            <div className="flex items-center gap-0.5 px-2">
+            <div role="tablist" onKeyDown={handleKeyDown} className="flex items-center gap-0.5 px-2">
                 {tabs.map((tab) => (
                     <TabItem
                         key={tab.id}
@@ -111,6 +131,9 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
 
     return (
         <div
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
             className={`
         group flex items-center gap-1.5 px-3 py-2.5 rounded-md min-h-[44px]
         transition-colors cursor-pointer select-none text-sm

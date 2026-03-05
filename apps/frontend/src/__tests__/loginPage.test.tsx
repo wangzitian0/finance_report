@@ -106,4 +106,61 @@ describe("LoginPage", () => {
     expect(pushMock).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument()
   })
+
+  it("toggles password visibility", () => {
+    render(<LoginPage />)
+
+    const passwordInput = screen.getByLabelText("Password") as HTMLInputElement
+    expect(passwordInput.type).toBe("password")
+
+    const toggleButton = screen.getByRole("button", { name: "Show password" })
+    fireEvent.click(toggleButton)
+
+    expect(passwordInput.type).toBe("text")
+    expect(screen.getByRole("button", { name: "Hide password" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide password" }))
+    expect(passwordInput.type).toBe("password")
+  })
+
+  it("shows error with alert role and aria-live", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("bad request"))
+    render(<LoginPage />)
+
+    fireEvent.change(screen.getByLabelText("Email Address"), { target: { value: "a@b.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "12345678" } })
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }))
+
+    await waitFor(() => {
+      const alert = screen.getByRole("alert")
+      expect(alert).toHaveAttribute("aria-live", "assertive")
+      expect(alert).toHaveTextContent("bad request")
+    })
+  })
+
+  it("shows mode toggle links", () => {
+    render(<LoginPage />)
+    const toggleParagraph = screen.getByText("Don't have an account?").closest("p")!
+    const registerLink = toggleParagraph.querySelector("button")!
+    fireEvent.click(registerLink)
+    const toggleParagraph2 = screen.getByText("Already have an account?").closest("p")!
+    const signInLink = toggleParagraph2.querySelector("button")!
+    fireEvent.click(signInLink)
+    expect(screen.getByText("Don't have an account?")).toBeInTheDocument()
+  })
+
+  it("shows loading spinner during submission", async () => {
+    let resolvePromise: (v: unknown) => void
+    mockedApiFetch.mockReturnValueOnce(new Promise((r) => { resolvePromise = r }))
+
+    render(<LoginPage />)
+    fireEvent.change(screen.getByLabelText("Email Address"), { target: { value: "a@b.com" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "12345678" } })
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }))
+
+    await waitFor(() => expect(screen.getByText("Processing...")).toBeInTheDocument())
+
+    resolvePromise!({ id: "u1", email: "a@b.com", name: null, created_at: "2026-01-01T00:00:00Z", access_token: "tok" })
+    await waitFor(() => expect(screen.queryByText("Processing...")).not.toBeInTheDocument())
+  })
 })

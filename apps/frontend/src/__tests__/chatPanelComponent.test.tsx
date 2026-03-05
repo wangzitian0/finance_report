@@ -50,8 +50,15 @@ describe("ChatPanel", () => {
     })
 
     mockedFetchAiModels.mockResolvedValue({
-      models: [{ id: "model-1", name: "Model 1", is_free: true }],
+      models: [{ 
+        id: "model-1", 
+        name: "Model 1", 
+        is_free: true,
+        input_modalities: ["text"],
+        pricing: { prompt: "0", completion: "0" }
+      }],
       default_model: "model-1",
+      fallback_models: [],
     })
 
     mockedApiFetch.mockImplementation((path: string) => {
@@ -65,7 +72,7 @@ describe("ChatPanel", () => {
     })
 
     mockedApiStream.mockResolvedValue({ response: streamingResponse("Assistant answer") as Response, sessionId: "sess-2" })
-    mockedApiDelete.mockResolvedValue({ ok: true })
+    mockedApiDelete.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
