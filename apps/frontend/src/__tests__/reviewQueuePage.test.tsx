@@ -32,8 +32,9 @@ vi.mock("@/lib/api", () => ({
 
 const queuePayload = {
   pending_matches: [
-    { id: "m1", match_score: 88, status: "pending_review", created_at: "2026-01-01T00:00:00Z" },
+    { id: "m1", match_score: 88, status: "pending_review", created_at: "2026-01-01T00:00:00Z", description: "Grocery Store", amount: 42.50, txn_date: "2026-01-01" },
     { id: "m2", match_score: 70, status: "pending_review", created_at: "2026-01-02T00:00:00Z" },
+    { id: "m3", match_score: 45, status: "pending_review", created_at: "2026-01-03T00:00:00Z" },
   ],
   consistency_checks: [
     {
@@ -99,17 +100,15 @@ describe("Stage2ReviewQueuePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/batch-reject-matches", {
         method: "POST",
-        body: JSON.stringify({ match_ids: ["m1", "m2"] }),
+        body: JSON.stringify({ match_ids: ["m1", "m2", "m3"] }),
       }),
     )
-
     fireEvent.click(screen.getByRole("button", { name: "Select all" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve Selected" }))
-
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/batch-approve-matches", {
         method: "POST",
-        body: JSON.stringify({ match_ids: ["m1", "m2"] }),
+        body: JSON.stringify({ match_ids: ["m1", "m2", "m3"] }),
       }),
     )
   })
@@ -132,5 +131,193 @@ describe("Stage2ReviewQueuePage", () => {
         body: JSON.stringify({ action: "reject", note: "" }),
       }),
     )
+  })
+
+  it("ESC key closes the resolve dialog and clears state", async () => {
+    mockedApiFetch.mockResolvedValueOnce(queuePayload)
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("toggleMatch deselects a previously selected match when clicked again", async () => {
+    mockedApiFetch.mockResolvedValueOnce({ ...queuePayload, consistency_checks: [], has_unresolved_checks: false })
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
+
+    const checkboxes = screen.getAllByRole("checkbox")
+    fireEvent.click(checkboxes[1])
+
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+
+    fireEvent.click(checkboxes[1])
+
+    expect(screen.getByText("0 selected")).toBeInTheDocument()
+  })
+
+  it("resolve dialog Approve button calls handleResolveCheck with approve action", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce(queuePayload)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(queuePayload)
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    const noteInput = screen.getByPlaceholderText("Add resolution note...")
+    fireEvent.change(noteInput, { target: { value: "looks good" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/consistency-checks/c1/resolve", {
+        method: "POST",
+        body: JSON.stringify({ action: "approve", note: "looks good" }),
+      }),
+    )
+  })
+
+  it("resolve dialog Flag button calls handleResolveCheck with flag action", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce(queuePayload)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(queuePayload)
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Flag" }))
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/consistency-checks/c1/resolve", {
+        method: "POST",
+        body: JSON.stringify({ action: "flag", note: "" }),
+      }),
+    )
+  })
+
+  it("resolve dialog Cancel button closes dialog without API call", async () => {
+    mockedApiFetch.mockResolvedValueOnce(queuePayload)
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(mockedApiFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("batch reject error shows toast", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ ...queuePayload, consistency_checks: [], has_unresolved_checks: false })
+      .mockRejectedValueOnce(new Error("Network error"))
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith("Network error", "error"))
+  })
+
+  it("renders match score colors: green for high, yellow for medium, red for low", async () => {
+    mockedApiFetch.mockResolvedValueOnce({ ...queuePayload, consistency_checks: [], has_unresolved_checks: false })
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
+
+    const score88 = screen.getByText("88")
+    expect(score88.className).toContain("text-[var(--success)]")
+
+    const score70 = screen.getByText("70")
+    expect(score70.className).toContain("text-[var(--warning)]")
+
+    const score45 = screen.getByText("45")
+    expect(score45.className).toContain("text-[var(--error)]")
+  })
+
+  it("renders description, amount, and date when available in matches", async () => {
+    mockedApiFetch.mockResolvedValueOnce({ ...queuePayload, consistency_checks: [], has_unresolved_checks: false })
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
+
+    expect(screen.getByText("Grocery Store")).toBeInTheDocument()
+    expect(screen.getByText(/42\.50/)).toBeInTheDocument()
+
+    const dashes = screen.getAllByText("\u2014")
+    expect(dashes.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it("handleResolveCheck error shows toast", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce(queuePayload)
+      .mockRejectedValueOnce(new Error("Resolve failed"))
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith("Resolve failed", "error"))
+  })
+
+  it("renders medium severity and transfer_pair check type labels", async () => {
+    const medPayload = {
+      ...queuePayload,
+      consistency_checks: [
+        {
+          id: "c2",
+          check_type: "transfer_pair",
+          status: "pending",
+          related_txn_ids: ["t2"],
+          details: { message: "Transfer pair mismatch" },
+          severity: "medium",
+          resolved_at: null,
+          resolution_note: null,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    }
+    mockedApiFetch.mockResolvedValueOnce(medPayload)
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("MEDIUM")).toBeInTheDocument())
+    expect(screen.getByText("Transfer Pair")).toBeInTheDocument()
+    const severityEl = screen.getByText("MEDIUM")
+    expect(severityEl.className).toContain("text-[var(--warning)]")
   })
 })

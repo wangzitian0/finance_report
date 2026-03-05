@@ -45,6 +45,8 @@ export default function AccountsPage() {
         if (!deletingAccountId) return;
         try {
             await deleteMutation.mutateAsync(deletingAccountId);
+        } catch {
+            // onError handler already shows the toast
         } finally {
             setDeleteDialogOpen(false);
             setDeletingAccountId(null);

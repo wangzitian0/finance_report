@@ -26,8 +26,14 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
     ) : null,
 }))
 vi.mock("@/components/accounts/AccountFormModal", () => ({
-  default: ({ isOpen, editAccount }: { isOpen: boolean; editAccount: Account | null }) =>
-    isOpen ? <div>{editAccount ? `Edit:${editAccount.name}` : "Create Account Modal"}</div> : null,
+  default: ({ isOpen, editAccount, onSuccess, onClose }: { isOpen: boolean; editAccount: Account | null; onSuccess?: () => void; onClose?: () => void }) =>
+    isOpen ? (
+      <div>
+        {editAccount ? `Edit:${editAccount.name}` : "Create Account Modal"}
+        {onSuccess && <button onClick={onSuccess}>Mock Save</button>}
+        {onClose && <button onClick={onClose}>Mock Close</button>}
+      </div>
+    ) : null,
 }))
 
 vi.mock("@/lib/api", () => ({
@@ -106,5 +112,123 @@ describe("AccountsPage", () => {
     })
     expect(showToastMock).toHaveBeenCalledWith("Account deleted successfully", "success")
     await waitFor(() => expect(screen.queryByText("Cash")).toBeNull())
+  })
+
+  it("AC16.15.4 delete error shows error toast", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+        total: 1,
+      } satisfies AccountListResponse)
+      .mockRejectedValueOnce(new Error("Cannot delete account with transactions"))
+    render(<AccountsPage />, { wrapper: createWrapper() })
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    fireEvent.click(screen.getByTitle("Delete Account"))
+    await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Confirm Delete"))
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith(
+        "Failed to delete account: Cannot delete account with transactions",
+        "error",
+      )
+    })
+  })
+
+  it("AC16.15.5 shows empty state with create button", async () => {
+    mockedApiFetch.mockResolvedValueOnce({ items: [], total: 0 } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("No accounts yet")).toBeInTheDocument())
+    expect(screen.getByText("Create First Account")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Create First Account"))
+    expect(screen.getByText("Create Account Modal")).toBeInTheDocument()
+  })
+
+  it("AC16.15.6 cancel delete dialog closes without API call", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      total: 1,
+    } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    fireEvent.click(screen.getByTitle("Delete Account"))
+    await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Cancel Delete"))
+
+    await waitFor(() => expect(screen.queryByTestId("confirm-dialog")).toBeNull())
+    expect(mockedApiFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("AC16.15.7 edit button opens modal with account data", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      total: 1,
+    } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    fireEvent.click(screen.getByTitle("Edit Account"))
+    expect(screen.getByText("Edit:Cash")).toBeInTheDocument()
+  })
+
+  it("AC16.15.8 Add Account button opens create modal", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      total: 1,
+    } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    fireEvent.click(screen.getByText("Add Account"))
+    expect(screen.getByText("Create Account Modal")).toBeInTheDocument()
+  })
+
+  it("AC16.15.9 modal onSuccess triggers account list refresh", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+        total: 1,
+      } satisfies AccountListResponse)
+      .mockResolvedValueOnce({
+        items: [
+          { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 },
+          { id: "a2", name: "Savings", type: "ASSET", currency: "SGD", is_active: true, balance: 5000 },
+        ],
+        total: 2,
+      } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    fireEvent.click(screen.getByText("Add Account"))
+    expect(screen.getByText("Create Account Modal")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Mock Save"))
+
+    await waitFor(() => expect(screen.getByText("Savings")).toBeInTheDocument())
+  })
+
+  it("AC16.15.10 modal onClose closes modal and clears editing state", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      total: 1,
+    } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    fireEvent.click(screen.getByTitle("Edit Account"))
+    expect(screen.getByText("Edit:Cash")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Mock Close"))
+
+    await waitFor(() => expect(screen.queryByText("Edit:Cash")).toBeNull())
+    expect(screen.queryByText("Create Account Modal")).toBeNull()
   })
 })
