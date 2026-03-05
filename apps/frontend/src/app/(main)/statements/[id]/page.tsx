@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
+import { formatCurrencyLocale } from "@/lib/currency";
 
 const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -326,6 +327,10 @@ export default function StatementDetailPage() {
                         <div
                             className="bg-[var(--accent)] h-2 rounded-full transition-all duration-500"
                             style={{ width: `${statement.parsing_progress ?? 0}%` }}
+                            role="progressbar"
+                            aria-valuenow={statement.parsing_progress ?? 0}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
                         />
                     </div>
                 </div>
@@ -361,13 +366,13 @@ export default function StatementDetailPage() {
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Opening Balance</div>
                     <div className="text-lg font-semibold">
-                        {formatCode(statement.currency)} {formatCurrency(statement.opening_balance)}
+                        {formatCurrencyLocale(statement.opening_balance ?? 0, statement.currency || "SGD")}
                     </div>
                 </div>
                 <div className="card p-4">
                     <div className="text-xs text-muted mb-1">Closing Balance</div>
                     <div className="text-lg font-semibold">
-                        {formatCode(statement.currency)} {formatCurrency(statement.closing_balance)}
+                        {formatCurrencyLocale(statement.closing_balance ?? 0, statement.currency || "SGD")}
                     </div>
                 </div>
                 <div className="card p-4">
@@ -422,16 +427,16 @@ export default function StatementDetailPage() {
                     <div className="max-h-[600px] overflow-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-[var(--border)] bg-[var(--background-muted)]">
-                                    <th className="text-left px-4 py-3 font-medium">Date</th>
-                                    <th className="text-left px-4 py-3 font-medium">Description</th>
-                                    <th className="text-left px-4 py-3 font-medium">Reference</th>
-                                    <th className="text-right px-4 py-3 font-medium">Amount</th>
-                                    <th className="text-left px-4 py-3 font-medium">Currency</th>
-                                    <th className="text-left px-4 py-3 font-medium">Balance</th>
-                                    <th className="text-center px-4 py-3 font-medium">Confidence</th>
-                                    <th className="text-center px-4 py-3 font-medium">Status</th>
-                                </tr>
+                                    <tr className="border-b border-[var(--border)] bg-[var(--background-muted)]">
+                                        <th scope="col" className="text-left px-4 py-3 font-medium">Date</th>
+                                        <th scope="col" className="text-left px-4 py-3 font-medium">Description</th>
+                                        <th scope="col" className="text-left px-4 py-3 font-medium">Reference</th>
+                                        <th scope="col" className="text-right px-4 py-3 font-medium">Amount</th>
+                                        <th scope="col" className="text-left px-4 py-3 font-medium">Currency</th>
+                                        <th scope="col" className="text-left px-4 py-3 font-medium">Balance</th>
+                                        <th scope="col" className="text-center px-4 py-3 font-medium">Confidence</th>
+                                        <th scope="col" className="text-center px-4 py-3 font-medium">Status</th>
+                                    </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
                                 {statement.transactions.map((txn: BankStatementTransaction) => (
@@ -448,10 +453,10 @@ export default function StatementDetailPage() {
                                         <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
                                             txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
                                         }`}>
-                                            {formatAmount(txn.amount, txn.direction, txn.currency ?? statement.currency)}
+                                            {txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, (txn.currency ?? statement.currency) || "SGD")}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.currency || "—"}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrency(txn.balance_after) : "—"}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrencyLocale(txn.balance_after, (txn.currency ?? statement.currency) || "SGD") : "—"}</td>
                                         <td className="px-4 py-3 text-center">
                                             <span className={`badge ${
                                                 txn.confidence === "high" ? "badge-success" :

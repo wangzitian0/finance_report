@@ -48,9 +48,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         return () => window.removeEventListener("storage", handleStorageChange);
     }, [pathname, router]);
 
-    // Show nothing while checking auth to prevent flash of content
     if (!authorized && !isPublicPath(pathname)) {
-        return null;
+        return (
+            <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+                <div className="animate-pulse space-y-4 w-full max-w-md px-4">
+                    <div className="h-8 bg-[var(--background-muted)] rounded w-3/4" />
+                    <div className="h-4 bg-[var(--background-muted)] rounded w-full" />
+                    <div className="h-4 bg-[var(--background-muted)] rounded w-5/6" />
+                    <div className="h-32 bg-[var(--background-muted)] rounded w-full" />
+                </div>
+            </div>
+        );
     }
 
     return <>{children}</>;

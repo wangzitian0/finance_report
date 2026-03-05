@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
-import { formatAmount } from "@/lib/currency";
+import { formatCurrencyLocale, formatAmount } from "@/lib/currency";
 import {
   ReconciliationMatchListResponse,
   ReconciliationMatchResponse,
@@ -195,7 +195,7 @@ export default function ReconciliationWorkbench() {
                       </div>
                     </div>
                     <div className="flex justify-between text-xs text-muted mt-2">
-                      <span>{match.transaction?.amount?.toLocaleString() ?? "—"}</span>
+                      <span>{match.transaction?.amount != null ? formatCurrencyLocale(match.transaction.amount, "SGD") : "—"}</span>
                       <span>{match.entries.length} entries</span>
                     </div>
                   </button>
@@ -210,7 +210,7 @@ export default function ReconciliationWorkbench() {
             <div className="space-y-4">
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
                 <div className="flex justify-between"><span className="text-sm font-medium">Transaction</span><span className="text-xs text-[var(--accent)]">Score {selected.match_score}</span></div>
-                <div className="text-xl font-semibold mt-1 text-[var(--accent)]">{selected.transaction?.amount?.toLocaleString() ?? "—"}</div>
+                <div className="text-xl font-semibold mt-1 text-[var(--accent)]">{selected.transaction?.amount != null ? formatCurrencyLocale(selected.transaction.amount, "SGD") : "—"}</div>
                 <p className="text-sm text-muted">{selected.transaction?.description}</p>
                 <p className="text-xs text-muted">{selected.transaction?.txn_date} · {selected.transaction?.direction === "IN" ? "In" : "Out"}</p>
               </div>
@@ -221,7 +221,7 @@ export default function ReconciliationWorkbench() {
                     <div className="text-xs text-[var(--accent)] uppercase tracking-wide">Ledger Entry</div>
                     <p className="font-medium text-sm">{entry.memo || "Untitled"}</p>
                     <p className="text-xs text-muted">{entry.entry_date}</p>
-                    <p className="font-semibold text-[var(--accent)]">{entry.total_amount.toLocaleString()}</p>
+                    <p className="font-semibold text-[var(--accent)]">{formatCurrencyLocale(entry.total_amount, "SGD")}</p>
                   </div>
                 ))}
               </div>

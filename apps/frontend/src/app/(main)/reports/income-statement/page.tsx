@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_URL, apiFetch } from "@/lib/api";
 import { BarChart } from "@/components/charts/BarChart";
-import { formatDateInput } from "@/lib/date";
+import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 
@@ -46,7 +46,6 @@ const toNumber = (value: number | string): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
-const formatMonthLabel = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short" });
 
 const ACCOUNT_TYPE_OPTIONS = [
   { value: "", label: "All Types" },

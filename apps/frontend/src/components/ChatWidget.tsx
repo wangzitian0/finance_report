@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import ChatPanel from "@/components/ChatPanel";
@@ -8,6 +8,15 @@ import ChatPanel from "@/components/ChatPanel";
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   if (pathname === "/chat") return null;
 
@@ -22,7 +31,7 @@ export default function ChatWidget() {
       </button>
 
       {open && (
-        <div className="mt-3 w-[340px] card p-4">
+        <div role="dialog" aria-label="AI Chat Assistant" className="mt-3 w-[340px] card p-4">
           <ChatPanel variant="widget" onClose={() => setOpen(false)} />
         </div>
       )}

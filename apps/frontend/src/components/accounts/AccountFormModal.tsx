@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -43,6 +43,31 @@ export default function AccountFormModal({
 }: AccountFormModalProps) {
     const [error, setError] = useState<string | null>(null);
     const isEditing = !!editAccount;
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = dialog.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        first?.focus();
+        const trap = (e: KeyboardEvent) => {
+            if (e.key !== "Tab") return;
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last?.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first?.focus();
+            }
+        };
+        dialog.addEventListener("keydown", trap);
+        return () => dialog.removeEventListener("keydown", trap);
+    }, [isOpen]);
 
     const createForm = useForm<CreateAccountForm>({
         resolver: zodResolver(createAccountSchema),
@@ -111,7 +136,7 @@ export default function AccountFormModal({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-md card animate-slide-up">
+            <div ref={dialogRef} className="relative z-10 w-full max-w-md card animate-slide-up">
                 <div className="card-header">
                     <h2 className="text-lg font-semibold">{isEditing ? "Edit Account" : "New Account"}</h2>
                 </div>

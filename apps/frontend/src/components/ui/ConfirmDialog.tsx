@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState, useRef } from "react";
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -36,6 +36,7 @@ export default function ConfirmDialog({
     children,
 }: ConfirmDialogProps) {
     const [inputValue, setInputValue] = useState("");
+    const dialogRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
     const inputId = useId();
 
@@ -52,7 +53,6 @@ export default function ConfirmDialog({
         onCancel();
     }, [loading, onCancel]);
 
-    // Handle ESC key to close dialog
     useEffect(() => {
         if (!isOpen) return;
         
@@ -65,6 +65,30 @@ export default function ConfirmDialog({
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, loading, handleCancel]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = dialog.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        first?.focus();
+        const trap = (e: KeyboardEvent) => {
+            if (e.key !== "Tab") return;
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last?.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first?.focus();
+            }
+        };
+        dialog.addEventListener("keydown", trap);
+        return () => dialog.removeEventListener("keydown", trap);
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -95,6 +119,7 @@ export default function ConfirmDialog({
                 aria-hidden="true"
             />
             <div 
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}

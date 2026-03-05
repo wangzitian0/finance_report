@@ -34,7 +34,7 @@ let workspaceMockData = {
     isCollapsed: false,
     toggleSidebar: toggleSidebarMock,
     tabs: [{ id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }],
-    activeTabId: "tab-1",
+    activeTabId: "tab-1" as string | null,
     addTab: addTabMock,
     removeTab: removeTabMock,
     setActiveTab: setActiveTabMock,
@@ -61,7 +61,7 @@ describe("Sidebar and WorkspaceTabs", () => {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
       tabs: [{ id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }],
-      activeTabId: "tab-1",
+      activeTabId: "tab-1" as string | null,
       addTab: addTabMock,
       removeTab: removeTabMock,
       setActiveTab: setActiveTabMock,
@@ -97,7 +97,7 @@ describe("Sidebar and WorkspaceTabs", () => {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
       tabs: [],
-      activeTabId: null,
+      activeTabId: null as string | null,
       addTab: addTabMock,
       removeTab: removeTabMock,
       setActiveTab: setActiveTabMock,
@@ -131,5 +131,69 @@ describe("Sidebar and WorkspaceTabs", () => {
   it("AC16.19.14 WorkspaceTabs section header is Open Tabs in both empty and active states", () => {
     render(<WorkspaceTabs />)
     expect(screen.getByText("Open Tabs")).toBeInTheDocument()
+  })
+
+  it("navigates tabs with ArrowRight keyboard", () => {
+    workspaceMockData = {
+      isCollapsed: false,
+      toggleSidebar: toggleSidebarMock,
+      tabs: [
+        { id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
+        { id: "tab-2", label: "Accounts", href: "/accounts", icon: "Landmark" },
+      ],
+      activeTabId: "tab-1",
+      addTab: addTabMock,
+      removeTab: removeTabMock,
+      setActiveTab: setActiveTabMock,
+    }
+    render(<WorkspaceTabs />)
+
+    const tablist = screen.getByRole("tablist")
+    fireEvent.keyDown(tablist, { key: "ArrowRight" })
+    expect(setActiveTabMock).toHaveBeenCalledWith("tab-2")
+    expect(pushMock).toHaveBeenCalledWith("/accounts")
+  })
+
+  it("navigates tabs with ArrowLeft keyboard and wraps around", () => {
+    workspaceMockData = {
+      isCollapsed: false,
+      toggleSidebar: toggleSidebarMock,
+      tabs: [
+        { id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
+        { id: "tab-2", label: "Accounts", href: "/accounts", icon: "Landmark" },
+      ],
+      activeTabId: "tab-1",
+      addTab: addTabMock,
+      removeTab: removeTabMock,
+      setActiveTab: setActiveTabMock,
+    }
+    render(<WorkspaceTabs />)
+
+    const tablist = screen.getByRole("tablist")
+    fireEvent.keyDown(tablist, { key: "ArrowLeft" })
+    expect(setActiveTabMock).toHaveBeenCalledWith("tab-2")
+    expect(pushMock).toHaveBeenCalledWith("/accounts")
+  })
+
+  it("renders tab ARIA attributes", () => {
+    workspaceMockData = {
+      isCollapsed: false,
+      toggleSidebar: toggleSidebarMock,
+      tabs: [
+        { id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
+        { id: "tab-2", label: "Accounts", href: "/accounts", icon: "Landmark" },
+      ],
+      activeTabId: "tab-1",
+      addTab: addTabMock,
+      removeTab: removeTabMock,
+      setActiveTab: setActiveTabMock,
+    }
+    render(<WorkspaceTabs />)
+
+    const tabs = screen.getAllByRole("tab")
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true")
+    expect(tabs[0]).toHaveAttribute("tabindex", "0")
+    expect(tabs[1]).toHaveAttribute("aria-selected", "false")
+    expect(tabs[1]).toHaveAttribute("tabindex", "-1")
   })
 });

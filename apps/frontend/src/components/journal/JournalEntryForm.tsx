@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -45,6 +45,31 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [postImmediately, setPostImmediately] = useState(false);
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = dialog.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        first?.focus();
+        const trap = (e: KeyboardEvent) => {
+            if (e.key !== "Tab") return;
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last?.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first?.focus();
+            }
+        };
+        dialog.addEventListener("keydown", trap);
+        return () => dialog.removeEventListener("keydown", trap);
+    }, [isOpen]);
 
     const {
         register,
@@ -133,7 +158,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
             <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-2xl card animate-slide-up my-8">
+            <div ref={dialogRef} className="relative z-10 w-full max-w-2xl card animate-slide-up my-8">
                 <div className="card-header">
                     <h2 className="text-lg font-semibold">New Journal Entry</h2>
                     <p className="text-sm text-muted">Create a balanced double-entry transaction</p>
@@ -264,7 +289,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             id="postImmediately"
                             checked={postImmediately}
                             onChange={(e) => setPostImmediately(e.target.checked)}
-                            className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]"
+                            className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                         />
                         <label htmlFor="postImmediately" className="text-sm cursor-pointer select-none">
                             Post transaction immediately
