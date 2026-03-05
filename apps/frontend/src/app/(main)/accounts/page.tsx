@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { Account, AccountListResponse } from "@/lib/types";
@@ -16,6 +17,8 @@ export default function AccountsPage() {
     const [activeFilter, setActiveFilter] = useState<string>("All");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
 
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["accounts"],
@@ -33,9 +36,21 @@ export default function AccountsPage() {
         },
     });
 
-    const handleDeleteAccount = async (accountId: string) => {
-        if (!window.confirm("Are you sure you want to delete this account? This will only work if there are no transactions.")) return;
-        deleteMutation.mutate(accountId);
+    const handleDeleteAccount = (accountId: string) => {
+        setDeletingAccountId(accountId);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingAccountId) return;
+        try {
+            await deleteMutation.mutateAsync(deletingAccountId);
+        } catch {
+            // onError handler already shows the toast
+        } finally {
+            setDeleteDialogOpen(false);
+            setDeletingAccountId(null);
+        }
     };
 
     const handleModalSuccess = () => {
@@ -101,7 +116,7 @@ export default function AccountsPage() {
                 </div>
             ) : error ? (
                 <div className="card p-8 text-center" role="alert" aria-live="polite">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-soft)] text-[var(--error)] mb-4">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -179,6 +194,17 @@ export default function AccountsPage() {
                 onClose={() => { setIsModalOpen(false); setEditingAccount(null); }}
                 onSuccess={handleModalSuccess}
                 editAccount={editingAccount}
+            />
+
+            <ConfirmDialog
+                isOpen={deleteDialogOpen}
+                onCancel={() => { setDeleteDialogOpen(false); setDeletingAccountId(null); }}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Account"
+                message="Are you sure you want to delete this account? This will only work if there are no transactions."
+                confirmLabel="Delete Account"
+                confirmVariant="danger"
+                loading={deleteMutation.isPending}
             />
         </div>
     );

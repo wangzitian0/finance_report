@@ -33,6 +33,8 @@ export default function DashboardPage() {
   const [recentEntries, setRecentEntries] = useState<JournalEntryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [trendAccountId, setTrendAccountId] = useState<string | null>(null);
+  const [trendAccountName, setTrendAccountName] = useState<string>("Top Asset");
 
   const fetchData = useCallback(async () => {
     const today = new Date();
@@ -63,8 +65,11 @@ export default function DashboardPage() {
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet) return;
     const sortedAssets = [...balanceSheet.assets].sort((a, b) => toNumber(b.amount) - toNumber(a.amount));
-    const target = sortedAssets[0];
+    const target = trendAccountId
+      ? sortedAssets.find((a) => a.account_id === trendAccountId) ?? sortedAssets[0]
+      : sortedAssets[0];
     if (!target) return;
+    setTrendAccountName(target.name);
     try {
       const trendData = await apiFetch<TrendResponse>(`/api/reports/trend?account_id=${target.account_id}&period=monthly`);
       setTrend(trendData);
@@ -72,7 +77,7 @@ export default function DashboardPage() {
       console.error("Failed to fetch trend data:", err);
       setTrend(null);
     }
-  }, [balanceSheet]);
+  }, [balanceSheet, trendAccountId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTrend(); }, [fetchTrend]);
@@ -100,7 +105,12 @@ export default function DashboardPage() {
     return (
       <div className="p-6">
         <div className="card p-8 text-center max-w-lg mx-auto">
-          <h1 className="text-xl font-semibold mb-2">Welcome to Finance Report</h1>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-semibold mb-2">Unable to Load Dashboard</h1>
           <p className="text-muted mb-4 text-sm">{error}</p>
           <div className="grid gap-3 sm:grid-cols-3 mb-6">
             <Link href="/accounts" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
@@ -143,7 +153,7 @@ export default function DashboardPage() {
           <p className="text-2xl font-semibold text-[var(--success)] mt-1">
             {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_assets), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
-          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date}</p>
+          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? new Date(balanceSheet.as_of_date + "T00:00:00").toLocaleDateString() : ""}</p>
         </div>
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Liabilities</p>
@@ -169,7 +179,7 @@ export default function DashboardPage() {
               <p className={`text-4xl font-bold ${netAssets >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
                 {formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-xs text-muted mt-1">As of {balanceSheet.as_of_date} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
+              <p className="text-xs text-muted mt-1">As of {new Date(balanceSheet.as_of_date + "T00:00:00").toLocaleDateString()} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
             </div>
             {stats && (() => {
               const total = stats.total_transactions ?? 0;
@@ -229,8 +239,22 @@ export default function DashboardPage() {
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <div className="card p-5">
-          <p className="text-xs text-muted uppercase tracking-wide">Asset Trend</p>
-          <h3 className="font-semibold mt-1 mb-4">{trend ? "Last 12 months" : "No trend data"}</h3>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-muted uppercase tracking-wide">Asset Trend</p>
+            {balanceSheet && balanceSheet.assets.length > 1 && (
+              <select
+                value={trendAccountId ?? ""}
+                onChange={(e) => setTrendAccountId(e.target.value || null)}
+                className="input text-xs py-1 px-2 w-auto"
+              >
+                <option value="">Top Asset</option>
+                {[...balanceSheet.assets].sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).map((a) => (
+                  <option key={a.account_id} value={a.account_id}>{a.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <h3 className="font-semibold mt-1 mb-4">{trendAccountName} — {trend ? "Last 12 months" : "No trend data"}</h3>
           {trendPoints.length ? <TrendChart points={trendPoints} /> : <p className="text-sm text-muted">Add activity to unlock trends.</p>}
         </div>
         <div className="card p-5">
@@ -259,15 +283,15 @@ export default function DashboardPage() {
           <p className="text-xs text-muted uppercase tracking-wide">Reconciliation</p>
           <h3 className="font-semibold mt-1 mb-4">Risk radar</h3>
           <div className="space-y-2">
-            <div className="flex justify-between p-3 rounded-md bg-[var(--success-muted)] text-sm">
+            <Link href="/reconciliation" className="flex justify-between p-3 rounded-md bg-[var(--success-muted)] text-sm hover:ring-1 hover:ring-[var(--success)] transition-all">
               <span>Auto accepted</span><span className="font-semibold">{stats?.auto_accepted ?? 0}</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
+            </Link>
+            <Link href="/reconciliation/review-queue" className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm hover:ring-1 hover:ring-[var(--warning)] transition-all">
               <span>Pending review</span><span className="font-semibold">{stats?.pending_review ?? 0}</span>
-            </div>
-            <div className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm">
+            </Link>
+            <Link href="/reconciliation/unmatched" className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm hover:ring-1 hover:ring-[var(--error)] transition-all">
               <span>Unmatched</span><span className="font-semibold">{stats?.unmatched_transactions ?? 0}</span>
-            </div>
+            </Link>
             <Link href="/reconciliation" className="text-sm text-[var(--accent)] hover:underline inline-flex items-center gap-1">
               Review queue →
             </Link>

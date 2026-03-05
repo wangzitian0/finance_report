@@ -74,7 +74,7 @@ describe("JournalPage", () => {
     render(<JournalPage />)
 
     await waitFor(() => expect(screen.getByText("Draft Memo")).toBeInTheDocument())
-    expect(screen.getByText("120")).toBeInTheDocument()
+    expect(screen.getByText(/120\.00/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "draft" }))
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("status_filter=draft")))

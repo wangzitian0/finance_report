@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import StatementUploader from "@/components/statements/StatementUploader";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
@@ -14,6 +15,8 @@ export default function StatementsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [polling, setPolling] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
 
     const fetchStatements = useCallback(async () => {
         try {
@@ -43,14 +46,20 @@ export default function StatementsPage() {
         };
     }, [polling, fetchStatements]);
 
-    const handleDeleteStatement = async (e: React.MouseEvent, id: string) => {
+    const handleDeleteStatement = (e: React.MouseEvent, id: string) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!window.confirm("Are you sure you want to delete this statement?")) return;
-        
+        setDeletingStatementId(id);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingStatementId) return;
         try {
-            await apiFetch(`/api/statements/${id}`, { method: "DELETE" });
+            await apiFetch(`/api/statements/${deletingStatementId}`, { method: "DELETE" });
             showToast("Statement deleted successfully", "success");
+            setDeleteDialogOpen(false);
+            setDeletingStatementId(null);
             fetchStatements();
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to delete statement");
@@ -124,7 +133,7 @@ export default function StatementsPage() {
                     </div>
                 ) : error ? (
                     <div className="p-8 text-center" role="alert" aria-live="polite">
-                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-soft)] text-[var(--error)] mb-4">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -225,6 +234,16 @@ export default function StatementsPage() {
                     </div>
                 )}
             </div>
+
+            <ConfirmDialog
+                isOpen={deleteDialogOpen}
+                onCancel={() => { setDeleteDialogOpen(false); setDeletingStatementId(null); }}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Statement"
+                message="Are you sure you want to delete this statement? This action cannot be undone."
+                confirmLabel="Delete Statement"
+                confirmVariant="danger"
+            />
         </div>
     );
 }
