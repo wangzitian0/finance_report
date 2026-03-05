@@ -21,7 +21,7 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
-from src.rate_limit import api_rate_limiter, auth_rate_limiter, register_rate_limiter
+from src.rate_limit import api_rate_limiter
 from src.routers import accounts, ai_models, assets, auth, chat, journal, portfolio, reports, review, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
