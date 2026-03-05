@@ -88,7 +88,7 @@ export default function BalanceSheetPage() {
     const hasChildren = node.children.length > 0;
     const isExpanded = expanded.has(node.account_id);
     return (
-      <div key={node.account_id} role="treeitem" aria-expanded={hasChildren ? isExpanded : undefined}>
+      <div key={node.account_id} role="treeitem" aria-level={depth + 1} aria-expanded={hasChildren ? isExpanded : undefined}>
         <div className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50" style={{ paddingLeft: depth * 16 + 12 }}>
           <div className="flex items-center gap-2">
             {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}

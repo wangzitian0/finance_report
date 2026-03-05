@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import ChatPanel from "@/components/ChatPanel";
 
 const CONSENT_KEY = "ai_advisor_disclaimer_v1";
@@ -14,29 +15,7 @@ export default function ChatPageClient() {
   const [consentGiven, setConsentGiven] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (consentGiven) return;
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-    const trap = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last?.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first?.focus();
-      }
-    };
-    dialog.addEventListener("keydown", trap);
-    return () => dialog.removeEventListener("keydown", trap);
-  }, [consentGiven]);
+  useFocusTrap(dialogRef, !consentGiven);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -70,7 +49,7 @@ export default function ChatPageClient() {
 
       {!consentGiven && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-6">
-          <div ref={dialogRef} className="w-full max-w-lg card p-6 animate-slide-up">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Disclaimer" className="w-full max-w-lg card p-6 animate-slide-up">
             <h2 className="text-xl font-semibold">Disclaimer</h2>
             <p className="mt-3 text-sm text-muted">
               This AI financial advisor provides guidance based on your posted financial data. It

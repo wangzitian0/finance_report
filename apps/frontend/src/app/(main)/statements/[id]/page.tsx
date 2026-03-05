@@ -427,16 +427,16 @@ export default function StatementDetailPage() {
                     <div className="max-h-[600px] overflow-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                    <tr className="border-b border-[var(--border)] bg-[var(--background-muted)]">
-                                        <th scope="col" className="text-left px-4 py-3 font-medium">Date</th>
-                                        <th scope="col" className="text-left px-4 py-3 font-medium">Description</th>
-                                        <th scope="col" className="text-left px-4 py-3 font-medium">Reference</th>
-                                        <th scope="col" className="text-right px-4 py-3 font-medium">Amount</th>
-                                        <th scope="col" className="text-left px-4 py-3 font-medium">Currency</th>
-                                        <th scope="col" className="text-left px-4 py-3 font-medium">Balance</th>
-                                        <th scope="col" className="text-center px-4 py-3 font-medium">Confidence</th>
-                                        <th scope="col" className="text-center px-4 py-3 font-medium">Status</th>
-                                    </tr>
+                                <tr className="border-b border-[var(--border)] bg-[var(--background-muted)]">
+                                    <th scope="col" className="text-left px-4 py-3 font-medium">Date</th>
+                                    <th scope="col" className="text-left px-4 py-3 font-medium">Description</th>
+                                    <th scope="col" className="text-left px-4 py-3 font-medium">Reference</th>
+                                    <th scope="col" className="text-right px-4 py-3 font-medium">Amount</th>
+                                    <th scope="col" className="text-left px-4 py-3 font-medium">Currency</th>
+                                    <th scope="col" className="text-left px-4 py-3 font-medium">Balance</th>
+                                    <th scope="col" className="text-center px-4 py-3 font-medium">Confidence</th>
+                                    <th scope="col" className="text-center px-4 py-3 font-medium">Status</th>
+                                </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
                                 {statement.transactions.map((txn: BankStatementTransaction) => (

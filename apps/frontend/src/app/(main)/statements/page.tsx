@@ -119,9 +119,7 @@ export default function StatementsPage() {
                             className="h-full bg-[var(--accent)] rounded-full animate-pulse" 
                             style={{ width: '60%' }} 
                             role="progressbar"
-                            aria-valuenow={60}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
+                            aria-label="Loading statements"
                         />
                     </div>
                 </div>

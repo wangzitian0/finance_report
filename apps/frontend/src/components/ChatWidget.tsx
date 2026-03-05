@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import ChatPanel from "@/components/ChatPanel";
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -17,6 +19,7 @@ export default function ChatWidget() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
+  useFocusTrap(dialogRef, open);
 
   if (pathname === "/chat") return null;
 
@@ -31,7 +34,7 @@ export default function ChatWidget() {
       </button>
 
       {open && (
-        <div role="dialog" aria-label="AI Chat Assistant" className="mt-3 w-[340px] card p-4">
+        <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="AI Chat Assistant" className="mt-3 w-[340px] card p-4">
           <ChatPanel variant="widget" onClose={() => setOpen(false)} />
         </div>
       )}
