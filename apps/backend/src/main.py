@@ -21,7 +21,7 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
-from src.rate_limit import auth_rate_limiter, register_rate_limiter
+from src.rate_limit import api_rate_limiter, auth_rate_limiter, register_rate_limiter
 from src.routers import accounts, ai_models, assets, auth, chat, journal, portfolio, reports, review, statements, users
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Close rate limiters (Redis connections)
     auth_rate_limiter.close()
     register_rate_limiter.close()
+    api_rate_limiter.close()
 
     with suppress(asyncio.CancelledError):
         await supervisor_task
@@ -137,6 +138,40 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
             error=str(exc),
         )
         raise
+
+
+# Paths exempt from global API rate limiting
+_RATE_LIMIT_EXEMPT_PATHS = frozenset(
+    {
+        "/health",
+        "/ping",
+        "/ping/toggle",
+        "/docs",
+        "/docs/oauth2-redirect",
+        "/openapi.json",
+        "/redoc",
+    }
+)
+
+
+@app.middleware("http")
+async def global_rate_limit_middleware(request: Request, call_next: Any) -> Response:
+    """Global API rate limiting middleware. Runs before logging middleware (LIFO order)."""
+    path = request.url.path
+    if path in _RATE_LIMIT_EXEMPT_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
+        return await call_next(request)
+
+    # Use the actual remote address only; honoring X-Forwarded-For requires a
+    # trusted-proxy setup and is intentionally deferred to a future config option.
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded. Please try again later."},
+            headers={"Retry-After": str(retry_after)},
+        )
+    return await call_next(request)
 
 
 @app.exception_handler(BaseAppException)

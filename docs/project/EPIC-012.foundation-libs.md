@@ -30,8 +30,8 @@ This EPIC addresses technical debt in the foundational libraries that all module
 
 ### Should Have (P1)
 - [x] Unified `BaseAppException` with error IDs
-- [ ] API-wide rate limiting (not just auth endpoints)
-- [ ] Metrics endpoint for Prometheus
+- [x] API-wide rate limiting (not just auth endpoints)
+- [~] Metrics endpoint — deferred: project uses SigNoz OTLP, not Prometheus pull scraping (see EPIC-010)
 
 ### Nice to Have (P2)
 - [ ] UUID auto-serialization structlog processor
@@ -257,11 +257,14 @@ This EPIC addresses technical debt in the foundational libraries that all module
 **Tracking**: [#186](https://github.com/wangzitian0/finance_report/issues/186)
 
 ### M4: Metrics Endpoint
-**Problem**: No `/metrics` endpoint for Prometheus. Cannot monitor request counts, latencies.
+**Problem**: ~~No `/metrics` endpoint for Prometheus.~~ → Architecture uses SigNoz OTLP, not Prometheus pull.
 
-**Solution**: Add prometheus-fastapi-instrumentator
+**Solution**: ~~Add prometheus-fastapi-instrumentator~~ → **Deferred** (SigNoz OTLP is the observability path)
 
 **Tracking**: [#187](https://github.com/wangzitian0/finance_report/issues/187)
+> ⚠️ **Deferred**: This project uses SigNoz via OTLP (see EPIC-010) for observability.
+> Prometheus pull-based `/metrics` has zero consumers in this architecture.
+> Metrics via OTLP to SigNoz is a future task tracked separately.
 
 ---
 
@@ -286,6 +289,22 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.22.1 | Move 6 inline schemas from statements router to review module | N/A (mechanical) | N/A | P0 |
 | AC12.22.2 | Extract background task schemas from inline/background definitions into dedicated modules | N/A (mechanical) | N/A | P0 |
 
+### AC12.23: Rate Limiting - Global API Middleware (M3)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.23.1 | Global rate limit middleware exempts /health | `test_global_rate_limit_middleware_exempts_health()` | `infra/test_rate_limit.py` | P1 |
+| AC12.23.2 | Global rate limit middleware returns 429 after limit exceeded | `test_global_rate_limit_middleware_blocks_after_limit()` | `infra/test_rate_limit.py` | P1 |
+| AC12.23.3 | Global rate limit middleware allows normal requests | `test_global_rate_limit_middleware_allows_normal_requests()` | `infra/test_rate_limit.py` | P1 |
+| AC12.23.4 | Global rate limit middleware exempts /docs | `test_global_rate_limit_middleware_exempts_docs()` | `infra/test_rate_limit.py` | P1 |
+
+### AC12.24: Metrics - Prometheus Endpoint (M4)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.24.1 | ~~`/metrics` endpoint returns 200 OK~~ | Removed | Deferred: SigNoz OTLP path, no Prometheus scrape config | P1 |
+| AC12.24.2 | ~~`/metrics` endpoint returns text/plain~~ | Removed | Deferred: SigNoz OTLP path | P1 |
+| AC12.24.3 | ~~`/metrics` response contains Prometheus data~~ | Removed | Deferred: SigNoz OTLP path | P1 |
 
 ## 📊 Progress Tracking
 
@@ -296,8 +315,8 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | 2 | Transaction Boundaries (H2) | ⏳ Pending | - |
 | 3 | Connection Pool Config (M1) | ✅ Complete | This PR |
 | 4 | Exception Hierarchy (M2) | ✅ Complete | This PR |
-| 5 | Rate Limiting (M3) | ⏳ Pending | - |
-| 6 | Metrics Endpoint (M4) | ⏳ Pending | - |
+| 5 | Rate Limiting (M3) | ✅ Complete | This PR |
+| 6 | Metrics Endpoint (M4) | ❌ Deferred | Removed — SigNoz OTLP used instead of Prometheus pull |
 
 ---
 

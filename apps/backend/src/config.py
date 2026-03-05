@@ -157,6 +157,12 @@ class Settings(BaseSettings):
         validation_alias="GIT_COMMIT_SHA",
     )
 
+    # Rate Limiting (global API protection)
+    api_rate_limit_requests: int = Field(default=300, ge=1, validation_alias="API_RATE_LIMIT_REQUESTS")
+    api_rate_limit_window: int = Field(default=60, ge=1, validation_alias="API_RATE_LIMIT_WINDOW")
+    register_rate_limit_requests: int = Field(default=10, ge=1, validation_alias="REGISTER_RATE_LIMIT_REQUESTS")
+    register_rate_limit_window: int = Field(default=600, ge=1, validation_alias="REGISTER_RATE_LIMIT_WINDOW")
+
     @cached_property
     def cors_origins(self) -> list[str]:
         """Parse CORS origins from env string or use defaults."""
