@@ -88,7 +88,7 @@ export default function BalanceSheetPage() {
     const hasChildren = node.children.length > 0;
     const isExpanded = expanded.has(node.account_id);
     return (
-      <div key={node.account_id}>
+      <div key={node.account_id} role="treeitem" aria-level={depth + 1} aria-expanded={hasChildren ? isExpanded : undefined}>
         <div className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50" style={{ paddingLeft: depth * 16 + 12 }}>
           <div className="flex items-center gap-2">
             {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}
@@ -96,7 +96,7 @@ export default function BalanceSheetPage() {
           </div>
           <span className="font-medium">{report ? formatCurrencyLocale(toNumber(node.amount), report.currency) : "—"}</span>
         </div>
-        {hasChildren && isExpanded && <div className="ml-2 border-l border-[var(--border)] pl-2">{node.children.map((c) => renderNode(c, depth + 1))}</div>}
+        {hasChildren && isExpanded && <div role="group" className="ml-2 border-l border-[var(--border)] pl-2">{node.children.map((c) => renderNode(c, depth + 1))}</div>}
       </div>
     );
   };
@@ -139,17 +139,17 @@ export default function BalanceSheetPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5" id="assets">
           <h2 className="font-semibold mb-3">Assets</h2>
-          <div className="space-y-1">{assetsTree.length ? assetsTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
+          <div role="tree" aria-label="Balance Sheet - Assets" className="space-y-1">{assetsTree.length ? assetsTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)]">Total: {report ? formatCurrencyLocale(toNumber(report.total_assets), report.currency) : "—"}</div>
         </div>
         <div className="card p-5" id="liabilities">
           <h2 className="font-semibold mb-3">Liabilities</h2>
-          <div className="space-y-1">{liabilitiesTree.length ? liabilitiesTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
+          <div role="tree" aria-label="Balance Sheet - Liabilities" className="space-y-1">{liabilitiesTree.length ? liabilitiesTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--error)]">Total: {report ? formatCurrencyLocale(toNumber(report.total_liabilities), report.currency) : "—"}</div>
         </div>
         <div className="card p-5" id="equity">
           <h2 className="font-semibold mb-3">Equity</h2>
-          <div className="space-y-1">{equityTree.length ? equityTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
+          <div role="tree" aria-label="Balance Sheet - Equity" className="space-y-1">{equityTree.length ? equityTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}</div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold">Total: {report ? formatCurrencyLocale(toNumber(report.total_equity), report.currency) : "—"}</div>
         </div>
       </div>

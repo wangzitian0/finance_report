@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { apiFetch } from "@/lib/api";
 import { Account } from "@/lib/types";
 
@@ -43,6 +44,9 @@ export default function AccountFormModal({
 }: AccountFormModalProps) {
     const [error, setError] = useState<string | null>(null);
     const isEditing = !!editAccount;
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    useFocusTrap(dialogRef, isOpen);
 
     const createForm = useForm<CreateAccountForm>({
         resolver: zodResolver(createAccountSchema),
@@ -111,7 +115,7 @@ export default function AccountFormModal({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-md card animate-slide-up">
+            <div ref={dialogRef} className="relative z-10 w-full max-w-md card animate-slide-up">
                 <div className="card-header">
                     <h2 className="text-lg font-semibold">{isEditing ? "Edit Account" : "New Account"}</h2>
                 </div>

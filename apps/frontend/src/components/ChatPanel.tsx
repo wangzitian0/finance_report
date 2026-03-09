@@ -221,7 +221,7 @@ await apiDelete(`/api/chat/session/${sessionId}`);
 
       {error && <div className="mt-4 alert-error">{error}</div>}
 
-      <div ref={scrollRef} className={variant === "widget" ? "mt-4 flex-1 space-y-3 overflow-y-auto pr-2" : "mt-6 flex-1 space-y-4 overflow-y-auto pr-2"}>
+      <div ref={scrollRef} aria-live="polite" className={variant === "widget" ? "mt-4 flex-1 space-y-3 overflow-y-auto pr-2" : "mt-6 flex-1 space-y-4 overflow-y-auto pr-2"}>
         {loadingHistory && <div className="text-sm text-muted">Loading chat history...</div>}
         {!loadingHistory && messages.length === 0 && <div className="p-8 rounded-md border border-dashed border-[var(--border)] text-center text-sm text-muted">Ask a question about your reports, budgets, or reconciliation health.</div>}
         {messages.map((m) => {

@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
+import { formatCurrencyLocale } from "@/lib/currency";
 
 export default function StatementsPage() {
     const { showToast } = useToast();
@@ -114,7 +115,13 @@ export default function StatementsPage() {
                         </div>
                     </div>
                     <div className="h-1.5 bg-[var(--background-muted)] rounded-full overflow-hidden">
-                        <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{ width: '60%' }} />
+                        <div
+                            className="h-full bg-[var(--accent)] rounded-full animate-pulse"
+                            style={{ width: '60%' }}
+                            role="status"
+                            aria-label="Loading statements"
+                            aria-live="polite"
+                        />
                     </div>
                 </div>
             )}
@@ -212,13 +219,13 @@ export default function StatementsPage() {
                                     <div>
                                         <span className="text-muted">Opening:</span>{" "}
                                         <span>
-                                            {formatCurrency(statement.currency)} {formatAmount(statement.opening_balance)}
+                                            {formatCurrencyLocale(statement.opening_balance ?? 0, statement.currency || "SGD")}
                                         </span>
                                     </div>
                                     <div>
                                         <span className="text-muted">Closing:</span>{" "}
                                         <span>
-                                            {formatCurrency(statement.currency)} {formatAmount(statement.closing_balance)}
+                                            {formatCurrencyLocale(statement.closing_balance ?? 0, statement.currency || "SGD")}
                                         </span>
                                     </div>
                                     {statement.balance_validated === null || statement.balance_validated === undefined ? (

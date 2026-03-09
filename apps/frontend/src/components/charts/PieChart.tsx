@@ -71,6 +71,23 @@ export function PieChart({
           </div>
         ))}
       </div>
+      <table className="sr-only">
+        <caption>Chart data</caption>
+        <thead>
+          <tr>
+            <th scope="col">Category</th>
+            <th scope="col">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((item, i) => (
+            <tr key={i}>
+              <td>{item.label}</td>
+              <td>{item.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

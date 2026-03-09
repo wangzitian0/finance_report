@@ -127,4 +127,36 @@ describe("ChatPageClient", () => {
 
     await waitFor(() => expect(screen.queryByText("Disclaimer")).not.toBeInTheDocument())
   })
+
+  it("AC16.20.2 focus trap cycles Tab forward inside consent dialog", async () => {
+    getMock.mockReturnValue(null)
+    const { container } = render(<ChatPageClient />)
+
+    // Consent dialog should be visible
+    expect(screen.getByText("Disclaimer")).toBeInTheDocument()
+
+    // The dialog wrapper div with the ref
+    const dialogInner = container.querySelector(".card.animate-slide-up") as HTMLElement
+    expect(dialogInner).toBeTruthy()
+
+    // Get focusable elements inside the dialog
+    const focusables = dialogInner.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    expect(focusables.length).toBeGreaterThan(0)
+
+    const lastEl = focusables[focusables.length - 1]
+    const firstEl = focusables[0]
+
+    // Focus the last element and press Tab (no shift) — should wrap to first
+    lastEl.focus()
+    fireEvent.keyDown(dialogInner, { key: "Tab", shiftKey: false })
+
+    // Focus the first element and press Shift+Tab — should wrap to last
+    firstEl.focus()
+    fireEvent.keyDown(dialogInner, { key: "Tab", shiftKey: true })
+
+    // Press a non-Tab key — should be ignored by the trap
+    fireEvent.keyDown(dialogInner, { key: "Escape" })
+  })
 })

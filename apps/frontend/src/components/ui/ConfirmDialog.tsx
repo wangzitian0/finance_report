@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState, useRef } from "react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -36,6 +37,7 @@ export default function ConfirmDialog({
     children,
 }: ConfirmDialogProps) {
     const [inputValue, setInputValue] = useState("");
+    const dialogRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
     const inputId = useId();
 
@@ -52,7 +54,6 @@ export default function ConfirmDialog({
         onCancel();
     }, [loading, onCancel]);
 
-    // Handle ESC key to close dialog
     useEffect(() => {
         if (!isOpen) return;
         
@@ -65,6 +66,8 @@ export default function ConfirmDialog({
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, loading, handleCancel]);
+
+    useFocusTrap(dialogRef, isOpen);
 
     if (!isOpen) return null;
 
@@ -95,6 +98,7 @@ export default function ConfirmDialog({
                 aria-hidden="true"
             />
             <div 
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}

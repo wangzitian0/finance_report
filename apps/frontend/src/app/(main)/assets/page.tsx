@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { parseAmount } from "@/lib/currency";
+import { formatCurrencyLocale, parseAmount } from "@/lib/currency";
+import { formatDateDisplay } from "@/lib/date";
 import { ManagedPosition, ManagedPositionListResponse, ReconcilePositionsResponse } from "@/lib/types";
 
 const STATUS_FILTERS = ["All", "active", "disposed"] as const;
@@ -14,11 +15,6 @@ function formatQuantity(quantity: string): string {
     const num = parseFloat(quantity);
     if (Number.isInteger(num)) return num.toLocaleString();
     return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
-}
-
-function formatCurrency(amount: string, currency: string): string {
-    const num = parseFloat(amount);
-    return `${currency} ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function AssetsPage() {
@@ -122,7 +118,7 @@ export default function AssetsPage() {
                             {allocationByCurrency.map((a, i) => (
                                 <span key={a.currency} className="block text-xl leading-snug">
                                     {i > 0 && <span className="text-base text-muted">+ </span>}
-                                    {formatCurrency(a.total.toString(), a.currency)}
+                                    {formatCurrencyLocale(a.total.toString(), a.currency)}
                                 </span>
                             ))}
                         </p>
@@ -146,7 +142,7 @@ export default function AssetsPage() {
                                     />
                                 </div>
                                 <span className="w-14 text-xs text-muted text-right">{a.pct.toFixed(1)}%</span>
-                                <span className="text-xs text-muted">{formatCurrency(a.total.toString(), a.currency)}</span>
+                                <span className="text-xs text-muted">{formatCurrencyLocale(a.total.toString(), a.currency)}</span>
                             </div>
                         ))}
                     </div>
@@ -155,10 +151,12 @@ export default function AssetsPage() {
 
 
             <div className="flex items-center justify-between mb-6">
-                <div className="flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit">
+                <div role="tablist" aria-label="Asset status filter" className="flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit">
                     {STATUS_FILTERS.map((status) => (
                         <button
                             key={status}
+                            role="tab"
+                            aria-selected={activeFilter === status}
                             onClick={() => setActiveFilter(status)}
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${
                                 activeFilter === status
@@ -177,7 +175,7 @@ export default function AssetsPage() {
                             {Object.entries(totalsByCurrency).map(([currency, total], i) => (
                                 <span key={currency}>
                                     {i > 0 && " + "}
-                                    {formatCurrency(total.toString(), currency)}
+                                    {formatCurrencyLocale(total.toString(), currency)}
                                 </span>
                             ))}
                         </span>
@@ -244,7 +242,7 @@ export default function AssetsPage() {
                                         {Object.entries(brokerTotalsByCurrency).map(([currency, total], i) => (
                                             <span key={currency}>
                                                 {i > 0 && " + "}
-                                                {formatCurrency(total.toString(), currency)}
+                                                {formatCurrencyLocale(total.toString(), currency)}
                                             </span>
                                         ))}
                                     </span>
@@ -260,13 +258,13 @@ export default function AssetsPage() {
                                                     </span>
                                                 </div>
                                                 <div className="text-xs text-muted mt-0.5">
-                                                    Acquired: {new Date(position.acquisition_date).toLocaleDateString()}
-                                                    {position.disposal_date && ` | Disposed: ${new Date(position.disposal_date).toLocaleDateString()}`}
+                                                    Acquired: {formatDateDisplay(position.acquisition_date)}
+                                                    {position.disposal_date && ` | Disposed: ${formatDateDisplay(position.disposal_date)}`}
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="font-semibold">{formatQuantity(position.quantity)} units</div>
-                                                <div className="text-sm text-muted">{formatCurrency(position.cost_basis, position.currency)}</div>
+                                                <div className="text-sm text-muted">{formatCurrencyLocale(position.cost_basis, position.currency)}</div>
                                             </div>
                                         </div>
                                     ))}

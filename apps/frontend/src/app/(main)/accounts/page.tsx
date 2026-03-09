@@ -7,6 +7,7 @@ import AccountFormModal from "@/components/accounts/AccountFormModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { formatCurrencyLocale } from "@/lib/currency";
 import { Account, AccountListResponse } from "@/lib/types";
 
 const ACCOUNT_TYPES = ["All", "ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
@@ -159,7 +160,7 @@ export default function AccountsPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className="text-right mr-2">
-                                                <div className="font-semibold">{account.currency} {(account.balance ?? 0).toLocaleString()}</div>
+                                                <div className="font-semibold">{formatCurrencyLocale(account.balance ?? 0, account.currency)}</div>
                                             </div>
                                             <button
                                                 onClick={() => { setEditingAccount(account); setIsModalOpen(true); }}

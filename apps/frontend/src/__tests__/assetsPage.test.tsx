@@ -106,7 +106,7 @@ describe("AssetsPage", () => {
     expect(screen.queryByText("IBKR")).not.toBeNull()
     expect(screen.queryByText(/Total Value:/)).not.toBeNull()
 
-    fireEvent.click(screen.getByRole("button", { name: "disposed" }))
+    fireEvent.click(screen.getByRole("tab", { name: "disposed" }))
     await waitFor(() => expect(screen.queryByText("TSLA")).not.toBeNull())
     expect(screen.queryByText("AAPL")).toBeNull()
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("status_filter=disposed"))

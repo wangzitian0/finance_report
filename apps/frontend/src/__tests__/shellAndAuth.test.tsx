@@ -98,4 +98,33 @@ describe("AppShell and AuthGuard", () => {
     window.dispatchEvent(new StorageEvent("storage", { key: "finance_access_token", newValue: null }))
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"))
   })
+
+  it("AC16.19.2 shows loading skeleton for unauthenticated protected routes", () => {
+    isAuthenticatedMock.mockReturnValue(false)
+    const { container } = render(
+      <AuthGuard><div>Protected Content</div></AuthGuard>,
+    )
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument()
+    expect(container.querySelector(".animate-pulse")).not.toBeNull()
+  })
+
+  it("AC16.19.2 handles storage login event on login page", async () => {
+    pathnameMock = "/login"
+    isAuthenticatedMock.mockReturnValue(false)
+    render(<AuthGuard><div>Login Content</div></AuthGuard>)
+    await waitFor(() => expect(screen.getByText("Login Content")).toBeInTheDocument())
+    window.dispatchEvent(new StorageEvent("storage", { key: "finance_access_token", newValue: "tok" }))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/dashboard"))
+  })
+
+  it("AC16.19.2 ignores unrelated storage events", async () => {
+    pathnameMock = "/dashboard"
+    isAuthenticatedMock.mockReturnValue(true)
+    render(<AuthGuard><div>Content</div></AuthGuard>)
+    await waitFor(() => expect(screen.getByText("Content")).toBeInTheDocument())
+    window.dispatchEvent(new StorageEvent("storage", { key: "other_key", newValue: null }))
+    expect(screen.getByText("Content")).toBeInTheDocument()
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
 })
