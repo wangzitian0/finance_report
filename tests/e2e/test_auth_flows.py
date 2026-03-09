@@ -45,7 +45,7 @@ async def test_registration_api_path(page: Page):
     # Fill registration form with unique email
     test_email = f"e2e_test_{uuid.uuid4().hex[:8]}@test.local"
     await page.get_by_label("Email").fill(test_email)
-    await page.get_by_label("Password").fill("TestPassword123!")
+    await page.get_by_label("Password", exact=True).fill("TestPassword123!")
     
     # Intercept network requests to verify API path
     api_request_path = None
@@ -89,7 +89,7 @@ async def test_login_api_path(page: Page):
     
     # Fill login form
     await page.get_by_label("Email").fill("test@example.com")
-    await page.get_by_label("Password").fill("TestPassword123!")
+    await page.get_by_label("Password", exact=True).fill("TestPassword123!")
     
     # Intercept network requests
     api_request_path = None
@@ -129,7 +129,7 @@ async def test_full_registration_flow(page: Page):
     # Use unique email
     test_email = f"e2e_full_{uuid.uuid4().hex[:8]}@test.local"
     await page.get_by_label("Email").fill(test_email)
-    await page.get_by_label("Password").fill("SecureTestPass123!")
+    await page.get_by_label("Password", exact=True).fill("SecureTestPass123!")
     
     # Submit
     await page.get_by_role("button", name="Register").click()

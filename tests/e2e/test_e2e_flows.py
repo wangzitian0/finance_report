@@ -233,7 +233,7 @@ async def test_registration_flow(page: Page):
 
     # Fill registration form
     await page.get_by_label("Email Address").fill(unique_email)
-    await page.get_by_label("Password").fill(test_password)
+    await page.get_by_label("Password", exact=True).fill(test_password)
 
     # Submit and wait for response
     async with page.expect_response("**/api/auth/register") as response_info:
