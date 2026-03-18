@@ -298,6 +298,8 @@ class ExtractionService:
                     confidence=event_confidence,
                     confidence_reason=txn.get("confidence_reason"),
                     raw_text=txn.get("raw_text"),
+                    suggested_category=txn.get("suggested_category"),
+                    category_confidence=self._safe_decimal(txn.get("category_confidence"), default="0.0"),
                     statement=statement,
                 )
                 transactions.append(transaction)

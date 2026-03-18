@@ -1,6 +1,7 @@
 """Review queue management for reconciliation."""
 
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -22,6 +23,8 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
+from src.models.layer2 import AtomicTransaction
+from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.services.accounting import ValidationError, validate_journal_balance
 from src.services.reconciliation import entry_total_amount
 
@@ -45,7 +48,7 @@ async def get_pending_items(
         .offset(offset)
         .options(selectinload(ReconciliationMatch.transaction))
     )
-    return result.scalars().all()
+    return cast(list[ReconciliationMatch], result.scalars().all())
 
 
 async def accept_match(
@@ -298,24 +301,78 @@ async def create_entry_from_txn(
             currency=currency,
             user_id=user_id,
         )
-    if txn.direction == "IN":
-        counter_account = await get_or_create_account(
-            db,
-            name="Income - Uncategorized",
-            account_type=AccountType.INCOME,
-            currency=currency,
-            user_id=user_id,
+
+    classified_account: Account | None = None
+
+    atomic_txn = None
+    linked_match_result = await db.execute(
+        select(ReconciliationMatch)
+        .where(ReconciliationMatch.bank_txn_id == txn.id)
+        .where(ReconciliationMatch.atomic_txn_id.is_not(None))
+        .order_by(ReconciliationMatch.created_at.desc())
+    )
+    linked_match = linked_match_result.scalar_one_or_none()
+    if linked_match and linked_match.atomic_txn_id:
+        atomic_txn_result = await db.execute(
+            select(AtomicTransaction).where(AtomicTransaction.id == linked_match.atomic_txn_id)
         )
+        atomic_txn = atomic_txn_result.scalar_one_or_none()
+
+    if atomic_txn:
+        classification_result = await db.execute(
+            select(TransactionClassification)
+            .where(TransactionClassification.atomic_txn_id == atomic_txn.id)
+            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
+            .order_by(TransactionClassification.created_at.desc())
+        )
+        classification = classification_result.scalar_one_or_none()
+        if classification and classification.account_id:
+            account_result = await db.execute(select(Account).where(Account.id == classification.account_id))
+            classified_account = account_result.scalar_one_or_none()
+
+    if not classified_account and txn.suggested_category and txn.suggested_category != "Other":
+        category_name = txn.suggested_category
+        if txn.direction == "IN":
+            classified_account = await get_or_create_account(
+                db,
+                name=f"Income - {category_name}",
+                account_type=AccountType.INCOME,
+                currency=currency,
+                user_id=user_id,
+            )
+        else:
+            classified_account = await get_or_create_account(
+                db,
+                name=f"Expense - {category_name}",
+                account_type=AccountType.EXPENSE,
+                currency=currency,
+                user_id=user_id,
+            )
+
+    if txn.direction == "IN":
+        if classified_account and classified_account.type == AccountType.INCOME:
+            counter_account = classified_account
+        else:
+            counter_account = await get_or_create_account(
+                db,
+                name="Income - Uncategorized",
+                account_type=AccountType.INCOME,
+                currency=currency,
+                user_id=user_id,
+            )
         debit_account = bank_account
         credit_account = counter_account
     else:
-        counter_account = await get_or_create_account(
-            db,
-            name="Expense - Uncategorized",
-            account_type=AccountType.EXPENSE,
-            currency=currency,
-            user_id=user_id,
-        )
+        if classified_account and classified_account.type == AccountType.EXPENSE:
+            counter_account = classified_account
+        else:
+            counter_account = await get_or_create_account(
+                db,
+                name="Expense - Uncategorized",
+                account_type=AccountType.EXPENSE,
+                currency=currency,
+                user_id=user_id,
+            )
         debit_account = counter_account
         credit_account = bank_account
 

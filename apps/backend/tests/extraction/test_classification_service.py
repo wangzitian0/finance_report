@@ -525,3 +525,169 @@ class TestClassificationService:
         results = await service.apply_rules(db, test_user.id, [txn])
 
         assert len(results) == 0
+
+    async def test_apply_ml_model_rule_matches_on_confidence_threshold(self, db, test_user):
+        service = ClassificationService()
+
+        account = Account(
+            user_id=test_user.id,
+            name="AI Category Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6810",
+        )
+        db.add(account)
+        await db.flush()
+
+        ml_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="ML Category Rule",
+            rule_type=RuleType.ML_MODEL,
+            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
+            default_account_id=account.id,
+            created_by=test_user.id,
+        )
+        db.add(ml_rule)
+        await db.flush()
+
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("22.00"),
+            direction=TransactionDirection.OUT,
+            description="Grocery purchase",
+            currency="SGD",
+            dedup_hash="hash_ml_high",
+            source_documents=[{"category_confidence": "0.82", "suggested_category": "Food & Dining"}],
+        )
+        db.add(txn)
+        await db.flush()
+
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        assert len(results) == 1
+        assert results[0].atomic_txn_id == txn.id
+        assert results[0].confidence_score == 82
+
+    async def test_apply_ml_model_rule_rejects_low_confidence(self, db, test_user):
+        service = ClassificationService()
+
+        account = Account(
+            user_id=test_user.id,
+            name="AI Low Confidence",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6811",
+        )
+        db.add(account)
+        await db.flush()
+
+        ml_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="ML Low Confidence Rule",
+            rule_type=RuleType.ML_MODEL,
+            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
+            default_account_id=account.id,
+            created_by=test_user.id,
+        )
+        db.add(ml_rule)
+        await db.flush()
+
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("12.00"),
+            direction=TransactionDirection.OUT,
+            description="Random merchant",
+            currency="SGD",
+            dedup_hash="hash_ml_low",
+            source_documents=[{"category_confidence": "0.40", "suggested_category": "Shopping"}],
+        )
+        db.add(txn)
+        await db.flush()
+
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        assert len(results) == 0
+
+    async def test_classification_priority_keyword_over_regex_over_ml(self, db, test_user):
+        service = ClassificationService()
+
+        keyword_account = Account(
+            user_id=test_user.id,
+            name="Keyword Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6812",
+        )
+        regex_account = Account(
+            user_id=test_user.id,
+            name="Regex Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6813",
+        )
+        ml_account = Account(
+            user_id=test_user.id,
+            name="ML Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6814",
+        )
+        db.add_all([keyword_account, regex_account, ml_account])
+        await db.flush()
+
+        keyword_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Keyword Priority",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["food"]},
+            default_account_id=keyword_account.id,
+            created_by=test_user.id,
+        )
+        regex_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Regex Priority",
+            rule_type=RuleType.REGEX_MATCH,
+            rule_config={"pattern": r"food"},
+            default_account_id=regex_account.id,
+            created_by=test_user.id,
+        )
+        ml_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="ML Priority",
+            rule_type=RuleType.ML_MODEL,
+            rule_config={"source": "extraction_ai", "confidence_threshold": "0.70"},
+            default_account_id=ml_account.id,
+            created_by=test_user.id,
+        )
+        db.add_all([keyword_rule, regex_rule, ml_rule])
+        await db.flush()
+
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("30.00"),
+            direction=TransactionDirection.OUT,
+            description="food delivery",
+            currency="SGD",
+            dedup_hash="hash_priority",
+            source_documents=[{"category_confidence": "0.95", "suggested_category": "Food & Dining"}],
+        )
+        db.add(txn)
+        await db.flush()
+
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        assert len(results) == 1
+        assert results[0].account_id == keyword_account.id

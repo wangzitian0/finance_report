@@ -12,13 +12,20 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from src.models import (
+    Account,
     AccountType,
     BankStatementTransactionStatus,
+    ClassificationRule,
+    ClassificationStatus,
     JournalEntryStatus,
     ReconciliationStatus,
+    RuleType,
+    TransactionClassification,
 )
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.accounting import ValidationError
 from src.services.review_queue import (
     accept_match,
@@ -484,3 +491,104 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
     with patch("src.services.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")):
         with pytest.raises(ValueError, match="Generated entry does not balance"):
             await create_entry_from_txn(db, txn, user_id=test_user.id)
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_uses_layer3_classification_account(db, test_user):
+    classified_account = await AccountFactory.create_async(
+        db,
+        user_id=test_user.id,
+        name="Expense - Food & Dining",
+        type=AccountType.EXPENSE,
+        currency="SGD",
+    )
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="OUT",
+        amount=Decimal("80.00"),
+        description="Dinner",
+    )
+
+    atomic_txn = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=txn.txn_date,
+        amount=txn.amount,
+        direction=TransactionDirection.OUT,
+        description=txn.description,
+        currency="SGD",
+        dedup_hash=f"epic18-layer3-{uuid4()}",
+        source_documents=[],
+    )
+    db.add(atomic_txn)
+    await db.flush()
+
+    rule = ClassificationRule(
+        user_id=test_user.id,
+        version_number=1,
+        effective_date=txn.txn_date,
+        rule_name="Food rule",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["dinner"]},
+        default_account_id=classified_account.id,
+        created_by=test_user.id,
+    )
+    db.add(rule)
+    await db.flush()
+
+    classification = TransactionClassification(
+        atomic_txn_id=atomic_txn.id,
+        rule_version_id=rule.id,
+        account_id=classified_account.id,
+        confidence_score=100,
+        status=ClassificationStatus.APPLIED,
+    )
+    db.add(classification)
+
+    await ReconciliationMatchFactory.create_async(
+        db,
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+        atomic_txn_id=atomic_txn.id,
+    )
+    await db.commit()
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+
+    debit_line = next(line for line in entry.lines if line.direction.value == "DEBIT")
+    assert debit_line.account_id == classified_account.id
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_auto_creates_user_scoped_category_account(db, test_user):
+    other_user_id = uuid4()
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    await AccountFactory.create_async(
+        db,
+        user_id=other_user_id,
+        name="Expense - Transport",
+        type=AccountType.EXPENSE,
+        currency="SGD",
+    )
+
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="OUT",
+        amount=Decimal("15.00"),
+        description="MRT",
+        suggested_category="Transport",
+    )
+    await db.commit()
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    debit_line = next(line for line in entry.lines if line.direction.value == "DEBIT")
+
+    account_result = await db.execute(select(Account).where(Account.id == debit_line.account_id))
+    account = account_result.scalar_one()
+
+    assert account.name == "Expense - Transport"
+    assert account.type == AccountType.EXPENSE
+    assert account.user_id == test_user.id

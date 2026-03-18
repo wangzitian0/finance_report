@@ -57,6 +57,8 @@ class TransactionUpdateRequest(BaseModel):
     reference: str | None = None
     currency: str | None = None
     balance_after: Decimal | None = None
+    suggested_category: str | None = None
+    category_confidence: Decimal | None = None
 
 
 # --- Response Schemas ---
@@ -78,6 +80,8 @@ class BankStatementTransactionResponse(BaseModel):
     confidence: ConfidenceLevelEnum
     confidence_reason: str | None
     raw_text: str | None
+    suggested_category: str | None = None
+    category_confidence: Decimal | None = None
     created_at: datetime
     updated_at: datetime
 

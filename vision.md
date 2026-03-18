@@ -217,7 +217,7 @@ Auto-parsed            →  LOW       (lowest confidence)
 - ✅ Audit trail (immutable, traceable)
 
 ### What We Don't Do
-- ❌ Spending categorization (fine-grained living expense breakdowns) → Extensible later
+- ✅ AI-assisted categorization (broad categories via extraction prompt, EPIC-018) — AI suggests, human confirms
 - ❌ Budget management → Not a core need
 - ❌ Liability tracking (mortgages) → Not supported yet
 
@@ -233,4 +233,4 @@ Other features can iterate later, but if the data is wrong, everything is useles
 - Project status: `docs/project/README.md`
 - Developer entry: `README.md`
 
-**Last updated**: 2026-02-23
+**Last updated**: 2026-03-18

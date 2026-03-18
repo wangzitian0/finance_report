@@ -210,6 +210,8 @@ class TestPromptGeneration:
         assert "financial statement parser" in prompt.lower()
         assert "JSON" in prompt
         assert "transactions" in prompt
+        assert "suggested_category" in prompt
+        assert "category_confidence" in prompt
 
     def test_get_parsing_prompt_dbs(self):
         """AC13.4.2: Test DBS-specific prompt."""
@@ -316,7 +318,7 @@ class TestInstitutionDetection:
 
         with pytest.raises(ExtractionError, match="Institution is required for CSV"):
             await self.service.parse_document(
-                file_path=None,
+                file_path=Path("test.csv"),
                 institution=None,
                 user_id=uuid4(),
                 file_type="csv",
@@ -332,7 +334,7 @@ class TestInstitutionDetection:
         """AC13.6.2: Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
         with pytest.raises(Exception) as exc_info:
             await self.service.parse_document(
-                file_path=None,
+                file_path=Path("test.pdf"),
                 institution=None,
                 user_id=uuid4(),
                 file_type="pdf",
@@ -461,7 +463,7 @@ class TestExtractionServiceHelpers:
         service = ExtractionService()
         with pytest.raises(ExtractionError, match="File content is required"):
             await service.parse_document(
-                file_path=None,
+                file_path=Path("test.pdf"),
                 institution="DBS",
                 user_id=uuid4(),
                 file_type="pdf",

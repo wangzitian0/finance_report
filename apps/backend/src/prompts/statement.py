@@ -32,7 +32,9 @@ Output format (JSON object - NOT an array):
       "reference": "TXN123456",
       "currency": "SGD",
       "balance_after": "15000.00",
-      "raw_text": "15 Jan SALARY ACME CORP 5,000.00 CR"
+      "raw_text": "15 Jan SALARY ACME CORP 5,000.00 CR",
+      "suggested_category": "Salary",
+      "category_confidence": 0.95
     }
   ]
 }
@@ -49,6 +51,7 @@ Important Rules:
 9. For each transaction, include "currency" (ISO 4217 code, e.g. "SGD", "USD")
 10. Include "balance_after" showing the running balance after the transaction (from the balance column if present)
 11. Auto-detect the institution name from the document header/logo and return it in the "institution" field
+12. For each transaction, suggest a category from: Food & Dining, Transport, Shopping, Utilities, Salary, Transfer, Investment, Insurance, Rent, Healthcare, Entertainment, Education, Subscriptions, Other. Set "suggested_category" and "category_confidence" (0.0-1.0). If unsure, use "Other" with low confidence.
 """
 
 VALIDATION_PROMPT = """Verify the extracted data:
