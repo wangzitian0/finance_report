@@ -147,6 +147,11 @@ class Settings(BaseSettings):
         default=True,
         validation_alias="ENABLE_LAYER_0_WRITE",
     )
+    # Feature Flags for AI-Driven Pipeline (EPIC-018)
+    enable_ai_reconciliation: bool = Field(
+        default=False,
+        validation_alias="ENABLE_AI_RECONCILIATION",
+    )
 
     # Deployment metadata
     git_commit_sha: str = Field(

@@ -22,6 +22,7 @@ This section contains:
 
 **Planned (P1 - High Priority)**
 - [EPIC-017](./EPIC-017.portfolio-management.md) — Investment Portfolio Management (6-8 weeks) — 100% self-developed.
+- [EPIC-018](./EPIC-018.ai-driven-pipeline.md) — AI-Driven Data Pipeline (4-7 weeks) — Extend AI into classification, reconciliation, feedback learning.
 
 ~~**TODO (Design Needed)**~~
 - ~~source_type Priority Logic~~ ✅ **Resolved** — SSOT doc added: [source-type-priority.md](../ssot/source-type-priority.md) (EPIC-013 / EPIC-016 implementation planned).
@@ -61,9 +62,10 @@ This section contains:
 | [EPIC-015](./EPIC-015.processing-account.md) | Processing Account Integration | ✅ Complete | 3 | 2 weeks |
 | [EPIC-016](./EPIC-016.two-stage-review-ui.md) | Two-Stage Review & Data Validation UI | 🟡 Planned | 3 | 4-6 weeks |
 | [EPIC-017](./EPIC-017.portfolio-management.md) | Investment Portfolio Management | 🟡 Planned | 5 | 6-8 weeks |
+| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-Driven Data Pipeline | 🟡 Planned | 4 | 4-7 weeks |
 
-**Total Duration**: 40-51 weeks (including EPIC-016 and EPIC-017)
-**Current Focus**: Phase 3 (Two-Stage Review - Foundation for User Adoption), Phase 4 (Reporting & AI Features), Phase 5 (Portfolio Management)
+**Total Duration**: 44-58 weeks (including EPIC-016, EPIC-017, and EPIC-018)
+**Current Focus**: Phase 3 (Two-Stage Review - Foundation for User Adoption), Phase 4 (Reporting & AI Features), Phase 5 (Portfolio Management), AI-Driven Pipeline
 
 ## 🗺️ EPIC Dependencies
 
@@ -87,6 +89,10 @@ graph LR
     E2 --> E17[EPIC-017<br/>Portfolio]
     E3 --> E17
     E11 --> E17
+    E3 --> E18[EPIC-018<br/>AI Pipeline]
+    E4 --> E18
+    E6 --> E18
+    E13 --> E18
     
     style E1 fill:#90EE90
     style E2 fill:#90EE90
@@ -101,12 +107,13 @@ graph LR
     style E15 fill:#90EE90
     style E16 fill:#FFD700
     style E17 fill:#FFD700
+    style E18 fill:#FFD700
 ```
 
 **Critical Path**: EPIC-001 → EPIC-002 → EPIC-003 → EPIC-004  
 **Parallel Path**: EPIC-005 can start after EPIC-002, parallel with EPIC-003/004  
 **Infrastructure Path**: EPIC-007 deploys completed features to production  
-**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation), EPIC-016 (Two-Stage Review) is critical for user adoption, EPIC-017 (Portfolio) implements 100% self-developed solution
+**Future Work**: EPIC-011 requires EPIC-002 (Double-Entry) and EPIC-005 (Reporting), EPIC-015 extends EPIC-004 (Reconciliation), EPIC-016 (Two-Stage Review) is critical for user adoption, EPIC-017 (Portfolio) implements 100% self-developed solution, EPIC-018 (AI Pipeline) extends AI across the full data pipeline
 
 ## 📖 Reading Guide
 
@@ -134,6 +141,7 @@ Check the relevant EPIC for your feature:
 
 - **Statement Parsing V2**: [EPIC-013](./EPIC-013.statement-parsing-v2.md)
 - **TTD Transformation**: [EPIC-014](./EPIC-014.ttd-transformation.md)
+- **AI Pipeline**: [EPIC-018](./EPIC-018.ai-driven-pipeline.md)
 
 ## 📊 Quality Standards
 
@@ -161,7 +169,7 @@ Each EPIC document contains:
 
 ---
 
-*Last updated: February 2026*
+*Last updated: March 2026*
 
 ## Quick Links
 

@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
@@ -54,6 +55,78 @@ class TestExtractionServiceFlow:
 
         assert stmt.institution == "UOB"
         assert stmt.account_last4 == "6789"
+
+    @pytest.mark.asyncio
+    async def test_parse_document_persists_ai_category_fields(self, service, tmp_path):
+        pdf_file = tmp_path / "test_category.pdf"
+        pdf_file.write_bytes(b"dummy content")
+
+        mock_data = {
+            "institution": "UOB",
+            "account_last4": "6789",
+            "currency": "SGD",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "1000.00",
+            "closing_balance": "1050.00",
+            "transactions": [
+                {
+                    "date": "2025-01-15",
+                    "description": "Coffee shop",
+                    "amount": "50.00",
+                    "direction": "OUT",
+                    "suggested_category": "Food & Dining",
+                    "category_confidence": "0.83",
+                }
+            ],
+        }
+
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
+            _, events = await service.parse_document(
+                pdf_file,
+                institution=None,
+                user_id=uuid4(),
+                file_content=pdf_file.read_bytes(),
+            )
+
+        assert len(events) == 1
+        assert events[0].suggested_category == "Food & Dining"
+        assert events[0].category_confidence == Decimal("0.83")
+
+    @pytest.mark.asyncio
+    async def test_parse_document_defaults_missing_ai_category_confidence(self, service, tmp_path):
+        pdf_file = tmp_path / "test_category_default.pdf"
+        pdf_file.write_bytes(b"dummy content")
+
+        mock_data = {
+            "institution": "UOB",
+            "account_last4": "6789",
+            "currency": "SGD",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "1000.00",
+            "closing_balance": "1050.00",
+            "transactions": [
+                {
+                    "date": "2025-01-15",
+                    "description": "Unknown payment",
+                    "amount": "50.00",
+                    "direction": "OUT",
+                }
+            ],
+        }
+
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
+            _, events = await service.parse_document(
+                pdf_file,
+                institution=None,
+                user_id=uuid4(),
+                file_content=pdf_file.read_bytes(),
+            )
+
+        assert len(events) == 1
+        assert events[0].suggested_category is None
+        assert events[0].category_confidence == Decimal("0.0")
 
         # Verify clean up (nothing to clean really)
 

@@ -152,6 +152,8 @@ class BankStatementTransaction(Base, UUIDMixin, TimestampMixin):
     )
     confidence_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggested_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    category_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
 
     statement: Mapped["BankStatement"] = relationship(
         "BankStatement",
