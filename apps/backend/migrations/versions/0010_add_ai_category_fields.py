@@ -1,7 +1,7 @@
 """Add AI category fields to bank_statement_transactions.
 
 Revision ID: 0010_ai_category
-Revises: e40975f66f7f
+Revises: 5e7857c97b74
 Create Date: 2026-03-18
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0010_ai_category"
-down_revision = "e40975f66f7f"
+down_revision = "5e7857c97b74"
 branch_labels = None
 depends_on = None
 
