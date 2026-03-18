@@ -592,3 +592,27 @@ async def test_create_entry_from_txn_auto_creates_user_scoped_category_account(d
     assert account.name == "Expense - Transport"
     assert account.type == AccountType.EXPENSE
     assert account.user_id == test_user.id
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_inflow_uses_ai_income_category_account(db, test_user):
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="IN",
+        amount=Decimal("1200.00"),
+        description="Monthly salary",
+        suggested_category="Salary",
+    )
+    await db.commit()
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    credit_line = next(line for line in entry.lines if line.direction.value == "CREDIT")
+
+    account_result = await db.execute(select(Account).where(Account.id == credit_line.account_id))
+    account = account_result.scalar_one()
+
+    assert account.name == "Income - Salary"
+    assert account.type == AccountType.INCOME
+    assert account.user_id == test_user.id
