@@ -469,6 +469,78 @@ def weighted_total(scores: dict[str, float], config: ReconciliationConfig) -> in
     return int(round(total, 0))
 
 
+async def ai_semantic_score(
+    txn_description: str,
+    entry_memo: str,
+    date_diff_days: int,
+    amount_match_pct: float,
+) -> int:
+    """EPIC-018 Phase 3: Compute AI semantic similarity score.
+
+    Calls OpenRouter to assess semantic similarity between a bank transaction
+    description and a journal entry memo. Returns 0-100 score.
+
+    Falls back gracefully to 50 (neutral) on any error.
+    """
+    import json
+
+    from src.prompts.reconciliation import build_reconciliation_prompt
+    from src.services.openrouter_streaming import (
+        OpenRouterStreamError,
+        accumulate_stream,
+        stream_openrouter_json,
+    )
+
+    if not settings.openrouter_api_key:
+        logger.debug("AI reconciliation skipped: no API key configured")
+        return 50
+
+    prompt = build_reconciliation_prompt(
+        txn_description=txn_description,
+        entry_memo=entry_memo,
+        date_diff_days=date_diff_days,
+        amount_match_pct=amount_match_pct,
+    )
+
+    messages = [{"role": "user", "content": prompt}]
+
+    try:
+        stream = stream_openrouter_json(
+            messages=messages,
+            model=settings.primary_model,
+            api_key=settings.openrouter_api_key,
+            base_url=settings.openrouter_base_url,
+            timeout=30.0,
+        )
+        content = await accumulate_stream(stream)
+
+        if not content or not content.strip():
+            logger.warning("AI semantic score returned empty response")
+            return 50
+
+        parsed = json.loads(content)
+        score = int(parsed.get("similarity_score", 50))
+        reasoning = parsed.get("reasoning", "")
+
+        logger.info(
+            "AI semantic score computed",
+            txn_desc=txn_description[:50],
+            entry_memo=entry_memo[:50],
+            score=score,
+            reasoning=reasoning[:100],
+        )
+
+        return max(0, min(100, score))
+
+    except (OpenRouterStreamError, json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
+        logger.warning(
+            "AI semantic score failed, using fallback",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return 50
+
+
 def prune_candidates(
     candidates: list[JournalEntry],
     *,
@@ -542,6 +614,24 @@ async def calculate_match_score(
         scores["amount"] = amount_score
 
     total = weighted_total(scores, config)
+
+    # EPIC-018 Phase 3: Hybrid scoring for ambiguous matches (60-84 range)
+    if settings.enable_ai_reconciliation and 60 <= total <= 84:
+        primary_entry = entries[0] if entries else None
+        if primary_entry:
+            date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
+            amount_pct = scores.get("amount", 0.0)
+            semantic = await ai_semantic_score(
+                txn_description=transaction.description,
+                entry_memo=primary_entry.memo or "",
+                date_diff_days=date_diff,
+                amount_match_pct=amount_pct,
+            )
+            # Hybrid formula: 70% algorithmic + 30% AI semantic
+            total = int(round(Decimal("0.7") * total + Decimal("0.3") * semantic, 0))
+            scores["ai_semantic"] = float(semantic)
+            scores["hybrid_applied"] = 1.0
+
     return MatchCandidate(
         journal_entry_ids=[str(entry.id) for entry in entries],
         score=total,

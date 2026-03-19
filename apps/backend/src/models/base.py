@@ -17,7 +17,10 @@ class UUIDMixin:
 class UserOwnedMixin:
     """Mixin for user ownership tracking."""
 
-    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    from sqlalchemy import ForeignKey
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
 
 class TimestampMixin:

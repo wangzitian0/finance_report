@@ -287,3 +287,39 @@ async def export_report(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/{report_type}/snapshots")
+async def list_report_snapshots(
+    report_type: str,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> list[dict]:
+    """List available report snapshots for a given report type.
+
+    AC18.4.2: ReportSnapshot (Layer 4) is queryable via API.
+    """
+    from sqlalchemy import select as sa_select
+
+    from src.models.layer4 import ReportSnapshot
+
+    stmt = (
+        sa_select(ReportSnapshot)
+        .where(ReportSnapshot.report_type == report_type)
+        .order_by(ReportSnapshot.created_at.desc())
+        .limit(50)
+    )
+    result = await db.execute(stmt)
+    snapshots = result.scalars().all()
+
+    return [
+        {
+            "id": str(s.id),
+            "report_type": s.report_type,
+            "report_date": s.report_date.isoformat() if s.report_date else None,
+            "rule_version": s.rule_version,
+            "is_latest": s.is_latest,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in snapshots
+    ]
