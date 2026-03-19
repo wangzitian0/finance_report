@@ -106,7 +106,7 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (CheckConstraint("amount > 0", name="positive_amount"),)
 
     journal_entry_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("journal_entries.id"), nullable=False, index=True
+        PGUUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False, index=True
     )
     account_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False, index=True

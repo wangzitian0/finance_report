@@ -917,6 +917,29 @@ class ExtractionService:
                     period_end = txn_date
 
         if not transactions:
+            # EPIC-018 Phase 4: AI CSV parsing fallback for unknown formats
+            logger.info(
+                "No transactions from heuristic parsing, trying AI CSV mapping",
+                institution=institution,
+                headers=headers,
+            )
+            try:
+                transactions, period_start, period_end = await self._ai_parse_csv(
+                    headers,
+                    rows,
+                    institution,
+                    parse_date,
+                    parse_amount,
+                )
+            except Exception as ai_err:
+                logger.warning(
+                    "AI CSV parsing fallback failed",
+                    error=str(ai_err),
+                    error_type=type(ai_err).__name__,
+                    institution=institution,
+                )
+
+        if not transactions:
             logger.warning(
                 "CSV parsing found no valid transactions",
                 institution=institution,
@@ -939,3 +962,115 @@ class ExtractionService:
             "period_end": period_end.isoformat() if period_end else None,
             "transactions": transactions,
         }
+
+    async def _ai_parse_csv(
+        self,
+        headers: list[str],
+        rows: list[dict],
+        institution: str,
+        parse_date,
+        parse_amount,
+    ) -> tuple[list[dict], date | None, date | None]:
+        """EPIC-018 Phase 4: AI-powered CSV column mapping for unknown institutions.
+
+        Uses AI to identify which columns contain date, description, amount, etc.
+        Returns (transactions, period_start, period_end).
+        """
+        import json
+
+        from src.prompts.csv_mapping import build_csv_mapping_prompt
+        from src.services.openrouter_streaming import (
+            accumulate_stream,
+            stream_openrouter_json,
+        )
+
+        if not self.api_key:
+            raise ExtractionError("OpenRouter API key required for AI CSV parsing")
+
+        # Build sample rows for the prompt
+        sample_rows = []
+        for row in rows[:5]:
+            sample_rows.append([row.get(h, "") for h in headers])
+
+        prompt = build_csv_mapping_prompt(headers, sample_rows)
+        messages = [{"role": "user", "content": prompt}]
+
+        stream = stream_openrouter_json(
+            messages=messages,
+            model=self.primary_model,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=30.0,
+        )
+        content = await accumulate_stream(stream)
+
+        if not content or not content.strip():
+            raise ExtractionError("AI CSV mapping returned empty response")
+
+        mapping = json.loads(content)
+
+        date_col = mapping.get("date")
+        desc_col = mapping.get("description")
+        amount_col = mapping.get("amount")
+        debit_col = mapping.get("debit")
+        credit_col = mapping.get("credit")
+
+        logger.info(
+            "AI CSV column mapping identified",
+            institution=institution,
+            mapping=mapping,
+        )
+
+        transactions: list[dict] = []
+        period_start: date | None = None
+        period_end: date | None = None
+
+        for row in rows:
+            txn_date = parse_date(row.get(date_col, "")) if date_col else None
+            if not txn_date:
+                continue
+
+            if amount_col and row.get(amount_col):
+                amount = parse_amount(row.get(amount_col, ""))
+                if amount is not None:
+                    direction = "OUT" if amount < 0 else "IN"
+                    amount = abs(amount)
+                else:
+                    continue
+            elif debit_col or credit_col:
+                debit = parse_amount(row.get(debit_col, "")) if debit_col else None
+                credit = parse_amount(row.get(credit_col, "")) if credit_col else None
+                if debit and debit > 0:
+                    amount = debit
+                    direction = "OUT"
+                elif credit and credit > 0:
+                    amount = credit
+                    direction = "IN"
+                else:
+                    continue
+            else:
+                continue
+
+            description = row.get(desc_col, "Transaction") if desc_col else "Transaction"
+
+            transactions.append(
+                {
+                    "date": txn_date.isoformat(),
+                    "amount": str(amount),
+                    "direction": direction,
+                    "description": description.strip() if description else "Transaction",
+                }
+            )
+
+            if period_start is None or txn_date < period_start:
+                period_start = txn_date
+            if period_end is None or txn_date > period_end:
+                period_end = txn_date
+
+        logger.info(
+            "AI CSV parsing completed",
+            institution=institution,
+            transactions_count=len(transactions),
+        )
+
+        return transactions, period_start, period_end
