@@ -1,8 +1,10 @@
 """Add correction_logs table for EPIC-018 Phase 2.
 
 Revision ID: 0014_add_correction_logs
-Revises: 0013_add_consistency_checks
+Revises: (0013_add_consistency_checks, 0010_ai_category)
 Create Date: 2026-03-19
+
+Merge migration: unifies the 0013 and 0010_ai_category branches.
 """
 
 from alembic import op
@@ -11,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0014_add_correction_logs"
-down_revision = "0013_add_consistency_checks"
+down_revision = ("0013_add_consistency_checks", "0010_ai_category")
 branch_labels = None
 depends_on = None
 

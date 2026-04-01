@@ -35,7 +35,7 @@ class CorrectionStatsResponse(BaseModel):
 
     total_corrections: int
     top_corrections: list[dict]
-    accuracy_by_category: dict[str, float]
+    correction_rate_by_category: dict[str, float]
 
 
 @router.post("", response_model=CorrectionResponse, status_code=201)
