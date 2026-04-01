@@ -153,8 +153,19 @@ MariBank Singapore statement:
 }
 
 
-def get_parsing_prompt(institution: str | None = None) -> str:
-    """Get the full parsing prompt with institution-specific hints."""
+def get_parsing_prompt(
+    institution: str | None = None,
+    correction_examples: list[dict] | None = None,
+) -> str:
+    """Get the full parsing prompt with institution-specific hints and few-shot corrections.
+
+    Args:
+        institution: Optional institution name for specific parsing hints.
+        correction_examples: Optional list of user correction dicts with keys:
+            - description: transaction description
+            - original_category: AI's wrong suggestion
+            - corrected_category: user's correction
+    """
     prompt = SYSTEM_PROMPT
     if institution:
         inst_upper = institution.upper()
@@ -164,4 +175,16 @@ def get_parsing_prompt(institution: str | None = None) -> str:
                 prompt += f"\n\nInstitution-specific guidance for {institution}:\n"
                 prompt += hint
                 break
+
+    # EPIC-018 Phase 2: Inject few-shot correction examples
+    if correction_examples:
+        prompt += "\n\nIMPORTANT - Learn from these past categorization corrections:"
+        prompt += "\nThe user has corrected these categories before. Use them to improve accuracy:\n"
+        for ex in correction_examples:
+            desc = ex.get("description", "")
+            original = ex.get("original_category", "Other")
+            corrected = ex.get("corrected_category", "")
+            if desc and corrected:
+                prompt += f'- "{desc}" → was "{original}", should be "{corrected}"\n'
+
     return prompt

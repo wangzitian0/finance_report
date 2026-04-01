@@ -612,17 +612,20 @@ async def test_get_financial_context_filters_by_user(db: AsyncSession) -> None:
     assert context["match_rate"] == "50.0%"
 
 
-
 @pytest.mark.asyncio
-async def test_record_message_refresh_exception_logs_warning(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_record_message_refresh_exception_logs_warning(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """AC6.13.1: Record message logs warning when db.refresh raises."""
     service = AIAdvisorService()
     session = ChatSession(user_id=test_user.id, status=ChatSessionStatus.ACTIVE, title=None)
     db.add(session)
     await db.commit()
     await db.refresh(session)
+
     async def always_raise(obj):
         raise RuntimeError("simulated refresh failure")
+
     monkeypatch.setattr(db, "refresh", always_raise)
 
     # Should not raise — the exception is swallowed and a warning is logged
@@ -682,6 +685,7 @@ async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> No
         yield "chunk-b"
 
     import src.services.ai_advisor as _mod
+
     monkeypatch.setattr(_mod, "stream_openrouter_chat", fake_stream_openrouter_chat)
 
     chunks = []

@@ -724,6 +724,7 @@ class TestCalculateAccountBalanceInCurrency:
 # Additional coverage tests – AC8.12.x
 # ---------------------------------------------------------------------------
 
+
 class TestCalculateAccountBalanceInCurrencyLiability:
     """Test liability/equity accounts return negated balance (line 141 else branch)."""
 
@@ -781,8 +782,9 @@ class TestGetOrCreateFxGainLossAccountFlushError:
     @pytest.mark.asyncio
     async def test_flush_error_raises_revaluation_error(self, db: AsyncSession, test_user_id):
         """AC8.12.2 – SQLAlchemyError on flush is wrapped in RevaluationError."""
-        from sqlalchemy.exc import SQLAlchemyError
         from unittest.mock import AsyncMock, patch
+
+        from sqlalchemy.exc import SQLAlchemyError
 
         with patch.object(db, "flush", new_callable=AsyncMock) as mock_flush:
             mock_flush.side_effect = SQLAlchemyError("constraint violation")

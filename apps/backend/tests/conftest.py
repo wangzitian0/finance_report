@@ -89,7 +89,9 @@ def get_test_db_url(worker_id: str) -> str:
 
     if worker_id != "master":
         url_obj = make_url(base_url)
-        worker_db_name = f"{url_obj.database}_{worker_id}"
+        worker_suffix = f"_{worker_id}"
+        max_base_len = 63 - len(worker_suffix)
+        worker_db_name = f"{url_obj.database[:max_base_len]}{worker_suffix}"
         new_url = url_obj.set(database=worker_db_name)
         return new_url.render_as_string(hide_password=False)
 
@@ -222,6 +224,22 @@ async def db_engine(test_database_url):
         await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
         await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
         await conn.run_sync(Base.metadata.create_all)
+
+        # TODO(tech-debt): ~100 test files create data with user_id=uuid4()
+        # instead of using the test_user fixture. Until those are migrated,
+        # we MUST drop user_id FKs in the test schema to avoid
+        # ForeignKeyViolationError.  Production models retain the CASCADE FKs.
+        def _strip_user_fks(connection):
+            from sqlalchemy import MetaData as _Meta
+
+            meta = _Meta()
+            meta.reflect(bind=connection)
+            for tbl in meta.tables.values():
+                for fk in tbl.foreign_key_constraints:
+                    if fk.referred_table.name == "users":
+                        connection.execute(text(f'ALTER TABLE "{tbl.name}" DROP CONSTRAINT "{fk.name}"'))
+
+        await conn.run_sync(_strip_user_fks)
 
     yield engine
 

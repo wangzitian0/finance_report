@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -31,8 +30,8 @@ from src.services.reporting import (
 
 
 @pytest.fixture
-def user_id():
-    return uuid4()
+def user_id(test_user):
+    return test_user.id
 
 
 @pytest.fixture

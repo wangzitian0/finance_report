@@ -1,10 +1,10 @@
 """Tests for rate limiting functionality."""
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch
 
 from src.rate_limit import RateLimitConfig, RateLimiter
 

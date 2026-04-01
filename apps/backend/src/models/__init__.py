@@ -3,6 +3,7 @@
 from src.models.account import Account, AccountType
 from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.models.correction import CorrectionLog
 from src.models.journal import (
     Direction,
     JournalEntry,
@@ -63,6 +64,7 @@ __all__ = [
     "ClassificationRule",
     "ClassificationStatus",
     "ConfidenceLevel",
+    "CorrectionLog",
     "Direction",
     "DocumentStatus",
     "DocumentType",

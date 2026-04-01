@@ -53,14 +53,16 @@ Knowledge Graph:
 ```
 Raw PDF/CSV
     ↓ Adapter extraction (LLM/OCR/model)
+    ↓ AI categorization (suggested_category + confidence) ← EPIC-018 Phase 1
 Record (source_type + events)
     ↓ Balance verification (machine)
     ↓ Human confirmation (Stage 1)
 Confirmed Record
-    ↓ Dedup + matching (machine)
+    ↓ Dedup + matching (machine + AI semantic scoring) ← EPIC-018 Phase 3
+    ↓ Human correction → few-shot learning ← EPIC-018 Phase 2
     ↓ Human confirmation (Stage 2)
 Knowledge (trusted data)
-    ↓ Export
+    ↓ Export (Layer 3 classification-aware reports) ← EPIC-018 Phase 4
 Dashboard and reports (Native Portfolio Engine)
 ```
 
@@ -73,8 +75,13 @@ Dashboard and reports (Native Portfolio Engine)
 - Accounting integrity is non-negotiable.
 - SSOT defines technical truth; this document defines macro intent.
 - AI is a parsing and explanation layer, not a source of record.
+  - AI suggestions are never auto-posted; they flow through the review queue.
+  - User corrections feed back as few-shot examples, improving future suggestions.
+  - AI features are gated by feature flags (`enable_ai_reconciliation`) to control costs.
 - Every feature must preserve auditability and traceability.
-- Prefer deterministic logic for core bookkeeping and reconciliation.
+- Prefer deterministic logic for core bookkeeping; AI assists where rules are insufficient.
+  - Classification priority: Keyword rules > Regex rules > AI suggestion > Uncategorized.
+  - AI reconciliation scoring only activates for ambiguous matches (60-84 range).
 
 ## Decision Filter
 
@@ -217,7 +224,10 @@ Auto-parsed            →  LOW       (lowest confidence)
 - ✅ Audit trail (immutable, traceable)
 
 ### What We Don't Do
-- ✅ AI-assisted categorization (broad categories via extraction prompt, EPIC-018) — AI suggests, human confirms
+- ✅ AI-assisted categorization (EPIC-018 Phase 1) — AI suggests categories during extraction, human confirms
+- ✅ AI feedback learning (EPIC-018 Phase 2) — User corrections become few-shot examples for future prompts
+- ✅ AI-assisted reconciliation (EPIC-018 Phase 3) — Hybrid scoring for ambiguous matches, opt-in via feature flag
+- ✅ AI CSV parsing (EPIC-018 Phase 4) — Fallback for unknown bank CSV formats, preserves hardcoded parsers for known banks
 - ❌ Budget management → Not a core need
 - ❌ Liability tracking (mortgages) → Not supported yet
 

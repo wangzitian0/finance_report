@@ -631,6 +631,49 @@ async def generate_income_statement(
             }
         )
 
+    # EPIC-018 Phase 4: Layer 3 classification breakdown
+    classification_breakdown: list[dict[str, Any]] = []
+    try:
+        from src.models.layer2 import AtomicTransaction
+        from src.models.layer3 import ClassificationStatus, TransactionClassification
+
+        cls_stmt = (
+            select(
+                Account.name.label("account_name"),
+                Account.type.label("account_type"),
+                func.count(TransactionClassification.id).label("count"),
+                func.avg(TransactionClassification.confidence_score).label("avg_confidence"),
+            )
+            .join(Account, TransactionClassification.account_id == Account.id)
+            .join(AtomicTransaction, TransactionClassification.atomic_transaction_id == AtomicTransaction.id)
+            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
+            .where(Account.user_id == user_id)
+            .where(Account.type.in_(account_types))
+            .where(AtomicTransaction.txn_date >= start_date)
+            .where(AtomicTransaction.txn_date <= end_date)
+            .group_by(Account.name, Account.type)
+            .order_by(func.count(TransactionClassification.id).desc())
+            .limit(50)
+        )
+        cls_result = await db.execute(cls_stmt)
+        for row in cls_result.all():
+            classification_breakdown.append(
+                {
+                    "account_name": row.account_name,
+                    "account_type": row.account_type.value
+                    if hasattr(row.account_type, "value")
+                    else str(row.account_type),
+                    "classified_count": row.count,
+                    "avg_confidence": round(float(row.avg_confidence or 0), 1),
+                }
+            )
+    except Exception as e:
+        logger.warning(
+            "Failed to build classification breakdown, skipping",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+
     return {
         "start_date": start_date,
         "end_date": end_date,
@@ -643,6 +686,7 @@ async def generate_income_statement(
         "unrealized_fx_gain_loss": unrealized_fx_change,
         "comprehensive_income": _quantize_money(net_income + unrealized_fx_change),
         "trends": trend_items,
+        "classification_breakdown": classification_breakdown,
         "filters_applied": {
             "tags": tags,
             "account_type": account_type.value if account_type else None,
