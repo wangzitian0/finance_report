@@ -1,7 +1,6 @@
 """EPIC-018 Phase 2: Correction Service for feedback learning loop."""
 
 import time
-from collections import defaultdict
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -9,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
 from src.models.correction import CorrectionLog
-from src.models.statement import BankStatementTransaction
+from src.models.statement import BankStatement, BankStatementTransaction
 
 logger = get_logger(__name__)
 
@@ -45,8 +44,13 @@ async def record_correction(
 
     Auto-fills original_category from the transaction's current suggested_category.
     """
-    # Fetch transaction to get original category
-    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == transaction_id))
+    # Fetch transaction with ownership verification via statement
+    result = await db.execute(
+        select(BankStatementTransaction)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(BankStatementTransaction.id == transaction_id)
+        .where(BankStatement.user_id == user_id)
+    )
     txn = result.scalar_one_or_none()
     if not txn:
         raise ValueError(f"Transaction {transaction_id} not found")
@@ -93,7 +97,7 @@ async def get_correction_stats(
         return {
             "total_corrections": 0,
             "top_corrections": [],
-            "accuracy_by_category": {},
+            "correction_rate_by_category": {},
         }
 
     # Top corrected patterns (original → corrected)
@@ -120,21 +124,18 @@ async def get_correction_stats(
         for row in patterns
     ]
 
-    # Accuracy by original category (what % were correct = not corrected)
-    accuracy: dict[str, dict] = defaultdict(lambda: {"correct": 0, "total": 0})
+    # Correction rate by original category: how many times each category was corrected
+    category_totals: dict[str, int] = {}
     for row in patterns:
         cat = row.original_category or "None"
-        accuracy[cat]["total"] += row.count
+        category_totals[cat] = category_totals.get(cat, 0) + row.count
 
-    accuracy_by_category = {
-        cat: round(data["correct"] / data["total"] * 100, 1) if data["total"] > 0 else 0
-        for cat, data in accuracy.items()
-    }
+    correction_rate_by_category = {cat: round(count / total * 100, 1) for cat, count in category_totals.items()}
 
     return {
         "total_corrections": total,
         "top_corrections": top_corrections,
-        "accuracy_by_category": accuracy_by_category,
+        "correction_rate_by_category": correction_rate_by_category,
     }
 
 

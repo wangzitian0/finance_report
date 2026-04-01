@@ -520,14 +520,11 @@ async def ai_semantic_score(
 
         parsed = json.loads(content)
         score = int(parsed.get("similarity_score", 50))
-        reasoning = parsed.get("reasoning", "")
 
-        logger.info(
+        logger.debug(
             "AI semantic score computed",
-            txn_desc=txn_description[:50],
-            entry_memo=entry_memo[:50],
             score=score,
-            reasoning=reasoning[:100],
+            model=settings.primary_model,
         )
 
         return max(0, min(100, score))

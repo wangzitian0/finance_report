@@ -1,6 +1,5 @@
 """EPIC-018 Phase 3: Tests for AI-assisted reconciliation scoring."""
 
-import json
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 

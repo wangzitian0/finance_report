@@ -306,6 +306,7 @@ async def list_report_snapshots(
     stmt = (
         sa_select(ReportSnapshot)
         .where(ReportSnapshot.report_type == report_type)
+        .where(ReportSnapshot.user_id == user_id)
         .order_by(ReportSnapshot.created_at.desc())
         .limit(50)
     )
@@ -315,9 +316,10 @@ async def list_report_snapshots(
     return [
         {
             "id": str(s.id),
-            "report_type": s.report_type,
-            "report_date": s.report_date.isoformat() if s.report_date else None,
-            "rule_version": s.rule_version,
+            "report_type": s.report_type.value if hasattr(s.report_type, "value") else str(s.report_type),
+            "as_of_date": s.as_of_date.isoformat() if s.as_of_date else None,
+            "start_date": s.start_date.isoformat() if s.start_date else None,
+            "rule_version_id": str(s.rule_version_id),
             "is_latest": s.is_latest,
             "created_at": s.created_at.isoformat() if s.created_at else None,
         }

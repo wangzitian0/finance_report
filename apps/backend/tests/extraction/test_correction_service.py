@@ -1,18 +1,14 @@
 """EPIC-018 Phase 2: Tests for CorrectionService and feedback learning loop."""
 
-import time
-from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 
 from src.prompts.statement import get_parsing_prompt
 from src.services.correction_service import (
-    _correction_cache,
     clear_all_correction_cache,
     get_correction_stats,
     get_few_shot_examples,
-    invalidate_correction_cache,
     record_correction,
 )
 from tests.factories import (
@@ -97,7 +93,7 @@ async def test_get_correction_stats_empty(db, test_user):
     stats = await get_correction_stats(db, user_id=test_user.id)
     assert stats["total_corrections"] == 0
     assert stats["top_corrections"] == []
-    assert stats["accuracy_by_category"] == {}
+    assert stats["correction_rate_by_category"] == {}
 
 
 @pytest.mark.asyncio

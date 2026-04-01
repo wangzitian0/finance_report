@@ -269,7 +269,6 @@ def test_atomic_position_repr():
     assert result == "<AtomicPosition 2024-01-15 AAPL 100 @ 15000.00 USD>"
 
 
-
 def test_dividend_income_repr():
     """
     GIVEN a DividendIncome instance
