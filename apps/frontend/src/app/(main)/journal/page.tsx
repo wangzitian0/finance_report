@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
+import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
@@ -28,6 +29,7 @@ export default function JournalPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
     const fetchEntries = useCallback(async () => {
         setLoading(true);
@@ -199,7 +201,11 @@ export default function JournalPage() {
                         {entries.map((entry) => {
                             const debits = calculateDebits(entry.lines);
                             return (
-                                <div key={entry.id} className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors">
+                                <div 
+                                    key={entry.id} 
+                                    className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                                    onClick={() => setSelectedEntry(entry)}
+                                >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
@@ -228,13 +234,13 @@ export default function JournalPage() {
                                             {entry.status === "draft" && (
                                                 <div className="flex gap-2">
                                                     <button
-                                                        onClick={() => openDeleteDialog(entry.id)}
+                                                        onClick={(e) => { e.stopPropagation(); openDeleteDialog(entry.id); }}
                                                         className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
                                                     >
                                                         Delete
                                                     </button>
                                                     <button
-                                                        onClick={() => handlePostEntry(entry.id)}
+                                                        onClick={(e) => { e.stopPropagation(); handlePostEntry(entry.id); }}
                                                         className="btn-primary text-xs py-1 px-2"
                                                     >
                                                         Post
@@ -242,7 +248,10 @@ export default function JournalPage() {
                                                 </div>
                                             )}
                                             {(entry.status === "posted" || entry.status === "reconciled") && (
-                                                <button onClick={() => openVoidDialog(entry.id)} className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); openVoidDialog(entry.id); }} 
+                                                    className="btn-secondary text-xs py-1 px-2 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
+                                                >
                                                     Void
                                                 </button>
                                             )}
@@ -282,6 +291,12 @@ export default function JournalPage() {
                 confirmLabel="Delete Entry"
                 confirmVariant="danger"
                 loading={deleteLoading}
+            />
+
+            <JournalEntryDetailsModal
+                entry={selectedEntry}
+                isOpen={!!selectedEntry}
+                onClose={() => setSelectedEntry(null)}
             />
         </div>
     );

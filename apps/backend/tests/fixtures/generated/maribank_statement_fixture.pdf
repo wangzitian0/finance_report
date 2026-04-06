@@ -1,0 +1,118 @@
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document (opensource)
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 8 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 7 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/PageMode /UseNone /Pages 7 0 R /Type /Catalog
+>>
+endobj
+6 0 obj
+<<
+/Author (finance-report-tests) /CreationDate (D:20000101000000+00'00') /Creator (generate_test_pdfs.py) /Keywords () /ModDate (D:20000101000000+00'00') /Producer (ReportLab PDF Library - \(opensource\)) 
+  /Subject (Deterministic extraction test fixture) /Title (MariBank Statement Fixture) /Trapped /False
+>>
+endobj
+7 0 obj
+<<
+/Count 1 /Kids [ 4 0 R ] /Type /Pages
+>>
+endobj
+8 0 obj
+<<
+/Length 2163
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT /F1 16 Tf 19.2 TL ET
+BT 1 0 0 1 48 785.8898 Tm (MARIBANK ACCOUNT ACTIVITY STATEMENT) Tj T* ET
+BT /F1 10 Tf 12 TL ET
+BT 1 0 0 1 48 761.8898 Tm (Account Number: MB-****-4421) Tj T* ET
+BT 1 0 0 1 48 745.8898 Tm (Statement Period: 2025-04-01 to 2025-04-30) Tj T* ET
+BT 1 0 0 1 48 729.8898 Tm (Opening Balance: SGD 4200.00) Tj T* ET
+BT 1 0 0 1 48 713.8898 Tm (Closing Balance: SGD 3114.29) Tj T* ET
+BT /F2 10 Tf 12 TL ET
+BT 1 0 0 1 48 689.8898 Tm (Date) Tj T* ET
+BT 1 0 0 1 126 689.8898 Tm (Activity) Tj T* ET
+BT 1 0 0 1 390 689.8898 Tm (Amount) Tj T* ET
+BT 1 0 0 1 470 689.8898 Tm (Running Bal) Tj T* ET
+n 48 685.8898 m 545 685.8898 l S
+BT /F1 9 Tf 10.8 TL ET
+BT 1 0 0 1 48 669.8898 Tm (2025-04-02) Tj T* ET
+BT 1 0 0 1 126 669.8898 Tm (PayNow to KOPI SHOP PTE LTD) Tj T* ET
+BT 1 0 0 1 420.485 669.8898 Tm (-18.50) Tj T* ET
+BT 1 0 0 1 504.972 669.8898 Tm (4,181.50) Tj T* ET
+BT 1 0 0 1 48 652.8898 Tm (2025-04-04) Tj T* ET
+BT 1 0 0 1 126 652.8898 Tm (Interest Credited) Tj T* ET
+BT 1 0 0 1 423.23 652.8898 Tm (+0.88) Tj T* ET
+BT 1 0 0 1 504.972 652.8898 Tm (4,182.38) Tj T* ET
+BT 1 0 0 1 48 635.8898 Tm (2025-04-07) Tj T* ET
+BT 1 0 0 1 126 635.8898 Tm (PayNow to RIDE-HAIL SERVICES) Tj T* ET
+BT 1 0 0 1 420.485 635.8898 Tm (-26.30) Tj T* ET
+BT 1 0 0 1 504.972 635.8898 Tm (4,156.08) Tj T* ET
+BT 1 0 0 1 48 618.8898 Tm (2025-04-11) Tj T* ET
+BT 1 0 0 1 126 618.8898 Tm (Credit Card Repayment) Tj T* ET
+BT 1 0 0 1 407.975 618.8898 Tm (-1,200.00) Tj T* ET
+BT 1 0 0 1 504.972 618.8898 Tm (2,956.08) Tj T* ET
+BT 1 0 0 1 48 601.8898 Tm (2025-04-15) Tj T* ET
+BT 1 0 0 1 126 601.8898 Tm (PayNow from LEE WEI) Tj T* ET
+BT 1 0 0 1 413.222 601.8898 Tm (+300.00) Tj T* ET
+BT 1 0 0 1 504.972 601.8898 Tm (3,256.08) Tj T* ET
+BT 1 0 0 1 48 584.8898 Tm (2025-04-22) Tj T* ET
+BT 1 0 0 1 126 584.8898 Tm (Interest Credited) Tj T* ET
+BT 1 0 0 1 423.23 584.8898 Tm (+0.91) Tj T* ET
+BT 1 0 0 1 504.972 584.8898 Tm (3,256.99) Tj T* ET
+BT 1 0 0 1 48 567.8898 Tm (2025-04-27) Tj T* ET
+BT 1 0 0 1 126 567.8898 Tm (PayNow to ONLINE GROCER) Tj T* ET
+BT 1 0 0 1 415.481 567.8898 Tm (-142.70) Tj T* ET
+BT 1 0 0 1 504.972 567.8898 Tm (3,114.29) Tj T* ET
+ 
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000061 00000 n 
+0000000102 00000 n 
+0000000209 00000 n 
+0000000321 00000 n 
+0000000524 00000 n 
+0000000592 00000 n 
+0000000920 00000 n 
+0000000979 00000 n 
+trailer
+<<
+/ID 
+[<175f9fa2320745fc355da73791e5402b><175f9fa2320745fc355da73791e5402b>]
+% ReportLab generated PDF document -- digest (opensource)
+
+/Info 6 0 R
+/Root 5 0 R
+/Size 9
+>>
+startxref
+3193
+%%EOF

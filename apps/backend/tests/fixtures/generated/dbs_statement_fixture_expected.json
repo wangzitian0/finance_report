@@ -1,0 +1,108 @@
+{
+  "file": "dbs_statement_fixture.pdf",
+  "institution": "DBS",
+  "success": true,
+  "statement": {
+    "period_start": "2025-01-01",
+    "period_end": "2025-01-31",
+    "opening_balance": "12000.00",
+    "closing_balance": "15242.05",
+    "currency": "SGD",
+    "confidence_score": 96,
+    "balance_validated": true,
+    "account_last4": "3456"
+  },
+  "events": [
+    {
+      "date": "2025-01-03",
+      "description": "FAST CREDIT PAYROLL ACME PTE LTD",
+      "amount": "5200.00",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "17200.00",
+      "confidence": 0.95,
+      "raw_text": "03 Jan 2025 FAST CREDIT PAYROLL ACME PTE LTD 5,200.00 CR",
+      "suggested_category": "Salary",
+      "category_confidence": 0.95
+    },
+    {
+      "date": "2025-01-05",
+      "description": "PAYNOW TO UEN 201912345A RENT JAN",
+      "amount": "2200.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "15000.00",
+      "confidence": 0.95,
+      "raw_text": "05 Jan 2025 PAYNOW TO UEN 201912345A RENT JAN 2,200.00",
+      "suggested_category": "Rent",
+      "category_confidence": 0.92
+    },
+    {
+      "date": "2025-01-09",
+      "description": "GIRO SINGTEL MOBILE BILL",
+      "amount": "86.40",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "14913.60",
+      "confidence": 0.95,
+      "raw_text": "09 Jan 2025 GIRO SINGTEL MOBILE BILL 86.40",
+      "suggested_category": "Utilities",
+      "category_confidence": 0.87
+    },
+    {
+      "date": "2025-01-12",
+      "description": "POS NTUC FAIRPRICE BEDOK",
+      "amount": "128.75",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "14784.85",
+      "confidence": 0.95,
+      "raw_text": "12 Jan 2025 POS NTUC FAIRPRICE BEDOK 128.75",
+      "suggested_category": "Food & Dining",
+      "category_confidence": 0.86
+    },
+    {
+      "date": "2025-01-16",
+      "description": "FAST CREDIT FREELANCE PROJECT",
+      "amount": "900.00",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "15684.85",
+      "confidence": 0.95,
+      "raw_text": "16 Jan 2025 FAST CREDIT FREELANCE PROJECT 900.00 CR",
+      "suggested_category": "Salary",
+      "category_confidence": 0.82
+    },
+    {
+      "date": "2025-01-21",
+      "description": "PAYNOW TO JOHN TAN",
+      "amount": "300.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "15384.85",
+      "confidence": 0.95,
+      "raw_text": "21 Jan 2025 PAYNOW TO JOHN TAN 300.00",
+      "suggested_category": "Transfer",
+      "category_confidence": 0.84
+    },
+    {
+      "date": "2025-01-28",
+      "description": "GIRO SP SERVICES UTILITIES",
+      "amount": "142.80",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "15242.05",
+      "confidence": 0.95,
+      "raw_text": "28 Jan 2025 GIRO SP SERVICES UTILITIES 142.80",
+      "suggested_category": "Utilities",
+      "category_confidence": 0.88
+    }
+  ]
+}
