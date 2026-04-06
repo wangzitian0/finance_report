@@ -13,9 +13,10 @@ vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }))
 
 function createWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  )
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  }
+  return Wrapper
 }
 
 describe("AccountDetailsSidebar", () => {
