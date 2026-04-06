@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
     { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
     { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: FileText, label: "Statements", href: "/statements", protected: true },
-    { icon: Wallet, label: "Portfolio", href: "/assets", protected: true },
+    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
     { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
     { icon: MessageSquare, label: "AI Advisor", href: "/chat", protected: true },

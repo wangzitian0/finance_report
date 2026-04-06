@@ -627,3 +627,82 @@ Stage 2: Run-Level Review (Consistency Checks)
 | AC16.22.4 | Journal entry created only on `accepted` transition, never on `pending_review` | `TBD` | `TBD (test to be implemented)` | P0 |
 | AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
 | AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `TBD` | `TBD (test to be implemented)` | P1 |
+
+
+---
+
+## 🔍 FE/UI Audit (April 2026)
+
+> Audit Date: 2026-04-06 | Auditor: AI Agent (Sisyphus) | Scope: Frontend completeness, UX quality, accessibility
+
+### Executive Summary
+
+**Backend**: ✅ Fully implemented (554 lines services, 1,439 lines tests across `statement_validation.py`, `consistency_checks.py`, review router)
+
+**Frontend**: ⚠️ Partially implemented — core happy-path flows exist in monolithic page files, but EPIC-specified component decomposition and several key features are missing.
+
+### Inventory: What Exists
+
+| File | Lines | Purpose | Quality |
+|------|-------|---------|---------|
+| `statements/[id]/review/page.tsx` | 351 | Stage 1 review: PDF left + transactions right | ✅ Loading/error/empty states, responsive grid |
+| `reconciliation/review-queue/page.tsx` | 495 | Stage 2 review queue: consistency checks + batch matches | ✅ Focus trap, ESC key, score color coding |
+| `statements/[id]/page.tsx` | 513 | Statement detail: approve/reject/retry, parsing progress | ✅ Polling, timeout detection, error handling |
+| `statements/page.tsx` | 257 | Statement list: status badges, upload integration | ✅ Auto-polling during parsing |
+| `components/statements/StatementUploader.tsx` | 346 | Upload: drag-and-drop, model selection, file validation | ✅ Robust |
+| `components/reconciliation/Workbench.tsx` | 290 | Reconciliation matching (Stage 0, pre-EPIC-016) | ✅ TanStack Query |
+| `__tests__/reviewQueuePage.test.tsx` | 323 | Stage 2 tests: 13 test cases covering AC16.17.1–AC16.17.4 | ✅ Good coverage |
+| `__tests__/statementReviewPage.test.tsx` | 137 | Stage 1 tests: 3 test cases covering AC16.18.4–AC16.18.6 | ⚠️ Minimal |
+
+### Gap Analysis
+
+#### 🔴 Critical Gaps (blocking user adoption)
+
+| # | Gap | EPIC Requirement | Impact |
+|---|-----|-----------------|--------|
+| G1 | **No component decomposition** | EPIC specifies `components/review/PdfViewer.tsx`, `TransactionList.tsx`, `BalanceIndicator.tsx`, `ConsistencyCheckCard.tsx`, `BatchActions.tsx` | `components/review/` directory **does not exist**. All logic is monolithic in page.tsx files (351 + 495 lines). Makes testing, reuse, and maintenance difficult. |
+| G2 | **No inline transaction editing** | EPIC requires "Editable rows" in Stage 1 review — user corrects OCR mistakes before approving | Zero implementation. grep for `inline.?edit|editable|contentEditable` → 0 matches. Without this, users cannot fix parsing errors, defeating the purpose of human review. |
+| G3 | **No conflict resolution UI** | Stage 2 requires "choose canonical transaction" for duplicates and "link transfer pair" for transfers | No UI for resolving duplicate transactions or linking transfer pairs. Backend `consistency_checks.py` detects these, but frontend has no resolution workflow. |
+
+#### 🟡 Important Gaps (degraded experience)
+
+| # | Gap | EPIC Requirement | Impact |
+|---|-----|-----------------|--------|
+| G4 | **No filtering on Stage 2 review queue** | EPIC requires filters for check type, severity, score range, date | Users with many pending items cannot efficiently triage. Only raw list is shown. |
+| G5 | **No Previous/Next navigation** | Stage 1 review should allow navigating between pending statements | Users must go back to list, find next pending statement, click through to review. High friction. |
+| G6 | **Confusing approve/reject duplication** | `statements/[id]/page.tsx` (detail) has approve/reject buttons that overlap with `statements/[id]/review/page.tsx` (review) | Users see two different places to approve a statement with unclear distinction. UX confusion between "approve statement" vs "approve review". |
+| G7 | **Stage 1 test coverage is thin** | Only 3 tests for Stage 1 review vs 13 for Stage 2 | `statementReviewPage.test.tsx` covers AC16.18.4–AC16.18.6 only. Missing tests for PDF rendering, transaction display, balance indicator edge cases. |
+| G8 | **No batch operations on consistency checks** | Only individual resolve per check | Stage 2 allows batch approve/reject on matches but only individual resolve on consistency checks. If many checks share the same root cause, this is tedious. |
+
+#### 🟢 Nice-to-Have Gaps
+
+| # | Gap | Notes |
+|---|-----|-------|
+| G9 | No CSV export | "Export reviewed data" mentioned as deliverable |
+| G10 | No PDF page navigation controls | Left panel shows PDF embed but no page nav for multi-page statements |
+| G11 | Limited accessibility | Checkboxes in batch select have minimal labeling; transaction table lacks keyboard navigation; aria coverage limited to progress bar |
+| G12 | No direct "Review" link from statement list | Must navigate: List → Detail → Review (2 clicks instead of 1) |
+
+### Positive Findings
+
+- ✅ **Loading/error/empty states**: All 4 pages implement the project's standard pattern (spinner → error card with retry → empty message)
+- ✅ **Responsive layout**: All pages use `grid-cols-1 lg:grid-cols-2` for mobile/desktop
+- ✅ **Focus trap + keyboard**: Review queue modal implements ESC close and focus trap
+- ✅ **Score color coding**: Correct thresholds (green ≥85, yellow 60-84, red <60) matching AGENTS.md
+- ✅ **Balance validation gating**: Approve button disabled when balance validation fails (AC16.18.5)
+- ✅ **API wrapper**: All pages use `lib/api.ts` wrapper (no direct `fetch()`)
+- ✅ **Consistent design tokens**: Pages use project CSS variables (`--accent`, `--success`, `--error`)
+
+### Recommendations (Priority Order)
+
+1. **[P0] Implement inline editing** — Without this, Stage 1 review is view-only, which defeats confidence accumulation. Recommend a `TransactionEditableRow` component.
+2. **[P0] Extract reusable components** — Break monolithic pages into `components/review/` directory. This unblocks testing and future feature work.
+3. **[P1] Add conflict resolution UI** — Backend detects duplicates and transfers; frontend needs resolution dialogs ("choose canonical", "link pair").
+4. **[P1] Add filtering to Stage 2** — At minimum: severity filter, check type filter, score range slider.
+5. **[P2] Clarify approve/reject UX** — Either remove approve from detail page or make it clearly distinct from review approve (e.g., detail page only shows "Go to Review").
+6. **[P2] Add Previous/Next navigation** — Simple prev/next buttons on review page using statement list order.
+7. **[P3] Increase Stage 1 test coverage** — Add tests for PDF rendering fallback, transaction list sorting, balance indicator edge cases.
+
+---
+
+*FE/UI Audit appended: April 2026*

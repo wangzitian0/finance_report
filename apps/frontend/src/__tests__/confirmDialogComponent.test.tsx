@@ -149,4 +149,23 @@ describe("ConfirmDialog component", () => {
     fireEvent.keyDown(dialog, { key: "a" })
     expect(document.activeElement).toBe(first)
   })
+
+  it("blocks confirm when required input is empty via handleConfirm", () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmDialog
+        isOpen
+        title="T"
+        message="M"
+        showInput
+        inputRequired
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const confirmBtn = screen.getByRole("button", { name: "Confirm" }) as HTMLButtonElement
+    expect(confirmBtn.disabled).toBe(true)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
 })

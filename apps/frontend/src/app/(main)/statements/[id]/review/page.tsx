@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
+import { formatDateInput } from "@/lib/date";
 
 interface BalanceValidationResult {
     opening_balance: string;
@@ -56,11 +57,24 @@ export default function StatementReviewPage() {
     const statementId = params.id as string;
 
     const [data, setData] = useState<StatementReview | null>(null);
+    const [pendingStatements, setPendingStatements] = useState<Array<{ id: string }>>([]);
+    const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
+    const [pendingEdits, setPendingEdits] = useState<Map<string, Partial<{ description: string; amount: string; direction: string; txn_date: string }>>>(new Map());
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+
+    const fetchPendingStatements = useCallback(async () => {
+        try {
+            const result = await apiFetch<{ items: Array<{ id: string }> }>("/api/statements/pending-review");
+            setPendingStatements(result.items);
+        } catch (err) {
+            console.error("Failed to fetch pending statements:", err);
+        }
+    }, []);
 
     const fetchData = useCallback(async () => {
         try {
@@ -76,7 +90,43 @@ export default function StatementReviewPage() {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+        fetchPendingStatements();
+    }, [fetchData, fetchPendingStatements]);
+
+    const handleSaveEdits = async () => {
+        setActionLoading(true);
+        try {
+            const edits = Array.from(pendingEdits.entries()).map(([txn_id, fields]) => ({
+                txn_id,
+                ...fields,
+            }));
+            await apiFetch(`/api/statements/${statementId}/review/edit`, {
+                method: "POST",
+                body: JSON.stringify({ edits }),
+            });
+            showToast("Edits saved successfully", "success");
+            setPendingEdits(new Map());
+            fetchData();
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to save edits", "error");
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDiscardEdits = () => {
+        setPendingEdits(new Map());
+        setEditingTxnId(null);
+    };
+
+    const handleEditChange = (txnId: string, field: string, value: string) => {
+        setPendingEdits((prev) => {
+            const newMap = new Map(prev);
+            const currentEdit = newMap.get(txnId) || {};
+            newMap.set(txnId, { ...currentEdit, [field]: value });
+            return newMap;
+        });
+    };
 
     const handleApprove = async () => {
         setActionLoading(true);
@@ -169,13 +219,45 @@ export default function StatementReviewPage() {
 
     return (
         <div className="p-6 h-[calc(100vh-2rem)] flex flex-col">
-            <div className="mb-4">
+            <div className="mb-4 flex items-center justify-between">
                 <Link href="/statements" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                     Back to Statements
                 </Link>
+
+                <div className="flex items-center gap-2">
+                    {(() => {
+                        const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
+                        const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
+                        const nextId = currentIndex >= 0 && currentIndex < pendingStatements.length - 1 ? pendingStatements[currentIndex + 1].id : null;
+
+                        return (
+                            <>
+                                <button
+                                    onClick={() => prevId && router.push(`/statements/${prevId}/review`)}
+                                    disabled={!prevId}
+                                    className="btn-ghost btn-sm disabled:opacity-30"
+                                    title="Previous pending statement"
+                                >
+                                    ← Prev
+                                </button>
+                                <span className="text-xs text-muted">
+                                    {currentIndex + 1} / {pendingStatements.length}
+                                </span>
+                                <button
+                                    onClick={() => nextId && router.push(`/statements/${nextId}/review`)}
+                                    disabled={!nextId}
+                                    className="btn-ghost btn-sm disabled:opacity-30"
+                                    title="Next pending statement"
+                                >
+                                    Next →
+                                </button>
+                            </>
+                        );
+                    })()}
+                </div>
             </div>
 
             <div className="page-header flex items-start justify-between gap-4 mb-4">
@@ -272,50 +354,126 @@ export default function StatementReviewPage() {
 
                 <div className="card flex flex-col min-h-0">
                     <div className="card-header flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Transactions</h3>
+                        <div className="flex items-center gap-4">
+                            <h3 className="text-sm font-medium">Transactions</h3>
+                            {pendingEdits.size > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleSaveEdits} disabled={actionLoading} className="btn-primary btn-sm py-1">
+                                        {actionLoading ? "Saving..." : `Save Edits (${pendingEdits.size})`}
+                                    </button>
+                                    <button onClick={handleDiscardEdits} disabled={actionLoading} className="btn-secondary btn-sm py-1">
+                                        Discard
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <span className="text-xs text-muted">{data.transactions.length} total</span>
                     </div>
                     <div className="flex-1 overflow-auto">
                         <table className="w-full text-sm">
                             <thead className="sticky top-0 bg-[var(--background)]">
                                 <tr className="border-b border-[var(--border)]">
-                                    <th className="text-left px-4 py-2 font-medium">Date</th>
+                                    <th className="text-left px-4 py-2 font-medium w-32">Date</th>
                                     <th className="text-left px-4 py-2 font-medium">Description</th>
-                                    <th className="text-right px-4 py-2 font-medium">Amount</th>
-                                    <th className="text-center px-4 py-2 font-medium">Confidence</th>
+                                    <th className="text-right px-4 py-2 font-medium w-40">Amount</th>
+                                    <th className="text-center px-4 py-2 font-medium w-24">Confidence</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
-                                {data.transactions.map((txn) => (
-                                    <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50">
-                                        <td className="px-4 py-2 whitespace-nowrap">{txn.txn_date}</td>
-                                        <td className="px-4 py-2">
-                                            <div className="max-w-xs truncate" title={txn.description}>
-                                                {txn.description}
-                                            </div>
-                                        </td>
-                                        <td
-                                            className={`px-4 py-2 text-right font-medium whitespace-nowrap ${
-                                                txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
-                                            }`}
-                                        >
-                                            {txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, txn.currency || data.currency || "SGD")}
-                                        </td>
-                                        <td className="px-4 py-2 text-center">
-                                            <span
-                                                className={`badge ${
-                                                    txn.confidence === "high"
-                                                        ? "badge-success"
-                                                        : txn.confidence === "medium"
-                                                          ? "badge-warning"
-                                                          : "badge-error"
+                                {data.transactions.map((txn) => {
+                                    const edit = pendingEdits.get(txn.id);
+                                    const isEditing = editingTxnId === txn.id;
+                                    const displayDate = edit?.txn_date ?? txn.txn_date;
+                                    const displayDesc = edit?.description ?? txn.description;
+                                    const displayAmount = edit?.amount ?? txn.amount.toString();
+                                    const displayDir = edit?.direction ?? txn.direction;
+
+                                    return (
+                                        <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50 group">
+                                            <td className="px-4 py-2 whitespace-nowrap" onClick={() => setEditingTxnId(txn.id)}>
+                                                {isEditing ? (
+                                                    <input
+                                                        type="date"
+                                                        value={displayDate}
+                                                        onChange={(e) => handleEditChange(txn.id, "txn_date", e.target.value)}
+                                                        onBlur={() => setEditingTxnId(null)}
+                                                        onKeyDown={(e) => e.key === "Enter" && setEditingTxnId(null)}
+                                                        autoFocus
+                                                        className="input py-0 px-1 text-xs w-full"
+                                                    />
+                                                ) : (
+                                                    <span className={edit?.txn_date ? "text-[var(--primary)] font-medium" : ""}>{displayDate}</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2" onClick={() => setEditingTxnId(txn.id)}>
+                                                {isEditing ? (
+                                                    <input
+                                                        type="text"
+                                                        value={displayDesc}
+                                                        onChange={(e) => handleEditChange(txn.id, "description", e.target.value)}
+                                                        onBlur={() => setEditingTxnId(null)}
+                                                        onKeyDown={(e) => e.key === "Enter" && setEditingTxnId(null)}
+                                                        autoFocus
+                                                        className="input py-0 px-1 text-xs w-full"
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className={`max-w-xs truncate ${edit?.description ? "text-[var(--primary)] font-medium" : ""}`}
+                                                        title={displayDesc}
+                                                    >
+                                                        {displayDesc}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td
+                                                className={`px-4 py-2 text-right font-medium whitespace-nowrap ${
+                                                    displayDir === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
                                                 }`}
+                                                onClick={() => setEditingTxnId(txn.id)}
                                             >
-                                                {txn.confidence}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                                {isEditing ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <select
+                                                            value={displayDir}
+                                                            onChange={(e) => handleEditChange(txn.id, "direction", e.target.value)}
+                                                            className="input py-0 px-1 text-xs w-16"
+                                                        >
+                                                            <option value="IN">IN</option>
+                                                            <option value="OUT">OUT</option>
+                                                        </select>
+                                                        <input
+                                                            type="text"
+                                                            value={displayAmount}
+                                                            onChange={(e) => handleEditChange(txn.id, "amount", e.target.value)}
+                                                            onBlur={() => setEditingTxnId(null)}
+                                                            onKeyDown={(e) => e.key === "Enter" && setEditingTxnId(null)}
+                                                            autoFocus
+                                                            className="input py-0 px-1 text-xs w-20 text-right"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <span className={edit?.amount || edit?.direction ? "ring-1 ring-[var(--primary)]/30 px-1 rounded" : ""}>
+                                                        {displayDir === "IN" ? "+" : "-"}
+                                                        {formatCurrencyLocale(displayAmount, txn.currency || data.currency || "SGD")}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2 text-center">
+                                                <span
+                                                    className={`badge ${
+                                                        txn.confidence === "high"
+                                                            ? "badge-success"
+                                                            : txn.confidence === "medium"
+                                                              ? "badge-warning"
+                                                              : "badge-error"
+                                                    }`}
+                                                >
+                                                    {txn.confidence}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

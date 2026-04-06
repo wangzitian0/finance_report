@@ -21,8 +21,8 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
   default: ({ isOpen, onConfirm, onCancel, confirmLabel }: { isOpen: boolean; onConfirm: (reason?: string) => void; onCancel: () => void; confirmLabel?: string }) =>
     isOpen ? (
       <div>
-        <button onClick={() => onConfirm("review reason")}>Confirm {confirmLabel || "Confirm"}</button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={() => onConfirm("review reason")}>Confirm {confirmLabel || "Confirm"}</button>
+        <button type="button" onClick={onCancel}>Cancel</button>
       </div>
     ) : null,
 }))
@@ -79,23 +79,35 @@ describe("StatementReviewPage", () => {
   })
 
   it("AC16.18.4 shows error fallback and supports retry", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("review failed")).mockResolvedValueOnce(reviewData)
+    let reviewCallCount = 0
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [] })
+      }
+      reviewCallCount++
+      if (reviewCallCount === 1) return Promise.reject(new Error("review failed"))
+      return Promise.resolve(reviewData)
+    })
 
     render(<StatementReviewPage />)
-
     await waitFor(() => expect(screen.getByText("Failed to load statement")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))
     await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
   })
 
   it("AC16.18.5 disables approve when balance validation fails", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
-      ...reviewData,
-      balance_validation_result: {
-        ...reviewData.balance_validation_result,
-        closing_match: false,
-        closing_delta: "12.00",
-      },
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve({
+        ...reviewData,
+        balance_validation_result: {
+          ...reviewData.balance_validation_result,
+          closing_match: false,
+          closing_delta: "12.00",
+        },
+      })
     })
 
     render(<StatementReviewPage />)
@@ -107,7 +119,12 @@ describe("StatementReviewPage", () => {
   })
 
   it("AC16.18.6 approve and reject call APIs and navigate", async () => {
-    mockedApiFetch.mockResolvedValueOnce(reviewData).mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined)
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve(reviewData)
+    })
 
     render(<StatementReviewPage />)
 
@@ -132,5 +149,152 @@ describe("StatementReviewPage", () => {
         body: JSON.stringify({ notes: "review reason" }),
       }),
     )
+  })
+
+
+  it("prev/next navigation: renders navigation buttons with correct counter", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [{ id: "s0" }, { id: "s1" }, { id: "s2" }] })
+      }
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    expect(screen.getByText("2 / 3")).toBeInTheDocument()
+
+    const prevButton = screen.getByTitle("Previous pending statement")
+    const nextButton = screen.getByTitle("Next pending statement")
+    expect((prevButton as HTMLButtonElement).disabled).toBe(false)
+    expect((nextButton as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it("prev/next navigation: Prev navigates to previous statement", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [{ id: "s0" }, { id: "s1" }, { id: "s2" }] })
+      }
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTitle("Previous pending statement"))
+    expect(pushMock).toHaveBeenCalledWith("/statements/s0/review")
+  })
+
+  it("prev/next navigation: Next navigates to next statement", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [{ id: "s0" }, { id: "s1" }, { id: "s2" }] })
+      }
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTitle("Next pending statement"))
+    expect(pushMock).toHaveBeenCalledWith("/statements/s2/review")
+  })
+
+  it("prev/next navigation: Prev disabled on first statement, Next disabled on last", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [{ id: "s1" }] })
+      }
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    const prevButton = screen.getByTitle("Previous pending statement") as HTMLButtonElement
+    const nextButton = screen.getByTitle("Next pending statement") as HTMLButtonElement
+    expect(prevButton.disabled).toBe(true)
+    expect(nextButton.disabled).toBe(true)
+  })
+
+  it("balance validation: shows Valid indicator when closing_match is true", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    expect(screen.getByText("Valid")).toBeInTheDocument()
+    expect(screen.getByText("✓")).toBeInTheDocument()
+  })
+
+  it("balance validation: shows Mismatch indicator with delta when closing_match is false", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve({
+        ...reviewData,
+        balance_validation_result: {
+          ...reviewData.balance_validation_result,
+          closing_match: false,
+          closing_delta: "5.50",
+        },
+      })
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    expect(screen.getByText("✗")).toBeInTheDocument()
+    expect(screen.getByText(/Mismatch/)).toBeInTheDocument()
+    expect(screen.getByText(/5\.50/)).toBeInTheDocument()
+  })
+
+  it("renders PDF preview fallback and iframe when pdf_url present, and shows formatted amounts and transaction row", async () => {
+    // first: pdf_url null (reviewData has pdf_url null)
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] })
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    // PDF preview fallback
+    expect(screen.getByText("PDF preview not available")).toBeInTheDocument()
+
+    // balance cards show formatted amounts (look for 1,000.00 / 1,500.00)
+    const opens = screen.getAllByText(/1,000\.00/)
+    expect(opens.length).toBeGreaterThanOrEqual(1)
+    const closes = screen.getAllByText(/1,500\.00/)
+    expect(closes.length).toBeGreaterThanOrEqual(1)
+
+    // transaction row renders date, description, amount sign and confidence
+    expect(screen.getByText("2026-01-05")).toBeInTheDocument()
+    expect(screen.getByText("Salary")).toBeInTheDocument()
+    // amount should include a + sign for IN and show 500.00
+    const amountEl = screen.getByText((content) => content.includes("500.00") && content.includes("+"))
+    expect(amountEl).toBeInTheDocument()
+    const conf = screen.getByText("high")
+    expect(conf.className).toContain("badge-success")
+
+    // now test when pdf_url is present
+    const pdfData = { ...reviewData, pdf_url: "https://example.com/s1.pdf" }
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] })
+      return Promise.resolve(pdfData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+    const iframe = screen.getByTitle("Statement PDF preview") as HTMLIFrameElement
+    expect(iframe).toBeInTheDocument()
+    expect(iframe.getAttribute("src")).toBe("https://example.com/s1.pdf")
   })
 })
