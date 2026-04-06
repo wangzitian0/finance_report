@@ -1,0 +1,108 @@
+{
+  "file": "maribank_statement_fixture.pdf",
+  "institution": "MariBank",
+  "success": true,
+  "statement": {
+    "period_start": "2025-04-01",
+    "period_end": "2025-04-30",
+    "opening_balance": "4200.00",
+    "closing_balance": "3114.29",
+    "currency": "SGD",
+    "confidence_score": 96,
+    "balance_validated": true,
+    "account_last4": "4421"
+  },
+  "events": [
+    {
+      "date": "2025-04-02",
+      "description": "PayNow to KOPI SHOP PTE LTD",
+      "amount": "18.50",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "4181.50",
+      "confidence": 0.95,
+      "raw_text": "2025-04-02 PayNow to KOPI SHOP PTE LTD -18.50",
+      "suggested_category": "Food & Dining",
+      "category_confidence": 0.89
+    },
+    {
+      "date": "2025-04-04",
+      "description": "Interest Credited",
+      "amount": "0.88",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "4182.38",
+      "confidence": 0.95,
+      "raw_text": "2025-04-04 Interest Credited +0.88",
+      "suggested_category": "Investment",
+      "category_confidence": 0.9
+    },
+    {
+      "date": "2025-04-07",
+      "description": "PayNow to RIDE-HAIL SERVICES",
+      "amount": "26.30",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "4156.08",
+      "confidence": 0.95,
+      "raw_text": "2025-04-07 PayNow to RIDE-HAIL SERVICES -26.30",
+      "suggested_category": "Transport",
+      "category_confidence": 0.85
+    },
+    {
+      "date": "2025-04-11",
+      "description": "Credit Card Repayment",
+      "amount": "1200.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "2956.08",
+      "confidence": 0.95,
+      "raw_text": "2025-04-11 Credit Card Repayment -1200.00",
+      "suggested_category": "Transfer",
+      "category_confidence": 0.91
+    },
+    {
+      "date": "2025-04-15",
+      "description": "PayNow from LEE WEI",
+      "amount": "300.00",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "3256.08",
+      "confidence": 0.95,
+      "raw_text": "2025-04-15 PayNow from LEE WEI +300.00",
+      "suggested_category": "Transfer",
+      "category_confidence": 0.83
+    },
+    {
+      "date": "2025-04-22",
+      "description": "Interest Credited",
+      "amount": "0.91",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "3256.99",
+      "confidence": 0.95,
+      "raw_text": "2025-04-22 Interest Credited +0.91",
+      "suggested_category": "Investment",
+      "category_confidence": 0.9
+    },
+    {
+      "date": "2025-04-27",
+      "description": "PayNow to ONLINE GROCER",
+      "amount": "142.70",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "3114.29",
+      "confidence": 0.95,
+      "raw_text": "2025-04-27 PayNow to ONLINE GROCER -142.70",
+      "suggested_category": "Food & Dining",
+      "category_confidence": 0.86
+    }
+  ]
+}

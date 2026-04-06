@@ -1,0 +1,121 @@
+{
+  "file": "gxs_statement_fixture.pdf",
+  "institution": "GXS",
+  "success": true,
+  "statement": {
+    "period_start": "2025-03-01",
+    "period_end": "2025-03-31",
+    "opening_balance": "8500.00",
+    "closing_balance": "8709.21",
+    "currency": "SGD",
+    "confidence_score": 97,
+    "balance_validated": true,
+    "account_last4": "9912"
+  },
+  "events": [
+    {
+      "date": "2025-03-02",
+      "description": "Interest Earned",
+      "amount": "1.20",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8501.20",
+      "confidence": 0.95,
+      "raw_text": "2025-03-02 Interest Earned +1.20",
+      "suggested_category": "Investment",
+      "category_confidence": 0.92
+    },
+    {
+      "date": "2025-03-03",
+      "description": "PayNow from ALVIN GOH",
+      "amount": "450.00",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8951.20",
+      "confidence": 0.95,
+      "raw_text": "2025-03-03 PayNow from ALVIN GOH +450.00",
+      "suggested_category": "Transfer",
+      "category_confidence": 0.84
+    },
+    {
+      "date": "2025-03-05",
+      "description": "Payment to GrabPay Wallet",
+      "amount": "120.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8831.20",
+      "confidence": 0.95,
+      "raw_text": "2025-03-05 Payment to GrabPay Wallet -120.00",
+      "suggested_category": "Transport",
+      "category_confidence": 0.8
+    },
+    {
+      "date": "2025-03-09",
+      "description": "Interest Earned",
+      "amount": "1.22",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8832.42",
+      "confidence": 0.95,
+      "raw_text": "2025-03-09 Interest Earned +1.22",
+      "suggested_category": "Investment",
+      "category_confidence": 0.92
+    },
+    {
+      "date": "2025-03-14",
+      "description": "PayNow to MERCHANT HAWKER",
+      "amount": "45.60",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8786.82",
+      "confidence": 0.95,
+      "raw_text": "2025-03-14 PayNow to MERCHANT HAWKER -45.60",
+      "suggested_category": "Food & Dining",
+      "category_confidence": 0.83
+    },
+    {
+      "date": "2025-03-18",
+      "description": "Interest Earned",
+      "amount": "1.18",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8788.00",
+      "confidence": 0.95,
+      "raw_text": "2025-03-18 Interest Earned +1.18",
+      "suggested_category": "Investment",
+      "category_confidence": 0.92
+    },
+    {
+      "date": "2025-03-26",
+      "description": "Payment to GrabPay Wallet",
+      "amount": "80.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8708.00",
+      "confidence": 0.95,
+      "raw_text": "2025-03-26 Payment to GrabPay Wallet -80.00",
+      "suggested_category": "Transport",
+      "category_confidence": 0.8
+    },
+    {
+      "date": "2025-03-30",
+      "description": "Interest Earned",
+      "amount": "1.21",
+      "direction": "IN",
+      "reference": null,
+      "currency": "SGD",
+      "balance_after": "8709.21",
+      "confidence": 0.95,
+      "raw_text": "2025-03-30 Interest Earned +1.21",
+      "suggested_category": "Investment",
+      "category_confidence": 0.92
+    }
+  ]
+}

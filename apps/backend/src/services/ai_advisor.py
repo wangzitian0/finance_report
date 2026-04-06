@@ -423,7 +423,7 @@ class AIAdvisorService:
             if not session:
                 raise AIAdvisorError("Chat session not found")
             session.last_active_at = datetime.now(UTC)
-            await db.commit()
+            await db.flush()
             await db.refresh(session)
             return session
 
@@ -435,7 +435,7 @@ class AIAdvisorService:
             last_active_at=datetime.now(UTC),
         )
         db.add(session)
-        await db.commit()
+        await db.flush()
         await db.refresh(session)
         return session
 
@@ -461,11 +461,11 @@ class AIAdvisorService:
         if session.title is None and role == ChatMessageRole.USER:
             session.title = content[:60].strip() or None
         db.add(message)
-        await db.commit()
+        await db.flush()
         try:
             await db.refresh(message)
         except Exception:
-            logger.warning("Failed to refresh message after commit", exc_info=True)
+            logger.warning("Failed to refresh message after flush", exc_info=True)
         return message
 
     async def _load_history(self, db: AsyncSession, session_id: UUID) -> list[dict[str, str]]:
@@ -528,6 +528,10 @@ class AIAdvisorService:
             response_text,
             model_name=model_used or self.primary_model,
         )
+        # Commit here because the router has already returned the StreamingResponse
+        # and cannot commit after the generator completes.  This is a documented
+        # exception to the "routers own commit()" rule.
+        await db.commit()
 
     def _cached_stream(self, session_id: UUID, response: str, model_name: str | None) -> ChatStream:
         async def generator() -> AsyncIterator[str]:

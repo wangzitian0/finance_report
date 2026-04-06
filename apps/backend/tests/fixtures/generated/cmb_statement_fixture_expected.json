@@ -1,0 +1,108 @@
+{
+  "file": "cmb_statement_fixture.pdf",
+  "institution": "CMB",
+  "success": true,
+  "statement": {
+    "period_start": "2025-02-01",
+    "period_end": "2025-02-28",
+    "opening_balance": "38500.00",
+    "closing_balance": "47939.43",
+    "currency": "CNY",
+    "confidence_score": 95,
+    "balance_validated": true,
+    "account_last4": "7788"
+  },
+  "events": [
+    {
+      "date": "2025-02-03",
+      "description": "工资入账",
+      "amount": "18000.00",
+      "direction": "IN",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "56500.00",
+      "confidence": 0.95,
+      "raw_text": "2025-02-03 工资入账 18000.00 56500.00",
+      "suggested_category": "Salary",
+      "category_confidence": 0.95
+    },
+    {
+      "date": "2025-02-05",
+      "description": "转账-房租",
+      "amount": "6800.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "49700.00",
+      "confidence": 0.95,
+      "raw_text": "2025-02-05 转账-房租 -6800.00 49700.00",
+      "suggested_category": "Rent",
+      "category_confidence": 0.93
+    },
+    {
+      "date": "2025-02-08",
+      "description": "微信支付-超市",
+      "amount": "356.20",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "49343.80",
+      "confidence": 0.95,
+      "raw_text": "2025-02-08 微信支付-超市 -356.20 49343.80",
+      "suggested_category": "Food & Dining",
+      "category_confidence": 0.86
+    },
+    {
+      "date": "2025-02-12",
+      "description": "转账-父母",
+      "amount": "2000.00",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "47343.80",
+      "confidence": 0.95,
+      "raw_text": "2025-02-12 转账-父母 -2000.00 47343.80",
+      "suggested_category": "Transfer",
+      "category_confidence": 0.88
+    },
+    {
+      "date": "2025-02-18",
+      "description": "报销入账",
+      "amount": "980.50",
+      "direction": "IN",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "48324.30",
+      "confidence": 0.95,
+      "raw_text": "2025-02-18 报销入账 980.50 48324.30",
+      "suggested_category": "Other",
+      "category_confidence": 0.74
+    },
+    {
+      "date": "2025-02-23",
+      "description": "水电费代扣",
+      "amount": "420.75",
+      "direction": "OUT",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "47903.55",
+      "confidence": 0.95,
+      "raw_text": "2025-02-23 水电费代扣 -420.75 47903.55",
+      "suggested_category": "Utilities",
+      "category_confidence": 0.85
+    },
+    {
+      "date": "2025-02-27",
+      "description": "利息收入",
+      "amount": "35.88",
+      "direction": "IN",
+      "reference": null,
+      "currency": "CNY",
+      "balance_after": "47939.43",
+      "confidence": 0.95,
+      "raw_text": "2025-02-27 利息收入 35.88 47939.43",
+      "suggested_category": "Investment",
+      "category_confidence": 0.78
+    }
+  ]
+}

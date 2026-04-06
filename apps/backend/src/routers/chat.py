@@ -63,6 +63,11 @@ async def chat_message(
             raise_service_unavailable("AI service temporarily unavailable.", cause=exc)
         raise_bad_request(detail, cause=exc)
 
+    # Commit session creation, user message, and any refusal messages
+    # that were flushed by the service layer.  For live-streaming responses,
+    # _stream_and_store commits the assistant message after the generator completes.
+    await db.commit()
+
     headers = {
         "X-Session-Id": str(stream.session_id),
         "Access-Control-Expose-Headers": "X-Session-Id",

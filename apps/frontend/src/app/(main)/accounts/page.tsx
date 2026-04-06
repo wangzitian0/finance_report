@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
+import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
@@ -20,6 +21,7 @@ export default function AccountsPage() {
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["accounts"],
@@ -149,7 +151,11 @@ export default function AccountsPage() {
                             </div>
                             <div className="divide-y divide-[var(--border)]">
                                 {typeAccounts.map((account) => (
-                                    <div key={account.id} className="px-6 py-3 flex items-center justify-between hover:bg-[var(--background-muted)]/50 transition-colors">
+                                    <div 
+                                        key={account.id} 
+                                        className="px-6 py-3 flex items-center justify-between hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                                        onClick={() => setSelectedAccount(account)}
+                                    >
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-medium">{account.name}</span>
@@ -163,7 +169,7 @@ export default function AccountsPage() {
                                                 <div className="font-semibold">{formatCurrencyLocale(account.balance ?? 0, account.currency)}</div>
                                             </div>
                                             <button
-                                                onClick={() => { setEditingAccount(account); setIsModalOpen(true); }}
+                                                onClick={(e) => { e.stopPropagation(); setEditingAccount(account); setIsModalOpen(true); }}
                                                 className="btn-ghost p-2 hover:text-[var(--accent)]"
                                                 title="Edit Account"
                                             >
@@ -172,7 +178,7 @@ export default function AccountsPage() {
                                                 </svg>
                                             </button>
                                             <button
-                                                onClick={() => handleDeleteAccount(account.id)}
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
                                                 className="btn-ghost p-2 text-muted hover:text-[var(--error)]"
                                                 title="Delete Account"
                                                 disabled={deleteMutation.isPending}
@@ -206,6 +212,12 @@ export default function AccountsPage() {
                 confirmLabel="Delete Account"
                 confirmVariant="danger"
                 loading={deleteMutation.isPending}
+            />
+
+            <AccountDetailsSidebar
+                account={selectedAccount}
+                isOpen={!!selectedAccount}
+                onClose={() => setSelectedAccount(null)}
             />
         </div>
     );
