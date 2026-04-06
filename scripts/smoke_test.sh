@@ -108,6 +108,7 @@ FAILED=0
 # --- Readiness Check ---
 echo "--- Readiness Check ---"
 wait_for_endpoint "API Health" "$BASE_URL/api/health" || FAILED=1
+wait_for_endpoint "Frontend Ready" "$BASE_URL/" || FAILED=1
 
 # --- Version/Deploy Verification ---
 if [ -n "${EXPECTED_SHA:-}" ]; then
