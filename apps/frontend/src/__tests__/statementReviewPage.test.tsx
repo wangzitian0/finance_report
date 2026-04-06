@@ -21,8 +21,8 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
   default: ({ isOpen, onConfirm, onCancel, confirmLabel }: { isOpen: boolean; onConfirm: (reason?: string) => void; onCancel: () => void; confirmLabel?: string }) =>
     isOpen ? (
       <div>
-        <button onClick={() => onConfirm("review reason")}>Confirm {confirmLabel || "Confirm"}</button>
-        <button onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={() => onConfirm("review reason")}>Confirm {confirmLabel || "Confirm"}</button>
+        <button type="button" onClick={onCancel}>Cancel</button>
       </div>
     ) : null,
 }))
@@ -254,5 +254,47 @@ describe("StatementReviewPage", () => {
     expect(screen.getByText("✗")).toBeInTheDocument()
     expect(screen.getByText(/Mismatch/)).toBeInTheDocument()
     expect(screen.getByText(/5\.50/)).toBeInTheDocument()
+  })
+
+  it("renders PDF preview fallback and iframe when pdf_url present, and shows formatted amounts and transaction row", async () => {
+    // first: pdf_url null (reviewData has pdf_url null)
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] })
+      return Promise.resolve(reviewData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+
+    // PDF preview fallback
+    expect(screen.getByText("PDF preview not available")).toBeInTheDocument()
+
+    // balance cards show formatted amounts (look for 1,000.00 / 1,500.00)
+    const opens = screen.getAllByText(/1,000\.00/)
+    expect(opens.length).toBeGreaterThanOrEqual(1)
+    const closes = screen.getAllByText(/1,500\.00/)
+    expect(closes.length).toBeGreaterThanOrEqual(1)
+
+    // transaction row renders date, description, amount sign and confidence
+    expect(screen.getByText("2026-01-05")).toBeInTheDocument()
+    expect(screen.getByText("Salary")).toBeInTheDocument()
+    // amount should include a + sign for IN and show 500.00
+    const amountEl = screen.getByText((content) => content.includes("500.00") && content.includes("+"))
+    expect(amountEl).toBeInTheDocument()
+    const conf = screen.getByText("high")
+    expect(conf.className).toContain("badge-success")
+
+    // now test when pdf_url is present
+    const pdfData = { ...reviewData, pdf_url: "https://example.com/s1.pdf" }
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] })
+      return Promise.resolve(pdfData)
+    })
+
+    render(<StatementReviewPage />)
+    await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
+    const iframe = screen.getByTitle("Statement PDF preview") as HTMLIFrameElement
+    expect(iframe).toBeInTheDocument()
+    expect(iframe.getAttribute("src")).toBe("https://example.com/s1.pdf")
   })
 })

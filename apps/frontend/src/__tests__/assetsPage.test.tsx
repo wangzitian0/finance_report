@@ -227,4 +227,76 @@ describe("AssetsPage", () => {
     expect(screen.getByText("USD")).toBeInTheDocument()
     expect(screen.getByText("HKD")).toBeInTheDocument()
   })
+
+  it("shows warning toast when reconcile has skipped assets", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockResolvedValueOnce({
+        message: "done",
+        created: 1,
+        updated: 0,
+        disposed: 0,
+        skipped: 2,
+        skipped_assets: ["BTC", "ETH"],
+      } satisfies ReconcilePositionsResponse)
+      .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("No positions found")).not.toBeNull())
+    fireEvent.click(screen.getByRole("button", { name: "Run Reconciliation" }))
+
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith(
+        expect.stringContaining("2 skipped"),
+        "warning"
+      )
+    })
+  })
+
+  it("shows error toast when reconcile fails", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockRejectedValueOnce(new Error("server error"))
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("No positions found")).not.toBeNull())
+    fireEvent.click(screen.getByRole("button", { name: "Run Reconciliation" }))
+
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith(
+        expect.stringContaining("server error"),
+        "error"
+      )
+    })
+  })
+
+  it("formats fractional quantities with decimal places", async () => {
+    mockedApiFetch.mockResolvedValue({
+      items: [
+        {
+          id: "p1",
+          user_id: "u1",
+          account_id: "acc1",
+          account_name: "IBKR",
+          asset_identifier: "BTC",
+          quantity: "0.5",
+          cost_basis: "15000",
+          acquisition_date: "2025-01-01",
+          disposal_date: null,
+          status: "active",
+          currency: "USD",
+          created_at: "2025-01-01",
+          updated_at: "2025-01-02",
+        },
+      ],
+      total: 1,
+    } satisfies ManagedPositionListResponse)
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("BTC")).toBeInTheDocument())
+    expect(screen.getByText(/0\.50 units/)).toBeInTheDocument()
+  })
 })

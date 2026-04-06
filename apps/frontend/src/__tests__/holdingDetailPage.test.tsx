@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -173,4 +173,43 @@ describe("HoldingDetailPage", () => {
 
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true"))
   })
+
+  it("renders fractional quantity with decimals", async () => {
+    const fractionalHolding: PortfolioHolding = {
+      ...mockActiveHolding,
+      quantity: "10.5",
+    }
+    mockedApiFetch.mockResolvedValue([fractionalHolding])
+
+    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getAllByText("10.50").length).toBeGreaterThanOrEqual(1))
+  })
+
+  it("renders disposed lot with null disposal_date as dash", async () => {
+    const noDispDate: PortfolioHolding = {
+      ...mockDisposedHolding,
+      disposal_date: undefined,
+    }
+    mockedApiFetch.mockResolvedValue([mockActiveHolding, noDispDate])
+
+    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Disposed Lots")).toBeInTheDocument())
+    expect(screen.getByText("\u2014")).toBeInTheDocument()
+  })
+
+  it("error state retry button refetches data", async () => {
+    mockedApiFetch
+      .mockRejectedValueOnce(new Error("server error"))
+      .mockResolvedValueOnce([mockActiveHolding])
+
+    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Failed to load holding")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Retry"))
+
+    await waitFor(() => expect(screen.getAllByText("Market Value").length).toBeGreaterThanOrEqual(1))
+  })
+
 })

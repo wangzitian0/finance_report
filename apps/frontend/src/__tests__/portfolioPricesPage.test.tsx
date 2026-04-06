@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import PricesPage from "@/app/(main)/portfolio/prices/page"
+import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm"
 import { apiFetch } from "@/lib/api"
 import type { PortfolioHolding, PriceUpdateResponse } from "@/lib/types"
 
@@ -190,5 +191,93 @@ describe("PricesPage", () => {
     const form = screen.getByText("Update Prices").closest("form") as HTMLFormElement
     fireEvent.submit(form)
     expect(showToastMock).toHaveBeenCalledWith("Add at least one price update", "error")
+  })
+})
+
+describe("PriceUpdateForm (direct)", () => {
+  const mockedApiFetch = vi.mocked(apiFetch)
+
+  beforeEach(() => {
+    mockedApiFetch.mockReset()
+    showToastMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("renders text input when knownTickers is empty", () => {
+    render(<PriceUpdateForm knownTickers={[]} />, { wrapper: createWrapper() })
+    const input = screen.getByPlaceholderText("AAPL, MSFT...")
+    expect(input).toBeInTheDocument()
+    expect(input.tagName).toBe("INPUT")
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+  })
+
+  it("converts currency input to uppercase", () => {
+    render(<PriceUpdateForm knownTickers={[]} />, { wrapper: createWrapper() })
+    const currencyInputs = screen.getAllByDisplayValue("USD")
+    const currencyInput = currencyInputs[0]
+    fireEvent.change(currencyInput, { target: { value: "eur" } })
+    expect(currencyInput).toHaveValue("EUR")
+  })
+
+  it("updates date input value", () => {
+    render(<PriceUpdateForm knownTickers={[]} />, { wrapper: createWrapper() })
+    const dateInput = screen.getByDisplayValue(/^\d{4}-\d{2}-\d{2}$/)
+    fireEvent.change(dateInput, { target: { value: "2026-01-15" } })
+    expect(dateInput).toHaveValue("2026-01-15")
+  })
+
+  it("shows error toast when mutation fails", async () => {
+    mockedApiFetch.mockRejectedValue(new Error("Network error"))
+
+    render(<PriceUpdateForm knownTickers={[]} />, { wrapper: createWrapper() })
+
+    const tickerInput = screen.getByPlaceholderText("AAPL, MSFT...")
+    fireEvent.change(tickerInput, { target: { value: "AAPL" } })
+
+    const priceInput = screen.getByPlaceholderText("0.00")
+    fireEvent.change(priceInput, { target: { value: "150.00" } })
+
+    const form = screen.getByText("Update Prices").closest("form") as HTMLFormElement
+    fireEvent.submit(form)
+
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith("Failed: Network error", "error")
+    })
+  })
+
+  it("types in text ticker input and submits successfully", async () => {
+    const mockResponse = {
+      updated_count: 1,
+      results: [{ success: true, message: "OK", asset_identifier: "GOOG", price_date: "2026-01-15", price: "100.00", currency: "EUR", source: "manual" }],
+    }
+    mockedApiFetch.mockResolvedValue(mockResponse)
+
+    const onSuccess = vi.fn()
+    render(<PriceUpdateForm knownTickers={[]} onSuccess={onSuccess} />, { wrapper: createWrapper() })
+
+    const tickerInput = screen.getByPlaceholderText("AAPL, MSFT...")
+    fireEvent.change(tickerInput, { target: { value: "GOOG" } })
+
+    const priceInput = screen.getByPlaceholderText("0.00")
+    fireEvent.change(priceInput, { target: { value: "100.00" } })
+
+    const currencyInputs = screen.getAllByDisplayValue("USD")
+    fireEvent.change(currencyInputs[0], { target: { value: "eur" } })
+
+    const dateInput = screen.getByDisplayValue(/^\d{4}-\d{2}-\d{2}$/)
+    fireEvent.change(dateInput, { target: { value: "2026-01-15" } })
+
+    const form = screen.getByText("Update Prices").closest("form") as HTMLFormElement
+    fireEvent.submit(form)
+
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith("Updated 1 price(s)", "success")
+    })
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalled()
+    })
   })
 })
