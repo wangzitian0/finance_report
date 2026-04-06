@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
+import importlib
+import importlib.util
 import json
 import subprocess
 import sys
+from collections.abc import AsyncGenerator
 from datetime import date
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+import pytest_asyncio
 from pydantic import BaseModel, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -33,6 +38,16 @@ EXPECTED = {
         OUTPUT_DIR / "maribank_statement_fixture_expected.json",
     ),
 }
+
+
+@pytest_asyncio.fixture
+async def db_engine() -> AsyncGenerator[None, None]:
+    yield
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def patch_database_connection() -> AsyncGenerator[None, None]:
+    yield
 
 
 class StatementSchema(BaseModel):
@@ -69,7 +84,11 @@ class FixtureSchema(BaseModel):
 
 
 def _run_generator() -> None:
-    subprocess.run([sys.executable, str(SCRIPT_PATH)], cwd=BACKEND_DIR, check=True)
+    OUTPUT_DIR.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = OUTPUT_DIR.parent / ".generate_test_pdfs.lock"
+    with lock_path.open("w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        subprocess.run([sys.executable, str(SCRIPT_PATH)], cwd=BACKEND_DIR, check=True)
 
 
 def _sha256(path: Path) -> str:
@@ -87,11 +106,10 @@ def test_generated_pdfs_exist() -> None:
 def test_generated_pdfs_are_valid() -> None:
     _run_generator()
 
-    pypdf_reader = None
-    try:
-        from pypdf import PdfReader as pypdf_reader
-    except ImportError:
-        pypdf_reader = None
+    pypdf_reader: Any | None = None
+    if importlib.util.find_spec("pypdf") is not None:
+        pypdf_module = importlib.import_module("pypdf")
+        pypdf_reader = pypdf_module.PdfReader
 
     for pdf_path, _ in EXPECTED.values():
         payload = pdf_path.read_bytes()
