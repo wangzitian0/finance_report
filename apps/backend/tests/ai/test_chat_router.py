@@ -150,6 +150,7 @@ async def test_chat_with_model_name_header() -> None:
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
     mock_user_id = uuid4()
 
     async def mock_stream():
@@ -181,6 +182,7 @@ async def test_chat_without_model_name_header() -> None:
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
     mock_user_id = uuid4()
 
     async def mock_stream():
@@ -369,6 +371,7 @@ async def test_chat_with_allowed_model():
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
     mock_user_id = uuid4()
 
     async def mock_stream():
@@ -407,6 +410,7 @@ async def test_chat_with_known_external_model():
     from src.routers.chat import chat_message
 
     mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
     mock_user_id = uuid4()
 
     async def mock_stream():
