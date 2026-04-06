@@ -224,3 +224,60 @@ export interface ReconcilePositionsResponse {
     skipped: number;
     skipped_assets: string[];
 }
+
+// ── Portfolio Management (EPIC-017) ──────────────────────────────────
+
+export interface PortfolioHolding {
+    id: string;
+    user_id: string;
+    account_id: string;
+    asset_identifier: string;
+    quantity: string;
+    cost_basis: string;
+    market_value: string;
+    unrealized_pnl: string;
+    unrealized_pnl_percent: string;
+    currency: string;
+    acquisition_date: string;
+    disposal_date?: string | null;
+    status: "active" | "disposed";
+    cost_basis_method?: "FIFO" | "LIFO" | "AVG_COST" | null;
+    account_name?: string | null;
+    asset_type?: string | null;
+    sector?: string | null;
+    geography?: string | null;
+}
+
+export interface PerformanceMetrics {
+    xirr: string;
+    time_weighted_return: string;
+    money_weighted_return: string;
+}
+
+export interface AllocationBreakdown {
+    category: string;
+    value: string;
+    percentage: string;
+    count: number;
+}
+
+export interface PriceUpdate {
+    asset_identifier: string;
+    price: string;
+    currency: string;
+    price_date: string;
+}
+
+export interface PriceUpdateResponse {
+    updated_count: number;
+    results: Array<{
+        success: boolean;
+        message: string;
+        asset_identifier: string;
+        price_date: string;
+        price: string;
+        currency: string;
+        source: string;
+        created_at?: string | null;
+    }>;
+}

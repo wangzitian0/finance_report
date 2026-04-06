@@ -316,8 +316,89 @@ describe("Stage2ReviewQueuePage", () => {
     render(<Stage2ReviewQueuePage />)
 
     await waitFor(() => expect(screen.getByText("MEDIUM")).toBeInTheDocument())
-    expect(screen.getByText("Transfer Pair")).toBeInTheDocument()
+    const transferPairLabels = screen.getAllByText("Transfer Pair")
+    expect(transferPairLabels.length).toBeGreaterThanOrEqual(1)
     const severityEl = screen.getByText("MEDIUM")
     expect(severityEl.className).toContain("text-[var(--warning)]")
+  })
+
+  it("filter dropdowns: selecting check_type filter fetches filtered checks", async () => {
+    const filteredCheck = {
+      id: "cf1",
+      check_type: "anomaly",
+      status: "pending",
+      related_txn_ids: ["t5"],
+      details: { message: "Anomalous amount" },
+      severity: "high",
+      resolved_at: null,
+      resolution_note: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    }
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/consistency-checks/list")) {
+        return Promise.resolve({ items: [filteredCheck] })
+      }
+      return Promise.resolve(queuePayload)
+    })
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
+
+    const typeSelect = screen.getByDisplayValue("Type: All")
+    fireEvent.change(typeSelect, { target: { value: "anomaly" } })
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/statements/consistency-checks/list?check_type=anomaly"),
+      ),
+    )
+    await waitFor(() => expect(screen.getByText("Anomalous amount")).toBeInTheDocument())
+  })
+
+  it("filter dropdowns: selecting status filter fetches filtered checks", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/consistency-checks/list")) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve(queuePayload)
+    })
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation Review Queue")).toBeInTheDocument())
+
+    const statusSelect = screen.getByDisplayValue("Status: All")
+    fireEvent.change(statusSelect, { target: { value: "resolved" } })
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining("status=resolved"),
+      ),
+    )
+    await waitFor(() => expect(screen.getByText("No pending checks")).toBeInTheDocument())
+  })
+
+  it("filter dropdowns: resetting both filters restores original checks", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/consistency-checks/list")) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve(queuePayload)
+    })
+
+    render(<Stage2ReviewQueuePage />)
+
+    await waitFor(() => expect(screen.getByText("Duplicate transaction")).toBeInTheDocument())
+
+    const typeSelect = screen.getByDisplayValue("Type: All")
+    fireEvent.change(typeSelect, { target: { value: "duplicate" } })
+
+    await waitFor(() => expect(screen.getByText("No pending checks")).toBeInTheDocument())
+
+    fireEvent.change(screen.getByDisplayValue("Duplicate"), { target: { value: "" } })
+
+    await waitFor(() => expect(screen.getByText("Duplicate transaction")).toBeInTheDocument())
   })
 })

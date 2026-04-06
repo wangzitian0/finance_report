@@ -48,6 +48,10 @@ export default function Stage2ReviewQueuePage() {
     const [selectedCheck, setSelectedCheck] = useState<ConsistencyCheck | null>(null);
     const [resolveNote, setResolveNote] = useState("");
     const resolveDialogRef = useRef<HTMLDivElement>(null);
+    const [checkTypeFilter, setCheckTypeFilter] = useState<string>("");
+    const [statusFilter, setStatusFilter] = useState<string>("");
+    const [filteredChecks, setFilteredChecks] = useState<ConsistencyCheck[] | null>(null);
+    const [filtering, setFiltering] = useState(false);
     const resolveTitleId = useId();
 
     const fetchData = useCallback(async () => {
@@ -65,6 +69,30 @@ export default function Stage2ReviewQueuePage() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const fetchFilteredChecks = useCallback(async () => {
+        if (!checkTypeFilter && !statusFilter) {
+            setFilteredChecks(null);
+            return;
+        }
+
+        setFiltering(true);
+        try {
+            const params = new URLSearchParams();
+            if (checkTypeFilter) params.append("check_type", checkTypeFilter);
+            if (statusFilter) params.append("status", statusFilter);
+            const result = await apiFetch<{ items: ConsistencyCheck[] }>(`/api/statements/consistency-checks/list?${params.toString()}`);
+            setFilteredChecks(result.items);
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to filter checks", "error");
+        } finally {
+            setFiltering(false);
+        }
+    }, [checkTypeFilter, statusFilter, showToast]);
+
+    useEffect(() => {
+        fetchFilteredChecks();
+    }, [fetchFilteredChecks]);
 
     useEffect(() => {
         if (!resolveDialogOpen) return;
@@ -122,6 +150,9 @@ export default function Stage2ReviewQueuePage() {
                 showToast(`Approved ${result.approved_count} matches`, "success");
                 setSelectedMatches(new Set());
                 fetchData();
+                if (checkTypeFilter || statusFilter) {
+                    fetchFilteredChecks();
+                }
             } else {
                 showToast(result.error || "Failed to approve", "error");
             }
@@ -148,6 +179,9 @@ export default function Stage2ReviewQueuePage() {
                 showToast(`Rejected ${result.rejected_count} matches`, "success");
                 setSelectedMatches(new Set());
                 fetchData();
+                if (checkTypeFilter || statusFilter) {
+                    fetchFilteredChecks();
+                }
             }
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to reject", "error");
@@ -178,6 +212,9 @@ export default function Stage2ReviewQueuePage() {
             setSelectedCheck(null);
             setResolveNote("");
             fetchData();
+            if (checkTypeFilter || statusFilter) {
+                fetchFilteredChecks();
+            }
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to resolve", "error");
         } finally {
@@ -260,16 +297,37 @@ export default function Stage2ReviewQueuePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="card">
-                    <div className="card-header flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Consistency Checks</h3>
-                        <span className="text-xs text-muted">{data.consistency_checks.length} pending</span>
+                    <div className="card-header flex items-center justify-between gap-4">
+                        <h3 className="text-sm font-medium whitespace-nowrap">Consistency Checks</h3>
+                        <div className="flex items-center gap-2">
+                            <select
+                                className="input text-sm py-1 h-auto min-w-[100px]"
+                                value={checkTypeFilter}
+                                onChange={(e) => setCheckTypeFilter(e.target.value)}
+                            >
+                                <option value="">Type: All</option>
+                                <option value="duplicate">Duplicate</option>
+                                <option value="transfer_pair">Transfer Pair</option>
+                                <option value="anomaly">Anomaly</option>
+                            </select>
+                            <select
+                                className="input text-sm py-1 h-auto min-w-[100px]"
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="">Status: All</option>
+                                <option value="pending">Pending</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                            <span className="text-xs text-muted whitespace-nowrap">{(filteredChecks ?? data.consistency_checks).length} total</span>
+                        </div>
                     </div>
 
-                    {data.consistency_checks.length === 0 ? (
+                    {(filteredChecks ?? data.consistency_checks).length === 0 ? (
                         <div className="p-8 text-center text-muted">No pending checks</div>
                     ) : (
                         <div className="divide-y divide-[var(--border)]">
-                            {data.consistency_checks.map((check) => (
+                            {(filteredChecks ?? data.consistency_checks).map((check) => (
                                 <div key={check.id} className="p-4 flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
