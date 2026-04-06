@@ -2,7 +2,6 @@ import hashlib
 import json
 import importlib
 import sys
-from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -142,93 +141,133 @@ def test_AC16_13_11_get_changed_files_maps_backend_modules(monkeypatch):
 
 
 def test_AC16_13_12_generate_statement_builds_pdf_rows(monkeypatch, tmp_path):
+    """Test the rewritten generate_test_pdfs.py with canvas-based PDF generation."""
+
+    # --- Mock reportlab.lib submodules (same as before) ---
     fake_colors = ModuleType("reportlab.lib.colors")
     setattr(fake_colors, "grey", object())
     setattr(fake_colors, "whitesmoke", object())
     setattr(fake_colors, "beige", object())
     setattr(fake_colors, "black", object())
-
     fake_pagesizes = ModuleType("reportlab.lib.pagesizes")
-    setattr(fake_pagesizes, "A4", object())
-
+    setattr(fake_pagesizes, "A4", (595.27, 841.89))  # actual A4 dimensions
     fake_styles = ModuleType("reportlab.lib.styles")
     setattr(
         fake_styles,
         "getSampleStyleSheet",
         lambda: {"Heading1": object(), "Normal": object()},
     )
-
     fake_platypus = ModuleType("reportlab.platypus")
     setattr(fake_platypus, "SimpleDocTemplate", object)
     setattr(fake_platypus, "Table", object)
     setattr(fake_platypus, "TableStyle", lambda *args, **kwargs: object())
     setattr(fake_platypus, "Paragraph", lambda *args, **kwargs: object())
     setattr(fake_platypus, "Spacer", lambda *args, **kwargs: object())
+    # --- Mock reportlab.pdfbase submodules (new imports) ---
+    fake_pdfmetrics = ModuleType("reportlab.pdfbase.pdfmetrics")
+    setattr(fake_pdfmetrics, "registerFont", lambda font: None)
 
+    fake_cidfonts = ModuleType("reportlab.pdfbase.cidfonts")
+    setattr(fake_cidfonts, "UnicodeCIDFont", lambda name: object())
+
+    fake_pdfbase = ModuleType("reportlab.pdfbase")
+    setattr(fake_pdfbase, "pdfmetrics", fake_pdfmetrics)
+    setattr(fake_pdfbase, "cidfonts", fake_cidfonts)
+
+    # --- Mock reportlab.pdfgen.canvas ---
+    captured = {"strings": [], "saved": False}
+
+    class FakeCanvas:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def setTitle(self, *a):
+            pass
+
+        def setAuthor(self, *a):
+            pass
+
+        def setCreator(self, *a):
+            pass
+
+        def setSubject(self, *a):
+            pass
+
+        def setFont(self, *a):
+            pass
+
+        def drawString(self, x, y, text):
+            captured["strings"].append(text)
+
+        def drawRightString(self, x, y, text):
+            captured["strings"].append(text)
+
+        def line(self, *a):
+            pass
+
+        def showPage(self):
+            pass
+
+        def save(self):
+            captured["saved"] = True
+
+    fake_canvas_mod = ModuleType("reportlab.pdfgen.canvas")
+    setattr(fake_canvas_mod, "Canvas", FakeCanvas)
+
+    fake_pdfgen = ModuleType("reportlab.pdfgen")
+    setattr(fake_pdfgen, "canvas", fake_canvas_mod)
+
+    # --- Build package hierarchy ---
     reportlab_pkg = ModuleType("reportlab")
     reportlab_lib_pkg = ModuleType("reportlab.lib")
     setattr(reportlab_pkg, "lib", reportlab_lib_pkg)
+    setattr(reportlab_pkg, "pdfbase", fake_pdfbase)
+    setattr(reportlab_pkg, "pdfgen", fake_pdfgen)
     setattr(reportlab_lib_pkg, "colors", fake_colors)
     setattr(reportlab_lib_pkg, "pagesizes", fake_pagesizes)
     setattr(reportlab_lib_pkg, "styles", fake_styles)
-
     monkeypatch.setitem(sys.modules, "reportlab", reportlab_pkg)
     monkeypatch.setitem(sys.modules, "reportlab.lib", reportlab_lib_pkg)
     monkeypatch.setitem(sys.modules, "reportlab.lib.colors", fake_colors)
     monkeypatch.setitem(sys.modules, "reportlab.lib.pagesizes", fake_pagesizes)
     monkeypatch.setitem(sys.modules, "reportlab.lib.styles", fake_styles)
     monkeypatch.setitem(sys.modules, "reportlab.platypus", fake_platypus)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfbase", fake_pdfbase)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfbase.pdfmetrics", fake_pdfmetrics)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfbase.cidfonts", fake_cidfonts)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfgen", fake_pdfgen)
+    monkeypatch.setitem(sys.modules, "reportlab.pdfgen.canvas", fake_canvas_mod)
 
+    # Force reimport to pick up our mocks
+    if "generate_test_pdfs" in sys.modules:
+        del sys.modules["generate_test_pdfs"]
     gtp = importlib.import_module("generate_test_pdfs")
     monkeypatch.setattr(gtp, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(gtp, "ROOT_DIR", tmp_path.parent)
+    # Test compute_balances — pure logic, no mocking needed
+    txns = gtp.get_fixtures()[0].transactions  # DBS fixture
+    balances = gtp.compute_balances(Decimal("12000.00"), txns)
+    # DBS: 12000 + 5200 = 17200, - 2200 = 15000, - 86.40 = 14913.60, ...
+    assert balances[0] == Decimal("17200.00")
+    assert balances[1] == Decimal("15000.00")
+    assert balances[2] == Decimal("14913.60")
 
-    captured = {"data": None, "built": False}
+    # Test write_fixture_pdf_and_json — uses mocked canvas + writes JSON
+    dbs_fixture = gtp.get_fixtures()[0]
+    gtp.write_fixture_pdf_and_json(dbs_fixture)
 
-    class FakeDoc:
-        def __init__(self, *args, **kwargs):
-            pass
+    assert captured["saved"] is True
+    assert any("DBS BANK" in s for s in captured["strings"])
+    assert any("3456" in s for s in captured["strings"])  # account number
 
-        def build(self, elements):
-            captured["built"] = True
-
-    class FakeTable:
-        def __init__(self, data):
-            captured["data"] = data
-
-        def setStyle(self, style):
-            return None
-
-    monkeypatch.setattr(gtp, "SimpleDocTemplate", FakeDoc)
-    monkeypatch.setattr(gtp, "Table", FakeTable)
-    monkeypatch.setattr(gtp, "Paragraph", lambda *args, **kwargs: object())
-    monkeypatch.setattr(gtp, "Spacer", lambda *args, **kwargs: object())
-    monkeypatch.setattr(gtp, "TableStyle", lambda *args, **kwargs: object())
-
-    gtp.generate_statement(
-        "sample.pdf",
-        "Bank",
-        "123",
-        date(2025, 1, 1),
-        date(2025, 1, 31),
-        [
-            {
-                "date": date(2025, 1, 2),
-                "description": "Salary",
-                "amount": Decimal("100.00"),
-            },
-            {
-                "date": date(2025, 1, 3),
-                "description": "Food",
-                "amount": Decimal("-20.00"),
-            },
-        ],
-        Decimal("50.00"),
-    )
-
-    assert captured["built"] is True
-    assert captured["data"][0] == ["Date", "Description", "Debit", "Credit", "Balance"]
-    assert captured["data"][1][3] == "100.00"
-    assert captured["data"][2][2] == "20.00"
+    # Verify JSON was written correctly
+    json_path = tmp_path / dbs_fixture.json_name
+    assert json_path.exists()
+    data = json.loads(json_path.read_text())
+    assert data["institution"] == "DBS"
+    assert data["success"] is True
+    assert len(data["events"]) == 7
+    assert data["statement"]["opening_balance"] == "12000.00"
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +355,7 @@ class TestSaveActiveNamespacesError:
 class TestGetContainerRuntimeDocker:
     def test_docker_found_when_podman_missing(self, monkeypatch):
         """Line 236: docker path when podman is missing."""
+
         def fake_run(cmd, capture_output=True):
             if cmd == ["which", "podman"]:
                 return SimpleNamespace(returncode=1)
@@ -330,6 +370,7 @@ class TestGetContainerRuntimeDocker:
 class TestIsDbReadySuccess:
     def test_returns_true_when_ready(self, monkeypatch):
         """Line 248: pg_isready success."""
+
         def fake_run(*args, **kwargs):
             return SimpleNamespace(returncode=0)
 
@@ -412,11 +453,13 @@ class TestCleanupOrphanDatabases:
         ns_file.write_text(json.dumps(["stale_ns", "main"]))
         monkeypatch.setattr(tl, "ACTIVE_NAMESPACES_FILE", ns_file)
         monkeypatch.setenv("BRANCH_NAME", "main")
+
         def fake_run(cmd, capture_output=True, check=False, text=False):
             cmd_str = " ".join(str(c) for c in cmd)
             if "SELECT datname" in cmd_str:
                 return SimpleNamespace(stdout="finance_report_test_dead_ns\n")
             return SimpleNamespace(stdout="", returncode=0)
+
         monkeypatch.setattr(tl.subprocess, "run", fake_run)
         tl.cleanup_orphan_databases("docker", "db-container")
         saved = json.loads(ns_file.read_text())
@@ -428,6 +471,7 @@ class TestCleanupWorkerDatabasesEdgeCases:
 
     def test_container_not_running_skips(self, monkeypatch):
         """Lines 266-270: container check returns empty stdout."""
+
         def fake_run(cmd, capture_output=True, check=False, text=False):
             # ps -q returns empty (container not running)
             return SimpleNamespace(stdout=b"", returncode=0)
@@ -438,6 +482,7 @@ class TestCleanupWorkerDatabasesEdgeCases:
 
     def test_container_check_process_error(self, monkeypatch):
         """Lines 271-273: CalledProcessError on container check."""
+
         def fake_run(cmd, capture_output=True, check=False, text=False):
             if "ps" in cmd:
                 raise tl.subprocess.CalledProcessError(1, "docker ps")
@@ -689,8 +734,9 @@ class TestMainFunction:
         monkeypatch.setattr(tl, "test_database", fake_test_db)
         monkeypatch.setattr(tl, "get_s3_bucket", lambda ns: "test-bucket")
         monkeypatch.setattr(
-            tl, "_get_changed_files",
-            lambda base_branch="main": ["src.config", "src.models.account"]
+            tl,
+            "_get_changed_files",
+            lambda base_branch="main": ["src.config", "src.models.account"],
         )
 
         captured_cmd = {}
@@ -719,10 +765,7 @@ class TestMainFunction:
 
         monkeypatch.setattr(tl, "test_database", fake_test_db)
         monkeypatch.setattr(tl, "get_s3_bucket", lambda ns: "test-bucket")
-        monkeypatch.setattr(
-            tl, "_get_changed_files",
-            lambda base_branch="main": []
-        )
+        monkeypatch.setattr(tl, "_get_changed_files", lambda base_branch="main": [])
 
         captured_cmd = {}
 
@@ -803,8 +846,9 @@ class TestGetChangedFilesEdgeCases:
         monkeypatch.setattr(tl, "test_database", fake_test_db)
         monkeypatch.setattr(tl, "get_s3_bucket", lambda ns: "test-bucket")
         monkeypatch.setattr(
-            tl, "_get_changed_files",
-            lambda base_branch="main": [f"src.mod{i}" for i in range(8)]
+            tl,
+            "_get_changed_files",
+            lambda base_branch="main": [f"src.mod{i}" for i in range(8)],
         )
 
         def fake_run(cmd, *args, **kwargs):
