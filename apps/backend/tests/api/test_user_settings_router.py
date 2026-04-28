@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.models import User
-from src.security import create_access_token
 
 pytestmark = pytest.mark.asyncio
 
@@ -63,25 +62,41 @@ async def test_ac18_5_5_patch_ai_settings_preserves_unspecified_values(
 async def test_ac18_5_5_get_ai_settings_returns_404_for_missing_user(
     public_client: AsyncClient,
 ) -> None:
-    """AC18.5.5: GET /users/me/settings returns 404 when JWT subject does not exist."""
-    ghost_token = create_access_token(data={"sub": str(uuid4())})
-    response = await public_client.get(
-        "/users/me/settings",
-        headers={"Authorization": f"Bearer {ghost_token}"},
-    )
+    """AC18.5.5: GET /users/me/settings returns 404 when authenticated user row is missing.
+
+    Uses dependency_overrides to bypass the auth-layer existence check and exercise the
+    router's own 404 branch (defense-in-depth against deleted-mid-session users).
+    """
+    from src.auth import get_current_user_id
+    from src.main import app
+
+    ghost_id = uuid4()
+    app.dependency_overrides[get_current_user_id] = lambda: ghost_id
+    try:
+        response = await public_client.get("/users/me/settings")
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
     assert response.status_code == 404
 
 
 async def test_ac18_5_5_patch_ai_settings_returns_404_for_missing_user(
     public_client: AsyncClient,
 ) -> None:
-    """AC18.5.5: PATCH /users/me/settings returns 404 when JWT subject does not exist."""
-    ghost_token = create_access_token(data={"sub": str(uuid4())})
-    response = await public_client.patch(
-        "/users/me/settings",
-        headers={"Authorization": f"Bearer {ghost_token}"},
-        json={"enable_ai_reconciliation": True},
-    )
+    """AC18.5.5: PATCH /users/me/settings returns 404 when authenticated user row is missing."""
+    from src.auth import get_current_user_id
+    from src.main import app
+
+    ghost_id = uuid4()
+    app.dependency_overrides[get_current_user_id] = lambda: ghost_id
+    try:
+        response = await public_client.patch(
+            "/users/me/settings",
+            json={"enable_ai_reconciliation": True},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
     assert response.status_code == 404
 
 
