@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ConfidenceBadge, { ConfidenceTier } from "@/components/ui/ConfidenceBadge";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
@@ -32,6 +33,7 @@ interface Transaction {
     balance_after: string | number | null;
     status: string;
     confidence: string;
+    confidence_tier?: ConfidenceTier;
 }
 
 interface StatementReview {
@@ -459,17 +461,21 @@ export default function StatementReviewPage() {
                                                 )}
                                             </td>
                                             <td className="px-4 py-2 text-center">
-                                                <span
-                                                    className={`badge ${
-                                                        txn.confidence === "high"
-                                                            ? "badge-success"
-                                                            : txn.confidence === "medium"
-                                                              ? "badge-warning"
-                                                              : "badge-error"
-                                                    }`}
-                                                >
-                                                    {txn.confidence}
-                                                </span>
+                                                {txn.confidence_tier ? (
+                                                    <ConfidenceBadge tier={txn.confidence_tier} />
+                                                ) : (
+                                                    <span
+                                                        className={`badge ${
+                                                            txn.confidence === "high"
+                                                                ? "badge-success"
+                                                                : txn.confidence === "medium"
+                                                                  ? "badge-warning"
+                                                                  : "badge-error"
+                                                        }`}
+                                                    >
+                                                        {txn.confidence}
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     );

@@ -82,6 +82,7 @@ class BankStatementTransactionResponse(BaseModel):
     raw_text: str | None
     suggested_category: str | None = None
     category_confidence: Decimal | None = None
+    confidence_tier: str = "LOW"
     created_at: datetime
     updated_at: datetime
 

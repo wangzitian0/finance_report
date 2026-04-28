@@ -17,6 +17,7 @@ from src.schemas.review import (
     ResolveCheckRequest,
     Stage2ReviewQueueResponse,
 )
+from src.services.confidence_tier import derive_confidence_tier
 from src.services.consistency_checks import (
     get_pending_checks,
     has_unresolved_checks,
@@ -39,12 +40,17 @@ async def get_stage2_review_queue(
     matches = await get_stage2_queue(db, user_id)
     pending_matches = []
     for match in matches:
+        transaction = match.transaction
         pending_matches.append(
             {
                 "id": str(match.id),
                 "match_score": match.match_score,
                 "status": match.status.value,
                 "created_at": match.created_at.isoformat() if match.created_at else None,
+                "description": transaction.description if transaction else None,
+                "amount": transaction.amount if transaction else None,
+                "txn_date": transaction.txn_date.isoformat() if transaction else None,
+                "confidence_tier": derive_confidence_tier("bank_statement"),
             }
         )
 

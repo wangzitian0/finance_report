@@ -46,3 +46,17 @@ class UserResponse(UserBase):
 
 
 UserListResponse = ListResponse[UserResponse]
+
+
+class UserAiSettingsUpdate(BaseModel):
+    """AI feature flag settings that can be overridden per user."""
+
+    enable_ai_reconciliation: bool | None = None
+    enable_ai_classification: bool | None = None
+
+
+class UserAiSettingsResponse(BaseModel):
+    """Effective AI feature settings for the current user."""
+
+    enable_ai_reconciliation: bool
+    enable_ai_classification: bool

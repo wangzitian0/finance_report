@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
@@ -24,8 +25,10 @@ from src.models import PingState
 from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,
+    ai_feedback,
     ai_models,
     assets,
+    audit,
     auth,
     chat,
     corrections,
@@ -34,6 +37,7 @@ from src.routers import (
     reports,
     review,
     statements,
+    user_settings,
     users,
 )
 from src.routers.reconciliation import router as reconciliation_router
@@ -56,9 +60,11 @@ def _init_otel_instrumentation() -> None:
         return
 
     try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # pyright: ignore[reportMissingImports]
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # pyright: ignore[reportMissingImports]
+        from opentelemetry.instrumentation.sqlalchemy import (
+            SQLAlchemyInstrumentor,  # pyright: ignore[reportMissingImports]
+        )
 
         # Instrument FastAPI - will be applied to app after creation
         FastAPIInstrumentor.instrument()
@@ -239,7 +245,9 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(accounts.router)
+app.include_router(ai_feedback.router)
 app.include_router(ai_models.router)
+app.include_router(audit.router)
 app.include_router(assets.router)
 app.include_router(chat.router)
 app.include_router(corrections.router)
@@ -249,6 +257,7 @@ app.include_router(statements.router)
 app.include_router(review.router)
 app.include_router(reconciliation_router)
 app.include_router(users.router)
+app.include_router(user_settings.router)
 app.include_router(portfolio.router)
 
 

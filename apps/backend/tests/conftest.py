@@ -89,6 +89,7 @@ def get_test_db_url(worker_id: str) -> str:
 
     if worker_id != "master":
         url_obj = make_url(base_url)
+        assert url_obj.database is not None
         worker_suffix = f"_{worker_id}"
         max_base_len = 63 - len(worker_suffix)
         worker_db_name = f"{url_obj.database[:max_base_len]}{worker_suffix}"
@@ -197,12 +198,14 @@ async def db_engine(test_database_url):
     from src.database import Base
     from src.models import (  # noqa: F401
         Account,
+        AiFeedback,
         BankStatement,
         BankStatementTransaction,
         ChatMessage,
         ChatSession,
         ConsistencyCheck,
         FxRate,
+        JournalAuditLog,
         JournalEntry,
         JournalLine,
         PingState,

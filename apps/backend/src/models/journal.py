@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import enum
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import (
     DECIMAL,
     CheckConstraint,
     Date,
+    DateTime,
     Enum,
     ForeignKey,
     String,
@@ -93,6 +94,16 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     def __repr__(self) -> str:
         return f"<JournalEntry {self.entry_date} - {self.memo[:30]}>"
 
+    @property
+    def confidence_tier(self) -> str:
+        """Derived UI confidence tier based on source type."""
+        return {
+            JournalEntrySourceType.MANUAL: "TRUSTED",
+            JournalEntrySourceType.BANK_STATEMENT: "LOW",
+            JournalEntrySourceType.SYSTEM: "LOW",
+            JournalEntrySourceType.FX_REVALUATION: "LOW",
+        }.get(self.source_type, "LOW")
+
 
 class JournalLine(Base, UUIDMixin, TimestampMixin):
     """
@@ -130,3 +141,20 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"
+
+
+class JournalAuditLog(Base, UUIDMixin):
+    """Audit trail entry for journal transaction changes."""
+
+    __tablename__ = "journal_audit_log"
+
+    entry_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    old_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    new_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
@@ -224,6 +225,8 @@ export default function JournalPage() {
                                                 <span>{entry.lines.length} lines</span>
                                                 <span>•</span>
                                                 <span className="capitalize">{entry.source_type.replace("_", " ")}</span>
+                                                <span>•</span>
+                                                <ConfidenceBadge tier={entry.confidence_tier ?? "LOW"} />
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">

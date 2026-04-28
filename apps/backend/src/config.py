@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", validation_alias=AliasChoices("ENVIRONMENT", "ENV"))
     debug: bool = False
     base_currency: str = "SGD"
+    redis_url: str | None = Field(default=None, validation_alias="REDIS_URL")
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.
     next_public_app_url: str = Field(
@@ -151,6 +152,11 @@ class Settings(BaseSettings):
     enable_ai_reconciliation: bool = Field(
         default=False,
         validation_alias="ENABLE_AI_RECONCILIATION",
+    )
+    enable_ai_classification: bool = Field(
+        default=False,
+        description="Enable AI-assisted transaction classification suggestions.",
+        validation_alias="ENABLE_AI_CLASSIFICATION",
     )
 
     # Deployment metadata

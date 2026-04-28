@@ -164,3 +164,8 @@ class BankStatementTransaction(Base, UUIDMixin, TimestampMixin):
         back_populates="transaction",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def confidence_tier(self) -> str:
+        """Derived UI confidence tier for statement-origin transactions."""
+        return "LOW"

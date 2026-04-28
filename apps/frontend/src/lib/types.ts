@@ -32,6 +32,7 @@ export interface JournalEntry {
     entry_date: string;
     memo: string;
     source_type: string;
+    confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null;
     status: "draft" | "posted" | "reconciled" | "void";
     lines: JournalLine[];
     created_at: string;
@@ -64,6 +65,7 @@ export interface BankStatementTransaction {
     balance_after?: number | null;
     status: "pending" | "matched" | "unmatched";
     confidence: "high" | "medium" | "low";
+    confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";
     confidence_reason?: string | null;
     raw_text?: string | null;
     created_at: string;
@@ -79,6 +81,7 @@ export interface BankStatementTransactionSummary {
     direction: string;
     reference?: string | null;
     status: "pending" | "matched" | "unmatched";
+    confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";
 }
 
 export interface BankStatement {
