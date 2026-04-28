@@ -706,3 +706,31 @@ Stage 2: Run-Level Review (Consistency Checks)
 ---
 
 *FE/UI Audit appended: April 2026*
+
+---
+
+## 🆕 UI Gap Audit (April 2026) — Stage 1 Refactor, Inline Edit, Conflict Resolution & Mobile Nav
+
+**Origin**: UI gap audit against [vision.md](../../vision.md) (two-stage review must be production-grade). Stage 1 page is monolithic, has no inline edit, no conflict resolution UI, no mobile navigation. These block real-user adoption of the review flow.
+
+### Acceptance Criteria — Feature (group 23)
+
+- [ ] **AC16.23.1** Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable
+- [ ] **AC16.23.2** TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast
+- [ ] **AC16.23.3** Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair
+- [ ] **AC16.23.4** Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string
+- [ ] **AC16.23.5** Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile
+- [ ] **AC16.23.6** Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders
+
+### Acceptance Criteria — Infra (group 11, test infra extension)
+
+- [ ] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`
+- [ ] **AC16.11.33** Playwright smoke covers inline-edit happy path on Stage 1 (open review → edit amount → save → assert persisted)
+
+### Acceptance Criteria — Infra (group 13, conflict resolution backend contract)
+
+- [ ] **AC16.13.13** Backend exposes `GET /api/review/conflicts/{statement_id}` returning `{duplicates: [...], transfer_pairs: [...]}` consumed by ConflictResolutionDialog
+- [ ] **AC16.13.14** Contract test asserts response schema and 404 when statement_id not found
+
+**Priority**: P0 — Stage 1 monolith is the #1 reported UX blocker.
+**Estimated effort**: 6-8 days frontend (component split + inline edit + conflict dialog + mobile nav) + 2-3 days backend (conflicts endpoint) + 1-2 days test infra.

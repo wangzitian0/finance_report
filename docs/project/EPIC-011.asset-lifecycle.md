@@ -2013,4 +2013,22 @@ The following items were identified during the vision.md recovery audit as featu
 
 ---
 
-**Last Updated**: 2026-01-24
+**Last Updated**: 2026-04-28
+
+---
+
+## 🆕 UI Gap Audit (April 2026) — Annualized Income & ESOP Surfacing
+
+**Origin**: UI gap audit against [vision.md](../../vision.md) (annualized salary, ESOP/RSU vesting, restricted-asset visibility). Backend asset lifecycle is complete but the dashboard does not surface annualized income or ESOP/restricted holdings; user has no view of "earnings power vs. liquid wealth".
+
+### Acceptance Criteria
+
+- [ ] **AC11.8.1** API endpoint `GET /api/income/annualized` returns `{annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of}` derived from last 12 months of Income-type journal entries
+- [ ] **AC11.8.2** Dashboard "Annualized Income" card renders the four annualized figures with the currency code and `as_of` date subtitle
+- [ ] **AC11.8.3** API endpoint `GET /api/assets/restricted` returns ESOP/RSU/locked holdings with `{ticker, quantity, vesting_schedule, unlock_date, fair_value}`
+- [ ] **AC11.8.4** Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip
+- [ ] **AC11.8.5** Net worth calculation toggle on dashboard (`include_restricted=true|false`) re-fetches and updates total, defaulting to `false` (vision: liquid wealth is primary)
+- [ ] **AC11.8.6** Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render
+
+**Priority**: P1 (high) — closes the largest "vision parity" gap after net worth time series.
+**Estimated effort**: 4-6 days backend (income aggregation + restricted-flag schema check) + 3-4 days frontend.
