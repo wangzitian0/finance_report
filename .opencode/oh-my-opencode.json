@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
   "agents": {
     "sisyphus": {
-      "model": "github-copilot/claude-sonnet-4.6",
+      "model": "github-copilot/claude-sonnet-4.7",
       "skills": [
         "agents-rules",
         "tools-index",
@@ -32,11 +32,11 @@
       "skills": ["agents-rules"]
     },
     "metis": {
-      "model": "github-copilot/claude-opus-4.6",
+      "model": "github-copilot/claude-opus-4.7",
       "skills": ["agents-rules"]
     },
     "hephaestus": {
-      "model": "openai/gpt-5.3-codex",
+      "model": "openai/gpt-5.2-codex",
       "skills": ["agents-rules", "tools-index"]
     },
     "atlas": {
@@ -57,7 +57,7 @@
       ]
     },
     "explore": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "zai-coding-plan/glm-5",
       "skills": ["agents-rules", "tools-index", "headless-fast-internal-browser"]
     },
     "librarian": {
@@ -71,7 +71,7 @@
   },
   "categories": {
     "quick": {
-      "model": "zai-coding-plan/glm-4.7",
+      "model": "zai-coding-plan/glm-5",
       "description": "Trivial tasks - single file changes, typo fixes"
     },
     "visual-engineering": {
@@ -79,11 +79,11 @@
       "description": "Frontend, UI/UX, design, styling"
     },
     "ultrabrain": {
-      "model": "openai/gpt-5.3-codex",
+      "model": "openai/gpt-5.2-codex",
       "description": "Deep logical reasoning, complex architecture decisions"
     },
     "deep": {
-      "model": "openai/gpt-5.3-codex",
+      "model": "openai/gpt-5.2-codex",
       "description": "Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding."
     },
     "artistry": {
@@ -99,7 +99,7 @@
       "description": "Tasks that don't fit other categories, low effort required"
     },
     "unspecified-high": {
-      "model": "github-copilot/claude-opus-4.6",
+      "model": "github-copilot/claude-opus-4.7",
       "description": "Tasks that don't fit other categories, high effort required"
     }
   },
@@ -121,12 +121,11 @@
       "zai-coding-plan": 3
     },
     "modelConcurrency": {
-      "github-copilot/claude-opus-4.6": 2,
-      "github-copilot/claude-sonnet-4.6": 3,
+      "github-copilot/claude-opus-4.7": 2,
+      "github-copilot/claude-sonnet-4.7": 3,
       "openai/gpt-5.2": 4,
-      "openai/gpt-5.3-codex": 3,
-      "zai-coding-plan/glm-5": 2,
-      "zai-coding-plan/glm-4.7": 3,
+      "openai/gpt-5.2-codex": 3,
+      "zai-coding-plan/glm-5": 3,
       "zai-coding-plan/glm-4.6v": 2,
       "google/antigravity-gemini-3-flash": 8
     }
