@@ -20,15 +20,15 @@
     },
     "prometheus": {
       "replace_plan": true,
-      "model": "openai/gpt-5.2",
+      "model": "openai/gpt-5.5",
       "skills": ["agents-rules", "tools-index"]
     },
     "oracle": {
-      "model": "openai/gpt-5.2",
+      "model": "openai/gpt-5.5",
       "skills": ["agents-rules", "tools-index"]
     },
     "momus": {
-      "model": "openai/gpt-5.2",
+      "model": "openai/gpt-5.5",
       "skills": ["agents-rules"]
     },
     "metis": {
@@ -36,7 +36,7 @@
       "skills": ["agents-rules"]
     },
     "hephaestus": {
-      "model": "openai/gpt-5.3-codex",
+      "model": "openai/gpt-5.5",
       "skills": ["agents-rules", "tools-index"]
     },
     "atlas": {
@@ -79,11 +79,11 @@
       "description": "Frontend, UI/UX, design, styling"
     },
     "ultrabrain": {
-      "model": "openai/gpt-5.3-codex",
+      "model": "openai/gpt-5.5",
       "description": "Deep logical reasoning, complex architecture decisions"
     },
     "deep": {
-      "model": "openai/gpt-5.3-codex",
+      "model": "openai/gpt-5.5",
       "description": "Goal-oriented autonomous problem-solving. Thorough research before action. For hairy problems requiring deep understanding."
     },
     "artistry": {
@@ -123,8 +123,7 @@
     "modelConcurrency": {
       "github-copilot/claude-opus-4.7": 2,
       "github-copilot/claude-sonnet-4.6": 3,
-      "openai/gpt-5.2": 4,
-      "openai/gpt-5.3-codex": 3,
+      "openai/gpt-5.5": 4,
       "zai-coding-plan/glm-5.1": 3,
       "google/antigravity-gemini-3-pro-high": 2,
       "google/antigravity-gemini-3-flash": 8
