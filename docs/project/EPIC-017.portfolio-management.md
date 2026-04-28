@@ -567,3 +567,21 @@ Given that the backend is 100% complete and chart infrastructure exists, the fro
 ---
 
 *FE/UI Audit appended: April 2026*
+
+---
+
+## 🆕 UI Gap Audit (April 2026) — Dividends, Cost Basis, Realized P&L Frontend
+
+**Origin**: UI gap audit against [vision.md](../../vision.md) decision 1 (100% self-developed portfolio with XIRR/TWR/MWR, dividend tracking, cost basis methods). Backend portfolio APIs are planned but the frontend has no surfaces for dividend history, cost-basis selection, or realized P&L per holding.
+
+### Acceptance Criteria
+
+- [ ] **AC17.7.1** Holding detail page `/portfolio/[ticker]` renders three tabs: `Overview`, `Dividends`, `Realized P&L`
+- [ ] **AC17.7.2** Dividends tab lists historical dividend events `{ex_date, pay_date, amount, currency, reinvested}` from `GET /api/portfolio/{ticker}/dividends`
+- [ ] **AC17.7.3** Cost-basis method selector (`FIFO` / `LIFO` / `AvgCost`) on holding detail page persists per-holding via `PATCH /api/portfolio/{ticker}` and re-fetches realized P&L
+- [ ] **AC17.7.4** Realized P&L tab shows lot-level table `{lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_period}` from `GET /api/portfolio/{ticker}/realized`
+- [ ] **AC17.7.5** Portfolio summary card on dashboard adds `realized_pnl_ytd` and `dividend_income_ytd` figures from `GET /api/portfolio/summary`
+- [ ] **AC17.7.6** Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render
+
+**Priority**: P1 — depends on backend portfolio API delivery; surfaces vision-critical metrics.
+**Estimated effort**: 5-7 days frontend (3 tabs + cost-basis selector + summary additions); backend dividend/realized endpoints tracked in core EPIC-017 scope.

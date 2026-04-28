@@ -240,3 +240,21 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | Week 1 | Report calculation logic + API | ✅ Done |
 | Week 2 | Dashboard + chart components | ✅ Done |
 | Week 3 | Report pages + export + testing | ✅ Done |
+
+---
+
+## 🆕 UI Gap Audit (April 2026) — Net Worth Time Series
+
+**Origin**: UI gap audit against [vision.md](../../vision.md) North Star ("总资产、月度盈亏、长期趋势"). Current dashboard shows point-in-time balance sheet only; no historical net-worth chart.
+
+### Acceptance Criteria
+
+- [ ] **AC5.7.1** Net worth time-series API endpoint `GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=monthly|daily` returns `[{date, total_assets, total_liabilities, net_worth}]`
+- [ ] **AC5.7.2** Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis
+- [ ] **AC5.7.3** Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule
+- [ ] **AC5.7.4** Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles `from` parameter for chart
+- [ ] **AC5.7.5** Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line)
+- [ ] **AC5.7.6** Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists
+
+**Priority**: P1 (high) — needed for vision parity but not blocking user adoption.
+**Estimated effort**: 3-5 days backend + 2-3 days frontend.
