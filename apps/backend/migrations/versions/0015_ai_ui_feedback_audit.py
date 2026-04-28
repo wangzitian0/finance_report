@@ -10,7 +10,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "0015_ai_ui_feedback_audit"
-down_revision = "0014_add_correction_logs"
+down_revision = "bc9a8105e644"
 branch_labels = None
 depends_on = None
 
