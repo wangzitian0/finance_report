@@ -45,7 +45,7 @@ async def patch_current_user_settings(
     if user is None:
         raise_not_found("User")
 
-    updates = payload.model_dump(exclude_unset=True)
+    updates = payload.model_dump(exclude_unset=True, exclude_none=True)
     user.ai_settings = {**(user.ai_settings or {}), **updates}
     await db.commit()
     await db.refresh(user)

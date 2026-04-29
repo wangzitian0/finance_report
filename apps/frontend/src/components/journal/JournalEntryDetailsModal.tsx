@@ -1,3 +1,5 @@
+"use client";
+
 import DetailDialog from "@/components/ui/DetailDialog";
 import AuditTrailPanel from "@/components/AuditTrailPanel";
 import { formatCurrencyLocale } from "@/lib/currency";

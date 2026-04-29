@@ -53,42 +53,72 @@ async def list_ai_suggestions(
     """List pending AI classification and reconciliation suggestions in the 60-84 review band."""
     items: list[AiSuggestionResponse] = []
 
+    classification_filters = (
+        TransactionClassification.status == ClassificationStatus.DRAFT,
+        TransactionClassification.confidence_score >= 60,
+        TransactionClassification.confidence_score < 85,
+    )
+    reconciliation_filters = (
+        ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
+        ReconciliationMatch.match_score >= 60,
+        ReconciliationMatch.match_score < 85,
+    )
+
+    classification_count_result = await db.execute(
+        select(func.count(TransactionClassification.id))
+        .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
+        .where(*classification_filters)
+    )
+    classification_total = int(classification_count_result.scalar_one() or 0)
+
+    reconciliation_count_result = await db.execute(
+        select(func.count(ReconciliationMatch.id))
+        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(BankStatement.user_id == user_id)
+        .where(*reconciliation_filters)
+    )
+    reconciliation_total = int(reconciliation_count_result.scalar_one() or 0)
+
     classification_result = await db.execute(
         select(TransactionClassification, AtomicTransaction)
         .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
         .where(AtomicTransaction.user_id == user_id)
-        .where(TransactionClassification.status == ClassificationStatus.DRAFT)
-        .where(TransactionClassification.confidence_score >= 60)
-        .where(TransactionClassification.confidence_score < 85)
+        .where(*classification_filters)
         .order_by(TransactionClassification.created_at.desc())
         .limit(limit)
         .offset(offset)
     )
     for classification, txn in classification_result.all():
+        category: str | None = None
+        if isinstance(classification.tags, dict):
+            raw = classification.tags.get("category")
+            if isinstance(raw, str) and raw:
+                category = raw
         items.append(
             AiSuggestionResponse(
                 suggestion_id=classification.id,
                 transaction=txn.description,
-                suggested_category_or_match=str(
-                    classification.tags or classification.account_id or "AI classification"
-                ),
+                suggested_category_or_match=category or classification.account_id or "AI classification",
                 ai_score=classification.confidence_score or 60,
                 ai_reasoning="Pending AI classification suggestion requires human review.",
             )
         )
 
+    classification_consumed = offset + len(items)
+    reconciliation_offset = max(offset - classification_total, 0)
     remaining = max(limit - len(items), 0)
-    if remaining:
+    if remaining and classification_consumed >= classification_total:
         match_result = await db.execute(
             select(ReconciliationMatch, BankStatementTransaction)
             .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
             .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
             .where(BankStatement.user_id == user_id)
-            .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-            .where(ReconciliationMatch.match_score >= 60)
-            .where(ReconciliationMatch.match_score < 85)
+            .where(*reconciliation_filters)
             .order_by(ReconciliationMatch.created_at.desc())
             .limit(remaining)
+            .offset(reconciliation_offset)
         )
         for match, txn in match_result.all():
             items.append(
@@ -101,14 +131,4 @@ async def list_ai_suggestions(
                 )
             )
 
-    total_result = await db.execute(
-        select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        .where(ReconciliationMatch.match_score >= 60)
-        .where(ReconciliationMatch.match_score < 85)
-    )
-    total = int(total_result.scalar_one() or 0) + len(items)
-    return AiSuggestionListResponse(items=items, total=total)
+    return AiSuggestionListResponse(items=items, total=classification_total + reconciliation_total)

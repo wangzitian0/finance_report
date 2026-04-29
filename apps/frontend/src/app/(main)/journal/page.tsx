@@ -225,8 +225,12 @@ export default function JournalPage() {
                                                 <span>{entry.lines.length} lines</span>
                                                 <span>•</span>
                                                 <span className="capitalize">{entry.source_type.replace("_", " ")}</span>
-                                                <span>•</span>
-                                                <ConfidenceBadge tier={entry.confidence_tier ?? "LOW"} />
+                                                {entry.confidence_tier && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <ConfidenceBadge tier={entry.confidence_tier} />
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
