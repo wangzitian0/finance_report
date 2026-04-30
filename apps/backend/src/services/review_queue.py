@@ -429,6 +429,7 @@ async def get_stage2_queue(
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
             BankStatement.user_id == user_id,
         )
+        .options(selectinload(ReconciliationMatch.transaction))
         .limit(50)
     )
     return list(result.scalars().all())

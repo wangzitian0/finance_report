@@ -6,6 +6,7 @@ from src.models.consistency_check import CheckStatus, CheckType, ConsistencyChec
 from src.models.correction import CorrectionLog
 from src.models.journal import (
     Direction,
+    JournalAuditLog,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
@@ -34,7 +35,7 @@ from src.models.statement import (
     ConfidenceLevel,
     Stage1Status,
 )
-from src.models.user import User
+from src.models.user import AiFeedback, User
 
 # Alias for SSOT compatibility (account_events table / statements table naming)
 AccountEvent = BankStatementTransaction
@@ -47,6 +48,7 @@ __all__ = [
     "AccountEvent",  # Alias for BankStatementTransaction
     "AccountEventStatus",  # Alias for BankStatementTransactionStatus
     "AccountType",
+    "AiFeedback",
     "AtomicPosition",
     "AtomicTransaction",
     "BankStatement",
@@ -70,6 +72,7 @@ __all__ = [
     "DocumentType",
     "FxRate",
     "JournalEntry",
+    "JournalAuditLog",
     "JournalEntrySourceType",
     "JournalEntryStatus",
     "JournalLine",

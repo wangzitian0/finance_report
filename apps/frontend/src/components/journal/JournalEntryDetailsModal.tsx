@@ -1,6 +1,7 @@
 "use client";
 
 import DetailDialog from "@/components/ui/DetailDialog";
+import AuditTrailPanel from "@/components/AuditTrailPanel";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry } from "@/lib/types";
@@ -114,6 +115,7 @@ export default function JournalEntryDetailsModal({
                         </table>
                     </div>
                 </div>
+                <AuditTrailPanel transactionId={entry.id} />
             </div>
         </DetailDialog>
     );

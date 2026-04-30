@@ -34,6 +34,7 @@ class BankTransactionSummary(BaseModel):
     direction: str
     reference: str | None
     status: BankStatementTransactionStatusEnum
+    confidence_tier: str = "LOW"
 
 
 class JournalEntrySummary(BaseModel):
@@ -44,6 +45,7 @@ class JournalEntrySummary(BaseModel):
     memo: str | None
     status: str
     total_amount: Decimal
+    confidence_tier: str | None = None
 
 
 class ReconciliationMatchResponse(BaseModel):

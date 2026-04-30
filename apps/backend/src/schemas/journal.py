@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.models.journal import Direction, JournalEntrySourceType, JournalEntryStatus
 from src.schemas.base import BaseResponse, ListResponse
+from src.services.confidence_tier import ConfidenceTier
 
 
 class JournalLineBase(BaseModel):
@@ -70,6 +71,7 @@ class JournalEntryResponse(JournalEntryBase, BaseResponse):
     id: UUID
     user_id: UUID
     status: JournalEntryStatus
+    confidence_tier: ConfidenceTier | None = None
     void_reason: str | None = None
     void_reversal_entry_id: UUID | None = None
     lines: list[JournalLineResponse]

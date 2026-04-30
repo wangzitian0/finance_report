@@ -102,6 +102,11 @@ addopts = [
 # Blacklist approach: count all .py files as code except test files
 # Test files identified by path patterns: /test/, /tests/, test_, _test.py
 source = ["src"]
+# Required: greenlet+thread tracer for async (Py3.12 sys.monitoring drops events otherwise);
+# parallel+sigterm let pytest-xdist workers write per-worker .coverage.* and flush on SIGTERM.
+concurrency = ["greenlet", "thread"]
+parallel = true
+sigterm = true
 omit = [
     "__init__.py",
     "models/__init__.py",

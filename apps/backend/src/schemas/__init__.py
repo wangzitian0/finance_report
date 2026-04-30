@@ -66,6 +66,8 @@ from src.schemas.review import (
     Stage2ReviewQueueResponse,
 )
 from src.schemas.user import (
+    UserAiSettingsResponse,
+    UserAiSettingsUpdate,
     UserCreate,
     UserListResponse,
     UserResponse,
@@ -151,6 +153,8 @@ __all__ = [
     "TrendPeriod",
     "UnmatchedTransactionsResponse",
     "UserCreate",
+    "UserAiSettingsResponse",
+    "UserAiSettingsUpdate",
     "UserListResponse",
     "UserResponse",
     "UserUpdate",

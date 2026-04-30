@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useState, useRef } from "react";
 import Link from "next/link";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import ConfidenceBadge, { ConfidenceTier } from "@/components/ui/ConfidenceBadge";
 import { useToast } from "@/components/ui/Toast";
 
 import { apiFetch } from "@/lib/api";
@@ -32,6 +33,7 @@ interface Stage2Data {
         description?: string;
         amount?: number;
         txn_date?: string;
+        confidence_tier?: ConfidenceTier;
     }>;
     consistency_checks: ConsistencyCheck[];
     has_unresolved_checks: boolean;
@@ -395,6 +397,7 @@ export default function Stage2ReviewQueuePage() {
                                             <th className="text-right px-4 py-2 font-medium">Amount</th>
                                             <th className="text-left px-4 py-2 font-medium">Date</th>
                                             <th className="text-left px-4 py-2 font-medium">Status</th>
+                                            <th className="text-left px-4 py-2 font-medium">Confidence</th>
                                             <th className="text-left px-4 py-2 font-medium">Created</th>
                                         </tr>
                                     </thead>
@@ -441,6 +444,9 @@ export default function Stage2ReviewQueuePage() {
                                                 </td>
                                                 <td className="px-4 py-2">
                                                     <span className="badge badge-warning">{match.status}</span>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    {match.confidence_tier ? <ConfidenceBadge tier={match.confidence_tier} /> : "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-muted">
                                                     {match.created_at ? formatDateDisplay(match.created_at) : "—"}
