@@ -96,11 +96,20 @@ async def list_ai_suggestions(
             raw = classification.tags.get("category")
             if isinstance(raw, str) and raw:
                 category = raw
+        # Ensure suggested_category_or_match is a string (account_id may be UUID)
+        suggested = None
+        if category:
+            suggested = category
+        elif classification.account_id:
+            suggested = str(classification.account_id)
+        else:
+            suggested = "AI classification"
+
         items.append(
             AiSuggestionResponse(
                 suggestion_id=classification.id,
                 transaction=txn.description,
-                suggested_category_or_match=category or classification.account_id or "AI classification",
+                suggested_category_or_match=suggested,
                 ai_score=classification.confidence_score or 60,
                 ai_reasoning="Pending AI classification suggestion requires human review.",
             )
