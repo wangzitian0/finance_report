@@ -63,7 +63,7 @@ This section contains:
 | [EPIC-015](./EPIC-015.processing-account.md) | Processing Account Integration | ✅ Complete | 3 | 2 weeks |
 | [EPIC-016](./EPIC-016.two-stage-review-ui.md) | Two-Stage Review & Data Validation UI | 🟡 Planned | 3 | 4-6 weeks |
 | [EPIC-017](./EPIC-017.portfolio-management.md) | Investment Portfolio Management | 🟡 Planned | 5 | 6-8 weeks |
-| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-Driven Data Pipeline | 🟡 Planned | 4 | 4-7 weeks |
+| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-Driven Data Pipeline | 🟡 In Progress | 4 | 4-7 weeks |
 
 **Total Duration**: 44-58 weeks (including EPIC-016, EPIC-017, and EPIC-018)
 **Current Focus**: Phase 3 (Two-Stage Review - Foundation for User Adoption), Phase 4 (Reporting & AI Features), Phase 5 (Portfolio Management), AI-Driven Pipeline

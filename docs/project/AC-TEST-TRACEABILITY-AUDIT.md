@@ -42,7 +42,7 @@
 | EPIC-015 | ✅ Complete | TBD | 0 | ⏳ Pending mapping |
 | EPIC-016 | 🟡 Planned | TBD | 0 | ⏳ Pending mapping |
 | EPIC-017 | 🟡 Planned | TBD | 0 | ⏳ Pending mapping |
-| EPIC-018 | 🟡 Planned | 16 | 0 | ⏳ Pending mapping (placeholders only — see EPIC-018.md L234–249) |
+| EPIC-018 | 🟡 In Progress | 23 | 0 | ⏳ Pending mapping (AC18.* expanded to 23 entries in `ac_registry.yaml` per 2026-05-04 audit, incl. AC18.5.1–7; tests not yet wired) |
 
 > Per-EPIC counts marked `~` are approximate from the current registries; the authoritative count is the sum from `ac_registry.yaml` + `infra_registry.yaml` = **760**. Exact per-EPIC totals will be reconciled in the follow-up re-mapping pass.
 
