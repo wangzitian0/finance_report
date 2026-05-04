@@ -217,6 +217,54 @@ async def test_ac18_5_6_get_ai_suggestions_returns_classification_in_review_band
     assert item["ai_score"] == 72
 
 
+async def test_ai_suggestions_fallback_uses_string_when_tags_none_and_account_missing(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    # Seed a classification with tags=None and account_id=None to hit fallback branch
+    atomic = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2024, 6, 1),
+        amount=Decimal("5.00"),
+        direction=TransactionDirection.OUT,
+        description="Fallback txn",
+        currency="SGD",
+        dedup_hash=f"ai-suggestion-{uuid4()}",
+        source_documents=[],
+    )
+    db.add(atomic)
+    await db.flush()
+
+    rule = ClassificationRule(
+        user_id=test_user.id,
+        version_number=1,
+        effective_date=date(2024, 1, 1),
+        rule_name=f"rule-{uuid4()}",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["x"]},
+        created_by=test_user.id,
+    )
+    db.add(rule)
+    await db.flush()
+
+    classification = TransactionClassification(
+        atomic_txn_id=atomic.id,
+        rule_version_id=rule.id,
+        confidence_score=70,
+        status=ClassificationStatus.DRAFT,
+        tags=None,
+        account_id=None,
+    )
+    db.add(classification)
+    await db.commit()
+
+    resp = await client.get("/ai/suggestions")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert any(it["transaction"] == "Fallback txn" and it["suggested_category_or_match"] == "AI classification" for it in items)
+
+
 async def test_ac18_5_6_get_ai_suggestions_returns_reconciliation_match_in_review_band(
     client: AsyncClient,
     db: AsyncSession,

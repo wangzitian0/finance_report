@@ -98,6 +98,27 @@ describe('apiFetch', () => {
     await expect(apiFetch('/api/users/123')).rejects.toThrow('Not found');
     expect(mockLocation.href).toBe(''); // No redirect
   });
+
+  it('should fallback to raw text when body is non-json', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => "plain text error"
+    });
+
+    await expect(apiFetch('/api/bad')).rejects.toThrow('plain text error');
+  });
+
+  it('should handle SSR window undefined guard in handle401Redirect', async () => {
+    const oldWindow = (globalThis as { window?: unknown }).window;
+    vi.stubGlobal('window', undefined);
+
+    fetchMock.mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ detail: 'no' }) });
+
+    await expect(apiFetch('/api/ssr')).rejects.toThrow('Authentication required');
+
+    vi.stubGlobal('window', oldWindow);
+  });
 });
 
 describe('apiUpload', () => {
@@ -113,6 +134,18 @@ describe('apiUpload', () => {
       status: 200,
       json: async () => ({ id: 'uploaded' }),
     });
+  });
+
+  it('apiStream should redirect on 401', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ detail: 'x' }) });
+    const { apiStream } = await import('./api');
+    await expect(apiStream('/stream')).rejects.toThrow('Authentication required');
+  });
+
+  it('apiDelete should throw for non-401 errors', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, text: async () => 'err' });
+    const { apiDelete } = await import('./api');
+    await expect(apiDelete('/del')).rejects.toThrow('Delete failed with 500');
   });
 
   it('should redirect to /login on 401 unauthorized error', async () => {
