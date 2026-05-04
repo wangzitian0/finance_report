@@ -91,9 +91,133 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["pending_count"] == 2
-    assert Decimal(data["pending_total"]) == Decimal("140.00")
+    assert Decimal(data["pending_total"]) == Decimal("60.00")
     assert data["currency"] == "SGD"
     assert data["oldest_pending_date"] == older.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_pending_total_uses_net_balance_not_sum_of_legs(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    user_id = test_user.id
+    cash = await _seed_account(db, user_id, "Cash", "1001")
+    savings = await _seed_account(db, user_id, "Savings", "1002")
+
+    today = date.today()
+    out_date = today - timedelta(days=30)
+    in_date = today - timedelta(days=2)
+
+    await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=cash.id,
+        amount=Decimal("100.00"),
+        txn_date=out_date,
+        description="Vendor payout alpha",
+    )
+    await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=savings.id,
+        amount=Decimal("80.00"),
+        txn_date=in_date,
+        description="Refund receipt beta",
+    )
+    await db.commit()
+
+    resp = await client.get("/accounts/processing/summary")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["pending_count"] == 2
+    assert Decimal(data["pending_total"]) == Decimal("20.00")
+
+
+@pytest.mark.asyncio
+async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: AsyncSession, test_user) -> None:
+    user_id = test_user.id
+    cash = await _seed_account(db, user_id, "Cash", "1001")
+    savings = await _seed_account(db, user_id, "Savings", "1002")
+
+    today = date.today()
+    await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=cash.id,
+        amount=Decimal("100.00"),
+        txn_date=today,
+        description="Salary Transfer OUT: IN:",
+    )
+    await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=savings.id,
+        amount=Decimal("100.00"),
+        txn_date=today,
+        description="Salary Transfer OUT: IN:",
+    )
+    await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=cash.id,
+        amount=Decimal("50.00"),
+        txn_date=today - timedelta(days=30),
+        description="Unmatched brokerage sweep",
+    )
+    await db.commit()
+
+    summary_resp = await client.get("/accounts/processing/summary")
+    assert summary_resp.status_code == 200, summary_resp.text
+    summary = summary_resp.json()
+    assert summary["pending_count"] == 1
+    assert Decimal(summary["pending_total"]) == Decimal("50.00")
+
+    pending_resp = await client.get("/accounts/processing/pending")
+    assert pending_resp.status_code == 200, pending_resp.text
+    data = pending_resp.json()
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert Decimal(data["items"][0]["amount"]) == Decimal("50.00")
+
+
+@pytest.mark.asyncio
+async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncSession, test_user) -> None:
+    user_id = test_user.id
+    cash = await _seed_account(db, user_id, "Cash", "1001")
+    savings = await _seed_account(db, user_id, "Savings", "1002")
+
+    today = date.today()
+    await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=cash.id,
+        amount=Decimal("100.00"),
+        txn_date=today,
+        description="Salary Transfer OUT: IN:",
+    )
+    await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=savings.id,
+        amount=Decimal("100.00"),
+        txn_date=today,
+        description="Salary Transfer OUT: IN:",
+    )
+    await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=cash.id,
+        amount=Decimal("50.00"),
+        txn_date=today - timedelta(days=30),
+        description="Unmatched brokerage sweep",
+    )
+    await db.commit()
+
+    resp = await client.get("/accounts/processing/pending")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert Decimal(data["items"][0]["amount"]) == Decimal("50.00")
 
 
 @pytest.mark.asyncio

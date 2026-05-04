@@ -470,7 +470,7 @@ async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     lines = result.scalars().all()
 
     # Calculate balance (Asset account: debit - credit)
-    balance = sum(line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines)
+    balance = sum((line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines), start=Decimal("0"))
 
     return balance
 
@@ -521,7 +521,7 @@ async def get_unpaired_transfers(
     return unpaired
 
 
-async def get_pending_transfer_pairs(
+async def list_processing_transfer_legs(
     db: AsyncSession,
     user_id: UUID,
 ) -> list[dict]:
@@ -540,7 +540,7 @@ async def get_pending_transfer_pairs(
     entries = result.scalars().unique().all()
 
     today = date.today()
-    pairs: list[dict] = []
+    legs: list[dict] = []
     for entry in entries:
         processing_line = next(
             (line for line in entry.lines if line.account_id == processing_account.id),
@@ -564,7 +564,7 @@ async def get_pending_transfer_pairs(
             from_account = "(unmatched source)"
             to_account = other_name
 
-        pairs.append(
+        legs.append(
             {
                 "entry_id": entry.id,
                 "from_account": from_account,
@@ -577,4 +577,4 @@ async def get_pending_transfer_pairs(
             }
         )
 
-    return pairs
+    return legs

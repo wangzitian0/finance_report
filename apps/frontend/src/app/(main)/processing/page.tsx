@@ -15,7 +15,7 @@ export default function ProcessingPage() {
   useEffect(() => {
     async function fetchPending() {
       try {
-        const response = await apiFetch<ProcessingPendingListResponse>("/accounts/processing/pending");
+        const response = await apiFetch<ProcessingPendingListResponse>("/api/accounts/processing/pending");
         setData(response);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load pending transfers");

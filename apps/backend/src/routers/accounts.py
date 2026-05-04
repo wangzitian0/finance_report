@@ -26,8 +26,9 @@ from src.services import (
     calculate_account_balances,
 )
 from src.services.processing_account import (
-    get_pending_transfer_pairs,
+    find_transfer_pairs,
     get_unpaired_transfers,
+    list_processing_transfer_legs,
 )
 from src.utils import raise_bad_request, raise_not_found
 
@@ -53,13 +54,13 @@ async def create_account(
 
 @router.get("", response_model=AccountListResponse)
 async def list_accounts(
+    db: DbSession,
+    user_id: CurrentUserId,
     account_type: AccountType | None = None,
     is_active: bool | None = None,
     include_balance: bool = Query(False, description="Include balance (slower)"),
     limit: int = Query(100, ge=1, le=500, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
 ) -> AccountListResponse:
     """List all accounts with optional filters and pagination.
 
@@ -88,9 +89,13 @@ async def get_processing_summary(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ProcessingSummaryResponse:
-    unpaired = await get_unpaired_transfers(db, user_id)
+    pairs = await find_transfer_pairs(db, user_id)
+    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs}
+    unpaired = [item for item in await get_unpaired_transfers(db, user_id) if item["entry_id"] not in paired_ids]
     pending_count = len(unpaired)
-    pending_total = sum((item["amount"] for item in unpaired), start=Decimal("0"))
+    debits = sum((item["amount"] for item in unpaired if item["direction"] == "OUT"), start=Decimal("0"))
+    credits = sum((item["amount"] for item in unpaired if item["direction"] == "IN"), start=Decimal("0"))
+    pending_total = abs(debits - credits)
     oldest_pending_date = min((item["date"] for item in unpaired), default=None)
     return ProcessingSummaryResponse(
         pending_count=pending_count,
@@ -105,8 +110,10 @@ async def list_processing_pending(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ProcessingPendingListResponse:
-    pairs = await get_pending_transfer_pairs(db, user_id)
-    items = [ProcessingPendingItem(**pair) for pair in pairs]
+    pairs = await find_transfer_pairs(db, user_id)
+    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs}
+    legs = [leg for leg in await list_processing_transfer_legs(db, user_id) if leg["entry_id"] not in paired_ids]
+    items = [ProcessingPendingItem(**leg) for leg in legs]
     return ProcessingPendingListResponse(items=items, total=len(items))
 
 

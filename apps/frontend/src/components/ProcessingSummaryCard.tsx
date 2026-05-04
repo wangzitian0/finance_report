@@ -16,7 +16,7 @@ export default function ProcessingSummaryCard() {
   useEffect(() => {
     async function fetchSummary() {
       try {
-        const data = await apiFetch<ProcessingSummaryResponse>("/accounts/processing/summary");
+        const data = await apiFetch<ProcessingSummaryResponse>("/api/accounts/processing/summary");
         setSummary(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load summary");

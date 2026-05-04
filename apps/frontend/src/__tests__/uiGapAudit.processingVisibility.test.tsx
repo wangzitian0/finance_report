@@ -44,7 +44,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     render(<ProcessingSummaryCard />);
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith('/accounts/processing/summary');
+      expect(mockedApiFetch).toHaveBeenCalledWith('/api/accounts/processing/summary');
     });
   });
 
@@ -95,6 +95,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     render(<ProcessingPage />);
 
     await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith('/api/accounts/processing/pending');
       expect(screen.getByText('Bank A')).toBeInTheDocument();
       expect(screen.getByText('Bank B')).toBeInTheDocument();
       expect(screen.getByText(/500\.00/)).toBeInTheDocument();
@@ -132,7 +133,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
   it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {
     mockedApiFetch.mockImplementation((path) => {
-      if (path === '/accounts/processing/summary') {
+      if (path === '/api/accounts/processing/summary') {
         return Promise.resolve({ pending_count: 2, pending_total: "200.00", currency: "SGD", oldest_pending_date: "2026-05-01" });
       }
       if (path === '/api/reports/balance-sheet') {
