@@ -5,6 +5,9 @@ from src.schemas.account import (
     AccountListResponse,
     AccountResponse,
     AccountUpdate,
+    ProcessingPendingItem,
+    ProcessingPendingListResponse,
+    ProcessingSummaryResponse,
 )
 from src.schemas.assets import (
     ManagedPositionListResponse,
@@ -136,6 +139,9 @@ __all__ = [
     "ManagedPositionResponse",
     "ParsedStatementPreview",
     "PingStateResponse",
+    "ProcessingPendingItem",
+    "ProcessingPendingListResponse",
+    "ProcessingSummaryResponse",
     "ReconcilePositionsResponse",
     "ReconciliationMatchListResponse",
     "ReconciliationMatchResponse",

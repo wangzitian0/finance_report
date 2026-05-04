@@ -243,8 +243,7 @@ describe("DashboardPage", () => {
     // Change to Savings account (triggers trendAccountId path + failed trend fetch)
     fireEvent.change(selector, { target: { value: "a2" } })
 
-    // Wait for the failed trend fetch to settle
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(7))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(8))
   })
 
 })

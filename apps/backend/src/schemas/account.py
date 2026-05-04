@@ -1,6 +1,6 @@
 """Pydantic schemas for accounts."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -51,3 +51,24 @@ class AccountResponse(AccountBase, BaseResponse):
 
 
 AccountListResponse = ListResponse[AccountResponse]
+
+
+class ProcessingSummaryResponse(BaseResponse):
+    pending_count: int
+    pending_total: Annotated[Decimal, Field(decimal_places=2)]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    oldest_pending_date: date | None = None
+
+
+class ProcessingPendingItem(BaseResponse):
+    entry_id: UUID
+    from_account: str
+    to_account: str
+    amount: Annotated[Decimal, Field(decimal_places=2)]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    initiated_date: date
+    days_outstanding: int
+    description: str
+
+
+ProcessingPendingListResponse = ListResponse[ProcessingPendingItem]

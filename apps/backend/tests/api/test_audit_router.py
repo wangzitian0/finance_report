@@ -8,7 +8,15 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, JournalAuditLog, JournalEntry, JournalEntrySourceType, JournalEntryStatus, User
+from src.models import (
+    Account,
+    AccountType,
+    JournalAuditLog,
+    JournalEntry,
+    JournalEntrySourceType,
+    JournalEntryStatus,
+    User,
+)
 
 pytestmark = pytest.mark.asyncio
 

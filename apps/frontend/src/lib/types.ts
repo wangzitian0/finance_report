@@ -284,3 +284,26 @@ export interface PriceUpdateResponse {
         created_at?: string | null;
     }>;
 }
+
+export interface ProcessingSummaryResponse {
+    pending_count: number;
+    pending_total: string;
+    currency: string;
+    oldest_pending_date: string | null;
+}
+
+export interface ProcessingPendingItem {
+    entry_id: string;
+    from_account: string;
+    to_account: string;
+    amount: string;
+    currency: string;
+    initiated_date: string;
+    days_outstanding: number;
+    description: string;
+}
+
+export interface ProcessingPendingListResponse {
+    items: ProcessingPendingItem[];
+    total: number;
+}
