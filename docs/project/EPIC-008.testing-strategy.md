@@ -199,6 +199,8 @@ These scenarios represent the "Vertical Slices" of user value.
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 > **Coverage**: See `apps/backend/tests/e2e/` and `scripts/smoke_test.sh`
+>
+> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC8.x.y` numbers within `docs/infra_registry.yaml` reflect deprecated/merged ACs preserved for historical traceability. Do **not** renumber. New ACs append to the next available index in the relevant feature block.
 
 ### AC8.1: Smoke Tests (Health Checks)
 

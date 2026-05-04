@@ -240,6 +240,36 @@ Adjusted based on decision complexity:
 
 ---
 
+## 📌 Audit Decisions — 2026-05-04 (Vision↔EPIC↔AC Alignment)
+
+> **Reference**: [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — full audit report.
+> **Branch**: `audit/vision-epic-ac-alignment` (doc-only PR).
+> **Scope**: Strong consistency across `vision.md` → `EPIC-XXX.md` → `ac_registry.yaml` / `infra_registry.yaml` → tests.
+
+### Decisions Applied (P0 + P1 + P2)
+
+1. **EPIC-018 placeholder ACs replaced (P0a)** — 16 ACs in `ac_registry.yaml` rewritten from "TBD" stubs to concrete acceptance criteria mirroring `EPIC-018.ai-driven-pipeline.md` L234–249. EPIC-018 AC table is the SSOT for AI-pipeline ACs.
+2. **Vision Non-Goal #12 reclassified (P0b)** — `vision.md` L232 mortgage entry changed from ❌ to ✅; mortgage tracking lives in EPIC-011 (asset lifecycle), no longer a Non-Goal.
+3. **README dual-status surfaces synced (P1a + P1a-extended)** — `docs/project/README.md` "Status Snapshot" and "Active Projects" table now agree on every EPIC's status (✅ Complete vs 🟡 In Progress vs 🟡 Planned).
+4. **AC-TEST-TRACEABILITY-AUDIT.md head refreshed (P1b)** — header rewritten to flag the body (L80+) as 542-AC-era stale; full 218-AC remap deferred to follow-up issue (see below). This is a stub refresh, not a rewrite.
+5. **AC12.24.1–3 strikethrough confirmed (P2a)** — `infra_registry.yaml` L765–779 entries are intentional deprecation markers; preserved as-is, not removed.
+6. **Truncated AC entries restored (P2b)** — 11 entries across the AC16.23 block + neighbours restored from EPIC source-of-truth files (EPIC-005 L254 / EPIC-011 L2026/2028/2029 / EPIC-015 L331 / EPIC-016 L718–723).
+7. **Non-contiguous AC numbering noted (P2c)** — explanatory notes inserted into EPIC-002, EPIC-008, EPIC-010, EPIC-012 next to the AC section heading. EPIC-012 note explicitly cites the AC12.24.1–3 strikethrough.
+
+### Deferred to Follow-up (post-merge)
+
+- **SSOT Hardening 2026-Q2** — extract 5 cross-cutting concepts (trust hierarchy, confidence thresholds, tolerance constants, stage-1/2 review state machine, AI gating flag) into `docs/ssot/` modules. Existing SSOTs `source-type-priority.md` and `confirmation-workflow.md` already cover 2 of the 5; remaining 3 to be authored.
+- **Vision T1 + T6 integration tests** — Trust & Governance (T1) and Reliability & Observability (T6) themes currently lack end-to-end integration tests; gap documented in audit §5.
+- **Full 218-AC traceability remap** — `AC-TEST-TRACEABILITY-AUDIT.md` body still reflects the legacy 542-AC era; full remap to current 760-AC inventory (553 feature + 207 infra across 18 EPICs) deferred.
+
+### Authority
+
+- **No new tests** in this PR — pure documentation/consistency.
+- **No SSOT files renamed or moved** — extraction is deferred.
+- **No EPIC scope changes** — only AC text + status surface fixes.
+
+---
+
 **Recorder**: Zitian Wang  
 **Completion Time**: 2026-01-09 20:04 UTC  
 **Git Commit**: `9ceeb62`

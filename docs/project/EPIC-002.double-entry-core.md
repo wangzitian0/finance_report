@@ -198,6 +198,8 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ## 📏 Acceptance Criteria
 
+> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers within `docs/ac_registry.yaml` reflect deprecated/merged ACs preserved for historical traceability. Do **not** renumber. New ACs append to the next available index in the relevant feature block.
+
 ### 🟢 Must Have
 
 | Standard | Verification | Weight |

@@ -229,7 +229,7 @@ Auto-parsed            →  LOW       (lowest confidence)
 - ✅ AI-assisted reconciliation (EPIC-018 Phase 3) — Hybrid scoring for ambiguous matches, opt-in via feature flag
 - ✅ AI CSV parsing (EPIC-018 Phase 4) — Fallback for unknown bank CSV formats, preserves hardcoded parsers for known banks
 - ❌ Budget management → Not a core need
-- ❌ Liability tracking (mortgages) → Not supported yet
+- ✅ Liability tracking (mortgages) — Supported via EPIC-011 (asset purchase + monthly payment journal entries, net equity tracking)
 
 ### Why?
 Focus on the core: **asset data accuracy**.

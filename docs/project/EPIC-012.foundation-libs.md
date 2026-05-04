@@ -222,6 +222,9 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ---
 
 ## 📏 Acceptance Criteria
+
+> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC12.x.y` numbers within `docs/infra_registry.yaml` reflect deprecated/merged ACs preserved for historical traceability (e.g., AC12.24.1–3 retained as `~~strikethrough~~`). Do **not** renumber. New ACs append to the next available index in the relevant feature block.
+
 **Problem**: Services call `db.commit()` directly, making it impossible to compose multiple service calls into a single atomic transaction.
 
 **Solution**:
