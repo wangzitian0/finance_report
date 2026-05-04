@@ -656,7 +656,7 @@ acs:
   - id: AC5.7.3
     epic: 5
     epic_name: reporting-visualization
-    description: 'Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per transa'
+    description: 'Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule'
     mandatory: true
   - id: AC5.7.4
     epic: 5
@@ -1369,7 +1369,7 @@ acs:
   - id: AC11.8.1
     epic: 11
     epic_name: asset-lifecycle
-    description: 'API endpoint GET /api/income/annualized returns {annualized_salary, annualized_bonus, annualized_dividend, annualized_to'
+    description: 'API endpoint `GET /api/income/annualized` returns `{annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of}` derived from last 12 months of Income-type journal entries'
     mandatory: true
   - id: AC11.8.2
     epic: 11
@@ -1379,12 +1379,12 @@ acs:
   - id: AC11.8.3
     epic: 11
     epic_name: asset-lifecycle
-    description: 'API endpoint GET /api/assets/restricted returns ESOP/RSU/locked holdings with {ticker, quantity, vesting_schedule, unloc'
+    description: 'API endpoint `GET /api/assets/restricted` returns ESOP/RSU/locked holdings with `{ticker, quantity, vesting_schedule, unlock_date, fair_value}`'
     mandatory: true
   - id: AC11.8.4
     epic: 11
     epic_name: asset-lifecycle
-    description: 'Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline to'
+    description: 'Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip'
     mandatory: true
   - id: AC11.8.5
     epic: 11
@@ -1811,7 +1811,7 @@ acs:
   - id: AC15.7.3
     epic: 15
     epic_name: processing-account
-    description: 'Card click-through navigates to /processing listing pending transfers (existing or new page) with line items {from_accou'
+    description: 'Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}`'
     mandatory: true
   - id: AC15.7.4
     epic: 15
@@ -2492,32 +2492,32 @@ acs:
   - id: AC16.23.1
     epic: 16
     epic_name: two-stage-review-ui
-    description: 'Stage 1 page split into <PdfPreviewPane />, <TransactionTable />, <ReviewActionBar />, <BalanceIndicator /> components, '
+    description: 'Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable'
     mandatory: true
   - id: AC16.23.2
     epic: 16
     epic_name: two-stage-review-ui
-    description: 'TransactionTable supports inline edit of amount, description, date with optimistic update + server confirm; failed write'
+    description: 'TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast'
     mandatory: true
   - id: AC16.23.3
     epic: 16
     epic_name: two-stage-review-ui
-    description: 'Conflict resolution dialog <ConflictResolutionDialog /> opens when backend returns duplicate or transfer-pair candidates'
+    description: 'Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair'
     mandatory: true
   - id: AC16.23.4
     epic: 16
     epic_name: two-stage-review-ui
-    description: 'Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string'
+    description: 'Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string for shareable links'
     mandatory: true
   - id: AC16.23.5
     epic: 16
     epic_name: two-stage-review-ui
-    description: 'Mobile navigation drawer (<MobileNav />) renders below 768 px with links to Dashboard / Review / Processing / Portfolio;'
+    description: 'Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile'
     mandatory: true
   - id: AC16.23.6
     epic: 16
     epic_name: two-stage-review-ui
-    description: 'Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and asse'
+    description: 'Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders'
     mandatory: true
   # EPIC-017: portfolio-management
   - id: AC17.1.1
@@ -2669,82 +2669,82 @@ acs:
   - id: AC18.1.1
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '1'
+    description: 'Extraction prompt returns suggested_category and category_confidence'
     mandatory: true
   - id: AC18.1.2
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '1'
+    description: 'BankStatementTransaction has suggested_category and category_confidence columns'
     mandatory: true
   - id: AC18.1.3
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '1'
+    description: 'RuleType.ML_MODEL evaluates AI suggestion with confidence threshold >= 0.7'
     mandatory: true
   - id: AC18.1.4
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '1'
+    description: 'Classification priority: KEYWORD > REGEX > ML_MODEL > Uncategorized'
     mandatory: true
   - id: AC18.1.5
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '1'
+    description: 'create_entry_from_txn reads classification before defaulting to Uncategorized'
     mandatory: true
   - id: AC18.1.6
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '1'
+    description: 'Auto-created category accounts are user-scoped and correctly typed'
     mandatory: true
   - id: AC18.2.1
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '2'
+    description: 'CorrectionLog model records original and corrected categories'
     mandatory: true
   - id: AC18.2.2
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '2'
+    description: 'Corrections API records and retrieves correction stats'
     mandatory: true
   - id: AC18.2.3
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '2'
+    description: 'Few-shot examples from corrections injected into extraction prompt'
     mandatory: true
   - id: AC18.2.4
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '2'
+    description: 'Correction cache with 1-hour TTL'
     mandatory: true
   - id: AC18.3.1
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '3'
+    description: 'ai_semantic_score() returns similarity for transaction description pairs'
     mandatory: true
   - id: AC18.3.2
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '3'
+    description: 'Hybrid scoring: 0.7 * algorithmic + 0.3 * AI for 60-84 range only'
     mandatory: true
   - id: AC18.3.3
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '3'
+    description: 'Feature flag enable_ai_reconciliation controls AI scoring'
     mandatory: true
   - id: AC18.4.1
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '4'
+    description: 'Reports read Layer 3 TransactionClassification for category breakdowns'
     mandatory: true
   - id: AC18.4.2
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '4'
+    description: 'ReportSnapshot (Layer 4) generated and queryable via API'
     mandatory: true
   - id: AC18.4.3
     epic: 18
     epic_name: ai-driven-pipeline
-    description: '4'
+    description: 'AI CSV parsing handles unknown institutions as fallback'
     mandatory: true
   - id: AC18.5.1
     epic: 18

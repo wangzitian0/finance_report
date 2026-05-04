@@ -13,10 +13,10 @@ This section contains:
 ## ✅ Status Snapshot
 
 **In Progress**
-- [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization
-- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 ✅)
+- [EPIC-011](./EPIC-011.asset-lifecycle.md) — Asset Lifecycle Management (P0 ✅; ongoing P1/P2 work)
 - [EPIC-012](./EPIC-012.foundation-libs.md) — Foundation Libraries Enhancement
 - [EPIC-014](./EPIC-014.ttd-transformation.md) — TTD Transformation (P0 ✅, 96% unified coverage achieved)
+
 **Planned (P0 - Critical)**
 - [EPIC-016](./EPIC-016.two-stage-review-ui.md) — Two-Stage Review & Data Validation UI (4-6 weeks) — Stage 1: PDF vs parsed validation. Stage 2: Dedup, transfer pairing, anomaly detection.
 
@@ -28,29 +28,30 @@ This section contains:
 - ~~source_type Priority Logic~~ ✅ **Resolved** — SSOT doc added: [source-type-priority.md](../ssot/source-type-priority.md) (EPIC-013 / EPIC-016 implementation planned).
 - ~~Confirmation Workflow SSOT~~ ✅ **Resolved** — SSOT doc added: [confirmation-workflow.md](../ssot/confirmation-workflow.md) defines the `pending_review` state machine for Stage 1 and Stage 2.
 
-**Done**
- [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
- [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
- [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing
- [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching
- [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
- [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
- [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
- [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
- [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
- [EPIC-015](./EPIC-015.processing-account.md) — Processing Account Integration
+**Done** (per each EPIC file's self-declared status; "Refining"/TDD alignment is post-completion polish, not in-progress work)
+- [EPIC-001](./EPIC-001.phase0-setup.md) — Infrastructure & Authentication
+- [EPIC-002](./EPIC-002.double-entry-core.md) — Double-Entry Bookkeeping Core
+- [EPIC-003](./EPIC-003.statement-parsing.md) — Smart Statement Parsing (TDD Aligned)
+- [EPIC-004](./EPIC-004.reconciliation-engine.md) — Reconciliation Engine & Matching (TDD Aligned)
+- [EPIC-005](./EPIC-005.reporting-visualization.md) — Financial Reports & Visualization (TDD Aligned)
+- [EPIC-006](./EPIC-006.ai-advisor.md) — AI Financial Advisor
+- [EPIC-007](./EPIC-007.deployment.md) — Production Deployment
+- [EPIC-008](./EPIC-008.testing-strategy.md) — Testing Strategy (Smoke & E2E)
+- [EPIC-009](./EPIC-009.pdf-fixture-generation.md) — PDF Fixture Generation
+- [EPIC-010](./EPIC-010.signoz-logging.md) — SigNoz Logging Integration
+- [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
+- [EPIC-015](./EPIC-015.processing-account.md) — Processing Account Integration
 
 ## 🎯 Active Projects (EPICs)
 
 | ID | Project | Status | Phase | Duration |
 |----|---------|--------|-------|----------|
 | [EPIC-001](./EPIC-001.phase0-setup.md) | Infrastructure & Authentication | ✅ Complete | 0 | 2 weeks |
-| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-Entry Bookkeeping Core | 🟡 In Progress (Refining) | 1 | 3 weeks |
-| [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | 🟡 In Progress (Refining) | 2 | 4 weeks |
-| [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | 🟡 In Progress (Refining) | 3 | 5 weeks |
-| [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | 🟡 In Progress | 4 | 3 weeks |
-| [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | 🟡 In Progress (Refining) | 4 | 2 weeks |
+| [EPIC-002](./EPIC-002.double-entry-core.md) | Double-Entry Bookkeeping Core | ✅ Complete | 1 | 3 weeks |
+| [EPIC-003](./EPIC-003.statement-parsing.md) | Smart Statement Parsing | ✅ Complete (TDD Aligned) | 2 | 4 weeks |
+| [EPIC-004](./EPIC-004.reconciliation-engine.md) | Reconciliation Engine & Matching | ✅ Complete (TDD Aligned) | 3 | 5 weeks |
+| [EPIC-005](./EPIC-005.reporting-visualization.md) | Financial Reports & Visualization | ✅ Complete (TDD Aligned) | 4 | 3 weeks |
+| [EPIC-006](./EPIC-006.ai-advisor.md) | AI Financial Advisor | ✅ Complete | 4 | 2 weeks |
 | [EPIC-007](./EPIC-007.deployment.md) | Production Deployment | ✅ Complete | 0 | 1 week |
 | [EPIC-008](./EPIC-008.testing-strategy.md) | Testing Strategy (Smoke & E2E) | ✅ Complete | 0 | 2 weeks |
 | [EPIC-009](./EPIC-009.pdf-fixture-generation.md) | PDF Fixture Generation | ✅ Complete | 2 | 2-3 weeks |
@@ -62,7 +63,7 @@ This section contains:
 | [EPIC-015](./EPIC-015.processing-account.md) | Processing Account Integration | ✅ Complete | 3 | 2 weeks |
 | [EPIC-016](./EPIC-016.two-stage-review-ui.md) | Two-Stage Review & Data Validation UI | 🟡 Planned | 3 | 4-6 weeks |
 | [EPIC-017](./EPIC-017.portfolio-management.md) | Investment Portfolio Management | 🟡 Planned | 5 | 6-8 weeks |
-| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-Driven Data Pipeline | 🟡 Planned | 4 | 4-7 weeks |
+| [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-Driven Data Pipeline | 🟡 In Progress | 4 | 4-7 weeks |
 
 **Total Duration**: 44-58 weeks (including EPIC-016, EPIC-017, and EPIC-018)
 **Current Focus**: Phase 3 (Two-Stage Review - Foundation for User Adoption), Phase 4 (Reporting & AI Features), Phase 5 (Portfolio Management), AI-Driven Pipeline

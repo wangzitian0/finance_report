@@ -222,14 +222,14 @@ Auto-parsed            →  LOW       (lowest confidence)
 - ✅ Asset tracking (banks, brokers, multi-currency)
 - ✅ Data verification (balance reconciliation, human confirmation)
 - ✅ Audit trail (immutable, traceable)
-
-### What We Don't Do
 - ✅ AI-assisted categorization (EPIC-018 Phase 1) — AI suggests categories during extraction, human confirms
 - ✅ AI feedback learning (EPIC-018 Phase 2) — User corrections become few-shot examples for future prompts
 - ✅ AI-assisted reconciliation (EPIC-018 Phase 3) — Hybrid scoring for ambiguous matches, opt-in via feature flag
 - ✅ AI CSV parsing (EPIC-018 Phase 4) — Fallback for unknown bank CSV formats, preserves hardcoded parsers for known banks
+- ✅ Liability tracking (mortgages) — Supported via EPIC-011 (asset purchase + monthly payment journal entries, net equity tracking)
+
+### What We Don't Do
 - ❌ Budget management → Not a core need
-- ❌ Liability tracking (mortgages) → Not supported yet
 
 ### Why?
 Focus on the core: **asset data accuracy**.

@@ -1,8 +1,12 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-02-09  
-> **Purpose**: Complete mapping of all documented Acceptance Criteria (ACx.y.z) to actual test implementations  
-> **Scope**: All 14 EPIC files in `docs/project/`
+> **Generated**: 2026-02-09 (initial); **Last refreshed**: 2026-05-04 (counts + per-EPIC table)
+> **Purpose**: Complete mapping of all documented Acceptance Criteria (ACx.y.z) to actual test implementations
+> **Scope**: All 18 EPIC files in `docs/project/`
+
+> ⚠️ **Known Limitation (2026-05-04 refresh)**: This document's per-EPIC AC counts and table have been updated to match the current registries (`docs/ac_registry.yaml` + `docs/infra_registry.yaml` = 760 ACs across 18 EPICs). However, the **detailed AC-by-AC test mapping tables below (sections "EPIC-001" through "EPIC-014") still reflect the original 542-AC snapshot from 2026-02-09**. Approximately **218 newer ACs** (primarily in EPIC-011 expansions, EPIC-013, EPIC-014, EPIC-015, EPIC-016, EPIC-017, EPIC-018) are **pending detailed traceability mapping**.
+>
+> See [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) for the audit that produced this gap, and the follow-up tracking issue for full re-mapping.
 
 ---
 
@@ -10,37 +14,44 @@
 
 | Metric | Count | Percentage |
 |--------|-------|------------|
-| **Total EPICs** | 14 | 100% |
-| **Total ACs Documented** | 542 | 100% |
-| **ACs with Test References** | 542 | 100% |
-| **ACs Missing Tests** | 0 | 0% |
-| **Test Files Referenced** | 100+ | - |
-| **Manual Verification ACs** | 97 | 17.9% |
+| **Total EPICs** | 18 | 100% |
+| **Total ACs (registries, current)** | 760 | 100% |
+| **ACs with detailed test mapping in this doc** | 542 | 71.3% |
+| **ACs pending detailed mapping (218 delta)** | 218 | 28.7% |
+| **Test Files Referenced (in mapped subset)** | 100+ | - |
+| **Manual Verification ACs (in mapped subset)** | 97 | 17.9% of mapped |
 
 ### Coverage by EPIC
 
-| EPIC | Status | Total ACs | ACs with Tests | ACs without Tests | % Complete |
-|------|--------|-----------|----------------|-------------------|------------|
-| [EPIC-001](#epic-001-infrastructure--authentication) | ✅ Complete | 26 | 26 | 0 | 100% |
-| [EPIC-002](#epic-002-double-entry-bookkeeping-core) | ✅ Complete | 58 | 58 | 0 | 100% |
-| [EPIC-003](#epic-003-smart-statement-parsing) | ✅ Complete | 15 | 15 | 0 | 100% |
-| [EPIC-004](#epic-004-reconciliation-engine--matching) | ✅ Complete | 12 | 12 | 0 | 100% |
-| [EPIC-005](#epic-005-financial-reports--visualization) | ✅ Complete | 13 | 13 | 0 | 100% |
-| [EPIC-006](#epic-006-ai-financial-advisor) | ✅ Complete | 63 | 63 | 0 | 100% |
-| [EPIC-007](#epic-007-production-deployment) | ✅ Complete | 33 | 33 | 0 | 100% |
-| [EPIC-008](#epic-008-testing-strategy) | 🟡 In Progress | 49 | 49 | 0 | 100% |
-| [EPIC-009](#epic-009-pdf-fixture-generation) | 🟡 In Progress | 41 | 41 | 0 | 100% |
-| [EPIC-010](#epic-010-signoz-logging) | ✅ Complete | 21 | 21 | 0 | 100% |
-| [EPIC-011](#epic-011-asset-lifecycle) | 🟡 In Progress | 28 | 28 | 0 | 100% |
-| [EPIC-012](#epic-012-foundation-libs) | 🟡 In Progress | 42 | 42 | 0 | 100% |
-| [EPIC-013](#epic-013-statement-parsing-v2) | 🟡 In Progress | 52 | 52 | 0 | 100% |
-| [EPIC-014](#epic-014-ttd-transformation) | ✅ Complete | 0 | 0 | 0 | N/A |
+| EPIC | Status | Total ACs (registry) | ACs with detailed mapping below | Mapping Status |
+|------|--------|----------------------|----------------------------------|----------------|
+| [EPIC-001](#epic-001-infrastructure--authentication) | ✅ Complete | 26 | 26 | ✅ Mapped |
+| [EPIC-002](#epic-002-double-entry-bookkeeping-core) | ✅ Complete | 58 | 58 | ✅ Mapped |
+| [EPIC-003](#epic-003-smart-statement-parsing) | ✅ Complete (TDD Aligned) | 15 | 15 | ✅ Mapped |
+| [EPIC-004](#epic-004-reconciliation-engine--matching) | ✅ Complete (TDD Aligned) | 12 | 12 | ✅ Mapped |
+| [EPIC-005](#epic-005-financial-reports--visualization) | ✅ Complete (TDD Aligned) | 13 | 13 | ✅ Mapped |
+| [EPIC-006](#epic-006-ai-financial-advisor) | ✅ Complete | 63 | 63 | ✅ Mapped |
+| [EPIC-007](#epic-007-production-deployment) | ✅ Complete | 33 | 33 | ✅ Mapped |
+| [EPIC-008](#epic-008-testing-strategy) | ✅ Complete | 49 | 49 | ✅ Mapped |
+| [EPIC-009](#epic-009-pdf-fixture-generation) | ✅ Complete | 41 | 41 | ✅ Mapped |
+| [EPIC-010](#epic-010-signoz-logging) | ✅ Complete | 21 | 21 | ✅ Mapped |
+| [EPIC-011](#epic-011-asset-lifecycle) | 🟡 In Progress (P0 ✅) | ~80 | 28 | ⏳ Partial — ~52 ACs pending mapping |
+| [EPIC-012](#epic-012-foundation-libs) | 🟡 In Progress | ~60 | 42 | ⏳ Partial — ~18 ACs pending mapping (incl. AC12.24.1-3 deprecated) |
+| [EPIC-013](#epic-013-statement-parsing-v2) | ✅ Complete | ~80 | 52 | ⏳ Partial — ~28 ACs pending mapping |
+| EPIC-014 | 🟡 In Progress (P0 ✅) | TBD | 0 | ⏳ Pending mapping |
+| EPIC-015 | ✅ Complete | TBD | 0 | ⏳ Pending mapping |
+| EPIC-016 | 🟡 Planned | TBD | 0 | ⏳ Pending mapping |
+| EPIC-017 | 🟡 Planned | TBD | 0 | ⏳ Pending mapping |
+| EPIC-018 | 🟡 In Progress | 23 | 0 | ⏳ Pending mapping (AC18.* expanded to 23 entries in `ac_registry.yaml` per 2026-05-04 audit, incl. AC18.5.1–7; tests not yet wired) |
+
+> Per-EPIC counts marked `~` are approximate from the current registries; the authoritative count is the sum from `ac_registry.yaml` + `infra_registry.yaml` = **760**. Exact per-EPIC totals will be reconciled in the follow-up re-mapping pass.
 
 **Key Findings**:
-- ✅ **100% Traceability**: All ACs have test references
-- ⚠️ **17.9% Manual Verification**: 97 ACs require manual verification (deployment, infrastructure)
-- ✅ **No Orphaned ACs**: All documented ACs are tracked in test files
-- ✅ **Test-First Compliance**: All major features have test coverage before implementation
+- ✅ **100% Traceability for the originally-mapped 542-AC snapshot**: every AC in that subset has a test reference.
+- ⏳ **218-AC mapping gap**: ACs added since 2026-02-09 (EPIC-011 expansions, EPIC-013–018) are tracked in the registries but not yet expanded into per-AC test rows in this document.
+- ⚠️ **17.9% Manual Verification (mapped subset)**: 97 ACs require manual verification (deployment, infrastructure).
+- ✅ **No Orphaned ACs in registries** (per 2026-05-04 audit): every registry AC maps to an EPIC.
+- ✅ **Test-First Compliance**: all major *implemented* features have test coverage before implementation.
 
 ---
 
