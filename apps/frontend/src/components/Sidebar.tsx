@@ -65,6 +65,7 @@ export function Sidebar() {
         fixed left-0 top-0 z-40 h-screen
         bg-[var(--background-card)] border-r border-[var(--border)]
         transition-all duration-300 ease-in-out
+        hidden md:block
         ${isCollapsed ? "w-16" : "w-56"}
       `}
         >

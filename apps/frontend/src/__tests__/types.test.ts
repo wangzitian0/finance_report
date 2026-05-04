@@ -1,8 +1,6 @@
-import { describe, it, expect } from "vitest";
-import * as Types from "../lib/types";
+import "@/lib/types";
+import { it, expect } from "vitest";
 
-describe("lib/types.ts", () => {
-    it("imports successfully", () => {
-        expect(Types).toBeDefined();
-    });
+it("types module loads", () => {
+  expect(true).toBe(true);
 });

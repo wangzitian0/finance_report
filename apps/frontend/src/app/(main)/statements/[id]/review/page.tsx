@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import ConfidenceBadge, { ConfidenceTier } from "@/components/ui/ConfidenceBadge";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
-import { formatDateInput } from "@/lib/date";
+
+import { BalanceIndicator } from "@/components/review/BalanceIndicator";
+import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
+import { ReviewActionBar } from "@/components/review/ReviewActionBar";
+import { TransactionTable, Transaction } from "@/components/review/TransactionTable";
+import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
 
 interface BalanceValidationResult {
     opening_balance: string;
@@ -20,20 +24,6 @@ interface BalanceValidationResult {
     opening_match: boolean;
     closing_match: boolean;
     validated_at: string;
-}
-
-interface Transaction {
-    id: string;
-    txn_date: string;
-    description: string;
-    amount: string | number;
-    direction: string;
-    reference: string | null;
-    currency: string | null;
-    balance_after: string | number | null;
-    status: string;
-    confidence: string;
-    confidence_tier?: ConfidenceTier;
 }
 
 interface StatementReview {
@@ -50,6 +40,9 @@ interface StatementReview {
     balance_validation_result: BalanceValidationResult | null;
     pdf_url: string | null;
     transactions: Transaction[];
+    // TODO(epic-016-conflict-detection): Backend needs to expose these
+    duplicate_candidates?: any[];
+    transfer_pair_candidates?: any[];
 }
 
 export default function StatementReviewPage() {
@@ -57,68 +50,101 @@ export default function StatementReviewPage() {
     const params = useParams();
     const router = useRouter();
     const statementId = params.id as string;
+    const queryClient = useQueryClient();
 
-    const [data, setData] = useState<StatementReview | null>(null);
-    const [pendingStatements, setPendingStatements] = useState<Array<{ id: string }>>([]);
-    const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
     const [pendingEdits, setPendingEdits] = useState<Map<string, Partial<{ description: string; amount: string; direction: string; txn_date: string }>>>(new Map());
-
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+    const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
-    const fetchPendingStatements = useCallback(async () => {
-        try {
-            const result = await apiFetch<{ items: Array<{ id: string }> }>("/api/statements/pending-review");
-            setPendingStatements(result.items);
-        } catch (err) {
-            console.error("Failed to fetch pending statements:", err);
-        }
-    }, []);
+    // Queries
+    const { data, isLoading: loading, error, refetch } = useQuery({
+        queryKey: ["statement-review", statementId],
+        queryFn: () => apiFetch<StatementReview>(`/api/statements/${statementId}/review`),
+    });
 
-    const fetchData = useCallback(async () => {
-        try {
-            const result = await apiFetch<StatementReview>(`/api/statements/${statementId}/review`);
-            setData(result);
-            setError(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load review data");
-        } finally {
-            setLoading(false);
-        }
-    }, [statementId]);
+    const { data: pendingStatementsData } = useQuery({
+        queryKey: ["pending-statements"],
+        queryFn: () => apiFetch<{ items: Array<{ id: string }> }>("/api/statements/pending-review"),
+    });
 
-    useEffect(() => {
-        fetchData();
-        fetchPendingStatements();
-    }, [fetchData, fetchPendingStatements]);
+    const pendingStatements = pendingStatementsData?.items || [];
 
-    const handleSaveEdits = async () => {
-        setActionLoading(true);
-        try {
-            const edits = Array.from(pendingEdits.entries()).map(([txn_id, fields]) => ({
-                txn_id,
-                ...fields,
-            }));
-            await apiFetch(`/api/statements/${statementId}/review/edit`, {
+    // Mutations
+    const editMutation = useMutation({
+        mutationFn: async (edits: any[]) => {
+            return apiFetch(`/api/statements/${statementId}/review/edit`, {
                 method: "POST",
                 body: JSON.stringify({ edits }),
             });
+        },
+        onMutate: async (edits) => {
+            await queryClient.cancelQueries({ queryKey: ["statement-review", statementId] });
+            const previousData = queryClient.getQueryData<StatementReview>(["statement-review", statementId]);
+
+            if (previousData) {
+                const updatedTransactions = previousData.transactions.map(txn => {
+                    const edit = edits.find((e: any) => e.txn_id === txn.id);
+                    if (edit) {
+                        const { txn_id: _txnId, ...transactionUpdates } = edit;
+                        return { ...txn, ...transactionUpdates };
+                    }
+                    return txn;
+                });
+                queryClient.setQueryData(["statement-review", statementId], {
+                    ...previousData,
+                    transactions: updatedTransactions
+                });
+            }
+
+            return { previousData };
+        },
+        onError: (err, edits, context) => {
+            if (context?.previousData) {
+                queryClient.setQueryData(["statement-review", statementId], context.previousData);
+            }
+            showToast(err instanceof Error ? err.message : "Failed to save edits", "error");
+        },
+        onSuccess: () => {
             showToast("Edits saved successfully", "success");
             setPendingEdits(new Map());
-            fetchData();
-        } catch (err) {
-            showToast(err instanceof Error ? err.message : "Failed to save edits", "error");
-        } finally {
-            setActionLoading(false);
+            refetch();
         }
+    });
+
+    const approveMutation = useMutation({
+        mutationFn: () => apiFetch(`/api/statements/${statementId}/review/approve`, { method: "POST" }),
+        onSuccess: () => {
+            showToast("Statement approved successfully", "success");
+            setApproveDialogOpen(false);
+            router.push("/statements");
+        },
+        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to approve", "error")
+    });
+
+    const rejectMutation = useMutation({
+        mutationFn: (notes?: string) => apiFetch(`/api/statements/${statementId}/review/reject`, {
+            method: "POST",
+            body: JSON.stringify({ notes: notes || null }),
+        }),
+        onSuccess: () => {
+            showToast("Statement rejected", "success");
+            setRejectDialogOpen(false);
+            router.push("/statements");
+        },
+        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error")
+    });
+
+    const handleSaveEdits = () => {
+        const edits = Array.from(pendingEdits.entries()).map(([txn_id, fields]) => ({
+            txn_id,
+            ...fields,
+        }));
+        editMutation.mutate(edits);
     };
 
     const handleDiscardEdits = () => {
         setPendingEdits(new Map());
-        setEditingTxnId(null);
     };
 
     const handleEditChange = (txnId: string, field: string, value: string) => {
@@ -130,48 +156,11 @@ export default function StatementReviewPage() {
         });
     };
 
-    const handleApprove = async () => {
-        setActionLoading(true);
-        try {
-            await apiFetch(`/api/statements/${statementId}/review/approve`, { method: "POST" });
-            showToast("Statement approved successfully", "success");
-            setApproveDialogOpen(false);
-            router.push("/statements");
-        } catch (err) {
-            showToast(err instanceof Error ? err.message : "Failed to approve", "error");
-        } finally {
-            setActionLoading(false);
+    useEffect(() => {
+        if (data?.duplicate_candidates?.length || data?.transfer_pair_candidates?.length) {
+            setConflictDialogOpen(true);
         }
-    };
-
-    const handleReject = async (reason?: string) => {
-        setActionLoading(true);
-        try {
-            await apiFetch(`/api/statements/${statementId}/review/reject`, {
-                method: "POST",
-                body: JSON.stringify({ notes: reason || null }),
-            });
-            showToast("Statement rejected", "success");
-            setRejectDialogOpen(false);
-            router.push("/statements");
-        } catch (err) {
-            showToast(err instanceof Error ? err.message : "Failed to reject", "error");
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const formatAmount = (amount: string | number, direction: string) => {
-        const num = typeof amount === "string" ? parseFloat(amount) : amount;
-        const sign = direction === "IN" ? "+" : "-";
-        return `${sign}${Math.abs(num).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-    };
-
-    const formatCurrency = (amount?: string | number | null, currency?: string | null) => {
-        if (amount === null || amount === undefined) return "—";
-        const num = typeof amount === "string" ? parseFloat(amount) : amount;
-        return `${currency || ""} ${num.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-    };
+    }, [data]);
 
     if (loading) {
         return (
@@ -194,9 +183,9 @@ export default function StatementReviewPage() {
                                 <span className="text-xl font-bold">!</span>
                             </div>
                             <h2 className="text-lg font-medium mb-2">Failed to load statement</h2>
-                            <p className="text-muted mb-6">{error}</p>
+                            <p className="text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
                             <div className="flex gap-3 justify-center">
-                                <button type="button" onClick={fetchData} className="btn-primary">
+                                <button type="button" onClick={() => refetch()} className="btn-primary">
                                     Retry
                                 </button>
                                 <Link href="/statements" className="btn-secondary">
@@ -269,237 +258,56 @@ export default function StatementReviewPage() {
                         {data.institution} • {data.currency || "—"} • {data.period_start || "?"} to {data.period_end || "?"}
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setRejectDialogOpen(true)}
-                        disabled={actionLoading}
-                        className="btn-secondary text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
-                    >
-                        Reject
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setApproveDialogOpen(true)}
-                        disabled={actionLoading || !balanceValid}
-                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={!balanceValid ? "Balance validation failed - cannot approve" : ""}
-                    >
-                        {actionLoading ? "Processing..." : "Approve"}
-                    </button>
-                </div>
+                <ReviewActionBar 
+                    onApprove={() => setApproveDialogOpen(true)}
+                    onReject={() => setRejectDialogOpen(true)}
+                    actionLoading={approveMutation.isPending || rejectMutation.isPending}
+                    balanceValid={balanceValid}
+                />
             </div>
 
-            {error && <div className="mb-4 alert-error">{error}</div>}
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
-                <div className="card p-4">
-                    <div className="text-xs text-muted mb-1">Opening Balance</div>
-                    <div className="text-lg font-semibold">{formatCurrencyLocale(data.opening_balance ?? 0, data.currency || "SGD")}</div>
-                </div>
-                <div className="card p-4">
-                    <div className="text-xs text-muted mb-1">Closing Balance</div>
-                    <div className="text-lg font-semibold">{formatCurrencyLocale(data.closing_balance ?? 0, data.currency || "SGD")}</div>
-                </div>
-                <div className="card p-4">
-                    <div className="text-xs text-muted mb-1">Calculated Closing</div>
-                    <div className="text-lg font-semibold">
-                        {formatCurrencyLocale(
-                            data.balance_validation_result
-                                ? parseFloat(data.balance_validation_result.calculated_closing)
-                                : 0,
-                            data.currency || "SGD"
-                        )}
-                    </div>
-                </div>
-                <div className="card p-4">
-                    <div className="text-xs text-muted mb-1">Balance Validation</div>
-                    <div className="flex items-center gap-2">
-                        {balanceValid ? (
-                            <>
-                                <span className="text-[var(--success)]">✓</span>
-                                <span className="text-sm font-medium text-[var(--success)]">Valid</span>
-                            </>
-                        ) : (
-                            <>
-                                <span className="text-[var(--error)]">✗</span>
-                                <span className="text-sm font-medium text-[var(--error)]">
-                                    Mismatch (Δ: {data.balance_validation_result?.closing_delta || "?"})
-                                </span>
-                            </>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <BalanceIndicator 
+                openingBalance={data.opening_balance}
+                closingBalance={data.closing_balance}
+                validationResult={data.balance_validation_result}
+                currency={data.currency || "SGD"}
+            />
 
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-                <div className="card flex flex-col min-h-0">
-                    <div className="card-header">
-                        <h3 className="text-sm font-medium">PDF Preview</h3>
-                    </div>
-                    <div className="flex-1 p-4 min-h-0">
-                        {data.pdf_url ? (
-                            <iframe 
-                                src={data.pdf_url} 
-                                className="w-full h-full rounded border" 
-                                title="Statement PDF preview"
-                            >
-                                <p>PDF preview not available. Use the data table below to review statement content.</p>
-                            </iframe>
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-muted">
-                                PDF preview not available
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <PdfPreviewPane pdfUrl={data.pdf_url} />
 
-                <div className="card flex flex-col min-h-0">
-                    <div className="card-header flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <h3 className="text-sm font-medium">Transactions</h3>
-                            {pendingEdits.size > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <button onClick={handleSaveEdits} disabled={actionLoading} className="btn-primary btn-sm py-1">
-                                        {actionLoading ? "Saving..." : `Save Edits (${pendingEdits.size})`}
-                                    </button>
-                                    <button onClick={handleDiscardEdits} disabled={actionLoading} className="btn-secondary btn-sm py-1">
-                                        Discard
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                        <span className="text-xs text-muted">{data.transactions.length} total</span>
-                    </div>
-                    <div className="flex-1 overflow-auto">
-                        <table className="w-full text-sm">
-                            <thead className="sticky top-0 bg-[var(--background)]">
-                                <tr className="border-b border-[var(--border)]">
-                                    <th className="text-left px-4 py-2 font-medium w-32">Date</th>
-                                    <th className="text-left px-4 py-2 font-medium">Description</th>
-                                    <th className="text-right px-4 py-2 font-medium w-40">Amount</th>
-                                    <th className="text-center px-4 py-2 font-medium w-24">Confidence</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--border)]">
-                                {data.transactions.map((txn) => {
-                                    const edit = pendingEdits.get(txn.id);
-                                    const isEditing = editingTxnId === txn.id;
-                                    const displayDate = edit?.txn_date ?? txn.txn_date;
-                                    const displayDesc = edit?.description ?? txn.description;
-                                    const displayAmount = edit?.amount ?? txn.amount.toString();
-                                    const displayDir = edit?.direction ?? txn.direction;
-
-                                    return (
-                                        <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50 group">
-                                            <td className="px-4 py-2 whitespace-nowrap" onClick={() => setEditingTxnId(txn.id)}>
-                                                {isEditing ? (
-                                                    <input
-                                                        type="date"
-                                                        value={displayDate}
-                                                        onChange={(e) => handleEditChange(txn.id, "txn_date", e.target.value)}
-                                                        onBlur={() => setEditingTxnId(null)}
-                                                        onKeyDown={(e) => e.key === "Enter" && setEditingTxnId(null)}
-                                                        autoFocus
-                                                        className="input py-0 px-1 text-xs w-full"
-                                                    />
-                                                ) : (
-                                                    <span className={edit?.txn_date ? "text-[var(--primary)] font-medium" : ""}>{displayDate}</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2" onClick={() => setEditingTxnId(txn.id)}>
-                                                {isEditing ? (
-                                                    <input
-                                                        type="text"
-                                                        value={displayDesc}
-                                                        onChange={(e) => handleEditChange(txn.id, "description", e.target.value)}
-                                                        onBlur={() => setEditingTxnId(null)}
-                                                        onKeyDown={(e) => e.key === "Enter" && setEditingTxnId(null)}
-                                                        autoFocus
-                                                        className="input py-0 px-1 text-xs w-full"
-                                                    />
-                                                ) : (
-                                                    <div
-                                                        className={`max-w-xs truncate ${edit?.description ? "text-[var(--primary)] font-medium" : ""}`}
-                                                        title={displayDesc}
-                                                    >
-                                                        {displayDesc}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td
-                                                className={`px-4 py-2 text-right font-medium whitespace-nowrap ${
-                                                    displayDir === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
-                                                }`}
-                                                onClick={() => setEditingTxnId(txn.id)}
-                                            >
-                                                {isEditing ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <select
-                                                            value={displayDir}
-                                                            onChange={(e) => handleEditChange(txn.id, "direction", e.target.value)}
-                                                            className="input py-0 px-1 text-xs w-16"
-                                                        >
-                                                            <option value="IN">IN</option>
-                                                            <option value="OUT">OUT</option>
-                                                        </select>
-                                                        <input
-                                                            type="text"
-                                                            value={displayAmount}
-                                                            onChange={(e) => handleEditChange(txn.id, "amount", e.target.value)}
-                                                            onBlur={() => setEditingTxnId(null)}
-                                                            onKeyDown={(e) => e.key === "Enter" && setEditingTxnId(null)}
-                                                            autoFocus
-                                                            className="input py-0 px-1 text-xs w-20 text-right"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <span className={edit?.amount || edit?.direction ? "ring-1 ring-[var(--primary)]/30 px-1 rounded" : ""}>
-                                                        {displayDir === "IN" ? "+" : "-"}
-                                                        {formatCurrencyLocale(displayAmount, txn.currency || data.currency || "SGD")}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2 text-center">
-                                                {txn.confidence_tier ? (
-                                                    <ConfidenceBadge tier={txn.confidence_tier} />
-                                                ) : (
-                                                    <span
-                                                        className={`badge ${
-                                                            txn.confidence === "high"
-                                                                ? "badge-success"
-                                                                : txn.confidence === "medium"
-                                                                  ? "badge-warning"
-                                                                  : "badge-error"
-                                                        }`}
-                                                    >
-                                                        {txn.confidence}
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <TransactionTable 
+                    transactions={data.transactions}
+                    currency={data.currency || "SGD"}
+                    onEdit={handleEditChange}
+                    pendingEdits={pendingEdits}
+                    onSave={handleSaveEdits}
+                    onDiscard={handleDiscardEdits}
+                    actionLoading={editMutation.isPending}
+                />
             </div>
+
+            <ConflictResolutionDialog 
+                isOpen={conflictDialogOpen}
+                onClose={() => setConflictDialogOpen(false)}
+                duplicateCandidates={data.duplicate_candidates || []}
+                transferPairCandidates={data.transfer_pair_candidates || []}
+            />
 
             <ConfirmDialog
                 isOpen={approveDialogOpen}
-                onCancel={() => !actionLoading && setApproveDialogOpen(false)}
-                onConfirm={handleApprove}
+                onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)}
+                onConfirm={() => approveMutation.mutate()}
                 title="Approve Statement"
                 message="This will approve the statement with balance validation. Proceed?"
                 confirmLabel="Approve"
-                loading={actionLoading}
+                loading={approveMutation.isPending}
             />
 
             <ConfirmDialog
                 isOpen={rejectDialogOpen}
-                onCancel={() => !actionLoading && setRejectDialogOpen(false)}
-                onConfirm={handleReject}
+                onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)}
+                onConfirm={(reason) => rejectMutation.mutate(reason)}
                 title="Reject Statement"
                 message="This will mark the statement as rejected. You can re-parse it later."
                 confirmLabel="Reject"
@@ -507,7 +315,7 @@ export default function StatementReviewPage() {
                 showInput
                 inputLabel="Rejection Reason (optional)"
                 inputPlaceholder="Enter reason for rejection..."
-                loading={actionLoading}
+                loading={rejectMutation.isPending}
             />
         </div>
     );

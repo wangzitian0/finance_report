@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState, useRef } from "react";
-import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import ConfidenceBadge, { ConfidenceTier } from "@/components/ui/ConfidenceBadge";
 import { useToast } from "@/components/ui/Toast";
 
 import { apiFetch } from "@/lib/api";
@@ -33,7 +32,6 @@ interface Stage2Data {
         description?: string;
         amount?: number;
         txn_date?: string;
-        confidence_tier?: ConfidenceTier;
     }>;
     consistency_checks: ConsistencyCheck[];
     has_unresolved_checks: boolean;
@@ -41,6 +39,10 @@ interface Stage2Data {
 
 export default function Stage2ReviewQueuePage() {
     const { showToast } = useToast();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+
     const [data, setData] = useState<Stage2Data | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -50,8 +52,13 @@ export default function Stage2ReviewQueuePage() {
     const [selectedCheck, setSelectedCheck] = useState<ConsistencyCheck | null>(null);
     const [resolveNote, setResolveNote] = useState("");
     const resolveDialogRef = useRef<HTMLDivElement>(null);
-    const [checkTypeFilter, setCheckTypeFilter] = useState<string>("");
-    const [statusFilter, setStatusFilter] = useState<string>("");
+    
+    // Filters state
+    const [checkTypeFilter, setCheckTypeFilter] = useState<string>(searchParams.get("check_type") || "");
+    const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") || "");
+    const [severityFilter, setSeverityFilter] = useState<string[]>(searchParams.get("severity")?.split(",").filter(Boolean) || []);
+    const [minScore, setMinScore] = useState<number>(Number(searchParams.get("min_score")) || 0);
+
     const [filteredChecks, setFilteredChecks] = useState<ConsistencyCheck[] | null>(null);
     const [filtering, setFiltering] = useState(false);
     const resolveTitleId = useId();
@@ -72,29 +79,41 @@ export default function Stage2ReviewQueuePage() {
         fetchData();
     }, [fetchData]);
 
-    const fetchFilteredChecks = useCallback(async () => {
-        if (!checkTypeFilter && !statusFilter) {
-            setFilteredChecks(null);
-            return;
-        }
+    const updateUrlParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (checkTypeFilter) params.set("check_type", checkTypeFilter);
+        if (statusFilter) params.set("status", statusFilter);
+        if (severityFilter.length > 0) params.set("severity", severityFilter.join(","));
+        if (minScore > 0) params.set("min_score", minScore.toString());
+        
+        const queryString = params.toString();
+        router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+    }, [checkTypeFilter, statusFilter, severityFilter, minScore, router, pathname]);
 
+    const fetchFilteredChecks = useCallback(async () => {
         setFiltering(true);
         try {
             const params = new URLSearchParams();
             if (checkTypeFilter) params.append("check_type", checkTypeFilter);
             if (statusFilter) params.append("status", statusFilter);
+
             const result = await apiFetch<{ items: ConsistencyCheck[] }>(`/api/statements/consistency-checks/list?${params.toString()}`);
-            setFilteredChecks(result.items);
+            const severityFilteredItems =
+                severityFilter.length > 0
+                    ? result.items.filter((check) => severityFilter.includes(check.severity))
+                    : result.items;
+            setFilteredChecks(severityFilteredItems);
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to filter checks", "error");
         } finally {
             setFiltering(false);
         }
-    }, [checkTypeFilter, statusFilter, showToast]);
+    }, [checkTypeFilter, statusFilter, severityFilter, showToast]);
 
     useEffect(() => {
         fetchFilteredChecks();
-    }, [fetchFilteredChecks]);
+        updateUrlParams();
+    }, [fetchFilteredChecks, updateUrlParams]);
 
     useEffect(() => {
         if (!resolveDialogOpen) return;
@@ -125,10 +144,21 @@ export default function Stage2ReviewQueuePage() {
 
     const toggleAll = () => {
         if (!data) return;
-        if (selectedMatches.size === data.pending_matches.length) {
-            setSelectedMatches(new Set());
+        const visibleIds = data.pending_matches
+            .filter((m) => m.match_score >= minScore)
+            .map((m) => m.id);
+        if (visibleIds.every((id) => selectedMatches.has(id)) && visibleIds.length > 0) {
+            setSelectedMatches((prev) => {
+                const next = new Set(prev);
+                visibleIds.forEach((id) => next.delete(id));
+                return next;
+            });
         } else {
-            setSelectedMatches(new Set(data.pending_matches.map((m) => m.id)));
+            setSelectedMatches((prev) => {
+                const next = new Set(prev);
+                visibleIds.forEach((id) => next.add(id));
+                return next;
+            });
         }
     };
 
@@ -152,9 +182,7 @@ export default function Stage2ReviewQueuePage() {
                 showToast(`Approved ${result.approved_count} matches`, "success");
                 setSelectedMatches(new Set());
                 fetchData();
-                if (checkTypeFilter || statusFilter) {
-                    fetchFilteredChecks();
-                }
+                fetchFilteredChecks();
             } else {
                 showToast(result.error || "Failed to approve", "error");
             }
@@ -181,9 +209,7 @@ export default function Stage2ReviewQueuePage() {
                 showToast(`Rejected ${result.rejected_count} matches`, "success");
                 setSelectedMatches(new Set());
                 fetchData();
-                if (checkTypeFilter || statusFilter) {
-                    fetchFilteredChecks();
-                }
+                fetchFilteredChecks();
             }
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to reject", "error");
@@ -214,14 +240,20 @@ export default function Stage2ReviewQueuePage() {
             setSelectedCheck(null);
             setResolveNote("");
             fetchData();
-            if (checkTypeFilter || statusFilter) {
-                fetchFilteredChecks();
-            }
+            fetchFilteredChecks();
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to resolve", "error");
         } finally {
             setActionLoading(false);
         }
+    };
+
+    const toggleSeverity = (severity: string) => {
+        setSeverityFilter(prev => 
+            prev.includes(severity) 
+                ? prev.filter(s => s !== severity) 
+                : [...prev, severity]
+        );
     };
 
     const getSeverityColor = (severity: string) => {
@@ -272,6 +304,8 @@ export default function Stage2ReviewQueuePage() {
         );
     }
 
+    const matchesFilteredByScore = data.pending_matches.filter(m => m.match_score >= minScore);
+
     return (
         <div className="p-6">
             <div className="mb-6">
@@ -279,6 +313,67 @@ export default function Stage2ReviewQueuePage() {
                 <p className="page-description">
                     Review consistency checks and approve reconciliation matches
                 </p>
+            </div>
+
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-[var(--background-card)] p-4 rounded-lg border border-[var(--border)]">
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted uppercase">Severity</label>
+                    <div className="flex flex-wrap gap-2">
+                        {["high", "medium", "low"].map(s => (
+                            <button
+                                key={s}
+                                onClick={() => toggleSeverity(s)}
+                                className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                                    severityFilter.includes(s)
+                                        ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                                        : "bg-[var(--background)] text-muted border-[var(--border)] hover:border-[var(--accent)]"
+                                }`}
+                            >
+                                {s.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted uppercase">Check Type</label>
+                    <select
+                        className="input text-sm py-1"
+                        value={checkTypeFilter}
+                        onChange={(e) => setCheckTypeFilter(e.target.value)}
+                    >
+                        <option value="">All Types</option>
+                        <option value="duplicate">Duplicate</option>
+                        <option value="transfer_pair">Transfer Pair</option>
+                        <option value="anomaly">Anomaly</option>
+                    </select>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted uppercase">Status</label>
+                    <select
+                        className="input text-sm py-1"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted uppercase">Min Match Score: {minScore}</label>
+                    <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        step="5"
+                        value={minScore}
+                        onChange={(e) => setMinScore(parseInt(e.target.value))}
+                        className="w-full h-2 bg-[var(--border)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
+                    />
+                </div>
             </div>
 
             {error && <div className="mb-4 alert-error">{error}</div>}
@@ -299,30 +394,9 @@ export default function Stage2ReviewQueuePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="card">
-                    <div className="card-header flex items-center justify-between gap-4">
-                        <h3 className="text-sm font-medium whitespace-nowrap">Consistency Checks</h3>
-                        <div className="flex items-center gap-2">
-                            <select
-                                className="input text-sm py-1 h-auto min-w-[100px]"
-                                value={checkTypeFilter}
-                                onChange={(e) => setCheckTypeFilter(e.target.value)}
-                            >
-                                <option value="">Type: All</option>
-                                <option value="duplicate">Duplicate</option>
-                                <option value="transfer_pair">Transfer Pair</option>
-                                <option value="anomaly">Anomaly</option>
-                            </select>
-                            <select
-                                className="input text-sm py-1 h-auto min-w-[100px]"
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                            >
-                                <option value="">Status: All</option>
-                                <option value="pending">Pending</option>
-                                <option value="resolved">Resolved</option>
-                            </select>
-                            <span className="text-xs text-muted whitespace-nowrap">{(filteredChecks ?? data.consistency_checks).length} total</span>
-                        </div>
+                    <div className="card-header flex items-center justify-between">
+                        <h3 className="text-sm font-medium">Consistency Checks</h3>
+                        <span className="text-xs text-muted">{(filteredChecks ?? data.consistency_checks).length} total</span>
                     </div>
 
                     {(filteredChecks ?? data.consistency_checks).length === 0 ? (
@@ -333,10 +407,10 @@ export default function Stage2ReviewQueuePage() {
                                 <div key={check.id} className="p-4 flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className={`font-medium ${getSeverityColor(check.severity)}`}>
+                                            <span className={`font-medium text-xs ${getSeverityColor(check.severity)}`}>
                                                 {check.severity.toUpperCase()}
                                             </span>
-                                            <span className="badge badge-muted">{getCheckTypeLabel(check.check_type)}</span>
+                                            <span className="badge badge-muted text-[10px]">{getCheckTypeLabel(check.check_type)}</span>
                                         </div>
                                         <p className="text-sm text-muted truncate">
                                             {(check.details.message as string | undefined) || JSON.stringify(check.details)}
@@ -370,13 +444,13 @@ export default function Stage2ReviewQueuePage() {
                                 onClick={toggleAll}
                                 className="text-xs text-muted hover:text-[var(--foreground)]"
                             >
-                                {selectedMatches.size === data.pending_matches.length ? "Deselect all" : "Select all"}
+                                {matchesFilteredByScore.length > 0 && matchesFilteredByScore.every((m) => selectedMatches.has(m.id)) ? "Deselect all" : "Select all"}
                             </button>
-                            <span className="text-xs text-muted">{data.pending_matches.length} total</span>
+                            <span className="text-xs text-muted">{matchesFilteredByScore.length} total</span>
                         </div>
                     </div>
 
-                    {data.pending_matches.length === 0 ? (
+                    {matchesFilteredByScore.length === 0 ? (
                         <div className="p-8 text-center text-muted">No pending matches</div>
                     ) : (
                         <>
@@ -387,7 +461,7 @@ export default function Stage2ReviewQueuePage() {
                                             <th className="text-left px-4 py-2 w-8">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedMatches.size === data.pending_matches.length}
+                                                    checked={selectedMatches.size === matchesFilteredByScore.length && matchesFilteredByScore.length > 0}
                                                     onChange={toggleAll}
                                                     className="rounded"
                                                 />
@@ -397,12 +471,10 @@ export default function Stage2ReviewQueuePage() {
                                             <th className="text-right px-4 py-2 font-medium">Amount</th>
                                             <th className="text-left px-4 py-2 font-medium">Date</th>
                                             <th className="text-left px-4 py-2 font-medium">Status</th>
-                                            <th className="text-left px-4 py-2 font-medium">Confidence</th>
-                                            <th className="text-left px-4 py-2 font-medium">Created</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[var(--border)]">
-                                        {data.pending_matches.map((match) => (
+                                        {matchesFilteredByScore.map((match) => (
                                             <tr
                                                 key={match.id}
                                                 className="hover:bg-[var(--background-muted)]/50 cursor-pointer"
@@ -410,7 +482,7 @@ export default function Stage2ReviewQueuePage() {
                                             >
                                                 <td className="px-4 py-2">
                                                     <input
-                                                    onClick={(e) => e.stopPropagation()}
+                                                        onClick={(e) => e.stopPropagation()}
                                                         type="checkbox"
                                                         checked={selectedMatches.has(match.id)}
                                                         onChange={(e) => {
@@ -444,12 +516,6 @@ export default function Stage2ReviewQueuePage() {
                                                 </td>
                                                 <td className="px-4 py-2">
                                                     <span className="badge badge-warning">{match.status}</span>
-                                                </td>
-                                                <td className="px-4 py-2">
-                                                    {match.confidence_tier ? <ConfidenceBadge tier={match.confidence_tier} /> : "—"}
-                                                </td>
-                                                <td className="px-4 py-2 text-muted">
-                                                    {match.created_at ? formatDateDisplay(match.created_at) : "—"}
                                                 </td>
                                             </tr>
                                         ))}
@@ -492,67 +558,67 @@ export default function Stage2ReviewQueuePage() {
                 </div>
             </div>
 
-{resolveDialogOpen && selectedCheck && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <div className="fixed inset-0 bg-black/60" onClick={() => { if (!actionLoading) { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); } }} aria-hidden="true" />
-        <div ref={resolveDialogRef} role="dialog" aria-modal="true" aria-labelledby={resolveTitleId} className="relative z-10 w-full max-w-md card animate-slide-up">
-            <div className="card-header">
-                <h2 id={resolveTitleId} className="text-lg font-semibold">Resolve Consistency Check</h2>
-            </div>
-            <div className="p-6 space-y-4">
-                <p className="text-sm text-muted">
-                    <span className="font-medium text-[var(--foreground)]">{selectedCheck.severity.toUpperCase()}</span>{" "}
-                    {getCheckTypeLabel(selectedCheck.check_type)} —{" "}
-                    {(selectedCheck.details.message as string | undefined) || JSON.stringify(selectedCheck.details)}
-                </p>
-                <div>
-                    <label className="block text-sm font-medium mb-1.5">Note (optional)</label>
-                    <input
-                        type="text"
-                        value={resolveNote}
-                        onChange={(e) => setResolveNote(e.target.value)}
-                        placeholder="Add resolution note..."
-                        className="input"
-                    />
+            {resolveDialogOpen && selectedCheck && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="fixed inset-0 bg-black/60" onClick={() => { if (!actionLoading) { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); } }} aria-hidden="true" />
+                    <div ref={resolveDialogRef} role="dialog" aria-modal="true" aria-labelledby={resolveTitleId} className="relative z-10 w-full max-w-md card animate-slide-up">
+                        <div className="card-header">
+                            <h2 id={resolveTitleId} className="text-lg font-semibold">Resolve Consistency Check</h2>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-muted">
+                                <span className="font-medium text-[var(--foreground)]">{selectedCheck.severity.toUpperCase()}</span>{" "}
+                                {getCheckTypeLabel(selectedCheck.check_type)} —{" "}
+                                {(selectedCheck.details.message as string | undefined) || JSON.stringify(selectedCheck.details)}
+                            </p>
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5">Note (optional)</label>
+                                <input
+                                    type="text"
+                                    value={resolveNote}
+                                    onChange={(e) => setResolveNote(e.target.value)}
+                                    placeholder="Add resolution note..."
+                                    className="input"
+                                />
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); }}
+                                    className="btn-secondary flex-1"
+                                    disabled={actionLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleResolveCheck("reject", resolveNote)}
+                                    className="btn-secondary flex-1 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
+                                    disabled={actionLoading}
+                                >
+                                    Reject
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleResolveCheck("flag", resolveNote)}
+                                    className="btn-secondary flex-1 text-[var(--warning)] border-[var(--warning)]/30 hover:bg-[var(--warning-muted)]"
+                                    disabled={actionLoading}
+                                >
+                                    Flag
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleResolveCheck("approve", resolveNote)}
+                                    className="btn-primary flex-1"
+                                    disabled={actionLoading}
+                                >
+                                    {actionLoading ? "Processing..." : "Approve"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex gap-2 pt-2">
-                    <button
-                        type="button"
-                        onClick={() => { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); }}
-                        className="btn-secondary flex-1"
-                        disabled={actionLoading}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleResolveCheck("reject", resolveNote)}
-                        className="btn-secondary flex-1 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
-                        disabled={actionLoading}
-                    >
-                        Reject
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleResolveCheck("flag", resolveNote)}
-                        className="btn-secondary flex-1 text-[var(--warning)] border-[var(--warning)]/30 hover:bg-[var(--warning-muted)]"
-                        disabled={actionLoading}
-                    >
-                        Flag
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleResolveCheck("approve", resolveNote)}
-                        className="btn-primary flex-1"
-                        disabled={actionLoading}
-                    >
-                        {actionLoading ? "Processing..." : "Approve"}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-)}
+            )}
         </div>
     );
 }

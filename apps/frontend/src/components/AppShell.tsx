@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileNav } from "@/components/MobileNav";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import { ToastProvider } from "@/components/ui/Toast";
 
@@ -19,12 +20,14 @@ function AppShellContent({ children }: AppShellProps) {
 
             {/* Main Content Area */}
             <div
-                className={`
-          transition-all duration-300 ease-in-out
-          ${isCollapsed ? "ml-16" : "ml-64"}
-        `}
+                className={`transition-all duration-300 ease-in-out ${
+                    isCollapsed ? "md:ml-16" : "md:ml-64"
+                }`}
             >
-                <WorkspaceTabs />
+                <div className="flex items-center md:block border-b border-[var(--border)] md:border-none">
+                    <MobileNav />
+                    <WorkspaceTabs />
+                </div>
 
                 <main className="min-h-[calc(100vh-4rem)]">
                     {children}
