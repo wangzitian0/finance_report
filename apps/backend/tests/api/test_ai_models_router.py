@@ -82,3 +82,17 @@ async def test_list_models_error_handling(mock_fetch: AsyncMock, client: AsyncCl
     data = response.json()
     assert "Model catalog unavailable" in data["detail"]
     assert mock_fetch.called
+
+
+async def test_list_models_filters_out_entries_without_id(client: AsyncClient):
+    """AC6.11.6: Entries with no id are skipped (covers id-filter branch in routers/ai_models.py L44)."""
+    async def fake_fetch():
+        return [{"id": None, "name": "NoID"}, {"id": "m1", "name": "HasID", "is_free": True}]
+
+    with patch("src.routers.ai_models.fetch_model_catalog", new=fake_fetch):
+        with patch("src.routers.ai_models.normalize_model_entry", new=lambda x: x):
+            response = await client.get("/ai/models")
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert all(m.get("id") is not None for m in data["models"])
+            assert any(m.get("id") == "m1" for m in data["models"])

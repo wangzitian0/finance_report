@@ -14,14 +14,16 @@ Additional endpoints:
 - GET /reports/export - Export reports in CSV format
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from fastapi import status
 from httpx import AsyncClient
 
-from src.models import Account, AccountType, User
+from src.models import Account, AccountType, ClassificationRule, User
+from src.models.layer3 import RuleType
+from src.models.layer4 import ReportSnapshot, ReportType
 
 
 class TestReportsEndpoints:
@@ -341,3 +343,40 @@ class TestReportsEndpoints:
 
         # THEN returns 400 Bad Request (service reports "Account not found")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    async def test_list_report_snapshots_returns_created_snapshots(self, client: AsyncClient, db, test_user: User):
+        """AC5.5.5: GET /reports/{type}/snapshots returns persisted snapshots."""
+        # GIVEN a classification rule (FK target) and a balance-sheet snapshot
+        rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name=f"r-{uuid4()}",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["x"]},
+            created_by=test_user.id,
+        )
+        db.add(rule)
+        await db.flush()
+
+        snap = ReportSnapshot(
+            user_id=test_user.id,
+            report_type=ReportType.BALANCE_SHEET,
+            as_of_date=date(2024, 6, 1),
+            start_date=None,
+            rule_version_id=rule.id,
+            report_data={"foo": "bar"},
+            is_latest=True,
+            created_at=datetime.now(UTC),
+        )
+        db.add(snap)
+        await db.commit()
+
+        # WHEN listing snapshots for the balance-sheet report type
+        response = await client.get(f"/reports/{ReportType.BALANCE_SHEET.value}/snapshots")
+
+        # THEN 200 with a list containing the created snapshot
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert isinstance(body, list)
+        assert any(s["report_type"] == ReportType.BALANCE_SHEET.value for s in body)
