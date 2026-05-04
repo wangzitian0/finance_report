@@ -470,7 +470,9 @@ async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     lines = result.scalars().all()
 
     # Calculate balance (Asset account: debit - credit)
-    balance = sum((line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines), start=Decimal("0"))
+    balance = sum(
+        (line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines), start=Decimal("0")
+    )
 
     return balance
 
