@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, FileText, BookOpen } from "lucide-react";
+import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
@@ -48,11 +49,11 @@ export default function DashboardPage() {
         apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
       ]);
-      setBalanceSheet(balanceData);
-      setIncomeStatement(incomeData);
-      setStats(statsData);
-      setUnmatched(unmatchedData);
-      setRecentEntries(journalData);
+      setBalanceSheet(balanceData || { assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "", is_balanced: true });
+      setIncomeStatement(incomeData || { start_date: "", end_date: "", currency: "SGD", income: [], expenses: [], total_income: 0, total_expenses: 0, net_income: 0, trends: [] });
+      setStats(statsData || { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
+      setUnmatched(unmatchedData || { items: [], total: 0 });
+      setRecentEntries(journalData || { items: [], total: 0 });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
@@ -62,7 +63,7 @@ export default function DashboardPage() {
   }, []);
 
   const fetchTrend = useCallback(async () => {
-    if (!balanceSheet) return;
+    if (!balanceSheet || !balanceSheet.assets) return;
     const sortedAssets = [...balanceSheet.assets].sort((a, b) => toNumber(b.amount) - toNumber(a.amount));
     const target = trendAccountId
       ? sortedAssets.find((a) => a.account_id === trendAccountId) ?? sortedAssets[0]
@@ -79,13 +80,17 @@ export default function DashboardPage() {
   }, [balanceSheet, trendAccountId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { fetchTrend(); }, [fetchTrend]);
+  useEffect(() => {
+    if (balanceSheet && balanceSheet.assets) {
+      fetchTrend();
+    }
+  }, [fetchTrend, balanceSheet]);
 
   const netAssets = useMemo(() => balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0, [balanceSheet]);
   const trendPoints = useMemo(() => trend ? trend.points.map((p) => ({ label: formatMonthLabel(p.period_start), value: toNumber(p.amount) })) : [], [trend]);
-  const incomeBars = useMemo(() => incomeStatement ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
+  const incomeBars = useMemo(() => incomeStatement && incomeStatement.trends ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {
-    if (!balanceSheet) return [];
+    if (!balanceSheet || !balanceSheet.assets) return [];
     return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: CHART_PALETTE[i % CHART_PALETTE.length] }));
   }, [balanceSheet]);
 
@@ -146,13 +151,14 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
+      <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <ProcessingSummaryCard />
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Assets</p>
           <p className="text-2xl font-semibold text-[var(--success)] mt-1">
             {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_assets), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
-          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""}</p>
+          <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : "—"}</p>
         </div>
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Liabilities</p>
@@ -178,7 +184,7 @@ export default function DashboardPage() {
               <p className={`text-4xl font-bold ${netAssets >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
                 {formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-xs text-muted mt-1">As of {formatDateDisplay(balanceSheet.as_of_date)} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
+              <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
             </div>
             {stats && (() => {
               const total = stats.total_transactions ?? 0;
@@ -206,7 +212,7 @@ export default function DashboardPage() {
       )}
 
       {/* This Month KPI Cards */}
-      {incomeStatement && incomeStatement.trends.length > 0 && (() => {
+      {incomeStatement && incomeStatement.trends && incomeStatement.trends.length > 0 && (() => {
         const latest = incomeStatement.trends[incomeStatement.trends.length - 1];
         const monthIncome = toNumber(latest.total_income);
         const monthExpense = toNumber(latest.total_expenses);
@@ -240,7 +246,7 @@ export default function DashboardPage() {
         <div className="card p-5">
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs text-muted uppercase tracking-wide">Asset Trend</p>
-            {balanceSheet && balanceSheet.assets.length > 1 && (
+            {balanceSheet && balanceSheet.assets && balanceSheet.assets.length > 1 && (
               <select
                 value={trendAccountId ?? ""}
                 onChange={(e) => setTrendAccountId(e.target.value || null)}

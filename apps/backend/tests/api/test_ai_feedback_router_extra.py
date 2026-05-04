@@ -2,27 +2,25 @@
 
 from datetime import date
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
-    TransactionClassification,
     AtomicTransaction,
-    ClassificationStatus,
-    ReconciliationMatch,
     BankStatement,
+    BankStatementStatus,
     BankStatementTransaction,
     BankStatementTransactionStatus,
-    BankStatementStatus,
+    ClassificationStatus,
+    ReconciliationMatch,
     ReconciliationStatus,
+    TransactionClassification,
     User,
 )
 from src.models.layer2 import TransactionDirection
-
 
 pytestmark = pytest.mark.asyncio
 

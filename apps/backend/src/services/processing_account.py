@@ -31,6 +31,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.account import Account
 from src.services.account_service import get_or_create_processing_account
 
 # Transfer detection keywords from SSOT SOP-001
@@ -469,7 +470,9 @@ async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     lines = result.scalars().all()
 
     # Calculate balance (Asset account: debit - credit)
-    balance = sum(line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines)
+    balance = sum(
+        (line.amount if line.direction == Direction.DEBIT else -line.amount for line in lines), start=Decimal("0")
+    )
 
     return balance
 
@@ -518,3 +521,62 @@ async def get_unpaired_transfers(
         )
 
     return unpaired
+
+
+async def list_processing_transfer_legs(
+    db: AsyncSession,
+    user_id: UUID,
+) -> list[dict]:
+    processing_account = await get_or_create_processing_account(db, user_id)
+
+    result = await db.execute(
+        select(JournalEntry)
+        .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(JournalLine.account_id == processing_account.id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
+        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+        .order_by(JournalEntry.entry_date.desc())
+    )
+    entries = result.scalars().unique().all()
+
+    today = date.today()
+    legs: list[dict] = []
+    for entry in entries:
+        processing_line = next(
+            (line for line in entry.lines if line.account_id == processing_account.id),
+            None,
+        )
+        if processing_line is None:
+            continue
+
+        other_line = next(
+            (line for line in entry.lines if line.account_id != processing_account.id),
+            None,
+        )
+        other_account: Account | None = other_line.account if other_line else None
+        other_name = other_account.name if other_account else "(unknown)"
+        currency = other_account.currency if other_account else processing_account.currency
+
+        if processing_line.direction == Direction.DEBIT:
+            from_account = other_name
+            to_account = "(unmatched destination)"
+        else:
+            from_account = "(unmatched source)"
+            to_account = other_name
+
+        legs.append(
+            {
+                "entry_id": entry.id,
+                "from_account": from_account,
+                "to_account": to_account,
+                "amount": processing_line.amount,
+                "currency": currency,
+                "initiated_date": entry.entry_date,
+                "days_outstanding": (today - entry.entry_date).days,
+                "description": entry.memo or "",
+            }
+        )
+
+    return legs

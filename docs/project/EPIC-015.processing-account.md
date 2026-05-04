@@ -326,11 +326,11 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 
 ### Acceptance Criteria
 
-- [ ] **AC15.7.1** API endpoint `GET /api/accounts/processing/summary` returns `{pending_count, pending_total, currency, oldest_pending_date}`
-- [ ] **AC15.7.2** Dashboard "Processing / In-Transit" card renders the four fields with currency code
-- [ ] **AC15.7.3** Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}`
-- [ ] **AC15.7.4** Pending entries older than 7 days render a warning badge on the listing row
-- [ ] **AC15.7.5** Frontend test mounts ProcessingSummaryCard and asserts `pending_count` + `pending_total` labels render
+- [x] **AC15.7.1** API endpoint `GET /api/accounts/processing/summary` returns `{pending_count, pending_total, currency, oldest_pending_date}`
+- [x] **AC15.7.2** Dashboard "Processing / In-Transit" card renders the four fields with currency code
+- [x] **AC15.7.3** Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}`
+- [x] **AC15.7.4** Pending entries older than 7 days render a warning badge on the listing row
+- [x] **AC15.7.5** Frontend test mounts ProcessingSummaryCard and asserts `pending_count` + `pending_total` labels render
 
 **Priority**: P0-quick-win — small UI surface; backend already exposes processing-account state.
 **Estimated effort**: 1-2 days backend (summary endpoint) + 2-3 days frontend (card + listing).
