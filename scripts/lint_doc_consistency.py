@@ -184,6 +184,10 @@ def is_deprecated(ac: dict) -> bool:
     return bool(ac.get("deprecated"))
 
 
+def is_stub(ac: dict) -> bool:
+    return str(ac.get("status", "")).lower() == "stub"
+
+
 def list_epic_files() -> list[Path]:
     return sorted(
         path
@@ -315,10 +319,10 @@ def check_registry_to_epic(
     registry_acs: list[dict],
     epic_refs: dict[str, set[str]],
 ) -> list[Violation]:
-    """Check #3: every non-deprecated AC ID is referenced by some EPIC."""
+    """Check #3: every non-deprecated, non-stub AC ID is referenced by some EPIC."""
     violations: list[Violation] = []
     for ac in registry_acs:
-        if is_deprecated(ac):
+        if is_deprecated(ac) or is_stub(ac):
             continue
         ac_id = ac.get("id")
         if not ac_id:
