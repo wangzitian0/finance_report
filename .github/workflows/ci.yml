@@ -279,7 +279,7 @@ jobs:
           base-path: apps/frontend/src
       - name: AC Traceability Check
         run: |
-          uv run --with pyyaml python scripts/build_ac_traceability.py --check --today $(date +%F)
+          uv run --with pyyaml python scripts/build_ac_traceability.py --check
 
   finish:
     needs: [backend, frontend, lint, unified-coverage]
