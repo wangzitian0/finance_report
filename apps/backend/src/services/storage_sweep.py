@@ -115,7 +115,7 @@ async def run_storage_sweep(stop_event: asyncio.Event) -> None:
         try:
             deleted = await sweep_orphaned_storage_objects()
             if deleted:
-                logger.warning("Storage sweep removed orphaned objects", count=deleted)
+                logger.info("Storage sweep removed orphaned objects", count=deleted)
         except Exception:
             logger.exception("Storage sweep encountered an unexpected error")
 

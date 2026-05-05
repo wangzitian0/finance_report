@@ -93,6 +93,7 @@ async def test_aggregate_net_income_uses_average_rate(
     await db.commit()
 
     # Average rate across the period [Jan 1 - Jan 31] = avg(1.20, 1.30, 1.40) = 1.30 SGD/USD
+    # SQL AVG() computes an unweighted arithmetic mean across the three rate rows
     net_income = await _aggregate_net_income_sql(
         db, user_id, "SGD", date(2025, 1, 31), start_date=date(2025, 1, 1)
     )

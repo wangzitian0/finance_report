@@ -17,10 +17,6 @@ from src.services.storage_sweep import (
 )
 
 
-def _make_storage_key(statement_id: str, filename: str) -> str:
-    return f"statements/user-1/{statement_id}/{filename}"
-
-
 def _old_timestamp() -> datetime:
     """Return a timestamp older than ORPHAN_MIN_AGE."""
     return datetime.now(UTC) - ORPHAN_MIN_AGE - timedelta(minutes=5)
@@ -31,14 +27,10 @@ def _recent_timestamp() -> datetime:
     return datetime.now(UTC) - timedelta(minutes=5)
 
 
-@pytest.mark.asyncio
-async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
-    """Orphaned storage objects (no DB record, old enough) should be deleted."""
-    orphan_key = "statements/user-1/orphan-id/orphan.pdf"
+def _make_db_sessionmaker(db: AsyncSession):
+    """Return a synchronous callable that yields the test DB session as an async context manager."""
 
-    mock_keys = [(orphan_key, _old_timestamp())]
-
-    def _fake_sessionmaker():
+    def _sessionmaker():
         class _FakeCtx:
             async def __aenter__(self_):
                 return db
@@ -48,6 +40,15 @@ async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
 
         return _FakeCtx()
 
+    return _sessionmaker
+
+
+@pytest.mark.asyncio
+async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
+    """Orphaned storage objects (no DB record, old enough) should be deleted."""
+    orphan_key = "statements/user-1/orphan-id/orphan.pdf"
+    mock_keys = [(orphan_key, _old_timestamp())]
+
     with (
         patch("src.services.storage_sweep.StorageService") as MockStorage,
         patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
@@ -56,7 +57,7 @@ async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
         MockStorage.return_value = mock_storage_instance
 
         # No DB statement has file_path = orphan_key, so it should be deleted
-        deleted = await sweep_orphaned_storage_objects(sessionmaker=_fake_sessionmaker)
+        deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db))
 
     # Should have attempted to delete the orphaned object
     assert deleted == 1
@@ -81,16 +82,6 @@ async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
 
     mock_keys = [(known_key, _old_timestamp())]
 
-    def _fake_sessionmaker():
-        class _FakeCtx:
-            async def __aenter__(self_):
-                return db
-
-            async def __aexit__(self_, *args):
-                return False
-
-        return _FakeCtx()
-
     with (
         patch("src.services.storage_sweep.StorageService") as MockStorage,
         patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
@@ -98,7 +89,7 @@ async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
         mock_storage_instance = MagicMock()
         MockStorage.return_value = mock_storage_instance
 
-        deleted = await sweep_orphaned_storage_objects(sessionmaker=_fake_sessionmaker)
+        deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db))
 
     # Known object should NOT be deleted
     assert deleted == 0
@@ -109,7 +100,6 @@ async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
 async def test_sweep_skips_recent_objects(db: AsyncSession, test_user):
     """Objects newer than ORPHAN_MIN_AGE should be skipped (in-flight uploads)."""
     recent_key = "statements/user-1/recent-id/recent.pdf"
-
     mock_keys = [(recent_key, _recent_timestamp())]
 
     with (
