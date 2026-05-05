@@ -1,29 +1,21 @@
 #!/usr/bin/env python3
 """Mechanical regenerator for ``docs/project/AC-TEST-TRACEABILITY-AUDIT.md``.
 
-This script is the **single source of truth** for the AC -> test traceability
-audit document. It joins:
+Joins the feature and infra AC registries against every test reference found
+in the configured test directories and emits a complete Markdown report.
 
-* ``docs/ac_registry.yaml``   (553 feature ACs)
-* ``docs/infra_registry.yaml`` (207 infrastructure ACs)
-
-against every test reference (``ACx.y.z``) found in the configured test
-directories, and emits a complete Markdown report containing:
-
-1. Executive summary (totals, coverage %, manual-verification count, etc.).
-2. Per-EPIC coverage table (one row per EPIC, ordered by EPIC number).
-3. Per-EPIC detailed AC -> test mapping tables (every AC, every reference).
-
-The output is fully mechanical: running this script twice in a row on a clean
-tree must produce a byte-identical file. CI calls it in ``--check`` mode to
-guarantee the committed audit document never drifts from the registries.
+The output is fully mechanical: running this script twice must produce an
+identical file (modulo the generation date) when run with the same
+registries and test directories.  CI calls it in ``--check`` mode; the
+date line is normalised away during comparison so re-running CI on a
+later day does not create spurious failures.
 
 Usage::
 
     # Regenerate the audit doc in place
     python scripts/build_ac_traceability.py
 
-    # CI mode: fail (exit 1) if the file would change
+    # CI mode: fail (exit 1) if the file would change (date-line ignored)
     python scripts/build_ac_traceability.py --check
 
     # Write to a different path (for diffing/preview)
@@ -59,11 +51,14 @@ DEFAULT_INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 DEFAULT_TEST_DIRS = (
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src",
+    REPO_ROOT / "scripts" / "tests",
 )
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "project" / "AC-TEST-TRACEABILITY-AUDIT.md"
 
 AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
+
+_DATE_LINE_RE = re.compile(r"^> \*\*Generated\*\*: \d{4}-\d{2}-\d{2}")
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 
 # Heuristic: treat ACs whose description mentions any of these tokens as
@@ -404,7 +399,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Directory to scan for test files (repeatable). "
-            "Defaults to apps/backend/tests + apps/frontend/src."
+            "Defaults to apps/backend/tests + apps/frontend/src + scripts/tests."
         ),
     )
     p.add_argument(
@@ -426,6 +421,13 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _strip_date(text: str) -> str:
+    return "\n".join(
+        _DATE_LINE_RE.sub("> **Generated**: DATE", line)
+        for line in text.splitlines()
+    )
+
+
 def main() -> int:
     args = parse_args()
     test_dirs = list(args.test_dir) if args.test_dir else list(DEFAULT_TEST_DIRS)
@@ -445,7 +447,7 @@ def main() -> int:
             )
             return 1
         existing = args.output.read_text(encoding="utf-8")
-        if existing != rendered:
+        if _strip_date(existing) != _strip_date(rendered):
             print(
                 f"ERROR: {args.output} is stale.\n"
                 "  Run: python scripts/build_ac_traceability.py",

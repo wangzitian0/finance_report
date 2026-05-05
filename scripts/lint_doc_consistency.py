@@ -15,12 +15,15 @@ Hard-fail checks enforced in CI:
   4. Every AC ID referenced in an EPIC file MUST exist in one of the
      two registries (no dangling AC IDs in EPIC docs).
   5. Every AC ID present in either registry MUST appear at least once
-     under apps/backend/tests/ or apps/frontend/__tests__/, unless the
-     AC is marked ``deprecated`` (full traceability).
+     under apps/backend/tests/, apps/frontend/src/__tests__/, or
+     scripts/tests/, unless the AC is marked ``deprecated``
+     (full traceability).
   6. Every ``ACx.y.z`` referenced from a test file MUST exist in one of
      the two registries AND its ``epic`` field MUST equal ``x`` (the
      epic prefix of the AC ID). Test fixtures under ``scripts/tests/``
-     are excluded because they synthesise illustrative AC IDs.
+     are excluded from check #6 because they intentionally reference
+     synthetic AC IDs (e.g. ``AC9.9.9``) that are not present in the
+     registries.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -65,17 +68,12 @@ INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
-    REPO_ROOT / "apps" / "frontend" / "__tests__",
+    REPO_ROOT / "apps" / "frontend" / "src" / "__tests__",
+    REPO_ROOT / "scripts" / "tests",
 ]
 
-# Check #6 scans a broader set of test roots so that stray AC IDs in
-# helper/fixture trees are still caught. ``scripts/tests/`` is excluded
-# at the directory level because it deliberately synthesises illustrative
-# AC IDs to exercise the registry generator; those IDs are allow-listed
-# below.
 CHECK6_TEST_ROOTS = [
-    REPO_ROOT / "apps" / "backend" / "tests",
-    REPO_ROOT / "apps" / "frontend" / "__tests__",
+    r for r in TEST_ROOTS if r != REPO_ROOT / "scripts" / "tests"
 ]
 
 # Allow-list of AC IDs that may appear in test fixtures without a
@@ -382,8 +380,8 @@ def check_registry_to_tests(
                     check="check5_registry_to_tests",
                     message=(
                         f"{ac_id}: present in registry but not referenced "
-                        "by any test under apps/backend/tests/ or "
-                        "apps/frontend/__tests__/"
+                        "by any test under apps/backend/tests/, "
+                        "apps/frontend/src/__tests__/, or scripts/tests/"
                     ),
                 )
             )
