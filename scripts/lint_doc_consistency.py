@@ -390,6 +390,63 @@ def check_registry_to_tests(
     return violations
 
 
+def check_test_id_epic_alignment(
+    registry_acs: list[dict],
+    test_refs: dict[str, set[str]],
+) -> list[Violation]:
+    """Check #6: every AC ID referenced by a test must live in the
+    registry under the EPIC implied by its ``ACx.y.z`` prefix.
+
+    For ``ACx.y.z``, the registry entry's ``epic`` field MUST equal
+    ``x``. IDs in :data:`CHECK6_FIXTURE_EXCLUDE` are skipped because
+    they intentionally appear only in synthetic fixtures.
+    """
+    violations: list[Violation] = []
+    registry_by_id: dict[str, dict] = {
+        ac["id"]: ac for ac in registry_acs if ac.get("id")
+    }
+    for ac_id in sorted(test_refs):
+        if ac_id in CHECK6_FIXTURE_EXCLUDE:
+            continue
+        match = AC_PATTERN.match(ac_id)
+        if not match:
+            continue
+        expected_epic = int(match.group(1))
+        entry = registry_by_id.get(ac_id)
+        if entry is None:
+            # Missing registry entries are surfaced by check #4
+            # (epic-to-registry); avoid double-reporting here.
+            continue
+        actual_epic = entry.get("epic")
+        try:
+            actual_epic_int = int(actual_epic)
+        except (TypeError, ValueError):
+            violations.append(
+                Violation(
+                    check="check6_test_id_epic_alignment",
+                    message=(
+                        f"{ac_id}: registry entry has non-integer "
+                        f"epic field {actual_epic!r}"
+                    ),
+                )
+            )
+            continue
+        if actual_epic_int != expected_epic:
+            files_str = ", ".join(sorted(test_refs[ac_id])) or "<unknown>"
+            violations.append(
+                Violation(
+                    check="check6_test_id_epic_alignment",
+                    message=(
+                        f"{ac_id}: ID prefix implies EPIC-"
+                        f"{expected_epic:03d} but registry assigns it "
+                        f"to EPIC-{actual_epic_int:03d} "
+                        f"(referenced by: {files_str})"
+                    ),
+                )
+            )
+    return violations
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -438,6 +495,7 @@ def main() -> int:
     violations.extend(check_registry_to_epic(all_acs, epic_refs))
     violations.extend(check_epic_to_registry(epic_refs, registry_ids))
     violations.extend(check_registry_to_tests(all_acs, test_refs))
+    violations.extend(check_test_id_epic_alignment(all_acs, test_refs))
 
     if args.verbose or violations:
         print("=" * 72)
