@@ -1,6 +1,7 @@
 # EPIC-013: Statement Parsing V2
 
 > Status: ✅ Complete
+> Vision Anchor: `decision-2-event-middle-layer`
 > Owner: Backend + Frontend
 > Scope: Statement extraction quality and review workflow visibility
 

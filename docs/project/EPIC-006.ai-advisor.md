@@ -1,6 +1,7 @@
 # EPIC-006: AI Financial Advisor
 
 > **Status**: 🟢 Complete  
+> **Vision Anchor**: `non-goals-not-robo-advisor`  
 > **Phase**: 4  
 > **Duration**: 2 weeks  
 > **Dependencies**: EPIC-002, EPIC-004, EPIC-005  

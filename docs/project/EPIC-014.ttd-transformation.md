@@ -1,6 +1,7 @@
 # EPIC-014: Test-Driven Documentation (TTD) Transformation
 
 > **Status**: 🟡 In Progress (P0 ✅, Phase 3-5 Planned)
+> **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Phase**: Tooling Enhancement (Phase 3-5)
 > **Duration**: 3-4 weeks
 > **Owner**: Development Team

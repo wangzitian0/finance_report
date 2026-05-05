@@ -1,6 +1,7 @@
 # EPIC-005: Financial Reports & Visualization
 
 > **Status**: ✅ Complete (TDD Aligned)
+> **Vision Anchor**: `non-goals-not-budgeting-app`
 > **Phase**: 4
 > **Duration**: 3 weeks
 > **Dependencies**: EPIC-002

@@ -1,6 +1,7 @@
 # EPIC-009: PDF Fixture Generation for Testing
 
 > **Status**: ✅ Complete  
+> **Vision Anchor**: `decision-filter-accuracy-auditability`  
 > **Phase**: 2  
 > **Duration**: 2-3 weeks  
 > **Dependencies**: EPIC-003 (Statement Parsing), EPIC-008 (Testing Strategy)

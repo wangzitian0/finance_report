@@ -1,6 +1,7 @@
 # EPIC-008: Comprehensive Testing Strategy (Smoke & E2E)
 
 > **Status**: ✅ Core Complete
+> **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Owner**: QA / DevOps
 > **Date**: 2026-01-16
 > **Updated**: 2026-03-04

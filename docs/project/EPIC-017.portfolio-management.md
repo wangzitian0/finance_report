@@ -1,6 +1,7 @@
 # EPIC-017: Investment Portfolio Management (100% Self-Developed)
 
 > **Status**: 🟡 Planned  
+> **Vision Anchor**: `decision-1-portfolio-self-developed`  
 > **Phase**: 5 (Asset Tracking)  
 > **Duration**: 6-8 weeks  
 > **Priority**: P1 (High Priority - Post Two-Stage Review)  

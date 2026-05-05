@@ -1,6 +1,7 @@
 # EPIC-002: Double-Entry Bookkeeping Core
 
 > **Status**: ✅ Complete  
+> **Vision Anchor**: `decision-filter-accuracy-auditability`  
 > **Phase**: 1  
 > **Duration**: 3 weeks  
 > **Dependencies**: EPIC-001  

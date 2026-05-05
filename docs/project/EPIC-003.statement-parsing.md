@@ -1,6 +1,7 @@
 # EPIC-003: Smart Statement Parsing
 
 > **Status**: ✅ Complete (TDD Aligned)
+> **Vision Anchor**: `decision-2-event-middle-layer`
 > **Phase**: 2
 > **Duration**: 4 weeks
 > **Dependencies**: EPIC-002

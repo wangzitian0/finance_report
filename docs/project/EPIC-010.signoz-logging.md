@@ -1,6 +1,7 @@
 # EPIC-010: SigNoz Logging Integration
 
 > **Status**: ✅ Complete
+> **Vision Anchor**: `decision-7-tech-stack`
 > **Owner**: Platform / Backend
 > **Phase**: 0
 > **Duration**: 1 week
