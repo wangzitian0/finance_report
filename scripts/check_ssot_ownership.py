@@ -31,6 +31,7 @@ Run locally::
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -226,7 +227,7 @@ def check_must_be_absent() -> list[Violation]:
 def _collect_scan_files() -> list[Path]:
     """Return all non-archived, non-excluded markdown/Python files."""
     results: list[Path] = []
-    for root, dirs, files in (REPO_ROOT).walk() if hasattr(REPO_ROOT, "walk") else __import__("os").walk(REPO_ROOT):
+    for root, dirs, files in os.walk(REPO_ROOT):
         root_path = Path(root)
         # Prune excluded directories in place
         dirs[:] = [

@@ -255,10 +255,6 @@ class TestCheckRuleCrossReferences:
 class TestFullRunOnRealRepo:
     def test_all_checks_pass(self) -> None:
         """All checks must pass on the real repository."""
-        from check_ssot_ownership import main as ssot_main
-
-        exit_code = ssot_main.__wrapped__() if hasattr(ssot_main, "__wrapped__") else None
-        # Call the individual checks instead
         violations = (
             check_translation_parity()
             + check_must_be_archived()

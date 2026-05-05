@@ -11,7 +11,7 @@
 |--------|------|-------|--------|
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | 2026-05-04 | Full vision → EPIC → AC → test consistency | `audit/vision-epic-ac-alignment` |
 
-**Latest findings summary**: 760 ACs across 18 EPICs — 0 orphans, 0 duplicates, 0 EPIC↔registry mismatches.
+**Latest findings summary**: 760 ACs across 18 EPICs (553 feature + 207 infrastructure) — 0 orphans, 0 duplicates, 0 EPIC↔registry mismatches.
 See the report for P0/P1/P2 fix details and follow-up actions.
 
 ---

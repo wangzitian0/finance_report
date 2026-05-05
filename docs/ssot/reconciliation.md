@@ -21,8 +21,6 @@
 
 ### <a id="thresholds"></a>Reconciliation Thresholds
 
-<a id="score-thresholds"></a>
-
 | Score Range | Action | Status Transition |
 |-------------|--------|-------------------|
 | ≥ 85 | Auto-Accept | `pending` → `auto_accepted` |
