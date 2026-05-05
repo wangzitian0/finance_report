@@ -189,6 +189,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.18.4 | Ensure S3_BUCKET follows naming conventions | `test_s3_bucket_format()` | `infra/test_config_contract.py` | P0 |
 | AC12.18.5 | Ensure JWT_ALGORITHM is secure algorithm | `test_jwt_algorithm_allowed()` | `infra/test_config_contract.py` | P0 |
 | AC12.18.6 | Ensure DATABASE_URL follows expected format | `test_database_url_format()` | `infra/test_config_contract.py` | P0 |
+| AC12.18.7 | stub | — | — | — |
 
 ### AC12.19: Infrastructure - Epic 001 Contracts
 
