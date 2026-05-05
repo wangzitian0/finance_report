@@ -40,6 +40,9 @@ jobs:
           cd apps/backend
           uv run ruff check src/
           uv run ruff format src/ --check
+      - name: SSOT Ownership Lint
+        run: |
+          python scripts/check_ssot_ownership.py --verbose
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest

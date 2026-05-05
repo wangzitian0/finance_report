@@ -60,7 +60,7 @@ DEFAULT_TEST_DIRS = (
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src",
 )
-DEFAULT_OUTPUT = REPO_ROOT / "docs" / "project" / "AC-TEST-TRACEABILITY-AUDIT.md"
+DEFAULT_OUTPUT = REPO_ROOT / "docs" / "project" / "archive" / "AC-TEST-TRACEABILITY-AUDIT.md"
 
 AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}

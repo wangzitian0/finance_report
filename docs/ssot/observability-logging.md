@@ -1,7 +1,7 @@
 # Statement Parsing Model Selection Logging
 
-> **SSOT Key**: `observability.statement-model-logging`  
-> **Status**: Implemented  
+> **SSOT Key**: `observability-logging`
+> **Status**: Implemented
 > **Related**: [observability.md](./observability.md), [extraction.md](./extraction.md), [ai.md](./ai.md)
 
 ## Source of Truth

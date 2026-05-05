@@ -27,6 +27,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 ### Must Have (P0)
 - [x] Distributed tracing with trace_id in all logs
 - [ ] Service-layer uses `flush()`, router-layer owns `commit()`
+  - See: `docs/ssot/accounting.md#async-tx-boundary`
 - [x] Connection pool size configurable via environment
 
 ### Should Have (P1)
