@@ -1,22 +1,13 @@
 #!/usr/bin/env python3
 """Mechanical regenerator for ``docs/project/AC-TEST-TRACEABILITY-AUDIT.md``.
 
-This script is the **single source of truth** for the AC -> test traceability
-audit document. It joins:
+Joins the feature and infra AC registries against every test reference found
+in the configured test directories and emits a complete Markdown report.
 
-* ``docs/ac_registry.yaml``   (553 feature ACs)
-* ``docs/infra_registry.yaml`` (207 infrastructure ACs)
-
-against every test reference (``ACx.y.z``) found in the configured test
-directories, and emits a complete Markdown report containing:
-
-1. Executive summary (totals, coverage %, manual-verification count, etc.).
-2. Per-EPIC coverage table (one row per EPIC, ordered by EPIC number).
-3. Per-EPIC detailed AC -> test mapping tables (every AC, every reference).
-
-The output is fully mechanical: running this script twice in a row on a clean
-tree must produce a byte-identical file. CI calls it in ``--check`` mode to
-guarantee the committed audit document never drifts from the registries.
+The output is fully mechanical: running this script twice must produce an
+identical file when given the same ``--today`` value. CI calls it in
+``--check`` mode with an explicit ``--today`` to guarantee the committed
+audit document never drifts from the registries.
 
 Usage::
 
@@ -24,7 +15,7 @@ Usage::
     python scripts/build_ac_traceability.py
 
     # CI mode: fail (exit 1) if the file would change
-    python scripts/build_ac_traceability.py --check
+    python scripts/build_ac_traceability.py --check --today $(date +%F)
 
     # Write to a different path (for diffing/preview)
     python scripts/build_ac_traceability.py --output /tmp/audit.md
@@ -59,6 +50,7 @@ DEFAULT_INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 DEFAULT_TEST_DIRS = (
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src",
+    REPO_ROOT / "scripts" / "tests",
 )
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "project" / "AC-TEST-TRACEABILITY-AUDIT.md"
 

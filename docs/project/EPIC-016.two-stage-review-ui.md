@@ -538,6 +538,10 @@ Stage 2: Run-Level Review (Consistency Checks)
 | AC16.15.4 | Assets page renders loading and error retry states | ⏳ |
 | AC16.15.5 | Assets page renders grouped positions and status filters on successful fetch | ⏳ |
 | AC16.15.6 | Assets page reconcile action calls API and shows toast summary | ⏳ |
+| AC16.15.7 | stub | ⏳ |
+| AC16.15.8 | stub | ⏳ |
+| AC16.15.9 | stub | ⏳ |
+| AC16.15.10 | stub | ⏳ |
 
 ### AC16.16 — Frontend App Structure (Root, Layout, Journal Page)
 

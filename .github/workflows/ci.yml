@@ -40,6 +40,9 @@ jobs:
           cd apps/backend
           uv run ruff check src/
           uv run ruff format src/ --check
+      - name: Doc Consistency Check
+        run: |
+          uv run --with pyyaml python scripts/lint_doc_consistency.py
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
@@ -274,10 +277,9 @@ jobs:
           file: coverage/frontend.lcov
           flag-name: frontend
           base-path: apps/frontend/src
-      - name: AC Traceability Report
+      - name: AC Traceability Check
         run: |
-          uv run --with pyyaml python scripts/check_ac_traceability.py --report-only
-        continue-on-error: true
+          uv run --with pyyaml python scripts/build_ac_traceability.py --check --today $(date +%F)
 
   finish:
     needs: [backend, frontend, lint, unified-coverage]

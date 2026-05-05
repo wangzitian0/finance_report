@@ -65,18 +65,11 @@ INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
-    REPO_ROOT / "apps" / "frontend" / "__tests__",
+    REPO_ROOT / "apps" / "frontend" / "src" / "__tests__",
+    REPO_ROOT / "scripts" / "tests",
 ]
 
-# Check #6 scans a broader set of test roots so that stray AC IDs in
-# helper/fixture trees are still caught. ``scripts/tests/`` is excluded
-# at the directory level because it deliberately synthesises illustrative
-# AC IDs to exercise the registry generator; those IDs are allow-listed
-# below.
-CHECK6_TEST_ROOTS = [
-    REPO_ROOT / "apps" / "backend" / "tests",
-    REPO_ROOT / "apps" / "frontend" / "__tests__",
-]
+CHECK6_TEST_ROOTS = TEST_ROOTS
 
 # Allow-list of AC IDs that may appear in test fixtures without a
 # matching registry entry. Keep this list tight; every entry should be
