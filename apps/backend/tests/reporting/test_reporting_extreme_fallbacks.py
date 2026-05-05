@@ -208,30 +208,39 @@ async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test
 
 @pytest.mark.asyncio
 async def test_net_income_sql_detects_missing_fx_map_row() -> None:
-    """AC5.6.7: Net income FX aggregation detects missing FX map row (data consistency)."""
+    """AC5.6.7: Net income FX aggregation detects missing FX map row (data consistency).
+
+    Simulates a data race where the aggregation query returns a currency that
+    was not present when the currency list was first fetched.
+    """
     fake_db = MagicMock()
 
-    currency_dates_result = MagicMock()
-    currency_dates_result.all.return_value = [("USD", date(2025, 1, 1))]
+    # First execute: distinct currency query → returns ["USD"]
+    currency_result = MagicMock()
+    currency_result.all.return_value = [("USD",)]
 
-    rate_result = MagicMock()
-    rate_result.scalar_one_or_none.return_value = Decimal("1.35")
+    # Second execute: min(entry_date) query → returns a date so we have an effective_start
+    min_date_result = MagicMock()
+    min_date_result.scalar_one_or_none.return_value = date(2025, 1, 1)
 
+    # Third execute (aggregation): returns a row with "EUR" – NOT in fx_rate_map for "USD" only
     agg_result = MagicMock()
     agg_result.all.return_value = [
         SimpleNamespace(
-            currency="USD",
-            entry_date=date(2025, 1, 2),
+            currency="EUR",
             type=AccountType.INCOME,
             direction=Direction.CREDIT,
             total=Decimal("10"),
         )
     ]
 
-    fake_db.execute = AsyncMock(side_effect=[currency_dates_result, rate_result, agg_result])
+    fake_db.execute = AsyncMock(side_effect=[currency_result, min_date_result, agg_result])
 
-    with pytest.raises(ReportError, match="data consistency error"):
-        await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
+    # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
+    with patch("src.services.reporting.get_average_rate", new_callable=AsyncMock) as mock_avg:
+        mock_avg.return_value = Decimal("1.35")
+        with pytest.raises(ReportError, match="data consistency error"):
+            await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
 
 
 @pytest.mark.asyncio
