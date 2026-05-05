@@ -1,6 +1,7 @@
 # EPIC-001: Infrastructure & Authentication
 
 > **Status**: 🟢 Complete (Deferred items tracked below)  
+> **Vision Anchor**: `decision-7-tech-stack`  
 > **Phase**: 0  
 > **Duration**: 2 weeks  
 > **Dependencies**: None  

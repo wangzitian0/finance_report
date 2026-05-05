@@ -1,6 +1,7 @@
 # EPIC-004: Reconciliation Engine & Matching
 
 > **Status**: ✅ Complete (TDD Aligned)
+> **Vision Anchor**: `decision-4-two-stage-review`
 > **Phase**: 3
 > **Duration**: 5 weeks
 > **Dependencies**: EPIC-003

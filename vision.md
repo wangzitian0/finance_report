@@ -83,6 +83,7 @@ Dashboard and reports (Native Portfolio Engine)
   - Classification priority: Keyword rules > Regex rules > AI suggestion > Uncategorized.
   - AI reconciliation scoring only activates for ambiguous matches (60-84 range).
 
+<a id="decision-filter-accuracy-auditability"></a>
 ## Decision Filter
 
 Use this when choices are unclear:
@@ -94,8 +95,8 @@ Use this when choices are unclear:
 ## Non-Goals
 
 - Replacing accounting logic with LLMs.
-- Becoming a consumer budgeting app with bank OAuth aggregation.
-- Trading, portfolio optimization, or robo-advisory automation.
+- <a id="non-goals-not-budgeting-app"></a>Becoming a consumer budgeting app with bank OAuth aggregation.
+- <a id="non-goals-not-robo-advisor"></a>Trading, portfolio optimization, or robo-advisory automation.
 
 ---
 
@@ -104,6 +105,7 @@ Use this when choices are unclear:
 > Each decision follows **Problem → Choice → Result** format.
 > When future decisions are unclear, return here to check alignment.
 
+<a id="decision-1-portfolio-self-developed"></a>
 ### Decision 1: Portfolio Management Strategy (Updated 2026-02)
 
 **Problem**: Portfolio calculations are complex (IRR, time-weighted returns, multi-currency FX).
@@ -120,6 +122,7 @@ Use this when choices are unclear:
 
 **Why the Change**: Strategic decision to eliminate external dependencies and ensure deep integration with the core accounting system. "100% Self-Developed" is the final state.
 
+<a id="decision-2-event-middle-layer"></a>
 ### Decision 2: Why an Event Middle Layer?
 
 **Problem**: Converting directly from PDF to target formats?
@@ -132,6 +135,7 @@ Use this when choices are unclear:
 - Multiple inputs (DBS PDF, Moomoo CSV) → Unified Events
 - Unified Events → Multiple outputs (Native Reports, CSV, future integrations)
 
+<a id="decision-3-record-layer"></a>
 ### Decision 3: Why a Record Layer?
 
 **Problem**: Why not output Events directly?
@@ -143,6 +147,7 @@ Use this when choices are unclear:
 - **Traceability**: Every Event knows which source file it came from
 - **Atomic review**: One PDF is approved/rejected as a unit, no need to review line-by-line
 
+<a id="decision-4-two-stage-review"></a>
 ### Decision 4: Why Two-Stage Review?
 
 **Problem**: Too much to review at once?
@@ -156,6 +161,7 @@ Use this when choices are unclear:
 - Reduce rework (no need to redo everything)
 - Lower cognitive load (focus on one dimension at a time)
 
+<a id="decision-5-processing-account"></a>
 ### Decision 5: Why a Processing Account?
 
 **Problem**: Bank A transfers out, 3 days later Bank B receives — where are the funds in between?
@@ -198,6 +204,7 @@ Auto-parsed            →  LOW       (lowest confidence)
 
 **Scenarios**: ESOP vesting, insurance premiums, loans to friends.
 
+<a id="decision-7-tech-stack"></a>
 ### Decision 7: Why FastAPI + Next.js? (Tech Stack Evolution)
 
 **Problem**: Need storage, authentication, background tasks.

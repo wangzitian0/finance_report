@@ -1,6 +1,7 @@
 # EPIC-016: Two-Stage Review & Data Validation UI
 
 > **Status**: 🟡 Planned  
+> **Vision Anchor**: `decision-4-two-stage-review`  
 > **Phase**: 3 (Reconciliation Enhancement)  
 > **Duration**: 4-6 weeks  
 > **Priority**: P0 (Critical - Foundation for User Adoption)  

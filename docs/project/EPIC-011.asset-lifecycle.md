@@ -1,6 +1,7 @@
 # EPIC-011: Asset Lifecycle Management
 
 **Status**: 🟡 In Progress (P0 Complete)  
+**Vision Anchor**: `decision-3-record-layer`  
 **Phase**: 5  
 **Duration**: 18 weeks (6 weeks asset features + 12 weeks 4-layer migration)  
 **Priority**: P2 (Medium Priority)  

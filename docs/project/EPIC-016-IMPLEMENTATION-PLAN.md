@@ -2,6 +2,7 @@
 
 > **Created**: 2026-02-25
 > **Status**: 🟡 Planning Complete
+> **Vision Anchor**: `decision-4-two-stage-review`
 > **Branch**: `epic-016/two-stage-review-ui`
 
 ---

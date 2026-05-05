@@ -3,6 +3,7 @@
 > **Goal**: Strengthen core infrastructure libraries to production-grade quality with proper observability, transaction management, and developer experience.
 
 **Status**: 🟡 In Progress  
+**Vision Anchor**: `decision-7-tech-stack`  
 **Priority**: P1 (Infrastructure Debt)  
 **Estimated Duration**: 2-3 weeks  
 **Dependencies**: None (cross-cutting infrastructure)

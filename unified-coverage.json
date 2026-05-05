@@ -1,26 +1,26 @@
 {
-  "total_lines": 12199,
-  "covered_lines": 11660,
-  "coverage_percent": 95.58,
+  "total_lines": 12883,
+  "covered_lines": 12463,
+  "coverage_percent": 96.69,
   "breakdown": {
     "backend": {
-      "total_lines": 7365,
-      "covered_lines": 7174,
-      "coverage_percent": 97.41,
+      "total_lines": 7440,
+      "covered_lines": 7374,
+      "coverage_percent": 99.06,
       "file_count": 99
     },
     "frontend": {
-      "total_lines": 2126,
-      "covered_lines": 1945,
-      "coverage_percent": 91.49,
+      "total_lines": 2205,
+      "covered_lines": 2028,
+      "coverage_percent": 91.92,
       "file_count": 66
     },
     "scripts": {
-      "total_lines": 2708,
-      "covered_lines": 2541,
-      "coverage_percent": 93.83,
-      "file_count": 39
+      "total_lines": 3238,
+      "covered_lines": 3061,
+      "coverage_percent": 94.48,
+      "file_count": 31
     }
   },
-  "_note": "Baseline rebased post EPIC-018 (PR#333). EPIC-018 added ~900 lines to backend (new routers ai_feedback/audit/user_settings, schemas, confidence_tier service, migration 0015). Marginal uncovered lines are defensive 4xx error branches in new routers; future PRs ratchet coverage forward from this floor. Prior baseline (98.39% backend on 6,453 lines) measured a smaller pre-EPIC-018 surface."
+  "_note": "Baseline rebased post EPIC-018 (PR#333). EPIC-018 added ~900 lines to backend (new routers ai_feedback/audit/user_settings, schemas, confidence_tier service, migration 0015). Marginal uncovered lines are defensive 4xx error branches in new routers; future PRs ratchet coverage forward from this floor. Prior baseline (98.39% backend on 6,453 lines) measured a smaller pre-EPIC-018 surface. Scripts floor ratcheted from 93.83% to 94.48% after adding tests for lint_doc_consistency, build_ac_traceability, and audit_ac_epic_mismatches (PR#344). All per-component floors set 0.05% below CI-measured actuals to tolerate minor cross-environment measurement variance."
 }

@@ -1,6 +1,7 @@
 # EPIC-015: Processing Account Integration
 
 > **Status**: ✅ Complete (TDD Aligned)
+> **Vision Anchor**: `decision-5-processing-account`
 > **Phase**: 3
 > **Duration**: 2 weeks
 > **Dependencies**: EPIC-002, EPIC-004

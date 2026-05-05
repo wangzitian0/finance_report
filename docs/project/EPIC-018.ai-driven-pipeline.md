@@ -1,6 +1,7 @@
 # EPIC-018: AI-Driven Data Pipeline
 
 > **Status**: 🟡 In Progress  
+> **Vision Anchor**: `decision-2-event-middle-layer`  
 > **Phase**: 4 (AI Enhancement)  
 > **Duration**: 4-7 weeks  
 > **Priority**: P1 (High Priority - Parallel with EPIC-016)  

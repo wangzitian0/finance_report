@@ -1,6 +1,7 @@
 # EPIC-007: Production Deployment
 
 > **Status**: ✅ Complete  
+> **Vision Anchor**: `decision-7-tech-stack`  
 > **Phase**: 0 (Infrastructure)  
 > **Duration**: 1 week  
 > **Dependencies**: EPIC-001, EPIC-002, EPIC-003  
