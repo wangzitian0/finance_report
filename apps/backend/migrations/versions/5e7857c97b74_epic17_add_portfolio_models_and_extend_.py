@@ -47,7 +47,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_dividend_income_user_id"), "dividend_income", ["user_id"], unique=False)
-    op.drop_constraint(op.f("accounts_user_id_fkey"), "accounts", type_="foreignkey")
+    op.execute("ALTER TABLE accounts DROP CONSTRAINT IF EXISTS accounts_user_id_fkey")
     op.add_column(
         "atomic_positions",
         sa.Column(
@@ -73,21 +73,21 @@ def upgrade() -> None:
     op.add_column(
         "atomic_positions", sa.Column("geography", sa.String(length=50), nullable=True, comment="Country/region")
     )
-    op.drop_index(op.f("idx_atomic_pos_date"), table_name="atomic_positions")
-    op.drop_index(op.f("idx_atomic_pos_dedup"), table_name="atomic_positions")
+    op.execute("DROP INDEX IF EXISTS idx_atomic_pos_date")
+    op.execute("DROP INDEX IF EXISTS idx_atomic_pos_dedup")
     op.create_index(op.f("ix_atomic_positions_user_id"), "atomic_positions", ["user_id"], unique=False)
-    op.drop_constraint(op.f("atomic_positions_user_id_fkey"), "atomic_positions", type_="foreignkey")
-    op.drop_index(op.f("idx_atomic_txn_date"), table_name="atomic_transactions")
-    op.drop_index(op.f("idx_atomic_txn_dedup"), table_name="atomic_transactions")
+    op.execute("ALTER TABLE atomic_positions DROP CONSTRAINT IF EXISTS atomic_positions_user_id_fkey")
+    op.execute("DROP INDEX IF EXISTS idx_atomic_txn_date")
+    op.execute("DROP INDEX IF EXISTS idx_atomic_txn_dedup")
     op.create_index(op.f("ix_atomic_transactions_user_id"), "atomic_transactions", ["user_id"], unique=False)
-    op.drop_constraint(op.f("atomic_transactions_user_id_fkey"), "atomic_transactions", type_="foreignkey")
-    op.drop_index(op.f("ix_bank_statement_transactions_status"), table_name="bank_statement_transactions")
-    op.drop_index(op.f("ix_bank_statement_transactions_txn_date"), table_name="bank_statement_transactions")
-    op.drop_index(op.f("ix_bank_statements_status"), table_name="bank_statements")
-    op.drop_constraint(op.f("bank_statements_user_id_fkey"), "bank_statements", type_="foreignkey")
-    op.drop_constraint(op.f("chat_sessions_user_id_fkey"), "chat_sessions", type_="foreignkey")
+    op.execute("ALTER TABLE atomic_transactions DROP CONSTRAINT IF EXISTS atomic_transactions_user_id_fkey")
+    op.execute("DROP INDEX IF EXISTS ix_bank_statement_transactions_status")
+    op.execute("DROP INDEX IF EXISTS ix_bank_statement_transactions_txn_date")
+    op.execute("DROP INDEX IF EXISTS ix_bank_statements_status")
+    op.execute("ALTER TABLE bank_statements DROP CONSTRAINT IF EXISTS bank_statements_user_id_fkey")
+    op.execute("ALTER TABLE chat_sessions DROP CONSTRAINT IF EXISTS chat_sessions_user_id_fkey")
     op.create_index(op.f("ix_classification_rules_user_id"), "classification_rules", ["user_id"], unique=False)
-    op.drop_constraint(op.f("classification_rules_user_id_fkey"), "classification_rules", type_="foreignkey")
+    op.execute("ALTER TABLE classification_rules DROP CONSTRAINT IF EXISTS classification_rules_user_id_fkey")
     op.alter_column(
         "consistency_checks",
         "severity",
@@ -109,9 +109,9 @@ def upgrade() -> None:
         nullable=False,
         existing_server_default=sa.text("now()"),
     )
-    op.drop_index(op.f("ix_consistency_checks_status"), table_name="consistency_checks")
-    op.drop_index(op.f("ix_consistency_checks_user_check_type_status"), table_name="consistency_checks")
-    op.drop_constraint(op.f("journal_entries_user_id_fkey"), "journal_entries", type_="foreignkey")
+    op.execute("DROP INDEX IF EXISTS ix_consistency_checks_status")
+    op.execute("DROP INDEX IF EXISTS ix_consistency_checks_user_check_type_status")
+    op.execute("ALTER TABLE journal_entries DROP CONSTRAINT IF EXISTS journal_entries_user_id_fkey")
     op.alter_column(
         "journal_lines",
         "fx_rate",
@@ -121,7 +121,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_journal_lines_account_id"), "journal_lines", ["account_id"], unique=False)
     op.create_index(op.f("ix_journal_lines_journal_entry_id"), "journal_lines", ["journal_entry_id"], unique=False)
-    op.drop_constraint(op.f("journal_lines_journal_entry_id_fkey"), "journal_lines", type_="foreignkey")
+    op.execute("ALTER TABLE journal_lines DROP CONSTRAINT IF EXISTS journal_lines_journal_entry_id_fkey")
     op.create_foreign_key(None, "journal_lines", "journal_entries", ["journal_entry_id"], ["id"])
     op.add_column(
         "managed_positions",
@@ -151,13 +151,13 @@ def upgrade() -> None:
         ),
     )
     op.create_index(op.f("ix_managed_positions_user_id"), "managed_positions", ["user_id"], unique=False)
-    op.drop_constraint(op.f("managed_positions_user_id_fkey"), "managed_positions", type_="foreignkey")
-    op.drop_index(op.f("idx_reconciliation_matches_atomic_txn"), table_name="reconciliation_matches")
-    op.drop_index(op.f("ix_reconciliation_matches_status"), table_name="reconciliation_matches")
+    op.execute("ALTER TABLE managed_positions DROP CONSTRAINT IF EXISTS managed_positions_user_id_fkey")
+    op.execute("DROP INDEX IF EXISTS idx_reconciliation_matches_atomic_txn")
+    op.execute("DROP INDEX IF EXISTS ix_reconciliation_matches_status")
     op.create_index(op.f("ix_report_snapshots_user_id"), "report_snapshots", ["user_id"], unique=False)
-    op.drop_constraint(op.f("report_snapshots_user_id_fkey"), "report_snapshots", type_="foreignkey")
+    op.execute("ALTER TABLE report_snapshots DROP CONSTRAINT IF EXISTS report_snapshots_user_id_fkey")
     op.create_index(op.f("ix_uploaded_documents_user_id"), "uploaded_documents", ["user_id"], unique=False)
-    op.drop_constraint(op.f("uploaded_documents_user_id_fkey"), "uploaded_documents", type_="foreignkey")
+    op.execute("ALTER TABLE uploaded_documents DROP CONSTRAINT IF EXISTS uploaded_documents_user_id_fkey")
     # ### end Alembic commands ###
 
 
