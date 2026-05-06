@@ -24,7 +24,7 @@ concepts:
 
   # ── Accounting domain ──────────────────────────────────────────────────
   decimal_monetary_rule:
-    owner: docs/ssot/accounting.md#decimal
+    owner: docs/ssot/accounting.md#decimal-rule
     description: All monetary amounts MUST use Python Decimal, never float.
     cross_refs:
       - AGENTS.md
@@ -39,14 +39,14 @@ concepts:
       - apps/backend/tests/accounting/test_accounting_equation.py
 
   double_entry_bookkeeping:
-    owner: docs/ssot/accounting.md#entry-structure
+    owner: docs/ssot/accounting.md#entry-balance
     description: Every JournalEntry must have balanced debits and credits.
     cross_refs:
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_accounting.py
 
   transaction_boundary:
-    owner: docs/ssot/accounting.md#transaction-boundary
+    owner: docs/ssot/accounting.md#async-tx-boundary
     description: Routers commit(); Services flush() only.
     cross_refs:
       - docs/agents/red-lines.md
@@ -70,7 +70,7 @@ concepts:
 
   # ── Reconciliation domain ──────────────────────────────────────────────
   reconciliation_thresholds:
-    owner: docs/ssot/reconciliation.md#reconciliation-thresholds
+    owner: docs/ssot/reconciliation.md#thresholds
     description: Score ≥85 auto-accept; 60-84 review; <60 unmatched.
     cross_refs:
       - docs/agents/red-lines.md
