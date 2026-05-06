@@ -1,7 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -207,31 +206,75 @@ async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test
 
 
 @pytest.mark.asyncio
-async def test_net_income_sql_detects_missing_fx_map_row() -> None:
-    """AC5.6.7: Net income FX aggregation detects missing FX map row (data consistency)."""
-    fake_db = MagicMock()
+async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_user_id):
+    """AC5.6.7: _aggregate_net_income_sql uses period-average FX rate, not spot rate.
 
-    currency_dates_result = MagicMock()
-    currency_dates_result.all.return_value = [("USD", date(2025, 1, 1))]
+    With two FX rates in the period (1.30 and 1.50), the average is 1.40.
+    Net income of 100 USD should be converted at 1.40, yielding 140 SGD.
+    """
+    income_acc = Account(user_id=test_user_id, name="USD Salary", type=AccountType.INCOME, currency="USD")
+    asset_acc = Account(user_id=test_user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+    db.add_all([income_acc, asset_acc])
+    await db.flush()
 
-    rate_result = MagicMock()
-    rate_result.scalar_one_or_none.return_value = Decimal("1.35")
+    # Two FX rates within the period — average is (1.30 + 1.50) / 2 = 1.40
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.30"),
+                rate_date=date(2025, 1, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.50"),
+                rate_date=date(2025, 1, 31),
+                source="test",
+            ),
+        ]
+    )
 
-    agg_result = MagicMock()
-    agg_result.all.return_value = [
-        SimpleNamespace(
-            currency="USD",
-            entry_date=date(2025, 1, 2),
-            type=AccountType.INCOME,
-            direction=Direction.CREDIT,
-            total=Decimal("10"),
-        )
-    ]
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Salary Jan",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=asset_acc.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income_acc.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
 
-    fake_db.execute = AsyncMock(side_effect=[currency_dates_result, rate_result, agg_result])
+    net_income = await _aggregate_net_income_sql(
+        db,
+        test_user_id,
+        "SGD",
+        as_of_date=date(2025, 1, 31),
+        start_date=date(2025, 1, 1),
+    )
 
-    with pytest.raises(ReportError, match="data consistency error"):
-        await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
+    # Period-average rate: (1.30 + 1.50) / 2 = 1.40 → 100 USD × 1.40 = 140 SGD
+    assert net_income == Decimal("140.00")
 
 
 @pytest.mark.asyncio
