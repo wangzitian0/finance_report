@@ -325,6 +325,8 @@ type MatchStatus =
 
 ### Thresholds
 
+> See: `docs/ssot/reconciliation.md#thresholds` for the authoritative SSOT definition.
+
 | Score | Action |
 |-------|--------|
 | ≥ 85 | Auto-accept |

@@ -1,7 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -204,6 +203,79 @@ async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test
 
     with pytest.raises(ReportError, match="No FX rate available for USD/SGD"):
         await _aggregate_net_income_sql(db, test_user_id, "SGD", as_of_date=date(2025, 2, 1))
+
+
+@pytest.mark.asyncio
+async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_user_id):
+    """_aggregate_net_income_sql uses period-average FX rate, not spot rate.
+
+    With two FX rates in the period (1.30 and 1.50), the average is 1.40.
+    Net income of 100 USD should be converted at 1.40, yielding 140 SGD.
+    The old spot-rate behavior (rate on entry date 2025-01-15 = 1.30) would give 130 SGD.
+    """
+    income_acc = Account(user_id=test_user_id, name="USD Salary", type=AccountType.INCOME, currency="USD")
+    asset_acc = Account(user_id=test_user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+    db.add_all([income_acc, asset_acc])
+    await db.flush()
+
+    # Two FX rates within the period — average is (1.30 + 1.50) / 2 = 1.40
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.30"),
+                rate_date=date(2025, 1, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.50"),
+                rate_date=date(2025, 1, 31),
+                source="test",
+            ),
+        ]
+    )
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Salary Jan",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=asset_acc.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income_acc.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    net_income = await _aggregate_net_income_sql(
+        db,
+        test_user_id,
+        "SGD",
+        as_of_date=date(2025, 1, 31),
+        start_date=date(2025, 1, 1),
+    )
+
+    # Period-average rate: (1.30 + 1.50) / 2 = 1.40 → 100 USD × 1.40 = 140 SGD
+    assert net_income == Decimal("140.00")
 
 
 @pytest.mark.asyncio

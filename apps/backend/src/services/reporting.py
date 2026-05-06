@@ -265,13 +265,16 @@ async def _aggregate_net_income_sql(
     *,
     start_date: date | None = None,
 ) -> Decimal:
-    """Aggregate net income (Income - Expenses) using SQL with FX conversion.
+    """Aggregate net income (Income - Expenses) using SQL with period-average FX conversion.
 
-    Uses period-average rates for FX conversion to ensure consistency with the
-    income statement report, which also uses period-average rates. This avoids
-    Net Income mismatches between the balance sheet and income statement.
+    Uses period-average FX rates matching the income statement reporting convention.
+    When start_date is omitted (cumulative balance sheet use), the average spans all
+    available historical FX rates up to as_of_date (sentinel: 1970-01-01).
+    If no FX rates exist in the range, get_average_rate falls back to the most recent
+    spot rate on or before as_of_date; if that is also absent, FxRateError is raised
+    and re-raised here as ReportError.
     """
-    # Get distinct currencies for FX rate lookup
+    # Get distinct currencies for income/expense lines in the period
     currency_stmt = (
         select(JournalLine.currency)
         .distinct()
@@ -286,7 +289,7 @@ async def _aggregate_net_income_sql(
         currency_stmt = currency_stmt.where(JournalEntry.entry_date >= start_date)
 
     currency_result = await db.execute(currency_stmt)
-    currencies = [row[0].upper() for row in currency_result.all()]
+    currencies = {row[0].upper() for row in currency_result.all()}
 
     if not currencies:
         return Decimal("0")
@@ -303,20 +306,20 @@ async def _aggregate_net_income_sql(
 
     # Build FX rate map: currency -> average rate for the period
     fx_rate_map: dict[str, Decimal] = {}
-    for currency in currencies:
-        source = currency.upper()
+    for source in currencies:
         if source == target_currency:
             fx_rate_map[source] = Decimal("1")
             continue
 
         try:
             rate = await get_average_rate(db, source, target_currency, effective_start, as_of_date)
-            fx_rate_map[source] = rate
         except FxRateError as exc:
-            raise ReportError(f"No FX rate available for {source}/{target_currency}: {exc}") from exc
+            raise ReportError(str(exc)) from exc
 
-    # Aggregate income/expense amounts grouped by (currency, account_type, direction).
-    # No per-entry-date grouping needed since we apply a single average rate per currency.
+        fx_rate_map[source] = rate
+
+    # Aggregate amounts grouped by currency, account type, and direction.
+    # No grouping by entry_date — the same period-average rate applies to all entries.
     agg_stmt = (
         select(
             JournalLine.currency,

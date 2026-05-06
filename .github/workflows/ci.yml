@@ -43,6 +43,9 @@ jobs:
       - name: Doc Consistency Check
         run: |
           uv run --with pyyaml python scripts/lint_doc_consistency.py
+      - name: SSOT Ownership Lint
+        run: |
+          python scripts/check_ssot_ownership.py --verbose
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest

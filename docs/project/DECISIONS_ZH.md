@@ -246,168 +246,24 @@ Prompt 模板:
 
 ---
 
-## 🚧 2026-01-16 项目卡点分析
+## 📌 审计决策 — 2026-05-04（Vision↔EPIC↔AC 对齐）
 
-> **分析日期**: 2026-01-16  
-> **触发**: PR #48 CI 通过但预览环境 404  
-> **分析范围**: 6 环境设计 + 核心交付卡点
+> **参考**: [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — 完整审计报告。
+> **分支**: `audit/vision-epic-ac-alignment`（仅文档变更的 PR）。
+> **权威英文版**: 参见 [DECISIONS.md](./DECISIONS.md) 第 243–275 行。
 
-### 🔴 P0 紧急卡点
+### 已应用的决策（P0 + P1 + P2）
 
-#### 卡点 1: PR Test 环境假通过问题
-
-**现象**: PR #48 CI 显示 ✅ 成功，但 `https://report-pr-48.zitian.party/` 返回 404
-
-**根因分析**:
-```
-pr-test.yml Health Check 步骤:
-  - 健康检查实际失败 10 次
-  - 日志显示 Dokploy compose 状态为 "error"
-  - 但脚本使用 exit 0 强制返回成功
-  - GitHub Actions 将整个 job 标记为 success
-```
-
-**影响**:
-- 开发者误以为 PR 可正常预览
-- 无法在 merge 前验证端到端功能
-- 违反 AGENTS.md 第 98-99 行的交付原则
-
-**建议修复** (分配给 🏗️ Architect):
-```yaml
-# pr-test.yml Health Check 步骤改为:
-- name: Health Check
-  run: |
-    # ... 健康检查逻辑 ...
-    if [ $failed -gt 0 ]; then
-      echo "::error::Health check failed after 10 attempts"
-      exit 1  # ← 真正失败而非 exit 0
-    fi
-```
+1. **EPIC-018 占位 AC 已替换（P0a）** — 16 个 `ac_registry.yaml` 中的 AC 条目从数字占位符重写为具体验收标准（源自 `EPIC-018.ai-driven-pipeline.md` L234–249）。
+2. **Vision 非目标 #12 重新分类（P0b）** — `vision.md` L232 抵押贷款条目从 ❌ 改为 ✅；EPIC-011 已覆盖完整生命周期。
+3. **README 双状态表同步（P1a）** — `docs/project/README.md` 状态快照与活跃项目表现已对每个 EPIC 的状态保持一致。
+4. **AC-TEST-TRACEABILITY-AUDIT.md 头部刷新（P1b）** — 头部重写标注正文（L80+）为 542-AC 时代的遗留内容；完整的 218-AC 重映射推迟到后续 Issue。
+5. **AC12.24.1–3 划线弃用确认（P2a）** — `infra_registry.yaml` L765–779 条目已确认为有意弃用标记，保留不变。
+6. **截断的 AC 条目已恢复（P2b）** — 从 EPIC 源文件恢复了 11 个条目（AC16.23 块 + 相邻条目）。
+7. **非连续 AC 编号说明（P2c）** — 在 EPIC-002/008/010/012 的 AC 章节标题旁插入说明注释。
 
 ---
 
-#### 卡点 2: EPIC-007 部署流程未完成
-
-**现象**: 生产部署流程在 EPIC-007 中定义但大部分任务未完成
-
-**当前状态**:
-| Phase | 状态 | 阻塞原因 |
-|-------|------|----------|
-| Phase 1: 基础设施 | ⏳ 未开始 | 需创建 `repo/finance_report/` 目录结构 |
-| Phase 2-4: DB/Redis/App | ⏳ 未开始 | 依赖 Phase 1 |
-| Phase 5: Vault Secrets | ⏳ 未开始 | 依赖 Phase 2-4 |
-| Phase 6: 验证 | ⏳ 未开始 | 依赖全部 |
-
-**影响**:
-- staging-deploy.yml 使用临时方案 (直接 compose.update)
-- 没有 Vault 集成，secrets 可能暴露
-- production-deploy.yml 需要手动 workflow_dispatch
-
-**建议** (分配给 💻 Developer):
-1. 优先完成 Phase 1-4 基础设施
-2. 或评估是否可以简化部署方案
-
----
-
-### 🟡 P1 中等卡点
-
-#### 卡点 3: 6 环境职能边界模糊
-
-**发现的问题**:
-
-| 环境对 | 问题 | 建议 |
-|--------|------|------|
-| Local Dev vs Local Test | DB 生命周期不同但职能相似 | 在 development.md 明确区分场景 |
-| CI Test vs PR Test | CI 不运行 smoke test，PR Test 运行但结果被忽略 | 统一验证策略 |
-| Staging vs Production | Staging 自动部署，Prod 手动触发，但都用相同 compose.deploy | 添加 staging smoke test 作为 Prod 的 gate |
-
-**环境矩阵建议**:
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                        验证层级建议                                │
-├───────────────────────────────────────────────────────────────────┤
-│ L1: Unit Tests (CI)        → 必须通过                             │
-│ L2: Health Check (PR Test) → 必须通过 (修复 exit 0 问题后)        │
-│ L3: Smoke Test (Staging)   → 必须通过才能 promote to Prod         │
-│ L4: Canary Release (Prod)  → 可选的渐进式发布                     │
-└───────────────────────────────────────────────────────────────────┘
-```
-
----
-
-#### 卡点 4: EPIC-005 报表可视化进度
-
-**当前状态**: 🟡 In Progress
-
-**已完成**:
-- EPIC-002 复式记账核心 ✅
-- EPIC-003 对账单解析 ✅
-- EPIC-004 对账引擎 ✅
-- EPIC-006 AI 顾问 ✅
-
-**阻塞 EPIC-005 的原因**:
-- 需要前端 ECharts 集成
-- 需要报表计算 API
-- 优先级被 PR #48 环境变量标准化打断
-
-**建议**:
-- 完成 PR #48 后优先推进 EPIC-005
-- 或并行让另一个 agent 处理报表逻辑
-
----
-
-### 🟢 P2 改进建议
-
-#### 建议 1: 添加 Compose 状态校验
-
-在 pr-test.yml 中添加 Dokploy compose 状态检查:
-```bash
-compose_status=$(curl -sf ... | jq -r '.composeStatus')
-if [ "$compose_status" == "error" ]; then
-  echo "::error::Compose deployment failed with status: error"
-  exit 1
-fi
-```
-
-#### 建议 2: 文档化 6 环境职责
-
-在 development.md 添加环境矩阵表:
-| 环境 | 触发 | 验证级别 | 数据持久化 | 失败策略 |
-|------|------|----------|------------|----------|
-| Local Dev | 手动 | 无自动 | 本地 volume | N/A |
-| Local Test | moon run | Unit tests | 临时 DB | 阻塞开发 |
-| CI Test | PR/push | Unit tests | GitHub services | 阻塞 merge |
-| PR Test | PR | Health check | Dokploy volume | **应阻塞 merge** |
-| Staging | main push | Smoke test | 持久化 | 阻塞 Prod |
-| Production | manual | Smoke test | 持久化 | 回滚 |
-
-#### 建议 3: 添加回滚机制
-
-当前缺少自动回滚。建议在 staging/production deploy 失败时:
-1. 保留前一个成功的 IMAGE_TAG
-2. 自动回滚到上一版本
-3. 发送告警通知
-
----
-
-### 📋 行动项分配
-
-| 优先级 | 任务 | 负责角色 | 预计时间 |
-|--------|------|----------|----------|
-| P0 | 修复 pr-test.yml health check exit 0 问题 | 🏗️ Architect | 0.5h |
-| P0 | 添加 compose 状态校验 | 🏗️ Architect | 0.5h |
-| P1 | 诊断 PR #48 compose error 根因 | 💻 Developer | 2h |
-| P1 | 推进 EPIC-007 Phase 1-4 | 💻 Developer | 10h |
-| P2 | 文档化 6 环境职责矩阵 | 📋 PM | 1h |
-| P2 | 继续 EPIC-005 报表开发 | 💻 Developer | 按 EPIC 估时 |
-
----
-
-### 🔄 后续 Review 计划
-
-- [ ] PR #48 修复后重新验证预览环境
-- [ ] EPIC-007 完成后进行部署验收
-- [ ] EPIC-005 完成后进行报表功能验收
-
-**记录者**: AI Agent  
-**分析时间**: 2026-01-16 12:12 UTC
+**记录者**: Zitian Wang
+**完成时间**: 2026-01-09 20:04 UTC
+**Git 提交**: `9ceeb62`
