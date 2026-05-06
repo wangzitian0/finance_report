@@ -135,7 +135,7 @@ Integration points:
 
 ---
 
-## Test Optimisation
+## Test Optimization
 
 > **See dedicated file** → **[docs/ssot/ci-cd.md](./ci-cd.md)**
 >

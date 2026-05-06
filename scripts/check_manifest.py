@@ -53,10 +53,30 @@ def load_manifest(path: Path) -> dict:
     return data
 
 
+def check_concept_schema(concepts: dict) -> list[Violation]:
+    """Rule 0: every concept value must be a mapping (dict), not null or scalar."""
+    violations: list[Violation] = []
+    for concept_key, concept_data in concepts.items():
+        if not isinstance(concept_data, dict):
+            violations.append(
+                Violation(
+                    check="check0_concept_schema",
+                    message=(
+                        f"Concept '{concept_key}' must be a YAML mapping but got "
+                        f"{type(concept_data).__name__!r}. "
+                        "Expected keys: owner, description, cross_refs."
+                    ),
+                )
+            )
+    return violations
+
+
 def check_duplicate_owners(concepts: dict) -> list[Violation]:
     """Rule 1: no two concepts may share the same owner."""
     owner_to_concepts: dict[str, list[str]] = {}
     for concept_key, concept_data in concepts.items():
+        if not isinstance(concept_data, dict):
+            continue
         owner = concept_data.get("owner", "")
         if not owner:
             continue
@@ -81,6 +101,8 @@ def check_owner_files_exist(concepts: dict) -> list[Violation]:
     """Rule 2: every owner file path must exist on disk."""
     violations: list[Violation] = []
     for concept_key, concept_data in concepts.items():
+        if not isinstance(concept_data, dict):
+            continue
         owner = concept_data.get("owner", "")
         if not owner:
             violations.append(
@@ -108,8 +130,34 @@ def check_crossref_files_exist(concepts: dict) -> list[Violation]:
     """Rule 3: every cross_ref file path must exist on disk."""
     violations: list[Violation] = []
     for concept_key, concept_data in concepts.items():
-        cross_refs = concept_data.get("cross_refs") or []
+        if not isinstance(concept_data, dict):
+            continue
+        cross_refs = concept_data.get("cross_refs")
+        if cross_refs is None:
+            continue
+        if not isinstance(cross_refs, list):
+            violations.append(
+                Violation(
+                    check="check3_crossref_exists",
+                    message=(
+                        f"Concept '{concept_key}': 'cross_refs' must be a YAML list "
+                        f"but got {type(cross_refs).__name__!r}."
+                    ),
+                )
+            )
+            continue
         for ref in cross_refs:
+            if not isinstance(ref, str):
+                violations.append(
+                    Violation(
+                        check="check3_crossref_exists",
+                        message=(
+                            f"Concept '{concept_key}': cross_ref entry must be a "
+                            f"string but got {type(ref).__name__!r}: {ref!r}"
+                        ),
+                    )
+                )
+                continue
             file_path = REPO_ROOT / _file_part(ref)
             if not file_path.exists():
                 violations.append(
@@ -144,6 +192,7 @@ def main() -> int:
         return 1
 
     violations: list[Violation] = []
+    violations.extend(check_concept_schema(concepts))
     violations.extend(check_duplicate_owners(concepts))
     violations.extend(check_owner_files_exist(concepts))
     violations.extend(check_crossref_files_exist(concepts))

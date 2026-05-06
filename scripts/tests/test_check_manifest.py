@@ -1,6 +1,7 @@
 """Tests for scripts/check_manifest.py.
 
-Covers all three checks:
+Covers all four checks:
+  0. Per-concept schema validation (concept value must be a mapping/dict)
   1. No duplicate owners (same file#anchor)
   2. Owner files must exist on disk
   3. Cross-ref files must exist on disk
@@ -29,6 +30,53 @@ import check_manifest as cm  # noqa: E402
 def _make_concepts(**kwargs: dict) -> dict:
     """Build a minimal concepts dict for testing."""
     return kwargs
+
+
+# ---------------------------------------------------------------------------
+# Tests: check_concept_schema
+# ---------------------------------------------------------------------------
+
+
+class TestCheckConceptSchema:
+    def test_valid_dicts_pass(self) -> None:
+        concepts = _make_concepts(
+            foo={"owner": "docs/ssot/foo.md", "description": "test"},
+            bar={"owner": "docs/ssot/bar.md"},
+        )
+        violations = cm.check_concept_schema(concepts)
+        assert violations == []
+
+    def test_null_value_fails(self) -> None:
+        concepts = _make_concepts(bad_concept=None)
+        violations = cm.check_concept_schema(concepts)
+        assert len(violations) == 1
+        assert violations[0].check == "check0_concept_schema"
+        assert "bad_concept" in violations[0].message
+        assert "NoneType" in violations[0].message
+
+    def test_string_value_fails(self) -> None:
+        concepts = _make_concepts(bad_concept="just a string")
+        violations = cm.check_concept_schema(concepts)
+        assert len(violations) == 1
+        assert violations[0].check == "check0_concept_schema"
+        assert "bad_concept" in violations[0].message
+        assert "str" in violations[0].message
+
+    def test_integer_value_fails(self) -> None:
+        concepts = _make_concepts(bad_concept=42)
+        violations = cm.check_concept_schema(concepts)
+        assert len(violations) == 1
+        assert violations[0].check == "check0_concept_schema"
+        assert "int" in violations[0].message
+
+    def test_mixed_valid_invalid(self) -> None:
+        concepts = _make_concepts(
+            good={"owner": "docs/ssot/foo.md"},
+            bad=None,
+        )
+        violations = cm.check_concept_schema(concepts)
+        assert len(violations) == 1
+        assert "bad" in violations[0].message
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +125,12 @@ class TestCheckDuplicateOwners:
         concepts = _make_concepts(
             foo={"description": "no owner field"},
         )
+        violations = cm.check_duplicate_owners(concepts)
+        assert violations == []
+
+    def test_non_dict_concept_skipped(self) -> None:
+        """Non-dict concepts are caught by check_concept_schema; skip here."""
+        concepts = _make_concepts(foo=None, bar=None)
         violations = cm.check_duplicate_owners(concepts)
         assert violations == []
 
@@ -133,6 +187,13 @@ class TestCheckOwnerFilesExist:
 
         # Should resolve docs/ssot/foo.md (ignoring #anchor)
         concepts = _make_concepts(foo={"owner": "docs/ssot/foo.md#anchor-here"})
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_owner_files_exist(concepts)
+        assert violations == []
+
+    def test_non_dict_concept_skipped(self, tmp_path: Path) -> None:
+        """Non-dict concepts are caught by check_concept_schema; skip here."""
+        concepts = _make_concepts(foo=None)
         with mock.patch.object(cm, "REPO_ROOT", tmp_path):
             violations = cm.check_owner_files_exist(concepts)
         assert violations == []
@@ -194,6 +255,40 @@ class TestCheckCrossrefFilesExist:
         )
         with mock.patch.object(cm, "REPO_ROOT", tmp_path):
             violations = cm.check_crossref_files_exist(concepts)
+        assert violations == []
+
+    def test_crossrefs_as_string_fails(self) -> None:
+        """cross_refs must be a list; a scalar string is a schema error."""
+        concepts = _make_concepts(
+            foo={
+                "owner": "docs/ssot/foo.md",
+                "cross_refs": "AGENTS.md",
+            }
+        )
+        violations = cm.check_crossref_files_exist(concepts)
+        assert len(violations) == 1
+        assert violations[0].check == "check3_crossref_exists"
+        assert "str" in violations[0].message
+        assert "foo" in violations[0].message
+
+    def test_crossrefs_entry_not_a_string_fails(self, tmp_path: Path) -> None:
+        """Items in cross_refs must be strings."""
+        concepts = _make_concepts(
+            foo={
+                "owner": "docs/ssot/foo.md",
+                "cross_refs": [42],
+            }
+        )
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_crossref_files_exist(concepts)
+        assert len(violations) == 1
+        assert violations[0].check == "check3_crossref_exists"
+        assert "int" in violations[0].message
+
+    def test_non_dict_concept_skipped(self) -> None:
+        """Non-dict concepts are caught by check_concept_schema; skip here."""
+        concepts = _make_concepts(foo=None)
+        violations = cm.check_crossref_files_exist(concepts)
         assert violations == []
 
 
@@ -287,3 +382,44 @@ class TestMain:
         with mock.patch("sys.argv", ["check_manifest.py"]):
             result = cm.main()
         assert result == 0
+
+    def test_null_concept_value_fails(self, tmp_path: Path, capsys) -> None:  # type: ignore[type-arg]
+        """A concept mapped to null must trigger check0_concept_schema."""
+        manifest = tmp_path / "MANIFEST.yaml"
+        manifest.write_text(
+            "concepts:\n"
+            "  bad_concept:\n"
+        )
+        with (
+            mock.patch("sys.argv", ["check_manifest.py"]),
+            mock.patch.object(cm, "MANIFEST_PATH", manifest),
+            mock.patch.object(cm, "REPO_ROOT", tmp_path),
+        ):
+            result = cm.main()
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "check0_concept_schema" in captured.err
+        assert "bad_concept" in captured.err
+
+    def test_string_crossrefs_fails(self, tmp_path: Path, capsys) -> None:  # type: ignore[type-arg]
+        """cross_refs as a scalar string must fail with a clear message."""
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "foo.md").write_text("content")
+
+        manifest = tmp_path / "MANIFEST.yaml"
+        manifest.write_text(
+            "concepts:\n"
+            "  my_concept:\n"
+            "    owner: docs/ssot/foo.md\n"
+            "    cross_refs: AGENTS.md\n"
+        )
+        with (
+            mock.patch("sys.argv", ["check_manifest.py"]),
+            mock.patch.object(cm, "MANIFEST_PATH", manifest),
+            mock.patch.object(cm, "REPO_ROOT", tmp_path),
+        ):
+            result = cm.main()
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "check3_crossref_exists" in captured.err
