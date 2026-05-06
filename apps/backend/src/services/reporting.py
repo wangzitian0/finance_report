@@ -25,7 +25,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount
+from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount, get_average_rate
 
 logger = get_logger(__name__)
 
@@ -265,13 +265,18 @@ async def _aggregate_net_income_sql(
     *,
     start_date: date | None = None,
 ) -> Decimal:
-    """Aggregate net income (Income - Expenses) using SQL with FX conversion.
+    """Aggregate net income (Income - Expenses) using SQL with period-average FX conversion.
 
-    Uses historical cost accounting - FX rate at entry_date for each transaction.
+    Uses period-average FX rates matching the income statement reporting convention.
+    When start_date is omitted (cumulative balance sheet use), the average spans all
+    available historical FX rates up to as_of_date (sentinel: 1970-01-01).
+    If no FX rates exist in the range, get_average_rate falls back to the most recent
+    spot rate on or before as_of_date; if that is also absent, FxRateError is raised
+    and re-raised here as ReportError.
     """
-    # First, get distinct currencies and entry dates for FX rate lookup
-    currency_date_stmt = (
-        select(JournalLine.currency, JournalEntry.entry_date)
+    # Get distinct currencies for income/expense lines in the period
+    currency_stmt = (
+        select(JournalLine.currency)
         .distinct()
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
@@ -281,63 +286,38 @@ async def _aggregate_net_income_sql(
         .where(JournalEntry.entry_date <= as_of_date)
     )
     if start_date:
-        currency_date_stmt = currency_date_stmt.where(JournalEntry.entry_date >= start_date)
+        currency_stmt = currency_stmt.where(JournalEntry.entry_date >= start_date)
 
-    cd_result = await db.execute(currency_date_stmt)
-    currency_dates = cd_result.all()
+    currency_result = await db.execute(currency_stmt)
+    currencies = {row[0].upper() for row in currency_result.all()}
 
-    if not currency_dates:
+    if not currencies:
         return Decimal("0")
 
-    # Build FX rate map: (currency, entry_date) -> rate
-    fx_rate_map: dict[tuple[str, date], Decimal] = {}
-    for currency, entry_date in currency_dates:
-        source = currency.upper()
+    # Build FX rate map: currency -> period-average rate
+    # When start_date is not provided, use 1970-01-01 as a sentinel so that the
+    # average covers all FX data stored in the database up to as_of_date.
+    # (get_average_rate falls back to the spot rate at as_of_date when no rates
+    # exist in the range, and raises FxRateError if that is also missing.)
+    effective_start = start_date or date(1970, 1, 1)
+    fx_rate_map: dict[str, Decimal] = {}
+    for source in currencies:
         if source == target_currency:
-            fx_rate_map[(source, entry_date)] = Decimal("1")
+            fx_rate_map[source] = Decimal("1")
             continue
 
-        # Get rate for this specific date (historical cost accounting)
-        stmt = (
-            select(FxRate.rate)
-            .where(FxRate.base_currency == source)
-            .where(FxRate.quote_currency == target_currency)
-            .where(FxRate.rate_date <= entry_date)
-            .order_by(FxRate.rate_date.desc())
-            .limit(1)
-        )
-        result = await db.execute(stmt)
-        rate = result.scalar_one_or_none()
+        try:
+            rate = await get_average_rate(db, source, target_currency, effective_start, as_of_date)
+        except FxRateError as exc:
+            raise ReportError(str(exc)) from exc
 
-        if rate is None:
-            fallback_stmt = (
-                select(FxRate.rate)
-                .where(FxRate.base_currency == source)
-                .where(FxRate.quote_currency == target_currency)
-                .where(FxRate.rate_date <= as_of_date)
-                .order_by(FxRate.rate_date.desc())
-                .limit(1)
-            )
-            fallback_result = await db.execute(fallback_stmt)
-            rate = fallback_result.scalar_one_or_none()
+        fx_rate_map[source] = rate
 
-            if rate is None:
-                raise ReportError(f"No FX rate available for {source}/{target_currency} on {entry_date}")
-
-            logger.warning(
-                "Using fallback FX rate for net income calculation",
-                error_id=ErrorIds.REPORT_FX_FALLBACK,
-                currency=source,
-                entry_date=entry_date.isoformat(),
-                fallback_date=as_of_date.isoformat(),
-            )
-
-        fx_rate_map[(source, entry_date)] = Decimal(str(rate)) if not isinstance(rate, Decimal) else rate
-
+    # Aggregate amounts grouped by currency, account type, and direction.
+    # No grouping by entry_date — the same period-average rate applies to all entries.
     agg_stmt = (
         select(
             JournalLine.currency,
-            JournalEntry.entry_date,
             Account.type,
             JournalLine.direction,
             func.sum(JournalLine.amount).label("total"),
@@ -348,7 +328,7 @@ async def _aggregate_net_income_sql(
         .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date <= as_of_date)
-        .group_by(JournalLine.currency, JournalEntry.entry_date, Account.type, JournalLine.direction)
+        .group_by(JournalLine.currency, Account.type, JournalLine.direction)
     )
     if start_date:
         agg_stmt = agg_stmt.where(JournalEntry.entry_date >= start_date)
@@ -358,11 +338,9 @@ async def _aggregate_net_income_sql(
     net_income = Decimal("0")
     for row in result.all():
         currency_upper = row.currency.upper()
-        fx_rate = fx_rate_map.get((currency_upper, row.entry_date))
+        fx_rate = fx_rate_map.get(currency_upper)
         if fx_rate is None:
-            raise ReportError(
-                f"Missing FX rate for {currency_upper}/{target_currency} on {row.entry_date} - data consistency error"
-            )
+            raise ReportError(f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error")
         converted = Decimal(str(row.total)) * fx_rate
         signed = _signed_amount(row.type, row.direction, converted)
         net_income += signed
@@ -407,7 +385,7 @@ async def generate_balance_sheet(
     total_equity = _quantize_money(sum((Decimal(str(line["amount"])) for line in equity), Decimal("0")))
 
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
-    # Uses SQL aggregation with historical cost accounting (FX rate at entry_date)
+    # Uses period-average FX rates for consistency with the income statement
     try:
         net_income = await _aggregate_net_income_sql(db, user_id, target_currency, as_of_date)
     except ReportError:
