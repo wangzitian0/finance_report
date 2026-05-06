@@ -140,6 +140,10 @@ describe("StatementUploader model selection", () => {
 
     render(<StatementUploader />);
     const select = await screen.findByLabelText(/ai model/i);
+    // Wait for models to load (select starts disabled until fetchAiModels resolves)
+    await waitFor(() => {
+      expect(select).not.toBeDisabled();
+    });
     await userEvent.selectOptions(select, "qwen/qwen-2.5-vl-7b-instruct:free");
     expect(select).toHaveValue("qwen/qwen-2.5-vl-7b-instruct:free");
     expect(localStorage.getItem("statement_model_v1")).toBe("qwen/qwen-2.5-vl-7b-instruct:free");
@@ -173,6 +177,10 @@ describe("StatementUploader model selection", () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Quota exceeded') });
     render(<StatementUploader />);
     const select = await screen.findByLabelText(/ai model/i);
+    // Wait for models to load (select starts disabled until fetchAiModels resolves)
+    await waitFor(() => {
+      expect(select).not.toBeDisabled();
+    });
     await userEvent.selectOptions(select, "qwen/qwen-2.5-vl-7b-instruct:free");
     spy.mockRestore();
     // This should trigger the warning toast (but we didn't mock showToast properly here to check it easily, 80%+ should still be fine)

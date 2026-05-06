@@ -340,9 +340,7 @@ async def _aggregate_net_income_sql(
         currency_upper = row.currency.upper()
         fx_rate = fx_rate_map.get(currency_upper)
         if fx_rate is None:
-            raise ReportError(
-                f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error"
-            )
+            raise ReportError(f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error")
         converted = Decimal(str(row.total)) * fx_rate
         signed = _signed_amount(row.type, row.direction, converted)
         net_income += signed
