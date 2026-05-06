@@ -160,7 +160,7 @@ ssh root@$VPS_HOST "docker restart finance_report-vault-agent-staging"
 
 ---
 
-## Cross-Repo Synchronisation
+## Cross-Repo Synchronization
 
 If a change requires new environment variables or changes to `docker-compose.yml` labels/configs for production:
 

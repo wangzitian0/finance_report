@@ -1,7 +1,7 @@
-# CI/CD and Test Optimisation SSOT
+# CI/CD and Test Optimization SSOT
 
 > **SSOT Key**: `ci-cd`
-> **Source of Truth** for CI job structure, test optimisation modes, and performance metrics.
+> **Source of Truth** for CI job structure, test optimization modes, and performance metrics.
 
 *Extracted from [development.md](./development.md) — see that file for Moon commands and local setup.*
 
@@ -69,7 +69,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 ---
 
-## Test Optimisation
+## Test Optimization
 
 ### Test Modes
 
@@ -87,7 +87,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - `scripts/fast_test.py` — Runs all tests, no coverage
 - `scripts/test_lifecycle.py` — DB lifecycle (accepts coverage flags from callers)
 
-**CI Optimisation** (`.github/workflows/ci.yml`):
+**CI Optimization** (`.github/workflows/ci.yml`):
 - 4-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
@@ -119,7 +119,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Test execution: 893 tests in 4m 47s (**320ms avg**)
 - Caching: UV ✅ (2.9s), Next.js ✅, venv ✅
 
-**Backend Test Parallelisation:**
+**Backend Test Parallelization:**
 
 ```bash
 # In pyproject.toml

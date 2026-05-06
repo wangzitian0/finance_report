@@ -9,7 +9,7 @@
 
 ## Environment Overview
 
-> **Core Principle**: "One Codebase, Multiple Environments" — Local uses containers + namespace isolation, CI emphasises consistency, Production uses image deployment.
+> **Core Principle**: "One Codebase, Multiple Environments" — Local uses containers + namespace isolation, CI emphasizes consistency, Production uses image deployment.
 
 | # | Environment | URL | Trigger | Code Runtime | Infrastructure | Database | Isolation |
 |---|-------------|-----|---------|--------------|----------------|----------|-----------|
@@ -126,6 +126,6 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 ## Related
 
 - [development.md](./development.md) — Moon commands and local setup
-- [ci-cd.md](./ci-cd.md) — CI job structure and test optimisation
+- [ci-cd.md](./ci-cd.md) — CI job structure and test optimization
 - [deployment.md](./deployment.md) — Deployment architecture and workflows
 - [docs/ssot/MANIFEST.yaml](./MANIFEST.yaml) — Concept ownership registry
