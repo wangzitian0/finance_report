@@ -351,7 +351,12 @@ async def _aggregate_net_income_sql(
         if fx_rate is None:
             raise ReportError(f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error")
         converted = Decimal(str(row.total)) * fx_rate
-        signed = _signed_amount(row.type, row.direction, converted)
+        # Net income sign convention: both income and expense types are credit-normal.
+        # - Income CREDIT = +, Income DEBIT = -
+        # - Expense DEBIT = - (expenses reduce net income), Expense CREDIT = +
+        # Do NOT use _signed_amount here: it returns +amount for EXPENSE DEBIT (account-balance
+        # convention), which is the opposite of what the net-income formula needs.
+        signed = converted if row.direction == Direction.CREDIT else -converted
         net_income += signed
 
     return net_income
