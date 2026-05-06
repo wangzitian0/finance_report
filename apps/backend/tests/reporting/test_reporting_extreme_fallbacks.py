@@ -207,10 +207,11 @@ async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test
 
 @pytest.mark.asyncio
 async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_user_id):
-    """AC5.6.7: _aggregate_net_income_sql uses period-average FX rate, not spot rate.
+    """_aggregate_net_income_sql uses period-average FX rate, not spot rate.
 
     With two FX rates in the period (1.30 and 1.50), the average is 1.40.
     Net income of 100 USD should be converted at 1.40, yielding 140 SGD.
+    The old spot-rate behavior (rate on entry date 2025-01-15 = 1.30) would give 130 SGD.
     """
     income_acc = Account(user_id=test_user_id, name="USD Salary", type=AccountType.INCOME, currency="USD")
     asset_acc = Account(user_id=test_user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")

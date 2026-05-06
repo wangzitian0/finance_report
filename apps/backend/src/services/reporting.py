@@ -268,8 +268,11 @@ async def _aggregate_net_income_sql(
     """Aggregate net income (Income - Expenses) using SQL with period-average FX conversion.
 
     Uses period-average FX rates matching the income statement reporting convention.
-    When start_date is omitted (cumulative balance sheet use), the average is computed
-    over all available historical rates up to as_of_date.
+    When start_date is omitted (cumulative balance sheet use), the average spans all
+    available historical FX rates up to as_of_date (sentinel: 1970-01-01).
+    If no FX rates exist in the range, get_average_rate falls back to the most recent
+    spot rate on or before as_of_date; if that is also absent, FxRateError is raised
+    and re-raised here as ReportError.
     """
     # Get distinct currencies for income/expense lines in the period
     currency_stmt = (
@@ -292,8 +295,10 @@ async def _aggregate_net_income_sql(
         return Decimal("0")
 
     # Build FX rate map: currency -> period-average rate
-    # Use a very early sentinel when start_date is not provided so that the average
-    # covers all available historical rates up to as_of_date.
+    # When start_date is not provided, use 1970-01-01 as a sentinel so that the
+    # average covers all FX data stored in the database up to as_of_date.
+    # (get_average_rate falls back to the spot rate at as_of_date when no rates
+    # exist in the range, and raises FxRateError if that is also missing.)
     effective_start = start_date or date(1970, 1, 1)
     fx_rate_map: dict[str, Decimal] = {}
     for source in currencies:
