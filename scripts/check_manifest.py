@@ -44,6 +44,11 @@ def _file_part(ref: str) -> str:
     return ref.split("#")[0]
 
 
+def _is_valid_concept(concept_data: object) -> bool:
+    """Return True if concept_data is a dict (a valid mapping in YAML)."""
+    return isinstance(concept_data, dict)
+
+
 def load_manifest(path: Path) -> dict:
     if not path.exists():
         print(f"ERROR: MANIFEST.yaml not found at {path}", file=sys.stderr)
@@ -57,7 +62,7 @@ def check_concept_schema(concepts: dict) -> list[Violation]:
     """Rule 0: every concept value must be a mapping (dict), not null or scalar."""
     violations: list[Violation] = []
     for concept_key, concept_data in concepts.items():
-        if not isinstance(concept_data, dict):
+        if not _is_valid_concept(concept_data):
             violations.append(
                 Violation(
                     check="check0_concept_schema",
@@ -75,7 +80,7 @@ def check_duplicate_owners(concepts: dict) -> list[Violation]:
     """Rule 1: no two concepts may share the same owner."""
     owner_to_concepts: dict[str, list[str]] = {}
     for concept_key, concept_data in concepts.items():
-        if not isinstance(concept_data, dict):
+        if not _is_valid_concept(concept_data):
             continue
         owner = concept_data.get("owner", "")
         if not owner:
@@ -101,7 +106,7 @@ def check_owner_files_exist(concepts: dict) -> list[Violation]:
     """Rule 2: every owner file path must exist on disk."""
     violations: list[Violation] = []
     for concept_key, concept_data in concepts.items():
-        if not isinstance(concept_data, dict):
+        if not _is_valid_concept(concept_data):
             continue
         owner = concept_data.get("owner", "")
         if not owner:
@@ -130,7 +135,7 @@ def check_crossref_files_exist(concepts: dict) -> list[Violation]:
     """Rule 3: every cross_ref file path must exist on disk."""
     violations: list[Violation] = []
     for concept_key, concept_data in concepts.items():
-        if not isinstance(concept_data, dict):
+        if not _is_valid_concept(concept_data):
             continue
         cross_refs = concept_data.get("cross_refs")
         if cross_refs is None:
@@ -141,7 +146,8 @@ def check_crossref_files_exist(concepts: dict) -> list[Violation]:
                     check="check3_crossref_exists",
                     message=(
                         f"Concept '{concept_key}': 'cross_refs' must be a YAML list "
-                        f"but got {type(cross_refs).__name__!r}."
+                        f"but got {type(cross_refs).__name__!r}. "
+                        "Expected format: `cross_refs: [file1.md, file2.md]`"
                     ),
                 )
             )
