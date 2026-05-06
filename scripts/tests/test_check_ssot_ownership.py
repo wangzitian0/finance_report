@@ -1,6 +1,7 @@
 """Tests for scripts/check_ssot_ownership.py"""
 from __future__ import annotations
 
+import runpy
 import sys
 from pathlib import Path
 
@@ -8,18 +9,21 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import check_ssot_ownership  # noqa: F401 (module reference for monkeypatch)
 from check_ssot_ownership import (
     MUST_BE_ABSENT,
     MUST_BE_ARCHIVED,
     REPO_ROOT,
     RULE_KEYWORDS,
     TRANSLATION_PAIRS,
+    Violation,
     check_must_be_absent,
     check_must_be_archived,
     check_rule_cross_references,
     check_translation_parity,
     count_lines,
     has_cross_reference,
+    main,
 )
 
 
@@ -96,6 +100,17 @@ class TestCheckTranslationParity:
         violations = check_translation_parity()
         assert len(violations) == 1
         assert "ZH translation must not exceed EN source" in violations[0].message
+
+    def test_skips_when_file_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When one file in a pair doesn't exist the pair is silently skipped."""
+        en = tmp_path / "DECISIONS.md"
+        en.write_text("line1\nline2")
+        zh_missing = tmp_path / "DECISIONS_ZH.md"  # NOT created
+        monkeypatch.setattr(
+            "check_ssot_ownership.TRANSLATION_PAIRS",
+            [(zh_missing, en)],
+        )
+        assert check_translation_parity() == []
 
     def test_real_decisions_files_pass(self) -> None:
         """Actual DECISIONS.md / DECISIONS_ZH.md must satisfy ZH ≤ EN."""
@@ -246,6 +261,41 @@ class TestCheckRuleCrossReferences:
         violations = check_rule_cross_references()
         assert violations == [], "\n".join(v.message for v in violations)
 
+    def test_oserror_reading_file_is_skipped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A file that raises OSError when read is silently skipped (no violation)."""
+        bad_file = tmp_path / "docs" / "project" / "UNREADABLE.md"
+        bad_file.parent.mkdir(parents=True)
+        bad_file.write_text("trigger keyword FLOAT monetary amounts here\n")
+
+        import re as _re
+
+        monkeypatch.setattr("check_ssot_ownership.REPO_ROOT", tmp_path)
+        monkeypatch.setattr(
+            "check_ssot_ownership.RULE_KEYWORDS",
+            [
+                (
+                    "Decimal monetary rule",
+                    _re.compile(r"FLOAT.*monetary", _re.IGNORECASE),
+                    "docs/ssot/accounting.md",
+                    "#decimal-rule",
+                )
+            ],
+        )
+        monkeypatch.setattr("check_ssot_ownership.CHECK4_EXEMPT_PATHS", set())
+
+        original_read_text = Path.read_text
+
+        def _raise_if_target(self, *args, **kwargs):
+            if self == bad_file:
+                raise OSError("permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", _raise_if_target)
+        violations = check_rule_cross_references()
+        assert violations == []
+
 
 # ---------------------------------------------------------------------------
 # Integration — full run on real repo
@@ -262,3 +312,57 @@ class TestFullRunOnRealRepo:
             + check_rule_cross_references()
         )
         assert violations == [], "\n".join(v.message for v in violations)
+
+
+# ---------------------------------------------------------------------------
+# main() function
+# ---------------------------------------------------------------------------
+
+
+class TestMain:
+    def test_main_no_violations_quiet(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """main() with no violations and no --verbose returns 0 silently."""
+        monkeypatch.setattr(sys, "argv", ["check_ssot_ownership.py"])
+        assert main() == 0
+
+    def test_main_no_violations_verbose(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        """main() with --verbose prints summary and returns 0."""
+        monkeypatch.setattr(sys, "argv", ["check_ssot_ownership.py", "--verbose"])
+        result = main()
+        captured = capsys.readouterr()
+        assert result == 0
+        assert "SSOT ownership lint" in captured.out
+        assert "OK: SSOT ownership lint passed." in captured.out
+
+    def test_main_with_violations_returns_1(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        """main() prints grouped violations and returns 1 when checks fail."""
+        fake_violation = Violation(
+            check="check1_translation_parity",
+            message="DECISIONS_ZH.md has 10 lines but DECISIONS.md has only 5 lines.",
+        )
+
+        monkeypatch.setattr(sys, "argv", ["check_ssot_ownership.py"])
+        monkeypatch.setattr(
+            "check_ssot_ownership.check_translation_parity",
+            lambda: [fake_violation],
+        )
+        result = main()
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "SSOT ownership lint found 1 violation" in captured.err
+        assert "check1_translation_parity" in captured.err
+        assert fake_violation.message in captured.err
+
+    def test_main_entrypoint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """sys.exit(main()) is called when the script runs as __main__."""
+        monkeypatch.setattr(sys, "argv", ["check_ssot_ownership.py"])
+        with pytest.raises(SystemExit) as exc_info:
+            runpy.run_path(
+                str(Path(__file__).parent.parent / "check_ssot_ownership.py"),
+                run_name="__main__",
+            )
+        assert exc_info.value.code == 0
