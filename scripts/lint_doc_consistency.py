@@ -139,9 +139,9 @@ def _line_is_ac_annotation(line: str) -> bool:
         return True
     return bool(REMOVED_ANNOTATION_RE.search(line))
 
-# EPIC files follow ``EPIC-NNN`` filename prefix. We do NOT require a
-# specific suffix because EPIC-016-IMPLEMENTATION-PLAN.md is a sibling
-# of EPIC-016.two-stage-review-ui.md.
+# EPIC files follow the ``EPIC-NNN.descriptive-name.md`` convention.
+# The pattern matches any filename starting with ``EPIC-`` followed by exactly
+# three digits (e.g. ``EPIC-016.two-stage-review-ui.md``).
 EPIC_FILE_PATTERN = re.compile(r"^EPIC-\d{3}.*\.md$")
 
 # Vision Anchor line. Three accepted markdown variants:

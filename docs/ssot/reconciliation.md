@@ -19,6 +19,18 @@
 
 **Bank transaction entity**: `BankStatementTransaction` (from statement extraction) is the reconciliation input.
 
+### <a id="thresholds"></a>Reconciliation Thresholds
+
+| Score Range | Action | Status Transition |
+|-------------|--------|-------------------|
+| ≥ 85 | Auto-Accept | `pending` → `auto_accepted` |
+| 60–84 | Review Queue | `pending` → `pending_review` |
+| < 60 | Unmatched | stays `pending` |
+
+> **SSOT**: This table is the single authoritative definition of reconciliation score thresholds.
+> All other files that mention these thresholds should reference this section:
+> `See: docs/ssot/reconciliation.md#thresholds`
+
 ### Reconciliation Flow
 
 ```mermaid
