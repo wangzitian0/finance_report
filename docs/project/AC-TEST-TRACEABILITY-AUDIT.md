@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-05 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-06 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -14,34 +14,35 @@
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
 | **Total ACs (registries)** | 918 | 100% |
-| **Mandatory ACs** | 760 | 82.8% |
-| **Mandatory ACs with test reference** | 760 | 100.0% |
+| **Mandatory ACs** | 757 | 82.5% |
+| **Deprecated ACs** | 3 | 0.3% |
+| **Mandatory ACs with test reference** | 757 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 171 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
 
-| EPIC | Name | Total ACs | Mandatory | With Test Ref | Coverage |
-|------|------|-----------|-----------|---------------|----------|
-| [EPIC-001](#epic-001-phase0-setup) | phase0-setup | 29 | 27 | 27 | 100.0% |
-| [EPIC-002](#epic-002-double-entry-core) | double-entry-core | 59 | 44 | 44 | 100.0% |
-| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 39 | 19 | 19 | 100.0% |
-| [EPIC-004](#epic-004-reconciliation-engine) | reconciliation-engine | 39 | 18 | 18 | 100.0% |
-| [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 25 | 25 | 100.0% |
-| [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 55 | 55 | 100.0% |
-| [EPIC-007](#epic-007-deployment) | deployment | 39 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 61 | 55 | 55 | 100.0% |
-| [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 36 | 36 | 100.0% |
-| [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 21 | 21 | 100.0% |
-| [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 34 | 34 | 34 | 100.0% |
-| [EPIC-012](#epic-012-foundation-libs) | foundation-libs | 62 | 58 | 58 | 100.0% |
-| [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 58 | 58 | 100.0% |
-| [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 6 | 6 | 100.0% |
-| [EPIC-015](#epic-015-processing-account) | processing-account | 27 | 27 | 27 | 100.0% |
-| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 210 | 186 | 186 | 100.0% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 73 | 29 | 29 | 100.0% |
-| [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 23 | 23 | 100.0% |
+| EPIC | Name | Total ACs | Deprecated | Mandatory | With Test Ref | Coverage |
+|------|------|-----------|------------|-----------|---------------|----------|
+| [EPIC-001](#epic-001-phase0-setup) | phase0-setup | 29 | 0 | 27 | 27 | 100.0% |
+| [EPIC-002](#epic-002-double-entry-core) | double-entry-core | 59 | 0 | 44 | 44 | 100.0% |
+| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 39 | 0 | 19 | 19 | 100.0% |
+| [EPIC-004](#epic-004-reconciliation-engine) | reconciliation-engine | 39 | 0 | 18 | 18 | 100.0% |
+| [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
+| [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
+| [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 61 | 0 | 55 | 55 | 100.0% |
+| [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
+| [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
+| [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 34 | 0 | 34 | 34 | 100.0% |
+| [EPIC-012](#epic-012-foundation-libs) | foundation-libs | 62 | 3 | 55 | 55 | 100.0% |
+| [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 58 | 100.0% |
+| [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
+| [EPIC-015](#epic-015-processing-account) | processing-account | 27 | 0 | 27 | 27 | 100.0% |
+| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 210 | 0 | 186 | 186 | 100.0% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 73 | 0 | 29 | 29 | 100.0% |
+| [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
 ---
 
@@ -650,8 +651,9 @@
 <a id="epic-012-foundation-libs"></a>
 
 - **Total ACs**: 62
-- **Mandatory ACs**: 58
-- **Mandatory ACs with test reference**: 58 (100.0%)
+- **Deprecated ACs**: 3
+- **Mandatory ACs**: 55
+- **Mandatory ACs with test reference**: 55 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -714,9 +716,9 @@
 | AC12.23.2 | yes | Global rate limit middleware returns 429 after limit exceeded | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` | ✅ |
 | AC12.23.3 | yes | Global rate limit middleware allows normal requests | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` | ✅ |
 | AC12.23.4 | yes | Global rate limit middleware exempts /docs | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` | ✅ |
-| AC12.24.1 | yes | ~~/metrics endpoint returns 200 OK~~ | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` | ✅ |
-| AC12.24.2 | yes | ~~/metrics endpoint returns text/plain~~ | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` | ✅ |
-| AC12.24.3 | yes | ~~/metrics response contains Prometheus data~~ | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` | ✅ |
+| AC12.24.1 | deprecated | ~~/metrics endpoint returns 200 OK~~ | _n/a_ | 🚫 deprecated |
+| AC12.24.2 | deprecated | ~~/metrics endpoint returns text/plain~~ | _n/a_ | 🚫 deprecated |
+| AC12.24.3 | deprecated | ~~/metrics response contains Prometheus data~~ | _n/a_ | 🚫 deprecated |
 
 ---
 

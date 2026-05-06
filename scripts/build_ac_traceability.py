@@ -161,6 +161,12 @@ def _ac_sort_key(ac_id: str) -> tuple[int, ...]:
     return tuple(int(p) for p in ac_id[2:].split("."))
 
 
+def _is_deprecated(ac: AC) -> bool:
+    """Return True if the AC description uses Markdown strikethrough (~~text~~)."""
+    desc = ac.description.strip()
+    return desc.startswith("~~") and desc.endswith("~~") and len(desc) > 4
+
+
 def _is_manual(ac: AC) -> bool:
     desc = ac.description.lower()
     return any(tok in desc for tok in MANUAL_TOKENS)
@@ -215,10 +221,12 @@ def render_document(
         epic_names.setdefault(epic_num, f"EPIC-{epic_num:03d}")
 
     total_acs = len(acs)
-    mandatory_acs = [ac for ac in acs if ac.mandatory]
+    deprecated_ids = {ac.id for ac in acs if _is_deprecated(ac)}
+    mandatory_acs = [ac for ac in acs if ac.mandatory and ac.id not in deprecated_ids]
+    deprecated_count = len(deprecated_ids)
     covered_ids = {ac.id for ac in mandatory_acs if ac.id in references}
     missing_ids = {ac.id for ac in mandatory_acs if ac.id not in references}
-    manual_count = sum(1 for ac in acs if _is_manual(ac))
+    manual_count = sum(1 for ac in acs if _is_manual(ac) and ac.id not in deprecated_ids)
     test_files_referenced = sorted({p for paths in references.values() for p in paths})
     coverage_pct = (
         (len(covered_ids) / len(mandatory_acs) * 100.0) if mandatory_acs else 100.0
@@ -266,6 +274,10 @@ def render_document(
                  f"{len(mandatory_acs) / total_acs * 100:.1f}% |"
                  if total_acs else "| **Mandatory ACs** | 0 | 0% |")
     lines.append(
+        f"| **Deprecated ACs** | {deprecated_count} | "
+        f"{(deprecated_count / total_acs * 100.0) if total_acs else 0.0:.1f}% |"
+    )
+    lines.append(
         f"| **Mandatory ACs with test reference** | {len(covered_ids)} | "
         f"{coverage_pct:.1f}% |"
     )
@@ -287,21 +299,22 @@ def render_document(
     lines.append("### Coverage by EPIC")
     lines.append("")
     lines.append(
-        "| EPIC | Name | Total ACs | Mandatory | With Test Ref | Coverage |"
+        "| EPIC | Name | Total ACs | Deprecated | Mandatory | With Test Ref | Coverage |"
     )
     lines.append(
-        "|------|------|-----------|-----------|---------------|----------|"
+        "|------|------|-----------|------------|-----------|---------------|----------|"
     )
     for epic_num in sorted(by_epic):
         epic_acs = by_epic[epic_num]
-        mand = [ac for ac in epic_acs if ac.mandatory]
+        dep_count = sum(1 for ac in epic_acs if ac.id in deprecated_ids)
+        mand = [ac for ac in epic_acs if ac.mandatory and ac.id not in deprecated_ids]
         cov = sum(1 for ac in mand if ac.id in references)
         pct = (cov / len(mand) * 100.0) if mand else 100.0
         slug = _slug(epic_num, epic_names[epic_num])
         lines.append(
             f"| [EPIC-{epic_num:03d}](#{slug}) | "
             f"{_md_escape(epic_names[epic_num])} | "
-            f"{len(epic_acs)} | {len(mand)} | {cov} | {pct:.1f}% |"
+            f"{len(epic_acs)} | {dep_count} | {len(mand)} | {cov} | {pct:.1f}% |"
         )
     lines.append("")
     lines.append("---")
@@ -310,7 +323,8 @@ def render_document(
     # ---- Per-EPIC detailed tables ----
     for epic_num in sorted(by_epic):
         epic_acs = by_epic[epic_num]
-        mand = [ac for ac in epic_acs if ac.mandatory]
+        dep_in_epic = sum(1 for ac in epic_acs if ac.id in deprecated_ids)
+        mand = [ac for ac in epic_acs if ac.mandatory and ac.id not in deprecated_ids]
         cov = sum(1 for ac in mand if ac.id in references)
         pct = (cov / len(mand) * 100.0) if mand else 100.0
         slug = _slug(epic_num, epic_names[epic_num])
@@ -320,28 +334,35 @@ def render_document(
         lines.append(f"<a id=\"{slug}\"></a>")
         lines.append("")
         lines.append(f"- **Total ACs**: {len(epic_acs)}")
+        if dep_in_epic:
+            lines.append(f"- **Deprecated ACs**: {dep_in_epic}")
         lines.append(f"- **Mandatory ACs**: {len(mand)}")
         lines.append(f"- **Mandatory ACs with test reference**: {cov} ({pct:.1f}%)")
         lines.append("")
         lines.append("| AC ID | Mandatory | Description | Test References | Status |")
         lines.append("|-------|-----------|-------------|-----------------|--------|")
         for ac in epic_acs:
-            paths = references.get(ac.id, [])
-            if paths:
-                refs_cell = "<br>".join(f"`{_rel(p)}`" for p in paths)
-                if ac.mandatory:
-                    status = "✅"
-                else:
-                    status = "✅ (optional)"
+            if ac.id in deprecated_ids:
+                refs_cell = "_n/a_"
+                status = "🚫 deprecated"
+                mandatory_cell = "deprecated"
             else:
-                refs_cell = "_none_"
-                if not ac.mandatory:
-                    status = "⚪ (optional, no ref)"
-                elif _is_manual(ac):
-                    status = "🟡 manual"
+                paths = references.get(ac.id, [])
+                if paths:
+                    refs_cell = "<br>".join(f"`{_rel(p)}`" for p in paths)
+                    if ac.mandatory:
+                        status = "✅"
+                    else:
+                        status = "✅ (optional)"
                 else:
-                    status = "❌ missing"
-            mandatory_cell = "yes" if ac.mandatory else "no"
+                    refs_cell = "_none_"
+                    if not ac.mandatory:
+                        status = "⚪ (optional, no ref)"
+                    elif _is_manual(ac):
+                        status = "🟡 manual"
+                    else:
+                        status = "❌ missing"
+                mandatory_cell = "yes" if ac.mandatory else "no"
             lines.append(
                 f"| {ac.id} | {mandatory_cell} | "
                 f"{_md_escape(ac.description)} | {refs_cell} | {status} |"
