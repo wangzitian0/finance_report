@@ -17,7 +17,10 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 
 | Document | SSOT Key | Description |
 |----------|----------|-------------|
-| [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, CI environments, TDD workflow, and building documentation |
+| [development.md](./development.md) | `development` | **START HERE** — Moon commands, DB lifecycle, isolation utilities, and resource cleanup |
+| [environments.md](./environments.md) | `environments` | Six environments (Local Dev/CI/GitHub/PR/Staging/Production), naming, and isolation |
+| [ci-cd.md](./ci-cd.md) | `ci-cd` | CI job structure, test modes, no-regression coverage gate, and performance metrics |
+| [deployment.md](./deployment.md) | `deployment` | Deployment architecture, Vault secret injection, staging/production workflows |
 | [tdd.md](./tdd.md) | `tdd-transformation` | Test-Driven Development transformation plan, testing patterns, and 96% unified coverage goal |
 | [coverage.md](./coverage.md) | `coverage` | Unified test coverage system — Backend + Frontend + Scripts with blacklist approach |
 | [observability.md](./observability.md) | `observability` | Logging and SigNoz OTLP export configuration |
@@ -26,6 +29,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | [schema.md](./schema.md) | `schema` | PostgreSQL tables, ER diagram, indexes, and migrations |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rules, accounting equation, and transaction validation |
 | [env_smoke_test.md](./env_smoke_test.md) | `env_smoke_test` | Environment variable smoke testing — Validates configuration works via real operations |
+| [MANIFEST.yaml](./MANIFEST.yaml) | `manifest` | **Machine-readable concept→owner registry** — enforced by `scripts/check_manifest.py` |
 
 ### Feature-Specific Documents
 

@@ -1,0 +1,125 @@
+name: "Feature / Story"
+description: "Propose a new feature or user story anchored to an EPIC and AC IDs."
+title: "[EPIC-XXX] Short description"
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you begin
+        Follow the TDD-First work order: **EPIC → ACx.y.z → Test → Code → Doc**  
+        See [AGENTS.md](../../AGENTS.md) and [docs/ssot/tdd.md](../../docs/ssot/tdd.md).
+
+  - type: dropdown
+    id: epic
+    attributes:
+      label: "Anchor EPIC"
+      description: "Which EPIC does this issue belong to?"
+      options:
+        - "EPIC-001 — Phase 0 Infrastructure Setup"
+        - "EPIC-002 — Double-Entry Core"
+        - "EPIC-003 — Statement Parsing"
+        - "EPIC-004 — Reconciliation Engine"
+        - "EPIC-005 — Reporting & Visualization"
+        - "EPIC-006 — AI Advisor"
+        - "EPIC-007 — Deployment"
+        - "EPIC-008 — Testing Strategy"
+        - "EPIC-009 — PDF Fixture Generation"
+        - "EPIC-010 — SigNoz Logging"
+        - "EPIC-011 — Asset Lifecycle"
+        - "EPIC-012 — Foundation Libraries"
+        - "EPIC-013 — Statement Parsing v2"
+        - "EPIC-014 — TDD Transformation"
+        - "EPIC-015 — Processing Account"
+        - "EPIC-016 — Two-Stage Review UI"
+        - "EPIC-017 — Portfolio Management"
+        - "EPIC-018 — AI-Driven Pipeline"
+        - "New EPIC (describe below)"
+    validations:
+      required: true
+
+  - type: input
+    id: ac_ids
+    attributes:
+      label: "Affected AC IDs"
+      description: "Comma-separated list of Acceptance Criteria IDs (format: ACx.y.z). Register new ACs in docs/ac_registry.yaml or docs/infra_registry.yaml before writing code."
+      placeholder: "e.g. AC4.2.1, AC4.2.2"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: ssot_files
+    attributes:
+      label: "SSOT files to update"
+      description: "Which SSOT documents need to be updated or created for this feature?"
+      options:
+        - label: "docs/ssot/accounting.md"
+        - label: "docs/ssot/reconciliation.md"
+        - label: "docs/ssot/schema.md"
+        - label: "docs/ssot/extraction.md"
+        - label: "docs/ssot/reporting.md"
+        - label: "docs/ssot/ai.md"
+        - label: "docs/ssot/auth.md"
+        - label: "docs/ssot/frontend-patterns.md"
+        - label: "docs/ssot/tdd.md"
+        - label: "docs/ssot/development.md"
+        - label: "docs/ssot/environments.md"
+        - label: "docs/ssot/ci-cd.md"
+        - label: "docs/ssot/deployment.md"
+        - label: "docs/ssot/MANIFEST.yaml"
+        - label: "New SSOT file needed (describe in body)"
+        - label: "No SSOT update needed"
+
+  - type: dropdown
+    id: tdd_step
+    attributes:
+      label: "TDD Phase"
+      description: "Which phase of the TDD cycle does this issue represent?"
+      options:
+        - "🔴 Red — Write failing test(s)"
+        - "🟢 Green — Write minimal code to pass"
+        - "🔵 Refactor — Clean up implementation"
+        - "📝 Full cycle (Red → Green → Refactor)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem Statement"
+      description: "What is the current state and what is the desired state?"
+      placeholder: "Current state: ...\nDesired state: ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: "Acceptance Criteria"
+      description: "List each AC with its ID and description. Format: - [ ] ACx.y.z: description"
+      placeholder: |
+        - [ ] AC4.2.1: Given a bank statement import, when confidence score ≥ 85, then transaction is auto-accepted.
+        - [ ] AC4.2.2: Given confidence score 60-84, then transaction is placed in review queue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: ssot_changes
+    attributes:
+      label: "SSOT Changes Required"
+      description: "Describe what needs to change in the SSOT files checked above."
+      placeholder: "Update docs/ssot/reconciliation.md#thresholds to reflect new scoring logic."
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Pre-submission checklist"
+      options:
+        - label: "I have identified the correct EPIC"
+          required: true
+        - label: "AC IDs are registered (or will be registered before writing code)"
+          required: true
+        - label: "SSOT files to update are identified"
+          required: true
+        - label: "I have read AGENTS.md and docs/ssot/tdd.md"
+          required: true

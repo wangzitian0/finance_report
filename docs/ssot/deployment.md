@@ -1,0 +1,179 @@
+# Deployment Architecture SSOT
+
+> **SSOT Key**: `deployment`
+> **Source of Truth** for deployment workflows, secret injection, and release processes.
+
+*Extracted from [development.md](./development.md) — see also [environments.md](./environments.md) for environment overview.*
+
+---
+
+## Dual-Repository Model
+
+Finance Report uses **two git repositories** for configuration:
+
+| Environment | Configuration Source | Purpose |
+|-------------|---------------------|---------|
+| **Local/CI/PR** | `/docker-compose.yml` | Development + PR previews |
+| **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
+
+The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).
+
+**Key implications**:
+- Workflows build images and trigger deployments
+- Actual deployment config managed in `infra2`
+- Env vars for staging/prod stored in HashiCorp Vault
+- Container names include env suffix (e.g., `-staging`)
+
+---
+
+## Secret Injection Flow
+
+Production deployments use Vault sidecar pattern:
+
+```
+1. Dokploy pulls compose.yaml from infra2
+2. vault-agent sidecar starts → renders /secrets/.env
+3. Backend waits for secrets (CHECKPOINT-1)
+4. Alembic runs migrations (CHECKPOINT-2)
+5. Uvicorn starts application (CHECKPOINT-3)
+```
+
+Health check timeout (6 min) accounts for this entire flow.
+
+---
+
+## CI Deployment Workflows
+
+### ci.yml (PR/push)
+
+```
+Trigger: PR or push to main
+Steps:   install → lint → test
+DB:      GitHub services (ephemeral)
+Smoke:   ❌ Not run (unit tests only)
+```
+
+### staging-deploy.yml
+
+```yaml
+Trigger: Push to main (apps/** changed)
+Flow:    Build (commit SHA) → Deploy → Health (6min) → E2E tests
+URL:     https://report-staging.zitian.party
+```
+
+### production-release.yml
+
+```yaml
+Triggers:
+  - Tag push (v*.*.*): Build release images
+  - Manual dispatch:   Deploy to production
+
+Build job:  Tag → Build backend + frontend → Push to GHCR
+Deploy job: Verify images → Deploy → Health (4min) → Smoke test
+
+URL: https://report.zitian.party
+```
+
+---
+
+## Version Release Workflow
+
+```bash
+# Create release tag
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+# → Triggers production-release.yml (build job)
+# → Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
+
+# Deploy to production (manual)
+# → Actions → Production Release → Run workflow → Select v1.2.3
+```
+
+**Hotfix flow**:
+```bash
+git checkout -b hotfix/bug v1.2.3
+git cherry-pick abc123
+git tag -a v1.2.4 -m "Hotfix: critical bug"
+git push origin v1.2.4
+# → Build automatically, deploy manually
+```
+
+---
+
+## Database Migrations
+
+Migrations run automatically on container startup via the entrypoint:
+
+```yaml
+# In infra2 compose.yaml
+entrypoint:
+  - sh
+  - -c
+  - |
+    cd /app && export PYTHONPATH=/app
+    # Wait for secrets...
+    alembic upgrade head  # ← Runs migrations
+    exec uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
+
+**Before deploying schema changes**:
+1. Test migration locally with `docker-compose.yml`
+2. Ensure migration is backward-compatible (for rollback)
+3. Consider: existing data, indexes, constraints
+
+---
+
+## Deployment Failures
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Stuck "Waiting for secrets" | Vault token expired | `invoke vault.setup-tokens --project=finance_report` |
+| 6 min timeout | Migration failed | Check SigNoz for CHECKPOINT-2 errors |
+| "Image not found" | Tag not built | `git push origin v1.2.3` to trigger build |
+| 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |
+
+---
+
+## Vault Token Lifecycle
+
+| Property | Value |
+|----------|-------|
+| Token TTL | 768 hours (~32 days) |
+| Secrets file path | `/secrets/.env` |
+| Staleness threshold | 1 hour (bootloader warning) |
+
+**Regenerate tokens** (when expired):
+
+```bash
+# From local machine with infra2 repo
+cd /path/to/infra2
+invoke vault.setup-tokens --project=finance_report
+
+# Restart vault-agent to pick up new token
+ssh root@$VPS_HOST "docker restart finance_report-vault-agent-staging"
+```
+
+**Monitoring**: Bootloader `_check_vault_secrets()` runs in FULL mode and reports:
+1. Missing secrets file → Warning with regeneration instructions
+2. Stale secrets file (>1 hour old) → Warning
+3. Fresh secrets file → OK
+
+---
+
+## Cross-Repo Synchronisation
+
+If a change requires new environment variables or changes to `docker-compose.yml` labels/configs for production:
+
+1. Create a branch in `repo/` submodule
+2. Commit changes to `repo/finance_report/finance_report/10.app/`
+3. Push and create a PR in `infra2`
+4. Once merged, update the submodule pointer in the main repo PR
+
+---
+
+## Related
+
+- [environments.md](./environments.md) — Six environment overview and naming
+- [development.md](./development.md) — Local development and Moon commands
+- [ci-cd.md](./ci-cd.md) — CI job structure and test strategy
+- [observability.md](./observability.md) — SigNoz logs for debugging deployments

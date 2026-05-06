@@ -43,6 +43,9 @@ jobs:
       - name: Doc Consistency Check
         run: |
           uv run --with pyyaml python scripts/lint_doc_consistency.py
+      - name: SSOT Manifest Check
+        run: |
+          uv run --with pyyaml python scripts/check_manifest.py
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest

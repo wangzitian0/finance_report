@@ -1,0 +1,131 @@
+# Six Environments SSOT
+
+> **SSOT Key**: `environments`
+> **Source of Truth** for all deployment environments, naming conventions, and isolation mechanisms.
+
+*Extracted from [development.md](./development.md) — see that file for Moon commands and local setup.*
+
+---
+
+## Environment Overview
+
+> **Core Principle**: "One Codebase, Multiple Environments" — Local uses containers + namespace isolation, CI emphasises consistency, Production uses image deployment.
+
+| # | Environment | URL | Trigger | Code Runtime | Infrastructure | Database | Isolation |
+|---|-------------|-----|---------|--------------|----------------|----------|-----------|
+| **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
+| **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
+| **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
+| **4** | **PR Preview** | `report-pr-123.zitian.party` | PR opened<br>`pr-test.yml` | **Docker Images**<br>(GHCR) | Dedicated Containers<br>(Per PR) | Dedicated DB/Redis/MinIO | Container suffix<br>`-pr-123` |
+| **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
+| **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
+
+---
+
+## Key Differences
+
+### Local Environments (Dev + CI)
+
+**Local Dev** — One shared set of containers, isolated by **different database names**:
+- Uses `docker-compose.yml` (Profile: `infra`)
+- **Persistent**: Manually started, data preserved across runs
+- Isolation: Multiple repo copies use **namespace-aware DB names** (`finance_report`, `finance_report_dev_branch_a`, etc.)
+- S3: Shared local MinIO with namespace-aware buckets (`statements`, `statements-branch-a`)
+- Command: `moon run :dev -- --backend`
+
+**Local CI** — Reuses Local Dev containers, creates **temporary test databases**:
+- Uses same `docker-compose.yml` (Profile: `infra`)
+- **Ephemeral data**: Test DB reset before each run, worker DBs auto-cleaned
+- Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.)
+- Command: `moon run :lint && moon run :test` (**matches GitHub CI exactly**)
+
+### GitHub Environments
+
+**GitHub CI** — Temporary services, runs same commands as Local CI:
+- Uses GitHub Actions `services:` (ephemeral Postgres container)
+- **Completely ephemeral**: Destroyed after job finishes
+- Database: `finance_report_test` (no namespace needed, job-isolated)
+
+**PR Preview** — Full deployment with code changes:
+- **Builds Docker images** from PR branch
+- Deploys to Dokploy with unique URLs (`report-pr-123.zitian.party`)
+- **Ephemeral**: Destroyed when PR closes
+- Database/Redis/MinIO: Dedicated per-PR instances
+- Isolation: Container name suffix `-pr-123`
+
+### Production Environments (Staging + Production)
+
+**Staging** — Tracks latest `main` branch:
+- **Image deployment**: Built from latest `main` commit after merge
+- Deployed to Dokploy automatically on push to main
+- Persistent data, stable environment for QA
+- Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
+
+**Production** — Manual release process:
+- **Image deployment**: Built from version tags (`v1.2.3`)
+- Manual trigger after Staging validation
+- Most stable environment, persistent data
+- Uses dedicated DB/Redis + shared Platform
+
+---
+
+## Container Naming Patterns
+
+| Environment | Backend Container | Frontend Container | Database | S3 Bucket |
+|-------------|-------------------|---------------------|----------|-----------|
+| **Local Dev** | `finance-report-backend` | `finance-report-frontend` | `finance_report` | `statements` |
+| **Local CI** | *(uses Local Dev containers)* | *(uses Local Dev containers)* | `finance_report_test_{namespace}` | `statements-{namespace}` |
+| **GitHub CI** | *(GitHub Services)* | *(N/A)* | `finance_report_test` | `statements` (mock) |
+| **PR Preview** | `finance_report-backend-pr-123` | `finance_report-frontend-pr-123` | `finance_report_postgres-pr-123` | *(dedicated MinIO)* |
+| **Staging** | `finance_report-backend-staging` | `finance_report-frontend-staging` | `finance_report-postgres-staging` | `finance-report-staging` |
+| **Production** | `finance_report-backend` | `finance_report-frontend` | `finance_report-postgres` | `finance-report-production` |
+
+**Note**: Local uses hyphens (Compose), production uses underscores (Dokploy).
+
+---
+
+## Workflow Files Reference
+
+| Workflow File | Environment | Trigger | Actions |
+|---------------|-------------|---------|---------|
+| `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run `moon run :lint && moon run :test`, upload coverage |
+| `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
+| `.github/workflows/staging-deploy.yml` | Staging | Push to main | Build images (`:staging` tag), deploy |
+| `.github/workflows/production-release.yml` | Production | Tag `v*.*.*` or manual | Build release images, deploy on manual trigger |
+
+---
+
+## Shared Platform Resources
+
+The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** services.  Staging and PR environments use **logical isolation**:
+
+| Service | Scope | Isolation Method | Example |
+|---------|-------|------------------|---------|
+| **SigNoz** | Singleton | `deployment.environment` tag | `staging`, `production`, `pr-47` |
+| **MinIO** (Prod) | Singleton | Separate buckets | `finance-report-staging`, `finance-report-production` |
+| **Postgres** | Dedicated | Separate containers/instances | One per environment |
+| **Redis** | Dedicated | Separate containers/instances | One per environment |
+
+**Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared SigNoz.
+
+---
+
+## Test Strategy by Environment
+
+| Environment | Tests Run | Purpose | Duration |
+|-------------|-----------|---------|----------|
+| **Local Dev** | None (manual testing) | Fast iteration | — |
+| **Local CI** | Unit + Integration (90% backend, 96% unified) | Pre-push validation | ~30s |
+| **GitHub CI** | Unit + Integration (90% backend, 96% unified) | Quality gate | ~2min |
+| **PR Preview** | Health check only | Deployment validation | ~30s |
+| **Staging** | Smoke + Performance | Full validation | ~5min |
+| **Production** | Health check only | Availability check | ~10s |
+
+---
+
+## Related
+
+- [development.md](./development.md) — Moon commands and local setup
+- [ci-cd.md](./ci-cd.md) — CI job structure and test optimisation
+- [deployment.md](./deployment.md) — Deployment architecture and workflows
+- [docs/ssot/MANIFEST.yaml](./MANIFEST.yaml) — Concept ownership registry

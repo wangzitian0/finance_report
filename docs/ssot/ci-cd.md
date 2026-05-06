@@ -1,0 +1,162 @@
+# CI/CD and Test Optimisation SSOT
+
+> **SSOT Key**: `ci-cd`
+> **Source of Truth** for CI job structure, test optimisation modes, and performance metrics.
+
+*Extracted from [development.md](./development.md) — see that file for Moon commands and local setup.*
+
+---
+
+## CI Job Structure
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
+
+```
+lint → backend shards → frontend → unified-coverage → finish
+```
+
+### Job Details
+
+| Job | Purpose | Dependencies |
+|-----|---------|--------------|
+| **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
+| **backend** (Shards 1-4) | Backend unit + integration tests | `needs: [lint]` |
+| **frontend** | Frontend build + tests | None (runs in parallel with backend) |
+| **unified-coverage** | Calculate unified coverage, compare to baseline, update Coveralls | `needs: [backend, frontend]` |
+| **finish** | Aggregate all job results | `needs: [backend, frontend, lint, unified-coverage]` |
+
+### Key CI Properties
+
+1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
+2. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
+3. **Baseline Auto-Update**: On main branch pushes, `unified-coverage` job commits `unified-coverage.json` with `[skip ci]`.
+4. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+
+---
+
+## No-Regression Coverage Gate
+
+The CI workflow enforces a **no-regression policy** for test coverage.
+
+### How It Works
+
+1. **Baseline Storage**: `unified-coverage.json` at repo root.
+   - Created automatically on first successful CI run on `main`
+   - Updated automatically on each subsequent `main` push
+
+2. **Comparison Logic**:
+   - Reads `unified-coverage.json` before calculating final coverage
+   - Compares current vs baseline for **all components**: unified, backend, frontend, scripts
+   - Uses `round(x, 2)` for floating-point comparison
+   - **Zero tolerance**: `current < baseline` → CI fails immediately
+   - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
+
+3. **Environment Variables**:
+   - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
+   - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; baseline comparison is primary gate)
+
+### Manual Baseline Reset
+
+```bash
+# Option 1: Update baseline to current state
+git pull origin main
+# Make your changes, then:
+git add unified-coverage.json && git commit -m "chore: manually reset coverage baseline" && git push
+
+# Option 2: Remove baseline temporarily
+git rm unified-coverage.json && git commit -m "chore: remove coverage baseline for testing" && git push
+```
+
+---
+
+## Test Optimisation
+
+### Test Modes
+
+| Mode | Command | Speed | Coverage | Use Case |
+|------|---------|-------|----------|----------|
+| Smart | `backend:test-smart` | ~40% | Changed files 99% | Daily dev (recommended) |
+| Ultra-fast | `backend:test-no-cov` | ~30% | None | TDD red-green |
+| Full | `backend:test` | 100% | All files 94% | CI/pre-commit |
+
+### Implementation
+
+**Scripts**:
+- `scripts/get_changed_files.py` — Detects changed Python files via git diff
+- `scripts/smart_test.py` — Runs all tests, coverage on changed files only
+- `scripts/fast_test.py` — Runs all tests, no coverage
+- `scripts/test_lifecycle.py` — DB lifecycle (accepts coverage flags from callers)
+
+**CI Optimisation** (`.github/workflows/ci.yml`):
+- 4-way parallel test sharding via `pytest-split`
+- Each shard: `pytest --splits 4 --group N`
+- Coverage reports merged post-run
+
+> **Local vs GitHub CI Parallelism**
+>
+> | Environment | Parallelism | Test Scope | Resource Usage |
+> |-------------|-------------|------------|----------------|
+> | **GitHub CI** | `-n auto` + `--splits 4` | ~25% tests per shard | Low (ephemeral runners) |
+> | **Local CI** | `-n 4` (fixed) | 100% tests | Controlled (shared machine) |
+>
+> This is intentional design, not inconsistency.
+
+---
+
+## Coverage Requirements
+
+- Backend line coverage: **≥ 90%** (enforced by `pytest-cov`)
+- Unified coverage: **96%** (enforced by `calculate_unified_coverage.py`)
+- Branch coverage: Required (via `--cov-branch`)
+- See [coverage.md](./coverage.md) and [tdd.md](./tdd.md) for details
+
+---
+
+## Current Performance Metrics
+
+**CI Pipeline (2025-02-02 baseline):**
+- Total duration: **6m 24s** (Backend: 5m 52s, Frontend: 1m 30s)
+- Test execution: 893 tests in 4m 47s (**320ms avg**)
+- Caching: UV ✅ (2.9s), Next.js ✅, venv ✅
+
+**Backend Test Parallelisation:**
+
+```bash
+# In pyproject.toml
+[tool.pytest.ini_options]
+addopts = "-n 2"  # 2 workers for parallel execution
+```
+
+Options:
+1. **Increase worker count**: `pytest -n auto` or `pytest -n 4` (limited by CPU cores)
+2. **Split CI jobs**: Separate unit vs integration in GitHub Actions (1-2 min savings)
+
+---
+
+## Smoke Tests (`scripts/smoke_test.sh`)
+
+```bash
+# Local (after starting servers)
+bash scripts/smoke_test.sh
+
+# Against staging/prod
+BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
+```
+
+| Endpoint | Check |
+|----------|-------|
+| `/` | Homepage loads |
+| `/api/health` | Returns "healthy" |
+| `/api/docs` | Swagger UI loads |
+| `/ping-pong` | Demo page loads |
+| `/reconciliation` | Workbench loads |
+| `/api/ping` | Ping API responds |
+
+---
+
+## Related
+
+- [development.md](./development.md) — Moon commands and local setup
+- [environments.md](./environments.md) — Six environment overview
+- [coverage.md](./coverage.md) — Unified coverage system
+- [tdd.md](./tdd.md) — TDD workflow and coverage goals
