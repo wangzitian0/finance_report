@@ -4,15 +4,20 @@ Verifies that sweep_orphaned_storage_objects correctly identifies S3 objects
 that have no matching database record and deletes them.
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from botocore.exceptions import ClientError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import BankStatement, BankStatementStatus
+from src.services import StorageError
 from src.services.storage_sweep import (
     ORPHAN_MIN_AGE,
+    _list_storage_keys,
+    run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
 
@@ -140,3 +145,105 @@ async def test_sweep_returns_zero_when_no_objects():
         deleted = await sweep_orphaned_storage_objects()
 
     assert deleted == 0
+
+
+@pytest.mark.asyncio
+async def test_sweep_handles_storage_list_error():
+    """Sweep should return 0 and log when storage listing raises StorageError."""
+    with (
+        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.services.storage_sweep.StorageService"),
+        patch(
+            "src.services.storage_sweep._list_storage_keys",
+            side_effect=StorageError("connection error"),
+        ),
+    ):
+        mock_settings.s3_bucket = "test-bucket"
+        deleted = await sweep_orphaned_storage_objects()
+
+    assert deleted == 0
+
+
+@pytest.mark.asyncio
+async def test_sweep_handles_delete_error(db: AsyncSession, test_user):
+    """Delete errors should be logged but not increment the deleted count."""
+    orphan_key = "statements/user-1/orphan-id/orphan-del-err.pdf"
+    mock_keys = [(orphan_key, _old_timestamp())]
+
+    with (
+        patch("src.services.storage_sweep.StorageService") as MockStorage,
+        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+    ):
+        mock_storage_instance = MagicMock()
+        mock_storage_instance.delete_object.side_effect = StorageError("Delete failed")
+        MockStorage.return_value = mock_storage_instance
+
+        deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db))
+
+    assert deleted == 0
+
+
+def test_list_storage_keys_raises_on_client_error():
+    """_list_storage_keys converts ClientError to StorageError."""
+    mock_storage = MagicMock()
+    mock_paginator = MagicMock()
+    mock_storage.client.get_paginator.return_value = mock_paginator
+    mock_paginator.paginate.side_effect = ClientError(
+        {"Error": {"Code": "NoSuchBucket", "Message": "The bucket does not exist"}},
+        "ListObjectsV2",
+    )
+
+    with pytest.raises(StorageError, match="Failed to list storage objects"):
+        _list_storage_keys(mock_storage)
+
+
+@pytest.mark.asyncio
+async def test_run_storage_sweep_exits_on_stop_event():
+    """run_storage_sweep should exit cleanly when stop_event is set during a sweep."""
+    stop_event = asyncio.Event()
+
+    async def mock_sweep(*args, **kwargs):
+        stop_event.set()
+        return 0
+
+    with patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep):
+        await run_storage_sweep(stop_event)
+
+
+@pytest.mark.asyncio
+async def test_run_storage_sweep_logs_when_objects_deleted():
+    """run_storage_sweep should log when orphaned objects are deleted."""
+    stop_event = asyncio.Event()
+
+    async def mock_sweep_with_deletions(*args, **kwargs):
+        stop_event.set()
+        return 5
+
+    with patch(
+        "src.services.storage_sweep.sweep_orphaned_storage_objects",
+        side_effect=mock_sweep_with_deletions,
+    ):
+        await run_storage_sweep(stop_event)
+
+
+@pytest.mark.asyncio
+async def test_run_storage_sweep_handles_exception():
+    """run_storage_sweep should catch unexpected exceptions and continue looping."""
+    stop_event = asyncio.Event()
+    call_count = [0]
+
+    async def maybe_raise(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise RuntimeError("Unexpected error from sweep")
+        stop_event.set()
+        return 0
+
+    with (
+        patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=maybe_raise),
+        patch("src.services.storage_sweep.SWEEP_INTERVAL_SECONDS", 0.001),
+    ):
+        await run_storage_sweep(stop_event)
+
+    assert call_count[0] == 2
+
