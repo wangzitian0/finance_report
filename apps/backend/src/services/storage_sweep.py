@@ -110,7 +110,15 @@ async def sweep_orphaned_storage_objects(
 
 
 async def run_storage_sweep(stop_event: asyncio.Event) -> None:
-    """Run periodic storage sweeps until stop_event is set."""
+    """Run periodic storage sweeps until stop_event is set.
+
+    Exits immediately (no-op) when ``settings.enable_storage_sweep`` is False,
+    which is recommended for CI/test environments where an S3 service is not
+    running to avoid spurious network errors and noisy log output.
+    """
+    if not settings.enable_storage_sweep:
+        logger.debug("Storage sweep disabled via ENABLE_STORAGE_SWEEP setting")
+        return
     while not stop_event.is_set():
         try:
             deleted = await sweep_orphaned_storage_objects()

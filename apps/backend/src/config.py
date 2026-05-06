@@ -159,6 +159,13 @@ class Settings(BaseSettings):
         validation_alias="ENABLE_AI_CLASSIFICATION",
     )
 
+    # Storage Sweep
+    enable_storage_sweep: bool = Field(
+        default=True,
+        description="Enable periodic background sweep for orphaned S3 objects. Disable in test environments.",
+        validation_alias="ENABLE_STORAGE_SWEEP",
+    )
+
     # Deployment metadata
     git_commit_sha: str = Field(
         default="unknown",

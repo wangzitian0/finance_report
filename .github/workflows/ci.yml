@@ -109,6 +109,7 @@ jobs:
           S3_SECRET_KEY: minio_local_secret
           S3_ENDPOINT: http://127.0.0.1:9000
           S3_BUCKET: statements
+          ENABLE_STORAGE_SWEEP: "false"
         run: |
           cd apps/backend
           uv run pytest -n auto -v \

@@ -206,7 +206,11 @@ async def test_run_storage_sweep_exits_on_stop_event():
         stop_event.set()
         return 0
 
-    with patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep):
+    with (
+        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
+    ):
+        mock_settings.enable_storage_sweep = True
         await run_storage_sweep(stop_event)
 
 
@@ -219,10 +223,14 @@ async def test_run_storage_sweep_logs_when_objects_deleted():
         stop_event.set()
         return 5
 
-    with patch(
-        "src.services.storage_sweep.sweep_orphaned_storage_objects",
-        side_effect=mock_sweep_with_deletions,
+    with (
+        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch(
+            "src.services.storage_sweep.sweep_orphaned_storage_objects",
+            side_effect=mock_sweep_with_deletions,
+        ),
     ):
+        mock_settings.enable_storage_sweep = True
         await run_storage_sweep(stop_event)
 
 
@@ -240,10 +248,25 @@ async def test_run_storage_sweep_handles_exception():
         return 0
 
     with (
+        patch("src.services.storage_sweep.settings") as mock_settings,
         patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=maybe_raise),
         patch("src.services.storage_sweep.SWEEP_INTERVAL_SECONDS", 0.001),
     ):
+        mock_settings.enable_storage_sweep = True
         await run_storage_sweep(stop_event)
 
     assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+async def test_run_storage_sweep_disabled_by_feature_flag():
+    """run_storage_sweep should exit immediately when ENABLE_STORAGE_SWEEP is False."""
+    stop_event = asyncio.Event()
+
+    with patch("src.services.storage_sweep.settings") as mock_settings:
+        mock_settings.enable_storage_sweep = False
+        await run_storage_sweep(stop_event)
+
+    # Should have returned without running any sweep (stop_event not set)
+    assert not stop_event.is_set()
 
