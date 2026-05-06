@@ -211,8 +211,14 @@ class TestHelpers:
         assert not bat._is_deprecated(ac)
 
     def test_is_deprecated_false_empty_like(self):
+        # ~~~~ has no content between the markers; regex requires at least one char
         ac = bat.AC("AC1.1.1", 1, "x", "~~~~", True)
         assert not bat._is_deprecated(ac)
+
+    def test_is_deprecated_minimum_valid(self):
+        # ~~x~~ is the minimum valid deprecated description (one char between markers)
+        ac = bat.AC("AC1.1.1", 1, "x", "~~x~~", True)
+        assert bat._is_deprecated(ac)
 
     def test_rel_inside_repo(self, tmp_path):
         f = tmp_path / "apps" / "backend" / "tests" / "test_x.py"

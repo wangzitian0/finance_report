@@ -161,10 +161,12 @@ def _ac_sort_key(ac_id: str) -> tuple[int, ...]:
     return tuple(int(p) for p in ac_id[2:].split("."))
 
 
+_DEPRECATED_PATTERN = re.compile(r"^~~.+~~$", re.DOTALL)
+
+
 def _is_deprecated(ac: AC) -> bool:
     """Return True if the AC description uses Markdown strikethrough (~~text~~)."""
-    desc = ac.description.strip()
-    return desc.startswith("~~") and desc.endswith("~~") and len(desc) > 4
+    return bool(_DEPRECATED_PATTERN.match(ac.description.strip()))
 
 
 def _is_manual(ac: AC) -> bool:
