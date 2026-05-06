@@ -296,6 +296,9 @@ async def _aggregate_net_income_sql(
     # so the average spans ALL available FX rate history up to as_of_date.
     # This keeps the BS and IS rates aligned: when the IS covers the same
     # period, get_average_rate will see the same set of rate rows.
+    # Note: get_average_rate handles sparse data by falling back to the
+    # period-end spot rate when no rows exist in [date.min, as_of_date],
+    # so passing date.min is safe even if the DB has no ancient rate records.
     effective_start = start_date if start_date is not None else date.min
 
     # Build FX rate map: currency -> average rate for the period
