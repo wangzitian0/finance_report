@@ -292,21 +292,11 @@ async def _aggregate_net_income_sql(
         return Decimal("0")
 
     # Determine the effective period start for average rate calculation.
-    # When no start_date is supplied, use the earliest entry date so the
-    # average rate spans the full history of income/expense transactions.
-    effective_start = start_date
-    if effective_start is None:
-        earliest_stmt = (
-            select(func.min(JournalEntry.entry_date))
-            .join(JournalLine, JournalEntry.id == JournalLine.journal_entry_id)
-            .join(Account, JournalLine.account_id == Account.id)
-            .where(Account.user_id == user_id)
-            .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
-            .where(JournalEntry.status.in_(_REPORT_STATUSES))
-            .where(JournalEntry.entry_date <= as_of_date)
-        )
-        earliest_result = await db.execute(earliest_stmt)
-        effective_start = earliest_result.scalar_one_or_none() or as_of_date
+    # When no start_date is supplied (cumulative balance sheet), use date.min
+    # so the average spans ALL available FX rate history up to as_of_date.
+    # This keeps the BS and IS rates aligned: when the IS covers the same
+    # period, get_average_rate will see the same set of rate rows.
+    effective_start = start_date if start_date is not None else date.min
 
     # Build FX rate map: currency -> average rate for the period
     fx_rate_map: dict[str, Decimal] = {}

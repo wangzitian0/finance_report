@@ -219,11 +219,7 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
     currency_result = MagicMock()
     currency_result.all.return_value = [("USD",)]
 
-    # Second execute: min(entry_date) query → returns a date so we have an effective_start
-    min_date_result = MagicMock()
-    min_date_result.scalar_one_or_none.return_value = date(2025, 1, 1)
-
-    # Third execute (aggregation): returns a row with "EUR" – NOT in fx_rate_map for "USD" only
+    # Second execute (aggregation): returns a row with "EUR" – NOT in fx_rate_map for "USD" only
     agg_result = MagicMock()
     agg_result.all.return_value = [
         SimpleNamespace(
@@ -234,7 +230,7 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
         )
     ]
 
-    fake_db.execute = AsyncMock(side_effect=[currency_result, min_date_result, agg_result])
+    fake_db.execute = AsyncMock(side_effect=[currency_result, agg_result])
 
     # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
     with patch("src.services.reporting.get_average_rate", new_callable=AsyncMock) as mock_avg:
