@@ -263,10 +263,14 @@ async def test_run_storage_sweep_disabled_by_feature_flag():
     """run_storage_sweep should exit immediately when ENABLE_STORAGE_SWEEP is False."""
     stop_event = asyncio.Event()
 
-    with patch("src.services.storage_sweep.settings") as mock_settings:
+    with (
+        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.services.storage_sweep.sweep_orphaned_storage_objects") as mock_sweep,
+    ):
         mock_settings.enable_storage_sweep = False
         await run_storage_sweep(stop_event)
 
-    # Should have returned without running any sweep (stop_event not set)
+    # Should have returned without running any sweep (stop_event not set, sweep not called)
     assert not stop_event.is_set()
+    mock_sweep.assert_not_called()
 
