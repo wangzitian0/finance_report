@@ -165,7 +165,7 @@ async def test_sweep_handles_storage_list_error():
 
 
 @pytest.mark.asyncio
-async def test_sweep_handles_delete_error(db: AsyncSession, test_user):
+async def test_sweep_handles_delete_error(db: AsyncSession):
     """Delete errors should be logged but not increment the deleted count."""
     orphan_key = "statements/user-1/orphan-id/orphan-del-err.pdf"
     mock_keys = [(orphan_key, _old_timestamp())]
