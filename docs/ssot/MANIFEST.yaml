@@ -1,0 +1,260 @@
+# SSOT Concept Manifest
+#
+# Machine-readable single-owner-per-concept registry.
+# Each concept has exactly ONE authoritative owner file (with optional
+# section anchor) and zero-or-more cross-reference files that also
+# discuss the concept without owning it.
+#
+# Validated by: scripts/check_manifest.py  (runs in CI)
+#
+# Format:
+#   concepts:
+#     <concept_key>:
+#       owner: <relative-path>[#anchor]   # MUST exist on disk (file part)
+#       description: <one-liner>
+#       cross_refs:                       # Optional; every path MUST exist
+#         - <relative-path>
+#
+# Rules enforced by check_manifest.py:
+#   1. No two concepts may share the same owner.
+#   2. Every owner file path (ignoring #anchor) must exist on disk.
+#   3. Every cross_ref file path (ignoring #anchor) must exist on disk.
+
+concepts:
+
+  # ── Accounting domain ──────────────────────────────────────────────────
+  decimal_monetary_rule:
+    owner: docs/ssot/accounting.md#decimal-rule
+    description: All monetary amounts MUST use Python Decimal, never float.
+    cross_refs:
+      - AGENTS.md
+      - docs/agents/red-lines.md
+      - apps/backend/tests/accounting/test_decimal_safety.py
+
+  accounting_equation:
+    owner: docs/ssot/accounting.md#accounting-equation
+    description: "Assets = Liabilities + Equity + (Income - Expenses) invariant."
+    cross_refs:
+      - docs/agents/red-lines.md
+      - apps/backend/tests/accounting/test_accounting_equation.py
+
+  double_entry_bookkeeping:
+    owner: docs/ssot/accounting.md#entry-balance
+    description: Every JournalEntry must have balanced debits and credits.
+    cross_refs:
+      - docs/agents/red-lines.md
+      - apps/backend/tests/accounting/test_accounting.py
+
+  transaction_boundary:
+    owner: docs/ssot/accounting.md#async-tx-boundary
+    description: Routers commit(); Services flush() only.
+    cross_refs:
+      - docs/agents/red-lines.md
+      - apps/backend/tests/accounting/test_accounting_integration.py
+
+  # ── Schema / Database domain ───────────────────────────────────────────
+  database_schema:
+    owner: docs/ssot/schema.md#er-model
+    description: PostgreSQL table structures, ER diagram, and migration rules.
+    cross_refs:
+      - docs/ssot/accounting.md
+      - docs/ssot/reconciliation.md
+
+  enum_naming:
+    owner: docs/ssot/schema.md#enum-naming
+    description: All sa.Enum instances MUST have an explicit name parameter.
+    cross_refs:
+      - AGENTS.md
+      - docs/agents/red-lines.md
+      - apps/backend/tests/infra/test_schema_guardrails.py
+
+  # ── Reconciliation domain ──────────────────────────────────────────────
+  reconciliation_thresholds:
+    owner: docs/ssot/reconciliation.md#thresholds
+    description: Score ≥85 auto-accept; 60-84 review; <60 unmatched.
+    cross_refs:
+      - docs/agents/red-lines.md
+
+  reconciliation_state_machine:
+    owner: docs/ssot/reconciliation.md#state-machine
+    description: pending → auto_accepted | pending_review → accepted | rejected.
+    cross_refs:
+      - docs/ssot/confirmation-workflow.md
+
+  # ── Auth / Identity ────────────────────────────────────────────────────
+  auth_flow:
+    owner: docs/ssot/auth.md
+    description: JWT/OAuth2 identity system, registration and login flow.
+    cross_refs:
+      - docs/ssot/schema.md
+
+  # ── Frontend patterns ──────────────────────────────────────────────────
+  api_client_pattern:
+    owner: docs/ssot/frontend-patterns.md
+    description: "Frontend MUST use lib/api.ts wrapper; never raw fetch()."
+    cross_refs:
+      - AGENTS.md
+      - docs/agents/red-lines.md
+      - apps/frontend/src/lib/api.ts
+
+  # ── AI / Extraction domain ─────────────────────────────────────────────
+  extraction_pipeline:
+    owner: docs/ssot/extraction.md
+    description: Gemini Vision document parsing and validation pipeline.
+    cross_refs:
+      - docs/ssot/reconciliation.md
+
+  ai_advisor_policy:
+    owner: docs/ssot/ai.md
+    description: AI advisor prompt policy, context scope, and safety controls.
+    cross_refs:
+      - docs/ssot/reporting.md
+
+  # ── Reporting domain ───────────────────────────────────────────────────
+  reporting_calculations:
+    owner: docs/ssot/reporting.md
+    description: Financial reports, multi-currency consolidation, calculations.
+    cross_refs:
+      - docs/ssot/accounting.md
+      - docs/ssot/market_data.md
+
+  # ── Market data ────────────────────────────────────────────────────────
+  market_data:
+    owner: docs/ssot/market_data.md
+    description: FX rates, stock prices, data sources, and sync schedule.
+    cross_refs:
+      - docs/ssot/reporting.md
+
+  # ── Processing account ─────────────────────────────────────────────────
+  processing_account:
+    owner: docs/ssot/processing_account.md
+    description: Unconfirmed in-transit funds; balance 0 means transfer paired.
+    cross_refs:
+      - docs/ssot/confirmation-workflow.md
+      - docs/ssot/reconciliation.md
+
+  # ── Confirmation workflow ──────────────────────────────────────────────
+  confirmation_workflow:
+    owner: docs/ssot/confirmation-workflow.md
+    description: Cross-cutting pending_review state machine (Stage 1 & 2).
+    cross_refs:
+      - docs/ssot/reconciliation.md
+      - docs/ssot/processing_account.md
+
+  # ── Observability ──────────────────────────────────────────────────────
+  observability_logging:
+    owner: docs/ssot/observability.md
+    description: Structured logging, SigNoz OTLP export configuration.
+    cross_refs:
+      - docs/ssot/development.md
+
+  # ── Development environment ────────────────────────────────────────────
+  moon_commands:
+    owner: docs/ssot/development.md#moon-commands
+    description: Primary interface for dev, lint, test, and build tasks.
+    cross_refs:
+      - AGENTS.md
+      - docs/contributing/branch-policy.md
+
+  namespace_isolation:
+    owner: docs/ssot/development.md#local-test-isolation
+    description: Namespace-based test DB and S3 bucket isolation for parallel runs.
+    cross_refs:
+      - docs/ssot/environments.md
+
+  environment_variables:
+    owner: docs/ssot/development.md#environment-variables
+    description: Three-layer SSOT for env vars (secrets.ctmpl / config.py / .env.example).
+    cross_refs:
+      - docs/agents/red-lines.md
+      - docs/ssot/deployment.md
+
+  # ── Environments ───────────────────────────────────────────────────────
+  six_environments:
+    owner: docs/ssot/environments.md#environment-overview
+    description: "Local Dev / Local CI / GitHub CI / PR Preview / Staging / Production."
+    cross_refs:
+      - docs/ssot/development.md
+      - docs/ssot/ci-cd.md
+      - docs/ssot/deployment.md
+
+  container_naming:
+    owner: docs/ssot/environments.md#container-naming-patterns
+    description: Container name patterns per environment (hyphens vs underscores).
+    cross_refs:
+      - docs/ssot/deployment.md
+      - AGENTS.md
+
+  # ── CI / CD ────────────────────────────────────────────────────────────
+  ci_workflow:
+    owner: docs/ssot/ci-cd.md#ci-job-structure
+    description: CI job structure (lint → backend shards → frontend → coverage).
+    cross_refs:
+      - docs/ssot/development.md
+      - docs/ssot/coverage.md
+
+  test_optimization:
+    owner: docs/ssot/ci-cd.md#test-optimization
+    description: Smart/fast/full test modes and 4-way sharding strategy.
+    cross_refs:
+      - docs/ssot/development.md
+      - docs/ssot/coverage.md
+
+  # ── Deployment ─────────────────────────────────────────────────────────
+  deployment_architecture:
+    owner: docs/ssot/deployment.md
+    description: Dual-repo model, Vault secret injection, staging/production flow.
+    cross_refs:
+      - docs/ssot/development.md
+      - docs/ssot/environments.md
+
+  # ── Coverage ──────────────────────────────────────────────────────────
+  test_coverage:
+    owner: docs/ssot/coverage.md
+    description: Unified coverage system (backend + frontend + scripts).
+    cross_refs:
+      - docs/ssot/tdd.md
+      - docs/ssot/ci-cd.md
+
+  # ── TDD ───────────────────────────────────────────────────────────────
+  tdd_workflow:
+    owner: docs/ssot/tdd.md
+    description: EPIC → ACx.y.z → Test → Code → Doc mandatory sequence.
+    cross_refs:
+      - AGENTS.md
+      - docs/agents/orchestration.md
+
+  # ── Agent governance ──────────────────────────────────────────────────
+  security_red_lines:
+    owner: docs/agents/red-lines.md
+    description: Hard security and integrity rules agents must never violate.
+    cross_refs:
+      - AGENTS.md
+
+  agent_orchestration:
+    owner: docs/agents/orchestration.md
+    description: Delegation rules, STAR framework, deliverable scope.
+    cross_refs:
+      - AGENTS.md
+
+  branch_policy:
+    owner: docs/contributing/branch-policy.md
+    description: No commits to main; one branch at a time; PR lifecycle.
+    cross_refs:
+      - AGENTS.md
+      - docs/agents/orchestration.md
+
+  # ── Source type priority ──────────────────────────────────────────────
+  source_type_priority:
+    owner: docs/ssot/source-type-priority.md
+    description: Data trust hierarchy and source_type enum conflict resolution.
+    cross_refs:
+      - docs/ssot/reconciliation.md
+      - docs/ssot/extraction.md
+
+  # ── Environment smoke test ────────────────────────────────────────────
+  env_smoke_test:
+    owner: docs/ssot/env_smoke_test.md
+    description: Environment smoke testing via real boot operations.
+    cross_refs:
+      - docs/ssot/development.md
