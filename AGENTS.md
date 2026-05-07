@@ -1,509 +1,114 @@
-# Finance Report AI Agent Behavioral Guidelines
+# Finance Report — Agent & Contributor Guide
 
 > **Prohibition**: AI may NOT modify this file without explicit authorization.
-> **Prohibition**: AI's deliverable is Pull Request (CI-passing, test-environment-verified), NOT merged code. User reviews and decides whether to merge.
-> **Checklist**: When you think you have completed a task, you need to check this file line by line to make sure you have met all the requirements.
-> **English**: All code, PRs, commits, and reports must be in English; optional translated documentation files (e.g., *_ZH.md, *_CN.md) are allowed as non-authoritative copies.
+> **Prohibition**: AI deliverable = CI-passing PR. User reviews and decides whether to merge.
+> **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
+> **Language**: All code, PRs, commits, and reports must be in **English**.
 
 ---
 
 ## 🚨 Security & Red Lines (CRITICAL)
 
-- **NEVER** use float for monetary amounts (**MUST** use `Decimal`). See: `apps/backend/tests/accounting/test_decimal_safety.py`
-- **NEVER** commit sensitive files (`.env`, `*.pem`, credentials). Enforced by pre-commit hooks: `.pre-commit-config.yaml`
-- **NEVER** skip entry balance validation or post entries without accounting equation check. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`
-- **NEVER** use direct `fetch()` in frontend; **MUST** use `lib/api.ts` wrapper. See: `apps/frontend/src/lib/api.ts`
-- **NEVER** create `sa.Enum` without an explicit `name="..."` parameter. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
+Full rules: **[docs/agents/red-lines.md](docs/agents/red-lines.md)**
+
+Quick reference:
+- **NEVER** use `float` for monetary amounts — use `Decimal`
+- **NEVER** commit `.env`, `*.pem`, or credential files
+- **NEVER** skip entry balance validation
+- **NEVER** use raw `fetch()` in frontend — use `lib/api.ts`
+- **NEVER** create `sa.Enum` without explicit `name="..."` parameter
 
 ---
 
-## 🧭 Wiki Entry Map (Level 0/1)
+## 🧭 Navigation Map
 
-**Level 0 Entry**: `AGENTS.md` (you are here)
+| Goal | Go to |
+|------|-------|
+| Project vision & decisions | [vision.md](vision.md) |
+| Tech stack, quick start | [README.md](README.md) |
+| **All SSOT docs** | [docs/ssot/README.md](docs/ssot/README.md) |
+| Project tracking & EPICs | [docs/project/README.md](docs/project/README.md) |
+| Agent skills | [.opencode/skills/](.opencode/skills/) |
+| Copilot-specific settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
-**Level 1 Entries (by purpose)**
-1. **Global Project Overview** → [README.md](README.md)
-2. **Project Vision (North Star)** → [vision.md](vision.md)
-3. **Technical Truth / SSOT** → [docs/ssot/README.md](docs/ssot/README.md)
-4. **Project Tracking / EPIC** → [docs/project/README.md](docs/project/README.md)
-
-**Supplementary Entries**
-- **Agent Skills** → [.opencode/skills/](.opencode/skills/)
-- **Copilot Instructions** → [.github/copilot-instructions.md](.github/copilot-instructions.md)
-
-**Reading Order (10-minute overview)**
-1. [vision.md](vision.md) — Macro goals and decision criteria
-2. [README.md](README.md) — Tech stack, quick start commands
-3. [docs/ssot/README.md](docs/ssot/README.md) → Start with [schema.md](docs/ssot/schema.md)
-4. [.opencode/oh-my-opencode.json](.opencode/oh-my-opencode.json) — Agent configurations
-
-**Routing Rules (where to go when)**
-- Need to understand business logic → [vision.md](vision.md)
-- **Need environment setup / moon commands** → [docs/ssot/development.md](docs/ssot/development.md)
-- Need to write code → [.opencode/skills/](.opencode/skills/) + SSOT files
-- Need data model reference → [docs/ssot/](docs/ssot/)
-- Need to track current work → [docs/project/](docs/project/)
+**Routing Rules**:
+- Business logic → [vision.md](vision.md)
+- Moon commands / environment setup → [docs/ssot/development.md](docs/ssot/development.md)
+- Six environments (naming, isolation) → [docs/ssot/environments.md](docs/ssot/environments.md)
+- CI job structure / test strategy → [docs/ssot/ci-cd.md](docs/ssot/ci-cd.md)
+- Deployment / Vault / staging → [docs/ssot/deployment.md](docs/ssot/deployment.md)
+- Data model → [docs/ssot/schema.md](docs/ssot/schema.md)
+- Current work → [docs/project/](docs/project/)
 
 ---
 
-## 🛠️ Environment & Automation (Moon)
+## 📐 SSOT-First Principle
 
-**DO NOT manual check environment** (e.g., `docker ps`). Use `moon` to manage lifecycles.
+The **sole authoritative source** is `docs/ssot/`.  
+The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)**
 
-- **Dev**: `moon run :dev` (starts infra + shows instructions)
-- **Test**: `moon run :test` (Auto-DB lifecycle + Integrated tests)
-- **Quality**: `moon run :lint` (check) or `moon run :lint -- --fix` (auto-fix)
-- **Proof**: `moon run :test -- --e2e` (E2E tests)
-
-### Pre-commit Hooks (REQUIRED for contributors)
-
-Before your first commit, install pre-commit hooks to prevent CI failures:
-
-```bash
-make install          # Install deps + pre-commit hooks
-# OR manually:
-pip install pre-commit && pre-commit install
-```
-
-**What hooks do**:
-1. **Ruff lint + format** — Auto-fixes Python style issues
-2. **Env var consistency** — Validates `secrets.ctmpl` ↔ `config.py` ↔ `.env.example`
-3. **File hygiene** — Trailing whitespace, merge conflicts, large files
-4. **Branch protection** — Prevents direct commits to `main`
-
-*Reference: [docs/ssot/development.md](docs/ssot/development.md)*
+1. **No SSOT, no work**: Define truth in `docs/ssot/` before writing code.
+2. **No hidden drift**: When code differs from SSOT, sync immediately.
+3. **Single owner**: Each concept has exactly one SSOT file; see MANIFEST.
 
 ---
 
-## 🔍 Debugging & Observability
+## 🔄 Mandatory Work Order
 
-**Use `scripts/debug.py` for unified debugging** across all environments.
+**EPIC → ACx.y.z → Test → Code → Doc**
 
-### Environment Detection
+1. Anchor to an EPIC in `docs/project/`
+2. Register ACs in `docs/ac_registry.yaml` (feature) or `docs/infra_registry.yaml` (infra)
+3. Write **failing** tests referencing AC IDs (🔴 red)
+4. Write minimal code to pass tests (🟢 green)
+5. Update SSOT docs
 
-The debug tool automatically detects your environment:
-- **Local/CI**: Uses Docker logs directly (fast)
-- **Staging/Production**: Uses SSH + Docker logs or SigNoz (centralized)
-
-### Common Commands
-
-```bash
-# View logs (auto-detects environment)
-python scripts/debug.py logs backend
-python scripts/debug.py logs frontend --tail 100
-python scripts/debug.py logs backend --follow
-
-# Specify environment explicitly
-python scripts/debug.py logs backend --env staging
-python scripts/debug.py logs frontend --env production
-
-# Check service status (last 20 lines)
-python scripts/debug.py status backend --env staging
-
-# List all container names for an environment
-python scripts/debug.py containers --env production
-
-# View via SigNoz (staging/production only)
-python scripts/debug.py logs backend --env production --method signoz
-```
-
-### Container Naming Patterns
-
-> See [Six Environments (SSOT)](docs/ssot/development.md#six-environments-ssot) for complete environment details, isolation mechanisms, and workflow configurations.
-
-| Environment | Backend | Frontend | Postgres | Redis |
-|-------------|---------|----------|----------|-------|
-| Local/CI | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-redis` |
-| Staging | `finance_report-backend-staging` | `finance_report-frontend-staging` | `finance_report-postgres-staging` | `finance_report-redis-staging` |
-| Production | `finance_report-backend` | `finance_report-frontend` | `finance_report-postgres` | `finance_report-redis` |
-| PR (#47) | `finance_report-backend-pr-47` | `finance_report-frontend-pr-47` | `finance_report-postgres-pr-47` | `finance_report-redis-pr-47` |
-
-### SigNoz Integration
-
-For staging/production, structured logs are shipped to SigNoz via OTLP:
-
-- **All Environments**: `https://signoz.zitian.party` (single instance, filter by `deployment.environment`)
-
-**Log Retention**:
-- **Docker logs**: 50MB per container (size-based rotation, short-term debugging only)
-- **SigNoz**: Long-term retention (centralized, queryable)
-
-Query logs by service name:
-```
-service_name = "finance-report-backend"
-deployment.environment = "production"  # or "staging", "pr-47"
-```
-
-See [docs/ssot/observability.md](docs/ssot/observability.md) for OTLP configuration details.
-
-### Remote Debugging (SSH)
-
-For operations not covered by `debug.py`, SSH access is available:
-
-```bash
-# SSH into VPS (read-only inspection recommended)
-ssh root@$VPS_HOST
-
-# Check container status
-docker ps --filter name=finance-report
-
-# View logs directly
-docker logs finance-report-backend --tail 50
-docker logs finance-report-backend -f
-
-# Restart container (use with caution)
-docker restart finance-report-backend
-```
-
-**IMPORTANT**: Prefer `debug.py` over direct SSH. Direct modifications on VPS are discouraged—deploy via CI instead.
+Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [docs/ssot/tdd.md](docs/ssot/tdd.md)
 
 ---
 
-## 📌 Core Domain Context
+## 🌿 Branch & PR Rules
 
-**Read [vision.md](vision.md) for macro goals and decision criteria. Key points:**
+Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-policy.md)**
 
-### Accounting Equation
-```
-Assets = Liabilities + Equity + (Income - Expenses)
-```
-See: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_holds_with_all_account_types`
-
-### Reconciliation Thresholds
-| Score | Action |
-|-------|--------|
-| ≥ 85 | Auto-accept |
-| 60-84 | Review queue |
-| < 60 | Unmatched |
-
-### Precision Requirements
-- **Reconciliation tolerance**: 0.1 USD
-- **Statistics tolerance**: 1%
+- ❌ No direct commits to `main`
+- ❌ No new branches while a PR is open
+- ✅ Install pre-commit hooks: `make install`
+- ✅ Run `moon run :lint && moon run :test` before pushing
 
 ---
 
-## 🛠️ Problem Solving Framework (STAR)
+## 🤖 Agent Architecture
 
-AI must use this cascade structure before processing tasks:
+Full guide: **[docs/agents/orchestration.md](docs/agents/orchestration.md)**
 
-### 1. Situation (Context Assessment)
-- **Anchor Project**: Bind to a project in `docs/project/`
-- **Current State**: Describe system status and problem impact
-- **Truth Check**: Read relevant topics in `docs/ssot/`, identify gap between current state and ideal
+| Agent | Cost | When |
+|-------|------|------|
+| **Sisyphus** | — | Main orchestrator |
+| `explore` | FREE | Parallel codebase exploration |
+| `librarian` | FREE | External docs |
+| `frontend-ui-ux-engineer` | MEDIUM | Mandatory for CSS/styling |
+| `multimodal-looker` | MEDIUM | Image/PDF |
+| `oracle` | EXPENSIVE | Architecture decisions |
 
-### 2. Tasks (Multi-Dimensional Breakdown)
-- **Goal Decomposition**: Break down based on Situation
-- **Layer Assignment**: Assign tasks to appropriate layers:
-  - **Backend**: `apps/backend/` (FastAPI, SQLAlchemy)
-  - **Frontend**: `apps/frontend/` (Next.js, React)
-  - **Infrastructure**: `repo/` submodule (Dokploy, Vault, deployment)
-
-### 3. Actions (Execution Steps)
-- **Atomic Operations**: Define specific action sequence for each task.
-- **SSOT Alignment**: Actions must conform to [accounting.md](docs/ssot/accounting.md) and [reconciliation.md](docs/ssot/reconciliation.md).
-- **Contract Validation**:
-    - **Infra Check**: If adding environment variables, sync `repo` submodule (`infra2`).
-    - **DB Check**: Ensure explicit `name` for Enums and check migration length.
-    - **Next.js Check**: Ensure `NEXT_PUBLIC_` variables are added to `Dockerfile` `ARG`.
-- **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README.
-
-### 4. Result (Verification)
-- **Self-Check**: Compare against project goals in [vision.md](vision.md)
-- **Engineering Audit**:
-    - [ ] **Submodule Sync**: Did I update `infra2` for config changes?
-    - [ ] **Enum Naming**: Are all `sa.Enum` fields explicitly named (e.g., `name="..._enum"`)?
-    - [ ] **Next.js Bake**: Are `NEXT_PUBLIC_` variables added to `Dockerfile` `ARG`?
-- **Evidence Loop**: Use verification methods from SSOT "The Proof" sections
-- **Update Docs**: Update README, Project docs, SSOT as needed
-
----
-
-## 🚨 Core Mandatory Principles
-
-### SSOT First
-1. **SSOT is the highest truth**: The **sole authoritative source** is `docs/ssot/`. README is navigation only.
-2. **No SSOT, no work**: Before introducing new components, define their truth in `docs/ssot/`.
-3. **No hidden drift**: When code differs from SSOT, sync immediately. Never let SSOT rot.
-
-### Engineering Integrity
-4. **Explicit Enum Naming**: All database enums **MUST** have an explicit `name` parameter in SQLAlchemy. See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
-5. **Environment Lifecycle**:
-    - `NEXT_PUBLIC_` variables **MUST** be defined in `Dockerfile` as `ARG` and `ENV`. See: `apps/frontend/Dockerfile`
-    - Backend variables **MUST** be documented in `.env.example` and `config.py`. See: `apps/backend/tests/infra/test_config_contract.py::test_config_sync_with_env_example`
-6. **Cross-Repo Sync**: Changes to production configuration (Vault/Compose) **REQUIRE** a corresponding PR in the `repo` submodule (`infra2`).
-7. **Async Transaction Boundary**: Routers handle `commit()`; Services use `flush()` or internal logic. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_create_journal_entry_uses_flush_not_commit`
-
-### Accounting Integrity
-8. **Entries must balance**: Every JournalEntry must have balanced debits and credits. See: `apps/backend/tests/accounting/test_accounting.py::test_balanced_entry_passes`
-9. **Equation must hold**: At any point, the accounting equation must be satisfied. See: `apps/backend/tests/accounting/test_accounting_equation.py::test_accounting_equation_violation_detected`
-
-### Development Work Order (TDD-First)
-10. **EPIC → ACx.y.z → Test → Code → Doc** — This is the mandatory work sequence:
-    1. **EPIC**: Anchor task to a project EPIC in `docs/project/`
-    2. **ACx.y.z**: Register acceptance criteria per type in the appropriate registry before writing any code:
-        - **Feature ACs** (user-facing behavior) → `docs/ac_registry.yaml`
-        - **Infrastructure/Tooling ACs** (tooling, deployment, logging, meta-testing) → `docs/infra_registry.yaml`
-
-        **Classification guide**:
-        - Feature = User-facing behavior (UI, APIs, business logic)
-        - Infra = Tooling, deployment, logging, meta-testing
-    3. **Test**: Write failing tests that reference the AC IDs (red phase)
-    4. **Code**: Write minimal code to make the tests pass (green phase)
-    5. **Doc**: Update SSOT docs and README to reflect the change
-    - ❌ **NEVER** write code before the test exists
-    - ❌ **NEVER** write a test without a registered AC number
-    - ❌ **NEVER** ship without updating SSOT docs
-    - Reference: [docs/ssot/tdd.md](docs/ssot/tdd.md)
-
-### Agent Scope & Deliverables
-
-**What Agent Delivers**: A **CI-passing, test-environment-verified** Pull Request (NOT merged code)
-
-**Agent Workflow (Complete)**:
-1. ✅ Understand requirements
-2. ✅ Design solution
-3. ✅ Implement code
-4. ✅ Write tests
-5. ✅ Create PR
-6. ✅ **Monitor CI until it passes** (use `gh run watch`)
-   - If CI fails: Fix issues and repeat
-   - Agent is responsible for making CI pass
-7. ✅ Verify test environment deploys successfully (health check on `report-pr-XX.zitian.party`)
-8. ✅ **Report: "PR ready for your review"**
-9. ⏸️ **STOP. Wait for user decision.**
-
-**User Workflow**:
-1. Review PR (code quality, architecture decisions)
-2. Decide: Approve / Request changes / Reject
-3. If approved: **User merges PR** (or instructs agent to merge)
-
-**Critical Principles**:
-- ❌ Agent NEVER merges PR automatically
-- ✅ Agent MUST ensure CI passes before reporting completion
-- ✅ CI failures are Agent's responsibility to fix
-- ⏸️ Merging = User's authority, not Agent's
-
-**Delivering PR means**:
-- ✅ CI passed (all checks green)
-- ✅ Test environment working (health check returns 200)
-- ✅ All review comments addressed (if re-delivery)
-- ⏸️ **Waiting for user review** (do NOT merge)
-
-**Operational Guidelines**:
-1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API instead of browser. See `.env.example` for env vars. If Dokploy is not enough to debug, use `ssh root@$VPS_HOST`, **You can only read, not modify**.
-2. **Shared network isolation (Critical)**: In Dokploy shared network, use unique container names (e.g., `finance-report-db-pr-47`) as hostnames. Never use generic names like `postgres` or `redis` to avoid cross-PR routing conflicts.
-3. **Infrastructure Submodule Sync (Critical)**: Before creating PR, verify `repo/` submodule points to latest `infra2` main:
-   ```bash
-   # Check submodule status
-   cd repo && git fetch origin main && git log --oneline -1 origin/main && git log --oneline -1 HEAD
-   # If behind, update:
-   cd repo && git checkout main && git pull && cd .. && git add repo
-   ```
-   **Why Critical**: Deployment configs (Vault, Compose) live in `repo/` submodule. PRs must use latest infrastructure definitions.
-
-### Environment Variable Management
-
-**For complete reference, see: [.opencode/skills/domain/secrets-management/skill.md](.opencode/skills/domain/secrets-management/skill.md)**
-
-4. **Three-layer SSOT**:
-   - `secrets.ctmpl` → Staging/Prod required keys (Vault)
-   - `.env.example` → Complete variable documentation
-   - `config.py` → Type definitions + defaults
-5. **Variable classification**:
-   - **Required** (secrets.ctmpl): DATABASE_URL, S3_*
-    - **Optional** (config.py defaults): DEBUG, BASE_CURRENCY, PRIMARY_MODEL (Gemini Vision), OPENROUTER_API_KEY (AI features), REDIS_URL (Prod/Staging only)
-   - **Infrastructure** (direnv managed): DOKPLOY_*, VAULT_*, VPS_*
-6. **Consistency check**: CI runs `scripts/check_env_keys.py` to validate secrets.ctmpl ↔ config.py
-7. **Adding new variables**:
-   1. Add to `secrets.ctmpl` (if required for production)
-   2. Add to `config.py` (with type and default)
-   3. Update `.env.example` (with classification comment)
-   4. Run `python scripts/check_env_keys.py` to verify
-
----
-
-## 📁 Documentation Hierarchy
-
-| Category | Path | Purpose | Audience |
-|----------|------|---------|----------|
-| **Project EPIC** | `docs/project/` | Task tracking, milestones | AI / Maintainers |
-| **Module README** | Each `apps/*/README.md` | Directory intro, design guide | Developers |
-| **SSOT** | `docs/ssot/` | Technical truth, authoritative reference | Everyone |
-| **User Manual** | (planned) | User-facing guides | End Users |
-
-### MECE Document Organization
-
-```
-docs/
-├── ssot/                 # Technical Truth (Flat Ontology)
-│   ├── development.md    # Moon commands, DB lifecycle, CI
-│   ├── schema.md         # Database layer
-│   ├── accounting.md     # Accounting domain
-│   ├── reconciliation.md # Reconciliation domain
-│   ├── extraction.md     # Document parsing
-│   ├── reporting.md      # Financial reports
-│   └── market_data.md    # FX & stock prices
-├── project/              # EPIC & Task Tracking
-│   ├── README.md
-│   └── EPIC-001.phase0-setup.md
-```
-
----
-
-## 💻 Coding Standards
-
-### Python (Backend)
-```python
-# ✅ Correct - Use Decimal
-from decimal import Decimal
-amount = Decimal("100.50")
-
-# ❌ Wrong - Float precision
-amount = 100.50
-```
-
-### Entry Validation
-```python
-def validate_balance(lines: list[JournalLine]) -> bool:
-    debit = sum(l.amount for l in lines if l.direction == "DEBIT")
-    credit = sum(l.amount for l in lines if l.direction == "CREDIT")
-    return abs(debit - credit) < Decimal("0.01")
-```
-
-### TypeScript (Frontend)
-- Strict TypeScript (no `any`)
-- Server Components by default
-- Client components only when needed
-
----
-
-## 🤖 Agent & Skill Architecture
-
-**Three-layer System**: Orchestrator → Agents → Skills
-
-### Configured Agents
-
-Agents are defined in `.opencode/oh-my-opencode.json`:
-
-| Agent | Cost | When to Use |
-|-------|------|-------------|
-| **Sisyphus** | — | Main orchestrator, handles most tasks directly with skills (including documentation) |
-| `explore` | FREE | Codebase exploration, parallel grep (use in background) |
-| `librarian` | FREE | External docs, OSS examples (use in background) |
-| `frontend-ui-ux-engineer` | MEDIUM | **Mandatory** for visual/styling changes |
-| `multimodal-looker` | MEDIUM | Image/PDF analysis |
-
-### Built-in System Agent
-
-| Agent | Cost | When to Use |
-|-------|------|-------------|
-| `oracle` | EXPENSIVE | Architecture decisions, debugging (system built-in, not configured) |
-
-### Sisyphus Workflow
-
-Sisyphus (orchestrator) handles most tasks directly by loading relevant skills.
-Delegation happens ONLY for:
-
-1. **Parallel exploration** → `explore` + `librarian` (background, parallel)
-2. **Visual changes** → `frontend-ui-ux-engineer` (mandatory for CSS/styling)
-3. **Image/PDF analysis** → `multimodal-looker`
-4. **Architecture decisions** → `oracle` (expensive, use sparingly)
-
-### 🚨 Branch Management Constraints (CRITICAL)
-
-**MUST** follow these rules for Git operations:
-
-1. **NO commits to `main`**: Never commit directly to the `main` branch. All changes must go through branches.
-
-2. **NO new branches while PR is open**: Do NOT create a new branch until the current PR is merged. This prevents:
-   - Branch proliferation
-   - Context switching
-   - Merge conflicts
-   - Lost work
-
-3. **Explicit permission required**: Only create a new branch when:
-   - Current PR is merged
-   - User explicitly requests new work
-   - Previous task is explicitly completed
-
-4. **Work on ONE branch at a time**: Focus on completing the current PR before starting new work.
-
-### Skill Categories
-
-Skills are organized in `.opencode/skills/` by category:
-
-```
-skills/
-├── domain/              # Project-specific (from SSOT)
-│   ├── accounting/      # Double-entry bookkeeping
-│   ├── reconciliation/  # Statement matching
-│   ├── reporting/       # Financial statements
-│   ├── extraction/      # Document parsing
-│   ├── schema/          # Database models
-│   └── development/     # Moon commands, CI/CD
-│
-├── professional/        # Reusable expertise
-│   ├── backend-development/  # FastAPI, security, performance
-│   ├── frontend-react/       # Next.js + Vercel best practices
-│   ├── qa-testing/           # Testing strategies, automation
-│   ├── ui-ux-design/         # UI/UX design, accessibility
-│   ├── product-management/   # PRD, RICE prioritization
-│   └── auditor/              # Financial auditing
-│
-└── meta/                # About skills themselves
-    └── skill-writer/    # Creating new skills
-```
-
-### Skill Reference
-
-| Category | Skill | Purpose |
-|----------|-------|---------|
-| **Domain** | `domain/accounting` | Double-entry bookkeeping rules |
-| | `domain/reconciliation` | Bank statement matching |
-| | `domain/reporting` | Financial statements generation |
-| | `domain/extraction` | AI document parsing |
-| | `domain/schema` | Database models, migrations |
-| | `domain/development` | Moon commands, CI/CD, DB lifecycle |
-| | `domain/infra-operations` | Infrastructure operations: deployment, secrets, debugging, monitoring |
-| **Professional** | `professional/backend-development` | Full backend guide (11 reference docs) |
-| | `professional/frontend-react` | React/Next.js patterns + Vercel rules |
-| | `professional/qa-testing` | Testing strategies, automation |
-| | `professional/ui-ux-design` | UI/UX design, accessibility |
-| | `professional/product-management` | PRD templates, RICE prioritization |
-| | `professional/auditor` | Financial auditing expertise |
-| **Meta** | `meta/skill-writer` | Creating new skills |
-
-### Usage
-
-```bash
-# Load a skill on-demand
-/skill domain/accounting
-
-# Skills are auto-loaded for agents based on oh-my-opencode.json
-# Sisyphus has: domain/development, domain/schema, domain/accounting,
-#               domain/reconciliation, domain/infra-operations, 
-#               professional/backend-development
-```
+Skills: [.opencode/skills/](.opencode/skills/) · Config: [.opencode/oh-my-opencode.json](.opencode/oh-my-opencode.json)
 
 ---
 
 ## 📅 Current Phase
 
-**Current Focus**: Phase 3-5 (Two-Stage Review, Reporting & AI, Portfolio Management)
+**Phase 3–5** (Two-Stage Review · Reporting & AI · Portfolio Management)
 
-- **Phase 3**: Two-Stage Review & Data Validation UI (Foundation for User Adoption)
-- **Phase 4**: Reporting & Visualization, AI Financial Advisor
-- **Phase 5**: Investment Portfolio Management (100% Self-Developed)
+Details: [docs/project/README.md](docs/project/README.md)
 
-**Note**: Phase 0 (Infrastructure Setup) is complete. See [docs/project/README.md](docs/project/README.md) for detailed phased delivery status.
+---
 
-### Portfolio Management Strategy
+## 📁 Documentation Map
 
-**EPIC-017** implements 100% self-developed portfolio management:
-- Holdings dashboard with XIRR, time-weighted return, money-weighted return
-- Brokerage statement auto-parsing (Moomoo, Futu, Interactive Brokers)
-- Manual market price updates (user updates every few months)
-- Sector/geography/asset class allocation
-- Dividend tracking and cost basis methods (FIFO/LIFO/AvgCost)
-
-See [vision.md](vision.md) Decision 1 and [EPIC-017](docs/project/EPIC-017.portfolio-management.md) for details.
+| Category | Path | Purpose |
+|----------|------|---------|
+| **Agent governance** | `docs/agents/` | Red lines, orchestration |
+| **Contributor guide** | `docs/contributing/` | Branch policy, pre-commit |
+| **SSOT** | `docs/ssot/` | Technical truth |
+| **Project EPICs** | `docs/project/` | Task tracking |
+| **Module READMEs** | `apps/*/README.md` | Per-app design guide |

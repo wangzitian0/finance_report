@@ -1,0 +1,63 @@
+name: "Bug Report"
+description: "Report a defect or regression."
+title: "[BUG] Short description"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you begin
+        Check [docs/ssot/](../../docs/ssot/) for the relevant domain SSOT before filing a bug.
+        If the bug violates a red line, see [docs/agents/red-lines.md](../../docs/agents/red-lines.md).
+
+  - type: dropdown
+    id: epic
+    attributes:
+      label: "Affected EPIC"
+      description: "Which EPIC's functionality is broken?"
+      options:
+        - "EPIC-001 — Phase 0 Infrastructure Setup"
+        - "EPIC-002 — Double-Entry Core"
+        - "EPIC-003 — Statement Parsing"
+        - "EPIC-004 — Reconciliation Engine"
+        - "EPIC-005 — Reporting & Visualization"
+        - "EPIC-006 — AI Advisor"
+        - "EPIC-007 — Deployment"
+        - "EPIC-008 — Testing Strategy"
+        - "EPIC-009 — PDF Fixture Generation"
+        - "EPIC-010 — SigNoz Logging"
+        - "EPIC-011 — Asset Lifecycle"
+        - "EPIC-012 — Foundation Libraries"
+        - "EPIC-013 — Statement Parsing v2"
+        - "EPIC-014 — TDD Transformation"
+        - "EPIC-015 — Processing Account"
+        - "EPIC-016 — Two-Stage Review UI"
+        - "EPIC-017 — Portfolio Management"
+        - "EPIC-018 — AI-Driven Pipeline"
+        - "Unknown / Cross-cutting"
+    validations:
+      required: true
+
+  - type: input
+    id: ac_ids
+    attributes:
+      label: "Affected AC IDs (if known)"
+      description: "Which acceptance criteria are violated? Format: ACx.y.z"
+      placeholder: "e.g. AC4.2.1"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Bug Description"
+      description: "What happened? What did you expect?"
+      placeholder: "Steps to reproduce:\n1. ...\n2. ...\n\nExpected: ...\nActual: ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      placeholder: "Environment: local / staging / production\nBranch/tag: main\nDate: "
+    validations:
+      required: true

@@ -1,0 +1,71 @@
+---
+name: "Infrastructure / Tooling"
+description: "Infrastructure, CI/CD, tooling, or meta-testing changes."
+title: "[INFRA] Short description"
+labels: ["infra"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you begin
+        Infrastructure ACs go to `docs/infra_registry.yaml` (not `ac_registry.yaml`).  
+        See [AGENTS.md](../../AGENTS.md) and [docs/ssot/tdd.md](../../docs/ssot/tdd.md).
+
+  - type: dropdown
+    id: epic
+    attributes:
+      label: "Anchor EPIC"
+      options:
+        - "EPIC-001 — Phase 0 Infrastructure Setup"
+        - "EPIC-007 — Deployment"
+        - "EPIC-008 — Testing Strategy"
+        - "EPIC-010 — SigNoz Logging"
+        - "EPIC-014 — TDD Transformation"
+        - "New EPIC (describe below)"
+    validations:
+      required: true
+
+  - type: input
+    id: ac_ids
+    attributes:
+      label: "Infra AC IDs"
+      description: "Format: ACx.y.z — must be registered in docs/infra_registry.yaml before writing code."
+      placeholder: "e.g. AC8.3.1, AC8.3.2"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: ssot_files
+    attributes:
+      label: "SSOT files to update"
+      options:
+        - label: "docs/ssot/development.md"
+        - label: "docs/ssot/environments.md"
+        - label: "docs/ssot/ci-cd.md"
+        - label: "docs/ssot/deployment.md"
+        - label: "docs/ssot/MANIFEST.yaml"
+        - label: "docs/ssot/coverage.md"
+        - label: "docs/ssot/tdd.md"
+        - label: "docs/ssot/observability.md"
+        - label: "docs/contributing/branch-policy.md"
+        - label: "docs/agents/red-lines.md"
+        - label: "docs/agents/orchestration.md"
+        - label: "No SSOT update needed"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "What infrastructure concern is this addressing?"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Pre-submission checklist"
+      options:
+        - label: "AC IDs are registered in docs/infra_registry.yaml"
+          required: true
+        - label: "SSOT files to update are identified"
+          required: true
