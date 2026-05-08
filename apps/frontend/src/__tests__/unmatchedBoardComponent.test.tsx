@@ -89,4 +89,37 @@ describe("UnmatchedBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }))
     await waitFor(() => expect(screen.queryAllByText("Card payment")).toHaveLength(0))
   })
+
+  it("creates all entries with batch action", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "u1",
+            statement_id: "s1",
+            txn_date: "2026-01-11",
+            description: "Card payment",
+            amount: 88,
+            direction: "OUT",
+            status: "unmatched",
+          },
+        ],
+        total: 1,
+      })
+      .mockResolvedValueOnce({ created_count: 1 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+
+    render(<UnmatchedBoard />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/unmatched/batch-create", {
+        method: "POST",
+        body: JSON.stringify({ all: true }),
+      }),
+    )
+    expect(await screen.findByText("Created 1 journal entries from unmatched transactions.")).toBeInTheDocument()
+  })
 })

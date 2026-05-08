@@ -16,12 +16,15 @@ from src.models import (
     BankStatementTransactionStatus,
     Direction,
     JournalEntry,
+    JournalEntrySourceType,
     ReconciliationMatch,
     ReconciliationStatus,
 )
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,
+    BatchCreateEntriesRequest,
+    BatchCreateEntriesResponse,
     JournalEntrySummary,
     ReconciliationMatchListResponse,
     ReconciliationMatchResponse,
@@ -383,6 +386,51 @@ async def create_entry(
     entry = await create_entry_from_txn(db, txn, user_id=user_id)
     await db.commit()
     return _build_entry_summary(entry)
+
+
+@router.post("/unmatched/batch-create", response_model=BatchCreateEntriesResponse)
+async def batch_create_entries(
+    payload: BatchCreateEntriesRequest,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> BatchCreateEntriesResponse:
+    if not payload.all and not payload.txn_ids:
+        raise_bad_request("Provide txn_ids or set all=true")
+
+    query = (
+        select(BankStatementTransaction)
+        .join(BankStatement)
+        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+        .where(BankStatement.user_id == user_id)
+    )
+    if not payload.all:
+        query = query.where(BankStatementTransaction.id.in_(payload.txn_ids))
+
+    result = await db.execute(query.order_by(BankStatementTransaction.txn_date.desc()))
+    txns = result.scalars().all()
+
+    if not txns:
+        return BatchCreateEntriesResponse(created_count=0)
+
+    txn_ids = [txn.id for txn in txns]
+    existing_entries_result = await db.execute(
+        select(JournalEntry.source_id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id.in_(txn_ids))
+    )
+    existing_source_ids = {source_id for source_id in existing_entries_result.scalars().all() if source_id is not None}
+
+    created_count = 0
+    for txn in txns:
+        if txn.id in existing_source_ids:
+            continue
+        await create_entry_from_txn(db, txn, user_id=user_id)
+        created_count += 1
+
+    await db.commit()
+    return BatchCreateEntriesResponse(created_count=created_count)
 
 
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])

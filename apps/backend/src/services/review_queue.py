@@ -269,8 +269,9 @@ async def create_entry_from_txn(
     txn: BankStatementTransaction,
     *,
     user_id: UUID,
+    auto_post: bool = False,
 ) -> JournalEntry:
-    """Create a draft journal entry from a bank transaction.
+    """Create a journal entry from a bank transaction.
 
     Uses the statement's linked account if available, otherwise creates a default.
     """
@@ -382,7 +383,7 @@ async def create_entry_from_txn(
         memo=txn.description,
         source_type=JournalEntrySourceType.BANK_STATEMENT,
         source_id=txn.id,
-        status=JournalEntryStatus.DRAFT,
+        status=JournalEntryStatus.POSTED if auto_post else JournalEntryStatus.DRAFT,
     )
 
     entry.lines.append(

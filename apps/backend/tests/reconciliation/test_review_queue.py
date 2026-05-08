@@ -391,6 +391,21 @@ async def test_create_entry_from_txn_dr_direction(db, test_user):
 
 
 @pytest.mark.asyncio
+async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_user):
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="IN",
+        amount=Decimal("75.00"),
+    )
+    await db.commit()
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    assert entry.status == JournalEntryStatus.POSTED
+
+
+@pytest.mark.asyncio
 async def test_create_entry_from_txn_wrong_user_raises(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
     txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)

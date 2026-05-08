@@ -45,6 +45,10 @@ interface StatementReview {
     transfer_pair_candidates?: any[];
 }
 
+interface Stage1ApprovalResponse {
+    journal_entries_created: number;
+}
+
 export default function StatementReviewPage() {
     const { showToast } = useToast();
     const params = useParams();
@@ -113,11 +117,12 @@ export default function StatementReviewPage() {
     });
 
     const approveMutation = useMutation({
-        mutationFn: () => apiFetch(`/api/statements/${statementId}/review/approve`, { method: "POST" }),
-        onSuccess: () => {
-            showToast("Statement approved successfully", "success");
+        mutationFn: () => apiFetch<Stage1ApprovalResponse>(`/api/statements/${statementId}/review/approve`, { method: "POST" }),
+        onSuccess: (result) => {
+            const createdCount = result.journal_entries_created ?? 0;
+            showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
             setApproveDialogOpen(false);
-            router.push("/statements");
+            router.push(`/statements/${statementId}?approved=1&entriesCreated=${createdCount}`);
         },
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to approve", "error")
     });
