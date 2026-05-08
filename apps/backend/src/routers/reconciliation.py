@@ -407,7 +407,9 @@ async def batch_create_entries(
     if not payload.all:
         query = query.where(BankStatementTransaction.id.in_(payload.txn_ids))
 
-    result = await db.execute(query.order_by(BankStatementTransaction.txn_date.desc()).with_for_update(skip_locked=True))
+    result = await db.execute(
+        query.order_by(BankStatementTransaction.txn_date.desc()).with_for_update(skip_locked=True)
+    )
     txns = result.scalars().all()
 
     if not txns:
