@@ -294,12 +294,17 @@ async def _aggregate_net_income_sql(
     if not currencies:
         return Decimal("0")
 
-    # Build FX rate map: currency -> period-average rate
-    # When start_date is not provided, use 1970-01-01 as a sentinel so that the
-    # average covers all FX data stored in the database up to as_of_date.
-    # (get_average_rate falls back to the spot rate at as_of_date when no rates
-    # exist in the range, and raises FxRateError if that is also missing.)
-    effective_start = start_date or date(1970, 1, 1)
+    # Determine the effective period start for average rate calculation.
+    # When no start_date is supplied (cumulative balance sheet), use date.min
+    # so the average spans ALL available FX rate history up to as_of_date.
+    # This keeps the BS and IS rates aligned: when the IS covers the same
+    # period, get_average_rate will see the same set of rate rows.
+    # Note: get_average_rate handles sparse data by falling back to the
+    # period-end spot rate when no rows exist in [date.min, as_of_date],
+    # so passing date.min is safe even if the DB has no ancient rate records.
+    effective_start = start_date if start_date is not None else date.min
+
+    # Build FX rate map: currency -> average rate for the period
     fx_rate_map: dict[str, Decimal] = {}
     for source in currencies:
         if source == target_currency:
@@ -342,7 +347,12 @@ async def _aggregate_net_income_sql(
         if fx_rate is None:
             raise ReportError(f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error")
         converted = Decimal(str(row.total)) * fx_rate
-        signed = _signed_amount(row.type, row.direction, converted)
+        # Net income sign convention: both income and expense types are credit-normal.
+        # - Income CREDIT = +, Income DEBIT = -
+        # - Expense DEBIT = - (expenses reduce net income), Expense CREDIT = +
+        # Do NOT use _signed_amount here: it returns +amount for EXPENSE DEBIT (account-balance
+        # convention), which is the opposite of what the net-income formula needs.
+        signed = converted if row.direction == Direction.CREDIT else -converted
         net_income += signed
 
     return net_income

@@ -1092,6 +1092,19 @@ async def execute_matching(
         # Detect transfer pattern (keywords-based detection)
         if detect_transfer_pattern(txn):
             try:
+                # Idempotency check: skip if this transaction already has an active match
+                existing_transfer_match = await _get_existing_active_match(
+                    db, txn.id, is_layer2=settings.enable_4_layer_read
+                )
+                if existing_transfer_match:
+                    logger.debug(
+                        "Transfer already matched - skipping duplicate match creation",
+                        txn_id=str(txn.id),
+                        existing_match_id=str(existing_transfer_match.id),
+                    )
+                    matched_txn_ids.add(txn.id)
+                    continue
+
                 # Fetch statement to get account_id
                 stmt_result = await db.execute(select(BankStatement).where(BankStatement.id == txn.statement_id))
                 stmt = stmt_result.scalar_one()

@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -276,6 +277,39 @@ async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_us
 
     # Period-average rate: (1.30 + 1.50) / 2 = 1.40 → 100 USD × 1.40 = 140 SGD
     assert net_income == Decimal("140.00")
+
+
+@pytest.mark.asyncio
+async def test_net_income_sql_detects_missing_fx_map_row() -> None:
+    """AC5.6.7: Net income FX aggregation detects missing FX map row (data consistency).
+
+    Simulates a data race where the aggregation query returns a currency that
+    was not present when the currency list was first fetched.
+    """
+    fake_db = MagicMock()
+
+    # First execute: distinct currency query → returns ["USD"]
+    currency_result = MagicMock()
+    currency_result.all.return_value = [("USD",)]
+
+    # Second execute (aggregation): returns a row with "EUR" – NOT in fx_rate_map for "USD" only
+    agg_result = MagicMock()
+    agg_result.all.return_value = [
+        SimpleNamespace(
+            currency="EUR",
+            type=AccountType.INCOME,
+            direction=Direction.CREDIT,
+            total=Decimal("10"),
+        )
+    ]
+
+    fake_db.execute = AsyncMock(side_effect=[currency_result, agg_result])
+
+    # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
+    with patch("src.services.reporting.get_average_rate", new_callable=AsyncMock) as mock_avg:
+        mock_avg.return_value = Decimal("1.35")
+        with pytest.raises(ReportError, match="data consistency error"):
+            await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
 
 
 @pytest.mark.asyncio

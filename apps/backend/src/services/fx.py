@@ -10,7 +10,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
+from src.logger import get_logger
 from src.models import FxRate
+
+logger = get_logger(__name__)
 
 
 class FxRateError(Exception):
@@ -138,6 +141,13 @@ async def get_average_rate(
     avg_rate = result.scalar_one_or_none()
 
     if avg_rate is None:
+        logger.warning(
+            "No average FX rate data found for period, falling back to period-end spot rate",
+            base_currency=base,
+            quote_currency=quote,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+        )
         avg_rate = await get_exchange_rate(db, base, quote, end_date)
     elif not isinstance(avg_rate, Decimal):
         avg_rate = Decimal(str(avg_rate))
