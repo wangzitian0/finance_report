@@ -54,7 +54,7 @@ def upgrade() -> None:
             sa.Column("currency", sa.String(length=3), nullable=False),
             sa.Column(
                 "source",
-                sa.Enum("manual", "api", name="price_source_enum", create_type=False),
+                postgresql.ENUM("manual", "api", name="price_source_enum", create_type=False),
                 nullable=False,
             ),
             sa.Column("id", sa.UUID(), nullable=False),
@@ -76,7 +76,7 @@ def upgrade() -> None:
             sa.Column("currency", sa.String(length=3), nullable=False),
             sa.Column(
                 "dividend_type",
-                sa.Enum("ordinary", "qualified", name="dividend_type_enum", create_type=False),
+                postgresql.ENUM("ordinary", "qualified", name="dividend_type_enum", create_type=False),
                 nullable=False,
             ),
             sa.Column("id", sa.UUID(), nullable=False),
@@ -97,7 +97,7 @@ def upgrade() -> None:
             "atomic_positions",
             sa.Column(
                 "asset_type",
-                sa.Enum(
+                postgresql.ENUM(
                     "stock",
                     "bond",
                     "etf",
@@ -185,7 +185,7 @@ def upgrade() -> None:
             "managed_positions",
             sa.Column(
                 "cost_basis_method",
-                sa.Enum("FIFO", "LIFO", "AvgCost", name="cost_basis_method_enum", create_type=False),
+                postgresql.ENUM("FIFO", "LIFO", "AvgCost", name="cost_basis_method_enum", create_type=False),
                 nullable=True,
                 comment="Method for calculating realized P&L",
             ),
