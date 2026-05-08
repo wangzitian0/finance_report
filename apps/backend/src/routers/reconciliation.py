@@ -379,10 +379,23 @@ async def create_entry(
         .join(BankStatement)
         .where(BankStatementTransaction.id == txn_id)
         .where(BankStatement.user_id == user_id)
+        .with_for_update()
     )
     txn = result.scalar_one_or_none()
     if not txn:
         raise_not_found("Transaction")
+
+    existing_entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+        .order_by(JournalEntry.created_at.desc())
+    )
+    existing_entry = existing_entry_result.scalar_one_or_none()
+    if existing_entry:
+        return _build_entry_summary(existing_entry)
+
     entry = await create_entry_from_txn(db, txn, user_id=user_id)
     await db.commit()
     return _build_entry_summary(entry)

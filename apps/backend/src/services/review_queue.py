@@ -270,6 +270,8 @@ async def create_entry_from_txn(
     *,
     user_id: UUID,
     auto_post: bool = False,
+    preloaded_statement: BankStatement | None = None,
+    preloaded_bank_account: Account | None = None,
 ) -> JournalEntry:
     """Create a journal entry from a bank transaction.
 
@@ -278,18 +280,25 @@ async def create_entry_from_txn(
     otherwise it is created as DRAFT.
     """
     # Validate transaction belongs to user and get statement details
-    statement_result = await db.execute(
-        select(BankStatement).where(BankStatement.id == txn.statement_id).where(BankStatement.user_id == user_id)
-    )
-    statement = statement_result.scalar_one_or_none()
-    if not statement:
-        raise ValueError("Transaction does not belong to user")
+    statement = preloaded_statement
+    if statement:
+        if statement.id != txn.statement_id or statement.user_id != user_id:
+            raise ValueError("Transaction does not belong to user")
+    else:
+        statement_result = await db.execute(
+            select(BankStatement).where(BankStatement.id == txn.statement_id).where(BankStatement.user_id == user_id)
+        )
+        statement = statement_result.scalar_one_or_none()
+        if not statement:
+            raise ValueError("Transaction does not belong to user")
 
     currency = statement.currency or "SGD"
 
     # Use statement's linked account if available, otherwise create default
-    bank_account: Account | None = None
-    if statement.account_id:
+    bank_account: Account | None = preloaded_bank_account
+    if bank_account and bank_account.user_id != user_id:
+        raise ValueError("Bank account does not belong to user")
+    if not bank_account and statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
         )

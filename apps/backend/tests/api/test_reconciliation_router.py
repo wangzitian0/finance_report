@@ -33,6 +33,7 @@ from src.models import (
     BankStatementTransaction,
     BankStatementTransactionStatus,
     JournalEntry,
+    JournalEntrySourceType,
     ReconciliationMatch,
     ReconciliationStatus,
     User,
@@ -389,6 +390,36 @@ class TestReconciliationEndpoints:
         # THEN returns 404 Not Found
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "Transaction" in response.json()["detail"]
+
+    async def test_create_entry_from_unmatched_is_idempotent(self, client: AsyncClient, db, test_user: User):
+        """AC4.3.10: Repeating create-entry returns existing BANK_STATEMENT entry."""
+        statement = create_test_statement(db, test_user)
+        db.add(statement)
+        await db.commit()
+
+        transaction = create_test_transaction(
+            db,
+            statement,
+            status=BankStatementTransactionStatus.UNMATCHED,
+        )
+        db.add(transaction)
+        await db.commit()
+
+        first = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
+        second = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
+
+        assert first.status_code == status.HTTP_200_OK
+        assert second.status_code == status.HTTP_200_OK
+        assert second.json()["id"] == first.json()["id"]
+
+        entries_result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.user_id == test_user.id)
+            .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+            .where(JournalEntry.source_id == transaction.id)
+        )
+        entries = entries_result.scalars().all()
+        assert len(entries) == 1
 
     async def test_batch_create_entries_for_all_unmatched(self, client: AsyncClient, db, test_user: User):
         """AC4.3.14: Test batch creating entries for all unmatched transactions."""

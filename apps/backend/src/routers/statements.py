@@ -19,6 +19,8 @@ from src.database import create_session_maker_from_db
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import (
+    Account,
+    AccountType,
     BankStatement,
     BankStatementStatus,
     BankStatementTransaction,
@@ -44,7 +46,7 @@ from src.schemas.review import (
 )
 from src.services import StorageError, StorageService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
-from src.services.review_queue import create_entry_from_txn
+from src.services.review_queue import create_entry_from_txn, get_or_create_account
 from src.services.statement_parsing import parse_statement_background
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
@@ -105,11 +107,33 @@ async def _auto_create_posted_entries_for_statement(
     )
     transfer_txn_ids = {match.bank_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids}
 
+    preloaded_bank_account: Account | None = None
+    if statement.account_id:
+        account_result = await db.execute(
+            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
+        )
+        preloaded_bank_account = account_result.scalar_one_or_none()
+    if not preloaded_bank_account:
+        preloaded_bank_account = await get_or_create_account(
+            db,
+            name="Bank - Main",
+            account_type=AccountType.ASSET,
+            currency=statement.currency or "SGD",
+            user_id=user_id,
+        )
+
     created_count = 0
     for txn in statement.transactions:
         if txn.id in existing_entry_txn_ids or txn.id in transfer_txn_ids:
             continue
-        await create_entry_from_txn(db, txn, user_id=user_id, auto_post=True)
+        await create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            auto_post=True,
+            preloaded_statement=statement,
+            preloaded_bank_account=preloaded_bank_account,
+        )
         created_count += 1
 
     return created_count
