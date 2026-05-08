@@ -278,12 +278,15 @@ async def create_entry_from_txn(
     Uses the statement's linked account if available, otherwise creates a default.
     When auto_post is True, the generated entry is created with POSTED status;
     otherwise it is created as DRAFT.
+    preloaded_statement/preloaded_bank_account may be passed by trusted callers
+    that already loaded them for the same authenticated user context.
     """
     # Validate transaction belongs to user and get statement details
     statement = preloaded_statement
     if statement:
+        # Caller must preload statement under the same authenticated user context.
         if statement.id != txn.statement_id or statement.user_id != user_id:
-            raise ValueError("Transaction does not belong to user")
+            raise ValueError("Preloaded statement does not match transaction or user")
     else:
         statement_result = await db.execute(
             select(BankStatement).where(BankStatement.id == txn.statement_id).where(BankStatement.user_id == user_id)
@@ -296,9 +299,13 @@ async def create_entry_from_txn(
 
     # Use statement's linked account if available, otherwise create default
     bank_account: Account | None = preloaded_bank_account
-    if bank_account and bank_account.user_id != user_id:
-        raise ValueError("Bank account does not belong to user")
-    if not bank_account and statement.account_id:
+    if bank_account is not None:
+        if bank_account.user_id != user_id:
+            # Caller must preload bank account under the same authenticated user context.
+            raise ValueError("Bank account does not belong to user")
+        if statement.account_id and bank_account.id != statement.account_id:
+            raise ValueError("Preloaded bank account does not match statement")
+    elif statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
         )

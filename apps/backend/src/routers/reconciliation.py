@@ -374,6 +374,7 @@ async def create_entry(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntrySummary:
+    # Lock txn row first to serialize create-entry requests for the same source txn.
     result = await db.execute(
         select(BankStatementTransaction)
         .join(BankStatement)
@@ -390,7 +391,7 @@ async def create_entry(
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
         .where(JournalEntry.source_id == txn.id)
-        .order_by(JournalEntry.created_at.desc())
+        .limit(1)
     )
     existing_entry = existing_entry_result.scalar_one_or_none()
     if existing_entry:
