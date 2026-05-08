@@ -72,6 +72,7 @@ export default function UnmatchedBoard() {
 
   const createEntry = async (txnId: string) => {
     setCreating(txnId);
+    setBatchCreatedCount(null);
     try {
       const entry = await apiFetch<JournalEntrySummary>(`/api/reconciliation/unmatched/${txnId}/create-entry`, { method: "POST" });
       setCreatedEntry(entry);
@@ -84,6 +85,7 @@ export default function UnmatchedBoard() {
 
   const createAllEntries = async () => {
     setCreatingAll(true);
+    setBatchCreatedCount(null);
     try {
       const result = await apiFetch<BatchCreateEntriesResponse>("/api/reconciliation/unmatched/batch-create", {
         method: "POST",
@@ -94,6 +96,7 @@ export default function UnmatchedBoard() {
       setError(null);
       await refresh();
     } catch (err) {
+      setBatchCreatedCount(null);
       setError(err instanceof Error ? err.message : "Failed to create entries in bulk.");
     } finally {
       setCreatingAll(false);

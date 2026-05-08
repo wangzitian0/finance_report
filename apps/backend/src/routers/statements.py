@@ -25,6 +25,7 @@ from src.models import (
     JournalEntry,
     JournalEntrySourceType,
     ReconciliationMatch,
+    ReconciliationStatus,
 )
 from src.schemas import (
     BankStatementListResponse,
@@ -96,6 +97,8 @@ async def _auto_create_posted_entries_for_statement(
         .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
         .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
         .where(ReconciliationMatch.bank_txn_id.in_(txn_ids))
+        .where(ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]))
+        .where(ReconciliationMatch.superseded_by_id.is_(None))
         .where(BankStatement.user_id == user_id)
     )
     transfer_txn_ids = {match.bank_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids}

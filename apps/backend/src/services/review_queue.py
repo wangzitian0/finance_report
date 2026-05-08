@@ -274,6 +274,8 @@ async def create_entry_from_txn(
     """Create a journal entry from a bank transaction.
 
     Uses the statement's linked account if available, otherwise creates a default.
+    When auto_post is True, the generated entry is created with POSTED status;
+    otherwise it is created as DRAFT.
     """
     # Validate transaction belongs to user and get statement details
     statement_result = await db.execute(

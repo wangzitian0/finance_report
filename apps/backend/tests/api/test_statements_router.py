@@ -1249,6 +1249,56 @@ async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, te
     assert generated_result.scalar_one_or_none() is None
 
 
+async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(db, test_user):
+    statement = build_statement(test_user.id, "hash_s1_rejected_match", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.closing_balance = Decimal("90.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 4),
+        description="Payment",
+        amount=Decimal("10.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.flush()
+
+    stale_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2025, 1, 4),
+        memo="Stale candidate",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(stale_entry)
+    await db.flush()
+
+    db.add(
+        ReconciliationMatch(
+            bank_txn_id=txn.id,
+            journal_entry_ids=[str(stale_entry.id)],
+            status=ReconciliationStatus.REJECTED,
+            match_score=100,
+        )
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert result.journal_entries_created == 1
+
+    generated_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+    )
+    generated = generated_result.scalar_one_or_none()
+    assert generated is not None
+
+
 async def test_approve_statement_stage1_balance_mismatch(db, test_user):
     """Given a statement where closing balance doesn't match calculations,
     When approve_statement_stage1 is called,
