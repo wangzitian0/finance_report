@@ -120,6 +120,6 @@ describe("UnmatchedBoard", () => {
         body: JSON.stringify({ all: true }),
       }),
     )
-    expect(await screen.findByText("Created 1 journal entries from unmatched transactions.")).toBeInTheDocument()
+    expect(await screen.findByText("Created 1 journal entry from unmatched transactions.")).toBeInTheDocument()
   })
 })

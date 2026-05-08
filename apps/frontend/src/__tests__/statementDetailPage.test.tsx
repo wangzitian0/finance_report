@@ -5,11 +5,11 @@ import StatementDetailPage from "@/app/(main)/statements/[id]/page"
 import { apiFetch } from "@/lib/api"
 
 const showToastMock = vi.fn()
-const searchParamsState = new URLSearchParams()
+const mockSearchParams = new URLSearchParams()
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "s1" }),
-  useSearchParams: () => searchParamsState,
+  useSearchParams: () => mockSearchParams,
 }))
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -66,8 +66,8 @@ describe("StatementDetailPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
-    searchParamsState.delete("approved")
-    searchParamsState.delete("entriesCreated")
+    mockSearchParams.delete("approved")
+    mockSearchParams.delete("entriesCreated")
   })
 
   it("AC16.18.1 loads detail data and renders transactions", async () => {
@@ -145,8 +145,8 @@ describe("StatementDetailPage", () => {
   })
 
   it("shows post-approval CTA when redirected from approve flow", async () => {
-    searchParamsState.set("approved", "1")
-    searchParamsState.set("entriesCreated", "42")
+    mockSearchParams.set("approved", "1")
+    mockSearchParams.set("entriesCreated", "42")
     mockedApiFetch.mockResolvedValueOnce({ ...parsedStatement, status: "approved" })
 
     render(<StatementDetailPage />)

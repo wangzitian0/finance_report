@@ -153,7 +153,7 @@ export default function UnmatchedBoard() {
       {error && <div className="mb-4 alert-error">{error}</div>}
       {batchCreatedCount !== null && (
         <div className="mb-4 p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
-          Created {batchCreatedCount} journal entries from unmatched transactions.
+          Created {batchCreatedCount} journal {batchCreatedCount === 1 ? "entry" : "entries"} from unmatched transactions.
         </div>
       )}
 

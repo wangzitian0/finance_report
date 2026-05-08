@@ -89,7 +89,7 @@ async def _auto_create_posted_entries_for_statement(
         .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
         .where(JournalEntry.source_id.in_(txn_ids))
     )
-    existing_entry_txn_ids = {source_id for source_id in existing_entry_result.scalars().all() if source_id is not None}
+    existing_entry_txn_ids = set(existing_entry_result.scalars().all())
 
     transfer_match_result = await db.execute(
         select(ReconciliationMatch)

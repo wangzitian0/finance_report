@@ -18,8 +18,7 @@ export default function StatementDetailPage() {
     const searchParams = useSearchParams();
     const statementId = params.id as string;
     const approvedNow = searchParams.get("approved") === "1";
-    const parsedEntriesCreated = Number(searchParams.get("entriesCreated") || "0");
-    const entriesCreated = Number.isFinite(parsedEntriesCreated) ? parsedEntriesCreated : 0;
+    const entriesCreated = Number(searchParams.get("entriesCreated")) || 0;
 
     const [statement, setStatement] = useState<BankStatement | null>(null);
     const [loading, setLoading] = useState(true);

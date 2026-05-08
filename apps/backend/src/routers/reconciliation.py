@@ -396,7 +396,7 @@ async def batch_create_entries(
     user_id: CurrentUserId,
 ) -> BatchCreateEntriesResponse:
     if not payload.all and not payload.txn_ids:
-        raise_bad_request("Provide txn_ids or set all=true")
+        raise_bad_request("Provide txn_ids or set all=True")
 
     query = (
         select(BankStatementTransaction)
@@ -420,7 +420,7 @@ async def batch_create_entries(
         .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
         .where(JournalEntry.source_id.in_(txn_ids))
     )
-    existing_source_ids = {source_id for source_id in existing_entries_result.scalars().all() if source_id is not None}
+    existing_source_ids = set(existing_entries_result.scalars().all())
 
     created_count = 0
     for txn in txns:
