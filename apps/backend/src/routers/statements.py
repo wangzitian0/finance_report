@@ -383,9 +383,9 @@ async def list_statement_transactions(
 @router.post("/{statement_id}/approve", response_model=BankStatementResponse, deprecated=True)
 async def approve_statement(
     statement_id: UUID,
+    decision: StatementDecisionRequest,
     db: DbSession,
     user_id: CurrentUserId,
-    decision: StatementDecisionRequest,
 ) -> BankStatementResponse:
     """[Deprecated] Approve via Stage 1 validation flow.
 
@@ -434,9 +434,9 @@ async def reject_statement(
 
     try:
         await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
-        await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    await db.commit()
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
