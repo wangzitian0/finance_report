@@ -472,9 +472,7 @@ async def batch_create_entries(
         if txn.id in existing_source_ids:
             continue
         statement = txn.statement
-        preloaded_bank_account = (
-            bank_account_by_id.get(statement.account_id) if statement and statement.account_id else None
-        )
+        preloaded_bank_account = bank_account_by_id.get(statement.account_id) if statement.account_id else None
         await create_entry_from_txn(
             db,
             txn,
