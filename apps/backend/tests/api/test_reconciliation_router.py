@@ -26,12 +26,14 @@ from uuid import uuid4
 
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from src.models import (
     BankStatement,
     BankStatementTransaction,
     BankStatementTransactionStatus,
     JournalEntry,
+    JournalEntrySourceType,
     ReconciliationMatch,
     ReconciliationStatus,
     User,
@@ -388,6 +390,86 @@ class TestReconciliationEndpoints:
         # THEN returns 404 Not Found
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "Transaction" in response.json()["detail"]
+
+    async def test_create_entry_from_unmatched_is_idempotent(self, client: AsyncClient, db, test_user: User):
+        """AC4.3.10: Repeating create-entry returns existing BANK_STATEMENT entry."""
+        statement = create_test_statement(db, test_user)
+        db.add(statement)
+        await db.commit()
+
+        transaction = create_test_transaction(
+            db,
+            statement,
+            status=BankStatementTransactionStatus.UNMATCHED,
+        )
+        db.add(transaction)
+        await db.commit()
+
+        first = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
+        second = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
+
+        assert first.status_code == status.HTTP_200_OK
+        assert second.status_code == status.HTTP_200_OK
+        assert second.json()["id"] == first.json()["id"]
+
+        entries_result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.user_id == test_user.id)
+            .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+            .where(JournalEntry.source_id == transaction.id)
+        )
+        entries = entries_result.scalars().all()
+        assert len(entries) == 1
+
+    async def test_batch_create_entries_for_all_unmatched(self, client: AsyncClient, db, test_user: User):
+        """AC4.3.14: Test batch creating entries for all unmatched transactions."""
+        statement = create_test_statement(db, test_user)
+        db.add(statement)
+        await db.commit()
+
+        txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        db.add_all([txn1, txn2])
+        await db.commit()
+
+        response = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["created_count"] == 2
+
+        entries_result = await db.execute(
+            select(JournalEntry).where(JournalEntry.source_id.in_([txn1.id, txn2.id]))
+        )
+        entries = entries_result.scalars().all()
+        assert len(entries) == 2
+
+    async def test_batch_create_entries_requires_filter(self, client: AsyncClient):
+        """AC4.3.15: Test batch create returns 400 without all/txn_ids filter."""
+        response = await client.post("/reconciliation/unmatched/batch-create", json={})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "txn_ids" in response.json()["detail"]
+
+    async def test_batch_create_entries_all_respects_max_limit(self, client: AsyncClient, db, test_user: User, monkeypatch):
+        """all=True batch create should reject oversized unmatched sets."""
+        from src.routers import reconciliation as reconciliation_router
+
+        with monkeypatch.context() as local_monkeypatch:
+            local_monkeypatch.setattr(reconciliation_router, "MAX_BATCH_CREATE_ALL", 1)
+            statement = create_test_statement(db, test_user)
+            db.add(statement)
+            await db.commit()
+
+            txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+            txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+            db.add_all([txn1, txn2])
+            await db.commit()
+
+            response = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "Too many unmatched transactions" in response.json()["detail"]
 
     async def test_list_anomalies_success(self, client: AsyncClient, db, test_user: User):
         """AC4.5.1: Test listing anomalies for a transaction."""

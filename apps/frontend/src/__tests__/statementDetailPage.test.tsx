@@ -5,9 +5,11 @@ import StatementDetailPage from "@/app/(main)/statements/[id]/page"
 import { apiFetch } from "@/lib/api"
 
 const showToastMock = vi.fn()
+const mockSearchParams = new URLSearchParams()
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "s1" }),
+  useSearchParams: () => mockSearchParams,
 }))
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -64,6 +66,8 @@ describe("StatementDetailPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
+    mockSearchParams.delete("approved")
+    mockSearchParams.delete("entriesCreated")
   })
 
   it("AC16.18.1 loads detail data and renders transactions", async () => {
@@ -140,6 +144,29 @@ describe("StatementDetailPage", () => {
     expect(screen.queryByText("Confirm Approve")).not.toBeInTheDocument()
   })
 
+  it("shows post-approval CTA when redirected from approve flow", async () => {
+    mockSearchParams.set("approved", "1")
+    mockSearchParams.set("entriesCreated", "42")
+    mockedApiFetch.mockResolvedValueOnce({ ...parsedStatement, status: "approved" })
+
+    render(<StatementDetailPage />)
+
+    await waitFor(() => expect(screen.getByText("Statement approved. 42 journal entries created.")).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "View in Journal" })).toHaveAttribute("href", "/journal")
+    expect(screen.getByRole("link", { name: "Go to Reports" })).toHaveAttribute("href", "/reports")
+  })
+
+  it("does not show post-approval CTA when statement is not approved", async () => {
+    mockSearchParams.set("approved", "1")
+    mockSearchParams.set("entriesCreated", "42")
+    mockedApiFetch.mockResolvedValueOnce({ ...parsedStatement, status: "parsed" })
+
+    render(<StatementDetailPage />)
+
+    await waitFor(() => expect(screen.getByText("Review")).toBeInTheDocument())
+    expect(screen.queryByText("Statement approved. 42 journal entries created.")).not.toBeInTheDocument()
+  })
+
   it("stops polling after consecutive errors", async () => {
     const parsingState = { ...parsedStatement, status: "parsing", parsing_progress: 50 }
     mockedApiFetch.mockResolvedValueOnce(parsingState)
@@ -149,4 +176,3 @@ describe("StatementDetailPage", () => {
     await waitFor(() => expect(screen.getByText(/Auto-refresh Stopped/)).toBeInTheDocument(), { timeout: 15000 })
   }, 20000)
 })
-

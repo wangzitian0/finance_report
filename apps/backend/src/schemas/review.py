@@ -89,6 +89,10 @@ class BankStatementWithStage1Response(BankStatementResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
+class Stage1ApprovalResponse(BankStatementResponse):
+    journal_entries_created: int = 0
+
+
 # --- Stage 2 Review Schemas (moved from routers/statements.py) ---
 
 

@@ -21,7 +21,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import select
 
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
+from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
@@ -1155,6 +1158,145 @@ async def test_approve_statement_stage1_success(db, test_user, monkeypatch):
     statement_id = statement.id
     result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert result.status == BankStatementStatus.APPROVED
+    assert result.journal_entries_created == 0
+
+
+async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
+    statement = build_statement(test_user.id, "hash_s1_posted", 88)
+    statement.status = BankStatementStatus.PARSED
+    statement.closing_balance = Decimal("115.00")
+    db.add(statement)
+    await db.flush()
+
+    txn_in = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 2),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    txn_out = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 3),
+        description="Lunch",
+        amount=Decimal("5.00"),
+        direction="OUT",
+    )
+    db.add_all([txn_in, txn_out])
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert result.journal_entries_created == 2
+    assert result.status == BankStatementStatus.APPROVED
+
+    entries_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id.in_([txn_in.id, txn_out.id]))
+    )
+    entries = entries_result.scalars().all()
+    assert len(entries) == 2
+    assert all(entry.status == JournalEntryStatus.POSTED for entry in entries)
+
+
+async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, test_user):
+    statement = build_statement(test_user.id, "hash_s1_transfer_priority", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.closing_balance = Decimal("90.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 4),
+        description="Transfer out",
+        amount=Decimal("10.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.flush()
+
+    transfer_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2025, 1, 4),
+        memo="Transfer OUT via processing account",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(transfer_entry)
+    await db.flush()
+
+    db.add(
+        ReconciliationMatch(
+            bank_txn_id=txn.id,
+            journal_entry_ids=[str(transfer_entry.id)],
+            status=ReconciliationStatus.AUTO_ACCEPTED,
+            match_score=100,
+        )
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert result.journal_entries_created == 0
+
+    generated_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+    )
+    assert generated_result.scalar_one_or_none() is None
+
+
+async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(db, test_user):
+    statement = build_statement(test_user.id, "hash_s1_rejected_match", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.closing_balance = Decimal("90.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 4),
+        description="Payment",
+        amount=Decimal("10.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.flush()
+
+    stale_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2025, 1, 4),
+        memo="Stale candidate",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(stale_entry)
+    await db.flush()
+
+    db.add(
+        ReconciliationMatch(
+            bank_txn_id=txn.id,
+            journal_entry_ids=[str(stale_entry.id)],
+            status=ReconciliationStatus.REJECTED,
+            match_score=100,
+        )
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert result.journal_entries_created == 1
+
+    generated_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+    )
+    generated = generated_result.scalar_one_or_none()
+    assert generated is not None
 
 
 async def test_approve_statement_stage1_balance_mismatch(db, test_user):

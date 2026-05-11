@@ -5,7 +5,10 @@ import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
-vi.mock("next/navigation", () => ({ useParams: vi.fn(() => ({ id: "s1" })) }));
+vi.mock("next/navigation", () => ({
+    useParams: vi.fn(() => ({ id: "s1" })),
+    useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 
 const mockedApi = vi.mocked(apiFetch);
 

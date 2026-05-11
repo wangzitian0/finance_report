@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -15,7 +15,10 @@ const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 export default function StatementDetailPage() {
     const { showToast } = useToast();
     const params = useParams();
+    const searchParams = useSearchParams();
     const statementId = params.id as string;
+    const approvedRedirect = searchParams.get("approved") === "1";
+    const entriesCreated = Number(searchParams.get("entriesCreated")) || 0;
 
     const [statement, setStatement] = useState<BankStatement | null>(null);
     const [loading, setLoading] = useState(true);
@@ -26,6 +29,7 @@ export default function StatementDetailPage() {
     const [consecutiveErrors, setConsecutiveErrors] = useState(0);
     const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
     const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
+    const approvedNow = approvedRedirect && statement?.status === "approved";
     
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -301,6 +305,16 @@ export default function StatementDetailPage() {
                     )}
                 </div>
             </div>
+
+            {approvedNow && (
+                <div className="mb-4 p-4 border border-[var(--success)]/30 bg-[var(--success-muted)] rounded-lg">
+                    <p className="font-medium text-[var(--success)]">Statement approved. {entriesCreated} journal entries created.</p>
+                    <div className="mt-2 flex items-center gap-2">
+                        <Link href="/journal" className="btn-secondary text-sm">View in Journal</Link>
+                        <Link href="/reports" className="btn-secondary text-sm">Go to Reports</Link>
+                    </div>
+                </div>
+            )}
 
             {/* Error */}
             {error && (
