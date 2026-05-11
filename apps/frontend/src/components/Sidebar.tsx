@@ -5,12 +5,14 @@ import { useRouter, usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 import { useState, useEffect } from "react";
 import {
     LayoutDashboard,
     Landmark,
     BookOpen,
     FileText,
+    ClipboardCheck,
     Wallet,
     BarChart3,
     Link2,
@@ -36,6 +38,7 @@ const navItems: NavItem[] = [
     { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
     { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: FileText, label: "Statements", href: "/statements", protected: true },
+    { icon: ClipboardCheck, label: "Review", href: "/review", protected: true },
     { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
     { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
@@ -48,11 +51,35 @@ export function Sidebar() {
     const { isCollapsed, toggleSidebar } = useWorkspace();
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isAuth, setIsAuth] = useState(false);
+    const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
     useEffect(() => {
         setUserEmail(getUserEmail());
         setIsAuth(isAuthenticated());
     }, [pathname]);
+
+    useEffect(() => {
+        if (!isAuth) {
+            setPendingReviewCount(0);
+            return;
+        }
+
+        const fetchPendingReviewCount = async () => {
+            try {
+                const [stage1, stage2] = await Promise.all([
+                    apiFetch<{ items: Array<{ id: string }>; total: number }>("/api/statements/pending-review"),
+                    apiFetch<{ pending_matches: Array<{ id: string; status: string }> }>("/api/statements/stage2/queue"),
+                ]);
+
+                const stage2Pending = stage2.pending_matches.filter((match) => match.status === "pending_review").length;
+                setPendingReviewCount((stage1.total || 0) + stage2Pending);
+            } catch {
+                setPendingReviewCount(0);
+            }
+        };
+
+        fetchPendingReviewCount();
+    }, [isAuth, pathname]);
 
     const handleLogout = () => {
         clearUser();
@@ -105,6 +132,7 @@ export function Sidebar() {
                 {navItems.filter(item => isAuth || !item.protected).map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                     const IconComponent = item.icon;
+                    const badgeCount = item.href === "/review" ? pendingReviewCount : 0;
                     return (
                         <Link
                             key={item.href}
@@ -122,7 +150,16 @@ export function Sidebar() {
                             aria-label={isCollapsed ? item.label : undefined}
                         >
                             <IconComponent className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-                            {!isCollapsed && <span className="font-medium">{item.label}</span>}
+                            {!isCollapsed && (
+                                <>
+                                    <span className="font-medium">{item.label}</span>
+                                    {badgeCount > 0 && (
+                                        <span className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--warning)] px-1.5 py-0.5 text-xs font-semibold text-white">
+                                            {badgeCount}
+                                        </span>
+                                    )}
+                                </>
+                            )}
                         </Link>
                     );
                 })}
