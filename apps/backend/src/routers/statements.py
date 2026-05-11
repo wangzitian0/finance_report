@@ -385,9 +385,12 @@ async def approve_statement(
     statement_id: UUID,
     db: DbSession,
     user_id: CurrentUserId,
-    decision: StatementDecisionRequest | None = None,
+    decision: StatementDecisionRequest,
 ) -> BankStatementResponse:
-    """[Deprecated] Approve via Stage 1 validation flow."""
+    """[Deprecated] Approve via Stage 1 validation flow.
+
+    Compatibility note: decision payload is accepted but ignored.
+    """
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
