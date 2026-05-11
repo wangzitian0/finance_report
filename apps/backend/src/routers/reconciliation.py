@@ -388,6 +388,7 @@ async def create_entry(
 
     existing_entry_result = await db.execute(
         select(JournalEntry)
+        .options(selectinload(JournalEntry.lines))
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
         .where(JournalEntry.source_id == txn.id)
