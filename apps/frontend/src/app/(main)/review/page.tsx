@@ -29,6 +29,8 @@ interface Stage2QueueResponse {
     pending_matches: Stage2Match[];
 }
 
+const STAGE2_DISPLAY_LIMIT = 10;
+
 export default function ReviewPage() {
     const [stage1Items, setStage1Items] = useState<Stage1Statement[]>([]);
     const [stage2Items, setStage2Items] = useState<Stage2Match[]>([]);
@@ -96,7 +98,8 @@ export default function ReviewPage() {
                                 >
                                     <div className="font-medium text-sm">{statement.original_filename}</div>
                                     <div className="text-xs text-muted">
-                                        {statement.institution} • Confidence {statement.confidence_score ?? "—"}%
+                                        {statement.institution} • Confidence{" "}
+                                        {statement.confidence_score == null ? "—" : `${statement.confidence_score}%`}
                                     </div>
                                 </Link>
                             ))}
@@ -113,12 +116,21 @@ export default function ReviewPage() {
                         <div className="p-6 text-sm text-muted">No matches pending Stage 2 review.</div>
                     ) : (
                         <div className="divide-y divide-[var(--border)]">
-                            {stage2Items.slice(0, 10).map((match) => (
-                                <div key={match.id} className="px-4 py-3">
+                            {stage2Items.slice(0, STAGE2_DISPLAY_LIMIT).map((match) => (
+                                <Link
+                                    key={match.id}
+                                    href="/reconciliation/review-queue"
+                                    className="block px-4 py-3 hover:bg-[var(--background-muted)]/50 transition-colors"
+                                >
                                     <div className="font-medium text-sm">{match.description || "Pending match"}</div>
                                     <div className="text-xs text-muted">Match score: {match.match_score}</div>
-                                </div>
+                                </Link>
                             ))}
+                        </div>
+                    )}
+                    {stage2Items.length > STAGE2_DISPLAY_LIMIT && (
+                        <div className="px-4 pt-3 text-xs text-muted">
+                            Showing first {STAGE2_DISPLAY_LIMIT} items. Open the Stage 2 queue to view all pending matches.
                         </div>
                     )}
                     <div className="p-4 border-t border-[var(--border)]">

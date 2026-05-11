@@ -51,6 +51,8 @@ vi.mock("@/hooks/useWorkspace", () => ({
 }))
 
 describe("Sidebar and WorkspaceTabs", () => {
+  const expectedReviewBadgeCountFromMocks = "3"
+
   beforeEach(() => {
     pushMock.mockReset()
     toggleSidebarMock.mockReset()
@@ -66,12 +68,12 @@ describe("Sidebar and WorkspaceTabs", () => {
     isAuthenticatedMock.mockReturnValue(true)
     mockedApiFetch.mockImplementation(async (path: string) => {
       if (path === "/api/statements/pending-review") {
-        return { items: [{ id: "s1" }, { id: "s2" }], total: 2 } as never
+        return { items: [{ id: "s1" }, { id: "s2" }], total: 2 }
       }
       if (path === "/api/statements/stage2/queue") {
-        return { pending_matches: [{ id: "m1", status: "pending_review" }, { id: "m2", status: "accepted" }] } as never
+        return { pending_matches: [{ id: "m1", status: "pending_review" }, { id: "m2", status: "accepted" }] }
       }
-      return {} as never
+      return {}
     })
     workspaceMockData = {
       isCollapsed: false,
@@ -89,7 +91,7 @@ describe("Sidebar and WorkspaceTabs", () => {
 
     await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
     await waitFor(() => expect(screen.getByText("Review")).toBeInTheDocument())
-    expect(screen.getByText("3")).toBeInTheDocument()
+    expect(screen.getByText(expectedReviewBadgeCountFromMocks)).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 

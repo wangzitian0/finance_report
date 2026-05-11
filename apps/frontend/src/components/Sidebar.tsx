@@ -79,7 +79,14 @@ export function Sidebar() {
         };
 
         fetchPendingReviewCount();
-    }, [isAuth, pathname]);
+        const refreshInterval = window.setInterval(fetchPendingReviewCount, 30000);
+        window.addEventListener("focus", fetchPendingReviewCount);
+
+        return () => {
+            window.clearInterval(refreshInterval);
+            window.removeEventListener("focus", fetchPendingReviewCount);
+        };
+    }, [isAuth]);
 
     const handleLogout = () => {
         clearUser();

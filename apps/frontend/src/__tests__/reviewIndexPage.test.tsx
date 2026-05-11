@@ -36,4 +36,29 @@ describe("Review index page", () => {
         expect(screen.getByText("Transfer")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Open Stage 2 Review Queue/i })).toHaveAttribute("href", "/reconciliation/review-queue");
     });
+
+    it("shows loading state before data resolves", async () => {
+        let resolveStage1: ((value: unknown) => void) | undefined;
+        const stage1Promise = new Promise((resolve) => {
+            resolveStage1 = resolve;
+        });
+
+        mockedApi.mockImplementationOnce(() => stage1Promise as Promise<any>);
+        mockedApi.mockResolvedValueOnce({ pending_matches: [] });
+
+        renderReviewComponent(<ReviewPage />);
+        expect(screen.getByText("Loading review queue...")).toBeInTheDocument();
+
+        resolveStage1?.({ items: [], total: 0 });
+        expect(await screen.findByText("Review Queue")).toBeInTheDocument();
+    });
+
+    it("shows error when queue fetch fails", async () => {
+        mockedApi.mockRejectedValueOnce(new Error("boom"));
+
+        renderReviewComponent(<ReviewPage />);
+
+        expect(await screen.findByText("Review Queue")).toBeInTheDocument();
+        expect(screen.getByText("boom")).toBeInTheDocument();
+    });
 });
