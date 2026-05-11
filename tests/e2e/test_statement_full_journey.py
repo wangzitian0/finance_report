@@ -194,21 +194,21 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     )
     await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10_000)
 
-    # === AC8.13.4: Approve via ConfirmDialog → badge changes to "approved" ===
+    # === AC8.13.4: Start Review → approve via ConfirmDialog ===
+    await page.get_by_role("link", name=re.compile("Start Review")).click()
+    await expect(page).to_have_url(re.compile(r"/statements/[^/]+/review$"), timeout=15_000)
     await page.get_by_role("button", name="Approve").click()
     dialog = page.locator('[role="dialog"]')
     await expect(dialog).to_be_visible(timeout=5_000)
     confirm_button = dialog.get_by_role("button", name="Approve")
     await expect(confirm_button).to_be_visible(timeout=3_000)
     await confirm_button.click()
-    # After approve the frontend calls fetchStatement() and stays on /statements/{id}.
-    # There is NO router.push redirect — the badge updates in-place.
-    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
-        timeout=15_000
-    )
-    assert "/statements/" in page.url, (
-        f"Expected to remain on statement detail page after approve, got: {page.url}"
-    )
+    await expect(page).to_have_url(re.compile(r"/statements$"), timeout=15_000)
+    approved_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
+    await expect(approved_row).to_be_visible(timeout=15_000)
+    await expect(
+        approved_row.locator("span.badge", has_text="approved")
+    ).to_be_visible(timeout=15_000)
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))
