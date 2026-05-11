@@ -380,30 +380,30 @@ async def list_statement_transactions(
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
-@router.post("/{statement_id}/approve", response_model=BankStatementResponse)
+@router.post("/{statement_id}/approve", response_model=BankStatementResponse, deprecated=True)
 async def approve_statement(
     statement_id: UUID,
     decision: StatementDecisionRequest,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    """Approve a statement after human review."""
+    """[Deprecated] Approve via Stage 1 validation flow."""
+    _ = decision
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
         .where(BankStatement.user_id == user_id)
-        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one_or_none()
 
     if not statement:
         raise_not_found("Statement")
 
-    statement.status = BankStatementStatus.APPROVED
-    if decision.notes:
-        statement.validation_error = decision.notes
-
-    await db.commit()
+    try:
+        await approve_statement_svc(db, statement_id, user_id)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
@@ -412,30 +412,29 @@ async def approve_statement(
     return BankStatementResponse.model_validate(statement)
 
 
-@router.post("/{statement_id}/reject", response_model=BankStatementResponse)
+@router.post("/{statement_id}/reject", response_model=BankStatementResponse, deprecated=True)
 async def reject_statement(
     statement_id: UUID,
     decision: StatementDecisionRequest,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BankStatementResponse:
-    """Reject a statement after human review."""
+    """[Deprecated] Reject via Stage 1 validation flow."""
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.id == statement_id)
         .where(BankStatement.user_id == user_id)
-        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one_or_none()
 
     if not statement:
         raise_not_found("Statement")
 
-    statement.status = BankStatementStatus.REJECTED
-    if decision.notes:
-        statement.validation_error = decision.notes
-
-    await db.commit()
+    try:
+        await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))

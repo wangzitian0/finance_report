@@ -33,7 +33,10 @@ moon run :test
 | POST | `/statements/upload` | Upload and parse statement |
 | GET | `/statements/{id}` | Statement details |
 | GET | `/statements/pending-review` | Statements pending review |
-| POST | `/statements/{id}/approve` | Approve/reject statement |
+| POST | `/statements/{id}/review/approve` | Stage 1 approve (canonical, with balance validation) |
+| POST | `/statements/{id}/review/reject` | Stage 1 reject (canonical) |
+| POST | `/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
+| POST | `/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
 | POST | `/api/reconciliation/run` | Run reconciliation matching |
 | GET | `/api/reconciliation/pending` | Pending review queue |
 | GET | `/api/reconciliation/stats` | Reconciliation stats |

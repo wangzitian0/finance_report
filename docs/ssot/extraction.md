@@ -118,8 +118,10 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | GET | `/api/statements/{id}` | Get statement with transactions |
 | GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List items needing review |
-| POST | `/api/statements/{id}/approve` | Approve statement |
-| POST | `/api/statements/{id}/reject` | Reject statement |
+| POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) |
+| POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
+| POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
+| POST | `/api/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
 | GET | `/api/ai/models` | OpenRouter model catalog for UI selection |
 
 ## Supported Institutions

@@ -14,16 +14,6 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }))
 
-vi.mock("@/components/ui/ConfirmDialog", () => ({
-  default: ({ isOpen, onConfirm, onCancel, confirmLabel }: { isOpen: boolean; onConfirm: (reason?: string) => void; onCancel: () => void; confirmLabel?: string }) =>
-    isOpen ? (
-      <div>
-        <button type="button" onClick={() => onConfirm("mock reason")}>Confirm {confirmLabel || "Confirm"}</button>
-        <button type="button" onClick={onCancel}>Cancel</button>
-      </div>
-    ) : null,
-}))
-
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))
@@ -73,39 +63,25 @@ describe("StatementDetailPage", () => {
 
     await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
     expect(screen.getByText("Salary")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Start Review →" })).toHaveAttribute("href", "/statements/s1/review")
   })
 
-  it("AC16.18.2 approve and reject actions call APIs", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce(parsedStatement)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(parsedStatement)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(parsedStatement)
+  it("AC16.18.2 detail page is read-only for approval actions", async () => {
+    mockedApiFetch.mockResolvedValueOnce(parsedStatement)
 
     render(<StatementDetailPage />)
 
     await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Approve" }))
-
-    await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/s1/approve", {
-        method: "POST",
-        body: JSON.stringify({ notes: null }),
-      }),
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
+    expect(mockedApiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/statements/s1/approve"),
+      expect.anything(),
     )
-
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Reject" }))
-
-    await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/s1/reject", {
-        method: "POST",
-        body: JSON.stringify({ notes: "mock reason" }),
-      }),
+    expect(mockedApiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/statements/s1/reject"),
+      expect.anything(),
     )
   })
 
@@ -131,15 +107,6 @@ describe("StatementDetailPage", () => {
     await waitFor(() => expect(screen.getByText("Statement not found")).toBeInTheDocument())
   })
 
-  it("handles confirm dialog cancel", async () => {
-    mockedApiFetch.mockResolvedValueOnce(parsedStatement)
-    render(<StatementDetailPage />)
-    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
-    fireEvent.click(screen.getByText("Cancel"))
-    expect(screen.queryByText("Confirm Approve")).not.toBeInTheDocument()
-  })
-
   it("stops polling after consecutive errors", async () => {
     const parsingState = { ...parsedStatement, status: "parsing", parsing_progress: 50 }
     mockedApiFetch.mockResolvedValueOnce(parsingState)
@@ -149,4 +116,3 @@ describe("StatementDetailPage", () => {
     await waitFor(() => expect(screen.getByText(/Auto-refresh Stopped/)).toBeInTheDocument(), { timeout: 15000 })
   }, 20000)
 })
-

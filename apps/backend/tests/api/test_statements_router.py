@@ -349,6 +349,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     ):
         score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
+        statement.closing_balance = Decimal("100.00")
         return statement, []
 
     monkeypatch.setattr(
