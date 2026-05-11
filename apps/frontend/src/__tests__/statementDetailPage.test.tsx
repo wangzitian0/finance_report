@@ -156,6 +156,17 @@ describe("StatementDetailPage", () => {
     expect(screen.getByRole("link", { name: "Go to Reports" })).toHaveAttribute("href", "/reports")
   })
 
+  it("does not show post-approval CTA when statement is not approved", async () => {
+    mockSearchParams.set("approved", "1")
+    mockSearchParams.set("entriesCreated", "42")
+    mockedApiFetch.mockResolvedValueOnce({ ...parsedStatement, status: "parsed" })
+
+    render(<StatementDetailPage />)
+
+    await waitFor(() => expect(screen.getByText("Review")).toBeInTheDocument())
+    expect(screen.queryByText("Statement approved. 42 journal entries created.")).not.toBeInTheDocument()
+  })
+
   it("stops polling after consecutive errors", async () => {
     const parsingState = { ...parsedStatement, status: "parsing", parsing_progress: 50 }
     mockedApiFetch.mockResolvedValueOnce(parsingState)

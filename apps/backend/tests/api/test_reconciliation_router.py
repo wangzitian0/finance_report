@@ -451,6 +451,25 @@ class TestReconciliationEndpoints:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "txn_ids" in response.json()["detail"]
 
+    async def test_batch_create_entries_all_respects_max_limit(self, client: AsyncClient, db, test_user: User, monkeypatch):
+        """all=True batch create should reject oversized unmatched sets."""
+        from src.routers import reconciliation as reconciliation_router
+
+        monkeypatch.setattr(reconciliation_router, "MAX_BATCH_CREATE_ALL", 1)
+        statement = create_test_statement(db, test_user)
+        db.add(statement)
+        await db.commit()
+
+        txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        db.add_all([txn1, txn2])
+        await db.commit()
+
+        response = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Too many unmatched transactions" in response.json()["detail"]
+
     async def test_list_anomalies_success(self, client: AsyncClient, db, test_user: User):
         """AC4.5.1: Test listing anomalies for a transaction."""
         # GIVEN transaction

@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import (
+    Account,
     BankStatement,
     BankStatementTransaction,
     BankStatementTransactionStatus,
@@ -47,6 +48,7 @@ from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
+MAX_BATCH_CREATE_ALL = 200
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
@@ -380,7 +382,7 @@ async def create_entry(
         .join(BankStatement)
         .where(BankStatementTransaction.id == txn_id)
         .where(BankStatement.user_id == user_id)
-        .with_for_update()
+        .with_for_update(of=BankStatementTransaction)
     )
     txn = result.scalar_one_or_none()
     if not txn:
@@ -413,9 +415,24 @@ async def batch_create_entries(
     if not payload.all and not payload.txn_ids:
         raise_bad_request("Provide txn_ids or set all=True")
 
+    if payload.all:
+        total_unmatched_result = await db.execute(
+            select(func.count(BankStatementTransaction.id))
+            .join(BankStatement)
+            .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
+            .where(BankStatement.user_id == user_id)
+        )
+        total_unmatched = total_unmatched_result.scalar_one()
+        if total_unmatched > MAX_BATCH_CREATE_ALL:
+            raise_bad_request(
+                f"Too many unmatched transactions for all=True "
+                f"(max {MAX_BATCH_CREATE_ALL}). Use txn_ids for smaller batches."
+            )
+
     query = (
         select(BankStatementTransaction)
         .join(BankStatement)
+        .options(selectinload(BankStatementTransaction.statement))
         .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
         .where(BankStatement.user_id == user_id)
     )
@@ -423,7 +440,9 @@ async def batch_create_entries(
         query = query.where(BankStatementTransaction.id.in_(payload.txn_ids))
 
     result = await db.execute(
-        query.order_by(BankStatementTransaction.txn_date.desc()).with_for_update(skip_locked=True)
+        query.order_by(BankStatementTransaction.txn_date.desc()).with_for_update(
+            of=BankStatementTransaction, skip_locked=True
+        )
     )
     txns = result.scalars().all()
 
@@ -439,11 +458,30 @@ async def batch_create_entries(
     )
     existing_source_ids = set(existing_entries_result.scalars().all())
 
+    account_ids = {txn.statement.account_id for txn in txns if txn.statement and txn.statement.account_id}
+    bank_account_by_id: dict[UUID, Account] = {}
+    if account_ids:
+        account_result = await db.execute(
+            select(Account).where(Account.id.in_(account_ids)).where(Account.user_id == user_id)
+        )
+        accounts = account_result.scalars().all()
+        bank_account_by_id = {account.id: account for account in accounts}
+
     created_count = 0
     for txn in txns:
         if txn.id in existing_source_ids:
             continue
-        await create_entry_from_txn(db, txn, user_id=user_id)
+        statement = txn.statement
+        preloaded_bank_account = (
+            bank_account_by_id.get(statement.account_id) if statement and statement.account_id else None
+        )
+        await create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            preloaded_statement=statement,
+            preloaded_bank_account=preloaded_bank_account,
+        )
         created_count += 1
 
     await db.commit()

@@ -17,7 +17,7 @@ export default function StatementDetailPage() {
     const params = useParams();
     const searchParams = useSearchParams();
     const statementId = params.id as string;
-    const approvedNow = searchParams.get("approved") === "1";
+    const approvedRedirect = searchParams.get("approved") === "1";
     const entriesCreated = Number(searchParams.get("entriesCreated")) || 0;
 
     const [statement, setStatement] = useState<BankStatement | null>(null);
@@ -29,6 +29,7 @@ export default function StatementDetailPage() {
     const [consecutiveErrors, setConsecutiveErrors] = useState(0);
     const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
     const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
+    const approvedNow = approvedRedirect && statement?.status === "approved";
     
     // Dialog states
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
