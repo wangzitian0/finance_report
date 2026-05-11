@@ -392,9 +392,7 @@ async def approve_statement(
     Compatibility note: decision payload is accepted but ignored.
     """
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == user_id)
+        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
 
@@ -423,9 +421,7 @@ async def reject_statement(
 ) -> BankStatementResponse:
     """[Deprecated] Reject via Stage 1 validation flow."""
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == user_id)
+        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
 
