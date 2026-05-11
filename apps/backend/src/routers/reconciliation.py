@@ -458,7 +458,11 @@ async def batch_create_entries(
     )
     existing_source_ids = set(existing_entries_result.scalars().all())
 
-    account_ids = {txn.statement.account_id for txn in txns if txn.statement and txn.statement.account_id}
+    account_ids: set[UUID] = set()
+    for txn in txns:
+        statement = txn.statement
+        if statement and statement.account_id:
+            account_ids.add(statement.account_id)
     bank_account_by_id: dict[UUID, Account] = {}
     if account_ids:
         account_result = await db.execute(
@@ -473,6 +477,11 @@ async def batch_create_entries(
             continue
         statement = txn.statement
         if statement is None:
+            logger.warning(
+                "unmatched_batch_create_missing_statement",
+                txn_id=str(txn.id),
+                user_id=str(user_id),
+            )
             await create_entry_from_txn(db, txn, user_id=user_id)
             created_count += 1
             continue
