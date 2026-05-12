@@ -18,7 +18,17 @@ from src.constants.error_ids import ErrorIds
 from src.database import create_session_maker_from_db
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import BankStatement, BankStatementStatus
+from src.models import (
+    Account,
+    AccountType,
+    BankStatement,
+    BankStatementStatus,
+    BankStatementTransaction,
+    JournalEntry,
+    JournalEntrySourceType,
+    ReconciliationMatch,
+    ReconciliationStatus,
+)
 from src.schemas import (
     BankStatementListResponse,
     BankStatementResponse,
@@ -31,10 +41,12 @@ from src.schemas.review import (
     BalanceValidationResult,
     EditAndApproveRequest,
     SetOpeningBalanceRequest,
+    Stage1ApprovalResponse,
     StatementReviewResponse,
 )
 from src.services import StorageError, StorageService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
+from src.services.review_queue import create_entry_from_txn, get_or_create_account
 from src.services.statement_parsing import parse_statement_background
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
@@ -63,6 +75,68 @@ _PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
 def _track_task(task: asyncio.Task[None]) -> None:
     _PENDING_PARSE_TASKS.add(task)
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
+
+
+async def _auto_create_posted_entries_for_statement(
+    db: DbSession,
+    statement: BankStatement,
+    user_id: UUID,
+) -> int:
+    txn_ids = [txn.id for txn in statement.transactions]
+    if not txn_ids:
+        return 0
+
+    existing_entry_result = await db.execute(
+        select(JournalEntry.source_id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id.in_(txn_ids))
+    )
+    existing_entry_txn_ids = set(existing_entry_result.scalars().all())
+
+    transfer_match_result = await db.execute(
+        select(ReconciliationMatch)
+        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(ReconciliationMatch.bank_txn_id.in_(txn_ids))
+        .where(
+            ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]),
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+        .where(BankStatement.user_id == user_id)
+    )
+    transfer_txn_ids = {match.bank_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids}
+
+    preloaded_bank_account: Account | None = None
+    if statement.account_id:
+        account_result = await db.execute(
+            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
+        )
+        preloaded_bank_account = account_result.scalar_one_or_none()
+    if not preloaded_bank_account:
+        preloaded_bank_account = await get_or_create_account(
+            db,
+            name="Bank - Main",
+            account_type=AccountType.ASSET,
+            currency=statement.currency or "SGD",
+            user_id=user_id,
+        )
+
+    created_count = 0
+    for txn in statement.transactions:
+        if txn.id in existing_entry_txn_ids or txn.id in transfer_txn_ids:
+            continue
+        await create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            auto_post=True,
+            preloaded_statement=statement,
+            preloaded_bank_account=preloaded_bank_account,
+        )
+        created_count += 1
+
+    return created_count
 
 
 # --- Helper functions ---
@@ -526,15 +600,16 @@ async def get_statement_for_review(
     return StatementReviewResponse.model_validate(response_data)
 
 
-@router.post("/{statement_id}/review/approve", response_model=BankStatementResponse)
+@router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
 async def approve_statement_stage1(
     statement_id: UUID,
     db: DbSession,
     user_id: CurrentUserId,
-) -> BankStatementResponse:
+) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
     try:
-        await approve_statement_svc(db, statement_id, user_id)
+        statement = await approve_statement_svc(db, statement_id, user_id)
+        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id)
         await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -543,7 +618,8 @@ async def approve_statement_stage1(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
-    return BankStatementResponse.model_validate(statement)
+    response = BankStatementResponse.model_validate(statement)
+    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
 
 
 @router.post("/{statement_id}/review/reject", response_model=BankStatementResponse)
@@ -567,17 +643,18 @@ async def reject_statement_stage1(
     return BankStatementResponse.model_validate(statement)
 
 
-@router.post("/{statement_id}/review/edit", response_model=BankStatementResponse)
+@router.post("/{statement_id}/review/edit", response_model=Stage1ApprovalResponse)
 async def edit_and_approve_statement(
     statement_id: UUID,
     request: EditAndApproveRequest,
     db: DbSession,
     user_id: CurrentUserId,
-) -> BankStatementResponse:
+) -> Stage1ApprovalResponse:
     """Stage 1: Edit transactions and approve."""
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
-        await edit_and_approve(db, statement_id, user_id, edits_data)
+        statement = await edit_and_approve(db, statement_id, user_id, edits_data)
+        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id)
         await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -586,7 +663,8 @@ async def edit_and_approve_statement(
         select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
-    return BankStatementResponse.model_validate(statement)
+    response = BankStatementResponse.model_validate(statement)
+    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
 
 
 @router.post("/{statement_id}/review/opening-balance", response_model=BankStatementResponse)

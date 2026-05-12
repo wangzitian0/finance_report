@@ -92,6 +92,19 @@ class BatchAcceptRequest(BaseModel):
     match_ids: list[str]
 
 
+class BatchCreateEntriesRequest(BaseModel):
+    """Request body for batch creating journal entries from unmatched transactions."""
+
+    txn_ids: list[UUID] = Field(default_factory=list)
+    all: bool = False
+
+
+class BatchCreateEntriesResponse(BaseModel):
+    """Response for batch create entries."""
+
+    created_count: int
+
+
 class ReconciliationStatsResponse(BaseModel):
     """Reconciliation statistics."""
 

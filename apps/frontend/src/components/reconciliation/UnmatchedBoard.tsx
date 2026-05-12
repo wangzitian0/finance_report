@@ -18,6 +18,7 @@ interface BankTransactionSummary {
 
 interface UnmatchedTransactionsResponse { items: BankTransactionSummary[]; total: number; }
 interface JournalEntrySummary { id: string; entry_date: string; memo?: string | null; status: string; total_amount: number; }
+interface BatchCreateEntriesResponse { created_count: number; }
 
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
 
@@ -53,6 +54,8 @@ export default function UnmatchedBoard() {
   const [createdEntry, setCreatedEntry] = useState<JournalEntrySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(() => loadFlaggedFromStorage());
+  const [creatingAll, setCreatingAll] = useState(false);
+  const [batchCreatedCount, setBatchCreatedCount] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -69,6 +72,7 @@ export default function UnmatchedBoard() {
 
   const createEntry = async (txnId: string) => {
     setCreating(txnId);
+    setBatchCreatedCount(null);
     try {
       const entry = await apiFetch<JournalEntrySummary>(`/api/reconciliation/unmatched/${txnId}/create-entry`, { method: "POST" });
       setCreatedEntry(entry);
@@ -77,6 +81,26 @@ export default function UnmatchedBoard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create entry.");
     } finally { setCreating(null); }
+  };
+
+  const createAllEntries = async () => {
+    setCreatingAll(true);
+    setBatchCreatedCount(null);
+    try {
+      const result = await apiFetch<BatchCreateEntriesResponse>("/api/reconciliation/unmatched/batch-create", {
+        method: "POST",
+        body: JSON.stringify({ all: true }),
+      });
+      setBatchCreatedCount(result.created_count);
+      setCreatedEntry(null);
+      setError(null);
+      await refresh();
+    } catch (err) {
+      setBatchCreatedCount(null);
+      setError(err instanceof Error ? err.message : "Failed to create entries in bulk.");
+    } finally {
+      setCreatingAll(false);
+    }
   };
 
   const toggleFlag = (txnId: string) => {
@@ -117,11 +141,24 @@ export default function UnmatchedBoard() {
         </div>
         <div className="flex items-center gap-3">
           <Link href="/reconciliation" className="btn-secondary text-sm">← Workbench</Link>
+          <button
+            type="button"
+            onClick={createAllEntries}
+            disabled={creatingAll || items.length === 0}
+            className="btn-primary text-sm"
+          >
+            {creatingAll ? "Creating..." : "Create All Entries"}
+          </button>
           <span className="badge badge-warning">{summary.total} unmatched · {summary.flagged} flagged</span>
         </div>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}
+      {batchCreatedCount !== null && (
+        <div className="mb-4 p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
+          Created {batchCreatedCount} journal {batchCreatedCount === 1 ? "entry" : "entries"} from unmatched transactions.
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card p-5">

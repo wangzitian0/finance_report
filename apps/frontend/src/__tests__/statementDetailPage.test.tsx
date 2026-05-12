@@ -5,9 +5,11 @@ import StatementDetailPage from "@/app/(main)/statements/[id]/page"
 import { apiFetch } from "@/lib/api"
 
 const showToastMock = vi.fn()
+const mockSearchParams = new URLSearchParams()
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "s1" }),
+  useSearchParams: () => mockSearchParams,
 }))
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -54,6 +56,8 @@ describe("StatementDetailPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
+    mockSearchParams.delete("approved")
+    mockSearchParams.delete("entriesCreated")
   })
 
   it("AC16.18.1 loads detail data and renders transactions", async () => {

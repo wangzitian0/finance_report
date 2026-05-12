@@ -42,6 +42,32 @@ This section contains:
 - [EPIC-013](./EPIC-013.statement-parsing-v2.md) — Statement Parsing V2
 - [EPIC-015](./EPIC-015.processing-account.md) — Processing Account Integration
 
+## 🎯 Vision Delivery Checklist (Upload PDF → Accurate Dashboard)
+
+Track the **minimum blocker set** required to deliver vision.md's terminal goal: **an accurate asset dashboard** for a fresh user without manual journal-entry detours.
+
+| # | Stage | Blocking Issue | Status |
+|---|---|---|---|
+| 1 | Upload — hide AI selector for CSV | wangzitian0/finance_report#366 | open |
+| 2 | Stage 1 Review entry in sidebar | wangzitian0/finance_report#365 | open |
+| 3 | Unify approval path (remove legacy, single Review path) | wangzitian0/finance_report#362 | open |
+| 4 | Stage 2 Run-level Review UI | wangzitian0/finance_report#368 | open |
+| 5 | Approve → auto-POST journal entries (data pipeline gap) | wangzitian0/finance_report#363 | open |
+| 6 | Processing Account sidebar + status | wangzitian0/finance_report#367 | open |
+| 7 | Reconciliation idempotency | wangzitian0/finance_report#354 | open |
+| 8 | Unrealized FX gain/loss reporting | wangzitian0/finance_report#197 | open |
+| 9 | PDF export for reports | wangzitian0/finance_report#205 | open |
+| 10 | Dashboard empty-state onboarding | wangzitian0/finance_report#369 | open |
+
+### Out of Scope (Tracked Separately under `track: hygiene`)
+
+wangzitian0/finance_report#340, wangzitian0/finance_report#341, wangzitian0/finance_report#348, wangzitian0/finance_report#349, wangzitian0/finance_report#350, wangzitian0/finance_report#356
+
+### Definition of Done
+
+- A fresh signup can: create account → upload PDF → complete Stage 1 + Stage 2 review → see correct numbers in Dashboard and Reports (including multi-currency unrealized FX) plus Processing Account visibility, with reconciliation rerunnable safely.
+- Vision Decisions 3, 4, and 5 are visible in the UI: Record layer review, two-stage review, and Processing visibility.
+
 ## 🎯 Active Projects (EPICs)
 
 | ID | Project | Status | Phase | Duration |

@@ -253,6 +253,22 @@ class TestHelpers:
         assert "/" not in result
         assert " " not in result
 
+    def test_strip_date_normalizes_date_line(self):
+        text = "> **Generated**: 2024-01-01 (mechanically by `scripts/build_ac_traceability.py`)"
+        assert bat._strip_date(text) == "> **Generated**: DATE (mechanically by `scripts/build_ac_traceability.py`)"
+
+    def test_strip_date_different_dates_produce_same_output(self):
+        old = "> **Generated**: 2024-01-01 (mechanically by `scripts/build_ac_traceability.py`)"
+        new = "> **Generated**: 2099-12-31 (mechanically by `scripts/build_ac_traceability.py`)"
+        assert bat._strip_date(old) == bat._strip_date(new)
+
+    def test_strip_date_leaves_other_lines_unchanged(self):
+        text = "## Some Heading\n> **Generated**: 2024-01-01\nother content"
+        result = bat._strip_date(text)
+        assert "## Some Heading" in result
+        assert "other content" in result
+        assert "2024-01-01" not in result
+
 
 class TestRenderDocument:
     def _make_acs(self):
@@ -385,6 +401,34 @@ class TestMain:
         with mock.patch("sys.argv", args_check):
             rc = bat.main()
         assert rc == 0
+
+    def test_check_mode_different_date_passes(self, tmp_path):
+        """--check must pass when only the date header changed (regression for stale CI)."""
+        feat, infra, test_dir, output = self._build_env(tmp_path)
+        args_write = [
+            "build_ac_traceability.py",
+            f"--feature-registry={feat}",
+            f"--infra-registry={infra}",
+            f"--test-dir={test_dir}",
+            f"--output={output}",
+            "--today=2024-01-01",
+        ]
+        with mock.patch("sys.argv", args_write):
+            bat.main()
+
+        # Simulate CI running on a later day with a different --today
+        args_check = [
+            "build_ac_traceability.py",
+            f"--feature-registry={feat}",
+            f"--infra-registry={infra}",
+            f"--test-dir={test_dir}",
+            f"--output={output}",
+            "--today=2099-12-31",
+            "--check",
+        ]
+        with mock.patch("sys.argv", args_check):
+            rc = bat.main()
+        assert rc == 0, "check should pass when only the date header differs"
 
     def test_check_mode_stale(self, tmp_path):
         feat, infra, test_dir, output = self._build_env(tmp_path)
