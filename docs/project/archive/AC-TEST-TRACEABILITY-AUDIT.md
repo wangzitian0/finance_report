@@ -421,7 +421,7 @@
 | AC7.5.1 | yes | DATABASE_URL in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.5.2 | yes | REDIS_URL in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.5.3 | yes | S3_* keys in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
-| AC7.5.4 | yes | OPENROUTER_API_KEY in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
+| AC7.5.4 | yes | ZAI_API_KEY in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.5.5 | yes | Vault tokens generated | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.6.1 | yes | Config syncs with .env.example | `apps/backend/tests/infra/test_main.py` | ✅ |
 | AC7.6.2 | yes | Required secrets documented | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |

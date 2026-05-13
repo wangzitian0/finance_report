@@ -117,7 +117,7 @@ acs:
   - id: AC7.5.4
     epic: 7
     epic_name: deployment
-    description: 'OPENROUTER_API_KEY in Vault'
+    description: 'ZAI_API_KEY in Vault'
     mandatory: true
   - id: AC7.5.5
     epic: 7

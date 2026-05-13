@@ -15,6 +15,7 @@ _ORIGINAL_CHECK_DATABASE = BootloaderClass._check_database
 def mock_settings():
     with patch("src.boot.settings") as mock:
         mock.database_url = "postgresql+asyncpg://test:test@localhost/test"
+        mock.ai_api_key = None
         mock.openrouter_api_key = None
         mock.s3_endpoint = "http://localhost:9000"
         mock.s3_access_key = "minio"
@@ -24,11 +25,16 @@ def mock_settings():
         mock.debug = False
         mock.environment = "test"
         mock.base_currency = "USD"
+        mock.ai_provider = "zai"
+        mock.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock.ai_model_catalog_source = "remote"
         mock.primary_model = "test-model"
+        mock.ocr_model = "glm-ocr"
+        mock.vision_model = "glm-4.5v"
         mock.cors_origin_regex = ".*"
         mock.otel_exporter_otlp_endpoint = None
         mock.otel_service_name = "test"
-        mock.openrouter_base_url = "https://openrouter.ai/api/v1"
+        mock.openrouter_base_url = "https://api.z.ai/api/paas/v4"
         yield mock
 
 
@@ -161,13 +167,17 @@ class TestBootloaderPrintConfig:
         mock_settings.environment = "development"
         mock_settings.base_currency = "USD"
         mock_settings.primary_model = "gemini"
+        mock_settings.ai_provider = "zai"
+        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ocr_model = "glm-ocr"
+        mock_settings.vision_model = "glm-4.5v"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
         mock_settings.otel_exporter_otlp_endpoint = None
         mock_settings.otel_service_name = "finance-report"
         mock_settings.database_url = "secret"
-        mock_settings.openrouter_api_key = None
+        mock_settings.ai_api_key = None
         mock_settings.s3_access_key = "key"
         mock_settings.s3_secret_key = "secret"
 
@@ -182,13 +192,17 @@ class TestBootloaderPrintConfig:
         mock_settings.environment = "development"
         mock_settings.base_currency = "USD"
         mock_settings.primary_model = "gemini"
+        mock_settings.ai_provider = "zai"
+        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ocr_model = "glm-ocr"
+        mock_settings.vision_model = "glm-4.5v"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
         mock_settings.otel_exporter_otlp_endpoint = None
         mock_settings.otel_service_name = "finance-report"
         mock_settings.database_url = "secret"
-        mock_settings.openrouter_api_key = None
+        mock_settings.ai_api_key = None
         mock_settings.s3_access_key = "key"
         mock_settings.s3_secret_key = "secret"
 
@@ -206,13 +220,17 @@ class TestBootloaderPrintConfig:
         mock_settings.environment = "development"
         mock_settings.base_currency = "USD"
         mock_settings.primary_model = "gemini"
+        mock_settings.ai_provider = "zai"
+        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ocr_model = "glm-ocr"
+        mock_settings.vision_model = "glm-4.5v"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
         mock_settings.otel_exporter_otlp_endpoint = "http://otel:4317"
         mock_settings.otel_service_name = "finance-report"
         mock_settings.database_url = "secret"
-        mock_settings.openrouter_api_key = "k"
+        mock_settings.ai_api_key = "k"
         mock_settings.s3_access_key = "key"
         mock_settings.s3_secret_key = "secret"
 
@@ -223,6 +241,10 @@ class TestBootloaderPrintConfig:
                 "ENVIRONMENT": "development",
                 "BASE_CURRENCY": "USD",
                 "PRIMARY_MODEL": "gemini",
+                "AI_PROVIDER": "zai",
+                "AI_BASE_URL": "https://api.z.ai/api/paas/v4",
+                "OCR_MODEL": "glm-ocr",
+                "VISION_MODEL": "glm-4.5v",
                 "S3_ENDPOINT": "http://localhost:9000",
                 "S3_BUCKET": "statements",
                 "CORS_ORIGIN_REGEX": ".*",
@@ -340,16 +362,18 @@ class TestBootloaderOpenrouter:
     @pytest.mark.asyncio
     async def test_check_openrouter_skipped(self, mock_settings):
         mock_settings.openrouter_api_key = None
+        mock_settings.ai_api_key = None
 
         status = await Bootloader._check_openrouter()
 
         assert status.status == "skipped"
-        assert status.service == "openrouter"
+        assert status.service == "ai_provider"
 
     @pytest.mark.asyncio
     async def test_check_openrouter_success(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
-        mock_settings.openrouter_base_url = "https://openrouter.ai/api/v1"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -361,12 +385,13 @@ class TestBootloaderOpenrouter:
             status = await Bootloader._check_openrouter()
 
             assert status.status == "ok"
-            assert status.service == "openrouter"
+            assert status.service == "ai_provider"
 
     @pytest.mark.asyncio
     async def test_check_openrouter_auth_failure(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
-        mock_settings.openrouter_base_url = "https://openrouter.ai/api/v1"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -383,7 +408,8 @@ class TestBootloaderOpenrouter:
     @pytest.mark.asyncio
     async def test_check_openrouter_exception(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
-        mock_settings.openrouter_base_url = "https://openrouter.ai/api/v1"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client_class.return_value.__aenter__.side_effect = Exception("Network error")
@@ -401,7 +427,7 @@ class TestBootloaderFullMode:
     ):
         mock_db_check.return_value = ServiceStatus("database", "ok", "OK")
         mock_minio_check.return_value = ServiceStatus("minio", "ok", "OK")
-        mock_openrouter_check.return_value = ServiceStatus("openrouter", "ok", "OK")
+        mock_openrouter_check.return_value = ServiceStatus("ai_provider", "ok", "OK")
 
         with patch.object(Bootloader, "_check_vault_secrets") as mock_vault:
             mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
@@ -420,7 +446,7 @@ class TestBootloaderFullMode:
             patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
-            mock_openrouter.return_value = ServiceStatus("openrouter", "ok", "OK")
+            mock_openrouter.return_value = ServiceStatus("ai_provider", "ok", "OK")
             mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
 
             result = await Bootloader.validate(BootMode.FULL)
@@ -439,7 +465,7 @@ class TestBootloaderFullMode:
             patch.object(Bootloader, "_check_vault_secrets") as mock_vault,
         ):
             mock_s3.return_value = ServiceStatus("minio", "ok", "OK")
-            mock_openrouter.return_value = ServiceStatus("openrouter", "ok", "OK")
+            mock_openrouter.return_value = ServiceStatus("ai_provider", "ok", "OK")
             mock_vault.return_value = ServiceStatus("vault_secrets", "ok", "OK")
 
             result = await Bootloader.validate(BootMode.FULL)

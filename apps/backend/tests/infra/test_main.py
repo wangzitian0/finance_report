@@ -287,8 +287,9 @@ class TestConfig:
         # lifecycle script set for namespace isolation.
         monkeypatch.delenv("S3_BUCKET", raising=False)
         settings = Settings()
-        assert "gemini" in settings.primary_model.lower()
-        assert settings.primary_model.startswith("google/")
+        assert settings.ai_provider == "zai"
+        assert settings.primary_model.startswith("glm-")
+        assert settings.ocr_model == "glm-ocr"
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

@@ -1,7 +1,7 @@
 """Integration tests for AI model catalog and validation.
 
-These tests hit real OpenRouter API to ensure configuration is valid.
-Mark as @pytest.mark.integration to allow skipping for fast CI runs.
+These tests validate the configured provider model catalog. The default catalog
+is local/configured so CI does not depend on remote model-list availability.
 """
 
 import pytest
@@ -17,31 +17,31 @@ class TestModelCatalogIntegration:
         from src.services.openrouter_models import fetch_model_catalog
 
         models = await fetch_model_catalog()
-        assert len(models) > 0, "OpenRouter returned empty model catalog"
+        assert len(models) > 0, "AI provider returned empty model catalog"
         assert all("id" in m for m in models), "Model entries missing 'id' field"
 
     async def test_primary_model_exists_in_catalog(self):
-        """AC6.11.1: Primary model exists in OpenRouter catalog."""
+        """AC6.11.1: Primary model exists in AI provider catalog."""
         from src.config import settings
         from src.services.openrouter_models import is_model_known
 
         is_known = await is_model_known(settings.primary_model)
         assert is_known, (
-            f"PRIMARY_MODEL '{settings.primary_model}' not found in OpenRouter catalog. "
+            f"PRIMARY_MODEL '{settings.primary_model}' not found in AI provider catalog. "
             "This will cause statement upload to fail. Check .env.example for valid models."
         )
 
-    async def test_primary_model_has_image_support(self):
-        """AC6.11.1: Primary model supports image inputs for PDF parsing."""
+    async def test_ocr_model_has_image_support(self):
+        """AC6.11.1: OCR model supports image/PDF inputs for PDF parsing."""
         from src.config import settings
         from src.services.openrouter_models import get_model_info, model_matches_modality
 
-        model_info = await get_model_info(settings.primary_model)
-        assert model_info is not None, f"Could not fetch info for {settings.primary_model}"
+        model_info = await get_model_info(settings.ocr_model)
+        assert model_info is not None, f"Could not fetch info for {settings.ocr_model}"
 
         supports_image = model_matches_modality(model_info, "image")
         assert supports_image, (
-            f"PRIMARY_MODEL '{settings.primary_model}' does not support image inputs.\n"
+            f"OCR_MODEL '{settings.ocr_model}' does not support image inputs.\n"
             f"Input modalities: {model_info.get('input_modalities', [])}\n"
             f"PDF parsing requires 'image' modality."
         )
@@ -57,19 +57,17 @@ class TestModelCatalogIntegration:
         assert len(settings.fallback_models) > 0, "FALLBACK_MODELS list is empty"
 
         for model_id in settings.fallback_models:
-            assert "/" in model_id, f"Invalid fallback model format: {model_id}"
+            assert model_id.startswith("glm-"), f"Invalid fallback model format: {model_id}"
             assert len(model_id) > 5, f"Fallback model ID too short: {model_id}"
 
-    async def test_gemini_models_available(self):
-        """AC6.11.1: At least one Gemini model available in catalog."""
+    async def test_glm_models_available(self):
+        """AC6.11.1: At least one GLM model available in catalog."""
         from src.services.openrouter_models import fetch_model_catalog
 
         models = await fetch_model_catalog()
-        gemini_models = [m for m in models if "gemini" in m.get("id", "").lower()]
+        glm_models = [m for m in models if m.get("id", "").lower().startswith("glm-")]
 
-        assert len(gemini_models) > 0, (
-            "No Gemini models found in OpenRouter catalog. This suggests API connectivity issues."
-        )
+        assert len(glm_models) > 0, "No GLM models found in AI provider catalog."
 
 
 class TestModelValidationIntegration:
@@ -127,7 +125,7 @@ class TestModelValidationIntegration:
         response = await client.post(
             "/statements/upload",
             data={
-                "model": settings.primary_model,
+                "model": settings.ocr_model,
                 "institution": "Test Bank",
                 "account_number": "1234567890",
             },
@@ -136,8 +134,8 @@ class TestModelValidationIntegration:
 
         if response.status_code == 400:
             detail = response.json().get("detail", "")
-            assert "Invalid model" not in detail, f"Model validation failed for PRIMARY_MODEL: {detail}"
-            assert "does not support image" not in detail, f"PRIMARY_MODEL lacks image support: {detail}"
+            assert "Invalid model" not in detail, f"Model validation failed for OCR_MODEL: {detail}"
+            assert "does not support image" not in detail, f"OCR_MODEL lacks image support: {detail}"
 
 
 class TestModelCatalogCaching:

@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) using a single OpenRouter vision model (default `PRIMARY_MODEL`), outputting structured transaction data with confidence scoring. Files are sent to the model as base64-encoded inline data (no public URL required). Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use dedicated OCR first (`OCR_MODEL`, default `glm-ocr`) to produce Markdown, then structure the OCR text with `PRIMARY_MODEL` (default `glm-4.5`). A `VISION_MODEL` fallback is available when OCR layout parsing fails. Files are sent as base64-encoded inline data when possible (no public URL required). Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 
@@ -13,9 +13,10 @@ flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
     S --> P[Create PARSING Statement]
     P --> B{File Type}
-    B -->|PDF/Image| C["OpenRouter Vision Model"]
+    B -->|PDF/Image| C["OCR_MODEL layout parsing"]
+    C --> C2["PRIMARY_MODEL JSON structuring"]
     B -->|CSV| D[Structured Parser]
-    C --> E[Extract JSON]
+    C2 --> E[Extract JSON]
     D --> E
     E --> F{Confidence Score}
     F -->|≥85| G[Auto-Accept]
@@ -122,7 +123,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
 | POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
 | POST | `/api/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
-| GET | `/api/ai/models` | OpenRouter model catalog for UI selection |
+| GET | `/api/ai/models` | Configured AI provider model catalog for UI selection |
 
 ## Supported Institutions
 
@@ -143,10 +144,17 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 
 Required environment variables:
 ```bash
-OPENROUTER_API_KEY=<YOUR_OPENROUTER_API_KEY>
-PRIMARY_MODEL=google/gemini-3-flash-preview
-FALLBACK_MODELS=qwen/qwen-2.5-vl-7b-instruct:free,nvidia/nemotron-nano-12b-v2-vl:free
-OPENROUTER_DAILY_LIMIT_USD=2
+AI_PROVIDER=zai
+ZAI_API_KEY=<YOUR_ZAI_API_KEY>
+AI_BASE_URL=https://api.z.ai/api/paas/v4
+AI_CHAT_COMPLETIONS_PATH=/chat/completions
+AI_LAYOUT_PARSING_PATH=/layout_parsing
+AI_MODEL_CATALOG_SOURCE=configured
+PRIMARY_MODEL=glm-4.5
+OCR_MODEL=glm-ocr
+VISION_MODEL=glm-4.5v
+FALLBACK_MODELS=glm-4.5-air,glm-4.5-flash
+AI_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
 S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>
@@ -172,11 +180,12 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 
 ## Model Selection
 
-- **Default**: Uses `PRIMARY_MODEL` for parsing.
-- **Upload requirement**: `/api/statements/upload` requires a `model` form field for PDF/image uploads; the selected model is always used as-is.
-- **Retry**: `/api/statements/{id}/retry` accepts a `model` query parameter (always used as-is).
-- **Catalog**: `/api/ai/models` returns the OpenRouter catalog for UI dropdowns (filterable by modality).
-- **Fallback models**: `FALLBACK_MODELS` are for manual selection only; parsing does not automatically retry other models.
+- **Default**: Uses `OCR_MODEL` for OCR/layout parsing and `PRIMARY_MODEL` for JSON structuring.
+- **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
+- **Manual override**: a selected image-capable model bypasses OCR-first mode and is used directly as a vision chat model. Selecting `OCR_MODEL` maps back to the OCR-first pipeline.
+- **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
+- **Catalog**: `/api/ai/models` returns the configured provider catalog for UI dropdowns (filterable by modality).
+- **Fallback models**: `FALLBACK_MODELS` are used after OCR text extraction when `PRIMARY_MODEL` fails.
 
 ## Data Integrity & Typing
 

@@ -194,8 +194,16 @@ jobs:
             echo "MINIO_API_PORTS=127.0.0.1:$MINIO_API_PORT:9000"
             echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
             
-            echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}"
-            echo "PRIMARY_MODEL=google/gemini-3-flash-preview"
+            echo "AI_PROVIDER=zai"
+            echo "ZAI_API_KEY=${{ secrets.ZAI_API_KEY }}"
+            echo "AI_BASE_URL=https://api.z.ai/api/paas/v4"
+            echo "AI_CHAT_COMPLETIONS_PATH=/chat/completions"
+            echo "AI_LAYOUT_PARSING_PATH=/layout_parsing"
+            echo "AI_MODEL_CATALOG_SOURCE=configured"
+            echo "PRIMARY_MODEL=glm-4.5"
+            echo "OCR_MODEL=glm-ocr"
+            echo "VISION_MODEL=glm-4.5v"
+            echo "FALLBACK_MODELS=glm-4.5-air,glm-4.5-flash"
             echo "COMPOSE_PROFILES=infra,app"
             
             # CRITICAL: Use unique hostnames in Dokploy shared network

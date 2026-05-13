@@ -154,7 +154,8 @@ async def upload_statement(
     """
     Upload a financial statement and enqueue parsing.
 
-    Supported file types: PDF, CSV, PNG, JPG. Model is required for PDF/image uploads.
+    Supported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;
+    omitted model uses the OCR-first default pipeline.
     Institution is optional - AI will auto-detect from document if not provided.
     """
     filename = Path(file.filename or "unknown").name or "unknown"
@@ -185,17 +186,15 @@ async def upload_statement(
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate statement upload")
 
     if extension != "csv":
-        if not model:
-            raise_bad_request("AI model is required for PDF/image uploads.")
-
-        try:
-            model_info = await get_model_info(model)
-        except ModelCatalogError as exc:
-            raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
-        if not model_info:
-            raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
-        if not model_matches_modality(model_info, "image"):
-            raise_bad_request("Selected model does not support image/PDF inputs.")
+        if model:
+            try:
+                model_info = await get_model_info(model)
+            except ModelCatalogError as exc:
+                raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
+            if not model_info:
+                raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
+            if not model_matches_modality(model_info, "image"):
+                raise_bad_request("Selected model does not support image/PDF inputs.")
 
     statement_id = uuid4()
     storage_key = f"statements/{user_id}/{statement_id}/{filename}"
@@ -256,7 +255,7 @@ async def upload_statement(
             file_hash=file_hash,
             storage_key=storage_key,
             content=content,
-            model=model,
+            model=None if model == settings.ocr_model else model,
             session_maker=create_session_maker_from_db(db),
             request_id=structlog.contextvars.get_contextvars().get("request_id"),
         )
@@ -301,7 +300,7 @@ async def retry_statement_parsing(
     ):
         raise_bad_request("Can only retry parsing for parsed, rejected, or stuck parsing statements")
 
-    selected_model = model_override or settings.primary_model
+    selected_model = model_override
 
     if model_override:
         try:
@@ -340,7 +339,7 @@ async def retry_statement_parsing(
             file_hash=statement.file_hash,
             storage_key=statement.file_path,
             content=content,
-            model=selected_model,
+            model=None if selected_model == settings.ocr_model else selected_model,
             session_maker=create_session_maker_from_db(db),
             request_id=structlog.contextvars.get_contextvars().get("request_id"),
         )

@@ -114,7 +114,11 @@ class Bootloader:
             "debug",
             "environment",
             "base_currency",
+            "ai_provider",
+            "ai_base_url",
             "primary_model",
+            "ocr_model",
+            "vision_model",
             "s3_endpoint",
             "s3_bucket",
             "cors_origin_regex",
@@ -125,7 +129,7 @@ class Bootloader:
         # Sensitive fields - only show "set"/"not set" status
         sensitive_fields = [
             "database_url",
-            "openrouter_api_key",
+            "ai_api_key",
             "s3_access_key",
             "s3_secret_key",
         ]
@@ -214,19 +218,33 @@ class Bootloader:
             return ServiceStatus("minio", "error", str(e), duration_ms)
 
     @staticmethod
-    async def _check_openrouter() -> ServiceStatus:
+    async def _check_ai_provider() -> ServiceStatus:
         """Validate AI API key."""
-        if not settings.openrouter_api_key:
-            return ServiceStatus("openrouter", "skipped", "Not configured")
+        api_key = getattr(settings, "ai_api_key", None) or getattr(settings, "openrouter_api_key", None)
+        if not isinstance(api_key, str) or not api_key:
+            return ServiceStatus("ai_provider", "skipped", "Not configured")
+
+        catalog_source = getattr(settings, "ai_model_catalog_source", "configured")
+        if catalog_source == "configured":
+            return ServiceStatus(
+                "ai_provider",
+                "ok",
+                f"Configured provider={settings.ai_provider}, primary={settings.primary_model}, ocr={settings.ocr_model}",
+            )
 
         import httpx
 
         start = time.perf_counter()
         try:
+            base_url = getattr(settings, "ai_base_url", None)
+            if not isinstance(base_url, str) or not base_url:
+                base_url = getattr(settings, "openrouter_base_url", None)
+            if not isinstance(base_url, str) or not base_url:
+                return ServiceStatus("ai_provider", "error", "Base URL not configured")
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
-                    f"{settings.openrouter_base_url}/models",
-                    headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},
+                    f"{base_url.rstrip('/')}/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
                 )
                 if resp.status_code == 200:
                     status = "ok"
@@ -236,10 +254,12 @@ class Bootloader:
                     msg = f"HTTP {resp.status_code}"
 
             duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("openrouter", status, msg, duration_ms)
+            return ServiceStatus("ai_provider", status, msg, duration_ms)
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("openrouter", "error", str(e), duration_ms)
+            return ServiceStatus("ai_provider", "error", str(e), duration_ms)
+
+    _check_openrouter = _check_ai_provider
 
     @staticmethod
     def _check_vault_secrets() -> ServiceStatus:

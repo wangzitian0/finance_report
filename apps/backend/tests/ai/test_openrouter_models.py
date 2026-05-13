@@ -84,8 +84,11 @@ def test_model_matches_modality_not_matching():
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_catalog_success():
+async def test_fetch_model_catalog_success(monkeypatch):
     """AC6.11.1: Fetch model catalog returns models on success."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
     mock_response = MagicMock()
     mock_response.json.return_value = {"data": [{"id": "model1"}, {"id": "model2"}]}
     mock_response.raise_for_status = MagicMock()
@@ -104,8 +107,11 @@ async def test_fetch_model_catalog_success():
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_catalog_caching():
+async def test_fetch_model_catalog_caching(monkeypatch):
     """AC6.11.3: Catalog is cached and reused on subsequent calls."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
     mock_response = MagicMock()
     mock_response.json.return_value = {"data": [{"id": "cached"}]}
     mock_response.raise_for_status = MagicMock()
@@ -128,8 +134,11 @@ async def test_fetch_model_catalog_caching():
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_catalog_force_refresh():
+async def test_fetch_model_catalog_force_refresh(monkeypatch):
     """AC6.11.3: Force refresh bypasses cache."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
     mock_response = MagicMock()
     mock_response.json.return_value = {"data": [{"id": "new-data"}]}
     mock_response.raise_for_status = MagicMock()
@@ -152,8 +161,11 @@ async def test_fetch_model_catalog_force_refresh():
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_catalog_http_error():
+async def test_fetch_model_catalog_http_error(monkeypatch):
     """AC6.11.1: HTTP errors during fetch are raised."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
     with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")
@@ -208,8 +220,11 @@ async def test_get_model_info_not_found():
 
 
 @pytest.mark.asyncio
-async def test_get_model_info_fetch_error():
+async def test_get_model_info_fetch_error(monkeypatch):
     """AC6.11.1: Get model info raises ModelCatalogError on fetch failure."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
     with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")

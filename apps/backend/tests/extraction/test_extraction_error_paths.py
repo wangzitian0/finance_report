@@ -61,9 +61,9 @@ async def test_extract_financial_data_no_content_no_url():
 async def test_extract_financial_data_no_api_key(monkeypatch):
     from src.config import settings
 
-    monkeypatch.setattr(settings, "openrouter_api_key", "")
+    monkeypatch.setattr(settings, "ai_api_key", "")
     service = ExtractionService()
-    with pytest.raises(ExtractionError, match="OpenRouter API key not configured"):
+    with pytest.raises(ExtractionError, match="AI provider API key not configured"):
         await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
@@ -649,6 +649,8 @@ async def test_extract_empty_model_in_list_skipped():
     service = ExtractionService()
     service.api_key = "test-key"
     service.primary_model = ""  # Empty string model
+    service.ocr_model = ""
+    service.vision_model = ""
 
     # With empty primary_model, the only model is "", which should be skipped
     # Then we fall to line 604: raise last_error or ExtractionError(...)
@@ -727,6 +729,8 @@ async def test_extract_no_models_tried_fallback_error():
     service = ExtractionService()
     service.api_key = "test-key"
     service.primary_model = ""
+    service.ocr_model = ""
+    service.vision_model = ""
 
     with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
         await service.extract_financial_data(

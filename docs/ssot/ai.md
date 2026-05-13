@@ -28,7 +28,7 @@ flowchart LR
     U[User] --> UI[Chat UI]
     UI --> API[POST /api/chat]
     API --> CTX[Build Financial Context]
-    CTX --> LLM[OpenRouter Model (default PRIMARY_MODEL)]
+    CTX --> LLM[Configured AI Provider (default PRIMARY_MODEL)]
     LLM --> API
     API --> UI
 ```
@@ -48,7 +48,7 @@ The advisor only reads summarized, posted/reconciled data:
 - No ledger mutations, no write endpoints used.
 - Only summarized data is sent to the LLM (no full account numbers or raw files).
 - Sensitive fields are redacted before sending and after receiving.
-- The architecture allows a future local model swap without changing API contracts.
+- The architecture uses provider-neutral `AI_*` configuration so the base model can be changed without API contract changes.
 
 ---
 
@@ -103,7 +103,7 @@ The advisor only reads summarized, posted/reconciled data:
 
 ### SOP-002: Missing Model Credentials
 
-1. Detect missing `OPENROUTER_API_KEY`.
+1. Detect missing `ZAI_API_KEY` / `AI_API_KEY`.
 2. Return 503 with a friendly message and no partial response.
 3. Log the failure for audit.
 
@@ -112,6 +112,7 @@ The advisor only reads summarized, posted/reconciled data:
 1. UI pulls available models from `/api/ai/models`.
 2. Client sends the selected `model` in `POST /api/chat`.
 3. If omitted, the service uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS` for chat responses.
+4. Statement OCR uses `OCR_MODEL` via the provider layout parsing API, then structures text with `PRIMARY_MODEL`.
 
 ### SOP-003: Cached Common Q&A
 

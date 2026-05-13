@@ -272,8 +272,8 @@ class AIAdvisorService:
     """AI advisor service to answer financial questions."""
 
     def __init__(self) -> None:
-        self.api_key = settings.openrouter_api_key
-        self.base_url = settings.openrouter_base_url
+        self.api_key = settings.ai_api_key
+        self.base_url = settings.ai_base_url
         self.primary_model = settings.primary_model
         self.fallback_models = settings.fallback_models
 
@@ -329,7 +329,7 @@ class AIAdvisorService:
         messages.append({"role": "user", "content": message})
 
         if not self.api_key:
-            raise AIAdvisorError("OpenRouter API key not configured")
+            raise AIAdvisorError("AI provider API key not configured")
 
         return ChatStream(
             session_id=session.id,

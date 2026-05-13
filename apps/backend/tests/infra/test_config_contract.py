@@ -15,16 +15,12 @@ class TestConfigContract:
         """AC12.18.1: Ensure PRIMARY_MODEL follows expected pattern."""
         from src.config import settings
 
-        # Test contract: model should follow google/gemini-* pattern
-        assert settings.primary_model.startswith("google/"), (
-            f"Invalid model provider: {settings.primary_model}. Expected pattern: google/gemini-*"
+        assert settings.ai_provider == "zai"
+        assert settings.primary_model.startswith("glm-"), (
+            f"Invalid model provider: {settings.primary_model}. Expected GLM model ID"
         )
-        assert "gemini" in settings.primary_model.lower(), (
-            f"Invalid model family: {settings.primary_model}. Expected 'gemini' in model name"
-        )
-        # Flexible check - allow various version formats
-        assert re.match(r"^google/gemini-[\d.a-z-]+", settings.primary_model), (
-            f"Invalid model format: {settings.primary_model}. Expected pattern: google/gemini-<version>"
+        assert re.match(r"^glm-[\d.a-z-]+", settings.primary_model), (
+            f"Invalid model format: {settings.primary_model}. Expected pattern: glm-<version>"
         )
 
     def test_config_sync_with_env_example(self):
