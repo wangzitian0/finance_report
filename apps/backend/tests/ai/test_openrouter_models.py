@@ -10,6 +10,7 @@ import pytest
 from src.services.openrouter_models import (
     _MODEL_CACHE,
     ModelCatalogError,
+    _configured_model_catalog,
     fetch_model_catalog,
     get_model_info,
     is_model_known,
@@ -81,6 +82,21 @@ def test_model_matches_modality_not_matching():
     """AC6.11.1: Model does not match when modality absent."""
     model = {"input_modalities": ["text"]}
     assert model_matches_modality(model, "image") is False
+
+
+def test_configured_model_catalog_deduplicates_models(monkeypatch):
+    """Configured catalog skips duplicate model IDs from fallback settings."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "primary_model", "glm-4.5")
+    monkeypatch.setattr(settings, "ocr_model", "glm-ocr")
+    monkeypatch.setattr(settings, "vision_model", "glm-4.5")
+    monkeypatch.setattr(settings, "fallback_models", ["glm-ocr", "glm-4.5-air"])
+
+    catalog = _configured_model_catalog()
+    model_ids = [model["id"] for model in catalog]
+
+    assert model_ids == ["glm-4.5", "glm-ocr", "glm-4.5-air"]
 
 
 @pytest.mark.asyncio

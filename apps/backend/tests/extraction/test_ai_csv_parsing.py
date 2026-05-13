@@ -1,5 +1,7 @@
 """EPIC-018 Phase 4: Tests for AI CSV parsing fallback."""
 
+from datetime import datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -41,6 +43,74 @@ async def test_ai_csv_parsing_returns_valid_mapping():
     assert result["transactions"][0]["description"] == "Coffee Shop"
     assert result["transactions"][1]["direction"] == "IN"
     assert result["transactions"][1]["amount"] == "3000.00"
+
+
+@pytest.mark.asyncio
+async def test_ai_csv_parsing_skips_invalid_amount_rows():
+    """AI CSV parser skips rows with invalid dates or amount values."""
+    service = ExtractionService()
+
+    ai_mapping = '{"date": "Txn Date", "description": "Narration", "amount": "Amount", "debit": null, "credit": null}'
+    rows = [
+        {"Txn Date": "bad-date", "Narration": "Bad Date", "Amount": "10.00"},
+        {"Txn Date": "15/01/2025", "Narration": "Bad Amount", "Amount": "not-money"},
+        {"Txn Date": "16/01/2025", "Narration": "Empty Amount", "Amount": ""},
+        {"Txn Date": "17/01/2025", "Narration": "Refund", "Amount": "-4.50"},
+    ]
+
+    mock_accumulate = AsyncMock(return_value=ai_mapping)
+
+    with (
+        patch.object(service, "api_key", "test-key"),
+        patch.object(service, "primary_model", "test-model"),
+        patch.object(service, "base_url", "https://test.api"),
+        patch("src.services.openrouter_streaming.stream_openrouter_json", return_value=MagicMock()),
+        patch("src.services.openrouter_streaming.accumulate_stream", mock_accumulate),
+    ):
+        transactions, period_start, period_end = await service._ai_parse_csv(
+            headers=["Txn Date", "Narration", "Amount"],
+            rows=rows,
+            institution="UnknownBank",
+            parse_date=lambda value: datetime.strptime(value, "%d/%m/%Y").date() if "/" in value else None,
+            parse_amount=lambda value: Decimal(value) if value not in {"", "not-money"} else None,
+        )
+
+    assert len(transactions) == 1
+    assert transactions[0]["direction"] == "OUT"
+    assert transactions[0]["amount"] == "4.50"
+    assert period_start == period_end
+
+
+@pytest.mark.asyncio
+async def test_ai_csv_parsing_skips_empty_debit_credit_rows():
+    """AI CSV parser skips mapped debit/credit rows that contain no amount."""
+    service = ExtractionService()
+
+    ai_mapping = '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}'
+    rows = [
+        {"Txn Date": "15/01/2025", "Narration": "No Amount", "Debit": "", "Credit": ""},
+        {"Txn Date": "16/01/2025", "Narration": "Salary", "Debit": "", "Credit": "3000.00"},
+    ]
+
+    mock_accumulate = AsyncMock(return_value=ai_mapping)
+
+    with (
+        patch.object(service, "api_key", "test-key"),
+        patch.object(service, "primary_model", "test-model"),
+        patch.object(service, "base_url", "https://test.api"),
+        patch("src.services.openrouter_streaming.stream_openrouter_json", return_value=MagicMock()),
+        patch("src.services.openrouter_streaming.accumulate_stream", mock_accumulate),
+    ):
+        transactions, _, _ = await service._ai_parse_csv(
+            headers=["Txn Date", "Narration", "Debit", "Credit"],
+            rows=rows,
+            institution="UnknownBank",
+            parse_date=lambda value: datetime.strptime(value, "%d/%m/%Y").date(),
+            parse_amount=lambda value: Decimal(value) if value else None,
+        )
+
+    assert len(transactions) == 1
+    assert transactions[0]["direction"] == "IN"
 
 
 @pytest.mark.asyncio
