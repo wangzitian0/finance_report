@@ -68,6 +68,67 @@ async def test_extract_financial_data_no_api_key(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_extract_ocr_markdown_joins_layout_results(monkeypatch):
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    class FakeResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"md_results": ["# Statement", "", "Balance: 10.00"]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, headers, json):
+            assert url.endswith("/layout_parsing")
+            assert headers["Authorization"] == "Bearer test-key"
+            assert json["model"] == service.ocr_model
+            assert json["file"].startswith("data:application/pdf;base64,")
+            return FakeResponse()
+
+    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+
+    markdown = await service._extract_ocr_markdown(
+        file_content=b"pdf bytes",
+        file_url=None,
+        file_type="pdf",
+        mime_type="application/pdf",
+    )
+
+    assert markdown == "# Statement\n\nBalance: 10.00"
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_uses_ocr_first_pipeline():
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    mock_ocr = AsyncMock(return_value="| Date | Amount |\n| 2025-01-01 | 10.00 |")
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_ocr_markdown = mock_ocr
+    service._extract_json_with_models = mock_extract
+
+    result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
+    call = mock_extract.await_args.kwargs
+    assert call["models"] == [service.primary_model, *service.fallback_models]
+    assert "OCR Markdown" in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
 async def test_extract_financial_data_all_models_fail():
     service = ExtractionService()
     service.api_key = "test-key"
