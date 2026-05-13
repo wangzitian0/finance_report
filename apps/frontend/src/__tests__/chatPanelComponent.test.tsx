@@ -98,11 +98,34 @@ describe("ChatPanel", () => {
   })
 
   it("AC16.20.5 handles model selection", async () => {
+    mockedFetchAiModels.mockResolvedValue({
+      models: [
+        {
+          id: "model-1",
+          name: "Model 1",
+          is_free: true,
+          input_modalities: ["text"],
+          pricing: { prompt: "0", completion: "0" },
+        },
+        {
+          id: "model-2",
+          name: "Model 2",
+          is_free: false,
+          input_modalities: ["text"],
+          pricing: { prompt: "0.1", completion: "0.2" },
+        },
+      ],
+      default_model: "model-1",
+      fallback_models: [],
+    })
     render(<ChatPanel variant="page" />)
-    const select = await screen.findByLabelText(/ai model/i) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "model-1" } })
-    expect(select.value).toBe("model-1")
-    expect(localStorage.getItem("ai_chat_model_v1")).toBe("model-1")
+    const select = (await screen.findByLabelText(/ai model/i)) as HTMLSelectElement
+
+    await waitFor(() => expect(select.value).toBe("model-1"))
+    fireEvent.change(select, { target: { value: "model-2" } })
+
+    expect(select.value).toBe("model-2")
+    expect(localStorage.getItem("ai_chat_model_v1")).toBe("model-2")
   })
 
   it("AC16.20.5 sends message via enter key", async () => {
