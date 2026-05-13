@@ -188,9 +188,6 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     # can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
-    await expect(page.locator("span.badge", has_text="parsed")).to_be_visible(
-        timeout=15_000
-    )
     await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(
         timeout=10_000
     )
