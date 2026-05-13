@@ -113,7 +113,7 @@ This table shows how domain concepts map across different layers. Use this to ma
 | **reconciliation** | [reconciliation.md](./reconciliation.md) | `reconciliation.py` | `reconciliation.py`, `review_queue.py` | `/reconciliation` | `reconciliation/` |
 | **reporting** | [reporting.md](./reporting.md) | `reports.py` | `reporting.py`, `reporting_snapshot.py` | `/reports` | `reporting/` |
 | **extraction** | [extraction.md](./extraction.md) | `statements.py` | `extraction.py`, `storage.py`, `validation.py` | `/statements` | `extraction/` |
-| **ai** | [ai.md](./ai.md) | `chat.py`, `ai_models.py` | `ai_advisor.py`, `openrouter_*.py` | `/chat` | `ai/` |
+| **ai** | [ai.md](./ai.md) | `chat.py`, `ai_models.py` | `ai_advisor.py`, provider streaming/model catalog | `/chat` | `ai/` |
 | **assets** | [assets.md](./assets.md) | `assets.py` | `assets.py` | `/assets` | `assets/` |
 | **auth** | [auth.md](./auth.md) | `auth.py`, `users.py` | — | `/login` | `auth/` |
 | **market_data** | [market_data.md](./market_data.md) | — | `fx.py` | — | `market_data/` |

@@ -219,8 +219,6 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
 @pytest.mark.asyncio
 async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
     """Test upload_statement cleanup logic when DB commit fails."""
-    from src.config import settings
-
     # Mock commit to fail
     monkeypatch.setattr(db, "commit", AsyncMock(side_effect=Exception("DB Fail")))
 
@@ -230,12 +228,12 @@ async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
         mock_storage.delete_object.side_effect = StorageError("Storage Fail")
 
         upload_file = make_upload_file("test.pdf", b"content")
-        # Provide primary_model to pass validation
+        # Omitted model uses the default OCR-first pipeline.
         with pytest.raises(HTTPException) as exc:
             await upload_statement(
                 file=upload_file,
                 institution="DBS",
-                model=settings.primary_model,
+                model=None,
                 db=db,
                 user_id=test_user.id,
             )

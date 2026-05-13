@@ -23,13 +23,18 @@ import pytest
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 
+from src.models import User
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
 from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest
-from src.services import ExtractionError, statement_parsing as statement_parsing_mod
+from src.services import (
+    ExtractionError,
+    statement_parsing as statement_parsing_mod,
+    statement_validation as statement_validation_mod,
+)
 from src.services.statement_parsing import handle_parse_failure
 
 pytestmark = pytest.mark.asyncio
@@ -214,23 +219,26 @@ async def test_upload_invalid_extension(db, test_user):
     assert "Unsupported file type" in exc.value.detail
 
 
-async def test_upload_requires_model_for_pdf(db, test_user):
-    """AC3.5.7: PDF/image uploads must include a model selection."""
+async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage_stub, test_user):
+    """AC3.5.7: PDF/image uploads may omit model and use the default OCR pipeline."""
+    mock_parse = AsyncMock(return_value=None)
+    monkeypatch.setattr(statements_router, "parse_statement_background", mock_parse)
+
     upload_file = make_upload_file("statement.pdf", b"content")
 
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.upload_statement(
-            file=upload_file,
-            institution="DBS",
-            account_id=None,
-            model=None,
-            db=db,
-            user_id=test_user.id,
-        )
+    created = await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        model=None,
+        db=db,
+        user_id=test_user.id,
+    )
     await upload_file.close()
+    await wait_for_background_tasks()
 
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "AI model is required" in exc.value.detail
+    assert created.status == BankStatementStatus.PARSING
+    assert mock_parse.await_args.kwargs["model"] is None
 
 
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
@@ -352,6 +360,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     ):
         score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
+        statement.closing_balance = Decimal("100.00")
         return statement, []
 
     monkeypatch.setattr(
@@ -413,6 +422,90 @@ async def test_get_statement_not_found(db, test_user):
             user_id=test_user.id,
         )
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_list_statement_transactions_not_found(db, test_user):
+    """AC3.5.11: Missing statement transactions return 404."""
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.list_statement_transactions(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_legacy_approve_statement_not_found(db, test_user):
+    """AC16.18.1: Legacy approval must not expose statements outside the user scope."""
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            decision=StatementDecisionRequest(notes="Looks good"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_legacy_approve_statement_service_error(db, test_user, monkeypatch):
+    """AC16.18.1: Legacy approval returns service validation errors as 400."""
+    statement = build_statement(test_user.id, "hash_legacy_approve_error", 80)
+    db.add(statement)
+    await db.commit()
+
+    async def reject_approval(*_args, **_kwargs):
+        raise ValueError("Balance mismatch")
+
+    monkeypatch.setattr(statements_router, "approve_statement_svc", reject_approval)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement(
+            statement_id=statement.id,
+            decision=StatementDecisionRequest(notes="Looks good"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert exc.value.detail == "Balance mismatch"
+
+
+async def test_legacy_reject_statement_not_found(db, test_user):
+    """AC16.18.1: Legacy rejection must not expose statements outside the user scope."""
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.reject_statement(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            decision=StatementDecisionRequest(notes="Incorrect data"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_legacy_reject_statement_service_error(db, test_user, monkeypatch):
+    """AC16.18.1: Legacy rejection returns service validation errors as 400."""
+    statement = build_statement(test_user.id, "hash_legacy_reject_error", 80)
+    db.add(statement)
+    await db.commit()
+
+    async def reject_rejection(*_args, **_kwargs):
+        raise ValueError("Invalid transition")
+
+    monkeypatch.setattr(statements_router, "reject_statement_svc", reject_rejection)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.reject_statement(
+            statement_id=statement.id,
+            decision=StatementDecisionRequest(notes="Incorrect data"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert exc.value.detail == "Invalid transition"
 
 
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
@@ -1314,6 +1407,29 @@ async def test_approve_statement_stage1_balance_mismatch(db, test_user):
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert exc.value.status_code == 400
     assert "Balance mismatch" in exc.value.detail
+
+
+async def test_approve_statement_stage1_authorizes_before_balance_validation(db, test_user, monkeypatch):
+    """AC16.18.1: Stage 1 approval must not validate another user's statement."""
+    other_user = User(email="stage1-other@example.com", hashed_password="hashed")
+    db.add(other_user)
+    await db.flush()
+
+    statement = build_statement(other_user.id, "hash_s1_other_user", 80)
+    statement.closing_balance = Decimal("100.00")
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    validation = AsyncMock(side_effect=AssertionError("validation should not run before authorization"))
+    monkeypatch.setattr(statement_validation_mod, "validate_balance_chain", validation)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+
+    assert exc.value.status_code == 400
+    assert "access denied" in exc.value.detail
+    validation.assert_not_awaited()
 
 
 async def test_reject_statement_stage1_success(db, test_user):

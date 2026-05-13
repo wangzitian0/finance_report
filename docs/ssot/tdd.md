@@ -359,7 +359,7 @@ async def test_feature_error_invalid_input():
 #### 4.3 Mocking Guidelines
 
 **DO mock**:
-- External APIs (OpenRouter, S3, FX providers)
+- External APIs (AI provider, S3, FX providers)
 - File system operations (in unit tests)
 - Time (for deterministic tests)
 - Async background tasks (in unit tests)

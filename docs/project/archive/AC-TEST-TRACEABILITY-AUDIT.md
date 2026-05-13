@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-06 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-13 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -421,7 +421,7 @@
 | AC7.5.1 | yes | DATABASE_URL in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.5.2 | yes | REDIS_URL in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.5.3 | yes | S3_* keys in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
-| AC7.5.4 | yes | OPENROUTER_API_KEY in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
+| AC7.5.4 | yes | ZAI_API_KEY in Vault | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.5.5 | yes | Vault tokens generated | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
 | AC7.6.1 | yes | Config syncs with .env.example | `apps/backend/tests/infra/test_main.py` | ✅ |
 | AC7.6.2 | yes | Required secrets documented | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ |
@@ -1022,7 +1022,7 @@
 | AC16.17.5 | yes | Root layout composes Providers and AuthGuard around children | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/rootLayout.test.tsx` | ✅ |
 | AC16.17.6 | yes | Providers wraps children with QueryClientProvider | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/providers.test.tsx` | ✅ |
 | AC16.17.7 | yes | API catch-all handlers return JSON 503 for all HTTP methods | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/apiCatchAllRoute.test.ts` | ✅ |
-| AC16.18.1 | yes | Statement detail page loads statement data and renders parsed transactions summary | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
+| AC16.18.1 | yes | Statement detail page loads statement data and renders parsed transactions summary | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/backend/tests/api/test_statements_router.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
 | AC16.18.2 | yes | Statement detail page approve and reject actions call corresponding APIs | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
 | AC16.18.3 | yes | Statement detail page retry action posts retry API and refreshes data | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
 | AC16.18.4 | yes | Statement review page shows error fallback and supports retry | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |

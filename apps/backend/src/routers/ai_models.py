@@ -50,18 +50,20 @@ async def list_models(
 
     filtered.sort(key=lambda m: (not m.is_free, m.name or m.id))
 
+    default_model = settings.ocr_model if modality in {"image", "pdf", "file"} else settings.primary_model
+
     logger.info(
         "AI model catalog response prepared",
         total_models=len(models),
         filtered_models=len(filtered),
-        default_model=settings.primary_model,
+        default_model=default_model,
         fallback_count=len(settings.fallback_models),
         modality_filter=modality,
         free_only=free_only,
     )
 
     return AIModelCatalogResponse(
-        default_model=settings.primary_model,
+        default_model=default_model,
         fallback_models=settings.fallback_models,
         models=filtered,
     )

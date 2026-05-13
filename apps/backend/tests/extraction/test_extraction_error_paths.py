@@ -61,10 +61,130 @@ async def test_extract_financial_data_no_content_no_url():
 async def test_extract_financial_data_no_api_key(monkeypatch):
     from src.config import settings
 
-    monkeypatch.setattr(settings, "openrouter_api_key", "")
+    monkeypatch.setattr(settings, "ai_api_key", "")
     service = ExtractionService()
-    with pytest.raises(ExtractionError, match="OpenRouter API key not configured"):
+    with pytest.raises(ExtractionError, match="AI provider API key not configured"):
         await service.extract_financial_data(b"content", "DBS", "pdf")
+
+
+@pytest.mark.asyncio
+async def test_extract_ocr_markdown_joins_layout_results(monkeypatch):
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    class FakeResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"md_results": ["# Statement", "", "Balance: 10.00"]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, headers, json):
+            assert url.endswith("/layout_parsing")
+            assert headers["Authorization"] == "Bearer test-key"
+            assert json["model"] == service.ocr_model
+            assert json["file"].startswith("data:application/pdf;base64,")
+            return FakeResponse()
+
+    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+
+    markdown = await service._extract_ocr_markdown(
+        file_content=b"pdf bytes",
+        file_url=None,
+        file_type="pdf",
+        mime_type="application/pdf",
+    )
+
+    assert markdown == "# Statement\n\nBalance: 10.00"
+
+
+def test_validate_external_url_handles_unexpected_input():
+    service = ExtractionService()
+
+    assert service._validate_external_url(cast(str, object())) is False
+
+
+@pytest.mark.asyncio
+async def test_extract_ocr_markdown_rejects_empty_layout_result(monkeypatch):
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    class FakeResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"md_results": []}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, headers, json):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+
+    with pytest.raises(ExtractionError, match="empty Markdown"):
+        await service._extract_ocr_markdown(
+            file_content=b"pdf bytes",
+            file_url=None,
+            file_type="pdf",
+            mime_type="application/pdf",
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_json_with_models_skips_empty_model_entries():
+    service = ExtractionService()
+
+    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
+        await service._extract_json_with_models(
+            messages=[{"role": "user", "content": "Extract"}],
+            models=[""],
+            prompt="Extract",
+            institution="DBS",
+            file_type="pdf",
+            return_raw=False,
+            has_content=True,
+            has_url=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_uses_ocr_first_pipeline():
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    mock_ocr = AsyncMock(return_value="| Date | Amount |\n| 2025-01-01 | 10.00 |")
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_ocr_markdown = mock_ocr
+    service._extract_json_with_models = mock_extract
+
+    result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
+    call = mock_extract.await_args.kwargs
+    assert call["models"] == [service.primary_model, *service.fallback_models]
+    assert "OCR Markdown" in call["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -649,6 +769,8 @@ async def test_extract_empty_model_in_list_skipped():
     service = ExtractionService()
     service.api_key = "test-key"
     service.primary_model = ""  # Empty string model
+    service.ocr_model = ""
+    service.vision_model = ""
 
     # With empty primary_model, the only model is "", which should be skipped
     # Then we fall to line 604: raise last_error or ExtractionError(...)
@@ -727,6 +849,8 @@ async def test_extract_no_models_tried_fallback_error():
     service = ExtractionService()
     service.api_key = "test-key"
     service.primary_model = ""
+    service.ocr_model = ""
+    service.vision_model = ""
 
     with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
         await service.extract_financial_data(

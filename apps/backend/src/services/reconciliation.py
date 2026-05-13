@@ -477,7 +477,7 @@ async def ai_semantic_score(
 ) -> int:
     """EPIC-018 Phase 3: Compute AI semantic similarity score.
 
-    Calls OpenRouter to assess semantic similarity between a bank transaction
+    Calls the configured AI provider to assess semantic similarity between a bank transaction
     description and a journal entry memo. Returns 0-100 score.
 
     Falls back gracefully to 50 (neutral) on any error.
@@ -491,7 +491,7 @@ async def ai_semantic_score(
         stream_openrouter_json,
     )
 
-    if not settings.openrouter_api_key:
+    if not settings.ai_api_key:
         logger.debug("AI reconciliation skipped: no API key configured")
         return 50
 
@@ -508,8 +508,8 @@ async def ai_semantic_score(
         stream = stream_openrouter_json(
             messages=messages,
             model=settings.primary_model,
-            api_key=settings.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
+            api_key=settings.ai_api_key,
+            base_url=settings.ai_base_url,
             timeout=30.0,
         )
         content = await accumulate_stream(stream)

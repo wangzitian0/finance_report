@@ -15,16 +15,12 @@ class TestConfigContract:
         """AC12.18.1: Ensure PRIMARY_MODEL follows expected pattern."""
         from src.config import settings
 
-        # Test contract: model should follow google/gemini-* pattern
-        assert settings.primary_model.startswith("google/"), (
-            f"Invalid model provider: {settings.primary_model}. Expected pattern: google/gemini-*"
+        assert settings.ai_provider == "zai"
+        assert settings.primary_model.startswith("glm-"), (
+            f"Invalid model provider: {settings.primary_model}. Expected GLM model ID"
         )
-        assert "gemini" in settings.primary_model.lower(), (
-            f"Invalid model family: {settings.primary_model}. Expected 'gemini' in model name"
-        )
-        # Flexible check - allow various version formats
-        assert re.match(r"^google/gemini-[\d.a-z-]+", settings.primary_model), (
-            f"Invalid model format: {settings.primary_model}. Expected pattern: google/gemini-<version>"
+        assert re.match(r"^glm-[\d.a-z-]+", settings.primary_model), (
+            f"Invalid model format: {settings.primary_model}. Expected pattern: glm-<version>"
         )
 
     def test_config_sync_with_env_example(self):
@@ -137,3 +133,17 @@ class TestConfigContract:
 
         s = Settings()
         assert s.db_pool_max_overflow == 25
+
+    def test_legacy_openrouter_alias_setters(self, monkeypatch):
+        """Legacy OpenRouter config aliases remain writable for old call sites."""
+        monkeypatch.setenv("AI_API_KEY", "initial-key")
+        from src.config import Settings
+
+        s = Settings()
+        s.openrouter_api_key = "updated-key"
+        s.openrouter_base_url = "https://example.test/api"
+        s.openrouter_daily_limit_usd = 12
+
+        assert s.ai_api_key == "updated-key"
+        assert s.ai_base_url == "https://example.test/api"
+        assert s.ai_daily_limit_usd == 12

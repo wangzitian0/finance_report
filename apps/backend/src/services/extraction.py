@@ -10,6 +10,8 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
+import httpx
+
 from src.config import settings
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
@@ -41,9 +43,11 @@ class ExtractionService:
     """Service for extracting structured data from financial documents."""
 
     def __init__(self) -> None:
-        self.api_key = settings.openrouter_api_key
-        self.base_url = settings.openrouter_base_url
+        self.api_key = settings.ai_api_key
+        self.base_url = settings.ai_base_url
         self.primary_model = settings.primary_model
+        self.vision_model = settings.vision_model
+        self.ocr_model = settings.ocr_model
         self.fallback_models = settings.fallback_models
         self.deduplication_service = DeduplicationService()
 
@@ -113,7 +117,7 @@ class ExtractionService:
         return compute_confidence_score(extracted, balance_result)
 
     def _build_media_payload(self, file_type: str, mime_type: str, data: str) -> dict[str, Any]:
-        """Build OpenRouter-compatible media payload based on file type.
+        """Build OpenAI-compatible media payload based on file type.
 
         PDFs use 'file' type (Universal PDF Support), images use 'image_url'.
         """
@@ -140,7 +144,7 @@ class ExtractionService:
         }
 
     def _validate_external_url(self, url: str) -> bool:
-        """Validate if a URL is accessible by external services (OpenRouter).
+        """Validate if a URL is accessible by external AI services.
 
         Rejects:
         - Private IP ranges (RFC 1918, RFC 4193, etc.)
@@ -178,9 +182,10 @@ class ExtractionService:
 
             return True
         except Exception as exc:
+            url_preview = url[:100] if isinstance(url, str) else repr(url)[:100]
             logger.debug(
                 "URL validation failed",
-                url=url[:100] if url else None,
+                url=url_preview if url else None,
                 error=str(exc),
                 error_type=type(exc).__name__,
             )
@@ -201,7 +206,7 @@ class ExtractionService:
         db: Any | None = None,
     ) -> tuple[BankStatement, list[BankStatementTransaction]]:
         """Parse document using AI vision models or CSV parser."""
-        model = force_model or self.primary_model
+        model = force_model or self.ocr_model
         logger.info(
             "Parsing document",
             institution=institution or "(auto-detect)",
@@ -351,117 +356,96 @@ class ExtractionService:
         match = re.search(r"HTTP (\d{3})", error_msg)
         return match.group(1) if match else None
 
-    async def extract_financial_data(
+    def _build_ai_file_input(
         self,
         file_content: bytes | None,
+        file_url: str | None,
+        file_type: str,
+        mime_type: str,
+    ) -> str:
+        """Build URL or data URI input for AI provider file APIs."""
+        if file_content:
+            b64_content = base64.b64encode(file_content).decode("utf-8")
+            return f"data:{mime_type};base64,{b64_content}"
+        if file_url and self._validate_external_url(file_url):
+            return file_url
+        if file_url:
+            logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
+        raise ExtractionError(
+            f"No valid file content or accessible URL provided for {file_type} extraction. "
+            "Ensure file content is uploaded or URL is public."
+        )
+
+    async def _extract_ocr_markdown(
+        self,
+        file_content: bytes | None,
+        file_url: str | None,
+        file_type: str,
+        mime_type: str,
+    ) -> str:
+        """Run dedicated OCR/layout parsing and return Markdown text."""
+        file_input = self._build_ai_file_input(file_content, file_url, file_type, mime_type)
+        layout_url = f"{self.base_url.rstrip('/')}/{settings.ai_layout_parsing_path.lstrip('/')}"
+        payload = {
+            "model": self.ocr_model,
+            "file": file_input,
+            "return_crop_images": False,
+            "need_layout_visualization": False,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(
+            "Sending document to OCR layout parser",
+            provider=settings.ai_provider,
+            model=self.ocr_model,
+            file_type=file_type,
+            data_source="base64" if file_input.startswith("data:") else "url",
+        )
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0, read=180.0)) as client:
+            response = await client.post(layout_url, headers=headers, json=payload)
+
+        if response.status_code != 200:
+            error_body = response.text[:500]
+            logger.error(
+                "OCR layout parsing failed",
+                provider=settings.ai_provider,
+                model=self.ocr_model,
+                status_code=response.status_code,
+                error_body=error_body,
+            )
+            raise ExtractionError(f"OCR layout parsing failed: HTTP {response.status_code}: {error_body}")
+
+        result = response.json()
+        markdown = result.get("md_results")
+        if isinstance(markdown, list):
+            markdown = "\n\n".join(str(item) for item in markdown if item)
+        if not isinstance(markdown, str) or not markdown.strip():
+            raise ExtractionError("OCR layout parsing returned empty Markdown")
+
+        logger.info(
+            "OCR layout parsing completed",
+            provider=settings.ai_provider,
+            model=self.ocr_model,
+            markdown_length=len(markdown),
+        )
+        return markdown
+
+    async def _extract_json_with_models(
+        self,
+        messages: list[dict[str, Any]],
+        models: list[str],
+        prompt: str,
         institution: str | None,
         file_type: str,
-        return_raw: bool = False,
-        file_url: str | None = None,
-        force_model: str | None = None,
+        return_raw: bool,
+        has_content: bool,
+        has_url: bool,
     ) -> dict[str, Any]:
-        """Call OpenRouter vision API."""
-        if file_content is None and not file_url:
-            raise ExtractionError("File content is required")
-
-        if not self.api_key:
-            raise ExtractionError("OpenRouter API key not configured")
-
-        # Determine MIME type
-        mime_types = {
-            "pdf": "application/pdf",
-            "png": "image/png",
-            "jpg": "image/jpeg",
-            "jpeg": "image/jpeg",
-            "image": "image/png",  # Default for generic "image"
-        }
-        mime_type = mime_types.get(file_type, "application/pdf")
-
-        media_payload = None
-
-        if file_type == "pdf":
-            # Prefer base64-encoded content (works without public URL)
-            if file_content:
-                b64_content = base64.b64encode(file_content).decode("utf-8")
-                media_payload = self._build_media_payload(
-                    file_type=file_type,
-                    mime_type=mime_type,
-                    data=f"data:{mime_type};base64,{b64_content}",
-                )
-            elif file_url:
-                if self._validate_external_url(file_url):
-                    media_payload = self._build_media_payload(
-                        file_type=file_type,
-                        mime_type=mime_type,
-                        data=file_url,
-                    )
-                else:
-                    logger.warning("Rejected internal/private file URL for PDF extraction", url=file_url)
-
-            if not media_payload:
-                raise ExtractionError(
-                    "No valid file content or accessible URL provided for PDF extraction. "
-                    "Ensure file content is uploaded or URL is public."
-                )
-        else:
-            if file_content:
-                b64_content = base64.b64encode(file_content).decode("utf-8")
-                media_payload = self._build_media_payload(
-                    file_type=file_type,
-                    mime_type=mime_type,
-                    data=f"data:{mime_type};base64,{b64_content}",
-                )
-            elif file_url:
-                if self._validate_external_url(file_url):
-                    media_payload = self._build_media_payload(
-                        file_type=file_type,
-                        mime_type=mime_type,
-                        data=file_url,
-                    )
-                else:
-                    logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
-
-            if not media_payload:
-                raise ExtractionError(
-                    "No valid file content or accessible URL provided for AI extraction. "
-                    "Ensure file content is uploaded or URL is public."
-                )
-
-        logger.info(
-            "Sending document to AI for extraction",
-            file_type=file_type,
-            institution=institution,
-            pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
-        )
-
-        prompt = get_parsing_prompt(institution)
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt,
-                    },
-                    media_payload,
-                ],
-            }
-        ]
-
-        if force_model:
-            models = [force_model]
-        else:
-            models = [self.primary_model]
-
-        logger.info(
-            "Model selection for extraction",
-            force_model=force_model,
-            primary_model=self.primary_model,
-            fallback_models=self.fallback_models,
-            will_use=models[0] if models else None,
-            has_fallback=bool(self.fallback_models),
-        )
-
+        """Stream JSON extraction through the configured chat models."""
         last_error: ExtractionError | None = None
         error_summary: dict[str, int] = {}
 
@@ -495,10 +479,10 @@ class ExtractionService:
                         error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE,
                         model=model,
                         institution=institution,
-                        file_type="pdf" if file_content else "url",
+                        file_type=file_type,
                         prompt_length=len(prompt),
-                        has_content=bool(file_content),
-                        has_url=bool(file_url),
+                        has_content=has_content,
+                        has_url=has_url,
                     )
                     error_summary["empty_response"] = error_summary.get("empty_response", 0) + 1
                     last_error = ExtractionError(
@@ -600,6 +584,122 @@ class ExtractionService:
             raise ExtractionError(f"All {len(models)} models failed. Breakdown: {breakdown}. Last: {last_error}")
 
         raise last_error or ExtractionError("Extraction failed after all retries")
+
+    async def extract_financial_data(
+        self,
+        file_content: bytes | None,
+        institution: str | None,
+        file_type: str,
+        return_raw: bool = False,
+        file_url: str | None = None,
+        force_model: str | None = None,
+    ) -> dict[str, Any]:
+        """Extract structured statement data using OCR + chat models."""
+        if file_content is None and not file_url:
+            raise ExtractionError("File content is required")
+
+        if not self.api_key:
+            raise ExtractionError("AI provider API key not configured")
+
+        mime_types = {
+            "pdf": "application/pdf",
+            "png": "image/png",
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "image": "image/png",  # Default for generic "image"
+        }
+        mime_type = mime_types.get(file_type, "application/pdf")
+
+        logger.info(
+            "Sending document to AI for extraction",
+            file_type=file_type,
+            institution=institution,
+            provider=settings.ai_provider,
+            primary_model=self.primary_model,
+            ocr_model=self.ocr_model,
+            vision_model=self.vision_model,
+            force_model=force_model,
+            pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
+        )
+
+        prompt = get_parsing_prompt(institution)
+        if force_model:
+            file_input = self._build_ai_file_input(file_content, file_url, file_type, mime_type)
+            media_payload = self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        media_payload,
+                    ],
+                }
+            ]
+            return await self._extract_json_with_models(
+                messages=messages,
+                models=[force_model],
+                prompt=prompt,
+                institution=institution,
+                file_type=file_type,
+                return_raw=return_raw,
+                has_content=bool(file_content),
+                has_url=bool(file_url),
+            )
+
+        if self.ocr_model:
+            try:
+                ocr_markdown = await self._extract_ocr_markdown(file_content, file_url, file_type, mime_type)
+                text_prompt = (
+                    f"{prompt}\n\n"
+                    "The statement has already been converted to OCR Markdown by the dedicated OCR model. "
+                    "Extract the structured financial data from this OCR text only.\n\n"
+                    f"```markdown\n{ocr_markdown}\n```"
+                )
+                return await self._extract_json_with_models(
+                    messages=[{"role": "user", "content": text_prompt}],
+                    models=[self.primary_model, *self.fallback_models],
+                    prompt=text_prompt,
+                    institution=institution,
+                    file_type=file_type,
+                    return_raw=return_raw,
+                    has_content=bool(file_content),
+                    has_url=bool(file_url),
+                )
+            except ExtractionError as ocr_error:
+                logger.warning(
+                    "OCR-first extraction failed, falling back to vision model",
+                    ocr_model=self.ocr_model,
+                    vision_model=self.vision_model,
+                    error=str(ocr_error),
+                )
+
+        if not self.vision_model:
+            raise ExtractionError("Extraction failed after all retries")
+
+        try:
+            file_input = self._build_ai_file_input(file_content, file_url, file_type, mime_type)
+        except ExtractionError:
+            raise
+        media_payload = self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)
+        vision_messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    media_payload,
+                ],
+            }
+        ]
+        return await self._extract_json_with_models(
+            messages=vision_messages,
+            models=[self.vision_model],
+            prompt=prompt,
+            institution=institution,
+            file_type=file_type,
+            return_raw=return_raw,
+            has_content=bool(file_content),
+            has_url=bool(file_url),
+        )
 
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
         """Parse CSV content directly from bytes or string.
@@ -985,7 +1085,7 @@ class ExtractionService:
         )
 
         if not self.api_key:
-            raise ExtractionError("OpenRouter API key required for AI CSV parsing")
+            raise ExtractionError("AI provider API key required for AI CSV parsing")
 
         # Build sample rows for the prompt
         sample_rows = []

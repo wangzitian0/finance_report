@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
@@ -23,17 +22,12 @@ export default function StatementDetailPage() {
     const [statement, setStatement] = useState<BankStatement | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
     const [retryLoading, setRetryLoading] = useState(false);
     const [polling, setPolling] = useState(false);
     const [consecutiveErrors, setConsecutiveErrors] = useState(0);
     const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
     const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
     const approvedNow = approvedRedirect && statement?.status === "approved";
-    
-    // Dialog states
-    const [approveDialogOpen, setApproveDialogOpen] = useState(false);
-    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
     const fetchStatement = useCallback(async () => {
         try {
@@ -104,44 +98,6 @@ export default function StatementDetailPage() {
         };
     }, [polling, fetchStatement, parsingStartTime, showToast]);
 
-    const handleApproveConfirm = async () => {
-        setActionLoading(true);
-        try {
-            await apiFetch(`/api/statements/${statementId}/approve`, {
-                method: "POST",
-                body: JSON.stringify({ notes: null }),
-            });
-            showToast("Statement approved successfully", "success");
-            setApproveDialogOpen(false);
-            await fetchStatement();
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to approve statement";
-            showToast(message, "error");
-            setError(message);
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handleRejectConfirm = async (reason?: string) => {
-        setActionLoading(true);
-        try {
-            await apiFetch(`/api/statements/${statementId}/reject`, {
-                method: "POST",
-                body: JSON.stringify({ notes: reason || null }),
-            });
-            showToast("Statement rejected", "success");
-            setRejectDialogOpen(false);
-            await fetchStatement();
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to reject statement";
-            showToast(message, "error");
-            setError(message);
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
     const handleRetry = async () => {
         setRetryLoading(true);
         setParsingStartTime(null);
@@ -203,7 +159,6 @@ export default function StatementDetailPage() {
         );
     }
 
-    const canApproveReject = statement.status === "parsed";
     const canRetry = statement.status === "parsed" || statement.status === "rejected" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
 
     return (
@@ -262,12 +217,12 @@ export default function StatementDetailPage() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <Link
                         href={`/statements/${statementId}/review`}
-                        className="btn-secondary flex items-center gap-2"
+                        className="btn-primary flex items-center gap-2"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
-                        Review
+                        Start Review →
                     </Link>
                     {canRetry && (
                         <button
@@ -284,24 +239,6 @@ export default function StatementDetailPage() {
                             )}
                             Retry Parse
                         </button>
-                    )}
-                    {canApproveReject && (
-                        <>
-                            <button
-                                onClick={() => setRejectDialogOpen(true)}
-                                disabled={actionLoading}
-                                className="btn-secondary text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
-                            >
-                                Reject
-                            </button>
-                            <button
-                                onClick={() => setApproveDialogOpen(true)}
-                                disabled={actionLoading}
-                                className="btn-primary"
-                            >
-                                {actionLoading ? "Processing..." : "Approve"}
-                            </button>
-                        </>
                     )}
                 </div>
             </div>
@@ -496,31 +433,6 @@ export default function StatementDetailPage() {
                     </div>
                 )}
             </div>
-
-            {/* Confirm Dialogs */}
-            <ConfirmDialog
-                isOpen={approveDialogOpen}
-                onCancel={() => !actionLoading && setApproveDialogOpen(false)}
-                onConfirm={handleApproveConfirm}
-                title="Approve Statement"
-                message="This will create journal entries for all transactions in this statement. Are you sure?"
-                confirmLabel="Approve"
-                loading={actionLoading}
-            />
-
-            <ConfirmDialog
-                isOpen={rejectDialogOpen}
-                onCancel={() => !actionLoading && setRejectDialogOpen(false)}
-                onConfirm={handleRejectConfirm}
-                title="Reject Statement"
-                message="This will mark the statement as rejected. You can re-parse it later."
-                confirmLabel="Reject"
-                confirmVariant="danger"
-                showInput
-                inputLabel="Rejection Reason (optional)"
-                inputPlaceholder="Enter reason for rejection..."
-                loading={actionLoading}
-            />
         </div>
     );
 }

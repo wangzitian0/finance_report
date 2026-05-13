@@ -100,7 +100,7 @@ Full observability reference: [docs/ssot/observability.md](../ssot/observability
 
 **Variable classification**:
 - **Required** (`secrets.ctmpl`): `DATABASE_URL`, `S3_*`
-- **Optional** (`config.py` defaults): `DEBUG`, `BASE_CURRENCY`, `PRIMARY_MODEL`, `OPENROUTER_API_KEY`, `REDIS_URL`
+- **Optional** (`config.py` defaults): `DEBUG`, `BASE_CURRENCY`, `AI_PROVIDER`, `ZAI_API_KEY`, `AI_BASE_URL`, `PRIMARY_MODEL`, `OCR_MODEL`, `VISION_MODEL`, `REDIS_URL`
 - **Infrastructure** (direnv managed): `DOKPLOY_*`, `VAULT_*`, `VPS_*`
 
 Full reference: [docs/ssot/development.md](../ssot/development.md)

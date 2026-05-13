@@ -1,4 +1,8 @@
-"""OpenRouter streaming utilities for vision and chat models."""
+"""AI provider streaming utilities for OpenAI-compatible chat models.
+
+The public function names remain for backward compatibility with existing
+call sites, but configuration is provider-neutral.
+"""
 
 import json
 import time
@@ -15,11 +19,11 @@ logger = get_logger(__name__)
 
 
 class OpenRouterStreamError(Exception):
-    """Raised when OpenRouter streaming fails."""
+    """Raised when AI provider streaming fails."""
 
     def __init__(self, message: str, retryable: bool = False):
         """
-        Initialize OpenRouter streaming error.
+        Initialize AI provider streaming error.
 
         Args:
             message: Error description
@@ -43,17 +47,28 @@ async def _stream_openrouter_base(
     mode_label: str = "streaming",
 ) -> AsyncIterator[str]:
     """
-    Base streaming implementation for OpenRouter API.
+    Base streaming implementation for OpenAI-compatible chat APIs.
 
     Internal helper that handles the common logic for both JSON and chat modes.
     """
     if not api_key:
-        api_key = settings.openrouter_api_key
-    if not api_key:
-        raise OpenRouterStreamError("OpenRouter API key not configured", retryable=False)
+        api_key = getattr(settings, "ai_api_key", None)
+        if not isinstance(api_key, str) or not api_key:
+            api_key = getattr(settings, "openrouter_api_key", None)
+    if not isinstance(api_key, str) or not api_key:
+        raise OpenRouterStreamError("AI provider API key not configured", retryable=False)
 
     if not base_url:
-        base_url = settings.openrouter_base_url
+        base_url = getattr(settings, "ai_base_url", None)
+        if not isinstance(base_url, str) or not base_url:
+            base_url = getattr(settings, "openrouter_base_url", None)
+    if not isinstance(base_url, str) or not base_url:
+        raise OpenRouterStreamError("AI provider base URL not configured", retryable=False)
+
+    chat_path = getattr(settings, "ai_chat_completions_path", "/chat/completions")
+    if not isinstance(chat_path, str) or not chat_path:
+        chat_path = "/chat/completions"
+    chat_url = f"{base_url.rstrip('/')}/{chat_path.lstrip('/')}"
 
     payload: dict[str, Any] = {
         "model": model,
@@ -66,9 +81,10 @@ async def _stream_openrouter_base(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://finance-report.local",
-        "X-Title": "Finance Report Backend",
     }
+    if settings.ai_provider == "openrouter":
+        headers["HTTP-Referer"] = "https://finance-report.local"
+        headers["X-Title"] = "Finance Report Backend"
 
     timeout_config = httpx.Timeout(timeout, connect=connect_timeout, read=timeout)
     start_time = time.perf_counter()
@@ -76,7 +92,8 @@ async def _stream_openrouter_base(
     total_chars = 0
 
     logger.info(
-        "Starting OpenRouter streaming request",
+        "Starting AI provider streaming request",
+        provider=settings.ai_provider,
         model=model,
         mode=mode_label,
         timeout=timeout,
@@ -87,7 +104,7 @@ async def _stream_openrouter_base(
         aconnect_sse(
             client,
             "POST",
-            f"{base_url}/chat/completions",
+            chat_url,
             headers=headers,
             json=payload,
         ) as event_source,
@@ -99,7 +116,8 @@ async def _stream_openrouter_base(
             retryable = event_source.response.status_code in (429, 500, 502, 503, 504)
 
             logger.error(
-                "OpenRouter API HTTP error",
+                "AI provider HTTP error",
+                provider=settings.ai_provider,
                 model=model,
                 status_code=event_source.response.status_code,
                 error_body=error_body[:500],
@@ -114,7 +132,7 @@ async def _stream_openrouter_base(
         content_count = 0
 
         async for event in event_source.aiter_sse():
-            # Ignore SSE comments (e.g., ": OPENROUTER PROCESSING")
+            # Ignore SSE comments (some providers emit progress comments)
             if event.data.startswith(":") or not event.data.strip():
                 continue
 
@@ -126,13 +144,15 @@ async def _stream_openrouter_base(
             try:
                 chunk_data = json.loads(event.data)
 
-                # Check for mid-stream errors (OpenRouter sends error in response body)
+                # Check for mid-stream errors (OpenAI-compatible providers can
+                # send an error object in the response body)
                 if "error" in chunk_data:
                     error_info = chunk_data["error"]
                     error_msg = error_info.get("message", str(error_info))
                     error_code = error_info.get("code", "unknown")
                     logger.error(
-                        f"OpenRouter mid-stream error ({mode_label})",
+                        f"AI provider mid-stream error ({mode_label})",
+                        provider=settings.ai_provider,
                         error_code=error_code,
                         error_message=error_msg,
                         model=model,
@@ -151,7 +171,8 @@ async def _stream_openrouter_base(
                 finish_reason = choice.get("finish_reason")
                 if finish_reason == "error":
                     logger.error(
-                        f"OpenRouter stream terminated with error ({mode_label})",
+                        f"AI provider stream terminated with error ({mode_label})",
+                        provider=settings.ai_provider,
                         model=model,
                         chunk_data_preview=str(chunk_data)[:500],
                     )
@@ -174,20 +195,23 @@ async def _stream_openrouter_base(
         # Log summary for debugging empty responses
         if chunk_count > 0 and content_count == 0:
             logger.warning(
-                f"OpenRouter stream received chunks but no content ({mode_label})",
+                f"AI provider stream received chunks but no content ({mode_label})",
+                provider=settings.ai_provider,
                 model=model,
                 chunk_count=chunk_count,
                 content_count=content_count,
             )
         elif chunk_count == 0:
             logger.warning(
-                f"OpenRouter stream received no chunks ({mode_label})",
+                f"AI provider stream received no chunks ({mode_label})",
+                provider=settings.ai_provider,
                 model=model,
             )
 
     duration_ms = (time.perf_counter() - start_time) * 1000
     logger.info(
-        "OpenRouter streaming completed",
+        "AI provider streaming completed",
+        provider=settings.ai_provider,
         model=model,
         mode=mode_label,
         duration_ms=round(duration_ms, 2),
@@ -206,7 +230,7 @@ async def stream_openrouter_json(
     timeout: float = 180.0,
 ) -> AsyncIterator[str]:
     """
-    Stream OpenRouter chat completions for JSON extraction.
+    Stream OpenAI-compatible chat completions for JSON extraction.
 
     Yields raw delta content chunks. For vision models, this includes
     the full JSON response as it's generated.
@@ -238,7 +262,7 @@ async def stream_openrouter_chat(
     timeout: float = 120.0,
 ) -> AsyncIterator[str]:
     """
-    Stream OpenRouter chat completions without JSON mode.
+    Stream OpenAI-compatible chat completions without JSON mode.
 
     Yields raw delta content chunks for plain text chat responses.
 

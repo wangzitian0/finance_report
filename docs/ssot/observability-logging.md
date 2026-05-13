@@ -11,8 +11,8 @@
 - `apps/backend/src/routers/statements.py` - Upload request and background task logging
 - `apps/backend/src/routers/ai_models.py` - Model catalog request/response logging
 - `apps/backend/src/services/extraction.py` - Model selection and HTTP error logging
-- `apps/backend/src/services/openrouter_models.py` - Cache and model lookup logging
-- `apps/backend/src/services/openrouter_streaming.py` - Enhanced OpenRouter API error logging
+- `apps/backend/src/services/ai_provider_models.py` - Cache and model lookup logging
+- `apps/backend/src/services/ai_provider_streaming.py` - Enhanced AI provider API error logging
 
 ### Configuration
 - **Logger**: Structured logging via `src/logger.py` with OTEL integration
@@ -28,10 +28,10 @@
 Production issue: Statement parsing failed with unclear error:
 ```
 All 1 models failed. Breakdown: 1 http_error. 
-Last: Model google/gemini-3-flash-preview failed: HTTP 400
+Last: Model glm-4.5 failed: HTTP 400
 ```
 
-**Gap**: No visibility into model parameter flow from frontend selection → backend execution → OpenRouter API.
+**Gap**: No visibility into model parameter flow from frontend selection → backend execution → AI provider API.
 
 ### Solution: End-to-End Logging
 
@@ -41,7 +41,7 @@ sequenceDiagram
     participant FE as Frontend<br/>StatementUploader
     participant BE as Backend<br/>statements.py
     participant EX as Extraction<br/>extraction.py
-    participant OR as OpenRouter<br/>API
+    participant OR as AI provider<br/>API
 
     Note over FE: 🔍 Log: Model selection source
     U->>FE: Select model from dropdown
@@ -80,7 +80,7 @@ sequenceDiagram
 4. Backend: Background task enqueue (force_model decision)
 5. Extraction: Model selection logic (force_model vs primary_model)
 6. Extraction: HTTP error with status code extraction
-7. OpenRouter: API error with headers and retryability
+7. AI provider: API error with headers and retryability
 
 ---
 
@@ -149,18 +149,18 @@ sequenceDiagram
    ```
 
 3. **Analyze Log Sequence**
-   - ✅ Frontend: `selectedModel = "google/gemini-3-flash-preview"`
-   - ✅ Backend: `model_requested = "google/gemini-3-flash-preview"`
-   - ✅ Extraction: `force_model = "google/gemini-3-flash-preview"`
-   - ❌ OpenRouter: `HTTP 400 {"error": "Invalid model"}`
+   - ✅ Frontend: `selectedModel = "glm-4.5"`
+   - ✅ Backend: `model_requested = "glm-4.5"`
+   - ✅ Extraction: `force_model = "glm-4.5"`
+   - ❌ AI provider: `HTTP 400 {"error": "Invalid model"}`
 
 4. **Diagnose Root Cause**
-   - If model selection is consistent but API fails → **Model availability issue** (check OpenRouter status)
+   - If model selection is consistent but API fails → **Model availability issue** (check AI provider status)
    - If model changes between layers → **Parameter passing bug** (check FormData serialization)
    - If model not in catalog → **Cache staleness** (check TTL, force refresh)
 
 5. **Resolution**
-   - **Model removed by OpenRouter**: Update config to use different model
+   - **Model removed by AI provider**: Update config to use different model
    - **Parameter bug**: Fix FormData handling
    - **Cache stale**: Reduce cache TTL or force refresh
 
@@ -179,13 +179,13 @@ sequenceDiagram
    ```javascript
    [StatementUploader] Model selection: {
      source: "localStorage",
-     selectedModel: "google/gemini-3-flash-preview",
-     availableModels: ["google/gemini-2.0-flash-exp:free", ...]
+     selectedModel: "glm-4.5",
+     availableModels: ["glm-4.5-flash", ...]
    }
    
    [StatementUploader] Uploading statement: {
      filename: "test.pdf",
-     selectedModel: "google/gemini-3-flash-preview",
+     selectedModel: "glm-4.5",
      modelIsInCatalog: true
    }
    ```
@@ -202,7 +202,7 @@ sequenceDiagram
 
 ### SOP-3: Investigating HTTP Errors
 
-**Scenario**: OpenRouter API returns HTTP 400/500 errors.
+**Scenario**: AI provider API returns HTTP 400/500 errors.
 
 **Steps**:
 
@@ -215,7 +215,7 @@ sequenceDiagram
 2. **Check Error Details**
    ```json
    {
-     "model": "google/gemini-3-flash-preview",
+     "model": "glm-4.5",
      "http_status": 400,
      "error_body": "Invalid request: model not found",
      "retryable": false,
@@ -226,11 +226,11 @@ sequenceDiagram
 3. **Diagnose by Status Code**
    - **400 Bad Request**: Invalid model ID or parameters
    - **429 Too Many Requests**: Rate limit (check `x-ratelimit-remaining` header)
-   - **500 Internal Server Error**: OpenRouter issue (retryable)
-   - **503 Service Unavailable**: OpenRouter overloaded (retryable)
+   - **500 Internal Server Error**: AI provider issue (retryable)
+   - **503 Service Unavailable**: AI provider overloaded (retryable)
 
 4. **Resolution**
-   - **400**: Update model ID, check OpenRouter docs
+   - **400**: Update model ID, check AI provider docs
    - **429**: Implement backoff, reduce request rate
    - **500/503**: Retry automatically (already implemented)
 
@@ -241,8 +241,8 @@ sequenceDiagram
 ### Test Coverage
 
 **Test Files**:
-- `apps/backend/tests/ai/test_openrouter_streaming.py` - Verifies HTTP error logging includes headers
-- `apps/backend/tests/ai/test_openrouter_models.py` - Verifies cache logging
+- `apps/backend/tests/ai/test_ai_provider_streaming.py` - Verifies HTTP error logging includes headers
+- `apps/backend/tests/ai/test_ai_provider_models.py` - Verifies cache logging
 - `apps/backend/tests/extraction/test_statements_router.py` - Verifies upload request logging
 
 **Manual Testing Checklist**:
@@ -281,7 +281,7 @@ attributes.statement_id = "<UUID>"
 # Trace model selection for a user
 attributes.user_id = "<UUID>" AND body CONTAINS "model"
 
-# Find all HTTP 400 errors from OpenRouter
+# Find all HTTP 400 errors from AI provider
 attributes.http_status = 400 AND attributes.model EXISTS
 
 # Check cache performance
@@ -300,7 +300,7 @@ attributes.retryable = true
 - Frontend: 2 console logs (model selection + upload)
 - Backend: 2 info logs (request received + background task)
 - Extraction: 1 info log (model selection)
-- OpenRouter: 0-1 error log (only on failure)
+- AI provider: 0-1 error log (only on failure)
 
 **Total**: ~5-6 log entries per upload (negligible performance impact)
 
@@ -315,7 +315,7 @@ attributes.retryable = true
 
 ### After
 - ✅ Debug time: 1-2 minutes with precise diagnosis
-- ✅ Complete trace: frontend → router → extraction → OpenRouter
+- ✅ Complete trace: frontend → router → extraction → AI provider
 - ✅ HTTP errors include status code, body, headers, retryability
 - ✅ 87% debug time reduction (10-15 min → 1-2 min)
 

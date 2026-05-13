@@ -86,7 +86,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 - [x] `shared_tasks.py` - Health check tasks
 - [x] `vault-agent.hcl` - Vault agent configuration
 - [x] `vault-policy.hcl` - Vault policy for app
-- [x] `secrets.ctmpl` - Secrets template (DATABASE_URL, REDIS_URL, S3_*, OPENROUTER_API_KEY)
+- [x] `secrets.ctmpl` - Secrets template (DATABASE_URL, REDIS_URL, S3_*, ZAI_API_KEY)
 - [x] `README.md` - Documentation
 - [x] Traefik labels for `report.${INTERNAL_DOMAIN}`
 
@@ -105,7 +105,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
     - S3_ACCESS_KEY
     - S3_SECRET_KEY
     - S3_BUCKET
-    - OPENROUTER_API_KEY
+    - ZAI_API_KEY
   ```
 - [x] Generate service tokens via `invoke vault.setup-tokens`
 
@@ -170,7 +170,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.5.1 | DATABASE_URL in Vault | Manual verification | Vault secret path | P0 |
 | AC7.5.2 | REDIS_URL in Vault | Manual verification | Vault secret path | P0 |
 | AC7.5.3 | S3_* keys in Vault | Manual verification | Vault secret path | P0 |
-| AC7.5.4 | OPENROUTER_API_KEY in Vault | Manual verification | Vault secret path | P0 |
+| AC7.5.4 | ZAI_API_KEY in Vault | Manual verification | Vault secret path | P0 |
 | AC7.5.5 | Vault tokens generated | Manual verification | `invoke vault.setup-tokens` | P0 |
 
 ### AC7.6: Backend Configuration & Secrets Sync
@@ -294,4 +294,3 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 |------|--------|
 | 2026-01-10 | Project created, submodule added |
 | 2026-01-27 | All phases completed, production deployment verified |
-

@@ -99,6 +99,7 @@ async def approve_statement(
     statement_id: UUID,
     user_id: UUID,
 ) -> BankStatement:
+    statement = await _get_statement_for_update(db, statement_id, user_id)
     validation_result = await validate_balance_chain(db, statement_id)
 
     if not validation_result["closing_match"]:
@@ -106,7 +107,6 @@ async def approve_statement(
             f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
         )
 
-    statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.balance_validation_result = validation_result

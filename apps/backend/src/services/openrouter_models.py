@@ -1,4 +1,8 @@
-"""OpenRouter model catalog with lightweight caching."""
+"""AI provider model catalog with lightweight caching.
+
+The module name is kept for compatibility with existing imports. Runtime
+behavior is provider-neutral and defaults to configured GLM/Z.AI models.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +19,7 @@ from src.logger import get_logger
 
 
 class ModelCatalogError(Exception):
-    """Raised when the OpenRouter model catalog cannot be fetched."""
+    """Raised when the AI provider model catalog cannot be fetched."""
 
 
 logger = get_logger(__name__)
@@ -46,15 +50,28 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
         if not force_refresh and _MODEL_CACHE["models"] and now < _MODEL_CACHE["expires_at"]:
             return list(_MODEL_CACHE["models"])
 
+        if settings.ai_model_catalog_source == "configured":
+            models = _configured_model_catalog()
+            _MODEL_CACHE["models"] = models
+            _MODEL_CACHE["expires_at"] = time.time() + _CACHE_TTL_SECONDS
+            logger.info(
+                "Loaded configured AI model catalog",
+                provider=settings.ai_provider,
+                model_count=len(models),
+                cache_ttl_seconds=_CACHE_TTL_SECONDS,
+            )
+            return list(models)
+
         headers = {}
-        if settings.openrouter_api_key:
-            headers["Authorization"] = f"Bearer {settings.openrouter_api_key}"
+        if settings.ai_api_key:
+            headers["Authorization"] = f"Bearer {settings.ai_api_key}"
 
         timeout = httpx.Timeout(10.0, connect=5.0, read=10.0)
         start_time = time.perf_counter()
+        catalog_url = f"{settings.ai_base_url.rstrip('/')}/models"
 
         async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(f"{settings.openrouter_base_url}/models", headers=headers)
+            response = await client.get(catalog_url, headers=headers)
             response.raise_for_status()
             payload = response.json()
 
@@ -64,7 +81,8 @@ async def fetch_model_catalog(force_refresh: bool = False) -> list[dict[str, Any
         _MODEL_CACHE["expires_at"] = time.time() + _CACHE_TTL_SECONDS
 
         logger.info(
-            "Fetched OpenRouter model catalog",
+            "Fetched AI provider model catalog",
+            provider=settings.ai_provider,
             model_count=len(models),
             duration_ms=round(duration_ms, 2),
             cache_ttl_seconds=_CACHE_TTL_SECONDS,
@@ -84,13 +102,44 @@ def _to_decimal(value: Any) -> Decimal | None:
         return None
 
 
+def _configured_model_catalog() -> list[dict[str, Any]]:
+    """Build a local catalog from configured model env vars.
+
+    Z.AI does not need the OpenRouter `/models` catalog for validation. Keeping
+    the catalog local makes CI/prod deterministic and lets model swaps happen by
+    changing env vars only.
+    """
+    entries: list[tuple[str, str, list[str]]] = [
+        (settings.primary_model, "Primary chat/extraction model", ["text"]),
+        (settings.ocr_model, "Dedicated OCR/layout parsing model", ["image", "pdf", "file"]),
+        (settings.vision_model, "Vision fallback model", ["text", "image", "pdf", "file"]),
+    ]
+    entries.extend((model, "Fallback chat model", ["text"]) for model in settings.fallback_models)
+
+    catalog: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for model_id, name, modalities in entries:
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        catalog.append(
+            {
+                "id": model_id,
+                "name": name,
+                "pricing": {},
+                "architecture": {"input_modalities": modalities},
+            }
+        )
+    return catalog
+
+
 def normalize_model_entry(model: dict[str, Any]) -> dict[str, Any]:
-    """Normalize raw OpenRouter model metadata to a UI-friendly shape."""
+    """Normalize raw provider model metadata to a UI-friendly shape."""
     pricing = model.get("pricing") or {}
     prompt = _to_decimal(pricing.get("prompt"))
     completion = _to_decimal(pricing.get("completion"))
     is_free = prompt == Decimal("0") and completion == Decimal("0")
-    modalities = model.get("architecture", {}).get("input_modalities") or []
+    modalities = model.get("input_modalities") or model.get("architecture", {}).get("input_modalities") or []
 
     return {
         "id": model.get("id"),
@@ -109,7 +158,7 @@ def model_matches_modality(model: dict[str, Any], modality: str | None) -> bool:
 
 
 async def is_model_known(model_id: str) -> bool:
-    """Check if a model id is present in the OpenRouter catalog."""
+    """Check if a model id is present in the AI provider catalog."""
     models = await fetch_model_catalog()
     return any(m.get("id") == model_id for m in models)
 

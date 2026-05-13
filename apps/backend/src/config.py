@@ -89,8 +89,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=60 * 24, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES")
 
-    # AI API (empty = AI features disabled)
-    openrouter_api_key: str = ""
+    # AI provider (empty key = AI features disabled)
+    ai_provider: str = Field(default="zai", validation_alias="AI_PROVIDER")
+    ai_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("ZAI_API_KEY", "GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY"),
+    )
 
     # App settings
     environment: str = Field(default="development", validation_alias=AliasChoices("ENVIRONMENT", "ENV"))
@@ -111,11 +115,29 @@ class Settings(BaseSettings):
     # CORS origin regex - for dynamic subdomains (PR deployments and staging)
     cors_origin_regex: str = r"https://report(-pr-\d+|-staging)?\.zitian\.party"
 
-    # OpenRouter settings
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    primary_model: str = "google/gemini-3-flash-preview"
+    # AI model provider settings. Defaults target Z.AI/GLM, but these remain
+    # provider-neutral so the base model can be swapped through env vars.
+    ai_base_url: str = Field(
+        default="https://api.z.ai/api/paas/v4",
+        validation_alias=AliasChoices("AI_BASE_URL", "ZAI_BASE_URL", "OPENROUTER_BASE_URL"),
+    )
+    ai_chat_completions_path: str = Field(
+        default="/chat/completions",
+        validation_alias="AI_CHAT_COMPLETIONS_PATH",
+    )
+    ai_layout_parsing_path: str = Field(
+        default="/layout_parsing",
+        validation_alias="AI_LAYOUT_PARSING_PATH",
+    )
+    ai_model_catalog_source: str = Field(
+        default="configured",
+        validation_alias="AI_MODEL_CATALOG_SOURCE",
+    )
+    primary_model: str = Field(default="glm-4.5", validation_alias="PRIMARY_MODEL")
+    vision_model: str = Field(default="glm-4.5v", validation_alias="VISION_MODEL")
+    ocr_model: str = Field(default="glm-ocr", validation_alias="OCR_MODEL")
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
-    openrouter_daily_limit_usd: int | None = 2
+    ai_daily_limit_usd: int | None = Field(default=2, validation_alias="AI_DAILY_LIMIT_USD")
 
     # S3 optional settings
     s3_region: str = "us-east-1"
@@ -197,10 +219,37 @@ class Settings(BaseSettings):
         return parse_comma_list(
             self.fallback_models_str,
             [
-                "qwen/qwen-2.5-vl-7b-instruct:free",
-                "nvidia/nemotron-nano-12b-v2-vl:free",
+                "glm-4.5-air",
+                "glm-4.5-flash",
             ],
         )
+
+    @property
+    def openrouter_api_key(self) -> str:
+        """Backward-compatible alias for legacy internal call sites/tests."""
+        return self.ai_api_key
+
+    @openrouter_api_key.setter
+    def openrouter_api_key(self, value: str) -> None:
+        self.ai_api_key = value
+
+    @property
+    def openrouter_base_url(self) -> str:
+        """Backward-compatible alias for legacy internal call sites/tests."""
+        return self.ai_base_url
+
+    @openrouter_base_url.setter
+    def openrouter_base_url(self, value: str) -> None:
+        self.ai_base_url = value
+
+    @property
+    def openrouter_daily_limit_usd(self) -> int | None:
+        """Backward-compatible alias for legacy internal call sites/tests."""
+        return self.ai_daily_limit_usd
+
+    @openrouter_daily_limit_usd.setter
+    def openrouter_daily_limit_usd(self, value: int | None) -> None:
+        self.ai_daily_limit_usd = value
 
 
 settings = Settings()

@@ -277,7 +277,7 @@ async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeyp
     monkeypatch.setattr(service, "get_financial_context", fake_context)
     ai_advisor_service._CACHE._store.clear()
 
-    with pytest.raises(AIAdvisorError, match="OpenRouter API key not configured"):
+    with pytest.raises(AIAdvisorError, match="AI provider API key not configured"):
         await service.chat_stream(db, test_user.id, "How much did I save this month?")
 
 
