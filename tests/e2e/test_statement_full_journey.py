@@ -123,7 +123,9 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     models_resp = await page.evaluate(
         "async () => { const r = await fetch('/api/ai/models?modality=image'); return r.json(); }"
     )
-    default_model: str = models_resp.get("default_model") or models_resp["models"][0]["id"]
+    default_model: str = (
+        models_resp.get("default_model") or models_resp["models"][0]["id"]
+    )
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
     await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
@@ -196,19 +198,29 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
 
     # === AC8.13.4: Start Review → approve via ConfirmDialog ===
     await page.get_by_role("link", name=re.compile("Start Review")).click()
-    await expect(page).to_have_url(re.compile(r"/statements/[^/]+/review$"), timeout=15_000)
+    await expect(page).to_have_url(
+        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
+    )
     await page.get_by_role("button", name="Approve").click()
     dialog = page.locator('[role="dialog"]')
     await expect(dialog).to_be_visible(timeout=5_000)
     confirm_button = dialog.get_by_role("button", name="Approve")
     await expect(confirm_button).to_be_visible(timeout=3_000)
     await confirm_button.click()
+    await expect(page).to_have_url(
+        re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000
+    )
+    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
+        timeout=15_000
+    )
+
+    await page.goto(_get_url("/statements"))
     await expect(page).to_have_url(re.compile(r"/statements$"), timeout=15_000)
     approved_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
     await expect(approved_row).to_be_visible(timeout=15_000)
-    await expect(
-        approved_row.locator("span.badge", has_text="approved")
-    ).to_be_visible(timeout=15_000)
+    await expect(approved_row.locator("span.badge", has_text="approved")).to_be_visible(
+        timeout=15_000
+    )
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))
