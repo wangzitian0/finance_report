@@ -421,6 +421,90 @@ async def test_get_statement_not_found(db, test_user):
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
 
 
+async def test_list_statement_transactions_not_found(db, test_user):
+    """AC3.5.11: Missing statement transactions return 404."""
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.list_statement_transactions(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_legacy_approve_statement_not_found(db, test_user):
+    """AC16.18.1: Legacy approval must not expose statements outside the user scope."""
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            decision=StatementDecisionRequest(notes="Looks good"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_legacy_approve_statement_service_error(db, test_user, monkeypatch):
+    """AC16.18.1: Legacy approval returns service validation errors as 400."""
+    statement = build_statement(test_user.id, "hash_legacy_approve_error", 80)
+    db.add(statement)
+    await db.commit()
+
+    async def reject_approval(*_args, **_kwargs):
+        raise ValueError("Balance mismatch")
+
+    monkeypatch.setattr(statements_router, "approve_statement_svc", reject_approval)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement(
+            statement_id=statement.id,
+            decision=StatementDecisionRequest(notes="Looks good"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert exc.value.detail == "Balance mismatch"
+
+
+async def test_legacy_reject_statement_not_found(db, test_user):
+    """AC16.18.1: Legacy rejection must not expose statements outside the user scope."""
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.reject_statement(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            decision=StatementDecisionRequest(notes="Incorrect data"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_legacy_reject_statement_service_error(db, test_user, monkeypatch):
+    """AC16.18.1: Legacy rejection returns service validation errors as 400."""
+    statement = build_statement(test_user.id, "hash_legacy_reject_error", 80)
+    db.add(statement)
+    await db.commit()
+
+    async def reject_rejection(*_args, **_kwargs):
+        raise ValueError("Invalid transition")
+
+    monkeypatch.setattr(statements_router, "reject_statement_svc", reject_rejection)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.reject_statement(
+            statement_id=statement.id,
+            decision=StatementDecisionRequest(notes="Incorrect data"),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert exc.value.detail == "Invalid transition"
+
+
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
     """AC3.5.12: File exceeding 10MB limit returns 413."""
     content = b"x" * (10 * 1024 * 1024 + 1)
