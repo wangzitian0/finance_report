@@ -219,23 +219,26 @@ async def test_upload_invalid_extension(db, test_user):
     assert "Unsupported file type" in exc.value.detail
 
 
-async def test_upload_requires_model_for_pdf(db, test_user):
-    """AC3.5.7: PDF/image uploads must include a model selection."""
+async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage_stub, test_user):
+    """AC3.5.7: PDF/image uploads may omit model and use the default OCR pipeline."""
+    mock_parse = AsyncMock(return_value=None)
+    monkeypatch.setattr(statements_router, "parse_statement_background", mock_parse)
+
     upload_file = make_upload_file("statement.pdf", b"content")
 
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.upload_statement(
-            file=upload_file,
-            institution="DBS",
-            account_id=None,
-            model=None,
-            db=db,
-            user_id=test_user.id,
-        )
+    created = await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        model=None,
+        db=db,
+        user_id=test_user.id,
+    )
     await upload_file.close()
+    await wait_for_background_tasks()
 
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "AI model is required" in exc.value.detail
+    assert created.status == BankStatementStatus.PARSING
+    assert mock_parse.await_args.kwargs["model"] is None
 
 
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):

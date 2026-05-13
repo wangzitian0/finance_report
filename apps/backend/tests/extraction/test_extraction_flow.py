@@ -243,7 +243,7 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_no_key(self, service):
         """Test extract_financial_data raises error without key."""
         service.api_key = None
-        with pytest.raises(ExtractionError, match="OpenRouter API key not configured"):
+        with pytest.raises(ExtractionError, match="AI provider API key not configured"):
             await service.extract_financial_data(b"content", "DBS", "pdf")
 
     @pytest.mark.asyncio
