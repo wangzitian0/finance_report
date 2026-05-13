@@ -261,6 +261,7 @@ jobs:
           fi
 
       - name: Upload unified coverage to Coveralls
+        if: github.event_name == 'push'
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
@@ -277,7 +278,7 @@ jobs:
           base-path: apps/backend
       - name: Upload frontend to Coveralls (per-flag)
         # Note: hashFiles() evaluates at plan time before steps run; use always() + action handles missing file
-        if: always()
+        if: github.event_name == 'push'
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:

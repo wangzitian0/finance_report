@@ -53,6 +53,7 @@ unified_coverage = total_covered_lines / total_executable_lines
 - **Config**: `apps/frontend/vitest.config.ts`
 - **Output**: `apps/frontend/coverage/lcov.info` (copied to `coverage/frontend.lcov` in CI)
 - **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); Coveralls uploads must use `base-path: apps/frontend`.
+- **Coveralls upload**: frontend/unified Coveralls uploads run on `push` only; PRs rely on the local unified no-regression gate and backend Coveralls flag to avoid comparing a new frontend flag against the old backend-only Coveralls baseline.
 - **Key config**: `all: true` — ensures ALL source files appear in LCOV, not just those imported by tests
 - **Excluded**:
   - `**/tests/**`, `**/__tests__/**`

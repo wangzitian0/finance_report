@@ -182,9 +182,10 @@ class ExtractionService:
 
             return True
         except Exception as exc:
+            url_preview = url[:100] if isinstance(url, str) else repr(url)[:100]
             logger.debug(
                 "URL validation failed",
-                url=url[:100] if url else None,
+                url=url_preview if url else None,
                 error=str(exc),
                 error_type=type(exc).__name__,
             )

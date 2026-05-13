@@ -109,6 +109,65 @@ async def test_extract_ocr_markdown_joins_layout_results(monkeypatch):
     assert markdown == "# Statement\n\nBalance: 10.00"
 
 
+def test_validate_external_url_handles_unexpected_input():
+    service = ExtractionService()
+
+    assert service._validate_external_url(cast(str, object())) is False
+
+
+@pytest.mark.asyncio
+async def test_extract_ocr_markdown_rejects_empty_layout_result(monkeypatch):
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    class FakeResponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"md_results": []}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, headers, json):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+
+    with pytest.raises(ExtractionError, match="empty Markdown"):
+        await service._extract_ocr_markdown(
+            file_content=b"pdf bytes",
+            file_url=None,
+            file_type="pdf",
+            mime_type="application/pdf",
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_json_with_models_skips_empty_model_entries():
+    service = ExtractionService()
+
+    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
+        await service._extract_json_with_models(
+            messages=[{"role": "user", "content": "Extract"}],
+            models=[""],
+            prompt="Extract",
+            institution="DBS",
+            file_type="pdf",
+            return_raw=False,
+            has_content=True,
+            has_url=False,
+        )
+
+
 @pytest.mark.asyncio
 async def test_extract_financial_data_uses_ocr_first_pipeline():
     service = ExtractionService()
