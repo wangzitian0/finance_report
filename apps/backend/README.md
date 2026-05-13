@@ -37,10 +37,10 @@ moon run :test
 | POST | `/statements/{id}/review/reject` | Stage 1 reject (canonical) |
 | POST | `/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
 | POST | `/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
-| POST | `/api/reconciliation/run` | Run reconciliation matching |
-| GET | `/api/reconciliation/pending` | Pending review queue |
-| GET | `/api/reconciliation/stats` | Reconciliation stats |
-| GET | `/api/reconciliation/unmatched` | Unmatched transactions |
+| POST | `/reconciliation/run` | Run reconciliation matching |
+| GET | `/reconciliation/pending` | Pending review queue |
+| GET | `/reconciliation/stats` | Reconciliation stats |
+| GET | `/reconciliation/unmatched` | Unmatched transactions |
 
 ## Environment Variables
 

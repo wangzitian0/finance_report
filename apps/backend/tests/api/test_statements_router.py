@@ -23,13 +23,18 @@ import pytest
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 
+from src.models import User
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
 from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest
-from src.services import ExtractionError, statement_parsing as statement_parsing_mod
+from src.services import (
+    ExtractionError,
+    statement_parsing as statement_parsing_mod,
+    statement_validation as statement_validation_mod,
+)
 from src.services.statement_parsing import handle_parse_failure
 
 pytestmark = pytest.mark.asyncio
@@ -1315,6 +1320,29 @@ async def test_approve_statement_stage1_balance_mismatch(db, test_user):
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert exc.value.status_code == 400
     assert "Balance mismatch" in exc.value.detail
+
+
+async def test_approve_statement_stage1_authorizes_before_balance_validation(db, test_user, monkeypatch):
+    """AC16.18.1: Stage 1 approval must not validate another user's statement."""
+    other_user = User(email="stage1-other@example.com", hashed_password="hashed")
+    db.add(other_user)
+    await db.flush()
+
+    statement = build_statement(other_user.id, "hash_s1_other_user", 80)
+    statement.closing_balance = Decimal("100.00")
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    validation = AsyncMock(side_effect=AssertionError("validation should not run before authorization"))
+    monkeypatch.setattr(statement_validation_mod, "validate_balance_chain", validation)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+
+    assert exc.value.status_code == 400
+    assert "access denied" in exc.value.detail
+    validation.assert_not_awaited()
 
 
 async def test_reject_statement_stage1_success(db, test_user):

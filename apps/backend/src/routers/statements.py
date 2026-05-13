@@ -264,7 +264,10 @@ async def upload_statement(
     _track_task(task)
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -480,7 +483,10 @@ async def approve_statement(
     await db.commit()
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -509,7 +515,10 @@ async def reject_statement(
     await db.commit()
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -615,7 +624,10 @@ async def approve_statement_stage1(
         raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     response = BankStatementResponse.model_validate(statement)
@@ -637,7 +649,10 @@ async def reject_statement_stage1(
         raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
@@ -660,7 +675,10 @@ async def edit_and_approve_statement(
         raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     response = BankStatementResponse.model_validate(statement)
@@ -682,7 +700,10 @@ async def set_statement_opening_balance(
         raise HTTPException(status_code=400, detail=str(e))
 
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
     )
     statement = result.scalar_one()
     return BankStatementResponse.model_validate(statement)
