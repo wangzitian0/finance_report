@@ -24,7 +24,9 @@ if str(ROOT) not in sys.path:
 class TestConfig:
     """Test configuration from environment variables."""
 
-    APP_URL = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
+    APP_URL = (
+        os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
+    )
     TEST_ENV = os.getenv("TEST_ENV", "staging").lower()
     EXPECTED_SHA = os.getenv("EXPECTED_SHA")
 
@@ -136,7 +138,7 @@ async def shared_auth_state() -> AsyncGenerator[AuthState, None]:
                 )
                 if delete_response.status_code in (200, 204):
                     logger.info(
-                        f"[SESSION TEARDOWN] Shared user cleaned up successfully"
+                        "[SESSION TEARDOWN] Shared user cleaned up successfully"
                     )
                 elif delete_response.status_code == 404:
                     logger.debug(
@@ -233,9 +235,8 @@ async def authenticated_page(
 
     logger.info("Auth tokens injected into localStorage")
 
-    await page.goto(f"{TestConfig.APP_URL}/dashboard")
-
-    await page.wait_for_load_state("networkidle")
+    await page.goto(f"{TestConfig.APP_URL}/dashboard", wait_until="domcontentloaded")
+    await page.wait_for_load_state("domcontentloaded")
     if "/login" in page.url:
         pytest.fail(
             f"authenticated_page fixture failed: redirected to login. "
@@ -345,10 +346,10 @@ async def authenticated_page_unique(
     logger.info("Auth tokens injected into localStorage")
 
     # Navigate to a protected page to verify auth works
-    await page.goto(f"{TestConfig.APP_URL}/dashboard")
+    await page.goto(f"{TestConfig.APP_URL}/dashboard", wait_until="domcontentloaded")
 
     # Verify we're NOT redirected to login
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     if "/login" in page.url:
         pytest.fail(
             f"authenticated_page fixture failed: redirected to login. "

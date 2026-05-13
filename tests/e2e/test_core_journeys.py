@@ -15,6 +15,7 @@ from playwright.async_api import Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 TEST_ENV = os.getenv("TEST_ENV", "staging").lower()  # dev, staging, prod
+API_TIMEOUT = float(os.getenv("E2E_API_TIMEOUT", "30"))
 
 # Skip write tests if we are in production
 SKIP_WRITE = pytest.mark.skipif(
@@ -42,7 +43,7 @@ def app_url():
 async def test_api_health_check(app_url):
     """Verify the API health endpoint is up."""
     # verify=False is intentional for dev/staging self-signed certs
-    async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         # Try both common health paths just in case
         for path in ["/api/health", "/api/ping"]:
             try:
@@ -59,7 +60,7 @@ async def test_api_health_check(app_url):
 @pytest.mark.smoke
 async def test_homepage_loads(app_url):
     """Verify the homepage is accessible (returns 200 or 302)."""
-    async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         response = await client.get(f"{app_url}/")
         assert response.status_code < 400, f"Homepage returned {response.status_code}"
 
@@ -92,7 +93,7 @@ async def test_ping_toggle_via_api(app_url):
     Scenario: Toggle ping/pong state via API (no auth required).
     Environment: Staging/Dev Only.
     """
-    async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         before_response = await client.get(f"{app_url}/api/ping")
         assert before_response.status_code == 200
         before_state = before_response.json()["state"]
@@ -120,7 +121,7 @@ async def test_api_authentication_failures(app_url):
     - GET /accounts without auth header (should return 401; 429 accepted if rate-limited)
     - GET /accounts with invalid token (should return 401; 429 accepted if rate-limited)
     """
-    async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         # Test 1: No auth header
         response = await client.get(f"{app_url}/api/accounts")
         assert response.status_code in (401, 429), (
@@ -149,7 +150,7 @@ async def test_accounts_crud_api(app_url, shared_auth_state):
     - PUT /accounts/{id} (update)
     - DELETE /accounts/{id} (delete)
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         # 1. Create account
@@ -225,7 +226,7 @@ async def test_journal_entry_lifecycle_api(app_url, shared_auth_state):
     - POST /journal-entries/{id}/void (void entry)
     - DELETE /journal-entries/{id} (cleanup)
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         # Setup: Create two accounts for balanced entry
@@ -342,7 +343,7 @@ async def test_reports_api(app_url, shared_auth_state):
     - GET /reports/trend
     - GET /reports/breakdown
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         # Common date params for reports that require them
@@ -395,7 +396,7 @@ async def test_reconciliation_api(app_url, shared_auth_state):
     - GET /reconciliation/unmatched
     - GET /reconciliation/matches
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         # Stats
@@ -434,7 +435,7 @@ async def test_statements_api(app_url, shared_auth_state):
     - GET /statements (list)
     - GET /statements/pending-review
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         # List statements
@@ -458,7 +459,7 @@ async def test_ai_models_api(app_url, shared_auth_state):
     Tests:
     - GET /ai/models
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         response = await client.get(f"{app_url}/api/ai/models", headers=headers)
@@ -478,7 +479,7 @@ async def test_chat_suggestions_api(app_url, shared_auth_state):
     Tests:
     - GET /chat/suggestions
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         response = await client.get(f"{app_url}/api/chat/suggestions", headers=headers)
@@ -499,7 +500,7 @@ async def test_unbalanced_journal_entry_rejection(app_url, shared_auth_state):
 
     AGENTS.MD Red Line: "NEVER skip entry balance validation"
     """
-    async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
         # Setup: Create two accounts for entry

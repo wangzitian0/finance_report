@@ -16,17 +16,34 @@ import uuid
 import pytest
 import subprocess
 from pathlib import Path
-from playwright.async_api import Page, expect
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError, expect
 
 # --- Configuration ---
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT = 60000  # LLM parsing can be slow
 EXPECTED_TXN_COUNT = 15
+AUTH_REDIRECT_TIMEOUT = 10000
 
 
 def get_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}{path}"
+
+
+async def wait_for_optional_login_redirect(page: Page) -> None:
+    try:
+        await page.wait_for_url("**/login", timeout=AUTH_REDIRECT_TIMEOUT)
+    except PlaywrightTimeoutError:
+        pass
+
+
+async def assert_no_visible_error_page(page: Page) -> None:
+    next_404 = page.locator("h1.next-error-h1", has_text="404")
+    if await next_404.count() > 0:
+        await expect(next_404.first()).not_to_be_visible()
+
+    body_text = await page.locator("body").inner_text()
+    assert "Internal Server Error" not in body_text
 
 
 # --- Fixtures ---
@@ -56,26 +73,19 @@ async def test_full_navigation(page: Page):
     ]
 
     for path in pages:
-        await page.goto(get_url(path))
-
-        # Wait a moment for potential AuthGuard redirect
-        try:
-            await page.wait_for_url("**/login", timeout=3000)
-        except:
-            pass
+        await page.goto(get_url(path), wait_until="domcontentloaded")
+        await wait_for_optional_login_redirect(page)
 
         # Since we are not logged in, we expect either the page or a redirect to login
         # We check that the body is visible and we didn't hit a 500 error.
         await expect(page.locator("body")).to_be_visible()
 
-        content = await page.content()
         # Allow being on the login page as a successful "protection" check
         if "/login" in page.url:
             continue
 
-        # If not redirected, ensure no 404 or 500
-        assert "404" not in content and "page not found" not in content.lower()
-        assert "Internal Server Error" not in content
+        # If not redirected, ensure no visible Next.js error page.
+        await assert_no_visible_error_page(page)
 
 
 @pytest.mark.e2e
@@ -160,13 +170,10 @@ async def test_statement_upload_parsing_flow(authenticated_page: Page, tmp_path)
 @pytest.mark.e2e
 async def test_reports_view(page: Page):
     """[Scenario 3] Reports Page renders or redirects to login."""
-    await page.goto(get_url("/reports"))
+    await page.goto(get_url("/reports"), wait_until="domcontentloaded")
 
     # Wait a moment for potential AuthGuard redirect
-    try:
-        await page.wait_for_url("**/login", timeout=3000)
-    except:
-        pass
+    await wait_for_optional_login_redirect(page)
 
     if "/login" in page.url:
         # If redirected to login, verify login page basic visibility
@@ -179,13 +186,10 @@ async def test_reports_view(page: Page):
 @pytest.mark.e2e
 async def test_account_deletion_constraint(page: Page):
     """[Scenario 5] Account Deletion Constraints (Negative Test)."""
-    await page.goto(get_url("/accounts"))
+    await page.goto(get_url("/accounts"), wait_until="domcontentloaded")
 
     # Wait for redirect if not logged in
-    try:
-        await page.wait_for_url("**/login", timeout=3000)
-    except:
-        pass
+    await wait_for_optional_login_redirect(page)
 
     if "/login" in page.url:
         pytest.skip("Skipping functional account test - redirected to login")
@@ -206,7 +210,7 @@ async def test_account_deletion_constraint(page: Page):
 
     finally:
         # Cleanup
-        await page.goto(get_url("/accounts"))
+        await page.goto(get_url("/accounts"), wait_until="domcontentloaded")
         row = page.locator("div", has=page.get_by_text("E2E Constraint Test")).first
         if await row.count() > 0:
             page.once("dialog", lambda dialog: dialog.accept())

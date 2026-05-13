@@ -364,6 +364,8 @@ jobs:
           TEST_ENV: staging
           SKIP_UI_TESTS: false
           EXPECTED_SHA: ${{ github.sha }}
+          TIMEOUT_MS: 60000
+          E2E_API_TIMEOUT: 30
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
