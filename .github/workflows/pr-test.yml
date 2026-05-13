@@ -92,9 +92,11 @@ jobs:
         id: check
         run: |
           # Try to find existing compose
+          set +e
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
           curl_exit=$?
+          set -e
           
           if [ $curl_exit -ne 0 ]; then
             echo "::warning::Failed to fetch environment (curl exit $curl_exit). Assuming compose doesn't exist."
@@ -287,9 +289,11 @@ jobs:
           LAST_STATUS=""
           LAST_DEPLOY_STATUS=""
           for i in $(seq 1 60); do
+            set +e
             response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
               "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" 2>&1)
             curl_exit=$?
+            set -e
             if [ $curl_exit -ne 0 ]; then
               echo "::warning::Attempt $i/60: API request failed (curl exit $curl_exit)"
               sleep 5
@@ -481,9 +485,11 @@ jobs:
           echo "Looking for compose: ${{ needs.setup.outputs.compose_name }}"
           
           # Get environment to find compose
+          set +e
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
           curl_exit=$?
+          set -e
           
           if [ $curl_exit -ne 0 ]; then
             echo "::warning::Failed to fetch environment (curl exit $curl_exit). Response: $response"
