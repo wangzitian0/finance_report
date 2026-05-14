@@ -37,6 +37,34 @@ class TestConfig:
     STORAGE_STATE_PATH = ROOT / "tests" / "e2e" / ".auth" / "state.json"
 
 
+def _strict_e2e_gates_enabled() -> bool:
+    return os.getenv("STRICT_E2E_GATES", "").lower() in {"1", "true", "yes"}
+
+
+def fail_or_skip_ai_ocr_gate(message: str) -> None:
+    if _strict_e2e_gates_enabled():
+        pytest.fail(message)
+    pytest.skip(f"{message} STRICT_E2E_GATES is not enabled for this environment.")
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if (
+        _strict_e2e_gates_enabled()
+        and report.skipped
+        and item.get_closest_marker("critical") is not None
+        and report.when in {"setup", "call"}
+    ):
+        report.outcome = "failed"
+        report.longrepr = (
+            f"Critical E2E gate skipped: {item.nodeid}. "
+            "Critical deploy usability checks must fail instead of skip when "
+            "STRICT_E2E_GATES=true."
+        )
+
+
 class AuthState:
     """Shared authentication state across test session."""
 

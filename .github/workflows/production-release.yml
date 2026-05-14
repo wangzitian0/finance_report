@@ -166,3 +166,15 @@ jobs:
 
       - name: Smoke Tests
         run: bash scripts/smoke_test.sh https://report.zitian.party production
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Production Read-only E2E Smoke
+        env:
+          APP_URL: https://report.zitian.party
+          FRONTEND_URL: https://report.zitian.party
+          TEST_ENV: production
+          PROD_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"
