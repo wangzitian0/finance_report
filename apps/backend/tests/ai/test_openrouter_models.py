@@ -1,4 +1,4 @@
-"""Tests for OpenRouter model catalog service."""
+"""Tests for AI provider model catalog service."""
 
 from __future__ import annotations
 

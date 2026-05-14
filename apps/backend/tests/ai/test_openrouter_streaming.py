@@ -165,6 +165,44 @@ class TestStreamOpenRouterChat:
             assert headers["X-Title"] == "Finance Report Backend"
 
     @pytest.mark.asyncio
+    async def test_stream_omits_openrouter_headers_for_zai_provider(self):
+        """Provider-neutral GLM access does not send OpenRouter-only headers."""
+        events = [
+            ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
+            ServerSentEvent(data="[DONE]"),
+        ]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with (
+            patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client),
+            patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect,
+            patch("src.services.openrouter_streaming.settings") as mock_settings,
+        ):
+            mock_settings.ai_provider = "zai"
+            mock_settings.ai_chat_completions_path = "/chat/completions"
+            mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+            chunks = []
+            async for chunk in stream_openrouter_chat(
+                messages=[{"role": "user", "content": "Hi"}],
+                model="glm-5.1",
+                api_key="test-key",
+                base_url="https://api.z.ai/api/paas/v4",
+            ):
+                chunks.append(chunk)
+
+            headers = mock_aconnect.call_args.kwargs["headers"]
+            assert chunks == ["Hello"]
+            assert "HTTP-Referer" not in headers
+            assert "X-Title" not in headers
+
+    @pytest.mark.asyncio
     async def test_stream_openrouter_chat_handles_http_error(self):
         """AC6.7.2: Stream handles HTTP errors."""
         mock_response = MagicMock(spec=httpx.Response)

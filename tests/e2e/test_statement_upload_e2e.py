@@ -97,6 +97,7 @@ async def _find_statement_by_institution(page: Page, institution: str) -> dict |
 
 
 @pytest.mark.e2e
+@pytest.mark.llm
 async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     """AC8.4.3: Upload PDF → wait for processing → verify statement appears."""
     _skip_if_no_url()
@@ -162,6 +163,7 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
 
 
 @pytest.mark.e2e
+@pytest.mark.llm
 async def test_model_selection_and_upload(authenticated_page: Page) -> None:
     """AC8.4.2: Select AI model from dropdown → upload → verify model persisted."""
     _skip_if_no_url()
@@ -203,7 +205,7 @@ async def test_stale_model_id_auto_cleanup(authenticated_page: Page) -> None:
     """AC8.4.2: Stale localStorage model ID is cleaned up on page reload.
 
     Uses a deliberately invalid/fictional model ID that can never appear in the
-    OpenRouter catalog, guaranteeing the stale-cleanup branch always fires.
+    AI provider catalog, guaranteeing the stale-cleanup branch always fires.
     """
     _skip_if_no_url()
     page = authenticated_page
@@ -211,7 +213,7 @@ async def test_stale_model_id_auto_cleanup(authenticated_page: Page) -> None:
     await page.wait_for_load_state("networkidle")
 
     # Use a guaranteed-nonexistent model ID so the test is catalog-independent.
-    # Real model IDs are fetched from OpenRouter and may change over time; using
+    # Real model IDs are provider-configured and may change over time; using
     # a clearly fake ID ensures the stale-cleanup logic is always exercised.
     stale_id = "test/nonexistent-model-for-stale-cleanup-test"
     await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")')

@@ -104,6 +104,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
+@pytest.mark.llm
 async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     """AC8.13.1–AC8.13.5: DBS PDF → parse → approve → balance sheet."""
     page = authenticated_page
@@ -120,8 +121,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
     # Fetch the default model from the backend API and select it explicitly.
-    # Using index=0 would pick openrouter/free — a random router that fails structured
-    # extraction. Selecting by value ensures we always use the backend-configured model.
+    # Selecting by value ensures we always use the backend-configured OCR model.
     models_resp = await page.evaluate(
         "async () => { const r = await fetch('/api/ai/models?modality=image'); return r.json(); }"
     )
