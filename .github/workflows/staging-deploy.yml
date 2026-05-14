@@ -123,6 +123,7 @@ jobs:
           APP_URL: https://report-staging.zitian.party
           TEST_ENV: staging
           SKIP_UI_TESTS: false
+          STRICT_E2E_GATES: true
           EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"

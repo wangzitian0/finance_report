@@ -152,6 +152,30 @@ BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
 | `/reconciliation` | Workbench loads |
 | `/api/ping` | Ping API responds |
 
+## Deploy E2E Gates
+
+Staging and production deploy workflows separate basic availability smoke from
+deploy-blocking usability gates:
+
+| Environment | Gate | Command | Skip Policy |
+|-------------|------|---------|-------------|
+| Staging | Shell smoke | `bash scripts/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
+| Staging | Full E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "smoke or e2e" -n 4` | Tests marked `critical` must fail instead of skip |
+| Production | Shell smoke | `bash scripts/smoke_test.sh https://report.zitian.party production` | Read-only checks only |
+| Production | Prod-safe E2E | `pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"` | Authenticated dashboard check may skip only when read-only smoke credentials are absent |
+
+Critical staging E2E tests are the proof that a deployment is usable, not just
+reachable. `tests/e2e/test_statement_full_journey.py::test_dbs_statement_full_journey`
+is the AI/OCR hard gate: DBS PDF upload must reach `parsed`, show transactions,
+approve, and load the balance sheet. A `rejected` parsing status is a deploy
+failure because it usually indicates AI provider, OCR, secret, or model config
+breakage.
+
+PR preview E2E may run the same AI/OCR tests without `STRICT_E2E_GATES=true`.
+In that mode, provider/service rejection is reported as a skip so pull requests
+can still verify non-AI regressions while post-merge staging remains the hard
+AI/OCR usability gate.
+
 ---
 
 ## Related

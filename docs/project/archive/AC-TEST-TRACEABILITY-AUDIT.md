@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-13 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-14 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 918 | 100% |
-| **Mandatory ACs** | 757 | 82.5% |
+| **Total ACs (registries)** | 922 | 100% |
+| **Mandatory ACs** | 761 | 82.5% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 757 | 100.0% |
+| **Mandatory ACs with test reference** | 761 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 171 | - |
+| **Test files referenced** | 172 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 61 | 0 | 55 | 55 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 65 | 0 | 59 | 59 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 34 | 0 | 34 | 34 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 61
-- **Mandatory ACs**: 55
-- **Mandatory ACs with test reference**: 55 (100.0%)
+- **Total ACs**: 65
+- **Mandatory ACs**: 59
+- **Mandatory ACs with test reference**: 59 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -512,6 +512,10 @@
 | AC8.13.3 | yes | Detail page shows transactions | `apps/backend/tests/_ac_stubs/test_epic_08_stubs.py` | ✅ |
 | AC8.13.4 | yes | Approve → status badge updates in-place on /statements/{id} (no redirect) | `apps/backend/tests/_ac_stubs/test_epic_08_stubs.py` | ✅ |
 | AC8.13.5 | yes | Balance sheet report loads | `apps/backend/tests/_ac_stubs/test_epic_08_stubs.py` | ✅ |
+| AC8.13.6 | yes | Critical staging E2E skips fail the deploy gate | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.7 | yes | Strict full statement journey fails on rejected AI/OCR parsing | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.8 | yes | Strict upload readiness E2E does not accept rejected statements | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.9 | yes | Production release runs prod-safe read-only E2E smoke | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

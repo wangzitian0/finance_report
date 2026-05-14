@@ -317,6 +317,10 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.3 | Detail page shows transactions | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.4 | Approve → status badge updates in-place on /statements/{id} (no redirect) | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.5 | Balance sheet report loads | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.6 | Critical staging E2E skips fail the deploy gate | `pytest_runtest_makereport` | `tests/e2e/conftest.py` | P0 |
+| AC8.13.7 | Strict full statement journey fails on rejected AI/OCR parsing | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
+| AC8.13.8 | Strict upload readiness E2E does not accept rejected statements | `test_statement_upload_full_flow` | `tests/e2e/test_statement_upload_e2e.py` | P0 |
+| AC8.13.9 | Production release runs prod-safe read-only E2E smoke | `test_production_*` | `tests/e2e/test_production_readonly_smoke.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 59
@@ -334,10 +338,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 5/5 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report)
+  - AC8.13: 9/9 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, hard-gate skip enforcement, production-safe smoke)
 - Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 1 new Tier 3 (`tests/e2e/test_statement_full_journey.py`), 3 Playwright (skip without `APP_URL` or `FRONTEND_URL`)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 5/5 Tier 3 ACs (total 59 ACs: 54 Tier 1 + 5 Tier 3)
+- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 9/9 Tier 3/deploy-gate ACs (total 63 ACs: 54 Tier 1 + 9 Tier 3/deploy-gate)
 
 ---
 
@@ -350,6 +354,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | `tests/e2e/test_core_journeys.py` | API E2E | Tier 1 | 41 | Health, accounts CRUD, journal entries, reports, reconciliation, auth, statement upload/flow, CI/CD integration, traceability |
 | `tests/e2e/test_statement_upload_e2e.py` | Playwright | Tier 3 | 2 | Statement upload + model selection (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_statement_full_journey.py` | Playwright | Tier 3 | 1 | Full journey: DBS PDF upload → parse polling → detail/transactions → approve → balance sheet (AC8.13.1–5) |
+| `tests/e2e/test_production_readonly_smoke.py` | Playwright/API | Tier 3 | 3 | Production-safe read-only smoke: health, auth boundary, browser shell, optional credential-gated dashboard |
 | `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |
 | `tests/e2e/conftest.py` | Fixtures | — | — | Shared session user, browser context, auth injection |
@@ -425,19 +430,24 @@ These scenarios represent the "Vertical Slices" of user value.
 ### 5.5 Known Gaps
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
-   - **Status**: ✅ Fixed (Tier 3 assertion now robust to model availability)
-   - **Change**: Test now validates upload success, statement visibility, and terminal status (`parsed` or `parse_failed`)
-   - **Note**: Transaction count is non-deterministic in E2E as it depends on AI model availability
-   - **Result**: No hard dependency on fixed parsed transaction count in Tier 3 environments
+   - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)
+   - **Change**: Test validates upload success, statement visibility, and rejects `status=rejected` as an AI/OCR readiness failure
+   - **Note**: Full parsed transaction assertions live in `test_statement_full_journey.py`, the deploy-blocking hard gate
+   - **Result**: Upload-only E2E can remain lightweight while still catching provider/config failure before full journey polling
 
 2. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
-   - **Status**: Implemented — requires `APP_URL` pointing to a running frontend+backend
+   - **Status**: Implemented hard gate — requires `APP_URL` pointing to a running frontend+backend
    - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
-   - **Note**: `test_statement_upload_e2e.py` stale selectors also fixed in this PR
+   - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips. PR preview environments may run the same tests without strict gates so they surface provider instability as skips while post-merge staging remains deploy-blocking.
 
-3. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
+3. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
+   - **Status**: Implemented for production release
+   - **Coverage**: Health payload, anonymous auth boundary, browser shell/login route, optional credential-gated dashboard
+   - **Allowed skip**: Authenticated dashboard check may skip only when `PROD_SMOKE_EMAIL` / `PROD_SMOKE_PASSWORD` are not configured; it must not mutate production data
 
-4. **100 Scenario Coverage**:
+4. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
+
+5. **100 Scenario Coverage**:
    - **Current**: 13 scenarios checked in Section 3 (of 100)
    - **Gap**: 87 scenarios from Phase 1-6 not yet automated
    - **Priority**: Low (core flows are covered, remaining are nice-to-have)

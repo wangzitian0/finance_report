@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
+from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
@@ -102,6 +103,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 @pytest.mark.e2e
 @pytest.mark.tier3
+@pytest.mark.critical
 async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     """AC8.13.1–AC8.13.5: DBS PDF → parse → approve → balance sheet."""
     page = authenticated_page
@@ -170,7 +172,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
     while asyncio.get_event_loop().time() < deadline:
         if await rejected_badge.is_visible():
-            pytest.skip(
+            fail_or_skip_ai_ocr_gate(
                 "Statement parsing failed (status=rejected) — AI service may be "
                 "unavailable or misconfigured on the test environment."
             )

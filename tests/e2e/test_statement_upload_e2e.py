@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 import pytest
+from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page, expect
 
 _APP_URL: str = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or ""
@@ -136,7 +137,9 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(statement_row).to_be_visible(timeout=15_000)
     # Verify the statement is immediately accessible via the API.
     # Read the JWT from localStorage, then use Playwright's request API (no JS-in-browser needed).
-    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
+    token = await page.evaluate(
+        "() => window.localStorage.getItem('finance_access_token')"
+    )
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     api_resp = await page.request.get(
         _get_url(f"/api/statements/{statement_id}"),
@@ -148,10 +151,15 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     )
     statement = await api_resp.json()
     assert statement and statement.get("id") == statement_id
-    # Status should be a valid in-progress or terminal value immediately after upload.
-    assert statement.get("status") in {"uploaded", "parsing", "parsed", "approved", "rejected"}, (
+    # AI/OCR readiness gate: an immediate rejected status means provider/config
+    # validation failed before the full journey can even poll to parsed.
+    status = statement.get("status")
+    if status == "rejected":
+        fail_or_skip_ai_ocr_gate("Statement upload returned status=rejected")
+    assert status in {"uploaded", "parsing", "parsed", "approved"}, (
         f"Unexpected statement status: {statement.get('status')}"
     )
+
 
 @pytest.mark.e2e
 async def test_model_selection_and_upload(authenticated_page: Page) -> None:
