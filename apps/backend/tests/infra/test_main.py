@@ -290,6 +290,7 @@ class TestConfig:
         assert settings.ai_provider == "zai"
         assert settings.primary_model.startswith("glm-")
         assert settings.ocr_model == "glm-ocr"
+        assert settings.vision_model == "glm-5v-turbo"
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

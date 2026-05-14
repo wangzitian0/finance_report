@@ -133,8 +133,8 @@ class Settings(BaseSettings):
         default="configured",
         validation_alias="AI_MODEL_CATALOG_SOURCE",
     )
-    primary_model: str = Field(default="glm-4.5", validation_alias="PRIMARY_MODEL")
-    vision_model: str = Field(default="glm-4.5v", validation_alias="VISION_MODEL")
+    primary_model: str = Field(default="glm-5.1", validation_alias="PRIMARY_MODEL")
+    vision_model: str = Field(default="glm-5v-turbo", validation_alias="VISION_MODEL")
     ocr_model: str = Field(default="glm-ocr", validation_alias="OCR_MODEL")
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
     ai_daily_limit_usd: int | None = Field(default=2, validation_alias="AI_DAILY_LIMIT_USD")
@@ -219,8 +219,8 @@ class Settings(BaseSettings):
         return parse_comma_list(
             self.fallback_models_str,
             [
-                "glm-4.5-air",
-                "glm-4.5-flash",
+                "glm-5-turbo",
+                "glm-5",
             ],
         )
 

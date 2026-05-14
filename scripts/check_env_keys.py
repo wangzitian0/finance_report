@@ -55,10 +55,8 @@ def parse_secrets_ctmpl(path: Path) -> set[str]:
         # But not template variable assignments containing .Data.data.FIELD
         env_var_match = re.match(r"^([A-Z_][A-Z0-9_]*)=", line)
         if env_var_match:
-            # This line outputs an env var, extract any .Data.data references
-            vault_keys = re.findall(r"\.Data\.data\.(\w+)", line)
-            # But these are used to construct the value, not output directly
-            # We want the KEY itself (left side of =)
+            # The right side may reference Vault keys, but only the left side
+            # is exported into the runtime environment.
             keys.add(env_var_match.group(1))
 
     return keys
@@ -107,7 +105,8 @@ def parse_config_py(path: Path) -> dict[str, dict]:
 
     in_settings_class = False
 
-    for line in content.splitlines():
+    lines = content.splitlines()
+    for index, line in enumerate(lines):
         # Simple state check
         if line.startswith("class Settings"):
             in_settings_class = True
@@ -132,29 +131,38 @@ def parse_config_py(path: Path) -> dict[str, dict]:
         field_name = match.group(1)
         field_type = match.group(2).strip()
         default = match.group(3)
+        default_text = default or ""
+
+        if "Field(" in default_text and default_text.count("(") > default_text.count(")"):
+            balance = default_text.count("(") - default_text.count(")")
+            cursor = index + 1
+            while cursor < len(lines) and balance > 0:
+                default_text += "\n" + lines[cursor]
+                balance += lines[cursor].count("(") - lines[cursor].count(")")
+                cursor += 1
 
         # Skip non-config fields
         if field_name in ("model_config",):
             continue
 
-        # Extract validation_alias="ALIAS" if present
-        alias_match = re.search(r'validation_alias=["\']([^"\']+)["\']', default or "")
-        # Also handle AliasChoices("ALIAS", ...)
-        alias_choices_match = re.search(
-            r'AliasChoices\s*\(\s*["\']([^"\']+)["\']', default or ""
-        )
+        # Extract validation_alias="ALIAS" or all AliasChoices("ALIAS", ...).
+        # The first alias remains the canonical documentation key, while all
+        # aliases are accepted for Vault templates and local env files.
+        alias_match = re.search(r'validation_alias=["\']([^"\']+)["\']', default_text)
+        alias_choices_match = re.search(r"AliasChoices\s*\((.*?)\)", default_text, re.S)
 
         if alias_match:
-            env_name = alias_match.group(1)
+            env_names = [alias_match.group(1)]
         elif alias_choices_match:
-            env_name = alias_choices_match.group(1)
+            env_names = re.findall(r'["\']([^"\']+)["\']', alias_choices_match.group(1))
         else:
-            env_name = field_name.upper()
+            env_names = [field_name.upper()]
 
         fields[field_name] = {
             "type": field_type,
             "has_default": default is not None,
-            "env_name": env_name,
+            "env_name": env_names[0],
+            "accepted_env_names": set(env_names),
         }
 
     return fields
@@ -165,6 +173,9 @@ def check_consistency(
 ) -> dict:
     """Check consistency across all 3 sources."""
     config_env_names = {f["env_name"] for f in config_fields.values()}
+    accepted_config_env_names = set().union(
+        *(f.get("accepted_env_names", {f["env_name"]}) for f in config_fields.values())
+    )
 
     # Handle known aliases (e.g., S3_ACCESS_KEY -> s3_access_key)
     # config_env_names.update({
@@ -173,7 +184,7 @@ def check_consistency(
 
     # 1. secrets.ctmpl vs config.py
     # Keys in Vault MUST exist in config.py to be used
-    in_ctmpl_not_in_config = ctmpl_keys - config_env_names
+    in_ctmpl_not_in_config = ctmpl_keys - accepted_config_env_names
 
     # 2. config.py vs .env.example
     # Every config field MUST be documented in .env.example
@@ -181,7 +192,7 @@ def check_consistency(
 
     # 3. .env.example vs config.py (Information only)
     # Keys in .env.example NOT in config.py (might be frontend keys or comments)
-    in_example_not_in_config = env_example_keys - config_env_names
+    in_example_not_in_config = env_example_keys - accepted_config_env_names
     # Filter out known non-backend keys (e.g. NEXT_PUBLIC_)
     suspicious_extra_keys = {
         k
@@ -192,6 +203,7 @@ def check_consistency(
     return {
         "ctmpl_keys": ctmpl_keys,
         "config_env_names": config_env_names,
+        "accepted_config_env_names": accepted_config_env_names,
         "env_example_keys": env_example_keys,
         "missing_in_config": in_ctmpl_not_in_config,
         "undocumented_in_example": in_config_not_in_example,
