@@ -438,8 +438,8 @@ These scenarios represent the "Vertical Slices" of user value.
 2. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
    - **Status**: Implemented hard gate — requires `APP_URL` pointing to a running frontend+backend
    - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
-   - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips. PR preview environments may run the same tests without strict gates so they surface provider instability as skips while post-merge staging remains deploy-blocking.
-   - **Provider budget rule**: Tests marked `llm` run serially in the post-merge staging job, not under the `-n 4` parallel phase. Staging pins `PRIMARY_MODEL=glm-5.1` for the AI/OCR gate while preserving the dedicated OCR model.
+   - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips. Post-merge staging is the deploy-blocking AI/OCR gate.
+   - **Provider budget rule**: Tests marked `llm` run serially in the post-merge staging job, not under the `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging gate. Staging pins `PRIMARY_MODEL=glm-5.1` for the AI/OCR gate while preserving the dedicated OCR model.
 
 3. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
    - **Status**: Implemented for production release

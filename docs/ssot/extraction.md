@@ -146,7 +146,7 @@ Required environment variables:
 ```bash
 AI_PROVIDER=zai
 ZAI_API_KEY=<YOUR_ZAI_API_KEY>
-AI_BASE_URL=https://api.z.ai/api/paas/v4
+AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 AI_CHAT_COMPLETIONS_PATH=/chat/completions
 AI_LAYOUT_PARSING_PATH=/layout_parsing
 AI_MODEL_CATALOG_SOURCE=configured

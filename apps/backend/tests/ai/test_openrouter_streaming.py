@@ -193,7 +193,7 @@ class TestStreamOpenRouterChat:
                 messages=[{"role": "user", "content": "Hi"}],
                 model="glm-5.1",
                 api_key="test-key",
-                base_url="https://api.z.ai/api/paas/v4",
+                base_url="https://api.z.ai/api/coding/paas/v4",
             ):
                 chunks.append(chunk)
 

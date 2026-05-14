@@ -194,9 +194,11 @@ jobs:
             echo "MINIO_API_PORTS=127.0.0.1:$MINIO_API_PORT:9000"
             echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
             
+            # PR preview CI must not call the real AI/OCR provider. The
+            # provider-backed GLM gate is centralized in post-merge staging.
             echo "AI_PROVIDER=zai"
-            echo "ZAI_API_KEY=${{ secrets.ZAI_API_KEY }}"
-            echo "AI_BASE_URL=https://api.z.ai/api/paas/v4"
+            echo "ZAI_API_KEY="
+            echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"
             echo "AI_CHAT_COMPLETIONS_PATH=/chat/completions"
             echo "AI_LAYOUT_PARSING_PATH=/layout_parsing"
             echo "AI_MODEL_CATALOG_SOURCE=configured"
@@ -380,8 +382,8 @@ jobs:
           echo "--- Phase 1: Smoke Check (Shell) ---"
           bash scripts/smoke_test.sh "$APP_URL" staging
           
-          echo "--- Phase 2: Core Flow Validation (Python) ---"
-          pytest tests/e2e -v -m "smoke or e2e" --junit-xml=test-results.xml
+          echo "--- Phase 2: Core Flow Validation (Python, no real AI/OCR) ---"
+          pytest tests/e2e -v -m "(smoke or e2e) and not llm" --junit-xml=test-results.xml
           
           echo "✅ E2E Pipeline passed!"
 

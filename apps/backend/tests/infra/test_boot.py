@@ -9,6 +9,7 @@ import pytest
 from src.boot import Bootloader, Bootloader as BootloaderClass, BootMode, ServiceStatus
 
 _ORIGINAL_CHECK_DATABASE = BootloaderClass._check_database
+ZAI_CODING_BASE_URL = "https://api.z.ai/api/coding/paas/v4"
 
 
 @pytest.fixture
@@ -26,7 +27,7 @@ def mock_settings():
         mock.environment = "test"
         mock.base_currency = "USD"
         mock.ai_provider = "zai"
-        mock.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock.ai_base_url = ZAI_CODING_BASE_URL
         mock.ai_model_catalog_source = "remote"
         mock.primary_model = "test-model"
         mock.ocr_model = "glm-ocr"
@@ -34,7 +35,7 @@ def mock_settings():
         mock.cors_origin_regex = ".*"
         mock.otel_exporter_otlp_endpoint = None
         mock.otel_service_name = "test"
-        mock.openrouter_base_url = "https://api.z.ai/api/paas/v4"
+        mock.openrouter_base_url = ZAI_CODING_BASE_URL
         yield mock
 
 
@@ -168,7 +169,7 @@ class TestBootloaderPrintConfig:
         mock_settings.base_currency = "USD"
         mock_settings.primary_model = "gemini"
         mock_settings.ai_provider = "zai"
-        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
         mock_settings.ocr_model = "glm-ocr"
         mock_settings.vision_model = "glm-5v-turbo"
         mock_settings.s3_endpoint = "http://localhost:9000"
@@ -193,7 +194,7 @@ class TestBootloaderPrintConfig:
         mock_settings.base_currency = "USD"
         mock_settings.primary_model = "gemini"
         mock_settings.ai_provider = "zai"
-        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
         mock_settings.ocr_model = "glm-ocr"
         mock_settings.vision_model = "glm-5v-turbo"
         mock_settings.s3_endpoint = "http://localhost:9000"
@@ -221,7 +222,7 @@ class TestBootloaderPrintConfig:
         mock_settings.base_currency = "USD"
         mock_settings.primary_model = "gemini"
         mock_settings.ai_provider = "zai"
-        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
         mock_settings.ocr_model = "glm-ocr"
         mock_settings.vision_model = "glm-5v-turbo"
         mock_settings.s3_endpoint = "http://localhost:9000"
@@ -242,7 +243,7 @@ class TestBootloaderPrintConfig:
                 "BASE_CURRENCY": "USD",
                 "PRIMARY_MODEL": "gemini",
                 "AI_PROVIDER": "zai",
-                "AI_BASE_URL": "https://api.z.ai/api/paas/v4",
+                "AI_BASE_URL": ZAI_CODING_BASE_URL,
                 "OCR_MODEL": "glm-ocr",
                 "VISION_MODEL": "glm-5v-turbo",
                 "S3_ENDPOINT": "http://localhost:9000",
@@ -373,7 +374,7 @@ class TestBootloaderOpenrouter:
     async def test_check_openrouter_success(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -391,7 +392,7 @@ class TestBootloaderOpenrouter:
     async def test_check_openrouter_auth_failure(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -409,7 +410,7 @@ class TestBootloaderOpenrouter:
     async def test_check_openrouter_exception(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_base_url = "https://api.z.ai/api/paas/v4"
+        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client_class.return_value.__aenter__.side_effect = Exception("Network error")

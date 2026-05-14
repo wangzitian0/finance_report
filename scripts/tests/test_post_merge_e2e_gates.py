@@ -64,10 +64,13 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
     workflow = read(".github/workflows/staging-deploy.yml")
+    pr_workflow = read(".github/workflows/pr-test.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     deploy_script = read("scripts/dokploy_deploy.sh")
 
+    assert "group: staging-deploy" in workflow
+    assert "cancel-in-progress: false" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
     assert (
         "DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}"
@@ -81,3 +84,8 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '-v -m "llm"' in workflow
     assert "@pytest.mark.llm" in journey
     assert upload.count("@pytest.mark.llm") >= 2
+    assert 'echo "ZAI_API_KEY="' in pr_workflow
+    assert 'echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"' in pr_workflow
+    assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
+    assert '-m "(smoke or e2e) and not llm"' in pr_workflow
+    assert '-m "smoke or e2e"' not in pr_workflow

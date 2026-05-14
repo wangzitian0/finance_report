@@ -118,7 +118,7 @@ class Settings(BaseSettings):
     # AI model provider settings. Defaults target Z.AI/GLM, but these remain
     # provider-neutral so the base model can be swapped through env vars.
     ai_base_url: str = Field(
-        default="https://api.z.ai/api/paas/v4",
+        default="https://api.z.ai/api/coding/paas/v4",
         validation_alias=AliasChoices("AI_BASE_URL", "ZAI_BASE_URL", "OPENROUTER_BASE_URL"),
     )
     ai_chat_completions_path: str = Field(

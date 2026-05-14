@@ -95,7 +95,13 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **Post-merge staging E2E** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in the same staging deploy job.
+- Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so post-merge deployments and the provider-backed GLM gate queue instead of overlapping.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1` while keeping `OCR_MODEL` as the dedicated OCR model.
+
+**PR preview E2E** (`.github/workflows/pr-test.yml`):
+- PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
+- PR preview E2E explicitly excludes tests marked `llm`. The post-merge staging job is the single automated CI entry point that may spend provider quota.
+- GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 > **Local vs GitHub CI Parallelism**
 >
@@ -165,7 +171,8 @@ deploy-blocking usability gates:
 | Environment | Gate | Command | Skip Policy |
 |-------------|------|---------|-------------|
 | Staging | Shell smoke | `bash scripts/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
-| Staging | Full E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "smoke or e2e" -n 4` | Tests marked `critical` must fail instead of skip |
+| Staging | Non-LLM E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4` | Tests marked `critical` must fail instead of skip |
+| Staging | AI/OCR E2E | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Serial provider-backed GLM gate; `rejected` fails deploy |
 | Production | Shell smoke | `bash scripts/smoke_test.sh https://report.zitian.party production` | Read-only checks only |
 | Production | Prod-safe E2E | `pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"` | Authenticated dashboard check may skip only when read-only smoke credentials are absent |
 
@@ -176,10 +183,11 @@ approve, and load the balance sheet. A `rejected` parsing status is a deploy
 failure because it usually indicates AI provider, OCR, secret, or model config
 breakage.
 
-PR preview E2E may run the same AI/OCR tests without `STRICT_E2E_GATES=true`.
-In that mode, provider/service rejection is reported as a skip so pull requests
-can still verify non-AI regressions while post-merge staging remains the hard
-AI/OCR usability gate.
+PR preview E2E intentionally excludes the `llm` marker and does not inject the
+provider API key. This keeps provider spend and concurrency concentrated in the
+post-merge staging job, where `STRICT_E2E_GATES=true` makes provider/config
+failures block deploy. PR preview remains useful for app wiring and non-provider
+flows without turning provider instability into PR noise.
 
 ---
 
