@@ -29,3 +29,11 @@ def test_environment_alias_reads_deployment_environment(monkeypatch) -> None:
     monkeypatch.setenv("ENV", "staging")
     settings = Settings(_env_file=None)
     assert settings.environment == "staging"
+
+
+def test_ai_base_url_defaults_to_zai_coding_endpoint(monkeypatch) -> None:
+    monkeypatch.delenv("AI_BASE_URL", raising=False)
+    monkeypatch.delenv("ZAI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.ai_base_url == "https://api.z.ai/api/coding/paas/v4"

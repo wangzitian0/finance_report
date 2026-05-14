@@ -85,5 +85,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "@pytest.mark.llm" in journey
     assert upload.count("@pytest.mark.llm") >= 2
     assert 'echo "ZAI_API_KEY="' in pr_workflow
+    assert 'echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"' in pr_workflow
+    assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
     assert '-m "(smoke or e2e) and not llm"' in pr_workflow
     assert '-m "smoke or e2e"' not in pr_workflow

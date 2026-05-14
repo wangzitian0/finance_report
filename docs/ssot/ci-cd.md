@@ -101,6 +101,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
 - PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge staging job is the single automated CI entry point that may spend provider quota.
+- GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 > **Local vs GitHub CI Parallelism**
 >
