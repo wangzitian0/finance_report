@@ -92,6 +92,11 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
 
+**Post-merge staging E2E** (`.github/workflows/staging-deploy.yml`):
+- Non-LLM smoke/E2E tests run in parallel with `-n 4`.
+- Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in the same staging deploy job.
+- Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1` while keeping `OCR_MODEL` as the dedicated OCR model.
+
 > **Local vs GitHub CI Parallelism**
 >
 > | Environment | Parallelism | Test Scope | Resource Usage |

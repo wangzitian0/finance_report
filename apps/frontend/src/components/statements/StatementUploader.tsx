@@ -81,7 +81,7 @@ export default function StatementUploader({
                 const stored = getSafeStorage(STORAGE_KEY);
 
                 // IMPORTANT: Validate stored model ID against current catalog
-                // OpenRouter periodically removes models (e.g., Gemini 2.0 → 3.0 upgrade)
+                // Provider catalogs can change, so persisted model IDs must be revalidated.
                 const isStoredValid = stored && data.models.some((m) => m.id === stored);
                 const isDefaultValid = data.models.some((m) => m.id === data.default_model);
 
@@ -316,7 +316,7 @@ export default function StatementUploader({
                     )}
                 </select>
                 <p className="text-xs text-muted mt-1">
-                    Defaults to the configured free model. Paid models are available if enabled in OpenRouter.
+                    Defaults to the configured OCR model. Paid models are available if enabled.
                 </p>
             </div>
 

@@ -105,7 +105,7 @@ def _to_decimal(value: Any) -> Decimal | None:
 def _configured_model_catalog() -> list[dict[str, Any]]:
     """Build a local catalog from configured model env vars.
 
-    Z.AI does not need the OpenRouter `/models` catalog for validation. Keeping
+    Z.AI does not need a remote `/models` catalog for validation. Keeping
     the catalog local makes CI/prod deterministic and lets model swaps happen by
     changing env vars only.
     """

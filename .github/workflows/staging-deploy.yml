@@ -21,6 +21,7 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
+  STAGING_E2E_PRIMARY_MODEL: glm-5.1
 
 jobs:
   build-and-deploy:
@@ -102,6 +103,7 @@ jobs:
           IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
+          DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}
         run: |
           bash scripts/dokploy_deploy.sh \
             "${{ env.STAGING_COMPOSE_ID }}" \
@@ -132,9 +134,15 @@ jobs:
           bash scripts/smoke_test.sh "$APP_URL" staging
           
           echo "--- Phase 2: Core Flow Validation (Python) ---"
-          # Run full suite including UI tests since SKIP_UI_TESTS=false
-          # Using 4 workers for parallel execution
-          pytest tests/e2e -v -m "smoke or e2e" -n 4
+          # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
+          # to avoid four workers hitting the provider at the same time.
+          pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
+
+          echo "--- Phase 3: AI/OCR Gate (single process, ${STAGING_E2E_PRIMARY_MODEL}) ---"
+          pytest \
+            tests/e2e/test_statement_full_journey.py \
+            tests/e2e/test_statement_upload_e2e.py \
+            -v -m "llm"
           
           echo "✅ Staging E2E Pipeline passed!"
 

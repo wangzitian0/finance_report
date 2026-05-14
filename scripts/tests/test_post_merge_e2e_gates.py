@@ -59,3 +59,25 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
         ".delete(",
     ):
         assert mutating_token not in prod_smoke
+
+
+def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
+    """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    journey = read("tests/e2e/test_statement_full_journey.py")
+    upload = read("tests/e2e/test_statement_upload_e2e.py")
+    deploy_script = read("scripts/dokploy_deploy.sh")
+
+    assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
+    assert (
+        "DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}"
+        in workflow
+    )
+    assert (
+        'update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE"'
+        in deploy_script
+    )
+    assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
+    assert '-v -m "llm"' in workflow
+    assert "@pytest.mark.llm" in journey
+    assert upload.count("@pytest.mark.llm") >= 2

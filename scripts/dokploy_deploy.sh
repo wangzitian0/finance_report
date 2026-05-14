@@ -88,6 +88,10 @@ new_env=$(update_env_var "$new_env" "NEXT_PUBLIC_APP_URL" "$APP_URL")
 new_env=$(update_env_var "$new_env" "COMPOSE_PROFILES" "app")
 new_env=$(update_env_var "$new_env" "TRAEFIK_ENABLE" "true")
 
+if [[ -n "${DEPLOY_PRIMARY_MODEL_OVERRIDE:-}" ]]; then
+  new_env=$(update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE")
+fi
+
 # Traefik routing configuration
 # Detect environment from APP_URL (staging/production)
 if [[ "$APP_URL" == *"-staging"* ]]; then
