@@ -88,15 +88,15 @@ def test_configured_model_catalog_deduplicates_models(monkeypatch):
     """Configured catalog skips duplicate model IDs from fallback settings."""
     from src.config import settings
 
-    monkeypatch.setattr(settings, "primary_model", "glm-4.5")
+    monkeypatch.setattr(settings, "primary_model", "glm-5.1")
     monkeypatch.setattr(settings, "ocr_model", "glm-ocr")
-    monkeypatch.setattr(settings, "vision_model", "glm-4.5")
-    monkeypatch.setattr(settings, "fallback_models", ["glm-ocr", "glm-4.5-air"])
+    monkeypatch.setattr(settings, "vision_model", "glm-5v-turbo")
+    monkeypatch.setattr(settings, "fallback_models", ["glm-ocr", "glm-5-turbo"])
 
     catalog = _configured_model_catalog()
     model_ids = [model["id"] for model in catalog]
 
-    assert model_ids == ["glm-4.5", "glm-ocr", "glm-4.5-air"]
+    assert model_ids == ["glm-5.1", "glm-ocr", "glm-5v-turbo", "glm-5-turbo"]
 
 
 @pytest.mark.asyncio

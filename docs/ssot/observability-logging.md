@@ -28,7 +28,7 @@
 Production issue: Statement parsing failed with unclear error:
 ```
 All 1 models failed. Breakdown: 1 http_error. 
-Last: Model glm-4.5 failed: HTTP 400
+Last: Model glm-5.1 failed: HTTP 400
 ```
 
 **Gap**: No visibility into model parameter flow from frontend selection → backend execution → AI provider API.
@@ -149,9 +149,9 @@ sequenceDiagram
    ```
 
 3. **Analyze Log Sequence**
-   - ✅ Frontend: `selectedModel = "glm-4.5"`
-   - ✅ Backend: `model_requested = "glm-4.5"`
-   - ✅ Extraction: `force_model = "glm-4.5"`
+   - ✅ Frontend: `selectedModel = "glm-5.1"`
+   - ✅ Backend: `model_requested = "glm-5.1"`
+   - ✅ Extraction: `force_model = "glm-5.1"`
    - ❌ AI provider: `HTTP 400 {"error": "Invalid model"}`
 
 4. **Diagnose Root Cause**
@@ -179,13 +179,13 @@ sequenceDiagram
    ```javascript
    [StatementUploader] Model selection: {
      source: "localStorage",
-     selectedModel: "glm-4.5",
-     availableModels: ["glm-4.5-flash", ...]
+     selectedModel: "glm-5.1",
+     availableModels: ["glm-5-turbo", ...]
    }
    
    [StatementUploader] Uploading statement: {
      filename: "test.pdf",
-     selectedModel: "glm-4.5",
+     selectedModel: "glm-5.1",
      modelIsInCatalog: true
    }
    ```
@@ -215,7 +215,7 @@ sequenceDiagram
 2. **Check Error Details**
    ```json
    {
-     "model": "glm-4.5",
+     "model": "glm-5.1",
      "http_status": 400,
      "error_body": "Invalid request: model not found",
      "retryable": false,

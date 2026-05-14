@@ -200,10 +200,10 @@ jobs:
             echo "AI_CHAT_COMPLETIONS_PATH=/chat/completions"
             echo "AI_LAYOUT_PARSING_PATH=/layout_parsing"
             echo "AI_MODEL_CATALOG_SOURCE=configured"
-            echo "PRIMARY_MODEL=glm-4.5"
+            echo "PRIMARY_MODEL=glm-5.1"
             echo "OCR_MODEL=glm-ocr"
-            echo "VISION_MODEL=glm-4.5v"
-            echo "FALLBACK_MODELS=glm-4.5-air,glm-4.5-flash"
+            echo "VISION_MODEL=glm-5v-turbo"
+            echo "FALLBACK_MODELS=glm-5-turbo,glm-5"
             echo "COMPOSE_PROFILES=infra,app"
             
             # CRITICAL: Use unique hostnames in Dokploy shared network
