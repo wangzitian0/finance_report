@@ -292,7 +292,7 @@ class TestConfig:
         settings = Settings(_env_file=None)
         assert settings.ai_provider == "zai"
         assert settings.primary_model.startswith("glm-")
-        assert settings.ocr_model == "glm-ocr"
+        assert settings.ocr_model == "glm-4.6v"
         assert settings.vision_model == "glm-4.6v"
         assert settings.s3_bucket == "statements"
 

@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     )
     primary_model: str = Field(default="glm-5.1", validation_alias="PRIMARY_MODEL")
     vision_model: str = Field(default="glm-4.6v", validation_alias="VISION_MODEL")
-    ocr_model: str = Field(default="glm-ocr", validation_alias="OCR_MODEL")
+    ocr_model: str = Field(default="glm-4.6v", validation_alias="OCR_MODEL")
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
     ai_json_timeout_seconds: float = Field(
         default=360.0,

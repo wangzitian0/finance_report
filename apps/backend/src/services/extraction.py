@@ -484,6 +484,18 @@ class ExtractionService:
     def _requires_pdf_file_url_for_vision(self, file_type: str) -> bool:
         return file_type == "pdf" and self._is_zai_provider()
 
+    def _uses_dedicated_layout_ocr(self) -> bool:
+        """Use the layout parser only when OCR is configured as a separate model."""
+        return bool(self.ocr_model and self.ocr_model != self.vision_model)
+
+    def _vision_extraction_models(self) -> list[str]:
+        """Return ordered vision/OCR models without duplicate provider calls."""
+        models: list[str] = []
+        for model in (self.ocr_model, self.vision_model):
+            if model and model not in models:
+                models.append(model)
+        return models
+
     async def _extract_ocr_markdown(
         self,
         file_content: bytes | None,
@@ -775,7 +787,7 @@ class ExtractionService:
                 has_url=bool(file_url),
             )
 
-        if self.ocr_model:
+        if self._uses_dedicated_layout_ocr():
             try:
                 ocr_markdown = await self._extract_ocr_markdown(file_content, file_url, file_type, mime_type)
                 text_prompt = (
@@ -801,8 +813,15 @@ class ExtractionService:
                     vision_model=self.vision_model,
                     error=str(ocr_error),
                 )
+        elif self.ocr_model:
+            logger.info(
+                "OCR model shares the vision path; skipping dedicated layout parser",
+                ocr_model=self.ocr_model,
+                vision_model=self.vision_model,
+            )
 
-        if not self.vision_model:
+        vision_models = self._vision_extraction_models()
+        if not vision_models:
             raise ExtractionError("Extraction failed after all retries")
 
         media_payloads = self._build_vision_media_payloads(
@@ -822,7 +841,7 @@ class ExtractionService:
         ]
         return await self._extract_json_with_models(
             messages=vision_messages,
-            models=[self.vision_model],
+            models=vision_models,
             prompt=prompt,
             institution=institution,
             file_type=file_type,

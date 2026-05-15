@@ -73,9 +73,14 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "cancel-in-progress: false" in workflow
     assert "workflow_dispatch:" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
+    assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow
     assert "STAGING_E2E_VISION_MODEL: glm-4.6v" in workflow
     assert (
         "DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}"
+        in workflow
+    )
+    assert (
+        "DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}"
         in workflow
     )
     assert (
@@ -84,6 +89,10 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     )
     assert (
         'update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE"'
+        in deploy_script
+    )
+    assert (
+        'update_env_var "$new_env" "OCR_MODEL" "$DEPLOY_OCR_MODEL_OVERRIDE"'
         in deploy_script
     )
     assert (
@@ -101,6 +110,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert upload.count("@pytest.mark.llm") >= 2
     assert 'echo "ZAI_API_KEY="' in pr_workflow
     assert 'echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"' in pr_workflow
+    assert 'echo "OCR_MODEL=glm-4.6v"' in pr_workflow
     assert 'echo "AI_JSON_TIMEOUT_SECONDS=360"' in pr_workflow
     assert 'echo "AI_JSON_MAX_TOKENS=8192"' in pr_workflow
     assert 'echo "AI_JSON_DISABLE_THINKING=true"' in pr_workflow

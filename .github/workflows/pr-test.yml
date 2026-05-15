@@ -203,7 +203,7 @@ jobs:
             echo "AI_LAYOUT_PARSING_PATH=/layout_parsing"
             echo "AI_MODEL_CATALOG_SOURCE=configured"
             echo "PRIMARY_MODEL=glm-5.1"
-            echo "OCR_MODEL=glm-ocr"
+            echo "OCR_MODEL=glm-4.6v"
             echo "VISION_MODEL=glm-4.6v"
             echo "FALLBACK_MODELS=glm-5-turbo,glm-5"
             echo "AI_JSON_TIMEOUT_SECONDS=360"

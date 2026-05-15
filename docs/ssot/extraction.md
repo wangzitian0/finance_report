@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use dedicated OCR first (`OCR_MODEL`, default `glm-ocr`) to produce Markdown, then structure the OCR text with `PRIMARY_MODEL` (default `glm-5.1`). A `VISION_MODEL` fallback (`glm-4.6v`) is available when OCR layout parsing fails. Z.AI PDF vision fallback renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for OCR/layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-4.6v`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.1`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 
@@ -13,7 +13,7 @@ flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
     S --> P[Create PARSING Statement]
     P --> B{File Type}
-    B -->|PDF/Image| C["OCR_MODEL layout parsing"]
+    B -->|PDF/Image| C["OCR_MODEL OCR path"]
     C --> C2["PRIMARY_MODEL JSON structuring"]
     B -->|CSV| D[Structured Parser]
     C2 --> E[Extract JSON]
@@ -151,7 +151,7 @@ AI_CHAT_COMPLETIONS_PATH=/chat/completions
 AI_LAYOUT_PARSING_PATH=/layout_parsing
 AI_MODEL_CATALOG_SOURCE=configured
 PRIMARY_MODEL=glm-5.1
-OCR_MODEL=glm-ocr
+OCR_MODEL=glm-4.6v
 VISION_MODEL=glm-4.6v
 FALLBACK_MODELS=glm-5-turbo,glm-5
 AI_JSON_TIMEOUT_SECONDS=360
@@ -185,9 +185,9 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 
 ## Model Selection
 
-- **Default**: Uses `OCR_MODEL` for OCR/layout parsing and `PRIMARY_MODEL` for JSON structuring.
+- **Default**: Uses `OCR_MODEL=glm-4.6v` on the vision OCR path. Dedicated layout parsing is used only when `OCR_MODEL` differs from `VISION_MODEL`.
 - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
-- **Manual override**: a selected image-capable model bypasses OCR-first mode and is used directly as a vision chat model. Selecting `OCR_MODEL` maps back to the OCR-first pipeline.
+- **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/ai/models` returns the configured provider catalog for UI dropdowns (filterable by modality).
 - **Fallback models**: `FALLBACK_MODELS` are used after OCR text extraction when `PRIMARY_MODEL` fails.

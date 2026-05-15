@@ -112,7 +112,7 @@ The advisor only reads summarized, posted/reconciled data:
 1. UI pulls available models from `/api/ai/models`.
 2. Client sends the selected `model` in `POST /api/chat`.
 3. If omitted, the service uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS` for chat responses.
-4. Statement OCR uses `OCR_MODEL` via the provider layout parsing API, then structures text with `PRIMARY_MODEL`.
+4. Statement OCR uses `OCR_MODEL`; if it is separate from `VISION_MODEL`, the provider layout parsing API runs first, otherwise the shared vision OCR path is used directly.
 
 ### SOP-003: Cached Common Q&A
 

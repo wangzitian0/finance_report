@@ -96,7 +96,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in the same staging deploy job.
 - Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so post-merge deployments and the provider-backed GLM gate queue instead of overlapping.
-- Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE` and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1` and `VISION_MODEL=glm-4.6v` while keeping `OCR_MODEL` as the dedicated OCR model.
+- Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed deployment.
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):

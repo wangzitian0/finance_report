@@ -172,6 +172,8 @@ async def test_extract_json_with_models_skips_empty_model_entries():
 async def test_extract_financial_data_uses_ocr_first_pipeline():
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = "dedicated-layout-model"
+    service.vision_model = "glm-4.6v"
 
     mock_ocr = AsyncMock(return_value="| Date | Amount |\n| 2025-01-01 | 10.00 |")
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -185,6 +187,32 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
     call = mock_extract.await_args.kwargs
     assert call["models"] == [service.primary_model, *service.fallback_models]
     assert "OCR Markdown" in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
+    service = ExtractionService()
+    service.api_key = "test-key"
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+
+    mock_ocr = AsyncMock()
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_ocr_markdown = mock_ocr
+    service._extract_json_with_models = mock_extract
+    image_payload = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+    }
+
+    with patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]):
+        result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    mock_ocr.assert_not_awaited()
+    call = mock_extract.await_args.kwargs
+    assert call["models"] == ["glm-4.6v"]
+    assert call["messages"][0]["content"][1] == image_payload
 
 
 @pytest.mark.asyncio
