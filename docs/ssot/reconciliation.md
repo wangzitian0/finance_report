@@ -312,4 +312,6 @@ pending --> flagged: Needs manual review
 | Service | `apps/backend/src/services/consistency_checks.py` |
 | Router | `apps/backend/src/routers/statements.py` |
 | Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
+| Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
+| Frontend | `apps/frontend/src/app/(main)/review/run/[runId]/page.tsx` |
