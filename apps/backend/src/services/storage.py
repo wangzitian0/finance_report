@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import boto3
 from botocore.config import Config
@@ -17,6 +18,22 @@ logger = get_logger(__name__)
 
 class StorageError(Exception):
     """Raised when storage operations fail."""
+
+
+def redact_presigned_url(url: str | None) -> str | None:
+    """Return a log-safe form of a presigned URL.
+
+    Presigned URLs are bearer credentials. Keep the origin and path for
+    debugging, but never emit the query string or fragment.
+    """
+    if not url:
+        return url
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return "<invalid-url>"
+    redacted_query = "signature=<redacted>" if parsed.query else ""
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, redacted_query, ""))
 
 
 class StorageService:

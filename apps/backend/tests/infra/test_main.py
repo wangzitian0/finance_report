@@ -286,11 +286,14 @@ class TestConfig:
         # Clear S3_BUCKET so we test the class default, not whatever the test
         # lifecycle script set for namespace isolation.
         monkeypatch.delenv("S3_BUCKET", raising=False)
-        settings = Settings()
+        monkeypatch.delenv("PRIMARY_MODEL", raising=False)
+        monkeypatch.delenv("OCR_MODEL", raising=False)
+        monkeypatch.delenv("VISION_MODEL", raising=False)
+        settings = Settings(_env_file=None)
         assert settings.ai_provider == "zai"
         assert settings.primary_model.startswith("glm-")
         assert settings.ocr_model == "glm-ocr"
-        assert settings.vision_model == "glm-5v-turbo"
+        assert settings.vision_model == "glm-4.6v"
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

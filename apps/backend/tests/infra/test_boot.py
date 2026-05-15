@@ -31,7 +31,7 @@ def mock_settings():
         mock.ai_model_catalog_source = "remote"
         mock.primary_model = "test-model"
         mock.ocr_model = "glm-ocr"
-        mock.vision_model = "glm-5v-turbo"
+        mock.vision_model = "glm-4.6v"
         mock.cors_origin_regex = ".*"
         mock.otel_exporter_otlp_endpoint = None
         mock.otel_service_name = "test"
@@ -171,7 +171,7 @@ class TestBootloaderPrintConfig:
         mock_settings.ai_provider = "zai"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
         mock_settings.ocr_model = "glm-ocr"
-        mock_settings.vision_model = "glm-5v-turbo"
+        mock_settings.vision_model = "glm-4.6v"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
@@ -196,7 +196,7 @@ class TestBootloaderPrintConfig:
         mock_settings.ai_provider = "zai"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
         mock_settings.ocr_model = "glm-ocr"
-        mock_settings.vision_model = "glm-5v-turbo"
+        mock_settings.vision_model = "glm-4.6v"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
@@ -224,7 +224,7 @@ class TestBootloaderPrintConfig:
         mock_settings.ai_provider = "zai"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
         mock_settings.ocr_model = "glm-ocr"
-        mock_settings.vision_model = "glm-5v-turbo"
+        mock_settings.vision_model = "glm-4.6v"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
@@ -245,7 +245,7 @@ class TestBootloaderPrintConfig:
                 "AI_PROVIDER": "zai",
                 "AI_BASE_URL": ZAI_CODING_BASE_URL,
                 "OCR_MODEL": "glm-ocr",
-                "VISION_MODEL": "glm-5v-turbo",
+                "VISION_MODEL": "glm-4.6v",
                 "S3_ENDPOINT": "http://localhost:9000",
                 "S3_BUCKET": "statements",
                 "CORS_ORIGIN_REGEX": ".*",

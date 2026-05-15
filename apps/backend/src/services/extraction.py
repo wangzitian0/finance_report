@@ -23,6 +23,7 @@ from src.services.openrouter_streaming import (
     stream_openrouter_json,
 )
 from src.services.pii_redaction import detect_pii
+from src.services.storage import redact_presigned_url
 from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
@@ -116,20 +117,32 @@ class ExtractionService:
         """Wrapper for test compatibility."""
         return compute_confidence_score(extracted, balance_result)
 
+    def _is_zai_provider(self) -> bool:
+        return settings.ai_provider.lower() in {"zai", "glm"}
+
     def _build_media_payload(self, file_type: str, mime_type: str, data: str) -> dict[str, Any]:
         """Build OpenAI-compatible media payload based on file type.
 
         PDFs use 'file' type (Universal PDF Support), images use 'image_url'.
         """
         is_base64 = data.startswith("data:")
+        is_external_url = data.startswith(("http://", "https://"))
+        payload_type = "image_url"
+        if file_type == "pdf":
+            payload_type = "file_url" if self._is_zai_provider() and is_external_url else "file"
         logger.info(
             "Building media payload",
             file_type=file_type,
             mime_type=mime_type,
-            payload_type="file" if file_type == "pdf" else "image_url",
+            payload_type=payload_type,
             data_source="base64" if is_base64 else "url",
             data_size=len(data) if is_base64 else None,
         )
+        if file_type == "pdf" and self._is_zai_provider() and is_external_url:
+            return {
+                "type": "file_url",
+                "file_url": {"url": data},
+            }
         if file_type == "pdf":
             return {
                 "type": "file",
@@ -362,19 +375,29 @@ class ExtractionService:
         file_url: str | None,
         file_type: str,
         mime_type: str,
+        *,
+        prefer_url: bool = False,
     ) -> str:
         """Build URL or data URI input for AI provider file APIs."""
+        if prefer_url and file_url and self._validate_external_url(file_url):
+            return file_url
         if file_content:
             b64_content = base64.b64encode(file_content).decode("utf-8")
             return f"data:{mime_type};base64,{b64_content}"
         if file_url and self._validate_external_url(file_url):
             return file_url
         if file_url:
-            logger.warning("Rejected internal/private file URL for AI extraction", url=file_url)
+            logger.warning(
+                "Rejected internal/private file URL for AI extraction",
+                url=redact_presigned_url(file_url),
+            )
         raise ExtractionError(
             f"No valid file content or accessible URL provided for {file_type} extraction. "
             "Ensure file content is uploaded or URL is public."
         )
+
+    def _requires_pdf_file_url_for_vision(self, file_type: str) -> bool:
+        return file_type == "pdf" and self._is_zai_provider()
 
     async def _extract_ocr_markdown(
         self,
@@ -624,7 +647,16 @@ class ExtractionService:
 
         prompt = get_parsing_prompt(institution)
         if force_model:
-            file_input = self._build_ai_file_input(file_content, file_url, file_type, mime_type)
+            prefer_url = self._requires_pdf_file_url_for_vision(file_type)
+            file_input = self._build_ai_file_input(
+                file_content,
+                file_url,
+                file_type,
+                mime_type,
+                prefer_url=prefer_url,
+            )
+            if prefer_url and not file_input.startswith(("http://", "https://")):
+                raise ExtractionError("Z.AI PDF vision extraction requires an external PDF URL")
             media_payload = self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)
             messages = [
                 {
@@ -677,9 +709,18 @@ class ExtractionService:
             raise ExtractionError("Extraction failed after all retries")
 
         try:
-            file_input = self._build_ai_file_input(file_content, file_url, file_type, mime_type)
+            prefer_url = self._requires_pdf_file_url_for_vision(file_type)
+            file_input = self._build_ai_file_input(
+                file_content,
+                file_url,
+                file_type,
+                mime_type,
+                prefer_url=prefer_url,
+            )
         except ExtractionError:
             raise
+        if self._requires_pdf_file_url_for_vision(file_type) and not file_input.startswith(("http://", "https://")):
+            raise ExtractionError("Z.AI PDF vision fallback requires an external PDF URL")
         media_payload = self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)
         vision_messages = [
             {
