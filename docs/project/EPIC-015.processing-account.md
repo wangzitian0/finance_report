@@ -138,9 +138,10 @@ Balance ≠ 0  → Pending Review ⚠️
 | AC15.6.4 | Auto-Pairing Phase | `test_auto_pair_matching_transfer_same_amount` | `reconciliation/test_transfer_integration.py` | P0 |
 | AC15.6.5 | Unpaired Transfer Balance | `test_unpaired_transfer_leaves_nonzero_balance` | `reconciliation/test_transfer_integration.py` | P0 |
 | AC15.6.6 | Normal Matching Preserved | `test_non_transfer_proceeds_to_normal_matching` | `reconciliation/test_transfer_integration.py` | P0 |
+| AC15.6.7 | Idempotent Transfer Detection | `test_transfer_out_duplicate_detection_skipped`, `test_transfer_in_duplicate_detection_skipped` | `reconciliation/test_transfer_idempotency.py` | P0 |
 
 **Traceability Result**:
-- Total AC IDs: 24
+- Total AC IDs: 25
 - Requirements converted to AC IDs: 100% (EPIC-015 checklist + must-have standards)
 - Requirements with test references: 100%
 - Test files: 2
