@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 923 | 100% |
-| **Mandatory ACs** | 762 | 82.6% |
+| **Total ACs (registries)** | 926 | 100% |
+| **Mandatory ACs** | 765 | 82.6% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 762 | 100.0% |
+| **Mandatory ACs with test reference** | 765 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 175 | - |
+| **Test files referenced** | 176 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -40,7 +40,7 @@
 | [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 58 | 100.0% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
-| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 210 | 0 | 186 | 186 | 100.0% |
+| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 213 | 0 | 189 | 189 | 100.0% |
 | [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 73 | 0 | 29 | 29 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
@@ -863,9 +863,9 @@
 
 <a id="epic-016-two-stage-review-ui"></a>
 
-- **Total ACs**: 210
-- **Mandatory ACs**: 186
-- **Mandatory ACs with test reference**: 186 (100.0%)
+- **Total ACs**: 213
+- **Mandatory ACs**: 189
+- **Mandatory ACs with test reference**: 189 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1079,6 +1079,9 @@
 | AC16.23.4 | yes | Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string for shareable links | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/assetsPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
 | AC16.23.5 | yes | Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/reportsPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
 | AC16.23.6 | yes | Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>`apps/frontend/src/__tests__/epic016Components.test.tsx`<br>`apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
+| AC16.24.1 | yes | Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ |
+| AC16.24.2 | yes | Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ |
+| AC16.24.3 | yes | Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ |
 
 ---
 

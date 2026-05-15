@@ -727,6 +727,12 @@ Stage 2: Run-Level Review (Consistency Checks)
 - [x] **AC16.23.5** Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile
 - [x] **AC16.23.6** Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders
 
+### Acceptance Criteria — Feature (group 24, run-level Stage 2)
+
+- [x] **AC16.24.1** Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch
+- [x] **AC16.24.2** Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved
+- [x] **AC16.24.3** Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved
+
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
 - [x] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`

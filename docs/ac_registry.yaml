@@ -2544,6 +2544,21 @@ acs:
     epic_name: two-stage-review-ui
     description: 'Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders'
     mandatory: true
+  - id: AC16.24.1
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch'
+    mandatory: true
+  - id: AC16.24.2
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved'
+    mandatory: true
+  - id: AC16.24.3
+    epic: 16
+    epic_name: two-stage-review-ui
+    description: 'Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved'
+    mandatory: true
   # EPIC-017: portfolio-management
   - id: AC17.1.1
     epic: 17
