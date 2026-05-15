@@ -299,24 +299,46 @@ class TestExtractionServiceFlow:
             await service.extract_financial_data(file_content=None, file_url=url, institution="DBS", file_type="pdf")
 
     @pytest.mark.asyncio
-    async def test_extract_financial_data_pdf_uses_base64_content(self, service):
-        """Test that PDF extraction uses base64-encoded content when file_content is provided."""
+    async def test_extract_financial_data_pdf_renders_content_for_zai_vision(self, service):
+        """Test that Z.AI PDF vision fallback renders uploaded PDF content to images."""
         service.api_key = "test-key"
         service.ocr_model = None
         pdf_bytes = b"%PDF-1.4 fake content"
+        image_payload = {
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+        }
+        json_content = json.dumps({"success": True})
 
-        with pytest.raises(ExtractionError, match="Z.AI PDF vision fallback requires an external PDF URL"):
+        with (
+            patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
+            patch("src.services.extraction.stream_openrouter_json") as mock_stream,
+        ):
+            mock_stream.return_value = mock_stream_generator(json_content)
             await service.extract_financial_data(
                 file_content=pdf_bytes, file_url=None, institution="DBS", file_type="pdf"
             )
 
+            mock_render.assert_called_once_with(pdf_bytes)
+            payload = mock_stream.call_args.kwargs["messages"]
+            assert payload[0]["content"][1] == image_payload
+
     @pytest.mark.asyncio
-    async def test_force_model_pdf_requires_external_url_for_zai(self, service):
-        """AC13.5.1: Forced Z.AI PDF vision extraction still requires an external URL."""
+    async def test_force_model_pdf_renders_content_for_zai(self, service):
+        """AC13.5.1: Forced Z.AI PDF vision extraction can use rendered PDF images."""
         service.api_key = "test-key"
         pdf_bytes = b"%PDF-1.4 fake content"
+        image_payload = {
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+        }
+        json_content = json.dumps({"success": True})
 
-        with pytest.raises(ExtractionError, match="Z.AI PDF vision extraction requires an external PDF URL"):
+        with (
+            patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
+            patch("src.services.extraction.stream_openrouter_json") as mock_stream,
+        ):
+            mock_stream.return_value = mock_stream_generator(json_content)
             await service.extract_financial_data(
                 file_content=pdf_bytes,
                 file_url=None,
@@ -325,28 +347,40 @@ class TestExtractionServiceFlow:
                 force_model="glm-4.6v",
             )
 
+            mock_render.assert_called_once_with(pdf_bytes)
+            payload = mock_stream.call_args.kwargs["messages"]
+            assert payload[0]["content"][1] == image_payload
+
     @pytest.mark.asyncio
-    async def test_extract_financial_data_pdf_prefers_url_for_zai_vision(self, service):
-        """Z.AI PDF vision fallback must use URL instead of base64 file payloads."""
+    async def test_extract_financial_data_pdf_prefers_rendered_content_for_zai_vision(self, service):
+        """Z.AI PDF vision fallback renders content instead of sending PDF URLs as images."""
         service.api_key = "test-key"
         service.ocr_model = None
         pdf_bytes = b"%PDF-1.4 fake content"
         url = "https://example.com/public.pdf"
+        image_payload = {
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+        }
 
         json_content = json.dumps({"success": True})
 
-        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+        with (
+            patch.object(service, "_render_pdf_pages_as_image_payloads", return_value=[image_payload]) as mock_render,
+            patch("src.services.extraction.stream_openrouter_json") as mock_stream,
+        ):
             mock_stream.return_value = mock_stream_generator(json_content)
 
             await service.extract_financial_data(
                 file_content=pdf_bytes, file_url=url, institution="DBS", file_type="pdf"
             )
 
+            mock_render.assert_called_once_with(pdf_bytes)
             call_args = mock_stream.call_args
             payload = call_args.kwargs["messages"]
             media_part = payload[0]["content"][1]
             assert media_part["type"] == "image_url"
-            assert media_part["image_url"]["url"] == url
+            assert media_part["image_url"]["url"].startswith("data:image/png;base64,")
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_pdf_no_content_no_url_raises(self, service):

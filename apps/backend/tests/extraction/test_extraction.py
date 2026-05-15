@@ -284,6 +284,23 @@ class TestMediaPayloadBuilder:
         assert payload["file"]["filename"] == "statement.pdf"
         assert payload["file"]["file_data"] == data
 
+    def test_pdf_content_renders_to_image_payloads_for_zai_vision(self):
+        """AC13.5.1: Uploaded PDFs can be converted to image_url payloads for Z.AI vision."""
+        from io import BytesIO
+
+        from reportlab.pdfgen import canvas
+
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer)
+        pdf.drawString(72, 720, "DBS statement fixture")
+        pdf.save()
+
+        payloads = self.service._render_pdf_pages_as_image_payloads(buffer.getvalue())
+
+        assert len(payloads) == 1
+        assert payloads[0]["type"] == "image_url"
+        assert payloads[0]["image_url"]["url"].startswith("data:image/png;base64,")
+
     def test_prefer_url_rejects_private_urls_without_falling_back(self):
         """AC13.5.1: Z.AI PDF URL fallback must not accept private object URLs."""
         with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):

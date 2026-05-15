@@ -24,9 +24,11 @@ def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
     extraction = read("apps/backend/src/services/extraction.py")
     storage = read("apps/backend/src/services/storage.py")
 
+    assert "def _render_pdf_pages_as_image_payloads" in extraction
+    assert "PDF_VISION_MAX_PAGES = 5" in extraction
     assert '"type": "image_url"' in extraction
     assert '"image_url": {"url": data}' in extraction
-    assert "Z.AI PDF vision fallback requires an external PDF URL" in extraction
+    assert "Z.AI PDF vision fallback requires file content or an external PDF URL" in extraction
     assert "def redact_presigned_url" in storage
     assert "signature=<redacted>" in storage
 

@@ -5,6 +5,7 @@ import json
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -42,6 +43,9 @@ class ExtractionError(Exception):
 
 class ExtractionService:
     """Service for extracting structured data from financial documents."""
+
+    PDF_VISION_MAX_PAGES = 5
+    PDF_VISION_RENDER_SCALE = 1.6
 
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
@@ -156,6 +160,76 @@ class ExtractionService:
             "type": "image_url",
             "image_url": {"url": data},
         }
+
+    def _render_pdf_pages_as_image_payloads(self, file_content: bytes) -> list[dict[str, Any]]:
+        """Render a bounded number of PDF pages to in-memory image_url payloads."""
+        try:
+            import fitz  # type: ignore[import-untyped]
+        except ImportError as e:  # pragma: no cover - dependency is installed in packaged runtime
+            raise ExtractionError("PDF vision fallback requires PyMuPDF to render pages") from e
+
+        if not file_content:
+            raise ExtractionError("PDF vision fallback requires file content to render pages")
+
+        try:
+            document = fitz.open(stream=file_content, filetype="pdf")
+        except Exception as e:
+            raise ExtractionError("PDF vision fallback could not open PDF content") from e
+
+        try:
+            page_count = min(len(document), self.PDF_VISION_MAX_PAGES)
+            if page_count <= 0:
+                raise ExtractionError("PDF vision fallback could not render an empty PDF")
+
+            matrix = fitz.Matrix(self.PDF_VISION_RENDER_SCALE, self.PDF_VISION_RENDER_SCALE)
+            payloads: list[dict[str, Any]] = []
+            total_bytes = 0
+            for page_index in range(page_count):
+                page = document.load_page(page_index)
+                pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+                buffer = BytesIO(pixmap.tobytes("png"))
+                image_bytes = buffer.getvalue()
+                total_bytes += len(image_bytes)
+                encoded = base64.b64encode(image_bytes).decode("utf-8")
+                payloads.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded}"},
+                    }
+                )
+
+            logger.info(
+                "Rendered PDF pages for vision fallback",
+                rendered_pages=page_count,
+                max_pages=self.PDF_VISION_MAX_PAGES,
+                total_image_bytes=total_bytes,
+            )
+            return payloads
+        finally:
+            document.close()
+
+    def _build_vision_media_payloads(
+        self,
+        file_content: bytes | None,
+        file_url: str | None,
+        file_type: str,
+        mime_type: str,
+    ) -> list[dict[str, Any]]:
+        """Build vision-model media payloads, rendering Z.AI PDFs to images when possible."""
+        if file_type == "pdf" and self._is_zai_provider() and file_content:
+            return self._render_pdf_pages_as_image_payloads(file_content)
+
+        prefer_url = self._requires_pdf_file_url_for_vision(file_type)
+        file_input = self._build_ai_file_input(
+            file_content,
+            file_url,
+            file_type,
+            mime_type,
+            prefer_url=prefer_url,
+        )
+        if prefer_url and not file_input.startswith(("http://", "https://")):
+            raise ExtractionError("Z.AI PDF vision fallback requires file content or an external PDF URL")
+        return [self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)]
 
     def _validate_external_url(self, url: str) -> bool:
         """Validate if a URL is accessible by external AI services.
@@ -667,23 +741,18 @@ class ExtractionService:
 
         prompt = get_parsing_prompt(institution)
         if force_model:
-            prefer_url = self._requires_pdf_file_url_for_vision(file_type)
-            file_input = self._build_ai_file_input(
+            media_payloads = self._build_vision_media_payloads(
                 file_content,
                 file_url,
                 file_type,
                 mime_type,
-                prefer_url=prefer_url,
             )
-            if prefer_url and not file_input.startswith(("http://", "https://")):
-                raise ExtractionError("Z.AI PDF vision extraction requires an external PDF URL")
-            media_payload = self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)
             messages = [
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        media_payload,
+                        *media_payloads,
                     ],
                 }
             ]
@@ -728,26 +797,18 @@ class ExtractionService:
         if not self.vision_model:
             raise ExtractionError("Extraction failed after all retries")
 
-        try:
-            prefer_url = self._requires_pdf_file_url_for_vision(file_type)
-            file_input = self._build_ai_file_input(
-                file_content,
-                file_url,
-                file_type,
-                mime_type,
-                prefer_url=prefer_url,
-            )
-        except ExtractionError:
-            raise
-        if self._requires_pdf_file_url_for_vision(file_type) and not file_input.startswith(("http://", "https://")):
-            raise ExtractionError("Z.AI PDF vision fallback requires an external PDF URL")
-        media_payload = self._build_media_payload(file_type=file_type, mime_type=mime_type, data=file_input)
+        media_payloads = self._build_vision_media_payloads(
+            file_content,
+            file_url,
+            file_type,
+            mime_type,
+        )
         vision_messages = [
             {
                 "role": "user",
                 "content": [
                     {"type": "text", "text": prompt},
-                    media_payload,
+                    *media_payloads,
                 ],
             }
         ]
