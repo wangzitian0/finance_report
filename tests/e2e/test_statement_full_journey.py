@@ -130,7 +130,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     )
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
-    await expect(model_select.locator("option").nth(1)).to_be_attached(timeout=15_000)
+    await expect(model_select).not_to_have_value("", timeout=15_000)
     await model_select.select_option(value=default_model)
     await page.set_input_files("#file-upload", str(pdf_path))
     await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
