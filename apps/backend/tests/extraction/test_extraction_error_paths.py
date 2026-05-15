@@ -172,6 +172,8 @@ async def test_extract_json_with_models_skips_empty_model_entries():
 async def test_extract_financial_data_uses_ocr_first_pipeline():
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = "dedicated-layout-model"
+    service.vision_model = "glm-4.6v"
 
     mock_ocr = AsyncMock(return_value="| Date | Amount |\n| 2025-01-01 | 10.00 |")
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -185,6 +187,202 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
     call = mock_extract.await_args.kwargs
     assert call["models"] == [service.primary_model, *service.fallback_models]
     assert "OCR Markdown" in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
+    """AC8.12.7: Shared OCR/vision model uses one vision call and skips layout parsing."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+
+    mock_ocr = AsyncMock()
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_ocr_markdown = mock_ocr
+    service._extract_json_with_models = mock_extract
+    image_payload = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+    }
+
+    with patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]):
+        result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    mock_ocr.assert_not_awaited()
+    call = mock_extract.await_args.kwargs
+    assert call["models"] == ["glm-4.6v"]
+    assert call["messages"][0]["content"][1] == image_payload
+
+
+def test_ocr_model_selection_helpers_deduplicate_vision_models():
+    """AC8.12.7: OCR/vision helper rules avoid duplicate provider calls."""
+    service = ExtractionService()
+
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+    assert service._uses_dedicated_layout_ocr() is False
+    assert service._vision_extraction_models() == ["glm-4.6v"]
+
+    service.ocr_model = "layout-ocr-model"
+    service.vision_model = "glm-4.6v"
+    assert service._uses_dedicated_layout_ocr() is True
+    assert service._vision_extraction_models() == ["layout-ocr-model", "glm-4.6v"]
+
+    service.ocr_model = ""
+    service.vision_model = "glm-4.6v"
+    assert service._uses_dedicated_layout_ocr() is False
+    assert service._vision_extraction_models() == ["glm-4.6v"]
+
+
+def test_render_pdf_pages_rejects_empty_content():
+    """AC8.12.7: PDF vision rendering fails fast when no bytes are available."""
+    service = ExtractionService()
+
+    with pytest.raises(ExtractionError, match="requires file content"):
+        service._render_pdf_pages_as_image_payloads(b"")
+
+
+def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
+    """AC8.12.7: Z.AI PDF vision payloads require rendered content or an external URL."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_provider", "zai")
+    service = ExtractionService()
+
+    with patch.object(service, "_build_ai_file_input", return_value="data:application/pdf;base64,abc"):
+        with pytest.raises(ExtractionError, match="requires file content or an external PDF URL"):
+            service._build_vision_media_payloads(
+                file_content=None,
+                file_url="https://example.com/statement.pdf",
+                file_type="pdf",
+                mime_type="application/pdf",
+            )
+
+
+def test_build_vision_media_payloads_reraises_render_error_without_external_url(monkeypatch):
+    """AC8.12.7: Render failures without a safe external URL do not silently continue."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_provider", "zai")
+    service = ExtractionService()
+
+    with patch.object(
+        service,
+        "_render_pdf_pages_as_image_payloads",
+        side_effect=ExtractionError("render failed"),
+    ):
+        with pytest.raises(ExtractionError, match="render failed"):
+            service._build_vision_media_payloads(
+                file_content=b"pdf bytes",
+                file_url=None,
+                file_type="pdf",
+                mime_type="application/pdf",
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
+    """AC8.12.7: Dedicated OCR layout HTTP failures include status and body."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    class FakeResponse:
+        status_code = 503
+        text = "provider unavailable"
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, headers, json):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.services.extraction.httpx.AsyncClient", FakeClient)
+
+    with pytest.raises(ExtractionError, match="HTTP 503: provider unavailable"):
+        await service._extract_ocr_markdown(
+            file_content=b"pdf bytes",
+            file_url=None,
+            file_type="pdf",
+            mime_type="application/pdf",
+        )
+
+
+@pytest.mark.asyncio
+async def test_extract_json_with_models_handles_httpx_timeout():
+    """AC8.12.7: Native httpx timeouts are summarized like provider timeouts."""
+    import httpx
+
+    service = ExtractionService()
+
+    with patch("src.services.extraction.stream_openrouter_json", side_effect=httpx.TimeoutException("slow")):
+        with pytest.raises(ExtractionError, match="All 1 models failed.*timeout"):
+            await service._extract_json_with_models(
+                messages=[{"role": "user", "content": "Extract"}],
+                models=["glm-4.6v"],
+                prompt="Extract",
+                institution="DBS",
+                file_type="pdf",
+                return_raw=False,
+                has_content=True,
+                has_url=False,
+            )
+
+
+@pytest.mark.asyncio
+async def test_ai_parse_csv_empty_mapping_response():
+    """AC8.12.7: AI CSV mapping rejects empty model responses."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    with (
+        patch("src.services.openrouter_streaming.stream_openrouter_json"),
+        patch("src.services.openrouter_streaming.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+    ):
+        mock_accum.return_value = "  "
+        with pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"):
+            await service._ai_parse_csv(
+                headers=["Date", "Description", "Amount"],
+                rows=[{"Date": "2026-01-01", "Description": "Test", "Amount": "1.00"}],
+                institution="DBS",
+                parse_date=lambda value: date.fromisoformat(value),
+                parse_amount=lambda value: Decimal(value),
+            )
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision():
+    """AC8.12.7: Dedicated OCR failure falls back to ordered vision extraction models."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    service.ocr_model = "layout-ocr-model"
+    service.vision_model = "glm-4.6v"
+
+    mock_ocr = AsyncMock(side_effect=ExtractionError("layout parser unavailable"))
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_ocr_markdown = mock_ocr
+    service._extract_json_with_models = mock_extract
+    image_payload = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+    }
+
+    with patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]):
+        result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
+    call = mock_extract.await_args.kwargs
+    assert call["models"] == ["layout-ocr-model", "glm-4.6v"]
+    assert call["messages"][0]["content"][1] == image_payload
 
 
 @pytest.mark.asyncio

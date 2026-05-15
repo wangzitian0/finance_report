@@ -11,6 +11,7 @@ name: Deploy Staging
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: staging-deploy
@@ -22,6 +23,8 @@ env:
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
   STAGING_E2E_PRIMARY_MODEL: glm-5.1
+  STAGING_E2E_OCR_MODEL: glm-4.6v
+  STAGING_E2E_VISION_MODEL: glm-4.6v
 
 jobs:
   build-and-deploy:
@@ -104,6 +107,8 @@ jobs:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
           DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}
+          DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
+          DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
         run: |
           bash scripts/dokploy_deploy.sh \
             "${{ env.STAGING_COMPOSE_ID }}" \
@@ -126,6 +131,7 @@ jobs:
           TEST_ENV: staging
           SKIP_UI_TESTS: false
           STRICT_E2E_GATES: true
+          PARSING_TIMEOUT_MS: 480000
           EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
@@ -138,7 +144,7 @@ jobs:
           # to avoid four workers hitting the provider at the same time.
           pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
 
-          echo "--- Phase 3: AI/OCR Gate (single process, ${STAGING_E2E_PRIMARY_MODEL}) ---"
+          echo "--- Phase 3: AI/OCR Gate (single process, primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}) ---"
           pytest \
             tests/e2e/test_statement_full_journey.py \
             tests/e2e/test_statement_upload_e2e.py \

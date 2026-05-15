@@ -115,7 +115,7 @@ services:
       AI_LAYOUT_PARSING_PATH: ${AI_LAYOUT_PARSING_PATH:-/layout_parsing}
       AI_MODEL_CATALOG_SOURCE: ${AI_MODEL_CATALOG_SOURCE:-configured}
       PRIMARY_MODEL: ${PRIMARY_MODEL:-glm-5.1}
-      OCR_MODEL: ${OCR_MODEL:-glm-ocr}
+      OCR_MODEL: ${OCR_MODEL:-glm-4.6v}
       VISION_MODEL: ${VISION_MODEL:-glm-5v-turbo}
       FALLBACK_MODELS: ${FALLBACK_MODELS:-glm-5-turbo,glm-5}
       AI_DAILY_LIMIT_USD: ${AI_DAILY_LIMIT_USD:-2}
