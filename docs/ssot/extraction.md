@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use dedicated OCR first (`OCR_MODEL`, default `glm-ocr`) to produce Markdown, then structure the OCR text with `PRIMARY_MODEL` (default `glm-5.1`). A `VISION_MODEL` fallback (`glm-4.6v`) is available when OCR layout parsing fails. Z.AI PDF vision fallback uses a short-lived external `file_url`; inline base64 PDF payloads are reserved for OCR/layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use dedicated OCR first (`OCR_MODEL`, default `glm-ocr`) to produce Markdown, then structure the OCR text with `PRIMARY_MODEL` (default `glm-5.1`). A `VISION_MODEL` fallback (`glm-4.6v`) is available when OCR layout parsing fails. Z.AI PDF vision fallback uses a short-lived external URL carried through the documented `image_url` content part; inline base64 PDF payloads are reserved for OCR/layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 

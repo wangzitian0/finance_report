@@ -286,8 +286,8 @@ class TestExtractionServiceFlow:
             call_args = mock_stream.call_args
             payload = call_args.kwargs["messages"]
             media_part = payload[0]["content"][1]
-            assert media_part["type"] == "file_url"
-            assert media_part["file_url"]["url"] == url
+            assert media_part["type"] == "image_url"
+            assert media_part["image_url"]["url"] == url
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_rejects_private_url(self, service):
@@ -312,7 +312,7 @@ class TestExtractionServiceFlow:
 
     @pytest.mark.asyncio
     async def test_force_model_pdf_requires_external_url_for_zai(self, service):
-        """AC13.5.1: Forced Z.AI PDF vision extraction still requires an external file_url."""
+        """AC13.5.1: Forced Z.AI PDF vision extraction still requires an external URL."""
         service.api_key = "test-key"
         pdf_bytes = b"%PDF-1.4 fake content"
 
@@ -327,7 +327,7 @@ class TestExtractionServiceFlow:
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_pdf_prefers_url_for_zai_vision(self, service):
-        """Z.AI PDF vision fallback must use file_url instead of base64 file payloads."""
+        """Z.AI PDF vision fallback must use URL instead of base64 file payloads."""
         service.api_key = "test-key"
         service.ocr_model = None
         pdf_bytes = b"%PDF-1.4 fake content"
@@ -345,8 +345,8 @@ class TestExtractionServiceFlow:
             call_args = mock_stream.call_args
             payload = call_args.kwargs["messages"]
             media_part = payload[0]["content"][1]
-            assert media_part["type"] == "file_url"
-            assert media_part["file_url"]["url"] == url
+            assert media_part["type"] == "image_url"
+            assert media_part["image_url"]["url"] == url
 
     @pytest.mark.asyncio
     async def test_extract_financial_data_pdf_no_content_no_url_raises(self, service):

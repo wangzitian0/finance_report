@@ -123,13 +123,14 @@ class ExtractionService:
     def _build_media_payload(self, file_type: str, mime_type: str, data: str) -> dict[str, Any]:
         """Build OpenAI-compatible media payload based on file type.
 
-        PDFs use 'file' type (Universal PDF Support), images use 'image_url'.
+        PDFs use provider-supported external URL payloads when available,
+        otherwise 'file' type for base64-compatible providers.
         """
         is_base64 = data.startswith("data:")
         is_external_url = data.startswith(("http://", "https://"))
         payload_type = "image_url"
         if file_type == "pdf":
-            payload_type = "file_url" if self._is_zai_provider() and is_external_url else "file"
+            payload_type = "image_url" if self._is_zai_provider() and is_external_url else "file"
         logger.info(
             "Building media payload",
             file_type=file_type,
@@ -140,8 +141,8 @@ class ExtractionService:
         )
         if file_type == "pdf" and self._is_zai_provider() and is_external_url:
             return {
-                "type": "file_url",
-                "file_url": {"url": data},
+                "type": "image_url",
+                "image_url": {"url": data},
             }
         if file_type == "pdf":
             return {

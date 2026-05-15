@@ -267,13 +267,13 @@ class TestMediaPayloadBuilder:
 
         self.service = ExtractionService()
 
-    def test_pdf_url_uses_zai_file_url_type(self):
-        """AC13.5.1: Z.AI PDF URLs must use file_url payloads."""
+    def test_pdf_url_uses_zai_image_url_type(self):
+        """AC13.5.1: Z.AI PDF URLs must use documented image_url payloads."""
         data = "https://s3.example.test/bucket/statement.pdf?signature=secret"
         payload = self.service._build_media_payload("pdf", "application/pdf", data)
 
-        assert payload["type"] == "file_url"
-        assert payload["file_url"]["url"] == data
+        assert payload["type"] == "image_url"
+        assert payload["image_url"]["url"] == data
 
     def test_pdf_base64_keeps_legacy_file_type(self):
         """AC13.5.1: Base64 PDFs keep legacy payload shape for non-URL APIs."""
@@ -285,7 +285,7 @@ class TestMediaPayloadBuilder:
         assert payload["file"]["file_data"] == data
 
     def test_prefer_url_rejects_private_urls_without_falling_back(self):
-        """AC13.5.1: Z.AI PDF file_url fallback must not accept private object URLs."""
+        """AC13.5.1: Z.AI PDF URL fallback must not accept private object URLs."""
         with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
             self.service._build_ai_file_input(
                 file_content=None,

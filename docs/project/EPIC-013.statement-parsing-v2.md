@@ -137,7 +137,7 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.5.1 | Test that PDFs use OpenRouter 'file' type | `test_pdf_uses_file_type()` | `extraction/test_extraction.py` | P0 |
+| AC13.5.1 | Test that PDF payloads use provider-compatible `file` or `image_url` shapes | `test_pdf_url_uses_zai_image_url_type()`, `test_pdf_base64_keeps_legacy_file_type()` | `extraction/test_extraction.py` | P0 |
 | AC13.5.2 | Test that PNG images use 'image_url' type | `test_png_uses_image_url_type()` | `extraction/test_extraction.py` | P0 |
 | AC13.5.3 | Test that JPG images use 'image_url' type | `test_jpg_uses_image_url_type()` | `extraction/test_extraction.py` | P0 |
 | AC13.5.4 | Test that JPEG images use 'image_url' type | `test_jpeg_uses_image_url_type()` | `extraction/test_extraction.py` | P0 |

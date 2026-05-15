@@ -1510,7 +1510,7 @@ acs:
   - id: AC13.5.1
     epic: 13
     epic_name: statement-parsing-v2
-    description: 'Test that PDFs use OpenRouter ''file'' type'
+    description: 'Test that PDF payloads use provider-compatible file or image_url shapes'
     mandatory: true
   - id: AC13.5.2
     epic: 13
