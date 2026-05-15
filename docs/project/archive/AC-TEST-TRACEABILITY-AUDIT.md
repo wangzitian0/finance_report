@@ -754,7 +754,7 @@
 | AC13.4.5 | yes | Test Futu-specific prompt | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.4.6 | yes | Test GXS-specific prompt | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.4.7 | yes | Test MariBank-specific prompt | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
-| AC13.5.1 | yes | Test that PDFs use OpenRouter 'file' type | `apps/backend/tests/api/test_statements_router.py`<br>`apps/backend/tests/extraction/test_extraction.py`<br>`apps/backend/tests/extraction/test_extraction_flow.py`<br>`apps/backend/tests/extraction/test_storage.py`<br>`scripts/tests/test_secure_glm_file_url.py` | ✅ |
+| AC13.5.1 | yes | Test that PDF payloads use provider-compatible file or image_url shapes | `apps/backend/tests/api/test_statements_router.py`<br>`apps/backend/tests/extraction/test_extraction.py`<br>`apps/backend/tests/extraction/test_extraction_flow.py`<br>`apps/backend/tests/extraction/test_storage.py`<br>`scripts/tests/test_secure_glm_file_url.py` | ✅ |
 | AC13.5.2 | yes | Test that PNG images use 'image_url' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.5.3 | yes | Test that JPG images use 'image_url' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.5.4 | yes | Test that JPEG images use 'image_url' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
