@@ -671,9 +671,7 @@ class ExtractionService:
                     timeout_seconds=settings.ai_json_timeout_seconds,
                 )
                 error_summary["timeout"] = error_summary.get("timeout", 0) + 1
-                last_error = ExtractionError(
-                    f"Model {model} timed out after {settings.ai_json_timeout_seconds}s"
-                )
+                last_error = ExtractionError(f"Model {model} timed out after {settings.ai_json_timeout_seconds}s")
                 continue
             except ExtractionError:
                 raise
