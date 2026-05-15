@@ -43,6 +43,10 @@ async def _stream_openrouter_base(
     base_url: str | None = None,
     timeout: float,
     connect_timeout: float,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    do_sample: bool | None = None,
+    thinking: dict[str, Any] | None = None,
     response_format: dict[str, str] | None = None,
     mode_label: str = "streaming",
 ) -> AsyncIterator[str]:
@@ -77,6 +81,14 @@ async def _stream_openrouter_base(
     }
     if response_format:
         payload["response_format"] = response_format
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if do_sample is not None:
+        payload["do_sample"] = do_sample
+    if thinking is not None:
+        payload["thinking"] = thinking
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -228,6 +240,10 @@ async def stream_openrouter_json(
     api_key: str | None = None,
     base_url: str | None = None,
     timeout: float = 180.0,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    do_sample: bool | None = None,
+    thinking: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     """
     Stream OpenAI-compatible chat completions for JSON extraction.
@@ -247,6 +263,10 @@ async def stream_openrouter_json(
         base_url=base_url,
         timeout=timeout,
         connect_timeout=10.0,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        do_sample=do_sample,
+        thinking=thinking,
         response_format=None,
         mode_label="JSON extraction",
     ):

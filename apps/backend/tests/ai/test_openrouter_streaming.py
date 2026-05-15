@@ -322,10 +322,20 @@ class TestStreamOpenRouterJson:
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
+                    timeout=360.0,
+                    max_tokens=8192,
+                    temperature=0.0,
+                    do_sample=False,
+                    thinking={"type": "disabled"},
                 ):
                     chunks.append(chunk)
 
+                payload = mock_aconnect.call_args.kwargs["json"]
                 assert chunks == ['{"result":', ' "success"}']
+                assert payload["max_tokens"] == 8192
+                assert payload["temperature"] == 0.0
+                assert payload["do_sample"] is False
+                assert payload["thinking"] == {"type": "disabled"}
 
 
 class TestStreamErrorHandling:

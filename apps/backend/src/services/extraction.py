@@ -489,7 +489,11 @@ class ExtractionService:
                     model=model,
                     api_key=self.api_key,
                     base_url=self.base_url,
-                    timeout=180.0,
+                    timeout=settings.ai_json_timeout_seconds,
+                    max_tokens=settings.ai_json_max_tokens,
+                    temperature=0.0,
+                    do_sample=False,
+                    thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
                 )
 
                 content = await accumulate_stream(stream)
@@ -580,6 +584,21 @@ class ExtractionService:
                     )
                     error_summary["http_error"] = error_summary.get("http_error", 0) + 1
                     last_error = ExtractionError(f"Model {model} failed: {error_msg}")
+                continue
+            except httpx.TimeoutException:
+                from src.constants.error_ids import ErrorIds
+
+                logger.warning(
+                    "AI extraction timed out",
+                    error_id=ErrorIds.OPENROUTER_TIMEOUT,
+                    model=model,
+                    attempt=i + 1,
+                    timeout_seconds=settings.ai_json_timeout_seconds,
+                )
+                error_summary["timeout"] = error_summary.get("timeout", 0) + 1
+                last_error = ExtractionError(
+                    f"Model {model} timed out after {settings.ai_json_timeout_seconds}s"
+                )
                 continue
             except ExtractionError:
                 raise

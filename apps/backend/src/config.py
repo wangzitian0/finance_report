@@ -137,6 +137,12 @@ class Settings(BaseSettings):
     vision_model: str = Field(default="glm-4.6v", validation_alias="VISION_MODEL")
     ocr_model: str = Field(default="glm-ocr", validation_alias="OCR_MODEL")
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
+    ai_json_timeout_seconds: float = Field(
+        default=360.0,
+        validation_alias="AI_JSON_TIMEOUT_SECONDS",
+    )
+    ai_json_max_tokens: int = Field(default=8192, validation_alias="AI_JSON_MAX_TOKENS")
+    ai_json_disable_thinking: bool = Field(default=True, validation_alias="AI_JSON_DISABLE_THINKING")
     ai_daily_limit_usd: int | None = Field(default=2, validation_alias="AI_DAILY_LIMIT_USD")
 
     # S3 optional settings

@@ -206,6 +206,9 @@ jobs:
             echo "OCR_MODEL=glm-ocr"
             echo "VISION_MODEL=glm-4.6v"
             echo "FALLBACK_MODELS=glm-5-turbo,glm-5"
+            echo "AI_JSON_TIMEOUT_SECONDS=360"
+            echo "AI_JSON_MAX_TOKENS=8192"
+            echo "AI_JSON_DISABLE_THINKING=true"
             echo "COMPOSE_PROFILES=infra,app"
             
             # CRITICAL: Use unique hostnames in Dokploy shared network

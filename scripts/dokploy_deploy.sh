@@ -92,6 +92,14 @@ if [[ -n "${DEPLOY_PRIMARY_MODEL_OVERRIDE:-}" ]]; then
   new_env=$(update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE")
 fi
 
+if [[ -n "${DEPLOY_VISION_MODEL_OVERRIDE:-}" ]]; then
+  new_env=$(update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE")
+fi
+
+if [[ -n "${DEPLOY_PRIMARY_MODEL_OVERRIDE:-}" || -n "${DEPLOY_VISION_MODEL_OVERRIDE:-}" ]]; then
+  new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)")
+fi
+
 # Traefik routing configuration
 # Detect environment from APP_URL (staging/production)
 if [[ "$APP_URL" == *"-staging"* ]]; then
