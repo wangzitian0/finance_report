@@ -217,7 +217,17 @@ class ExtractionService:
     ) -> list[dict[str, Any]]:
         """Build vision-model media payloads, rendering Z.AI PDFs to images when possible."""
         if file_type == "pdf" and self._is_zai_provider() and file_content:
-            return self._render_pdf_pages_as_image_payloads(file_content)
+            try:
+                return self._render_pdf_pages_as_image_payloads(file_content)
+            except ExtractionError as render_error:
+                if file_url and self._validate_external_url(file_url):
+                    logger.warning(
+                        "PDF page rendering failed, falling back to external PDF URL",
+                        error=str(render_error),
+                        url=redact_presigned_url(file_url),
+                    )
+                else:
+                    raise
 
         prefer_url = self._requires_pdf_file_url_for_vision(file_type)
         file_input = self._build_ai_file_input(
