@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 922 | 100% |
-| **Mandatory ACs** | 761 | 82.5% |
+| **Total ACs (registries)** | 923 | 100% |
+| **Mandatory ACs** | 762 | 82.6% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 761 | 100.0% |
+| **Mandatory ACs with test reference** | 762 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 174 | - |
+| **Test files referenced** | 175 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -39,7 +39,7 @@
 | [EPIC-012](#epic-012-foundation-libs) | foundation-libs | 62 | 3 | 55 | 55 | 100.0% |
 | [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 58 | 100.0% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
-| [EPIC-015](#epic-015-processing-account) | processing-account | 27 | 0 | 27 | 27 | 100.0% |
+| [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 210 | 0 | 186 | 186 | 100.0% |
 | [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 73 | 0 | 29 | 29 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
@@ -822,9 +822,9 @@
 
 <a id="epic-015-processing-account"></a>
 
-- **Total ACs**: 27
-- **Mandatory ACs**: 27
-- **Mandatory ACs with test reference**: 27 (100.0%)
+- **Total ACs**: 28
+- **Mandatory ACs**: 28
+- **Mandatory ACs with test reference**: 28 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -850,6 +850,7 @@
 | AC15.6.4 | yes | Auto-Pairing Phase | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
 | AC15.6.5 | yes | Unpaired Transfer Balance | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
 | AC15.6.6 | yes | Normal Matching Preserved | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
+| AC15.6.7 | yes | Idempotent Transfer Detection | `apps/backend/tests/reconciliation/test_transfer_idempotency.py` | ✅ |
 | AC15.7.1 | yes | API endpoint GET /api/accounts/processing/summary returns {pending_count, pending_total, currency, oldest_pending_date} | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
 | AC15.7.2 | yes | Dashboard "Processing / In-Transit" card renders the four fields with currency code | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
 | AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |

@@ -64,7 +64,7 @@ class TestTransferDetectionIdempotency:
 
     @pytest.mark.asyncio
     async def test_transfer_out_duplicate_detection_skipped(self, db: AsyncSession, test_user):
-        """Running matching twice for transfer-OUT should not create a second match."""
+        """AC15.6.7 · Running matching twice for transfer-OUT should not create a second match."""
         user_id = test_user.id
         statement, txn = await self._setup(db, user_id, direction="OUT", file_hash_suffix="idem_out")
 
@@ -98,7 +98,7 @@ class TestTransferDetectionIdempotency:
 
     @pytest.mark.asyncio
     async def test_transfer_in_duplicate_detection_skipped(self, db: AsyncSession, test_user):
-        """Running matching twice for transfer-IN should not create a second match."""
+        """AC15.6.7 · Running matching twice for transfer-IN should not create a second match."""
         user_id = test_user.id
         statement, txn = await self._setup(db, user_id, direction="IN", file_hash_suffix="idem_in")
 
@@ -124,6 +124,4 @@ class TestTransferDetectionIdempotency:
             )
         )
         active_matches = all_matches_result.scalars().all()
-        assert len(active_matches) == 1, (
-            f"Expected 1 active match in DB, found {len(active_matches)}"
-        )
+        assert len(active_matches) == 1, f"Expected 1 active match in DB, found {len(active_matches)}"

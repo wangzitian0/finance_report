@@ -1097,7 +1097,7 @@ async def execute_matching(
                     db, txn.id, is_layer2=settings.enable_4_layer_read
                 )
                 if existing_transfer_match:
-                    logger.debug(
+                    logger.warning(
                         "Transfer already matched - skipping duplicate match creation",
                         txn_id=str(txn.id),
                         existing_match_id=str(existing_transfer_match.id),
