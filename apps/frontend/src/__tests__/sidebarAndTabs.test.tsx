@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Sidebar } from "@/components/Sidebar"
 import { WorkspaceTabs } from "@/components/WorkspaceTabs"
+import { apiFetch } from "@/lib/api"
 
 const pushMock = vi.fn()
 const toggleSidebarMock = vi.fn()
@@ -12,6 +13,7 @@ const setActiveTabMock = vi.fn()
 const clearUserMock = vi.fn()
 const getUserEmailMock = vi.fn()
 const isAuthenticatedMock = vi.fn()
+const mockedApiFetch = vi.mocked(apiFetch)
 
 let pathnameMock = "/dashboard"
 
@@ -30,6 +32,10 @@ vi.mock("@/lib/auth", () => ({
   isAuthenticated: () => isAuthenticatedMock(),
 }))
 
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(),
+}))
+
 let workspaceMockData = {
     isCollapsed: false,
     toggleSidebar: toggleSidebarMock,
@@ -45,6 +51,8 @@ vi.mock("@/hooks/useWorkspace", () => ({
 }))
 
 describe("Sidebar and WorkspaceTabs", () => {
+  const expectedReviewBadgeCountFromMocks = "3"
+
   beforeEach(() => {
     pushMock.mockReset()
     toggleSidebarMock.mockReset()
@@ -54,9 +62,19 @@ describe("Sidebar and WorkspaceTabs", () => {
     clearUserMock.mockReset()
     getUserEmailMock.mockReset()
     isAuthenticatedMock.mockReset()
+    mockedApiFetch.mockReset()
     pathnameMock = "/dashboard"
     getUserEmailMock.mockReturnValue("user@example.com")
     isAuthenticatedMock.mockReturnValue(true)
+    mockedApiFetch.mockImplementation(async (path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return { items: [{ id: "s1" }, { id: "s2" }], total: 2 }
+      }
+      if (path === "/api/statements/stage2/queue") {
+        return { pending_matches: [{ id: "m1", status: "pending_review" }, { id: "m2", status: "accepted" }] }
+      }
+      return {}
+    })
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -72,6 +90,8 @@ describe("Sidebar and WorkspaceTabs", () => {
     render(<Sidebar />)
 
     await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Review")).toBeInTheDocument())
+    expect(screen.getByText(expectedReviewBadgeCountFromMocks)).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 
