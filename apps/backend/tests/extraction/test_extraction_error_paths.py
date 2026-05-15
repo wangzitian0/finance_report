@@ -191,6 +191,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 
 @pytest.mark.asyncio
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
+    """AC8.12.7: Shared OCR/vision model uses one vision call and skips layout parsing."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "glm-4.6v"
@@ -212,6 +213,53 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     mock_ocr.assert_not_awaited()
     call = mock_extract.await_args.kwargs
     assert call["models"] == ["glm-4.6v"]
+    assert call["messages"][0]["content"][1] == image_payload
+
+
+def test_ocr_model_selection_helpers_deduplicate_vision_models():
+    """AC8.12.7: OCR/vision helper rules avoid duplicate provider calls."""
+    service = ExtractionService()
+
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+    assert service._uses_dedicated_layout_ocr() is False
+    assert service._vision_extraction_models() == ["glm-4.6v"]
+
+    service.ocr_model = "layout-ocr-model"
+    service.vision_model = "glm-4.6v"
+    assert service._uses_dedicated_layout_ocr() is True
+    assert service._vision_extraction_models() == ["layout-ocr-model", "glm-4.6v"]
+
+    service.ocr_model = ""
+    service.vision_model = "glm-4.6v"
+    assert service._uses_dedicated_layout_ocr() is False
+    assert service._vision_extraction_models() == ["glm-4.6v"]
+
+
+@pytest.mark.asyncio
+async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision():
+    """AC8.12.7: Dedicated OCR failure falls back to ordered vision extraction models."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    service.ocr_model = "layout-ocr-model"
+    service.vision_model = "glm-4.6v"
+
+    mock_ocr = AsyncMock(side_effect=ExtractionError("layout parser unavailable"))
+    mock_extract = AsyncMock(return_value={"transactions": []})
+    service._extract_ocr_markdown = mock_ocr
+    service._extract_json_with_models = mock_extract
+    image_payload = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+    }
+
+    with patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]):
+        result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
+    call = mock_extract.await_args.kwargs
+    assert call["models"] == ["layout-ocr-model", "glm-4.6v"]
     assert call["messages"][0]["content"][1] == image_payload
 
 
