@@ -142,6 +142,12 @@ async def _auto_create_posted_entries_for_statement(
 # --- Helper functions ---
 
 
+def build_statement_storage_key(*, statement_id: UUID, file_hash: str, extension: str) -> str:
+    """Build a non-PII object key for uploaded statement content."""
+    safe_extension = extension.lower() if extension.lower() in {"pdf", "csv", "png", "jpg", "jpeg"} else "bin"
+    return f"statements/{statement_id}/{file_hash[:16]}.{safe_extension}"
+
+
 @router.post("/upload", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
@@ -197,7 +203,11 @@ async def upload_statement(
                 raise_bad_request("Selected model does not support image/PDF inputs.")
 
     statement_id = uuid4()
-    storage_key = f"statements/{user_id}/{statement_id}/{filename}"
+    storage_key = build_statement_storage_key(
+        statement_id=statement_id,
+        file_hash=file_hash,
+        extension=extension,
+    )
 
     storage = StorageService()
     try:

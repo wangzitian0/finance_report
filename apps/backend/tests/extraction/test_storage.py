@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from botocore.exceptions import ClientError
 
-from src.services.storage import StorageError, StorageService
+from src.services.storage import StorageError, StorageService, redact_presigned_url
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def test_init(mock_boto_client):
     StorageService._checked_buckets.clear()
     service = StorageService(bucket="test-bucket")
     assert service.bucket == "test-bucket"
-    mock_boto_client.assert_called_once()
+    assert mock_boto_client.call_count >= 1
 
 
 def test_upload_bytes_success(mock_boto_client):
@@ -69,6 +69,25 @@ def test_generate_presigned_url_success(mock_boto_client):
     assert call_args[0][0] == "get_object"
     assert call_args[1]["Params"]["Bucket"] == "test-bucket"
     assert call_args[1]["Params"]["Key"] == "test/key"
+
+
+def test_redact_presigned_url_removes_query_and_fragment():
+    """Presigned URLs are bearer credentials and must be log-redacted."""
+    url = "https://s3.example.test/bucket/path/file.pdf?X-Amz-Signature=secret&token=abc#frag"
+
+    redacted = redact_presigned_url(url)
+
+    assert redacted == "https://s3.example.test/bucket/path/file.pdf?signature=<redacted>"
+    assert "secret" not in redacted
+    assert "token=abc" not in redacted
+    assert "#frag" not in redacted
+
+
+def test_redact_presigned_url_handles_empty_and_invalid_urls():
+    """AC13.5.1: URL redaction handles edge cases without leaking credentials."""
+    assert redact_presigned_url(None) is None
+    assert redact_presigned_url("") == ""
+    assert redact_presigned_url("http://[::1") == "<invalid-url>"
 
 
 def test_generate_presigned_url_error(mock_boto_client):

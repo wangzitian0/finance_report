@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-14 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-15 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -18,7 +18,7 @@
 | **Deprecated ACs** | 3 | 0.3% |
 | **Mandatory ACs with test reference** | 761 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 172 | - |
+| **Test files referenced** | 174 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -754,7 +754,7 @@
 | AC13.4.5 | yes | Test Futu-specific prompt | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.4.6 | yes | Test GXS-specific prompt | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.4.7 | yes | Test MariBank-specific prompt | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
-| AC13.5.1 | yes | Test that PDFs use OpenRouter 'file' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
+| AC13.5.1 | yes | Test that PDFs use OpenRouter 'file' type | `apps/backend/tests/api/test_statements_router.py`<br>`apps/backend/tests/extraction/test_extraction.py`<br>`apps/backend/tests/extraction/test_extraction_flow.py`<br>`apps/backend/tests/extraction/test_storage.py`<br>`scripts/tests/test_secure_glm_file_url.py` | ✅ |
 | AC13.5.2 | yes | Test that PNG images use 'image_url' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.5.3 | yes | Test that JPG images use 'image_url' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |
 | AC13.5.4 | yes | Test that JPEG images use 'image_url' type | `apps/backend/tests/extraction/test_extraction.py` | ✅ |

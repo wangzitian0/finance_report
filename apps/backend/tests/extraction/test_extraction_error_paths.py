@@ -191,6 +191,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 async def test_extract_financial_data_all_models_fail():
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     from src.services.openrouter_streaming import OpenRouterStreamError
 
@@ -210,6 +211,7 @@ async def test_extract_financial_data_all_models_fail():
 async def test_extract_financial_data_json_markdown_fallback():
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     # Current code rejects markdown wrapping - test that it properly rejects
     content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
@@ -230,6 +232,7 @@ async def test_extract_financial_data_json_markdown_fallback():
 async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
@@ -750,6 +753,7 @@ async def test_extract_force_model():
         mock_accum.return_value = valid_json
         result = await service.extract_financial_data(
             file_content=b"content",
+            file_url="https://example.com/file.pdf",
             institution="DBS",
             file_type="pdf",
             force_model="google/gemini-2.0-test",
@@ -787,6 +791,7 @@ async def test_extract_empty_ai_response():
     """Empty AI response triggers error and continue (lines 493-509)."""
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     with (
         patch("src.services.extraction.stream_openrouter_json"),
@@ -796,6 +801,7 @@ async def test_extract_empty_ai_response():
         with pytest.raises(ExtractionError, match="All 1 models failed.*empty_response"):
             await service.extract_financial_data(
                 file_content=b"content",
+                file_url="https://example.com/file.pdf",
                 institution="DBS",
                 file_type="pdf",
             )
@@ -806,6 +812,7 @@ async def test_extract_return_raw():
     """return_raw=True returns raw AI response (lines 512-513)."""
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     raw_content = '{"account_last4": "1234", "transactions": []}'
 
@@ -816,6 +823,7 @@ async def test_extract_return_raw():
         mock_accum.return_value = raw_content
         result = await service.extract_financial_data(
             file_content=b"content",
+            file_url="https://example.com/file.pdf",
             institution="DBS",
             file_type="pdf",
             return_raw=True,
@@ -829,6 +837,7 @@ async def test_extract_value_error_during_extraction():
     """ValueError/TypeError/KeyError/AttributeError during extraction (lines 581-590)."""
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     with (
         patch("src.services.extraction.stream_openrouter_json"),
@@ -838,6 +847,7 @@ async def test_extract_value_error_during_extraction():
         with pytest.raises(ExtractionError, match="Internal error: ValueError"):
             await service.extract_financial_data(
                 file_content=b"content",
+                file_url="https://example.com/file.pdf",
                 institution="DBS",
                 file_type="pdf",
             )
@@ -959,6 +969,7 @@ async def test_extract_non_dict_json_response():
     """AI returning a JSON array instead of object raises ExtractionError (line 517-518)."""
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     with (
         patch("src.services.extraction.stream_openrouter_json"),
@@ -968,6 +979,7 @@ async def test_extract_non_dict_json_response():
         with pytest.raises(ExtractionError, match="strict JSON object.*no arrays"):
             await service.extract_financial_data(
                 file_content=b"content",
+                file_url="https://example.com/file.pdf",
                 institution="DBS",
                 file_type="pdf",
             )
@@ -980,12 +992,14 @@ async def test_extract_openrouter_timeout_error():
 
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.side_effect = OpenRouterStreamError("Request timed out after 30s")
         with pytest.raises(ExtractionError, match="timed out"):
             await service.extract_financial_data(
                 file_content=b"content",
+                file_url="https://example.com/file.pdf",
                 institution="DBS",
                 file_type="pdf",
             )
@@ -998,12 +1012,14 @@ async def test_extract_openrouter_generic_http_error():
 
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
         mock_stream.side_effect = OpenRouterStreamError("HTTP 502: Bad Gateway")
         with pytest.raises(ExtractionError, match="failed.*HTTP 502"):
             await service.extract_financial_data(
                 file_content=b"content",
+                file_url="https://example.com/file.pdf",
                 institution="DBS",
                 file_type="pdf",
             )
@@ -1014,6 +1030,7 @@ async def test_extract_extraction_error_reraise():
     """ExtractionError raised during streaming is re-raised, not wrapped (line 579-580)."""
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     with (
         patch("src.services.extraction.stream_openrouter_json"),
@@ -1023,6 +1040,7 @@ async def test_extract_extraction_error_reraise():
         with pytest.raises(ExtractionError, match="Custom extraction failure"):
             await service.extract_financial_data(
                 file_content=b"content",
+                file_url="https://example.com/file.pdf",
                 institution="DBS",
                 file_type="pdf",
             )
@@ -1033,6 +1051,7 @@ async def test_extract_pdf_with_valid_external_url():
     """PDF extraction with valid external file_url (lines 393-398)."""
     service = ExtractionService()
     service.api_key = "test-key"
+    service.ocr_model = None
 
     valid_json = '{"account_last4": "9999", "transactions": []}'
 

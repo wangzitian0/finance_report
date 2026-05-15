@@ -4,7 +4,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use dedicated OCR first (`OCR_MODEL`, default `glm-ocr`) to produce Markdown, then structure the OCR text with `PRIMARY_MODEL` (default `glm-5.1`). A `VISION_MODEL` fallback is available when OCR layout parsing fails. Files are sent as base64-encoded inline data when possible (no public URL required). Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use dedicated OCR first (`OCR_MODEL`, default `glm-ocr`) to produce Markdown, then structure the OCR text with `PRIMARY_MODEL` (default `glm-5.1`). A `VISION_MODEL` fallback (`glm-4.6v`) is available when OCR layout parsing fails. Z.AI PDF vision fallback uses a short-lived external `file_url`; inline base64 PDF payloads are reserved for OCR/layout parsing and non-Z.AI compatibility. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Data Flow
 
@@ -152,7 +152,7 @@ AI_LAYOUT_PARSING_PATH=/layout_parsing
 AI_MODEL_CATALOG_SOURCE=configured
 PRIMARY_MODEL=glm-5.1
 OCR_MODEL=glm-ocr
-VISION_MODEL=glm-5v-turbo
+VISION_MODEL=glm-4.6v
 FALLBACK_MODELS=glm-5-turbo,glm-5
 AI_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
@@ -160,6 +160,8 @@ S3_ACCESS_KEY=minio
 S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>
 S3_BUCKET=statements
 S3_REGION=us-east-1
+S3_PUBLIC_ENDPOINT=https://s3.zitian.party
+S3_PUBLIC_BUCKET=statements
 S3_PRESIGN_EXPIRY_SECONDS=300
 
 # EPIC-011 Migration Flags

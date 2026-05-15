@@ -89,6 +89,30 @@ def make_upload_file(name: str, content: bytes) -> UploadFile:
     )
 
 
+async def test_build_statement_storage_key_sanitizes_extension():
+    """AC13.5.1: Statement object keys avoid PII and normalize unsafe extensions."""
+    from uuid import uuid4
+
+    statement_id = uuid4()
+
+    assert (
+        statements_router.build_statement_storage_key(
+            statement_id=statement_id,
+            file_hash="abcdef1234567890ffff",
+            extension="PDF",
+        )
+        == f"statements/{statement_id}/abcdef1234567890.pdf"
+    )
+    assert (
+        statements_router.build_statement_storage_key(
+            statement_id=statement_id,
+            file_hash="abcdef1234567890ffff",
+            extension="exe",
+        )
+        == f"statements/{statement_id}/abcdef1234567890.bin"
+    )
+
+
 def build_statement(user_id, file_hash: str, confidence_score: int) -> BankStatement:
     """Build a BankStatement model for tests."""
     return BankStatement(
@@ -239,6 +263,11 @@ async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage
 
     assert created.status == BankStatementStatus.PARSING
     assert mock_parse.await_args.kwargs["model"] is None
+    storage_key = mock_parse.await_args.kwargs["storage_key"]
+    assert storage_key.startswith(f"statements/{created.id}/")
+    assert "statement.pdf" not in storage_key
+    assert str(test_user.id) not in storage_key
+    assert storage_key.endswith(".pdf")
 
 
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):

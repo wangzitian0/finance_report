@@ -134,7 +134,7 @@ class Settings(BaseSettings):
         validation_alias="AI_MODEL_CATALOG_SOURCE",
     )
     primary_model: str = Field(default="glm-5.1", validation_alias="PRIMARY_MODEL")
-    vision_model: str = Field(default="glm-5v-turbo", validation_alias="VISION_MODEL")
+    vision_model: str = Field(default="glm-4.6v", validation_alias="VISION_MODEL")
     ocr_model: str = Field(default="glm-ocr", validation_alias="OCR_MODEL")
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
     ai_daily_limit_usd: int | None = Field(default=2, validation_alias="AI_DAILY_LIMIT_USD")
