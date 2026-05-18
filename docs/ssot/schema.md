@@ -429,6 +429,29 @@ Reconciliation match table.
     **Constraints**:
     - `(user_id, dedup_hash)` unique
 
+    ### Layer 3: ManualValuationSnapshots (EPIC-011)
+    User-entered valuation snapshots for net worth components that do not arrive from bank or broker statements.
+
+    | Column | Type | Constraint | Description |
+    |--------|------|------------|-------------|
+    | id | UUID | PK | Primary key |
+    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
+    | component_type | ENUM | NOT NULL | `property_value|mortgage_balance|cpf_balance|long_term_savings|tax_payable|tax_refund|insurance_cash_value|esop|rsu|stock_options|other_asset|other_liability` (name="manual_valuation_component_type_enum") |
+    | liquidity_class | ENUM | NOT NULL | `liquid|restricted|illiquid|liability` (name="manual_valuation_liquidity_class_enum") |
+    | as_of_date | DATE | NOT NULL | Snapshot effective date |
+    | value | DECIMAL(18,2) | NOT NULL | Positive component value in original currency |
+    | currency | VARCHAR(3) | NOT NULL | ISO currency code |
+    | source | VARCHAR(120) | NOT NULL | Portal, appraisal, statement, or manual source |
+    | notes | TEXT | | User notes |
+    | recurrence_days | INTEGER | | Optional reminder cadence |
+    | reminder_date | DATE | | Optional next reminder date |
+    | created_at | TIMESTAMP | NOT NULL | Creation time |
+    | updated_at | TIMESTAMP | NOT NULL | Update time |
+
+    **Constraints**:
+    - `(user_id, component_type, source, as_of_date)` unique
+    - Values remain positive; `liquidity_class=liability` controls liability presentation.
+
     ---
 
     ## 4. Design Constraints (Dos & Don'ts)

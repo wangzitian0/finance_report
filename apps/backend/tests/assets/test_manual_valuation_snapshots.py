@@ -1,0 +1,318 @@
+"""Tests for manual valuation snapshots."""
+
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+
+from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
+from src.services.assets import AssetService
+
+
+@pytest.mark.asyncio
+async def test_create_manual_valuation_snapshot_crud_api(client):
+    """AC11.9.1: Manual valuation snapshots support audited CRUD endpoints."""
+    payload = {
+        "component_type": "property_value",
+        "as_of_date": "2026-05-18",
+        "value": "1250000.99",
+        "currency": "SGD",
+        "source": "manual appraisal",
+        "notes": "May checkpoint",
+        "recurrence_days": 90,
+        "reminder_date": "2026-08-16",
+    }
+
+    create_response = await client.post("/assets/valuation-snapshots", json=payload)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["component_type"] == "property_value"
+    assert created["liquidity_class"] == "illiquid"
+    assert created["value"] == "1250000.99"
+    assert created["created_at"]
+    assert created["updated_at"]
+
+    list_response = await client.get("/assets/valuation-snapshots")
+    assert list_response.status_code == 200
+    listed = list_response.json()
+    assert listed["total"] == 1
+    assert listed["items"][0]["id"] == created["id"]
+
+    update_response = await client.patch(
+        f"/assets/valuation-snapshots/{created['id']}",
+        json={"value": "1260000.10", "notes": "Updated valuation"},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["value"] == "1260000.10"
+    assert updated["notes"] == "Updated valuation"
+
+    delete_response = await client.delete(f"/assets/valuation-snapshots/{created['id']}")
+    assert delete_response.status_code == 204
+
+    empty_response = await client.get("/assets/valuation-snapshots")
+    assert empty_response.status_code == 200
+    assert empty_response.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_filter_detail_and_default_liquidity_update(client):
+    """AC11.9.1: Valuation APIs support filtering, detail reads, and default liquidity updates."""
+    property_payload = {
+        "component_type": "property_value",
+        "as_of_date": "2026-05-18",
+        "value": "1250000.00",
+        "currency": "sgd",
+        "source": "manual appraisal",
+    }
+    tax_payload = {
+        "component_type": "tax_refund",
+        "as_of_date": "2026-05-19",
+        "value": "1200.00",
+        "currency": "SGD",
+        "source": "IRAS",
+    }
+
+    property_response = await client.post("/assets/valuation-snapshots", json=property_payload)
+    tax_response = await client.post("/assets/valuation-snapshots", json=tax_payload)
+    assert property_response.status_code == 201
+    assert tax_response.status_code == 201
+
+    created = property_response.json()
+    detail_response = await client.get(f"/assets/valuation-snapshots/{created['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["currency"] == "SGD"
+
+    filtered_response = await client.get(
+        "/assets/valuation-snapshots",
+        params={"component_type": "property_value", "as_of_date": "2026-05-18"},
+    )
+    assert filtered_response.status_code == 200
+    filtered = filtered_response.json()
+    assert filtered["total"] == 1
+    assert filtered["items"][0]["component_type"] == "property_value"
+
+    update_response = await client.patch(
+        f"/assets/valuation-snapshots/{created['id']}",
+        json={"component_type": "tax_payable", "notes": None},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["component_type"] == "tax_payable"
+    assert updated["liquidity_class"] == "liability"
+    assert updated["notes"] is None
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_errors(client):
+    """AC11.9.1: Valuation APIs return typed errors for bad filters and missing snapshots."""
+    missing_id = uuid4()
+
+    invalid_filter_response = await client.get(
+        "/assets/valuation-snapshots",
+        params={"component_type": "unsupported"},
+    )
+    assert invalid_filter_response.status_code == 400
+
+    get_response = await client.get(f"/assets/valuation-snapshots/{missing_id}")
+    assert get_response.status_code == 404
+
+    patch_response = await client.patch(
+        f"/assets/valuation-snapshots/{missing_id}",
+        json={"value": "1.00"},
+    )
+    assert patch_response.status_code == 404
+
+    delete_response = await client.delete(f"/assets/valuation-snapshots/{missing_id}")
+    assert delete_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
+    """AC11.9.1: Valuation mutation endpoints return server errors when persistence fails."""
+    from src.routers import assets as assets_router
+
+    async def raise_on_create(*args, **kwargs):
+        raise RuntimeError("create failed")
+
+    async def raise_on_update(*args, **kwargs):
+        raise RuntimeError("update failed")
+
+    monkeypatch.setattr(assets_router._service, "create_valuation_snapshot", raise_on_create)
+    create_response = await client.post(
+        "/assets/valuation-snapshots",
+        json={
+            "component_type": "property_value",
+            "as_of_date": "2026-05-18",
+            "value": "1.00",
+            "currency": "SGD",
+            "source": "manual",
+        },
+    )
+    assert create_response.status_code == 500
+
+    monkeypatch.setattr(assets_router._service, "update_valuation_snapshot", raise_on_update)
+    update_response = await client.patch(
+        f"/assets/valuation-snapshots/{uuid4()}",
+        json={"value": "2.00"},
+    )
+    assert update_response.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_service_updates_optional_fields_and_missing_rows(db, test_user):
+    """AC11.9.1: Service updates every optional field and handles missing snapshots."""
+    service = AssetService()
+    snapshot = await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.ESOP,
+        liquidity_class=ManualValuationLiquidityClass.LIQUID,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("1234.567"),
+        currency="usd",
+        source="equity portal",
+        notes="initial",
+        recurrence_days=180,
+        reminder_date=date(2026, 11, 14),
+    )
+
+    updated = await service.update_valuation_snapshot(
+        db,
+        test_user.id,
+        snapshot.id,
+        values={
+            "component_type": ManualValuationComponentType.OTHER_ASSET,
+            "liquidity_class": ManualValuationLiquidityClass.RESTRICTED,
+            "as_of_date": date(2026, 6, 1),
+            "value": Decimal("2345.678"),
+            "currency": "hkd",
+            "source": "updated portal",
+            "notes": None,
+            "recurrence_days": None,
+            "reminder_date": None,
+        },
+    )
+    await db.commit()
+
+    assert updated is not None
+    assert updated.component_type == ManualValuationComponentType.OTHER_ASSET
+    assert updated.liquidity_class == ManualValuationLiquidityClass.RESTRICTED
+    assert updated.as_of_date == date(2026, 6, 1)
+    assert updated.value == Decimal("2345.68")
+    assert updated.currency == "HKD"
+    assert updated.source == "updated portal"
+    assert updated.notes is None
+    assert updated.recurrence_days is None
+    assert updated.reminder_date is None
+
+    missing_id = uuid4()
+    assert (
+        await service.update_valuation_snapshot(db, test_user.id, missing_id, values={"value": Decimal("1.00")}) is None
+    )
+    assert await service.delete_valuation_snapshot(db, test_user.id, missing_id) is False
+
+
+def test_manual_valuation_snapshot_schema_normalizes_currency():
+    """AC11.9.1: Manual valuation schemas normalize currency codes before service use."""
+    create_payload = ManualValuationSnapshotCreate(
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("1.23"),
+        currency="sgd",
+        source="manual",
+    )
+    update_payload = ManualValuationSnapshotUpdate(currency="usd")
+    empty_update = ManualValuationSnapshotUpdate(currency=None)
+
+    assert create_payload.currency == "SGD"
+    assert update_payload.currency == "USD"
+    assert empty_update.currency is None
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_user):
+    """AC11.9.2: Latest manual snapshots feed net worth components without float arithmetic."""
+    service = AssetService()
+
+    await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 1, 31),
+        value=Decimal("1000000.01"),
+        currency="SGD",
+        source="appraisal",
+    )
+    await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("1000000.02"),
+        currency="SGD",
+        source="appraisal",
+    )
+    await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("300000.03"),
+        currency="SGD",
+        source="bank portal",
+    )
+    await db.commit()
+
+    components = await service.get_latest_valuation_components(db, test_user.id, as_of_date=date(2026, 5, 18))
+
+    assert components.total_assets == Decimal("1000000.02")
+    assert components.total_liabilities == Decimal("300000.03")
+    assert components.net_worth_delta == Decimal("699999.99")
+    assert components.items[0].value == Decimal("1000000.02")
+    assert components.items[1].liquidity_class == "liability"
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_restricted_toggle(db, test_user):
+    """AC11.9.3: Restricted/illiquid values can be excluded from liquid net worth views."""
+    service = AssetService()
+
+    await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.CPF_BALANCE,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("50000.00"),
+        currency="SGD",
+        source="CPF portal",
+    )
+    await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.TAX_REFUND,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("1200.00"),
+        currency="SGD",
+        source="IRAS",
+    )
+    await db.commit()
+
+    all_components = await service.get_latest_valuation_components(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 18),
+        include_restricted=True,
+    )
+    liquid_only = await service.get_latest_valuation_components(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 18),
+        include_restricted=False,
+    )
+
+    assert all_components.total_assets == Decimal("51200.00")
+    assert liquid_only.total_assets == Decimal("1200.00")
+    assert {item.component_type for item in all_components.items} == {"cpf_balance", "tax_refund"}

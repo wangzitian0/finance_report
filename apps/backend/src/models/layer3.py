@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
@@ -218,3 +219,68 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     position_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     account: Mapped["Account"] = relationship("Account")
+
+
+class ManualValuationComponentType(str, Enum):
+    """Manual net worth component type."""
+
+    PROPERTY_VALUE = "property_value"
+    MORTGAGE_BALANCE = "mortgage_balance"
+    CPF_BALANCE = "cpf_balance"
+    LONG_TERM_SAVINGS = "long_term_savings"
+    TAX_PAYABLE = "tax_payable"
+    TAX_REFUND = "tax_refund"
+    INSURANCE_CASH_VALUE = "insurance_cash_value"
+    ESOP = "esop"
+    RSU = "rsu"
+    STOCK_OPTIONS = "stock_options"
+    OTHER_ASSET = "other_asset"
+    OTHER_LIABILITY = "other_liability"
+
+
+class ManualValuationLiquidityClass(str, Enum):
+    """How a manual valuation should be presented in net worth views."""
+
+    LIQUID = "liquid"
+    RESTRICTED = "restricted"
+    ILLIQUID = "illiquid"
+    LIABILITY = "liability"
+
+
+class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
+    """Layer 3 manual valuation snapshot for non-bank net worth components."""
+
+    __tablename__ = "manual_valuation_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "component_type",
+            "source",
+            "as_of_date",
+            name="uq_manual_valuation_user_component_source_date",
+        ),
+    )
+
+    component_type: Mapped[ManualValuationComponentType] = mapped_column(
+        SQLEnum(
+            ManualValuationComponentType,
+            name="manual_valuation_component_type_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
+    liquidity_class: Mapped[ManualValuationLiquidityClass] = mapped_column(
+        SQLEnum(
+            ManualValuationLiquidityClass,
+            name="manual_valuation_liquidity_class_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    value: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    source: Mapped[str] = mapped_column(String(120), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recurrence_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reminder_date: Mapped[date | None] = mapped_column(Date, nullable=True)

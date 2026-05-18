@@ -7,9 +7,37 @@ import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale, parseAmount } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
-import { ManagedPosition, ManagedPositionListResponse, ReconcilePositionsResponse } from "@/lib/types";
+import {
+    ManagedPosition,
+    ManagedPositionListResponse,
+    ManualValuationComponentType,
+    ManualValuationSnapshotListResponse,
+    ReconcilePositionsResponse,
+} from "@/lib/types";
 
 const STATUS_FILTERS = ["All", "active", "disposed"] as const;
+const VALUATION_TYPES: Array<{ value: ManualValuationComponentType; label: string }> = [
+    { value: "property_value", label: "Property Value" },
+    { value: "mortgage_balance", label: "Mortgage Balance" },
+    { value: "cpf_balance", label: "CPF Balance" },
+    { value: "long_term_savings", label: "Long-term Savings" },
+    { value: "tax_payable", label: "Tax Payable" },
+    { value: "tax_refund", label: "Tax Refund" },
+    { value: "insurance_cash_value", label: "Insurance Cash Value" },
+    { value: "esop", label: "ESOP" },
+    { value: "rsu", label: "RSU" },
+    { value: "stock_options", label: "Stock Options" },
+    { value: "other_asset", label: "Other Asset" },
+    { value: "other_liability", label: "Other Liability" },
+];
+
+function labelForValuationType(type: ManualValuationComponentType): string {
+    return VALUATION_TYPES.find((item) => item.value === type)?.label ?? type;
+}
+
+function labelForLiquidityClass(value: string): string {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 function formatQuantity(quantity: string): string {
     const num = parseFloat(quantity);
@@ -21,12 +49,25 @@ export default function AssetsPage() {
     const { showToast } = useToast();
     const queryClient = useQueryClient();
     const [activeFilter, setActiveFilter] = useState<string>("All");
+    const [valuationForm, setValuationForm] = useState({
+        component_type: "property_value" as ManualValuationComponentType,
+        as_of_date: new Date().toISOString().slice(0, 10),
+        value: "",
+        currency: "SGD",
+        source: "manual",
+        notes: "",
+    });
 
     const statusParam = activeFilter === "All" ? "" : `?status_filter=${activeFilter}`;
 
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["positions", activeFilter],
         queryFn: () => apiFetch<ManagedPositionListResponse>(`/api/assets/positions${statusParam}`),
+    });
+
+    const { data: valuationData } = useQuery({
+        queryKey: ["valuation-snapshots"],
+        queryFn: () => apiFetch<ManualValuationSnapshotListResponse>("/api/assets/valuation-snapshots?limit=10"),
     });
 
     const reconcileMutation = useMutation({
@@ -53,7 +94,31 @@ export default function AssetsPage() {
         },
     });
 
+    const createValuationMutation = useMutation({
+        mutationFn: () =>
+            apiFetch("/api/assets/valuation-snapshots", {
+                method: "POST",
+                body: JSON.stringify({
+                    component_type: valuationForm.component_type,
+                    as_of_date: valuationForm.as_of_date,
+                    value: valuationForm.value,
+                    currency: valuationForm.currency,
+                    source: valuationForm.source,
+                    notes: valuationForm.notes || null,
+                }),
+            }),
+        onSuccess: () => {
+            showToast("Manual valuation saved", "success");
+            setValuationForm((current) => ({ ...current, value: "", notes: "" }));
+            queryClient.invalidateQueries({ queryKey: ["valuation-snapshots"] });
+        },
+        onError: (err: Error) => {
+            showToast(`Failed to save valuation: ${err.message}`, "error");
+        },
+    });
+
     const positions = data?.items ?? [];
+    const valuationSnapshots = valuationData?.items ?? [];
     const activePositions = positions.filter((p) => p.status === "active");
     const groupedByBroker = positions.reduce((groups, pos) => {
         const broker = pos.account_name ?? "Unknown";
@@ -148,6 +213,130 @@ export default function AssetsPage() {
                     </div>
                 </div>
             )}
+
+            <div className="card p-5 mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div className="flex-1">
+                        <p className="text-xs text-muted uppercase tracking-wide">Manual Valuations</p>
+                        <h2 className="font-semibold mt-1 mb-4">Property, CPF, tax, insurance, and equity awards</h2>
+                        {valuationSnapshots.length ? (
+                            <div className="divide-y divide-[var(--border)]">
+                                {valuationSnapshots.slice(0, 5).map((snapshot) => (
+                                    <div key={snapshot.id} className="py-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium">{labelForValuationType(snapshot.component_type)}</span>
+                                                <span className="badge badge-muted">
+                                                    {labelForLiquidityClass(snapshot.liquidity_class)}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted mt-0.5">
+                                                {formatDateDisplay(snapshot.as_of_date)} · {snapshot.source}
+                                            </p>
+                                        </div>
+                                        <div className="text-right font-semibold">
+                                            {formatCurrencyLocale(snapshot.value, snapshot.currency)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted">No manual valuation snapshots recorded.</p>
+                        )}
+                    </div>
+                    <form
+                        className="grid gap-3 lg:w-[24rem]"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            createValuationMutation.mutate();
+                        }}
+                    >
+                        <div className="grid gap-1">
+                            <label htmlFor="valuation-type" className="text-xs font-medium text-muted">Valuation type</label>
+                            <select
+                                id="valuation-type"
+                                className="input"
+                                value={valuationForm.component_type}
+                                onChange={(event) =>
+                                    setValuationForm((current) => ({
+                                        ...current,
+                                        component_type: event.target.value as ManualValuationComponentType,
+                                    }))
+                                }
+                            >
+                                {VALUATION_TYPES.map((type) => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-1">
+                                <label htmlFor="valuation-date" className="text-xs font-medium text-muted">As of date</label>
+                                <input
+                                    id="valuation-date"
+                                    type="date"
+                                    className="input"
+                                    value={valuationForm.as_of_date}
+                                    onChange={(event) => setValuationForm((current) => ({ ...current, as_of_date: event.target.value }))}
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-1">
+                                <label htmlFor="valuation-currency" className="text-xs font-medium text-muted">Currency</label>
+                                <input
+                                    id="valuation-currency"
+                                    className="input uppercase"
+                                    maxLength={3}
+                                    value={valuationForm.currency}
+                                    onChange={(event) =>
+                                        setValuationForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))
+                                    }
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-1">
+                                <label htmlFor="valuation-value" className="text-xs font-medium text-muted">Value</label>
+                                <input
+                                    id="valuation-value"
+                                    inputMode="decimal"
+                                    className="input"
+                                    value={valuationForm.value}
+                                    onChange={(event) => setValuationForm((current) => ({ ...current, value: event.target.value }))}
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-1">
+                                <label htmlFor="valuation-source" className="text-xs font-medium text-muted">Source</label>
+                                <input
+                                    id="valuation-source"
+                                    className="input"
+                                    value={valuationForm.source}
+                                    onChange={(event) => setValuationForm((current) => ({ ...current, source: event.target.value }))}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-1">
+                            <label htmlFor="valuation-notes" className="text-xs font-medium text-muted">Notes</label>
+                            <input
+                                id="valuation-notes"
+                                className="input"
+                                value={valuationForm.notes}
+                                onChange={(event) => setValuationForm((current) => ({ ...current, notes: event.target.value }))}
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            className="btn-primary"
+                            disabled={createValuationMutation.isPending}
+                        >
+                            {createValuationMutation.isPending ? "Saving..." : "Add valuation"}
+                        </button>
+                    </form>
+                </div>
+            </div>
 
 
             <div className="flex items-center justify-between mb-6">

@@ -1794,6 +1794,10 @@ Backend Logic:
 #### Backend API
 - [ ] **CRUD Endpoints**: `POST /api/assets/positions`, `GET /api/assets/positions`, `PUT /api/assets/positions/{id}`, `DELETE /api/assets/positions/{id}`
 - [ ] **Valuation API**: `POST /api/assets/valuations`, `GET /api/assets/valuations?position_id={id}`
+- [x] **AC11.9.1 Manual Valuation Snapshot CRUD**: `POST/GET/PATCH/DELETE /api/assets/valuation-snapshots` records property value, mortgage/loan balance, CPF/long-term savings, tax payable/refund, insurance cash value, ESOP/RSU/options, source, notes, reminder cadence, and audit timestamps.
+- [x] **AC11.9.2 Net Worth Components**: Latest manual snapshots aggregate into asset/liability deltas with `Decimal` arithmetic.
+- [x] **AC11.9.3 Liquidity Separation**: Restricted and illiquid components are tagged separately and can be excluded from liquid net worth views.
+- [x] **AC11.9.4 Frontend Entry**: `/assets` exposes a manual valuation entry form and recent snapshot list using the shared API client.
 - [ ] **Depreciation API**: `POST /api/assets/depreciation/schedules`, `GET /api/assets/depreciation/schedules?position_id={id}`
 - [ ] **ESOP API**: `POST /api/assets/esop/grants`, `GET /api/assets/esop/grants`, `POST /api/assets/esop/grants/{id}/exercise`
 

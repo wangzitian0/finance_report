@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-15 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-18 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 926 | 100% |
-| **Mandatory ACs** | 765 | 82.6% |
+| **Total ACs (registries)** | 930 | 100% |
+| **Mandatory ACs** | 769 | 82.7% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 765 | 100.0% |
+| **Mandatory ACs with test reference** | 769 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 176 | - |
+| **Test files referenced** | 177 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -35,7 +35,7 @@
 | [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 65 | 0 | 59 | 59 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
-| [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 34 | 0 | 34 | 34 | 100.0% |
+| [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
 | [EPIC-012](#epic-012-foundation-libs) | foundation-libs | 62 | 3 | 55 | 55 | 100.0% |
 | [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 58 | 100.0% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
@@ -607,9 +607,9 @@
 
 <a id="epic-011-asset-lifecycle"></a>
 
-- **Total ACs**: 34
-- **Mandatory ACs**: 34
-- **Mandatory ACs with test reference**: 34 (100.0%)
+- **Total ACs**: 38
+- **Mandatory ACs**: 38
+- **Mandatory ACs with test reference**: 38 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -647,6 +647,10 @@
 | AC11.8.4 | yes | Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip | `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts` | ✅ |
 | AC11.8.5 | yes | Net worth calculation toggle on dashboard (include_restricted=true | `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts` | ✅ |
 | AC11.8.6 | yes | Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render | `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts` | ✅ |
+| AC11.9.1 | yes | Manual valuation snapshot CRUD supports property, CPF, tax, insurance, loan, and equity award components with audit timestamps | `apps/backend/tests/assets/test_manual_valuation_snapshots.py` | ✅ |
+| AC11.9.2 | yes | Latest manual valuation snapshots aggregate into net worth components using Decimal arithmetic | `apps/backend/tests/assets/test_manual_valuation_snapshots.py` | ✅ |
+| AC11.9.3 | yes | Restricted and illiquid manual valuation components can be excluded from liquid net worth views | `apps/backend/tests/assets/test_manual_valuation_snapshots.py` | ✅ |
+| AC11.9.4 | yes | Assets page lets users add and review manual valuation snapshots through the shared API client | `apps/frontend/src/__tests__/assetsPage.test.tsx` | ✅ |
 
 ---
 

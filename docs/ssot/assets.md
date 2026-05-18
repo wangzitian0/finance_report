@@ -9,8 +9,8 @@
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Model** | `apps/backend/src/models/layer3.py` (`ManagedPosition`) | Position storage, status tracking |
-| **Service** | `apps/backend/src/services/assets.py` (`AssetService`) | Reconciliation, depreciation logic |
+| **Model** | `apps/backend/src/models/layer3.py` (`ManagedPosition`, `ManualValuationSnapshot`) | Position storage, status tracking, manual valuation snapshots |
+| **Service** | `apps/backend/src/services/assets.py` (`AssetService`) | Reconciliation, depreciation logic, manual valuation component aggregation |
 | **Router** | `apps/backend/src/routers/assets.py` | REST endpoints (`/assets`) |
 | **Schemas** | `apps/backend/src/schemas/assets.py` | Request/response validation |
 | **Source Data** | `apps/backend/src/models/layer2.py` (`AtomicPosition`) | Raw broker position snapshots |
@@ -66,6 +66,11 @@ For each latest atomic position:
 | `GET` | `/assets/positions/{id}` | Get single position by ID |
 | `POST` | `/assets/reconcile` | Trigger position reconciliation from atomic data |
 | `GET` | `/assets/positions/{id}/depreciation` | Calculate depreciation schedule |
+| `POST` | `/assets/valuation-snapshots` | Create manual valuation snapshot |
+| `GET` | `/assets/valuation-snapshots` | List manual valuation snapshots |
+| `GET` | `/assets/valuation-snapshots/{id}` | Get one manual valuation snapshot |
+| `PATCH` | `/assets/valuation-snapshots/{id}` | Update manual valuation snapshot |
+| `DELETE` | `/assets/valuation-snapshots/{id}` | Delete manual valuation snapshot |
 
 ---
 
@@ -159,6 +164,29 @@ CREATE TABLE managed_positions (
 | `ACTIVE` | Currently held position |
 | `DISPOSED` | Position closed or quantity went to zero |
 
+### ManualValuationSnapshot (Layer 3)
+
+```sql
+CREATE TABLE manual_valuation_snapshots (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    component_type manual_valuation_component_type_enum NOT NULL,
+    liquidity_class manual_valuation_liquidity_class_enum NOT NULL,
+    as_of_date DATE NOT NULL,
+    value NUMERIC(18,2) NOT NULL,
+    currency VARCHAR(3) NOT NULL,
+    source VARCHAR(120) NOT NULL,
+    notes TEXT,
+    recurrence_days INTEGER,
+    reminder_date DATE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    UNIQUE (user_id, component_type, source, as_of_date)
+);
+```
+
+Manual snapshots cover property value, mortgage or loan balance, CPF or long-term savings, tax payable/refund, insurance cash value, ESOP, RSU, stock options, and generic assets/liabilities. The value is always stored as a positive `Decimal`; the liquidity class determines whether it contributes to assets, liabilities, restricted, or illiquid net worth presentation.
+
 ---
 
 ## 7. Design Constraints
@@ -185,8 +213,9 @@ CREATE TABLE managed_positions (
 | Depreciation calculation | `test_asset_depreciation.py` | Straight-line, declining-balance | ✅ Passing |
 | Router edge cases (nulls, zeros) | `test_assets_router_edge_cases.py` | Nulls, zeros, invalid payloads | ✅ Passing |
 | API endpoints | `test_assets_router.py` | Router integration tests | ✅ Passing |
+| Manual valuation snapshots | `test_manual_valuation_snapshots.py` | CRUD, Decimal aggregation, restricted toggle | ✅ Passing |
 
-**Total**: 52 tests, all passing.
+**Total**: 55+ tests, all passing in targeted verification.
 
 ---
 
