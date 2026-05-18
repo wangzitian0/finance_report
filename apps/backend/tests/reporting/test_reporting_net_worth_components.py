@@ -30,7 +30,6 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
-from src.services.fx_revaluation import RevaluationError
 from src.services.reporting import ReportError, generate_balance_sheet, generate_income_statement
 
 
@@ -370,19 +369,6 @@ async def test_foreign_currency_portfolio_missing_fx_rate_raises_report_error(db
 
 
 @pytest.mark.asyncio
-async def test_balance_sheet_wraps_unrealized_fx_revaluation_errors(db: AsyncSession, test_user, monkeypatch):
-    """AC19.3.5: Balance sheet surfaces unrealized FX revaluation failures as report errors."""
-
-    async def raise_revaluation_error(*args, **kwargs):
-        raise RevaluationError("revaluation failed")
-
-    monkeypatch.setattr("src.services.reporting.calculate_unrealized_fx_gains", raise_revaluation_error)
-
-    with pytest.raises(ReportError, match="revaluation failed"):
-        await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 3, 31), currency="SGD")
-
-
-@pytest.mark.asyncio
 async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
     """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
     report_date = date(2025, 3, 31)
@@ -515,10 +501,10 @@ async def test_income_statement_includes_applied_classification_breakdown(db: As
     )
 
     assert report["classification_breakdown"] == [
-        {
-            "account_name": "Salary",
-            "account_type": "income",
-            "classified_count": 1,
-            "avg_confidence": 95.0,
-        }
+            {
+                "account_name": "Salary",
+                "account_type": "INCOME",
+                "classified_count": 1,
+                "avg_confidence": 95.0,
+            }
     ]

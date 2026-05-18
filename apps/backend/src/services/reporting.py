@@ -810,7 +810,7 @@ async def generate_income_statement(
                 func.avg(TransactionClassification.confidence_score).label("avg_confidence"),
             )
             .join(Account, TransactionClassification.account_id == Account.id)
-            .join(AtomicTransaction, TransactionClassification.atomic_transaction_id == AtomicTransaction.id)
+            .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
             .where(TransactionClassification.status == ClassificationStatus.APPLIED)
             .where(Account.user_id == user_id)
             .where(Account.type.in_(account_types))
