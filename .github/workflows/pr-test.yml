@@ -120,7 +120,6 @@ jobs:
         id: create
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-          BRANCH_NAME: ${{ github.head_ref }}
         run: |
           # Create new compose
           response=$(curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.create" \
@@ -135,10 +134,23 @@ jobs:
           compose_id=$(echo "$response" | jq -r '.composeId')
           echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
           echo "Created compose: $compose_id"
-          
-          # Configure GitHub source using jq for proper JSON escaping
+
+      - name: Get compose ID
+        id: compose
+        run: |
+          if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
+            echo "id=${{ steps.check.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=${{ steps.create.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure GitHub source
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          COMPOSE_ID="${{ steps.compose.outputs.id }}"
           PAYLOAD=$(jq -n \
-            --arg id "$compose_id" \
+            --arg id "$COMPOSE_ID" \
             --arg branch "$BRANCH_NAME" \
             '{
               composeId: $id,
@@ -149,20 +161,11 @@ jobs:
               composePath: "docker-compose.yml",
               githubId: "${{ env.GITHUB_INTEGRATION_ID }}"
             }')
-          
+
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$PAYLOAD"
-
-      - name: Get compose ID
-        id: compose
-        run: |
-          if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
-            echo "id=${{ steps.check.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "id=${{ steps.create.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Configure environment variables
         run: |
@@ -314,7 +317,7 @@ jobs:
                   exit 0
                 elif [ "$latest_status" = "error" ]; then
                   echo "::error::Deployment (started at $latest_started) failed"
-                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // \"unknown\")"' || true
+                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
                   exit 1
                 fi
               else
