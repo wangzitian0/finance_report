@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,16 +17,21 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.models.layer2 import AssetType, AtomicPosition
+from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import (
+    ClassificationRule,
+    ClassificationStatus,
     CostBasisMethod,
     ManagedPosition,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
     PositionStatus,
+    RuleType,
+    TransactionClassification,
 )
-from src.services.reporting import ReportError, generate_balance_sheet
+from src.services.fx_revaluation import RevaluationError
+from src.services.reporting import ReportError, generate_balance_sheet, generate_income_statement
 
 
 async def _create_account(
@@ -364,6 +370,19 @@ async def test_foreign_currency_portfolio_missing_fx_rate_raises_report_error(db
 
 
 @pytest.mark.asyncio
+async def test_balance_sheet_wraps_unrealized_fx_revaluation_errors(db: AsyncSession, test_user, monkeypatch):
+    """AC19.3.5: Balance sheet surfaces unrealized FX revaluation failures as report errors."""
+
+    async def raise_revaluation_error(*args, **kwargs):
+        raise RevaluationError("revaluation failed")
+
+    monkeypatch.setattr("src.services.reporting.calculate_unrealized_fx_gains", raise_revaluation_error)
+
+    with pytest.raises(ReportError, match="revaluation failed"):
+        await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 3, 31), currency="SGD")
+
+
+@pytest.mark.asyncio
 async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
     """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
     report_date = date(2025, 3, 31)
@@ -445,3 +464,61 @@ async def test_manual_valuation_missing_fx_rate_raises_report_error(db: AsyncSes
 
     with pytest.raises(ReportError, match="No FX rate available"):
         await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+
+@pytest.mark.asyncio
+async def test_income_statement_includes_applied_classification_breakdown(db: AsyncSession, test_user):
+    """AC18.4.4: Income statements include applied Layer 3 classification coverage."""
+    report_date = date(2025, 3, 31)
+    income = await _create_account(db, test_user.id, name="Salary", account_type=AccountType.INCOME)
+    atomic = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=report_date,
+        amount=Decimal("1000.00"),
+        direction=TransactionDirection.IN,
+        description="Monthly salary",
+        currency="SGD",
+        dedup_hash=f"classification-{uuid4()}",
+        source_documents=[],
+    )
+    db.add(atomic)
+    await db.flush()
+    rule = ClassificationRule(
+        user_id=test_user.id,
+        version_number=1,
+        effective_date=report_date,
+        rule_name=f"Salary rule {uuid4()}",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["salary"]},
+        default_account_id=income.id,
+        created_by=test_user.id,
+    )
+    db.add(rule)
+    await db.flush()
+    db.add(
+        TransactionClassification(
+            atomic_txn_id=atomic.id,
+            rule_version_id=rule.id,
+            account_id=income.id,
+            confidence_score=95,
+            status=ClassificationStatus.APPLIED,
+        )
+    )
+    await db.commit()
+
+    report = await generate_income_statement(
+        db,
+        test_user.id,
+        start_date=report_date,
+        end_date=report_date,
+        currency="SGD",
+    )
+
+    assert report["classification_breakdown"] == [
+        {
+            "account_name": "Salary",
+            "account_type": "income",
+            "classified_count": 1,
+            "avg_confidence": 95.0,
+        }
+    ]
