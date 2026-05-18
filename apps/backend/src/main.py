@@ -39,6 +39,7 @@ from src.routers import (
     statements,
     user_settings,
     users,
+    valuation,
 )
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
@@ -264,6 +265,7 @@ app.include_router(reconciliation_router)
 app.include_router(users.router)
 app.include_router(user_settings.router)
 app.include_router(portfolio.router)
+app.include_router(valuation.router)
 
 
 # --- Health & Demo Endpoints ---
