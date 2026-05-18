@@ -15,14 +15,16 @@ from src.models import (
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
-    ValuationComponentType,
-    ValuationConfidence,
-    ValuationSide,
-    ValuationSnapshot,
-    ValuationSource,
 )
 from src.models.layer2 import AssetType, AtomicPosition
-from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.models.layer3 import (
+    CostBasisMethod,
+    ManagedPosition,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+    PositionStatus,
+)
 from src.services.reporting import generate_balance_sheet
 
 
@@ -126,26 +128,21 @@ async def _create_valuation(
     db: AsyncSession,
     user_id,
     *,
-    component_type: ValuationComponentType,
+    component_type: ManualValuationComponentType,
     component_name: str,
-    side: ValuationSide,
+    liquidity_class: ManualValuationLiquidityClass,
     value: Decimal,
     currency: str,
     as_of_date: date,
-) -> ValuationSnapshot:
-    snapshot = ValuationSnapshot(
+) -> ManualValuationSnapshot:
+    snapshot = ManualValuationSnapshot(
         user_id=user_id,
         component_type=component_type,
-        component_name=component_name,
-        side=side,
+        liquidity_class=liquidity_class,
         value=value,
         currency=currency,
         as_of_date=as_of_date,
-        source=ValuationSource.MANUAL,
-        confidence=ValuationConfidence.MEDIUM,
-        stale_after_days=90,
-        include_in_total_net_worth=True,
-        include_in_liquid_net_worth=False,
+        source=component_name,
     )
     db.add(snapshot)
     await db.flush()
@@ -250,9 +247,9 @@ async def test_manual_property_and_mortgage_valuations_change_net_worth(db: Asyn
     await _create_valuation(
         db,
         test_user.id,
-        component_type=ValuationComponentType.PROPERTY,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
         component_name="Singapore Condo",
-        side=ValuationSide.ASSET,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
         value=Decimal("1200000.00"),
         currency="SGD",
         as_of_date=report_date,
@@ -260,9 +257,9 @@ async def test_manual_property_and_mortgage_valuations_change_net_worth(db: Asyn
     await _create_valuation(
         db,
         test_user.id,
-        component_type=ValuationComponentType.MORTGAGE,
+        component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
         component_name="Singapore Condo Mortgage",
-        side=ValuationSide.LIABILITY,
+        liquidity_class=ManualValuationLiquidityClass.LIABILITY,
         value=Decimal("600000.00"),
         currency="SGD",
         as_of_date=report_date,
@@ -292,9 +289,9 @@ async def test_manual_valuation_uses_as_of_historical_fx_rate(db: AsyncSession, 
     await _create_valuation(
         db,
         test_user.id,
-        component_type=ValuationComponentType.ESOP_RSU_OPTION,
+        component_type=ManualValuationComponentType.RSU,
         component_name="Employer RSU",
-        side=ValuationSide.ASSET,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
         value=Decimal("1000.00"),
         currency="USD",
         as_of_date=report_date,

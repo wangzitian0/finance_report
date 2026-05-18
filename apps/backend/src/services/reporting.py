@@ -24,13 +24,12 @@ from src.models import (
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
-    ValuationSide,
 )
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.layer3 import ManagedPosition, ManualValuationLiquidityClass, PositionStatus
 from src.services import fx
+from src.services.assets import AssetService
 from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount, get_average_rate
 from src.services.portfolio import AssetNotFoundError, PortfolioService
-from src.services.valuation import ValuationService
 
 logger = get_logger(__name__)
 
@@ -478,16 +477,18 @@ async def _build_manual_valuation_lines(
     target_currency: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components."""
-    snapshots = await ValuationService().latest_components(db, user_id=user_id, as_of_date=as_of_date)
+    components = await AssetService().get_latest_valuation_components(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        include_restricted=True,
+    )
     asset_lines: list[dict[str, Any]] = []
     liability_lines: list[dict[str, Any]] = []
 
-    for snapshot in snapshots:
-        if not snapshot.include_in_total_net_worth:
-            continue
-
-        amount = snapshot.value
-        source_currency = snapshot.currency.upper()
+    for component in components.items:
+        amount = component.value
+        source_currency = component.currency.upper()
         if source_currency != target_currency:
             try:
                 amount = await convert_amount(
@@ -500,17 +501,18 @@ async def _build_manual_valuation_lines(
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
 
+        is_liability = component.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
         line = {
-            "account_id": snapshot.id,
-            "name": _valuation_line_name(snapshot.component_name, snapshot.component_type.value),
-            "type": AccountType.ASSET if snapshot.side == ValuationSide.ASSET else AccountType.LIABILITY,
+            "account_id": component.id,
+            "name": _valuation_line_name(component.source, component.component_type),
+            "type": AccountType.LIABILITY if is_liability else AccountType.ASSET,
             "parent_id": None,
             "amount": _quantize_money(amount),
         }
-        if snapshot.side == ValuationSide.ASSET:
-            asset_lines.append(line)
-        else:
+        if is_liability:
             liability_lines.append(line)
+        else:
+            asset_lines.append(line)
 
     asset_lines.sort(key=lambda line: line["name"].lower())
     liability_lines.sort(key=lambda line: line["name"].lower())
