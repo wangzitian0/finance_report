@@ -342,6 +342,28 @@ async def test_portfolio_market_adjustment_converts_position_currency(db: AsyncS
 
 
 @pytest.mark.asyncio
+async def test_foreign_currency_portfolio_missing_fx_rate_raises_report_error(db: AsyncSession, test_user):
+    """AC17.5.4: Missing FX for foreign-currency positions fails explicitly."""
+    report_date = date(2025, 3, 31)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo USD", account_type=AccountType.ASSET)
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="META",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1000.00"),
+        market_value=Decimal("1500.00"),
+        as_of_date=report_date,
+        currency="USD",
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+
+@pytest.mark.asyncio
 async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
     """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
     report_date = date(2025, 3, 31)
