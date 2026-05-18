@@ -197,6 +197,22 @@ def test_parse_moomoo_raw_subscription_text_position():
     assert snapshots[0].currency == "SGD"
 
 
+def test_parse_moomoo_skips_non_position_subscription_events():
+    """AC17.4.1: Moomoo fallback parsing ignores non-position and invalid subscription events."""
+    payload = {
+        "statement": {"period_end": "2026-05-18", "currency": "SGD"},
+        "events": [
+            "not a dict",
+            {"description": "Money Market Fund rebate", "amount": "UNKNOWN"},
+            {"description": "Money Market Fund redemption", "amount": "-10.00"},
+            {"raw_text": ("Subscription 0001 Bad Quantity Fund SGD 2026/05/18 settled 1.0000 UNKNOWN 1250.50")},
+            {"description": "Cash transfer", "amount": "100.00"},
+        ],
+    }
+
+    assert parse_brokerage_positions(payload, filename="moomoo.pdf") == []
+
+
 def test_parse_futu_cash_only_and_unknown_broker_payloads_return_no_positions():
     """AC17.4.2/AC17.4.5: Non-position events and unsupported brokers do not create snapshots."""
     futu_cash_only = {
@@ -209,6 +225,26 @@ def test_parse_futu_cash_only_and_unknown_broker_payloads_return_no_positions():
 
     assert parse_brokerage_positions(futu_cash_only, filename="futu.pdf") == []
     assert parse_brokerage_positions(unknown_payload, filename="unknown.pdf") == []
+
+
+def test_parse_futu_aggregate_ignores_invalid_events_and_uses_best_value():
+    """AC17.4.2: Futu aggregate fallback ignores invalid rows and keeps best securities value."""
+    payload = {
+        "statement": {"period_end": "2026-05-18", "currency": "HKD"},
+        "events": [
+            "not a dict",
+            {"description": "Cash balance", "amount": "9999.00"},
+            {"description": "Stock valuation", "amount": "UNKNOWN"},
+            {"description": "Stock valuation", "amount": "100.00"},
+            {"description": "Stock and options value", "amount": "250.00"},
+        ],
+    }
+
+    snapshots = parse_brokerage_positions(payload, filename="futu.pdf")
+
+    assert len(snapshots) == 1
+    assert snapshots[0].asset_identifier == "FUTU_STOCK_AND_OPTIONS"
+    assert snapshots[0].market_value == Decimal("250.00")
 
 
 @pytest.mark.asyncio
