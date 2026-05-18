@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-15 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-18 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -18,7 +18,7 @@
 | **Deprecated ACs** | 3 | 0.3% |
 | **Mandatory ACs with test reference** | 765 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 176 | - |
+| **Test files referenced** | 177 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -304,12 +304,12 @@
 | AC5.6.9 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.10 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.11 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
-| AC5.7.1 | yes | Net worth time-series API endpoint GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=month | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.2 | yes | Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.3 | yes | Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.4 | yes | Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles from parameter for chart | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.5 | yes | Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.6 | yes | Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
+| AC5.7.1 | yes | Net worth time-series API endpoint GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=month | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py` | ✅ |
+| AC5.7.2 | yes | Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
+| AC5.7.3 | yes | Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py` | ✅ |
+| AC5.7.4 | yes | Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles from parameter for chart | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
+| AC5.7.5 | yes | Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
+| AC5.7.6 | yes | Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
 
 ---
 
