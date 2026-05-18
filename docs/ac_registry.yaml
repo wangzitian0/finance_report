@@ -3083,9 +3083,9 @@ acs:
     mandatory: false
   - id: AC17.4.6
     epic: 17
-    title: stub
-    status: stub
-    mandatory: false
+    epic_name: portfolio-management
+    description: 'Brokerage import endpoint creates AtomicPosition rows and reconciles ManagedPosition idempotently'
+    mandatory: true
   - id: AC17.5.5
     epic: 17
     title: stub

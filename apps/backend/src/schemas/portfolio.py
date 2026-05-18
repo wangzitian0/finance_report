@@ -98,6 +98,27 @@ class PortfolioSummaryResponse(BaseModel):
     currency: Annotated[str, Field(min_length=3, max_length=3)]
 
 
+class BrokerageImportRequest(BaseModel):
+    """Request to import parsed brokerage positions."""
+
+    payload: dict
+    filename: str | None = None
+    source_document_id: str | None = None
+
+
+class BrokerageImportResponse(BaseModel):
+    """Response for brokerage position import."""
+
+    broker: str
+    parsed_positions: int = Field(ge=0)
+    created_atomic_positions: int = Field(ge=0)
+    existing_atomic_positions: int = Field(ge=0)
+    reconcile_created: int = Field(ge=0)
+    reconcile_updated: int = Field(ge=0)
+    reconcile_disposed: int = Field(ge=0)
+    skipped: int = Field(ge=0)
+
+
 HoldingListResponse = ListResponse[HoldingResponse]
 RealizedPnLListResponse = ListResponse[RealizedPnLResponse]
 UnrealizedPnLListResponse = ListResponse[UnrealizedPnLResponse]

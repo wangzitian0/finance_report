@@ -423,15 +423,22 @@ class AssetService:
 
             if position:
                 quantity_changed = position.quantity != quantity
-                if quantity_changed:
+                valuation_changed = position.cost_basis != snap.market_value or position.currency != snap.currency
+                if quantity_changed or valuation_changed:
                     logger.info(
-                        "Updating position quantity",
+                        "Updating managed position from latest atomic snapshot",
                         asset=snap.asset_identifier,
                         old_qty=str(position.quantity),
                         new_qty=str(quantity),
                     )
                     position.quantity = quantity
                     position.cost_basis = snap.market_value
+                    position.currency = snap.currency
+                    position.position_metadata = {
+                        **(position.position_metadata or {}),
+                        "broker": snap.broker,
+                        "latest_snapshot_date": snap.snapshot_date.isoformat(),
+                    }
 
                 if quantity == Decimal("0"):
                     position.status = PositionStatus.DISPOSED
@@ -440,7 +447,7 @@ class AssetService:
                 else:
                     position.status = PositionStatus.ACTIVE
                     position.disposal_date = None
-                    if quantity_changed:
+                    if quantity_changed or valuation_changed:
                         result.updated += 1
 
             else:
@@ -456,7 +463,7 @@ class AssetService:
                         acquisition_date=snap.snapshot_date,
                         status=PositionStatus.ACTIVE,
                         currency=snap.currency,
-                        position_metadata={"broker": snap.broker},
+                        position_metadata={"broker": snap.broker, "latest_snapshot_date": snap.snapshot_date.isoformat()},
                     )
                     db.add(position)
                     result.created += 1

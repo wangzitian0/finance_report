@@ -140,6 +140,23 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | GXS | PDF | Extended | Digital bank |
 | Futu (Futu Holdings) | PDF | Extended | HK brokerage |
 
+## Brokerage Position Import
+
+Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/services/brokerage_positions.py`.
+
+Parsing priority:
+1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output.
+2. For Moomoo, recover money-market fund snapshots from subscription rows when no holdings table is available.
+3. For Futu, preserve aggregate securities valuation as `FUTU_STOCK_AND_OPTIONS` when the statement only exposes a portfolio total.
+4. For Interactive Brokers, consume structured position rows from CSV/PDF extraction payloads.
+
+Import endpoint: `POST /portfolio/brokerage/import`
+
+Import behavior:
+- Creates immutable `AtomicPosition` rows with dedup hash `SHA256(user_id|snapshot_date|asset_identifier|broker)`.
+- Re-running the same payload is idempotent and does not create duplicate atomic rows.
+- Reconciliation runs after import to refresh `ManagedPosition` with latest quantity, market value, currency, and snapshot metadata.
+
 ## Configuration
 
 Required environment variables:

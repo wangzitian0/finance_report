@@ -265,11 +265,12 @@ Build a **100% self-developed** investment portfolio management system with comp
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.4.1 | Moomoo Statement Parsing | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC17.4.2 | Futu Statement Parsing | `TBD` | `TBD (test to be implemented)` | P1 |
-| AC17.4.3 | Interactive Brokers Parsing | `TBD` | `TBD (test to be implemented)` | P1 |
-| AC17.4.4 | Broker Auto-Detection (Moomoo) | `TBD` | `TBD (test to be implemented)` | P1 |
-| AC17.4.5 | Broker Auto-Detection (Futu) | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC17.4.1 | Moomoo Statement Parsing | `test_parse_moomoo_fixture_subscription_positions` | `portfolio/test_brokerage_position_parsing.py` | P0 |
+| AC17.4.2 | Futu Statement Parsing | `test_parse_futu_fixture_aggregate_position` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.4.3 | Interactive Brokers Parsing | `test_import_interactive_brokers_positions_idempotently_reconciles` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
 

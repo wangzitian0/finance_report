@@ -8,8 +8,14 @@ from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.schemas.portfolio import HoldingResponse, PriceUpdateRequest as SchemaPriceUpdateRequest
+from src.schemas.portfolio import (
+    BrokerageImportRequest,
+    BrokerageImportResponse,
+    HoldingResponse,
+    PriceUpdateRequest as SchemaPriceUpdateRequest,
+)
 from src.services import allocation, performance
+from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
 
@@ -17,6 +23,7 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)
 
 _portfolio_service = PortfolioService()
+_brokerage_import_service = BrokeragePositionImportService()
 
 
 class AllocationBreakdownResponse(BaseModel):
@@ -41,6 +48,24 @@ class PriceUpdateRequest(BaseModel):
 
 class PriceUpdateBatchRequest(BaseModel):
     updates: list[PriceUpdateRequest]
+
+
+@router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
+async def import_brokerage_positions(
+    request: BrokerageImportRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> BrokerageImportResponse:
+    """Import parsed brokerage holdings into AtomicPosition and reconcile ManagedPosition."""
+    result = await _brokerage_import_service.import_positions(
+        db,
+        user_id=user_id,
+        payload=request.payload,
+        filename=request.filename,
+        source_document_id=request.source_document_id,
+    )
+    await db.commit()
+    return BrokerageImportResponse(**result.__dict__)
 
 
 @router.get("/holdings", response_model=list[HoldingResponse])
