@@ -130,6 +130,38 @@ async def test_manual_valuation_snapshot_errors(client):
 
 
 @pytest.mark.asyncio
+async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
+    """AC11.9.1: Valuation mutation endpoints return server errors when persistence fails."""
+    from src.routers import assets as assets_router
+
+    async def raise_on_create(*args, **kwargs):
+        raise RuntimeError("create failed")
+
+    async def raise_on_update(*args, **kwargs):
+        raise RuntimeError("update failed")
+
+    monkeypatch.setattr(assets_router._service, "create_valuation_snapshot", raise_on_create)
+    create_response = await client.post(
+        "/assets/valuation-snapshots",
+        json={
+            "component_type": "property_value",
+            "as_of_date": "2026-05-18",
+            "value": "1.00",
+            "currency": "SGD",
+            "source": "manual",
+        },
+    )
+    assert create_response.status_code == 500
+
+    monkeypatch.setattr(assets_router._service, "update_valuation_snapshot", raise_on_update)
+    update_response = await client.patch(
+        f"/assets/valuation-snapshots/{uuid4()}",
+        json={"value": "2.00"},
+    )
+    assert update_response.status_code == 500
+
+
+@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_service_updates_optional_fields_and_missing_rows(db, test_user):
     """AC11.9.1: Service updates every optional field and handles missing snapshots."""
     service = AssetService()
