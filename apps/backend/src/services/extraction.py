@@ -15,8 +15,9 @@ import httpx
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
+from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel
 from src.prompts import get_parsing_prompt
+from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.deduplication import DeduplicationService, dual_write_layer2
 from src.services.openrouter_streaming import (
     OpenRouterStreamError,
@@ -70,6 +71,12 @@ class ExtractionService:
                 error_type=type(exc).__name__,
             )
             raise ValueError(f"Invalid date format: {value}") from exc
+
+    def _safe_optional_date(self, value: str | None) -> date | None:
+        """Safely parse an optional date from extraction output."""
+        if not value:
+            return None
+        return self._safe_date(value)
 
     def _safe_decimal(self, value: str | None, default: str | None = None, *, required: bool = False) -> Decimal | None:
         """Safely convert string to Decimal."""
@@ -333,6 +340,11 @@ class ExtractionService:
 
             detected_institution = extracted.get("institution")
             final_institution = institution or detected_institution or "Unknown"
+            is_brokerage_payload = looks_like_brokerage_payload(
+                extracted,
+                filename=original_filename or (file_path.name if file_path else None),
+                institution=final_institution,
+            )
 
             statement = BankStatement(
                 user_id=user_id,
@@ -343,16 +355,37 @@ class ExtractionService:
                 institution=final_institution,
                 account_last4=self._sanitize_account_last4(extracted.get("account_last4")),
                 currency=extracted.get("currency", "SGD"),
-                period_start=self._safe_date(extracted.get("period_start")),
-                period_end=self._safe_date(extracted.get("period_end")),
-                opening_balance=self._safe_decimal(extracted.get("opening_balance"), required=True),
-                closing_balance=self._safe_decimal(extracted.get("closing_balance"), required=True),
+                period_start=(
+                    self._safe_optional_date(extracted.get("period_start"))
+                    if is_brokerage_payload
+                    else self._safe_date(extracted.get("period_start"))
+                ),
+                period_end=(
+                    self._safe_optional_date(extracted.get("period_end"))
+                    if is_brokerage_payload
+                    else self._safe_date(extracted.get("period_end"))
+                ),
+                opening_balance=self._safe_decimal(
+                    extracted.get("opening_balance"),
+                    required=not is_brokerage_payload,
+                ),
+                closing_balance=self._safe_decimal(
+                    extracted.get("closing_balance"),
+                    required=not is_brokerage_payload,
+                ),
             )
+            statement._extracted_payload = extracted
 
             transactions = []
             net_transactions = Decimal("0.00")
             for txn in extracted.get("transactions", []):
                 if not txn.get("date") or txn.get("amount") is None:
+                    if is_brokerage_payload:
+                        logger.info(
+                            "Skipping non-bank transaction row in brokerage payload",
+                            filename=original_filename or (file_path.name if file_path else "unknown"),
+                        )
+                        continue
                     raise ExtractionError("Transaction missing required fields: date or amount")
 
                 # Handle case where the model returns date as non-string
@@ -374,11 +407,23 @@ class ExtractionService:
                 try:
                     parsed_date = date.fromisoformat(txn_date_val)
                 except ValueError as exc:
+                    if is_brokerage_payload:
+                        logger.info(
+                            "Skipping brokerage transaction row with non-bank date",
+                            filename=original_filename or (file_path.name if file_path else "unknown"),
+                        )
+                        continue
                     raise ExtractionError(f"Invalid transaction date format: {txn_date_val}") from exc
 
                 try:
                     amount = Decimal(str(txn["amount"]))
                 except (ValueError, TypeError, InvalidOperation) as exc:
+                    if is_brokerage_payload:
+                        logger.info(
+                            "Skipping brokerage transaction row with non-bank amount",
+                            filename=original_filename or (file_path.name if file_path else "unknown"),
+                        )
+                        continue
                     raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
                 direction = txn.get("direction", "IN")
                 if direction == "IN":
@@ -417,7 +462,11 @@ class ExtractionService:
 
             # For confidence score, we use the original extracted dict to maintain logic
             confidence = compute_confidence_score(extracted, balance_result)
-            status = route_by_threshold(confidence, is_valid)
+            status = (
+                BankStatementStatus.PARSED
+                if is_brokerage_payload and is_valid
+                else route_by_threshold(confidence, is_valid)
+            )
 
             statement.balance_validated = is_valid
             statement.confidence_score = confidence

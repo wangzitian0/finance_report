@@ -143,6 +143,28 @@ def detect_broker(*, filename: str | None, institution: str | None, text: str | 
     return "Unknown Broker"
 
 
+def looks_like_brokerage_payload(
+    payload: dict[str, Any] | None,
+    *,
+    filename: str | None = None,
+    institution: str | None = None,
+) -> bool:
+    """Return whether parsed extraction output should enter the brokerage import path."""
+    if not isinstance(payload, dict):
+        return False
+
+    if any(key in payload for key in ("positions", "holdings", "securities")):
+        return True
+
+    statement = payload.get("statement") if isinstance(payload.get("statement"), dict) else {}
+    broker = detect_broker(
+        filename=filename or str(payload.get("file") or ""),
+        institution=institution or payload.get("institution") or statement.get("institution"),
+        text=str(payload),
+    )
+    return broker != "Unknown Broker"
+
+
 def _iter_structured_positions(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for key in ("positions", "holdings", "securities"):
         value = payload.get(key)
