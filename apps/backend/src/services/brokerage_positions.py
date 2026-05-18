@@ -157,7 +157,9 @@ def _iter_structured_positions(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def _parse_structured_positions(payload: dict[str, Any], broker: str, snapshot_date: date) -> list[BrokeragePositionSnapshot]:
+def _parse_structured_positions(
+    payload: dict[str, Any], broker: str, snapshot_date: date
+) -> list[BrokeragePositionSnapshot]:
     snapshots: list[BrokeragePositionSnapshot] = []
     default_currency = _payload_currency(payload)
     for item in _iter_structured_positions(payload):
@@ -310,7 +312,9 @@ class BrokeragePositionImportService:
         snapshots = parse_brokerage_positions(payload, filename=filename)
         created = 0
         existing = 0
-        broker = snapshots[0].broker if snapshots else detect_broker(filename=filename, institution=None, text=str(payload))
+        broker = (
+            snapshots[0].broker if snapshots else detect_broker(filename=filename, institution=None, text=str(payload))
+        )
 
         for snapshot in snapshots:
             dedup_hash = _dedup_hash(user_id, snapshot)

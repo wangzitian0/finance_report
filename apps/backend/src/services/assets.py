@@ -463,7 +463,10 @@ class AssetService:
                         acquisition_date=snap.snapshot_date,
                         status=PositionStatus.ACTIVE,
                         currency=snap.currency,
-                        position_metadata={"broker": snap.broker, "latest_snapshot_date": snap.snapshot_date.isoformat()},
+                        position_metadata={
+                            "broker": snap.broker,
+                            "latest_snapshot_date": snap.snapshot_date.isoformat(),
+                        },
                     )
                     db.add(position)
                     result.created += 1
