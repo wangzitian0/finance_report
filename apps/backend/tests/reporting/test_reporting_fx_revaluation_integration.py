@@ -21,6 +21,7 @@ from src.models import (
     ValuationSnapshot,
     ValuationSource,
 )
+from src.services.fx import get_average_rate
 from src.services.reporting import generate_balance_sheet, generate_income_statement
 
 
@@ -130,6 +131,8 @@ async def test_income_statement_includes_average_rate_fallback_warning(db: Async
         )
     )
     await db.commit()
+
+    assert await get_average_rate(db, "USD", "SGD", start_date, end_date) == Decimal("1.50")
 
     report = await generate_income_statement(
         db,

@@ -28,6 +28,7 @@ class FxRateError(Exception):
 class _CacheEntry:
     value: Decimal
     expires_at: datetime
+    warning: FxWarning | None = None
 
 
 class _FxRateCache:
@@ -45,7 +46,16 @@ class _FxRateCache:
             return None
         return entry.value
 
-    def set(self, key: str, value: Decimal) -> None:
+    def get_warning(self, key: str) -> FxWarning | None:
+        entry = self._store.get(key)
+        if not entry:
+            return None
+        if entry.expires_at < datetime.now(UTC):
+            self._store.pop(key, None)
+            return None
+        return entry.warning
+
+    def set(self, key: str, value: Decimal, warning: FxWarning | None = None) -> None:
         if len(self._store) >= self._max_size:
             now = datetime.now(UTC)
             self._store = {k: v for k, v in self._store.items() if v.expires_at > now}
@@ -56,7 +66,7 @@ class _FxRateCache:
                 for k in keys[:num_to_remove]:
                     self._store.pop(k, None)
 
-        self._store[key] = _CacheEntry(value=value, expires_at=datetime.now(UTC) + self._ttl)
+        self._store[key] = _CacheEntry(value=value, expires_at=datetime.now(UTC) + self._ttl, warning=warning)
 
 
 _cache = _FxRateCache()
@@ -91,7 +101,7 @@ async def get_exchange_rate(
 
     cache_key = f"fx:{base}:{quote}:{rate_date.isoformat()}"
     cached = _cache.get(cache_key)
-    if cached:
+    if cached is not None:
         return cached
 
     stmt = (
@@ -136,7 +146,10 @@ async def get_average_rate(
 
     cache_key = f"fx:{base}:{quote}:{start_date.isoformat()}:{end_date.isoformat()}"
     cached = _cache.get(cache_key)
-    if cached:
+    if cached is not None:
+        cached_warning = _cache.get_warning(cache_key)
+        if cached_warning is not None:
+            _append_fx_warning(fx_warnings, cached_warning)
         return cached
 
     stmt = (
@@ -157,21 +170,22 @@ async def get_average_rate(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
-        _append_fx_warning(
-            fx_warnings,
-            {
-                "type": "average_rate_fallback",
-                "base_currency": base,
-                "quote_currency": quote,
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-            },
-        )
+        fallback_warning = {
+            "type": "average_rate_fallback",
+            "base_currency": base,
+            "quote_currency": quote,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        }
+        _append_fx_warning(fx_warnings, fallback_warning)
         avg_rate = await get_exchange_rate(db, base, quote, end_date)
     elif not isinstance(avg_rate, Decimal):
         avg_rate = Decimal(str(avg_rate))
+        fallback_warning = None
+    else:
+        fallback_warning = None
 
-    _cache.set(cache_key, avg_rate)
+    _cache.set(cache_key, avg_rate, warning=fallback_warning)
     return avg_rate
 
 
