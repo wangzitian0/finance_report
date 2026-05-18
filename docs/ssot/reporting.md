@@ -10,6 +10,8 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Report Logic** | `apps/backend/src/services/reporting.py` | Report generation |
+| **FX Revaluation** | `apps/backend/src/services/fx_revaluation.py` | Historical-cost unrealized FX calculation |
+| **FX Rates** | `apps/backend/src/services/fx.py` | Spot and average-rate lookup, fallback warnings |
 | **Report Templates** | `apps/frontend/src/app/reports/` | Report pages and layouts |
 | **Visual Components** | `apps/frontend/src/components/charts/` | Chart components |
 
@@ -51,7 +53,16 @@ Shows assets, liabilities, and equity at a specific point in time.
 └─────────────────────────────────────────────┘
 ```
 
-**Validation**: `Total Assets = Total Liabilities + Total Equity`
+**Validation**:
+
+```
+Total Assets =
+  Total Liabilities
+  + Total Equity
+  + Net Income
+  + Unrealized FX Gain/Loss
+  + Net Worth Adjustment Gain/Loss
+```
 
 ### 2.2 Income Statement (Profit & Loss)
 
@@ -134,8 +145,9 @@ Reports are generated in a single base currency (user configurable, default: SGD
 ### FX Rate Application
 - Use **period-end rate** for balance sheet items
 - Use **average rate** for income statement items
-- Record unrealized FX gains/losses separately
+- Record calculated unrealized FX gains/losses separately
 - Use the requested balance sheet `as_of_date` for manual valuation snapshots and portfolio market valuation adjustments
+- Return `fx_warnings` when an average-rate calculation falls back to a spot rate
 
 ```python
 def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) -> Decimal:
@@ -159,6 +171,17 @@ Portfolio adjustments prevent double counting without removing broker cash. If p
 
 Manual valuation snapshots use `include_in_total_net_worth` to decide balance sheet inclusion. Snapshot currency is converted to the report currency using the historical FX rate on the report `as_of_date`.
 
+`unrealized_fx_gain_loss` is not a balancing plug. It is calculated from foreign-currency asset/liability accounts by comparing:
+
+```
+native account balance * report-date spot rate
+  - historical base-currency cost from posted/reconciled non-revaluation journal lines
+```
+
+Posted `FX_REVALUATION` journal entries are excluded from both native balance and historical cost calculations so a prior revaluation does not change the next period's nominal foreign-currency balance.
+
+`net_worth_adjustment_gain_loss` is the explicit balancing component for non-ledger value included by portfolio market adjustments and manual valuation snapshots. It is computed from those added report lines, not from the remaining balance sheet delta.
+
 ---
 
 ## 4. Design Constraints
@@ -170,11 +193,13 @@ Manual valuation snapshots use `include_in_total_net_worth` to decide balance sh
 - **Pattern D (Performance)**: Pre-fetch all necessary FX rates in bulk before starting report calculation to avoid N+1 queries.
 - **Pattern E (Reliability)**: Cap trend data points at 366 (one year of daily data) to prevent memory issues with unbounded queries.
 - **Pattern F**: Include market valuation deltas, not full portfolio values, when the account already has ledger cost basis.
+- **Pattern G**: Calculate unrealized FX from historical cost; never use the accounting equation remainder as FX.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** hardcode account codes in report logic
 - **Anti-pattern B**: **NEVER** generate reports without FX rate data
 - **Anti-pattern C**: **NEVER** double count a broker account by adding both its ledger cost and full market value.
+- **Anti-pattern D**: **NEVER** let posted `FX_REVALUATION` entries change native foreign-currency balances.
 
 ---
 
@@ -185,6 +210,8 @@ Manual valuation snapshots use `include_in_total_net_worth` to decide balance sh
 | Balance sheet balances | `test_balance_sheet_equation` | ✅ Implemented |
 | Income statement period | `test_income_statement_calculation` | ✅ Implemented |
 | Multi-currency consolidation | `test_fx_consolidation` | ⏳ Pending |
+| Calculated unrealized FX | `test_reporting_fx_revaluation_integration.py` | ✅ Implemented |
+| Average-rate fallback warnings | `test_reporting_fx_revaluation_integration.py` | ✅ Implemented |
 | Portfolio market value adjustments | `test_reporting_net_worth_components.py` | ✅ Implemented |
 | Manual valuation snapshots | `test_reporting_net_worth_components.py` | ✅ Implemented |
 | Account trend | `test_account_trend_monthly` | ✅ Implemented |

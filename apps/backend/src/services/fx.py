@@ -15,6 +15,8 @@ from src.models import FxRate
 
 logger = get_logger(__name__)
 
+FxWarning = dict[str, str]
+
 
 class FxRateError(Exception):
     """Raised when FX rates are unavailable for conversion."""
@@ -69,6 +71,11 @@ def _normalize_currency(code: str) -> str:
     return code.strip().upper()
 
 
+def _append_fx_warning(fx_warnings: list[FxWarning] | None, warning: FxWarning) -> None:
+    if fx_warnings is not None and warning not in fx_warnings:
+        fx_warnings.append(warning)
+
+
 async def get_exchange_rate(
     db: AsyncSession,
     base_currency: str,
@@ -114,6 +121,8 @@ async def get_average_rate(
     quote_currency: str,
     start_date: date,
     end_date: date,
+    *,
+    fx_warnings: list[FxWarning] | None = None,
 ) -> Decimal:
     """Get average FX rate over a period, falling back to period-end rate."""
     base = _normalize_currency(base_currency)
@@ -148,6 +157,16 @@ async def get_average_rate(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
+        _append_fx_warning(
+            fx_warnings,
+            {
+                "type": "average_rate_fallback",
+                "base_currency": base,
+                "quote_currency": quote,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            },
+        )
         avg_rate = await get_exchange_rate(db, base, quote, end_date)
     elif not isinstance(avg_rate, Decimal):
         avg_rate = Decimal(str(avg_rate))
@@ -165,6 +184,7 @@ async def convert_amount(
     *,
     average_start: date | None = None,
     average_end: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
 ) -> Decimal:
     """Convert an amount into the target currency using FX rates."""
     source = _normalize_currency(currency)
@@ -174,7 +194,7 @@ async def convert_amount(
         return amount
 
     if average_start and average_end:
-        rate = await get_average_rate(db, source, target, average_start, average_end)
+        rate = await get_average_rate(db, source, target, average_start, average_end, fx_warnings=fx_warnings)
     else:
         rate = await get_exchange_rate(db, source, target, rate_date)
 
@@ -200,8 +220,9 @@ async def convert_to_base(
 class PrefetchedFxRates:
     """Helper to pre-fetch and store FX rates for batch processing."""
 
-    def __init__(self) -> None:
+    def __init__(self, fx_warnings: list[FxWarning] | None = None) -> None:
         self._rates: dict[str, Decimal] = {}
+        self._fx_warnings = fx_warnings
 
     def get_rate(
         self,
@@ -250,7 +271,7 @@ class PrefetchedFxRates:
         async def _fetch_one(p: tuple[str, str, date, date | None, date | None]) -> None:
             base, quote, r_date, a_start, a_end = p
             if a_start and a_end:
-                rate = await get_average_rate(db, base, quote, a_start, a_end)
+                rate = await get_average_rate(db, base, quote, a_start, a_end, fx_warnings=self._fx_warnings)
             else:
                 rate = await get_exchange_rate(db, base, quote, r_date)
             self.set_rate(base, quote, r_date, rate, a_start, a_end)

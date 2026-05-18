@@ -184,7 +184,8 @@ async def test_portfolio_market_value_updates_balance_sheet_without_double_count
 
     assert report["total_assets"] == Decimal("1500.00")
     assert report["total_equity"] == Decimal("1000.00")
-    assert report["unrealized_fx_gain_loss"] == Decimal("500.00")
+    assert report["unrealized_fx_gain_loss"] == Decimal("0.00")
+    assert report["net_worth_adjustment_gain_loss"] == Decimal("500.00")
     assert any(line["amount"] == Decimal("500.00") for line in report["assets"])
 
 
