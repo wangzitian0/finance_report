@@ -150,6 +150,68 @@ async def test_net_worth_timeseries_daily_cap(db):
 
 
 @pytest.mark.asyncio
+async def test_net_worth_timeseries_rejects_reversed_dates(db):
+    """AC5.7.1: Invalid date windows are rejected before scanning balances."""
+    with pytest.raises(ReportError, match="from date must be before to date"):
+        await get_net_worth_timeseries(
+            db,
+            uuid4(),
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 1, 1),
+            granularity="monthly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_net_worth_timeseries_rejects_unknown_granularity(db):
+    """AC5.7.1: Only daily and monthly net worth buckets are supported."""
+    with pytest.raises(ReportError, match="Unsupported net worth granularity"):
+        await get_net_worth_timeseries(
+            db,
+            uuid4(),
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 31),
+            granularity="weekly",
+            currency="SGD",
+        )
+
+
+@pytest.mark.asyncio
+async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_currency(db, monkeypatch):
+    """AC5.7.1: Monthly net worth points use month-end dates and normalized currency."""
+    user_id = uuid4()
+    captured_dates: list[date] = []
+    captured_currencies: list[str] = []
+
+    async def fake_balance_sheet(db, requested_user_id, *, as_of_date, currency):
+        assert requested_user_id == user_id
+        captured_dates.append(as_of_date)
+        captured_currencies.append(currency)
+        return {
+            "total_assets": Decimal("1000.00"),
+            "total_liabilities": Decimal("250.00"),
+        }
+
+    monkeypatch.setattr("src.services.reporting.generate_balance_sheet", fake_balance_sheet)
+
+    report = await get_net_worth_timeseries(
+        db,
+        user_id,
+        start_date=date(2026, 1, 15),
+        end_date=date(2026, 2, 2),
+        granularity="monthly",
+        currency="usd",
+    )
+
+    assert captured_dates == [date(2026, 1, 31), date(2026, 2, 2)]
+    assert captured_currencies == ["USD", "USD"]
+    assert report["currency"] == "USD"
+    assert [point["date"] for point in report["points"]] == captured_dates
+    assert [point["net_worth"] for point in report["points"]] == [Decimal("750.00"), Decimal("750.00")]
+
+
+@pytest.mark.asyncio
 async def test_net_worth_timeseries_router(client):
     """AC5.7.1: Router exposes the net worth time-series contract."""
     response = await client.get(
