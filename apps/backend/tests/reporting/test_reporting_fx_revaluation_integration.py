@@ -15,12 +15,8 @@ from src.models import (
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
-    ValuationComponentType,
-    ValuationConfidence,
-    ValuationSide,
-    ValuationSnapshot,
-    ValuationSource,
 )
+from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.services.fx import get_average_rate
 from src.services.reporting import generate_balance_sheet, generate_income_statement
 
@@ -72,19 +68,14 @@ async def test_balance_sheet_fx_revaluation_is_calculated_not_plugged(db: AsyncS
         ]
     )
     db.add(
-        ValuationSnapshot(
+        ManualValuationSnapshot(
             user_id=test_user.id,
-            component_type=ValuationComponentType.OTHER_ASSET,
-            component_name="Manual asset",
-            side=ValuationSide.ASSET,
+            component_type=ManualValuationComponentType.OTHER_ASSET,
+            liquidity_class=ManualValuationLiquidityClass.LIQUID,
             value=Decimal("200.00"),
             currency="SGD",
             as_of_date=report_date,
-            source=ValuationSource.MANUAL,
-            confidence=ValuationConfidence.MEDIUM,
-            stale_after_days=30,
-            include_in_total_net_worth=True,
-            include_in_liquid_net_worth=False,
+            source="Manual asset",
         )
     )
     await db.commit()
