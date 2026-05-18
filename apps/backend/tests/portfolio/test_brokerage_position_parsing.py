@@ -9,7 +9,16 @@ from sqlalchemy import select
 
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import ManagedPosition
-from src.services.brokerage_positions import BrokeragePositionImportService, detect_broker, parse_brokerage_positions
+from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
+from src.services.brokerage_positions import (
+    BrokeragePositionImportService,
+    _asset_type,
+    _clean_decimal,
+    _parse_date,
+    _payload_currency,
+    detect_broker,
+    parse_brokerage_positions,
+)
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -27,6 +36,50 @@ def test_detect_broker_moomoo_futu_and_interactive_brokers():
         detect_broker(filename="activity.csv", institution=None, text="Interactive Brokers LLC")
         == "Interactive Brokers"
     )
+
+
+def test_brokerage_parser_helpers_handle_common_empty_and_alias_values():
+    """AC17.4.5: Parser helpers normalize common brokerage statement values."""
+    assert _clean_decimal(None) is None
+    assert _clean_decimal("N/A") is None
+    assert _clean_decimal("1,234.56") == Decimal("1234.56")
+    assert _clean_decimal(Decimal("7.89")) == Decimal("7.89")
+    assert _clean_decimal("not-a-number") is None
+
+    assert _parse_date(None) is None
+    assert _parse_date("UNKNOWN") is None
+    assert _parse_date("2026-05").isoformat() == "2026-05-31"
+    assert _parse_date("2026/05/18").isoformat() == "2026-05-18"
+    assert _parse_date("bad-date") is None
+
+    assert _payload_currency({}, default="sgd") == "SGD"
+    assert _asset_type("fund") == AssetType.MUTUAL_FUND
+    assert _asset_type("money_market") == AssetType.MUTUAL_FUND
+    assert _asset_type("equity") == AssetType.STOCK
+    assert _asset_type("unsupported") is None
+
+
+def test_brokerage_import_schemas_accept_zero_count_responses():
+    """AC17.4.6: Brokerage import schemas expose payload and non-negative count contract."""
+    request = BrokerageImportRequest(
+        payload={"positions": []},
+        filename="ibkr.csv",
+        source_document_id="doc-1",
+    )
+    response = BrokerageImportResponse(
+        broker="Interactive Brokers",
+        parsed_positions=0,
+        created_atomic_positions=0,
+        existing_atomic_positions=0,
+        reconcile_created=0,
+        reconcile_updated=0,
+        reconcile_disposed=0,
+        skipped=0,
+    )
+
+    assert request.filename == "ibkr.csv"
+    assert request.source_document_id == "doc-1"
+    assert response.created_atomic_positions == 0
 
 
 def test_parse_moomoo_fixture_subscription_positions():
