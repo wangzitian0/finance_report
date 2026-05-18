@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
@@ -53,6 +54,78 @@ async def test_create_manual_valuation_snapshot_crud_api(client):
     empty_response = await client.get("/assets/valuation-snapshots")
     assert empty_response.status_code == 200
     assert empty_response.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_filter_detail_and_default_liquidity_update(client):
+    """AC11.9.1: Valuation APIs support filtering, detail reads, and default liquidity updates."""
+    property_payload = {
+        "component_type": "property_value",
+        "as_of_date": "2026-05-18",
+        "value": "1250000.00",
+        "currency": "sgd",
+        "source": "manual appraisal",
+    }
+    tax_payload = {
+        "component_type": "tax_refund",
+        "as_of_date": "2026-05-19",
+        "value": "1200.00",
+        "currency": "SGD",
+        "source": "IRAS",
+    }
+
+    property_response = await client.post("/assets/valuation-snapshots", json=property_payload)
+    tax_response = await client.post("/assets/valuation-snapshots", json=tax_payload)
+    assert property_response.status_code == 201
+    assert tax_response.status_code == 201
+
+    created = property_response.json()
+    detail_response = await client.get(f"/assets/valuation-snapshots/{created['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["currency"] == "SGD"
+
+    filtered_response = await client.get(
+        "/assets/valuation-snapshots",
+        params={"component_type": "property_value", "as_of_date": "2026-05-18"},
+    )
+    assert filtered_response.status_code == 200
+    filtered = filtered_response.json()
+    assert filtered["total"] == 1
+    assert filtered["items"][0]["component_type"] == "property_value"
+
+    update_response = await client.patch(
+        f"/assets/valuation-snapshots/{created['id']}",
+        json={"component_type": "tax_payable", "notes": None},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["component_type"] == "tax_payable"
+    assert updated["liquidity_class"] == "liability"
+    assert updated["notes"] is None
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_errors(client):
+    """AC11.9.1: Valuation APIs return typed errors for bad filters and missing snapshots."""
+    missing_id = uuid4()
+
+    invalid_filter_response = await client.get(
+        "/assets/valuation-snapshots",
+        params={"component_type": "unsupported"},
+    )
+    assert invalid_filter_response.status_code == 400
+
+    get_response = await client.get(f"/assets/valuation-snapshots/{missing_id}")
+    assert get_response.status_code == 404
+
+    patch_response = await client.patch(
+        f"/assets/valuation-snapshots/{missing_id}",
+        json={"value": "1.00"},
+    )
+    assert patch_response.status_code == 404
+
+    delete_response = await client.delete(f"/assets/valuation-snapshots/{missing_id}")
+    assert delete_response.status_code == 404
 
 
 @pytest.mark.asyncio
