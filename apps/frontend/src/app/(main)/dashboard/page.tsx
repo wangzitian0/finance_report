@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { BarChart } from "@/components/charts/BarChart";
+import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
 import { PieChart } from "@/components/charts/PieChart";
 import { TrendChart } from "@/components/charts/TrendChart";
 import {
@@ -242,6 +243,10 @@ export default function DashboardPage() {
 
 
       {/* Charts Row */}
+      <div className="mb-6">
+        <NetWorthTimeSeriesChart />
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <div className="card p-5">
           <div className="flex items-center justify-between mb-1">

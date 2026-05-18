@@ -24,6 +24,8 @@ from src.schemas import (
     CashFlowResponse,
     CategoryBreakdownResponse,
     IncomeStatementResponse,
+    NetWorthGranularity,
+    NetWorthTimeSeriesResponse,
     TrendPeriod,
 )
 from src.services.reporting import (
@@ -33,6 +35,7 @@ from src.services.reporting import (
     generate_income_statement,
     get_account_trend,
     get_category_breakdown,
+    get_net_worth_timeseries,
 )
 from src.utils import raise_bad_request
 
@@ -185,6 +188,38 @@ async def account_trend(
         )
         raise_bad_request(str(exc), cause=exc)
     return AccountTrendResponse(**report)
+
+
+@router.get("/net-worth/timeseries", response_model=NetWorthTimeSeriesResponse)
+async def net_worth_timeseries(
+    from_date: date = Query(..., alias="from"),
+    to_date: date = Query(..., alias="to"),
+    granularity: NetWorthGranularity = Query(default=NetWorthGranularity.MONTHLY),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> NetWorthTimeSeriesResponse:
+    """Get daily or monthly net worth time-series."""
+    try:
+        report = await get_net_worth_timeseries(
+            db,
+            user_id,
+            start_date=from_date,
+            end_date=to_date,
+            granularity=granularity.value,
+            currency=currency,
+        )
+    except ReportError as exc:
+        logger.warning(
+            "Net worth time-series generation failed",
+            from_date=str(from_date),
+            to_date=str(to_date),
+            granularity=granularity.value,
+            currency=currency,
+            error=str(exc),
+        )
+        raise_bad_request(str(exc), cause=exc)
+    return NetWorthTimeSeriesResponse(**report)
 
 
 @router.get("/breakdown", response_model=CategoryBreakdownResponse)

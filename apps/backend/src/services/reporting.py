@@ -85,6 +85,7 @@ def _add_months(value: date, months: int) -> date:
 
 # Limit to ~1 year of daily data to ensure report performance and prevent memory issues.
 MAX_TREND_POINTS = 366
+MAX_NET_WORTH_DAILY_POINTS = 366
 
 
 def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
@@ -781,6 +782,46 @@ async def get_account_trend(
         "period": period,
         "points": points,
     }
+
+
+async def get_net_worth_timeseries(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    start_date: date,
+    end_date: date,
+    granularity: str,
+    currency: str | None = None,
+) -> dict[str, object]:
+    """Get historical net worth points from balance sheet snapshots."""
+    if start_date > end_date:
+        raise ReportError("from date must be before to date")
+    if granularity not in {"daily", "monthly"}:
+        raise ReportError(f"Unsupported net worth granularity: {granularity}")
+
+    day_count = (end_date - start_date).days + 1
+    if granularity == "daily" and day_count > MAX_NET_WORTH_DAILY_POINTS:
+        raise ReportError(f"Daily net worth time-series is capped at {MAX_NET_WORTH_DAILY_POINTS} points")
+
+    target_currency = _normalize_currency(currency)
+    spans = _iter_periods(start_date, end_date, granularity)
+    points: list[dict[str, object]] = []
+    for span in spans:
+        point_date = span.start if granularity == "daily" else span.end
+        balance_sheet = await generate_balance_sheet(db, user_id, as_of_date=point_date, currency=target_currency)
+        total_assets = _quantize_money(Decimal(str(balance_sheet["total_assets"])))
+        total_liabilities = _quantize_money(Decimal(str(balance_sheet["total_liabilities"])))
+        points.append(
+            {
+                "date": point_date,
+                "total_assets": total_assets,
+                "total_liabilities": total_liabilities,
+                "net_worth": _quantize_money(total_assets - total_liabilities),
+                "currency": target_currency,
+            }
+        )
+
+    return {"currency": target_currency, "granularity": granularity, "points": points}
 
 
 async def get_category_breakdown(

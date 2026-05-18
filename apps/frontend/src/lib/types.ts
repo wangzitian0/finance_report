@@ -181,6 +181,22 @@ export interface TrendResponse {
     points: TrendPoint[];
 }
 
+export type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "All";
+
+export interface NetWorthTimeSeriesPoint {
+    date: string;
+    total_assets: number | string;
+    total_liabilities: number | string;
+    net_worth: number | string;
+    currency: string;
+}
+
+export interface NetWorthTimeSeriesResponse {
+    currency: string;
+    granularity: "daily" | "monthly";
+    points: NetWorthTimeSeriesPoint[];
+}
+
 export interface ReconciliationMatchResponse {
     id: string;
     bank_txn_id: string;

@@ -21,6 +21,10 @@ vi.mock("@/components/charts/TrendChart", () => ({
   TrendChart: () => <div>TrendChartMock</div>,
 }))
 
+vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
+  NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
+}))
+
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))

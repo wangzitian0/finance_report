@@ -26,6 +26,10 @@ vi.mock("@/components/charts/TrendChart", () => ({
   TrendChart: () => <div>TrendChartMock</div>,
 }))
 
+vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
+  NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
+}))
+
 describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
   const mockedApiFetch = vi.mocked(apiFetch);
 
