@@ -304,12 +304,12 @@
 | AC5.6.9 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.10 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.11 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
-| AC5.7.1 | yes | Net worth time-series API endpoint GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=month | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.2 | yes | Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.3 | yes | Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.4 | yes | Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles from parameter for chart | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.5 | yes | Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
-| AC5.7.6 | yes | Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.ts` | ✅ |
+| AC5.7.1 | yes | Net worth time-series API endpoint GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=month | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py` | ✅ |
+| AC5.7.2 | yes | Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
+| AC5.7.3 | yes | Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py` | ✅ |
+| AC5.7.4 | yes | Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles from parameter for chart | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
+| AC5.7.5 | yes | Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
+| AC5.7.6 | yes | Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
 
 ---
 

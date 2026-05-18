@@ -67,6 +67,31 @@ class TrendPeriod(str, Enum):
     MONTHLY = "monthly"
 
 
+class NetWorthGranularity(str, Enum):
+    """Supported net worth time-series granularity."""
+
+    DAILY = "daily"
+    MONTHLY = "monthly"
+
+
+class NetWorthTimeSeriesPoint(BaseModel):
+    """Net worth point-in-time value."""
+
+    date: date
+    total_assets: Decimal
+    total_liabilities: Decimal
+    net_worth: Decimal
+    currency: str = Field(min_length=3, max_length=3)
+
+
+class NetWorthTimeSeriesResponse(BaseModel):
+    """Net worth time-series response."""
+
+    currency: str = Field(min_length=3, max_length=3)
+    granularity: NetWorthGranularity
+    points: list[NetWorthTimeSeriesPoint]
+
+
 class AccountTrendPoint(BaseModel):
     """Trend data point for an account."""
 

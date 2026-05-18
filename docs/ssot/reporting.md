@@ -79,7 +79,22 @@ Shows income and expenses over a period.
 └─────────────────────────────────────────────┘
 ```
 
-### 2.3 Cash Flow Statement
+### 2.3 Net Worth Time-Series
+
+Returns point-in-time balance sheet totals for dashboard history charts.
+
+Endpoint:
+`GET /reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=daily|monthly`
+
+Response points:
+`{date, total_assets, total_liabilities, net_worth, currency}`
+
+Rules:
+- `daily` granularity is capped at 366 points.
+- `monthly` uses the period end date for each returned point.
+- Each point reuses balance sheet FX conversion as of that point's date.
+
+### 2.4 Cash Flow Statement
 
 Shows cash movements by category.
 
@@ -154,6 +169,8 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 | Income statement period | `test_income_statement_calculation` | ✅ Implemented |
 | Multi-currency consolidation | `test_fx_consolidation` | ⏳ Pending |
 | Account trend | `test_account_trend_monthly` | ✅ Implemented |
+| Net worth time-series | `test_net_worth_timeseries_daily_points` | ✅ Implemented |
+| Net worth historical FX | `test_net_worth_timeseries_uses_historical_fx_per_point` | ✅ Implemented |
 | Category breakdown | `test_category_breakdown_quarterly` | ✅ Implemented |
 | Cash flow statement | `test_cash_flow_statement` | ✅ Implemented |
 | Tag filtering | `test_income_statement_with_tags_filter` | ✅ Implemented |

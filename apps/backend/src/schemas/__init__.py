@@ -58,6 +58,8 @@ from src.schemas.reporting import (
     CashFlowSummary,
     CategoryBreakdownResponse,
     IncomeStatementResponse,
+    NetWorthGranularity,
+    NetWorthTimeSeriesResponse,
     TrendPeriod,
 )
 from src.schemas.review import (
@@ -137,6 +139,8 @@ __all__ = [
     "LoginRequest",
     "ManagedPositionListResponse",
     "ManagedPositionResponse",
+    "NetWorthGranularity",
+    "NetWorthTimeSeriesResponse",
     "ParsedStatementPreview",
     "PingStateResponse",
     "ProcessingPendingItem",
