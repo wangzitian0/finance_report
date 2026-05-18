@@ -6,7 +6,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.models.layer3 import ManualValuationComponentType
+from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.services.assets import AssetService
 
 
@@ -126,6 +127,77 @@ async def test_manual_valuation_snapshot_errors(client):
 
     delete_response = await client.delete(f"/assets/valuation-snapshots/{missing_id}")
     assert delete_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_snapshot_service_updates_optional_fields_and_missing_rows(db, test_user):
+    """AC11.9.1: Service updates every optional field and handles missing snapshots."""
+    service = AssetService()
+    snapshot = await service.create_valuation_snapshot(
+        db,
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.ESOP,
+        liquidity_class=ManualValuationLiquidityClass.LIQUID,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("1234.567"),
+        currency="usd",
+        source="equity portal",
+        notes="initial",
+        recurrence_days=180,
+        reminder_date=date(2026, 11, 14),
+    )
+
+    updated = await service.update_valuation_snapshot(
+        db,
+        test_user.id,
+        snapshot.id,
+        values={
+            "component_type": ManualValuationComponentType.OTHER_ASSET,
+            "liquidity_class": ManualValuationLiquidityClass.RESTRICTED,
+            "as_of_date": date(2026, 6, 1),
+            "value": Decimal("2345.678"),
+            "currency": "hkd",
+            "source": "updated portal",
+            "notes": None,
+            "recurrence_days": None,
+            "reminder_date": None,
+        },
+    )
+    await db.commit()
+
+    assert updated is not None
+    assert updated.component_type == ManualValuationComponentType.OTHER_ASSET
+    assert updated.liquidity_class == ManualValuationLiquidityClass.RESTRICTED
+    assert updated.as_of_date == date(2026, 6, 1)
+    assert updated.value == Decimal("2345.68")
+    assert updated.currency == "HKD"
+    assert updated.source == "updated portal"
+    assert updated.notes is None
+    assert updated.recurrence_days is None
+    assert updated.reminder_date is None
+
+    missing_id = uuid4()
+    assert (
+        await service.update_valuation_snapshot(db, test_user.id, missing_id, values={"value": Decimal("1.00")}) is None
+    )
+    assert await service.delete_valuation_snapshot(db, test_user.id, missing_id) is False
+
+
+def test_manual_valuation_snapshot_schema_normalizes_currency():
+    """AC11.9.1: Manual valuation schemas normalize currency codes before service use."""
+    create_payload = ManualValuationSnapshotCreate(
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 5, 18),
+        value=Decimal("1.23"),
+        currency="sgd",
+        source="manual",
+    )
+    update_payload = ManualValuationSnapshotUpdate(currency="usd")
+    empty_update = ManualValuationSnapshotUpdate(currency=None)
+
+    assert create_payload.currency == "SGD"
+    assert update_payload.currency == "USD"
+    assert empty_update.currency is None
 
 
 @pytest.mark.asyncio
