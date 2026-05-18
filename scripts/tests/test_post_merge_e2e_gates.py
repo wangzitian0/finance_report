@@ -66,6 +66,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     workflow = read(".github/workflows/staging-deploy.yml")
     pr_workflow = read(".github/workflows/pr-test.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
+    brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     deploy_script = read("scripts/dokploy_deploy.sh")
 
@@ -105,8 +106,10 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     )
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
+    assert "test_brokerage_upload_to_portfolio_value.py" in workflow
     assert '-v -m "llm"' in workflow
     assert "@pytest.mark.llm" in journey
+    assert "@pytest.mark.llm" in brokerage
     assert upload.count("@pytest.mark.llm") >= 2
     assert 'echo "ZAI_API_KEY="' in pr_workflow
     assert 'echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"' in pr_workflow
@@ -117,3 +120,29 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
     assert '-m "(smoke or e2e) and not llm"' in pr_workflow
     assert '-m "smoke or e2e"' not in pr_workflow
+
+
+def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
+    """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
+    statements_router = read("apps/backend/src/routers/statements.py")
+    generator = read("scripts/pdf_fixtures/generate_pdf_fixtures.py")
+
+    assert "test_brokerage_upload_to_portfolio_value.py" in workflow
+    assert '-m "llm"' in workflow
+    assert "pytest tests/e2e -v -m \"(smoke or e2e) and not llm\" -n 4" in workflow
+    assert "pytest.mark.critical" in brokerage
+    assert "pytest.mark.llm" in brokerage
+    assert '("moomoo", "Moomoo E2E Portfolio")' in brokerage
+    assert '("futu", "Futu E2E Portfolio")' in brokerage
+    assert "/statements/upload" in brokerage
+    assert "/brokerage/import" in brokerage
+    assert "/portfolio/holdings" in brokerage
+    assert "/reports/balance-sheet" in brokerage
+    assert "fail_or_skip_ai_ocr_gate(" in brokerage
+    assert "parsed_positions" in brokerage
+    assert "total_assets" in brokerage
+    assert "BrokeragePositionImportService" in statements_router
+    assert "Statement must be parsed before importing brokerage positions" in statements_router
+    assert '"futu"' in generator

@@ -1,12 +1,15 @@
 """Tests for brokerage position parsing into AtomicPosition."""
 
 import json
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
+from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import ManagedPosition
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
@@ -354,3 +357,78 @@ async def test_brokerage_import_endpoint(client, db):
     assert data["parsed_positions"] == 1
     assert data["created_atomic_positions"] == 1
     assert data["reconcile_created"] == 1
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client, db, test_user):
+    """AC8.13.10/Issue #404: Parsed brokerage statements can import portfolio positions."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/test.pdf",
+        file_hash="issue-404-moomoo",
+        original_filename="moomoo-2504.pdf",
+        institution="Moomoo",
+        account_last4="1582",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("2250.50"),
+        status=BankStatementStatus.PARSED,
+        confidence_score=95,
+        balance_validated=True,
+        transactions=[
+            BankStatementTransaction(
+                txn_date=date(2026, 5, 18),
+                description="Fullerton SGD Money Market Fund",
+                amount=Decimal("1250.50"),
+                direction="IN",
+                reference=None,
+                currency="SGD",
+                balance_after=Decimal("2250.50"),
+                confidence=ConfidenceLevel.HIGH,
+                raw_text="Subscription 0001 Fullerton SGD Money Market Fund SGD 2026/05/18 settled 1.0000 1250.50 1250.50",
+            )
+        ],
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["broker"] == "Moomoo"
+    assert data["parsed_positions"] == 1
+    assert data["created_atomic_positions"] == 1
+    assert data["reconcile_created"] == 1
+
+    positions = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
+    assert len(positions) == 1
+    assert positions[0].asset_identifier == "Fullerton SGD Money Market Fund"
+    assert positions[0].market_value == Decimal("1250.50")
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_requires_parsed_status(client, db, test_user):
+    """AC8.13.10/Issue #404: Position import cannot run before OCR parsing completes."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/pending.pdf",
+        file_hash="issue-404-pending",
+        original_filename="moomoo-pending.pdf",
+        institution="Moomoo",
+        currency="SGD",
+        status=BankStatementStatus.PARSING,
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 400
+    assert "must be parsed" in response.text

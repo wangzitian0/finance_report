@@ -1,6 +1,6 @@
 # PDF Fixture Generation Tool
 
-This directory contains a complete tool for generating synthetic PDF bank statements for testing.
+This directory contains a complete tool for generating synthetic PDF bank and brokerage statements for testing.
 
 ## Directory Structure
 
@@ -14,10 +14,16 @@ pdf_fixtures/
 │   ├── base_generator.py
 │   ├── dbs_generator.py
 │   ├── cmb_generator.py
+│   ├── moomoo_generator.py
+│   ├── futu_generator.py
+│   ├── pingan_generator.py
 │   └── mari_generator.py
 ├── templates/                 # Format templates (committed)
 │   ├── dbs_template.yaml
 │   ├── cmb_template.yaml
+│   ├── moomoo_template.yaml
+│   ├── futu_template.yaml
+│   ├── pingan_template.yaml
 │   └── mari_template.yaml
 ├── data/                      # Fictional data generators
 │   └── fake_data.py
@@ -37,7 +43,7 @@ pdf_fixtures/
 # From repository root
 cd scripts/pdf_fixtures
 
-# Generate all sources (DBS, CMB, Mari Bank, Moomoo, Pingan)
+# Generate all sources (DBS, CMB, Mari Bank, Moomoo, Futu, Pingan)
 python generate_pdf_fixtures.py --source all
 
 # Generate specific source
@@ -45,6 +51,7 @@ python generate_pdf_fixtures.py --source dbs
 python generate_pdf_fixtures.py --source cmb
 python generate_pdf_fixtures.py --source mari
 python generate_pdf_fixtures.py --source moomoo
+python generate_pdf_fixtures.py --source futu
 python generate_pdf_fixtures.py --source pingan
 
 # Output will be in: output/{source}/test_{source}_{period}.pdf

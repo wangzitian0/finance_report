@@ -98,6 +98,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so post-merge deployments and the provider-backed GLM gate queue instead of overlapping.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed deployment.
+- The serialized GLM gate includes `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, which uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. Failures identify whether OCR parsing, brokerage import, portfolio valuation, or reporting failed.
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
 - PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
@@ -173,7 +174,7 @@ deploy-blocking usability gates:
 |-------------|------|---------|-------------|
 | Staging | Shell smoke | `bash scripts/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
 | Staging | Non-LLM E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4` | Tests marked `critical` must fail instead of skip |
-| Staging | AI/OCR E2E | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Serial provider-backed GLM gate; `rejected` fails deploy |
+| Staging | AI/OCR E2E | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_brokerage_upload_to_portfolio_value.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Serial provider-backed GLM gate; `rejected` fails deploy |
 | Production | Shell smoke | `bash scripts/smoke_test.sh https://report.zitian.party production` | Read-only checks only |
 | Production | Prod-safe E2E | `pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"` | Authenticated dashboard check may skip only when read-only smoke credentials are absent |
 
@@ -183,6 +184,11 @@ is the AI/OCR hard gate: DBS PDF upload must reach `parsed`, show transactions,
 approve, and load the balance sheet. A `rejected` parsing status is a deploy
 failure because it usually indicates AI provider, OCR, secret, or model config
 breakage.
+
+`tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value`
+is the upload-to-report portfolio hard gate for Issue #404. It proves that at
+least two brokerage PDFs can be parsed by the real configured OCR path, imported
+as portfolio positions, and reflected in the latest balance-sheet asset value.
 
 PR preview E2E intentionally excludes the `llm` marker and does not inject the
 provider API key. This keeps provider spend and concurrency concentrated in the
