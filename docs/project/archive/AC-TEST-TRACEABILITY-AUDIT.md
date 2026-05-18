@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 930 | 100% |
-| **Mandatory ACs** | 770 | 82.8% |
+| **Total ACs (registries)** | 931 | 100% |
+| **Mandatory ACs** | 771 | 82.8% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 770 | 100.0% |
+| **Mandatory ACs with test reference** | 771 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 181 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 65 | 0 | 59 | 59 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 66 | 0 | 60 | 60 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 65
-- **Mandatory ACs**: 59
-- **Mandatory ACs with test reference**: 59 (100.0%)
+- **Total ACs**: 66
+- **Mandatory ACs**: 60
+- **Mandatory ACs with test reference**: 60 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -516,6 +516,7 @@
 | AC8.13.7 | yes | Strict full statement journey fails on rejected AI/OCR parsing | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.8 | yes | Strict upload readiness E2E does not accept rejected statements | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.9 | yes | Production release runs prod-safe read-only E2E smoke | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.10 | yes | Multi-brokerage PDF upload -> position import -> latest portfolio value | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import ManagedPosition
+from src.routers.statements import _brokerage_payload_from_statement
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 from src.services.brokerage_positions import (
     BrokeragePositionImportService,
@@ -432,3 +433,55 @@ async def test_statement_scoped_brokerage_import_requires_parsed_status(client, 
 
     assert response.status_code == 400
     assert "must be parsed" in response.text
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_returns_404_for_missing_statement(client):
+    """AC8.13.10/Issue #404: Statement-scoped brokerage import is user-scoped."""
+    response = await client.post(f"/statements/{uuid4()}/brokerage/import")
+
+    assert response.status_code == 404
+
+
+def test_brokerage_payload_from_statement_preserves_outflows_and_empty_metadata():
+    """AC8.13.10/Issue #404: Statement payload keeps signed cash events deterministic."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=uuid4(),
+        file_path="statements/futu/test.pdf",
+        file_hash="issue-404-futu-outflow",
+        original_filename="futu-2506.pdf",
+        institution="Futu",
+        currency="SGD",
+        status=BankStatementStatus.APPROVED,
+        transactions=[
+            BankStatementTransaction(
+                txn_date=date(2026, 5, 18),
+                description="Platform fee",
+                amount=Decimal("4.23"),
+                direction="OUT",
+                reference=None,
+                currency=None,
+                balance_after=None,
+                confidence=ConfidenceLevel.HIGH,
+                raw_text=None,
+            )
+        ],
+    )
+
+    payload = _brokerage_payload_from_statement(statement)
+
+    assert payload["institution"] == "Futu"
+    assert payload["statement"]["period_end"] is None
+    assert payload["statement"]["currency"] == "SGD"
+    assert payload["transactions"] == payload["events"]
+    assert payload["transactions"] == [
+        {
+            "date": "2026-05-18",
+            "description": "Platform fee",
+            "amount": "-4.23",
+            "currency": "SGD",
+            "raw_text": "Platform fee",
+            "balance_after": None,
+        }
+    ]
