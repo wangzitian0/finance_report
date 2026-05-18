@@ -14,6 +14,10 @@ from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
     ManagedPositionResponse,
+    ManualValuationSnapshotCreate,
+    ManualValuationSnapshotListResponse,
+    ManualValuationSnapshotResponse,
+    ManualValuationSnapshotUpdate,
     ReconcilePositionsResponse,
 )
 from src.services.assets import AssetService, AssetServiceError
@@ -55,6 +59,126 @@ async def list_positions(
 
     logger.info("Listed positions", count=len(items), total=total)
     return ManagedPositionListResponse(items=items, total=total)
+
+
+@router.post(
+    "/valuation-snapshots",
+    response_model=ManualValuationSnapshotResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_valuation_snapshot(
+    payload: ManualValuationSnapshotCreate,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ManualValuationSnapshotResponse:
+    """Create a manual valuation snapshot."""
+    try:
+        snapshot = await _service.create_valuation_snapshot(
+            db,
+            user_id,
+            component_type=payload.component_type,
+            as_of_date=payload.as_of_date,
+            value=payload.value,
+            currency=payload.currency,
+            source=payload.source,
+            notes=payload.notes,
+            liquidity_class=payload.liquidity_class,
+            recurrence_days=payload.recurrence_days,
+            reminder_date=payload.reminder_date,
+        )
+        await db.commit()
+        await db.refresh(snapshot)
+    except Exception as e:
+        logger.error("Manual valuation snapshot create failed", error=str(e), user_id=str(user_id))
+        await db.rollback()
+        raise_internal_error("Manual valuation snapshot create failed", cause=e)
+
+    return ManualValuationSnapshotResponse.model_validate(snapshot)
+
+
+@router.get("/valuation-snapshots", response_model=ManualValuationSnapshotListResponse)
+async def list_valuation_snapshots(
+    db: DbSession,
+    user_id: CurrentUserId,
+    as_of_date: date | None = Query(default=None),
+    component_type: str | None = Query(default=None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> ManualValuationSnapshotListResponse:
+    """List manual valuation snapshots."""
+    from src.models.layer3 import ManualValuationComponentType
+
+    parsed_component_type = None
+    if component_type:
+        try:
+            parsed_component_type = ManualValuationComponentType(component_type)
+        except ValueError as exc:
+            raise_bad_request(f"Unsupported component_type: {component_type}", cause=exc)
+
+    snapshots, total = await _service.list_valuation_snapshots(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        component_type=parsed_component_type,
+        limit=limit,
+        offset=offset,
+    )
+    return ManualValuationSnapshotListResponse(
+        items=[ManualValuationSnapshotResponse.model_validate(snapshot) for snapshot in snapshots],
+        total=total,
+    )
+
+
+@router.get("/valuation-snapshots/{snapshot_id}", response_model=ManualValuationSnapshotResponse)
+async def get_valuation_snapshot(
+    snapshot_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ManualValuationSnapshotResponse:
+    """Get a manual valuation snapshot."""
+    snapshot = await _service.get_valuation_snapshot(db, user_id, snapshot_id)
+    if not snapshot:
+        raise_not_found("Manual valuation snapshot")
+    return ManualValuationSnapshotResponse.model_validate(snapshot)
+
+
+@router.patch("/valuation-snapshots/{snapshot_id}", response_model=ManualValuationSnapshotResponse)
+async def update_valuation_snapshot(
+    snapshot_id: UUID,
+    payload: ManualValuationSnapshotUpdate,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ManualValuationSnapshotResponse:
+    """Update a manual valuation snapshot."""
+    try:
+        snapshot = await _service.update_valuation_snapshot(
+            db,
+            user_id,
+            snapshot_id,
+            values=payload.model_dump(exclude_unset=True),
+        )
+        await db.commit()
+    except Exception as e:
+        logger.error("Manual valuation snapshot update failed", error=str(e), user_id=str(user_id))
+        await db.rollback()
+        raise_internal_error("Manual valuation snapshot update failed", cause=e)
+    if not snapshot:
+        raise_not_found("Manual valuation snapshot")
+    await db.refresh(snapshot)
+    return ManualValuationSnapshotResponse.model_validate(snapshot)
+
+
+@router.delete("/valuation-snapshots/{snapshot_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_valuation_snapshot(
+    snapshot_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> None:
+    """Delete a manual valuation snapshot."""
+    deleted = await _service.delete_valuation_snapshot(db, user_id, snapshot_id)
+    if not deleted:
+        raise_not_found("Manual valuation snapshot")
+    await db.commit()
 
 
 @router.get("/positions/{position_id}", response_model=ManagedPositionResponse)

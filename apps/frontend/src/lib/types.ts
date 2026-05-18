@@ -228,6 +228,43 @@ export interface ReconcilePositionsResponse {
     skipped_assets: string[];
 }
 
+export type ManualValuationComponentType =
+    | "property_value"
+    | "mortgage_balance"
+    | "cpf_balance"
+    | "long_term_savings"
+    | "tax_payable"
+    | "tax_refund"
+    | "insurance_cash_value"
+    | "esop"
+    | "rsu"
+    | "stock_options"
+    | "other_asset"
+    | "other_liability";
+
+export type ManualValuationLiquidityClass = "liquid" | "restricted" | "illiquid" | "liability";
+
+export interface ManualValuationSnapshot {
+    id: string;
+    user_id: string;
+    component_type: ManualValuationComponentType;
+    liquidity_class: ManualValuationLiquidityClass;
+    as_of_date: string;
+    value: string;
+    currency: string;
+    source: string;
+    notes?: string | null;
+    recurrence_days?: number | null;
+    reminder_date?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ManualValuationSnapshotListResponse {
+    items: ManualValuationSnapshot[];
+    total: number;
+}
+
 // ── Portfolio Management (EPIC-017) ──────────────────────────────────
 
 export interface PortfolioHolding {

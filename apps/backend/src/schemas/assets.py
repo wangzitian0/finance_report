@@ -5,9 +5,9 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from src.models.layer3 import PositionStatus
+from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse
 
 
@@ -56,4 +56,61 @@ class DepreciationResponse(BaseModel):
     salvage_value: Annotated[Decimal, Field(decimal_places=2)]
 
 
+class ManualValuationSnapshotCreate(BaseModel):
+    """Payload for creating a manual valuation snapshot."""
+
+    component_type: ManualValuationComponentType
+    as_of_date: date
+    value: Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    source: Annotated[str, Field(min_length=1, max_length=120)]
+    notes: str | None = None
+    liquidity_class: ManualValuationLiquidityClass | None = None
+    recurrence_days: Annotated[int, Field(ge=1, le=3660)] | None = None
+    reminder_date: date | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str) -> str:
+        return value.upper()
+
+
+class ManualValuationSnapshotUpdate(BaseModel):
+    """Payload for updating a manual valuation snapshot."""
+
+    component_type: ManualValuationComponentType | None = None
+    as_of_date: date | None = None
+    value: Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))] | None = None
+    currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
+    source: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    notes: str | None = None
+    liquidity_class: ManualValuationLiquidityClass | None = None
+    recurrence_days: Annotated[int, Field(ge=1, le=3660)] | None = None
+    reminder_date: date | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        return value.upper() if value else value
+
+
+class ManualValuationSnapshotResponse(BaseResponse):
+    """Response for manual valuation snapshots."""
+
+    id: UUID
+    user_id: UUID
+    component_type: ManualValuationComponentType
+    liquidity_class: ManualValuationLiquidityClass
+    as_of_date: date
+    value: Annotated[Decimal, Field(decimal_places=2)]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    source: str
+    notes: str | None = None
+    recurrence_days: int | None = None
+    reminder_date: date | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]
+ManualValuationSnapshotListResponse = ListResponse[ManualValuationSnapshotResponse]

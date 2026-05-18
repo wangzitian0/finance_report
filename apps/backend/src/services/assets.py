@@ -14,7 +14,13 @@ from sqlalchemy.orm import selectinload
 from src.logger import get_logger
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
-from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.layer3 import (
+    ManagedPosition,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+    PositionStatus,
+)
 
 logger = get_logger(__name__)
 
@@ -50,8 +56,251 @@ class DepreciationResult:
     salvage_value: Decimal
 
 
+@dataclass
+class ValuationComponentItem:
+    """Latest manual valuation component included in net worth views."""
+
+    id: UUID
+    component_type: str
+    liquidity_class: str
+    as_of_date: date
+    value: Decimal
+    currency: str
+    source: str
+
+
+@dataclass
+class ValuationComponentsResult:
+    """Aggregated latest manual valuation components."""
+
+    items: list[ValuationComponentItem]
+    total_assets: Decimal
+    total_liabilities: Decimal
+    net_worth_delta: Decimal
+
+
+_DEFAULT_LIQUIDITY_CLASS: dict[ManualValuationComponentType, ManualValuationLiquidityClass] = {
+    ManualValuationComponentType.PROPERTY_VALUE: ManualValuationLiquidityClass.ILLIQUID,
+    ManualValuationComponentType.MORTGAGE_BALANCE: ManualValuationLiquidityClass.LIABILITY,
+    ManualValuationComponentType.CPF_BALANCE: ManualValuationLiquidityClass.RESTRICTED,
+    ManualValuationComponentType.LONG_TERM_SAVINGS: ManualValuationLiquidityClass.RESTRICTED,
+    ManualValuationComponentType.TAX_PAYABLE: ManualValuationLiquidityClass.LIABILITY,
+    ManualValuationComponentType.TAX_REFUND: ManualValuationLiquidityClass.LIQUID,
+    ManualValuationComponentType.INSURANCE_CASH_VALUE: ManualValuationLiquidityClass.RESTRICTED,
+    ManualValuationComponentType.ESOP: ManualValuationLiquidityClass.RESTRICTED,
+    ManualValuationComponentType.RSU: ManualValuationLiquidityClass.RESTRICTED,
+    ManualValuationComponentType.STOCK_OPTIONS: ManualValuationLiquidityClass.RESTRICTED,
+    ManualValuationComponentType.OTHER_ASSET: ManualValuationLiquidityClass.LIQUID,
+    ManualValuationComponentType.OTHER_LIABILITY: ManualValuationLiquidityClass.LIABILITY,
+}
+
+
 class AssetService:
     """Service for managing asset positions."""
+
+    async def create_valuation_snapshot(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        component_type: ManualValuationComponentType,
+        as_of_date: date,
+        value: Decimal,
+        currency: str,
+        source: str,
+        notes: str | None = None,
+        liquidity_class: ManualValuationLiquidityClass | None = None,
+        recurrence_days: int | None = None,
+        reminder_date: date | None = None,
+    ) -> ManualValuationSnapshot:
+        """Create a manual valuation snapshot."""
+        snapshot = ManualValuationSnapshot(
+            user_id=user_id,
+            component_type=component_type,
+            liquidity_class=liquidity_class or _DEFAULT_LIQUIDITY_CLASS[component_type],
+            as_of_date=as_of_date,
+            value=value.quantize(Decimal("0.01")),
+            currency=currency.upper(),
+            source=source,
+            notes=notes,
+            recurrence_days=recurrence_days,
+            reminder_date=reminder_date,
+        )
+        db.add(snapshot)
+        await db.flush()
+        await db.refresh(snapshot)
+        return snapshot
+
+    async def list_valuation_snapshots(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        as_of_date: date | None = None,
+        component_type: ManualValuationComponentType | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[Sequence[ManualValuationSnapshot], int]:
+        """List manual valuation snapshots for a user."""
+        query = select(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
+        count_query = select(func.count()).select_from(ManualValuationSnapshot).where(
+            ManualValuationSnapshot.user_id == user_id
+        )
+        if as_of_date is not None:
+            query = query.where(ManualValuationSnapshot.as_of_date <= as_of_date)
+            count_query = count_query.where(ManualValuationSnapshot.as_of_date <= as_of_date)
+        if component_type is not None:
+            query = query.where(ManualValuationSnapshot.component_type == component_type)
+            count_query = count_query.where(ManualValuationSnapshot.component_type == component_type)
+
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        result = await db.execute(
+            query.order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return result.scalars().all(), total
+
+    async def get_valuation_snapshot(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        snapshot_id: UUID,
+    ) -> ManualValuationSnapshot | None:
+        """Get a manual valuation snapshot by id."""
+        result = await db.execute(
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.id == snapshot_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def update_valuation_snapshot(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        snapshot_id: UUID,
+        *,
+        values: dict,
+    ) -> ManualValuationSnapshot | None:
+        """Update a manual valuation snapshot."""
+        snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
+        if not snapshot:
+            return None
+
+        if "component_type" in values and values["component_type"] is not None:
+            snapshot.component_type = values["component_type"]
+            if values.get("liquidity_class") is None:
+                snapshot.liquidity_class = _DEFAULT_LIQUIDITY_CLASS[snapshot.component_type]
+        if "liquidity_class" in values and values["liquidity_class"] is not None:
+            snapshot.liquidity_class = values["liquidity_class"]
+        if "as_of_date" in values and values["as_of_date"] is not None:
+            snapshot.as_of_date = values["as_of_date"]
+        if "value" in values and values["value"] is not None:
+            snapshot.value = values["value"].quantize(Decimal("0.01"))
+        if "currency" in values and values["currency"] is not None:
+            snapshot.currency = values["currency"].upper()
+        if "source" in values and values["source"] is not None:
+            snapshot.source = values["source"]
+        if "notes" in values:
+            snapshot.notes = values["notes"]
+        if "recurrence_days" in values:
+            snapshot.recurrence_days = values["recurrence_days"]
+        if "reminder_date" in values:
+            snapshot.reminder_date = values["reminder_date"]
+
+        await db.flush()
+        await db.refresh(snapshot)
+        return snapshot
+
+    async def delete_valuation_snapshot(self, db: AsyncSession, user_id: UUID, snapshot_id: UUID) -> bool:
+        """Delete a manual valuation snapshot by id."""
+        snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
+        if not snapshot:
+            return False
+        await db.delete(snapshot)
+        await db.flush()
+        return True
+
+    async def get_latest_valuation_components(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        as_of_date: date,
+        include_restricted: bool = True,
+    ) -> ValuationComponentsResult:
+        """Get latest manual valuation components for net worth aggregation."""
+        latest_subquery = (
+            select(
+                ManualValuationSnapshot.id,
+                func.row_number()
+                .over(
+                    partition_by=[
+                        ManualValuationSnapshot.component_type,
+                        ManualValuationSnapshot.source,
+                        ManualValuationSnapshot.currency,
+                    ],
+                    order_by=[
+                        ManualValuationSnapshot.as_of_date.desc(),
+                        ManualValuationSnapshot.created_at.desc(),
+                    ],
+                )
+                .label("rn"),
+            )
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+            .subquery()
+        )
+
+        result = await db.execute(
+            select(ManualValuationSnapshot)
+            .join(latest_subquery, ManualValuationSnapshot.id == latest_subquery.c.id)
+            .where(latest_subquery.c.rn == 1)
+            .order_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
+        )
+        snapshots = result.scalars().all()
+
+        total_assets = Decimal("0.00")
+        total_liabilities = Decimal("0.00")
+        items: list[ValuationComponentItem] = []
+
+        for snapshot in snapshots:
+            if (
+                not include_restricted
+                and snapshot.liquidity_class
+                in (ManualValuationLiquidityClass.RESTRICTED, ManualValuationLiquidityClass.ILLIQUID)
+            ):
+                continue
+
+            value = snapshot.value.quantize(Decimal("0.01"))
+            if snapshot.liquidity_class == ManualValuationLiquidityClass.LIABILITY:
+                total_liabilities += value
+            else:
+                total_assets += value
+
+            items.append(
+                ValuationComponentItem(
+                    id=snapshot.id,
+                    component_type=snapshot.component_type.value,
+                    liquidity_class=snapshot.liquidity_class.value,
+                    as_of_date=snapshot.as_of_date,
+                    value=value,
+                    currency=snapshot.currency,
+                    source=snapshot.source,
+                )
+            )
+
+        total_assets = total_assets.quantize(Decimal("0.01"))
+        total_liabilities = total_liabilities.quantize(Decimal("0.01"))
+        return ValuationComponentsResult(
+            items=items,
+            total_assets=total_assets,
+            total_liabilities=total_liabilities,
+            net_worth_delta=(total_assets - total_liabilities).quantize(Decimal("0.01")),
+        )
 
     async def get_position(
         self,

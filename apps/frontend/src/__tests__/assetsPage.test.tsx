@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import AssetsPage from "@/app/(main)/assets/page"
 import { apiFetch } from "@/lib/api"
-import type { ManagedPosition, ManagedPositionListResponse, ReconcilePositionsResponse } from "@/lib/types"
+import type {
+  ManagedPosition,
+  ManagedPositionListResponse,
+  ManualValuationSnapshotListResponse,
+  ReconcilePositionsResponse,
+} from "@/lib/types"
 
 const showToastMock = vi.fn()
 
@@ -34,9 +39,37 @@ function createWrapper() {
 describe("AssetsPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
+  const emptyValuations: ManualValuationSnapshotListResponse = {
+    items: [],
+    total: 0,
+  }
+
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+        return Promise.resolve(emptyValuations)
+      }
+      if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        return Promise.resolve({
+          id: "v1",
+          user_id: "u1",
+          component_type: "property_value",
+          liquidity_class: "illiquid",
+          as_of_date: "2026-05-18",
+          value: "1250000.00",
+          currency: "SGD",
+          source: "manual",
+          notes: null,
+          recurrence_days: null,
+          reminder_date: null,
+          created_at: "2026-05-18T00:00:00Z",
+          updated_at: "2026-05-18T00:00:00Z",
+        })
+      }
+      return Promise.resolve({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+    })
   })
 
   afterEach(() => {
@@ -44,17 +77,26 @@ describe("AssetsPage", () => {
   })
 
   it("AC16.15.4 renders loading and error retry states", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("positions failed"))
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve(emptyValuations)
+      }
+      return Promise.reject(new Error("positions failed"))
+    })
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Failed to load positions")).not.toBeNull())
     fireEvent.click(screen.getByRole("button", { name: "Retry loading positions" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/assets/positions")))
+    expect(mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/assets/positions"))).toHaveLength(2)
   })
 
   it("AC16.15.5 renders grouped positions and supports status filters", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve(emptyValuations)
+      }
       if (path.includes("status_filter=disposed")) {
         return Promise.resolve({
           items: [
@@ -115,6 +157,7 @@ describe("AssetsPage", () => {
   it("AC16.15.6 reconcile action calls API and shows toast summary", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockResolvedValueOnce(emptyValuations)
       .mockResolvedValueOnce({
         message: "done",
         created: 1,
@@ -124,6 +167,7 @@ describe("AssetsPage", () => {
         skipped_assets: [],
       } satisfies ReconcilePositionsResponse)
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockResolvedValueOnce(emptyValuations)
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
@@ -138,7 +182,11 @@ describe("AssetsPage", () => {
   })
 
   it("AC16.23.3 renders portfolio KPI cards when positions are loaded", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve(emptyValuations)
+      }
+      return Promise.resolve({
       items: [
         {
           id: "p1",
@@ -172,7 +220,8 @@ describe("AssetsPage", () => {
         },
       ],
       total: 2,
-    } satisfies ManagedPositionListResponse)
+      } satisfies ManagedPositionListResponse)
+    })
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
@@ -185,7 +234,11 @@ describe("AssetsPage", () => {
   })
 
   it("AC16.23.4 renders currency allocation breakdown when multiple currencies present", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve(emptyValuations)
+      }
+      return Promise.resolve({
       items: [
         {
           id: "p1",
@@ -219,7 +272,8 @@ describe("AssetsPage", () => {
         },
       ],
       total: 2,
-    } satisfies ManagedPositionListResponse)
+      } satisfies ManagedPositionListResponse)
+    })
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
@@ -231,6 +285,7 @@ describe("AssetsPage", () => {
   it("shows warning toast when reconcile has skipped assets", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockResolvedValueOnce(emptyValuations)
       .mockResolvedValueOnce({
         message: "done",
         created: 1,
@@ -240,6 +295,7 @@ describe("AssetsPage", () => {
         skipped_assets: ["BTC", "ETH"],
       } satisfies ReconcilePositionsResponse)
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockResolvedValueOnce(emptyValuations)
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
@@ -257,6 +313,7 @@ describe("AssetsPage", () => {
   it("shows error toast when reconcile fails", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+      .mockResolvedValueOnce(emptyValuations)
       .mockRejectedValueOnce(new Error("server error"))
 
     render(<AssetsPage />, { wrapper: createWrapper() })
@@ -273,7 +330,11 @@ describe("AssetsPage", () => {
   })
 
   it("formats fractional quantities with decimal places", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve(emptyValuations)
+      }
+      return Promise.resolve({
       items: [
         {
           id: "p1",
@@ -292,11 +353,79 @@ describe("AssetsPage", () => {
         },
       ],
       total: 1,
-    } satisfies ManagedPositionListResponse)
+      } satisfies ManagedPositionListResponse)
+    })
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("BTC")).toBeInTheDocument())
     expect(screen.getByText(/0\.50 units/)).toBeInTheDocument()
+  })
+
+  it("AC11.9.4 renders manual valuation snapshots and creates a new property valuation", async () => {
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        return Promise.resolve({
+          id: "v2",
+          user_id: "u1",
+          component_type: "property_value",
+          liquidity_class: "illiquid",
+          as_of_date: "2026-05-18",
+          value: "1250000.00",
+          currency: "SGD",
+          source: "manual",
+          notes: null,
+          recurrence_days: null,
+          reminder_date: null,
+          created_at: "2026-05-18T00:00:00Z",
+          updated_at: "2026-05-18T00:00:00Z",
+        })
+      }
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "v1",
+              user_id: "u1",
+              component_type: "cpf_balance",
+              liquidity_class: "restricted",
+              as_of_date: "2026-05-01",
+              value: "50000.00",
+              currency: "SGD",
+              source: "CPF portal",
+              notes: null,
+              recurrence_days: null,
+              reminder_date: null,
+              created_at: "2026-05-01T00:00:00Z",
+              updated_at: "2026-05-01T00:00:00Z",
+            },
+          ],
+          total: 1,
+        } satisfies ManualValuationSnapshotListResponse)
+      }
+      return Promise.resolve({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+    })
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText(/CPF portal/)).toBeInTheDocument())
+    expect(screen.getByText("Manual Valuations")).toBeInTheDocument()
+    expect(screen.getAllByText("CPF Balance").length).toBeGreaterThan(0)
+    expect(screen.getByText("Restricted")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Valuation type"), { target: { value: "property_value" } })
+    fireEvent.change(screen.getByLabelText("As of date"), { target: { value: "2026-05-18" } })
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "1250000.00" } })
+    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "SGD" } })
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "manual" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add valuation" }))
+
+    await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/assets/valuation-snapshots",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(showToastMock).toHaveBeenCalledWith("Manual valuation saved", "success")
   })
 })

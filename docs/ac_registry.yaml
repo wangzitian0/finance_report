@@ -1416,6 +1416,26 @@ acs:
     epic_name: asset-lifecycle
     description: 'Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render'
     mandatory: true
+  - id: AC11.9.1
+    epic: 11
+    epic_name: asset-lifecycle
+    description: 'Manual valuation snapshot CRUD supports property, CPF, tax, insurance, loan, and equity award components with audit timestamps'
+    mandatory: true
+  - id: AC11.9.2
+    epic: 11
+    epic_name: asset-lifecycle
+    description: 'Latest manual valuation snapshots aggregate into net worth components using Decimal arithmetic'
+    mandatory: true
+  - id: AC11.9.3
+    epic: 11
+    epic_name: asset-lifecycle
+    description: 'Restricted and illiquid manual valuation components can be excluded from liquid net worth views'
+    mandatory: true
+  - id: AC11.9.4
+    epic: 11
+    epic_name: asset-lifecycle
+    description: 'Assets page lets users add and review manual valuation snapshots through the shared API client'
+    mandatory: true
   # EPIC-013: statement-parsing-v2
   - id: AC13.1.1
     epic: 13
