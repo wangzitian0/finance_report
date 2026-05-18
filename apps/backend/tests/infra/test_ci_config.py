@@ -52,6 +52,29 @@ def test_docker_compose_integrity():
                 assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"
 
 
+def test_docker_compose_pr_s3_endpoint_is_explicit():
+    """AC7.8.2: PR compose S3 endpoint avoids unsupported nested expansion."""
+    import yaml
+
+    compose_path = Path(__file__).parent.parent.parent.parent.parent / "docker-compose.yml"
+    workflow_path = Path(__file__).parent.parent.parent.parent.parent / ".github" / "workflows" / "pr-test.yml"
+
+    with open(compose_path) as f:
+        config = yaml.safe_load(f)
+
+    backend_env = config["services"]["backend"]["environment"]
+    assert backend_env["S3_ENDPOINT"] == "${S3_ENDPOINT:-http://minio:9000}"
+
+    minio_entrypoint = config["services"]["minio-init"]["entrypoint"]
+    assert "$$(seq 1 10)" in minio_entrypoint
+    assert "\\$(seq 1 10)" not in minio_entrypoint
+
+    workflow = workflow_path.read_text()
+    assert 'echo "S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER:9000"' in workflow
+    assert 'echo "MINIO_ROOT_PASSWORD=minio_local_secret"' in workflow
+    assert 'echo "S3_SECRET_KEY=minio_local_secret"' in workflow
+
+
 @pytest.mark.integration
 def test_moon_project_graph():
     """AC7.8.3: Moon project graph loads without errors."""
