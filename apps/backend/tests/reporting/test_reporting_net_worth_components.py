@@ -242,7 +242,8 @@ async def test_portfolio_market_adjustment_preserves_broker_cash_balance(db: Asy
 
     assert report["total_assets"] == Decimal("1700.00")
     assert report["total_equity"] == Decimal("1200.00")
-    assert report["unrealized_fx_gain_loss"] == Decimal("500.00")
+    assert report["unrealized_fx_gain_loss"] == Decimal("0.00")
+    assert report["net_worth_adjustment_gain_loss"] == Decimal("500.00")
     assert any(line["amount"] == Decimal("500.00") for line in report["assets"])
 
 
