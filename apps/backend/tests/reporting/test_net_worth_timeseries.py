@@ -222,3 +222,14 @@ async def test_net_worth_timeseries_router(client):
     assert response.status_code == 200
     assert response.json()["granularity"] == "monthly"
     assert response.json()["points"]
+
+
+@pytest.mark.asyncio
+async def test_net_worth_timeseries_router_returns_bad_request_for_invalid_window(client):
+    """AC5.7.1: Router maps net worth time-series validation errors to 400 responses."""
+    response = await client.get(
+        "/reports/net-worth/timeseries",
+        params={"from": "2026-02-01", "to": "2026-01-01", "granularity": "monthly", "currency": "SGD"},
+    )
+
+    assert response.status_code == 400
