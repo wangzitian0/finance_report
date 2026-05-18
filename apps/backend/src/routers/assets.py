@@ -19,6 +19,8 @@ from src.schemas.assets import (
     ManualValuationSnapshotResponse,
     ManualValuationSnapshotUpdate,
     ReconcilePositionsResponse,
+    ValuationComponentResponse,
+    ValuationComponentsResponse,
 )
 from src.services.assets import AssetService, AssetServiceError
 from src.utils import raise_bad_request, raise_internal_error, raise_not_found
@@ -179,6 +181,28 @@ async def delete_valuation_snapshot(
     if not deleted:
         raise_not_found("Manual valuation snapshot")
     await db.commit()
+
+
+@router.get("/valuation-components", response_model=ValuationComponentsResponse)
+async def list_valuation_components(
+    db: DbSession,
+    user_id: CurrentUserId,
+    as_of_date: date | None = Query(default=None),
+    include_restricted: bool = Query(default=True),
+) -> ValuationComponentsResponse:
+    """List latest manual valuation components as of a date."""
+    result = await _service.get_latest_valuation_components(
+        db,
+        user_id,
+        as_of_date=as_of_date or date.today(),
+        include_restricted=include_restricted,
+    )
+    return ValuationComponentsResponse(
+        items=[ValuationComponentResponse.model_validate(item.__dict__) for item in result.items],
+        total_assets=result.total_assets,
+        total_liabilities=result.total_liabilities,
+        net_worth_delta=result.net_worth_delta,
+    )
 
 
 @router.get("/positions/{position_id}", response_model=ManagedPositionResponse)

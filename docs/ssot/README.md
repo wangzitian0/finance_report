@@ -39,6 +39,7 @@ All SSOT documents are organized by domain. **Start here** to understand the sys
 | [extraction.md](./extraction.md) | `extraction` | Gemini Vision parsing, validation pipeline, and document handling |
 | [reporting.md](./reporting.md) | `reporting` | Financial reports, multi-currency consolidation, and calculations |
 | [ai.md](./ai.md) | `ai` | AI advisor prompt policy, context scope, and safety controls |
+| [assets.md](./assets.md) | `assets` | Managed positions, depreciation, and manual valuation snapshots |
 | [market_data.md](./market_data.md) | `market_data` | FX rates, stock prices, data sources, and sync schedule |
 | [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Data trust hierarchy — source_type enum, conflict resolution rules, and API contract |
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Cross-cutting `pending_review` state machine for Stage 1 (statement import) and Stage 2 (reconciliation) |

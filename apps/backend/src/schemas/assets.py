@@ -112,5 +112,26 @@ class ManualValuationSnapshotResponse(BaseResponse):
     updated_at: datetime
 
 
+class ValuationComponentResponse(BaseModel):
+    """Latest manual valuation component included in net worth views."""
+
+    id: UUID
+    component_type: ManualValuationComponentType
+    liquidity_class: ManualValuationLiquidityClass
+    as_of_date: date
+    value: Annotated[Decimal, Field(decimal_places=2)]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    source: str
+
+
+class ValuationComponentsResponse(BaseModel):
+    """Aggregated latest manual valuation components."""
+
+    items: list[ValuationComponentResponse]
+    total_assets: Annotated[Decimal, Field(decimal_places=2)]
+    total_liabilities: Annotated[Decimal, Field(decimal_places=2)]
+    net_worth_delta: Annotated[Decimal, Field(decimal_places=2)]
+
+
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]
 ManualValuationSnapshotListResponse = ListResponse[ManualValuationSnapshotResponse]

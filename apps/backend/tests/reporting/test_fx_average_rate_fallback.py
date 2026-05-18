@@ -1,6 +1,6 @@
 """Tests for FX rate service - average rate fallback warning and related behaviour."""
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import FxRate
-from src.services.fx import FxRateError, clear_fx_cache, get_average_rate
+from src.services.fx import FxRateError, _CacheEntry, _FxRateCache, clear_fx_cache, get_average_rate
 
 
 @pytest.mark.asyncio
@@ -82,3 +82,18 @@ async def test_get_average_rate_same_currency_returns_one(db: AsyncSession):
     clear_fx_cache()
     result = await get_average_rate(db, "SGD", "SGD", date(2025, 1, 1), date(2025, 1, 31))
     assert result == Decimal("1")
+
+
+def test_fx_warning_cache_drops_expired_warning():
+    """Expired cached average-rate warnings are removed instead of being reused."""
+    cache = _FxRateCache()
+    cache._store["fx:USD:SGD:2025-01-01:2025-01-31"] = _CacheEntry(
+        value=Decimal("1.35"),
+        expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        warning={"type": "average_rate_fallback"},
+    )
+
+    warning = cache.get_warning("fx:USD:SGD:2025-01-01:2025-01-31")
+
+    assert warning is None
+    assert cache._store == {}

@@ -120,7 +120,6 @@ jobs:
         id: create
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-          BRANCH_NAME: ${{ github.head_ref }}
         run: |
           # Create new compose
           response=$(curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.create" \
@@ -135,10 +134,23 @@ jobs:
           compose_id=$(echo "$response" | jq -r '.composeId')
           echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
           echo "Created compose: $compose_id"
-          
-          # Configure GitHub source using jq for proper JSON escaping
+
+      - name: Get compose ID
+        id: compose
+        run: |
+          if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
+            echo "id=${{ steps.check.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=${{ steps.create.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure GitHub source
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          COMPOSE_ID="${{ steps.compose.outputs.id }}"
           PAYLOAD=$(jq -n \
-            --arg id "$compose_id" \
+            --arg id "$COMPOSE_ID" \
             --arg branch "$BRANCH_NAME" \
             '{
               composeId: $id,
@@ -149,20 +161,11 @@ jobs:
               composePath: "docker-compose.yml",
               githubId: "${{ env.GITHUB_INTEGRATION_ID }}"
             }')
-          
+
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$PAYLOAD"
-
-      - name: Get compose ID
-        id: compose
-        run: |
-          if [ -n "${{ steps.check.outputs.compose_id }}" ]; then
-            echo "id=${{ steps.check.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "id=${{ steps.create.outputs.compose_id }}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Configure environment variables
         run: |
@@ -217,6 +220,11 @@ jobs:
             # Container names with ENV_SUFFIX are used as hostnames
             echo "DB_HOST=finance-report-db-pr-$PR_NUMBER"
             echo "S3_HOST=finance-report-minio-pr-$PR_NUMBER"
+            echo "S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER:9000"
+            echo "MINIO_ROOT_USER=minio"
+            echo "MINIO_ROOT_PASSWORD=minio_local_secret"
+            echo "S3_ACCESS_KEY=minio"
+            echo "S3_SECRET_KEY=minio_local_secret"
             
             # SigNoz Logging (EPIC-010)
             echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"
@@ -288,14 +296,14 @@ jobs:
           TRIGGER_EPOCH=$(date -d "$TRIGGER_TIME" +%s 2>/dev/null || echo "0")
           LAST_STATUS=""
           LAST_DEPLOY_STATUS=""
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             set +e
             response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
               "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" 2>&1)
             curl_exit=$?
             set -e
             if [ $curl_exit -ne 0 ]; then
-              echo "::warning::Attempt $i/60: API request failed (curl exit $curl_exit)"
+              echo "::warning::Attempt $i/120: API request failed (curl exit $curl_exit)"
               sleep 5
               continue
             fi
@@ -305,7 +313,7 @@ jobs:
             latest_status=$(echo "$latest_deploy" | jq -r '.status // "unknown"')
             latest_started=$(echo "$latest_deploy" | jq -r '.startedAt // ""')
             LAST_DEPLOY_STATUS="$latest_status"
-            echo "Attempt $i/60: composeStatus=$status, latestDeployment=$latest_status (startedAt=$latest_started)"
+            echo "Attempt $i/120: composeStatus=$status, latestDeployment=$latest_status (startedAt=$latest_started)"
             if [ -n "$latest_started" ] && [ "$latest_started" != "null" ]; then
               deploy_epoch=$(date -d "$latest_started" +%s 2>/dev/null || date -d "${latest_started%.*}Z" +%s 2>/dev/null || echo "0")
               if [ "$deploy_epoch" -ge "$TRIGGER_EPOCH" ]; then
@@ -314,7 +322,7 @@ jobs:
                   exit 0
                 elif [ "$latest_status" = "error" ]; then
                   echo "::error::Deployment (started at $latest_started) failed"
-                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // \"unknown\")"' || true
+                  echo "$latest_deploy" | jq -r '"Error: \(.errorMessage // "unknown")"' || true
                   exit 1
                 fi
               else
@@ -323,9 +331,8 @@ jobs:
             fi
             sleep 5
           done
-          echo "::error::Deployment did not complete within 5 minutes"
+          echo "::error::Deployment did not complete within 10 minutes"
           echo "Last composeStatus: $LAST_STATUS, Last deploy: $LAST_DEPLOY_STATUS"
-          echo "$response" | tail -c 1000
           exit 1
 
       - name: Wait for API readiness
@@ -421,7 +428,7 @@ jobs:
       - name: Comment on PR
         uses: actions/github-script@v7
         env:
-          HEAD_REF: ${{ github.head_ref }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
           INTERNAL_DOMAIN: ${{ needs.setup.outputs.internal_domain }}
           COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
@@ -437,7 +444,7 @@ jobs:
             
             **Details:**
             - Compose: \`${process.env.COMPOSE_NAME}\`
-            - Branch: \`${process.env.HEAD_REF}\`
+            - Branch: \`${process.env.BRANCH_NAME}\`
             - Commit: \`${{ github.sha }}\`
             
             > ⏳ First deployment may take 3-5 minutes for build + SSL certificate.
@@ -447,7 +454,7 @@ jobs:
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: Number(process.env.PR_NUMBER),
             });
             
             const botComment = comments.find(c => 
@@ -465,7 +472,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: Number(process.env.PR_NUMBER),
                 body,
               });
             }
@@ -615,6 +622,8 @@ jobs:
 
       - name: Comment cleanup notice
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
         with:
           script: |
             const body = `## 🧹 PR Resources Released
@@ -630,6 +639,6 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: Number(process.env.PR_NUMBER),
               body,
             });

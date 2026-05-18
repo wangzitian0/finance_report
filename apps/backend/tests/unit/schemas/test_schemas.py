@@ -9,6 +9,8 @@ from src.models.layer3 import PositionStatus
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionResponse,
+    ManualValuationSnapshotCreate,
+    ManualValuationSnapshotUpdate,
     ReconcilePositionsResponse,
 )
 from src.schemas.base import BaseResponse, ListResponse
@@ -123,6 +125,24 @@ class TestAssetsSchemas:
                 updated=0,
                 disposed=0,
             )
+
+    def test_manual_valuation_create_normalizes_currency(self):
+        payload = ManualValuationSnapshotCreate(
+            component_type="rsu",
+            as_of_date=date(2025, 3, 31),
+            value=Decimal("1000.00"),
+            currency="usd",
+            source="Employer RSU",
+        )
+
+        assert payload.currency == "USD"
+
+    def test_manual_valuation_update_normalizes_optional_currency(self):
+        with_currency = ManualValuationSnapshotUpdate(currency="sgd")
+        without_currency = ManualValuationSnapshotUpdate(currency=None)
+
+        assert with_currency.currency == "SGD"
+        assert without_currency.currency is None
 
     def test_depreciation_response_valid(self):
         position_id = uuid4()

@@ -82,63 +82,102 @@ async def get_foreign_currency_accounts(
 async def calculate_account_balance_in_currency(
     db: AsyncSession,
     account: Account,
+    as_of_date: date | None = None,
 ) -> Decimal:
-    """Calculate account balance in its native currency (nominal amount)."""
-    from src.services.accounting import calculate_account_balance
+    """Calculate account balance in its native currency.
 
-    return await calculate_account_balance(db, account.id, account.user_id)
+    Posted FX revaluation entries are base-currency adjustments and must not
+    change the nominal foreign-currency balance.
+    """
+    stmt = (
+        select(
+            JournalLine.direction,
+            func.coalesce(func.sum(JournalLine.amount), Decimal("0")).label("total"),
+        )
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(JournalLine.account_id == account.id)
+        .where(JournalLine.currency == account.currency)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
+        .group_by(JournalLine.direction)
+    )
+    if as_of_date is not None:
+        stmt = stmt.where(JournalEntry.entry_date <= as_of_date)
+
+    result = await db.execute(stmt)
+    debit_total = Decimal("0")
+    credit_total = Decimal("0")
+    for row in result.all():
+        amount = Decimal(str(row.total))
+        if row.direction == Direction.DEBIT:
+            debit_total += amount
+        else:
+            credit_total += amount
+
+    if account.type in (AccountType.ASSET, AccountType.EXPENSE):
+        return debit_total - credit_total
+    return credit_total - debit_total
 
 
 async def calculate_account_historical_cost(
     db: AsyncSession,
     account: Account,
+    as_of_date: date,
 ) -> Decimal:
     """
     Calculate account balance in base currency using historical FX rates.
 
-    Sums (line.amount * line.fx_rate) for all posted/reconciled entries.
-    If fx_rate is None, assumes 1.0 (base currency).
+    Uses the line's recorded FX rate when present. When older journal lines do
+    not store an explicit rate, falls back to the exchange rate as of the entry
+    date. Posted FX revaluation entries are excluded because they are valuation
+    adjustments, not historical cost.
     """
-    debit_query = (
+    stmt = (
         select(
-            func.coalesce(
-                func.sum(JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1.0"))),
-                Decimal("0"),
-            )
+            JournalLine.direction,
+            JournalLine.amount,
+            JournalLine.fx_rate,
+            JournalEntry.entry_date,
         )
         .select_from(JournalLine)
         .join(JournalEntry)
         .where(JournalLine.account_id == account.id)
-        .where(JournalLine.direction == Direction.DEBIT)
+        .where(JournalLine.currency == account.currency)
+        .where(JournalEntry.entry_date <= as_of_date)
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
     )
 
-    credit_query = (
-        select(
-            func.coalesce(
-                func.sum(JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1.0"))),
-                Decimal("0"),
-            )
-        )
-        .select_from(JournalLine)
-        .join(JournalEntry)
-        .where(JournalLine.account_id == account.id)
-        .where(JournalLine.direction == Direction.CREDIT)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
-    )
-
-    debit_result = await db.execute(debit_query)
-    credit_result = await db.execute(credit_query)
-
-    total_debit = debit_result.scalar() or Decimal("0")
-    total_credit = credit_result.scalar() or Decimal("0")
+    result = await db.execute(stmt)
+    base_currency = settings.base_currency.upper()
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
+    for row in result.all():
+        if row.fx_rate is None:
+            try:
+                rate = await get_exchange_rate(db, account.currency, base_currency, row.entry_date)
+            except FxRateError:
+                logger.warning(
+                    "Historical FX rate missing for revaluation cost basis, falling back to revaluation-date rate",
+                    account_id=str(account.id),
+                    currency=account.currency,
+                    entry_date=row.entry_date.isoformat(),
+                    revaluation_date=as_of_date.isoformat(),
+                )
+                rate = await get_exchange_rate(db, account.currency, base_currency, as_of_date)
+        else:
+            rate = Decimal(str(row.fx_rate))
+        converted = Decimal(str(row.amount)) * rate
+        if row.direction == Direction.DEBIT:
+            total_debit += converted
+        else:
+            total_credit += converted
 
     net_balance = total_debit - total_credit
 
     if account.type in (AccountType.ASSET, AccountType.EXPENSE):
         return net_balance
-    else:
-        return -net_balance
+    return -net_balance
 
 
 async def calculate_unrealized_fx_for_account(
@@ -152,7 +191,7 @@ async def calculate_unrealized_fx_for_account(
     Compares the account's balance at historical cost (recorded FX rates)
     vs current spot rate to determine unrealized gain/loss.
     """
-    balance = await calculate_account_balance_in_currency(db, account)
+    balance = await calculate_account_balance_in_currency(db, account, revaluation_date)
 
     if balance == Decimal("0"):
         return None
@@ -172,9 +211,12 @@ async def calculate_unrealized_fx_for_account(
     revalued_base = balance * current_rate
 
     # Calculate historical cost basis from actual transactions
-    original_base = await calculate_account_historical_cost(db, account)
+    original_base = await calculate_account_historical_cost(db, account, revaluation_date)
 
-    unrealized = revalued_base - original_base
+    if account.type == AccountType.LIABILITY:
+        unrealized = original_base - revalued_base
+    else:
+        unrealized = revalued_base - original_base
 
     return AccountRevaluation(
         account_id=account.id,

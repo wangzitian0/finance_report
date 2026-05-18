@@ -71,6 +71,7 @@ For each latest atomic position:
 | `GET` | `/assets/valuation-snapshots/{id}` | Get one manual valuation snapshot |
 | `PATCH` | `/assets/valuation-snapshots/{id}` | Update manual valuation snapshot |
 | `DELETE` | `/assets/valuation-snapshots/{id}` | Delete manual valuation snapshot |
+| `GET` | `/assets/valuation-components` | List latest manual valuation components as of a date |
 
 ---
 
@@ -196,11 +197,13 @@ Manual snapshots cover property value, mortgage or loan balance, CPF or long-ter
 - **Pattern B**: `cost_basis` uses `market_value` as proxy — true FIFO/LIFO lot tracking is future scope
 - **Pattern C**: Reconciliation is idempotent — running twice with same data produces same result
 - **Pattern D**: Always record `position_metadata` (JSONB) for audit trail of source data
+- **Pattern E**: Manual valuation values are positive `Decimal` amounts; use `liquidity_class` to separate liquid, restricted, illiquid, and liability presentation.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** use `float` for quantity or cost_basis
 - **Anti-pattern B**: **NEVER** assume `managed_position.py` exists — model lives in `layer3.py`
 - **Anti-pattern C**: **NEVER** delete positions — mark as DISPOSED instead
+- **Anti-pattern D**: **NEVER** include a snapshot in liquid net worth unless it is economically liquid
 
 ---
 

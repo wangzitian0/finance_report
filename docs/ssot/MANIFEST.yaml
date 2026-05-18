@@ -118,6 +118,13 @@ concepts:
       - docs/ssot/accounting.md
       - docs/ssot/market_data.md
 
+  net_worth_valuation_snapshots:
+    owner: docs/ssot/assets.md#manual-valuation-snapshots
+    description: Point-in-time manual valuation snapshots for non-ledger net worth components.
+    cross_refs:
+      - docs/ssot/reporting.md
+      - docs/ssot/schema.md
+
   # ── Market data ────────────────────────────────────────────────────────
   market_data:
     owner: docs/ssot/market_data.md

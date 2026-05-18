@@ -18,7 +18,7 @@
 | **Deprecated ACs** | 3 | 0.3% |
 | **Mandatory ACs with test reference** | 770 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 179 | - |
+| **Test files referenced** | 181 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -275,7 +275,7 @@
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
 | AC5.1.1 | yes | Accounting Equation | `apps/backend/tests/api/test_reports_router.py`<br>`apps/backend/tests/reporting/test_reporting.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
-| AC5.1.2 | yes | FX Unrealized Gain | `apps/backend/tests/api/test_reports_router.py`<br>`apps/backend/tests/reporting/test_reporting_fx.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
+| AC5.1.2 | yes | FX Unrealized Gain | `apps/backend/tests/api/test_reports_router.py`<br>`apps/backend/tests/reporting/test_fx_revaluation.py`<br>`apps/backend/tests/reporting/test_reporting_fx.py`<br>`apps/backend/tests/reporting/test_reporting_fx_revaluation_integration.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
 | AC5.1.3 | yes | Multi-Currency Aggregation | `apps/backend/tests/api/test_reports_router.py`<br>`apps/backend/tests/reporting/test_reporting_fx.py` | ✅ |
 | AC5.1.4 | yes | Endpoint Response | `apps/backend/tests/reporting/test_reports_router.py` | ✅ |
 | AC5.2.1 | yes | Net Income Calculation | `apps/backend/tests/api/test_reports_router.py`<br>`apps/backend/tests/reporting/test_reporting.py` | ✅ |
@@ -299,14 +299,14 @@
 | AC5.6.4 | yes | Annualized income in income statement KPI block | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.5 | yes | Unrealized P&L reflected in balance sheet equity | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.6 | yes | MWR (money-weighted return) matches XIRR for single cashflow | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
-| AC5.6.7 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
+| AC5.6.7 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py`<br>`apps/backend/tests/reporting/test_reporting_fx_revaluation_integration.py` | ✅ (optional) |
 | AC5.6.8 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.9 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.10 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.6.11 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
 | AC5.7.1 | yes | Net worth time-series API endpoint GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD&granularity=month | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py` | ✅ |
 | AC5.7.2 | yes | Net worth chart component on dashboard renders ECharts line chart with date X-axis and net-worth Y-axis | `apps/backend/tests/market_data/test_fx_service.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
-| AC5.7.3 | yes | Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py` | ✅ |
+| AC5.7.3 | yes | Net worth time-series respects multi-currency: each point converted to base currency using historical FX rate per `transaction-date rate` rule | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/backend/tests/reporting/test_net_worth_timeseries.py`<br>`apps/backend/tests/reporting/test_reporting_net_worth_components.py` | ✅ |
 | AC5.7.4 | yes | Time range selector (1M / 3M / 6M / 1Y / All) on dashboard toggles from parameter for chart | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
 | AC5.7.5 | yes | Empty-state placeholder rendered when fewer than 2 data points exist (cannot draw line) | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
 | AC5.7.6 | yes | Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx` | ✅ |
@@ -1140,7 +1140,7 @@
 | AC17.5.1 | yes | Buy Transaction → Journal Entry | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
 | AC17.5.2 | yes | Sell Transaction → Journal Entry + Realized P&L | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
 | AC17.5.3 | yes | Dividend → Journal Entry → Income Statement | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
-| AC17.5.4 | yes | Unrealized P&L → Balance Sheet | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
+| AC17.5.4 | yes | Unrealized P&L → Balance Sheet | `apps/backend/tests/portfolio/test_portfolio_service.py`<br>`apps/backend/tests/reporting/test_reporting_net_worth_components.py` | ✅ |
 | AC17.5.5 | no |  | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ (optional) |
 | AC17.5.6 | no |  | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ (optional) |
 | AC17.5.7 | no |  | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ (optional) |

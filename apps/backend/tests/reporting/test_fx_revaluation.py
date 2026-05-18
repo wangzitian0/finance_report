@@ -570,6 +570,80 @@ class TestCalculateUnrealizedFxForAccount:
         assert result.revalued_balance_base == Decimal("1350")
         assert result.unrealized_gain_loss == Decimal("50")
 
+    @pytest.mark.asyncio
+    async def test_revaluation_entries_do_not_change_native_balance_or_historical_cost(
+        self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
+    ):
+        """AC5.1.2: Posted FX revaluation entries are excluded from native balance and historical cost."""
+        deposit = JournalEntry(
+            user_id=test_user_id,
+            entry_date=date(2025, 1, 15),
+            memo="USD deposit",
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add(deposit)
+        await db.flush()
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=deposit.id,
+                    account_id=usd_asset_account.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("1000"),
+                    currency="USD",
+                    fx_rate=Decimal("1.30"),
+                ),
+                JournalLine(
+                    journal_entry_id=deposit.id,
+                    account_id=sgd_asset_account.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("1300"),
+                    currency="SGD",
+                    fx_rate=Decimal("1"),
+                ),
+            ]
+        )
+
+        revaluation = JournalEntry(
+            user_id=test_user_id,
+            entry_date=date(2025, 1, 31),
+            memo="FX Revaluation",
+            source_type=JournalEntrySourceType.FX_REVALUATION,
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add(revaluation)
+        await db.flush()
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=revaluation.id,
+                    account_id=usd_asset_account.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("50"),
+                    currency="SGD",
+                    fx_rate=Decimal("1"),
+                ),
+                JournalLine(
+                    journal_entry_id=revaluation.id,
+                    account_id=sgd_asset_account.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("50"),
+                    currency="SGD",
+                    fx_rate=Decimal("1"),
+                ),
+            ]
+        )
+        await db.commit()
+
+        result = await calculate_unrealized_fx_for_account(db, usd_asset_account, date(2025, 1, 31), "SGD")
+
+        assert result is not None
+        assert result.original_balance == Decimal("1000")
+        assert result.original_balance_base == Decimal("1300")
+        assert result.revalued_balance_base == Decimal("1350")
+        assert result.unrealized_gain_loss == Decimal("50")
+
 
 class TestRunPeriodEndRevaluation:
     @pytest.mark.asyncio
