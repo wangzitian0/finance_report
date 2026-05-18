@@ -143,8 +143,8 @@ class AssetService:
     ) -> tuple[Sequence[ManualValuationSnapshot], int]:
         """List manual valuation snapshots for a user."""
         query = select(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
-        count_query = select(func.count()).select_from(ManualValuationSnapshot).where(
-            ManualValuationSnapshot.user_id == user_id
+        count_query = (
+            select(func.count()).select_from(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
         )
         if as_of_date is not None:
             query = query.where(ManualValuationSnapshot.as_of_date <= as_of_date)
@@ -268,10 +268,9 @@ class AssetService:
         items: list[ValuationComponentItem] = []
 
         for snapshot in snapshots:
-            if (
-                not include_restricted
-                and snapshot.liquidity_class
-                in (ManualValuationLiquidityClass.RESTRICTED, ManualValuationLiquidityClass.ILLIQUID)
+            if not include_restricted and snapshot.liquidity_class in (
+                ManualValuationLiquidityClass.RESTRICTED,
+                ManualValuationLiquidityClass.ILLIQUID,
             ):
                 continue
 
