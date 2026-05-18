@@ -16,6 +16,7 @@ from src.services.brokerage_positions import (
     _clean_decimal,
     _parse_date,
     _payload_currency,
+    _statement_date,
     detect_broker,
     parse_brokerage_positions,
 )
@@ -53,9 +54,11 @@ def test_brokerage_parser_helpers_handle_common_empty_and_alias_values():
     assert _parse_date("bad-date") is None
 
     assert _payload_currency({}, default="sgd") == "SGD"
+    assert _statement_date({"snapshot_date": "2026-06-01"}).isoformat() == "2026-06-01"
     assert _asset_type("fund") == AssetType.MUTUAL_FUND
     assert _asset_type("money_market") == AssetType.MUTUAL_FUND
     assert _asset_type("equity") == AssetType.STOCK
+    assert _asset_type("etf") == AssetType.ETF
     assert _asset_type("unsupported") is None
 
 
@@ -144,6 +147,36 @@ def test_parse_statement_holdings_skips_invalid_rows_and_normalizes_metadata():
     assert snapshots[0].asset_type == AssetType.MUTUAL_FUND
     assert snapshots[0].sector == "Cash"
     assert snapshots[0].geography == "SG"
+
+
+def test_parse_top_level_securities_accepts_item_broker_and_snapshot_date():
+    """AC17.4.3: Top-level securities payloads can override broker and snapshot date per row."""
+    payload = {
+        "institution": "Interactive Brokers",
+        "snapshot_date": "2026-06-01",
+        "currency": "USD",
+        "securities": [
+            {
+                "ticker": "VWRA",
+                "broker": "IBKR UK",
+                "snapshot_date": "2026-06-02",
+                "position": "3",
+                "value": "360.123",
+                "asset_type": "etf",
+                "currency": "usd",
+            }
+        ],
+    }
+
+    snapshots = parse_brokerage_positions(payload, filename="ibkr.csv")
+
+    assert len(snapshots) == 1
+    assert snapshots[0].broker == "IBKR UK"
+    assert snapshots[0].snapshot_date.isoformat() == "2026-06-02"
+    assert snapshots[0].asset_identifier == "VWRA"
+    assert snapshots[0].quantity == Decimal("3")
+    assert snapshots[0].market_value == Decimal("360.12")
+    assert snapshots[0].asset_type == AssetType.ETF
 
 
 def test_parse_moomoo_raw_subscription_text_position():
@@ -242,6 +275,25 @@ async def test_import_empty_payload_without_reconcile_returns_zero_counts(db, te
     assert result.reconcile_created == 0
     assert result.reconcile_updated == 0
     assert result.reconcile_disposed == 0
+
+
+@pytest.mark.asyncio
+async def test_brokerage_import_endpoint_empty_payload_returns_zero_counts(client):
+    """AC17.4.6: Brokerage import endpoint accepts empty parsed payloads without reconciliation."""
+    response = await client.post(
+        "/portfolio/brokerage/import",
+        json={
+            "filename": "unknown.pdf",
+            "payload": {"transactions": []},
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["broker"] == "Unknown Broker"
+    assert data["parsed_positions"] == 0
+    assert data["created_atomic_positions"] == 0
+    assert data["reconcile_created"] == 0
 
 
 @pytest.mark.asyncio
