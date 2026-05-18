@@ -2,7 +2,7 @@
 
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import structlog
@@ -14,11 +14,76 @@ from src.config import settings
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementStatus
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
+from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
 
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+_brokerage_import_service = BrokeragePositionImportService()
+
+
+def _append_validation_note(existing: str | None, note: str) -> str:
+    if existing:
+        combined = f"{existing}; {note}"
+    else:
+        combined = note
+    return combined[:500]
+
+
+async def import_brokerage_payload_if_present(
+    *,
+    statement: BankStatement,
+    db: AsyncSession,
+    user_id: UUID,
+    filename: str,
+    institution: str | None,
+    payload: dict[str, Any] | None,
+) -> None:
+    """Import parsed brokerage positions after statement parsing succeeds."""
+    if not looks_like_brokerage_payload(payload, filename=filename, institution=institution or statement.institution):
+        return
+
+    try:
+        result = await _brokerage_import_service.import_positions(
+            db,
+            user_id=user_id,
+            payload=payload or {},
+            filename=filename,
+            source_document_id=str(statement.id),
+        )
+        if result.parsed_positions == 0:
+            statement.validation_error = _append_validation_note(
+                statement.validation_error,
+                "Brokerage import skipped: no positions detected in parsed brokerage payload",
+            )
+        await db.commit()
+        logger.info(
+            "Brokerage positions imported from parsed statement",
+            statement_id=str(statement.id),
+            broker=result.broker,
+            parsed_positions=result.parsed_positions,
+            created_atomic_positions=result.created_atomic_positions,
+            existing_atomic_positions=result.existing_atomic_positions,
+            reconcile_created=result.reconcile_created,
+            reconcile_updated=result.reconcile_updated,
+            reconcile_disposed=result.reconcile_disposed,
+        )
+    except Exception as exc:
+        logger.exception(
+            "Brokerage import failed after statement parsing",
+            statement_id=str(statement.id),
+            error_type=type(exc).__name__,
+        )
+        await db.rollback()
+        refreshed = await db.get(BankStatement, statement.id)
+        if refreshed is None:
+            return
+        refreshed.validation_error = _append_validation_note(
+            refreshed.validation_error,
+            "Brokerage import failed: parsed statement was saved but positions were not imported",
+        )
+        await db.commit()
 
 
 async def handle_parse_failure(
@@ -212,6 +277,14 @@ async def parse_statement_background(
             statement.status = parsed_statement.status
 
             await update_progress(100)
+            await import_brokerage_payload_if_present(
+                statement=statement,
+                db=session,
+                user_id=user_id,
+                filename=filename,
+                institution=institution,
+                payload=getattr(parsed_statement, "_extracted_payload", None),
+            )
             duration = time.perf_counter() - start_time
             logger.info(
                 "Background parsing completed",

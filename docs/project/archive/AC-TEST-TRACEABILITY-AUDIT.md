@@ -18,7 +18,7 @@
 | **Deprecated ACs** | 3 | 0.3% |
 | **Mandatory ACs with test reference** | 771 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 181 | - |
+| **Test files referenced** | 182 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -41,7 +41,7 @@
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 213 | 0 | 189 | 189 | 100.0% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 73 | 0 | 30 | 30 | 100.0% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 74 | 0 | 31 | 31 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
 ---
@@ -1094,9 +1094,9 @@
 
 <a id="epic-017-portfolio-management"></a>
 
-- **Total ACs**: 73
-- **Mandatory ACs**: 30
-- **Mandatory ACs with test reference**: 30 (100.0%)
+- **Total ACs**: 74
+- **Mandatory ACs**: 31
+- **Mandatory ACs with test reference**: 31 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1138,6 +1138,7 @@
 | AC17.4.4 | yes | Broker Auto-Detection (Moomoo) | `apps/backend/tests/portfolio/test_allocation_service.py`<br>`apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | ✅ |
 | AC17.4.5 | yes | Broker Auto-Detection (Futu) | `apps/backend/tests/portfolio/test_allocation_service.py`<br>`apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | ✅ |
 | AC17.4.6 | yes | Brokerage import endpoint creates AtomicPosition rows and reconciles ManagedPosition idempotently | `apps/backend/tests/portfolio/test_allocation_service.py`<br>`apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | ✅ |
+| AC17.4.7 | yes | Statement upload background parsing imports detected brokerage positions into AtomicPosition and reconciles ManagedPosition without a manual API call | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | ✅ |
 | AC17.5.1 | yes | Buy Transaction → Journal Entry | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
 | AC17.5.2 | yes | Sell Transaction → Journal Entry + Realized P&L | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
 | AC17.5.3 | yes | Dividend → Journal Entry → Income Statement | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |

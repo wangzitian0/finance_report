@@ -2670,6 +2670,11 @@ acs:
     epic_name: portfolio-management
     description: 'Broker Auto-Detection (Futu)'
     mandatory: true
+  - id: AC17.4.7
+    epic: 17
+    epic_name: portfolio-management
+    description: 'Statement upload background parsing imports detected brokerage positions into AtomicPosition and reconciles ManagedPosition without a manual API call'
+    mandatory: true
   - id: AC17.5.1
     epic: 17
     epic_name: portfolio-management
