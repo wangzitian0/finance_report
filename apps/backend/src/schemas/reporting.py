@@ -33,6 +33,8 @@ class BalanceSheetResponse(BaseModel):
     total_equity: Decimal
     net_income: Decimal = Decimal("0.00")
     unrealized_fx_gain_loss: Decimal = Decimal("0.00")
+    net_worth_adjustment_gain_loss: Decimal = Decimal("0.00")
+    fx_warnings: list[dict[str, str]] = Field(default_factory=list)
     equation_delta: Decimal
     is_balanced: bool
 
@@ -58,6 +60,7 @@ class IncomeStatementResponse(BaseModel):
     total_income: Decimal
     total_expenses: Decimal
     net_income: Decimal
+    fx_warnings: list[dict[str, str]] = Field(default_factory=list)
     trends: list[IncomeStatementTrend]
 
 

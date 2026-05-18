@@ -28,7 +28,8 @@ from src.models import (
 from src.models.layer3 import ManagedPosition, ManualValuationLiquidityClass, PositionStatus
 from src.services import fx
 from src.services.assets import AssetService
-from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount, get_average_rate
+from src.services.fx import FxRateError, FxWarning, PrefetchedFxRates, convert_amount, get_average_rate
+from src.services.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.services.portfolio import AssetNotFoundError, PortfolioService
 
 logger = get_logger(__name__)
@@ -278,6 +279,7 @@ async def _aggregate_net_income_sql(
     as_of_date: date,
     *,
     start_date: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
 ) -> Decimal:
     """Aggregate net income (Income - Expenses) using SQL with period-average FX conversion.
 
@@ -326,7 +328,14 @@ async def _aggregate_net_income_sql(
             continue
 
         try:
-            rate = await get_average_rate(db, source, target_currency, effective_start, as_of_date)
+            rate = await get_average_rate(
+                db,
+                source,
+                target_currency,
+                effective_start,
+                as_of_date,
+                fx_warnings=fx_warnings,
+            )
         except FxRateError as exc:
             raise ReportError(str(exc)) from exc
 
@@ -528,6 +537,7 @@ async def generate_balance_sheet(
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date."""
     target_currency = _normalize_currency(currency)
+    fx_warnings: list[FxWarning] = []
     account_types = (AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY)
     accounts = await _load_accounts(db, user_id, account_types)
 
@@ -574,7 +584,13 @@ async def generate_balance_sheet(
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
     # Uses period-average FX rates for consistency with the income statement
     try:
-        net_income = await _aggregate_net_income_sql(db, user_id, target_currency, as_of_date)
+        net_income = await _aggregate_net_income_sql(
+            db,
+            user_id,
+            target_currency,
+            as_of_date,
+            fx_warnings=fx_warnings,
+        )
     except ReportError:
         raise
     except SQLAlchemyError as exc:
@@ -587,10 +603,17 @@ async def generate_balance_sheet(
 
     net_income = _quantize_money(net_income)
 
-    # Unrealized FX Gain/Loss is the plug value that balances the equation
-    # Assets = Liabilities + Equity + Net Income + Unrealized FX
-    total_liab_equity_inc = total_liabilities + total_equity + net_income
-    unrealized_fx = _quantize_money(total_assets - total_liab_equity_inc)
+    try:
+        fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
+    except RevaluationError as exc:
+        raise ReportError(str(exc)) from exc
+
+    unrealized_fx = _quantize_money(fx_revaluation.total_unrealized_gain_loss)
+    net_worth_adjustment = _quantize_money(
+        _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
+    )
+    total_liab_equity_inc = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
+    equation_delta = _quantize_money(total_assets - total_liab_equity_inc)
 
     return {
         "as_of_date": as_of_date,
@@ -603,8 +626,10 @@ async def generate_balance_sheet(
         "total_equity": total_equity,
         "net_income": net_income,
         "unrealized_fx_gain_loss": unrealized_fx,
-        "equation_delta": Decimal("0.00"),
-        "is_balanced": True,
+        "net_worth_adjustment_gain_loss": net_worth_adjustment,
+        "fx_warnings": fx_warnings,
+        "equation_delta": equation_delta,
+        "is_balanced": abs(equation_delta) < Decimal("0.01"),
     }
 
 
@@ -623,6 +648,7 @@ async def generate_income_statement(
         raise ReportError("start_date must be before end_date")
 
     target_currency = _normalize_currency(currency)
+    fx_warnings: list[FxWarning] = []
 
     if account_type:
         account_types = (account_type,)
@@ -664,7 +690,7 @@ async def generate_income_statement(
             fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
 
     # Batch pre-fetch all needed FX rates
-    fx_rates = PrefetchedFxRates()
+    fx_rates = PrefetchedFxRates(fx_warnings)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
@@ -706,6 +732,7 @@ async def generate_income_statement(
                         rate_date=end_date,
                         average_start=start_date,
                         average_end=end_date,
+                        fx_warnings=fx_warnings,
                     )
                 except FxRateError as exc:
                     logger.warning(
@@ -850,6 +877,7 @@ async def generate_income_statement(
         "net_income": net_income,
         "unrealized_fx_gain_loss": unrealized_fx_change,
         "comprehensive_income": _quantize_money(net_income + unrealized_fx_change),
+        "fx_warnings": fx_warnings,
         "trends": trend_items,
         "classification_breakdown": classification_breakdown,
         "filters_applied": {
