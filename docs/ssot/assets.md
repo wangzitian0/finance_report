@@ -14,7 +14,6 @@
 | **Router** | `apps/backend/src/routers/assets.py` | REST endpoints (`/assets`) |
 | **Schemas** | `apps/backend/src/schemas/assets.py` | Request/response validation |
 | **Source Data** | `apps/backend/src/models/layer2.py` (`AtomicPosition`) | Raw broker position snapshots |
-| **Manual Valuations** | `apps/backend/src/models/valuation.py` (`ValuationSnapshot`) | Point-in-time non-ledger valuation snapshots for net worth components |
 | **Tests** | `apps/backend/tests/assets/` | 52 tests across 5 files |
 
 ---
@@ -197,7 +196,7 @@ Manual snapshots cover property value, mortgage or loan balance, CPF or long-ter
 - **Pattern B**: `cost_basis` uses `market_value` as proxy — true FIFO/LIFO lot tracking is future scope
 - **Pattern C**: Reconciliation is idempotent — running twice with same data produces same result
 - **Pattern D**: Always record `position_metadata` (JSONB) for audit trail of source data
-- **Pattern E**: Manual valuations are append-only snapshots; never overwrite prior component values
+- **Pattern E**: Manual valuation values are positive `Decimal` amounts; use `liquidity_class` to separate liquid, restricted, illiquid, and liability presentation.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** use `float` for quantity or cost_basis
