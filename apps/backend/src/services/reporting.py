@@ -383,10 +383,11 @@ async def _build_portfolio_market_adjustment_lines(
 ) -> list[dict[str, Any]]:
     """Build market-value adjustment lines for active portfolio positions.
 
-    Ledger journal lines often carry investment purchases at cost. Portfolio
-    snapshots carry current market value. Reporting includes only the delta
-    between market value and the existing ledger balance per broker account so
-    the original cash purchase is not double counted.
+    Ledger journal lines often carry investment purchases at cost, while the
+    same brokerage account can also hold cash. Portfolio snapshots carry
+    current market value. Reporting includes market value minus the position
+    cost basis only when that cost basis is already represented in the ledger,
+    so cash balances are not accidentally netted out.
     """
     ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
     result = await db.execute(
@@ -400,6 +401,7 @@ async def _build_portfolio_market_adjustment_lines(
 
     portfolio_service = PortfolioService()
     market_value_by_account: dict[UUID, Decimal] = {}
+    cost_basis_by_account: dict[UUID, Decimal] = {}
     account_by_id: dict[UUID, Account] = {}
 
     for position, account in result.all():
@@ -415,6 +417,7 @@ async def _build_portfolio_market_adjustment_lines(
             continue
 
         market_value = position.quantity * latest_price
+        cost_basis = position.cost_basis
         source_currency = position.currency.upper()
         if source_currency != target_currency:
             try:
@@ -425,18 +428,30 @@ async def _build_portfolio_market_adjustment_lines(
                     target_currency=target_currency,
                     rate_date=as_of_date,
                 )
+                cost_basis = await fx.convert_amount(
+                    db,
+                    amount=cost_basis,
+                    currency=source_currency,
+                    target_currency=target_currency,
+                    rate_date=position.acquisition_date,
+                )
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
 
         market_value_by_account[position.account_id] = (
             market_value_by_account.get(position.account_id, Decimal("0")) + market_value
         )
+        cost_basis_by_account[position.account_id] = (
+            cost_basis_by_account.get(position.account_id, Decimal("0")) + cost_basis
+        )
         account_by_id[position.account_id] = account
 
     adjustment_lines: list[dict[str, Any]] = []
     for account_id, market_value in market_value_by_account.items():
         ledger_value = ledger_by_account.get(account_id, Decimal("0"))
-        adjustment = _quantize_money(market_value - ledger_value)
+        cost_basis = cost_basis_by_account.get(account_id, Decimal("0"))
+        ledger_cost_basis = cost_basis if ledger_value >= cost_basis else Decimal("0")
+        adjustment = _quantize_money(market_value - ledger_cost_basis)
         if adjustment == Decimal("0.00"):
             continue
 

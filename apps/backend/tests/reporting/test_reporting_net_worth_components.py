@@ -210,6 +210,40 @@ async def test_portfolio_market_value_counts_when_ledger_has_no_cost_basis(db: A
 
 
 @pytest.mark.asyncio
+async def test_portfolio_market_adjustment_preserves_broker_cash_balance(db: AsyncSession, test_user):
+    """AC17.5.4: Broker cash remains in net worth when positions are adjusted to market value."""
+    report_date = date(2025, 3, 31)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    equity = await _create_account(db, test_user.id, name="Owner Equity", account_type=AccountType.EQUITY)
+    await _post_balanced_entry(
+        db,
+        test_user.id,
+        entry_date=report_date,
+        debit_account=brokerage,
+        credit_account=equity,
+        amount=Decimal("1200.00"),
+    )
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="NVDA",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1000.00"),
+        market_value=Decimal("1500.00"),
+        as_of_date=report_date,
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    assert report["total_assets"] == Decimal("1700.00")
+    assert report["total_equity"] == Decimal("1200.00")
+    assert report["unrealized_fx_gain_loss"] == Decimal("500.00")
+    assert any(line["amount"] == Decimal("500.00") for line in report["assets"])
+
+
+@pytest.mark.asyncio
 async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
     """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
     report_date = date(2025, 3, 31)

@@ -152,10 +152,10 @@ The balance sheet combines three source classes:
 | Source | Rule |
 |--------|------|
 | Journal lines | Aggregate posted/reconciled asset, liability, and equity account balances through the report date |
-| Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - existing ledger asset balance` |
+| Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - ledger-backed position cost basis` |
 | Manual valuation snapshots | Add latest in-scope asset/liability snapshots from `/valuations/components` as synthetic report lines |
 
-Portfolio adjustments prevent double counting. If an investment purchase already exists as a debit to the broker account, only the unrealized gain/loss delta is added to assets. If no cost-basis journal exists, the full market value is added.
+Portfolio adjustments prevent double counting without removing broker cash. If position cost basis already exists as a debit to the broker account, only the market-value delta is added to assets. If no cost-basis journal exists, the full market value is added.
 
 Manual valuation snapshots use `include_in_total_net_worth` to decide balance sheet inclusion. Snapshot currency is converted to the report currency using the historical FX rate on the report `as_of_date`.
 
