@@ -25,7 +25,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
-from src.services.reporting import generate_balance_sheet
+from src.services.reporting import ReportError, generate_balance_sheet
 
 
 async def _create_account(
@@ -241,6 +241,107 @@ async def test_portfolio_market_adjustment_preserves_broker_cash_balance(db: Asy
 
 
 @pytest.mark.asyncio
+async def test_portfolio_without_market_price_is_skipped(db: AsyncSession, test_user):
+    """AC17.5.4: Positions without market prices do not block balance sheet generation."""
+    report_date = date(2025, 3, 31)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    db.add(
+        ManagedPosition(
+            user_id=test_user.id,
+            account_id=brokerage.id,
+            asset_identifier="MISSING",
+            quantity=Decimal("10"),
+            cost_basis=Decimal("1000.00"),
+            currency="SGD",
+            acquisition_date=report_date,
+            status=PositionStatus.ACTIVE,
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    assert report["total_assets"] == Decimal("0.00")
+    assert not any("market valuation adjustment" in line["name"] for line in report["assets"])
+
+
+@pytest.mark.asyncio
+async def test_portfolio_market_adjustment_skips_zero_delta(db: AsyncSession, test_user):
+    """AC17.5.4: A position already carried at market value does not add a zero adjustment line."""
+    report_date = date(2025, 3, 31)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    equity = await _create_account(db, test_user.id, name="Owner Equity", account_type=AccountType.EQUITY)
+    await _post_balanced_entry(
+        db,
+        test_user.id,
+        entry_date=report_date,
+        debit_account=brokerage,
+        credit_account=equity,
+        amount=Decimal("1000.00"),
+    )
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="MSFT",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1000.00"),
+        market_value=Decimal("1000.00"),
+        as_of_date=report_date,
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    assert report["total_assets"] == Decimal("1000.00")
+    assert not any("market valuation adjustment" in line["name"] for line in report["assets"])
+
+
+@pytest.mark.asyncio
+async def test_portfolio_market_adjustment_converts_position_currency(db: AsyncSession, test_user):
+    """AC17.5.4: Foreign-currency broker positions are converted into report currency."""
+    acquisition_date = date(2025, 1, 15)
+    report_date = date(2025, 3, 31)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo USD", account_type=AccountType.ASSET)
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.30"),
+                rate_date=acquisition_date,
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.35"),
+                rate_date=report_date,
+                source="test",
+            ),
+        ]
+    )
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="GOOG",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1000.00"),
+        market_value=Decimal("1500.00"),
+        as_of_date=report_date,
+        currency="USD",
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    assert report["total_assets"] == Decimal("2025.00")
+    assert report["assets"][0]["amount"] == Decimal("2025.00")
+
+
+@pytest.mark.asyncio
 async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
     """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
     report_date = date(2025, 3, 31)
@@ -302,3 +403,23 @@ async def test_manual_valuation_uses_as_of_historical_fx_rate(db: AsyncSession, 
 
     assert report["total_assets"] == Decimal("1350.00")
     assert report["assets"][0]["amount"] == Decimal("1350.00")
+
+
+@pytest.mark.asyncio
+async def test_manual_valuation_missing_fx_rate_raises_report_error(db: AsyncSession, test_user):
+    """AC5.7.3: Missing FX for a manual valuation fails report generation explicitly."""
+    report_date = date(2025, 3, 31)
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.RSU,
+        component_name="Employer RSU",
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        value=Decimal("1000.00"),
+        currency="USD",
+        as_of_date=report_date,
+    )
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
