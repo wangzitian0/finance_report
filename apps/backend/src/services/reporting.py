@@ -24,8 +24,13 @@ from src.models import (
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
+    ValuationSide,
 )
+from src.models.layer3 import ManagedPosition, PositionStatus
+from src.services import fx
 from src.services.fx import FxRateError, PrefetchedFxRates, convert_amount, get_average_rate
+from src.services.portfolio import AssetNotFoundError, PortfolioService
+from src.services.valuation import ValuationService
 
 logger = get_logger(__name__)
 
@@ -131,6 +136,15 @@ def _build_account_lines(
         }
         for account in items
     ]
+
+
+def _line_total(lines: Sequence[dict[str, Any]]) -> Decimal:
+    return _quantize_money(sum((Decimal(str(line["amount"])) for line in lines), Decimal("0")))
+
+
+def _valuation_line_name(component_name: str, component_type: str) -> str:
+    label = component_type.replace("_", " ")
+    return f"Valuation: {component_name} ({label})"
 
 
 async def _load_accounts(db: AsyncSession, user_id: UUID, account_types: tuple[AccountType, ...]) -> list[Account]:
@@ -359,6 +373,135 @@ async def _aggregate_net_income_sql(
     return net_income
 
 
+async def _build_portfolio_market_adjustment_lines(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    target_currency: str,
+    asset_lines: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build market-value adjustment lines for active portfolio positions.
+
+    Ledger journal lines often carry investment purchases at cost. Portfolio
+    snapshots carry current market value. Reporting includes only the delta
+    between market value and the existing ledger balance per broker account so
+    the original cash purchase is not double counted.
+    """
+    ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
+    result = await db.execute(
+        select(ManagedPosition, Account)
+        .join(Account, ManagedPosition.account_id == Account.id)
+        .where(ManagedPosition.user_id == user_id)
+        .where(ManagedPosition.status == PositionStatus.ACTIVE)
+        .where(Account.user_id == user_id)
+        .where(Account.is_active.is_(True))
+    )
+
+    portfolio_service = PortfolioService()
+    market_value_by_account: dict[UUID, Decimal] = {}
+    account_by_id: dict[UUID, Account] = {}
+
+    for position, account in result.all():
+        try:
+            latest_price = await portfolio_service._get_latest_price(db, position, as_of_date, user_id)
+        except AssetNotFoundError:
+            logger.warning(
+                "Skipping portfolio valuation without market price",
+                position_id=str(position.id),
+                asset_identifier=position.asset_identifier,
+                as_of_date=as_of_date.isoformat(),
+            )
+            continue
+
+        market_value = position.quantity * latest_price
+        source_currency = position.currency.upper()
+        if source_currency != target_currency:
+            try:
+                market_value = await fx.convert_amount(
+                    db,
+                    amount=market_value,
+                    currency=source_currency,
+                    target_currency=target_currency,
+                    rate_date=as_of_date,
+                )
+            except FxRateError as exc:
+                raise ReportError(str(exc)) from exc
+
+        market_value_by_account[position.account_id] = (
+            market_value_by_account.get(position.account_id, Decimal("0")) + market_value
+        )
+        account_by_id[position.account_id] = account
+
+    adjustment_lines: list[dict[str, Any]] = []
+    for account_id, market_value in market_value_by_account.items():
+        ledger_value = ledger_by_account.get(account_id, Decimal("0"))
+        adjustment = _quantize_money(market_value - ledger_value)
+        if adjustment == Decimal("0.00"):
+            continue
+
+        account = account_by_id[account_id]
+        adjustment_lines.append(
+            {
+                "account_id": account_id,
+                "name": f"{account.name} market valuation adjustment",
+                "type": AccountType.ASSET,
+                "parent_id": account.parent_id,
+                "amount": adjustment,
+            }
+        )
+
+    adjustment_lines.sort(key=lambda line: line["name"].lower())
+    return adjustment_lines
+
+
+async def _build_manual_valuation_lines(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    target_currency: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build balance sheet lines from latest manual valuation components."""
+    snapshots = await ValuationService().latest_components(db, user_id=user_id, as_of_date=as_of_date)
+    asset_lines: list[dict[str, Any]] = []
+    liability_lines: list[dict[str, Any]] = []
+
+    for snapshot in snapshots:
+        if not snapshot.include_in_total_net_worth:
+            continue
+
+        amount = snapshot.value
+        source_currency = snapshot.currency.upper()
+        if source_currency != target_currency:
+            try:
+                amount = await convert_amount(
+                    db,
+                    amount=amount,
+                    currency=source_currency,
+                    target_currency=target_currency,
+                    rate_date=as_of_date,
+                )
+            except FxRateError as exc:
+                raise ReportError(str(exc)) from exc
+
+        line = {
+            "account_id": snapshot.id,
+            "name": _valuation_line_name(snapshot.component_name, snapshot.component_type.value),
+            "type": AccountType.ASSET if snapshot.side == ValuationSide.ASSET else AccountType.LIABILITY,
+            "parent_id": None,
+            "amount": _quantize_money(amount),
+        }
+        if snapshot.side == ValuationSide.ASSET:
+            asset_lines.append(line)
+        else:
+            liability_lines.append(line)
+
+    asset_lines.sort(key=lambda line: line["name"].lower())
+    liability_lines.sort(key=lambda line: line["name"].lower())
+    return asset_lines, liability_lines
+
+
 async def generate_balance_sheet(
     db: AsyncSession,
     user_id: UUID,
@@ -390,10 +533,26 @@ async def generate_balance_sheet(
     assets = _build_account_lines(accounts, balances, AccountType.ASSET)
     liabilities = _build_account_lines(accounts, balances, AccountType.LIABILITY)
     equity = _build_account_lines(accounts, balances, AccountType.EQUITY)
+    portfolio_adjustments = await _build_portfolio_market_adjustment_lines(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        target_currency=target_currency,
+        asset_lines=assets,
+    )
+    valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        target_currency=target_currency,
+    )
+    assets.extend(portfolio_adjustments)
+    assets.extend(valuation_assets)
+    liabilities.extend(valuation_liabilities)
 
-    total_assets = _quantize_money(sum((Decimal(str(line["amount"])) for line in assets), Decimal("0")))
-    total_liabilities = _quantize_money(sum((Decimal(str(line["amount"])) for line in liabilities), Decimal("0")))
-    total_equity = _quantize_money(sum((Decimal(str(line["amount"])) for line in equity), Decimal("0")))
+    total_assets = _line_total(assets)
+    total_liabilities = _line_total(liabilities)
+    total_equity = _line_total(equity)
 
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
     # Uses period-average FX rates for consistency with the income statement
@@ -419,9 +578,9 @@ async def generate_balance_sheet(
     return {
         "as_of_date": as_of_date,
         "currency": target_currency,
-        "assets": _build_account_lines(accounts, balances, AccountType.ASSET),
-        "liabilities": _build_account_lines(accounts, balances, AccountType.LIABILITY),
-        "equity": _build_account_lines(accounts, balances, AccountType.EQUITY),
+        "assets": assets,
+        "liabilities": liabilities,
+        "equity": equity,
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
         "total_equity": total_equity,

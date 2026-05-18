@@ -31,6 +31,8 @@ class BalanceSheetResponse(BaseModel):
     total_assets: Decimal
     total_liabilities: Decimal
     total_equity: Decimal
+    net_income: Decimal = Decimal("0.00")
+    unrealized_fx_gain_loss: Decimal = Decimal("0.00")
     equation_delta: Decimal
     is_balanced: bool
 

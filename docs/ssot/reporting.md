@@ -135,6 +135,7 @@ Reports are generated in a single base currency (user configurable, default: SGD
 - Use **period-end rate** for balance sheet items
 - Use **average rate** for income statement items
 - Record unrealized FX gains/losses separately
+- Use the requested balance sheet `as_of_date` for manual valuation snapshots and portfolio market valuation adjustments
 
 ```python
 def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) -> Decimal:
@@ -143,6 +144,20 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
     rate = get_fx_rate(currency, target, date)
     return (amount * rate).quantize(Decimal("0.01"))
 ```
+
+### Balance Sheet Net Worth Sources
+
+The balance sheet combines three source classes:
+
+| Source | Rule |
+|--------|------|
+| Journal lines | Aggregate posted/reconciled asset, liability, and equity account balances through the report date |
+| Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - existing ledger asset balance` |
+| Manual valuation snapshots | Add latest in-scope asset/liability snapshots from `/valuations/components` as synthetic report lines |
+
+Portfolio adjustments prevent double counting. If an investment purchase already exists as a debit to the broker account, only the unrealized gain/loss delta is added to assets. If no cost-basis journal exists, the full market value is added.
+
+Manual valuation snapshots use `include_in_total_net_worth` to decide balance sheet inclusion. Snapshot currency is converted to the report currency using the historical FX rate on the report `as_of_date`.
 
 ---
 
@@ -154,10 +169,12 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 - **Pattern C**: Cache report results with date-based invalidation
 - **Pattern D (Performance)**: Pre-fetch all necessary FX rates in bulk before starting report calculation to avoid N+1 queries.
 - **Pattern E (Reliability)**: Cap trend data points at 366 (one year of daily data) to prevent memory issues with unbounded queries.
+- **Pattern F**: Include market valuation deltas, not full portfolio values, when the account already has ledger cost basis.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** hardcode account codes in report logic
 - **Anti-pattern B**: **NEVER** generate reports without FX rate data
+- **Anti-pattern C**: **NEVER** double count a broker account by adding both its ledger cost and full market value.
 
 ---
 
@@ -168,6 +185,8 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 | Balance sheet balances | `test_balance_sheet_equation` | ✅ Implemented |
 | Income statement period | `test_income_statement_calculation` | ✅ Implemented |
 | Multi-currency consolidation | `test_fx_consolidation` | ⏳ Pending |
+| Portfolio market value adjustments | `test_reporting_net_worth_components.py` | ✅ Implemented |
+| Manual valuation snapshots | `test_reporting_net_worth_components.py` | ✅ Implemented |
 | Account trend | `test_account_trend_monthly` | ✅ Implemented |
 | Net worth time-series | `test_net_worth_timeseries_daily_points` | ✅ Implemented |
 | Net worth historical FX | `test_net_worth_timeseries_uses_historical_fx_per_point` | ✅ Implemented |
