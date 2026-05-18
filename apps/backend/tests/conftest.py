@@ -211,7 +211,6 @@ async def db_engine(test_database_url):
         PingState,
         ReconciliationMatch,
         User,
-        ValuationSnapshot,
     )
 
     engine = create_async_engine(

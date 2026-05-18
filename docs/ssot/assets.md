@@ -71,6 +71,7 @@ For each latest atomic position:
 | `GET` | `/assets/valuation-snapshots/{id}` | Get one manual valuation snapshot |
 | `PATCH` | `/assets/valuation-snapshots/{id}` | Update manual valuation snapshot |
 | `DELETE` | `/assets/valuation-snapshots/{id}` | Delete manual valuation snapshot |
+| `GET` | `/assets/valuation-components` | List latest manual valuation components as of a date |
 
 ---
 

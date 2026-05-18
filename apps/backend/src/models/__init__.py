@@ -39,13 +39,6 @@ from src.models.statement import (
     Stage1Status,
 )
 from src.models.user import AiFeedback, User
-from src.models.valuation import (
-    ValuationComponentType,
-    ValuationConfidence,
-    ValuationSide,
-    ValuationSnapshot,
-    ValuationSource,
-)
 
 # Alias for SSOT compatibility (account_events table / statements table naming)
 AccountEvent = BankStatementTransaction
@@ -107,9 +100,4 @@ __all__ = [
     "TransactionDirection",
     "UploadedDocument",
     "User",
-    "ValuationComponentType",
-    "ValuationConfidence",
-    "ValuationSide",
-    "ValuationSnapshot",
-    "ValuationSource",
 ]

@@ -130,6 +130,43 @@ async def test_manual_valuation_snapshot_errors(client):
 
 
 @pytest.mark.asyncio
+async def test_manual_valuation_components_api_returns_latest_as_of_values(client):
+    """AC11.9.2: Latest valuation components are exposed through the assets API."""
+    old_property = {
+        "component_type": "property_value",
+        "as_of_date": "2026-01-31",
+        "value": "1000000.01",
+        "currency": "SGD",
+        "source": "appraisal",
+    }
+    new_property = {
+        **old_property,
+        "as_of_date": "2026-05-18",
+        "value": "1000000.02",
+    }
+    mortgage = {
+        "component_type": "mortgage_balance",
+        "as_of_date": "2026-05-18",
+        "value": "300000.03",
+        "currency": "SGD",
+        "source": "bank portal",
+    }
+
+    assert (await client.post("/assets/valuation-snapshots", json=old_property)).status_code == 201
+    assert (await client.post("/assets/valuation-snapshots", json=new_property)).status_code == 201
+    assert (await client.post("/assets/valuation-snapshots", json=mortgage)).status_code == 201
+
+    response = await client.get("/assets/valuation-components", params={"as_of_date": "2026-05-18"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_assets"] == "1000000.02"
+    assert data["total_liabilities"] == "300000.03"
+    assert data["net_worth_delta"] == "699999.99"
+    assert {item["component_type"] for item in data["items"]} == {"property_value", "mortgage_balance"}
+
+
+@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
     """AC11.9.1: Valuation mutation endpoints return server errors when persistence fails."""
     from src.routers import assets as assets_router
