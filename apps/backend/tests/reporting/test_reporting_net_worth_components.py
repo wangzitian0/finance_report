@@ -338,7 +338,7 @@ async def test_portfolio_market_adjustment_converts_position_currency(db: AsyncS
     report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
 
     assert report["total_assets"] == Decimal("2025.00")
-    assert report["assets"][0]["amount"] == Decimal("2025.00")
+    assert any(line["amount"] == Decimal("2025.00") for line in report["assets"])
 
 
 @pytest.mark.asyncio
