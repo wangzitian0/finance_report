@@ -18,7 +18,7 @@
 | **Deprecated ACs** | 3 | 0.3% |
 | **Mandatory ACs with test reference** | 770 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 179 | - |
+| **Test files referenced** | 180 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
