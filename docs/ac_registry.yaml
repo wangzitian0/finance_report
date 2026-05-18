@@ -1245,6 +1245,11 @@ acs:
     epic_name: testing-strategy
     description: 'Production release runs prod-safe read-only E2E smoke'
     mandatory: true
+  - id: AC8.13.10
+    epic: 8
+    epic_name: testing-strategy
+    description: 'Multi-brokerage PDF upload -> position import -> latest portfolio value'
+    mandatory: true
   # EPIC-011: asset-lifecycle
   - id: AC11.1.1
     epic: 11

@@ -1,32 +1,31 @@
-"""Moomoo SG Brokerage PDF generator."""
+"""Futu brokerage PDF generator."""
 
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from data.fake_data import generate_moomoo_transactions
+from data.fake_data import generate_futu_transactions
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, Spacer, Table
 
 from generators.base_generator import BasePDFGenerator
 
 
-class MoomooGenerator(BasePDFGenerator):
-    """Generate Moomoo brokerage statement PDF."""
+class FutuGenerator(BasePDFGenerator):
+    """Generate a Futu brokerage statement PDF."""
 
     def generate(
         self,
         output_path: Path,
         period_start: datetime,
         period_end: datetime,
-        account_last4: str = "1582",
+        account_last4: str = "6688",
     ):
-        """Generate Moomoo statement PDF."""
+        """Generate Futu statement PDF."""
         doc = self.create_document(output_path)
         elements = []
         styles = getSampleStyleSheet()
 
-        # Header
         font_family, font_size = self._get_font("header")
         header_style = ParagraphStyle(
             "Header",
@@ -35,27 +34,23 @@ class MoomooGenerator(BasePDFGenerator):
             fontSize=font_size,
             spaceAfter=12,
         )
-        elements.append(Paragraph("Moomoo SG - Monthly Statement", header_style))
+        elements.append(Paragraph("Futu Securities - Monthly Statement", header_style))
 
-        # Statement Period
         period_str = period_end.strftime("%B %Y")
         elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
         elements.append(Spacer(1, 20))
 
-        # Account Info
         account_no = f"Account: ****{account_last4}"
         elements.append(Paragraph(account_no, styles["Normal"]))
         elements.append(Spacer(1, 20))
 
-        # Generate transactions
-        opening_balance = Decimal("10000.00")
-        txns, closing_balance = generate_moomoo_transactions(
+        opening_balance = Decimal("20000.00")
+        txns, closing_balance = generate_futu_transactions(
             period_start,
-            count=10,
+            count=8,
             opening_balance=opening_balance,
         )
 
-        # Account Summary
         if "account_summary" in self.template["tables"]:
             summary_config = self.template["tables"]["account_summary"]
             summary_data = [
@@ -71,34 +66,27 @@ class MoomooGenerator(BasePDFGenerator):
             elements.append(summary_table)
             elements.append(Spacer(1, 20))
 
-        # Transaction Details
-        elements.append(Paragraph("Transaction Details", styles["Heading2"]))
+        elements.append(Paragraph("Activity and Valuation", styles["Heading2"]))
         elements.append(Spacer(1, 10))
 
         table_config = self.template["tables"]["transaction_details"]
         columns = table_config["columns"]
+        data = [[col["name"] for col in columns]]
 
-        # Table header
-        header_row = [col["name"] for col in columns]
-        data = [header_row]
-
-        # Transaction rows
         for txn in txns:
-            row = [
-                txn["date"],
-                txn["type"],
-                txn["description"],
-                txn["amount"],
-                txn["currency"],
-            ]
-            data.append(row)
+            data.append(
+                [
+                    txn["date"],
+                    txn["type"],
+                    txn["description"],
+                    txn["amount"],
+                    txn["currency"],
+                ]
+            )
 
-        # Create table
-        col_widths = self._get_column_widths(table_config)
-        table = Table(data, colWidths=col_widths)
+        table = Table(data, colWidths=self._get_column_widths(table_config))
         table.setStyle(self._create_table_style(table_config))
         elements.append(table)
 
-        # Build PDF
         doc.build(elements)
-        print(f"✅ Generated Moomoo PDF: {output_path}")
+        print(f"✅ Generated Futu PDF: {output_path}")

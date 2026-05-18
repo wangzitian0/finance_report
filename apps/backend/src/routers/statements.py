@@ -37,6 +37,7 @@ from src.schemas import (
     RetryParsingRequest,
     StatementDecisionRequest,
 )
+from src.schemas.portfolio import BrokerageImportResponse
 from src.schemas.review import (
     BalanceValidationResult,
     EditAndApproveRequest,
@@ -45,6 +46,7 @@ from src.schemas.review import (
     StatementReviewResponse,
 )
 from src.services import StorageError, StorageService
+from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.review_queue import create_entry_from_txn, get_or_create_account
 from src.services.statement_parsing import parse_statement_background
@@ -70,6 +72,7 @@ logger = get_logger(__name__)
 
 # Track background parsing tasks to avoid garbage collection
 _PENDING_PARSE_TASKS: set[asyncio.Task[None]] = set()
+_BROKERAGE_IMPORT_SERVICE = BrokeragePositionImportService()
 
 
 def _track_task(task: asyncio.Task[None]) -> None:
@@ -464,6 +467,66 @@ async def list_statement_transactions(
 
     items = [BankStatementTransactionResponse.model_validate(t) for t in statement.transactions]
     return BankStatementTransactionListResponse(items=items, total=len(items))
+
+
+def _brokerage_payload_from_statement(statement: BankStatement) -> dict:
+    """Build an import payload from a parsed brokerage statement."""
+    events = []
+    for txn in statement.transactions:
+        signed_amount = txn.amount if txn.direction == "IN" else -txn.amount
+        events.append(
+            {
+                "date": txn.txn_date.isoformat(),
+                "description": txn.description,
+                "amount": str(signed_amount),
+                "currency": txn.currency or statement.currency,
+                "raw_text": txn.raw_text or txn.description,
+                "balance_after": str(txn.balance_after) if txn.balance_after is not None else None,
+            }
+        )
+
+    return {
+        "institution": statement.institution,
+        "statement": {
+            "institution": statement.institution,
+            "period_end": statement.period_end.isoformat() if statement.period_end else None,
+            "currency": statement.currency,
+        },
+        "transactions": events,
+        "events": events,
+    }
+
+
+@router.post("/{statement_id}/brokerage/import", response_model=BrokerageImportResponse)
+async def import_brokerage_statement_positions(
+    statement_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> BrokerageImportResponse:
+    """Import portfolio positions from an already parsed brokerage statement."""
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.id == statement_id)
+        .where(BankStatement.user_id == user_id)
+        .options(selectinload(BankStatement.transactions))
+    )
+    statement = result.scalar_one_or_none()
+
+    if not statement:
+        raise_not_found("Statement")
+    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.APPROVED):
+        raise_bad_request("Statement must be parsed before importing brokerage positions")
+
+    payload = _brokerage_payload_from_statement(statement)
+    import_result = await _BROKERAGE_IMPORT_SERVICE.import_positions(
+        db,
+        user_id=user_id,
+        payload=payload,
+        filename=statement.original_filename,
+        source_document_id=str(statement.id),
+    )
+    await db.commit()
+    return BrokerageImportResponse(**import_result.__dict__)
 
 
 @router.post("/{statement_id}/approve", response_model=BankStatementResponse, deprecated=True)

@@ -147,6 +147,7 @@ jobs:
           echo "--- Phase 3: AI/OCR Gate (single process, primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}) ---"
           pytest \
             tests/e2e/test_statement_full_journey.py \
+            tests/e2e/test_brokerage_upload_to_portfolio_value.py \
             tests/e2e/test_statement_upload_e2e.py \
             -v -m "llm"
           

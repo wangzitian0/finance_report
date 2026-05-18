@@ -1,14 +1,18 @@
 """Tests for brokerage position parsing into AtomicPosition."""
 
 import json
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
+from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import ManagedPosition
+from src.routers.statements import _brokerage_payload_from_statement
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 from src.services.brokerage_positions import (
     BrokeragePositionImportService,
@@ -354,3 +358,130 @@ async def test_brokerage_import_endpoint(client, db):
     assert data["parsed_positions"] == 1
     assert data["created_atomic_positions"] == 1
     assert data["reconcile_created"] == 1
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client, db, test_user):
+    """AC8.13.10/Issue #404: Parsed brokerage statements can import portfolio positions."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/test.pdf",
+        file_hash="issue-404-moomoo",
+        original_filename="moomoo-2504.pdf",
+        institution="Moomoo",
+        account_last4="1582",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("2250.50"),
+        status=BankStatementStatus.PARSED,
+        confidence_score=95,
+        balance_validated=True,
+        transactions=[
+            BankStatementTransaction(
+                txn_date=date(2026, 5, 18),
+                description="Fullerton SGD Money Market Fund",
+                amount=Decimal("1250.50"),
+                direction="IN",
+                reference=None,
+                currency="SGD",
+                balance_after=Decimal("2250.50"),
+                confidence=ConfidenceLevel.HIGH,
+                raw_text="Subscription 0001 Fullerton SGD Money Market Fund SGD 2026/05/18 settled 1.0000 1250.50 1250.50",
+            )
+        ],
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["broker"] == "Moomoo"
+    assert data["parsed_positions"] == 1
+    assert data["created_atomic_positions"] == 1
+    assert data["reconcile_created"] == 1
+
+    positions = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
+    assert len(positions) == 1
+    assert positions[0].asset_identifier == "Fullerton SGD Money Market Fund"
+    assert positions[0].market_value == Decimal("1250.50")
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_requires_parsed_status(client, db, test_user):
+    """AC8.13.10/Issue #404: Position import cannot run before OCR parsing completes."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/pending.pdf",
+        file_hash="issue-404-pending",
+        original_filename="moomoo-pending.pdf",
+        institution="Moomoo",
+        currency="SGD",
+        status=BankStatementStatus.PARSING,
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 400
+    assert "must be parsed" in response.text
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_returns_404_for_missing_statement(client):
+    """AC8.13.10/Issue #404: Statement-scoped brokerage import is user-scoped."""
+    response = await client.post(f"/statements/{uuid4()}/brokerage/import")
+
+    assert response.status_code == 404
+
+
+def test_brokerage_payload_from_statement_preserves_outflows_and_empty_metadata():
+    """AC8.13.10/Issue #404: Statement payload keeps signed cash events deterministic."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=uuid4(),
+        file_path="statements/futu/test.pdf",
+        file_hash="issue-404-futu-outflow",
+        original_filename="futu-2506.pdf",
+        institution="Futu",
+        currency="SGD",
+        status=BankStatementStatus.APPROVED,
+        transactions=[
+            BankStatementTransaction(
+                txn_date=date(2026, 5, 18),
+                description="Platform fee",
+                amount=Decimal("4.23"),
+                direction="OUT",
+                reference=None,
+                currency=None,
+                balance_after=None,
+                confidence=ConfidenceLevel.HIGH,
+                raw_text=None,
+            )
+        ],
+    )
+
+    payload = _brokerage_payload_from_statement(statement)
+
+    assert payload["institution"] == "Futu"
+    assert payload["statement"]["period_end"] is None
+    assert payload["statement"]["currency"] == "SGD"
+    assert payload["transactions"] == payload["events"]
+    assert payload["transactions"] == [
+        {
+            "date": "2026-05-18",
+            "description": "Platform fee",
+            "amount": "-4.23",
+            "currency": "SGD",
+            "raw_text": "Platform fee",
+            "balance_after": None,
+        }
+    ]

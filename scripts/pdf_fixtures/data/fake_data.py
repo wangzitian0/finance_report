@@ -1,18 +1,19 @@
 """Generate fictional transaction data for test PDFs."""
+
 import random
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import List, Dict, Any
+from typing import Any
 
 
 def generate_dbs_transactions(
     start_date: datetime,
     count: int = 15,
     opening_balance: Decimal = Decimal("5000.00"),
-) -> tuple[List[Dict[str, Any]], Decimal]:
+) -> tuple[list[dict[str, Any]], Decimal]:
     """
     Generate fictional DBS transactions.
-    
+
     Returns:
         (transactions, closing_balance)
     """
@@ -30,17 +31,17 @@ def generate_dbs_transactions(
         ("GIRO PAYMENT", -100, -300),
         ("INTEREST EARNED", 0.50, 2.00),
     ]
-    
+
     txns = []
     balance = opening_balance
     current_date = start_date
-    
+
     for _ in range(count):
         # Advance date by 0-3 days
         current_date += timedelta(days=random.randint(0, 3))
-        
+
         desc, min_amt, max_amt = random.choice(descriptions)
-        
+
         # Generate random amount
         if min_amt == max_amt:
             amount = Decimal(str(min_amt))
@@ -52,9 +53,9 @@ def generate_dbs_transactions(
             max_cents = int(max_val * 100)
             cents = random.randint(min_cents, max_cents)
             amount = Decimal(cents) / Decimal(100)
-        
+
         balance += amount
-        
+
         txn = {
             "date": current_date.strftime("%d/%m/%Y"),
             "description": desc,
@@ -64,7 +65,7 @@ def generate_dbs_transactions(
             "amount": amount,  # For internal calculation
         }
         txns.append(txn)
-    
+
     return txns, balance
 
 
@@ -72,10 +73,10 @@ def generate_cmb_transactions(
     start_date: datetime,
     count: int = 20,
     opening_balance: Decimal = Decimal("10000.00"),
-) -> tuple[List[Dict[str, Any]], Decimal]:
+) -> tuple[list[dict[str, Any]], Decimal]:
     """
     Generate fictional CMB transactions.
-    
+
     Returns:
         (transactions, closing_balance)
     """
@@ -90,16 +91,16 @@ def generate_cmb_transactions(
         ("基金赎回", 2000, 10000),
         ("网联收款", 100, -100),  # Can be positive or negative
     ]
-    
+
     txns = []
     balance = opening_balance
     current_date = start_date
-    
+
     for _ in range(count):
         current_date += timedelta(days=random.randint(0, 2))
-        
+
         desc, min_amt, max_amt = random.choice(descriptions)
-        
+
         # Generate amount (can be positive or negative for some types)
         if "网联收款" in desc:
             # Can be either direction
@@ -116,9 +117,9 @@ def generate_cmb_transactions(
                 max_amount_int = int(max_val)
                 amount_int = random.randint(min_amount_int, max_amount_int)
                 amount = Decimal(amount_int)
-        
+
         balance += amount
-        
+
         txn = {
             "date": current_date.strftime("%Y-%m-%d"),
             "currency": "CNY",
@@ -129,7 +130,7 @@ def generate_cmb_transactions(
             "amount_decimal": amount,  # For internal calculation
         }
         txns.append(txn)
-    
+
     return txns, balance
 
 
@@ -137,10 +138,10 @@ def generate_mari_transactions(
     start_date: datetime,
     count: int = 12,
     opening_balance: Decimal = Decimal("3000.00"),
-) -> tuple[List[Dict[str, Any]], Decimal]:
+) -> tuple[list[dict[str, Any]], Decimal]:
     """
     Generate fictional Mari Bank transactions.
-    
+
     Returns:
         (transactions, closing_balance)
     """
@@ -150,16 +151,16 @@ def generate_mari_transactions(
         ("PayNow Payment", -20, -100),
         ("Interest Credit", 0.50, 2.00),
     ]
-    
+
     txns = []
     balance = opening_balance
     current_date = start_date
-    
+
     for _ in range(count):
         current_date += timedelta(days=random.randint(1, 3))
-        
+
         desc, min_amt, max_amt = random.choice(descriptions)
-        
+
         if min_amt == max_amt:
             amount = Decimal(str(min_amt))
         else:
@@ -170,7 +171,7 @@ def generate_mari_transactions(
             max_cents = int(max_val * 100)
             cents = random.randint(min_cents, max_cents)
             amount = Decimal(cents) / Decimal(100)
-        
+
         # Determine if outgoing or incoming
         if amount < 0:
             is_outgoing = True
@@ -181,9 +182,9 @@ def generate_mari_transactions(
         else:
             is_outgoing = False
             is_incoming = False
-        
+
         balance += amount
-        
+
         txn = {
             "date": current_date.strftime("%d %b").upper(),  # "15 JAN"
             "description": desc,
@@ -192,7 +193,7 @@ def generate_mari_transactions(
             "amount": amount,  # For internal calculation
         }
         txns.append(txn)
-    
+
     return txns, balance
 
 
@@ -200,10 +201,10 @@ def generate_moomoo_transactions(
     start_date: datetime,
     count: int = 10,
     opening_balance: Decimal = Decimal("10000.00"),
-) -> tuple[List[Dict[str, Any]], Decimal]:
+) -> tuple[list[dict[str, Any]], Decimal]:
     """
     Generate fictional Moomoo brokerage transactions.
-    
+
     Returns:
         (transactions, closing_balance)
     """
@@ -214,16 +215,30 @@ def generate_moomoo_transactions(
         ("INTEREST", 1.00, 5.00),
         ("FEE", -1.00, -10.00),
     ]
-    
+
     txns = []
     balance = opening_balance
     current_date = start_date
-    
-    for _ in range(count):
+
+    position_amount = Decimal("1250.50")
+    current_date += timedelta(days=1)
+    balance += position_amount
+    txns.append(
+        {
+            "date": current_date.strftime("%Y-%m-%d"),
+            "type": "SUBSCRIPTION",
+            "description": "Fullerton SGD Money Market Fund",
+            "amount": f"{position_amount:,.2f}",
+            "currency": "SGD",
+            "amount_decimal": position_amount,
+        }
+    )
+
+    for _ in range(max(count - 1, 0)):
         current_date += timedelta(days=random.randint(1, 5))
-        
+
         txn_type, min_amt, max_amt = random.choice(transaction_types)
-        
+
         if min_amt == max_amt:
             amount = Decimal(str(min_amt))
         else:
@@ -234,19 +249,75 @@ def generate_moomoo_transactions(
             max_cents = int(max_val * 100)
             cents = random.randint(min_cents, max_cents)
             amount = Decimal(cents) / Decimal(100)
-        
+
         balance += amount
-        
+
         txn = {
             "date": current_date.strftime("%Y-%m-%d"),
             "type": txn_type,
             "description": f"{txn_type} Transaction",
             "amount": f"{amount:,.2f}",
-            "currency": "USD",
+            "currency": "SGD",
             "amount_decimal": amount,  # For internal calculation
         }
         txns.append(txn)
-    
+
+    return txns, balance
+
+
+def generate_futu_transactions(
+    start_date: datetime,
+    count: int = 8,
+    opening_balance: Decimal = Decimal("20000.00"),
+) -> tuple[list[dict[str, Any]], Decimal]:
+    """
+    Generate fictional Futu brokerage statement events.
+
+    Returns:
+        (transactions, closing_balance)
+    """
+    txns = []
+    balance = opening_balance
+    current_date = start_date
+
+    valuation_amount = Decimal("323730.00")
+    current_date += timedelta(days=1)
+    balance += valuation_amount
+    txns.append(
+        {
+            "date": current_date.strftime("%Y-%m-%d"),
+            "type": "VALUATION",
+            "description": "Stock and options valuation",
+            "amount": f"{valuation_amount:,.2f}",
+            "currency": "SGD",
+            "amount_decimal": valuation_amount,
+        }
+    )
+
+    event_types = [
+        ("DIVIDEND", "Dividend income", 20, 150),
+        ("INTEREST", "Brokerage cash interest", 1, 8),
+        ("FEE", "Platform fee", -1, -12),
+        ("CASH", "Cash balance movement", -50, 50),
+    ]
+    for _ in range(max(count - 1, 0)):
+        current_date += timedelta(days=random.randint(1, 4))
+        txn_type, description, min_amt, max_amt = random.choice(event_types)
+        min_cents = int(min(min_amt, max_amt) * 100)
+        max_cents = int(max(min_amt, max_amt) * 100)
+        amount = Decimal(random.randint(min_cents, max_cents)) / Decimal(100)
+        balance += amount
+        txns.append(
+            {
+                "date": current_date.strftime("%Y-%m-%d"),
+                "type": txn_type,
+                "description": description,
+                "amount": f"{amount:,.2f}",
+                "currency": "SGD",
+                "amount_decimal": amount,
+            }
+        )
+
     return txns, balance
 
 
@@ -254,10 +325,10 @@ def generate_pingan_transactions(
     start_date: datetime,
     count: int = 15,
     opening_balance: Decimal = Decimal("8000.00"),
-) -> tuple[List[Dict[str, Any]], Decimal]:
+) -> tuple[list[dict[str, Any]], Decimal]:
     """
     Generate fictional Pingan (平安银行) transactions.
-    
+
     Returns:
         (transactions, closing_balance)
     """
@@ -270,16 +341,16 @@ def generate_pingan_transactions(
         ("基金申购", -1000, -5000),
         ("基金赎回", 1000, 5000),
     ]
-    
+
     txns = []
     balance = opening_balance
     current_date = start_date
-    
+
     for _ in range(count):
         current_date += timedelta(days=random.randint(0, 2))
-        
+
         desc, min_amt, max_amt = random.choice(descriptions)
-        
+
         if min_amt == max_amt:
             amount = Decimal(str(min_amt))
         else:
@@ -290,9 +361,9 @@ def generate_pingan_transactions(
             max_amount_int = int(max_val)
             amount_int = random.randint(min_amount_int, max_amount_int)
             amount = Decimal(amount_int)
-        
+
         balance += amount
-        
+
         # Determine transaction type
         if "工资" in desc or "结息" in desc or "赎回" in desc:
             txn_type = "收入"
@@ -300,7 +371,7 @@ def generate_pingan_transactions(
             txn_type = "支出"
         else:
             txn_type = "转账"
-        
+
         txn = {
             "date": current_date.strftime("%Y-%m-%d"),
             "type": txn_type,
@@ -310,5 +381,5 @@ def generate_pingan_transactions(
             "amount_decimal": amount,  # For internal calculation
         }
         txns.append(txn)
-    
+
     return txns, balance

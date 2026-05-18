@@ -321,11 +321,12 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.7 | Strict full statement journey fails on rejected AI/OCR parsing | `test_dbs_statement_full_journey` | `tests/e2e/test_statement_full_journey.py` | P0 |
 | AC8.13.8 | Strict upload readiness E2E does not accept rejected statements | `test_statement_upload_full_flow` | `tests/e2e/test_statement_upload_e2e.py` | P0 |
 | AC8.13.9 | Production release runs prod-safe read-only E2E smoke | `test_production_*` | `tests/e2e/test_production_readonly_smoke.py` | P0 |
+| AC8.13.10 | Multi-brokerage PDF upload → position import → latest portfolio value | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 59
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 50/59 (84.7%); 5 additional covered by Tier 3 E2E (AC8.13)**
+- **ACs with passing Tier 1 tests: 50/59 (84.7%); 6 additional covered by Tier 3 E2E (AC8.13)**
 - ACs covered by AC group:
   - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
   - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
@@ -338,10 +339,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 9/9 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, hard-gate skip enforcement, production-safe smoke)
-- Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 1 new Tier 3 (`tests/e2e/test_statement_full_journey.py`), 3 Playwright (skip without `APP_URL` or `FRONTEND_URL`)
+  - AC8.13: 10/10 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke)
+- Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 2 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`), 3 Playwright (skip without `APP_URL` or `FRONTEND_URL`)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 9/9 Tier 3/deploy-gate ACs (total 63 ACs: 54 Tier 1 + 9 Tier 3/deploy-gate)
+- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 10/10 Tier 3/deploy-gate ACs (total 64 ACs: 54 Tier 1 + 10 Tier 3/deploy-gate)
 
 ---
 
@@ -354,6 +355,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | `tests/e2e/test_core_journeys.py` | API E2E | Tier 1 | 41 | Health, accounts CRUD, journal entries, reports, reconciliation, auth, statement upload/flow, CI/CD integration, traceability |
 | `tests/e2e/test_statement_upload_e2e.py` | Playwright | Tier 3 | 2 | Statement upload + model selection (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_statement_full_journey.py` | Playwright | Tier 3 | 1 | Full journey: DBS PDF upload → parse polling → detail/transactions → approve → balance sheet (AC8.13.1–5) |
+| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | API E2E | Tier 3 | 1 | Issue #404 hard gate: Moomoo + Futu PDF upload → real OCR parsing → brokerage import → holdings + balance sheet value (AC8.13.10) |
 | `tests/e2e/test_production_readonly_smoke.py` | Playwright/API | Tier 3 | 3 | Production-safe read-only smoke: health, auth boundary, browser shell, optional credential-gated dashboard |
 | `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |
@@ -441,7 +443,13 @@ These scenarios represent the "Vertical Slices" of user value.
    - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips. Post-merge staging is the deploy-blocking AI/OCR gate.
    - **Provider budget rule**: Tests marked `llm` run serially in the post-merge staging job, not under the `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging gate. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate.
 
-3. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
+3. **Multi-Brokerage Upload to Portfolio Value (Tier 3)** (`test_brokerage_upload_to_portfolio_value.py`):
+   - **Status**: Implemented hard gate for Issue #404
+   - **Coverage**: AC8.13.10 (Moomoo + Futu PDF upload, real OCR parse polling, parsed-statement position import, holdings visibility, balance-sheet asset value)
+   - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures.
+   - **Provider budget rule**: Runs in the same serialized `llm` staging phase as the DBS full journey.
+
+4. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
    - **Status**: Implemented for production release
    - **Coverage**: Health payload, anonymous auth boundary, browser shell/login route, optional credential-gated dashboard
    - **Allowed skip**: Authenticated dashboard check may skip only when `PROD_SMOKE_EMAIL` / `PROD_SMOKE_PASSWORD` are not configured; it must not mutate production data

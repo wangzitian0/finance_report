@@ -19,33 +19,31 @@ Usage:
 Requires: reportlab, pyyaml
 """
 
-import sys
 import argparse
-from pathlib import Path
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.platypus import (
+        Paragraph,
         SimpleDocTemplate,
+        Spacer,
         Table,
         TableStyle,
-        Paragraph,
-        Spacer,
     )
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 except ImportError:
-    print(
-        "❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'."
-    )
+    print("❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'.")
     sys.exit(1)
 
 
 def generate_legacy_dbs_pdf(output_path: Path):
     """Generate legacy DBS PDF for backward compatibility with existing E2E tests."""
-    from decimal import Decimal
     import random
+    from decimal import Decimal
 
     def generate_transactions(start_date: datetime, count: int = 15):
         """Generate a list of synthetic transactions."""
@@ -102,9 +100,7 @@ def generate_legacy_dbs_pdf(output_path: Path):
     styles = getSampleStyleSheet()
 
     # Header
-    header_style = ParagraphStyle(
-        "Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12
-    )
+    header_style = ParagraphStyle("Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12)
     elements.append(Paragraph("DBS Bank - E-Statement", header_style))
     elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
     elements.append(Spacer(1, 20))
@@ -118,9 +114,7 @@ def generate_legacy_dbs_pdf(output_path: Path):
     txns = generate_transactions(start_date, count=15)
     data = [["Date", "Transaction Description", "Withdrawal", "Deposit", "Balance"]]
     for t in txns:
-        data.append(
-            [t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]]
-        )
+        data.append([t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]])
 
     # Table Styling
     t = Table(data, colWidths=[70, 200, 60, 60, 70])
@@ -149,9 +143,9 @@ def main():
     parser = argparse.ArgumentParser(description="Generate E2E PDF Fixtures")
     parser.add_argument(
         "--source",
-        choices=["dbs", "cmb", "mari", "moomoo", "pingan", "all"],
+        choices=["dbs", "cmb", "mari", "moomoo", "futu", "pingan", "all"],
         default=None,
-        help="Source to generate (dbs, cmb, mari, moomoo, pingan, all). If not specified, uses legacy mode.",
+        help="Source to generate (dbs, cmb, mari, moomoo, futu, pingan, all). If not specified, uses legacy mode.",
     )
     parser.add_argument(
         "--output",
@@ -186,8 +180,9 @@ def main():
 
     # Import generators
     try:
-        from generators.dbs_generator import DBSGenerator
         from generators.cmb_generator import CMBGenerator
+        from generators.dbs_generator import DBSGenerator
+        from generators.futu_generator import FutuGenerator
         from generators.mari_generator import MariGenerator
         from generators.moomoo_generator import MoomooGenerator
         from generators.pingan_generator import PinganGenerator
@@ -209,7 +204,7 @@ def main():
 
     sources_to_generate = []
     if args.source == "all":
-        sources_to_generate = ["dbs", "cmb", "mari", "moomoo", "pingan"]
+        sources_to_generate = ["dbs", "cmb", "mari", "moomoo", "futu", "pingan"]
     else:
         sources_to_generate = [args.source]
 
@@ -233,6 +228,9 @@ def main():
                 generator.generate(output_path, period_start, period_end)
             elif source == "moomoo":
                 generator = MoomooGenerator(template_path)
+                generator.generate(output_path, period_start, period_end)
+            elif source == "futu":
+                generator = FutuGenerator(template_path)
                 generator.generate(output_path, period_start, period_end)
             elif source == "pingan":
                 generator = PinganGenerator(template_path)

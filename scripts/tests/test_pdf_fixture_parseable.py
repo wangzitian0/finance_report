@@ -10,6 +10,7 @@ from pathlib import Path
 DBS_DATE_PATTERN = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 CMB_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MARI_DATE_PATTERN = re.compile(r"^\d{2}\s[A-Z]{3}$")
+FUTU_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _parse_decimal(raw: str) -> Decimal:
@@ -87,6 +88,17 @@ def _extract_mari_rows(tables: list[list[list[str | None]]]) -> list[list[str]]:
     return rows
 
 
+def _extract_futu_rows(tables: list[list[list[str | None]]]) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for table in tables:
+        for row in table:
+            if not row or len(row) < 5:
+                continue
+            if row[0] and FUTU_DATE_PATTERN.match(row[0].strip()):
+                rows.append([cell.strip() if cell else "" for cell in row[:5]])
+    return rows
+
+
 def _extract_mari_summary_balances(
     text: str,
     tables: list[list[list[str | None]]],
@@ -112,6 +124,58 @@ def _extract_mari_summary_balances(
     raise AssertionError(
         "Mari account summary table with opening/ending balance not found"
     )
+
+
+def test_ac8_13_10_futu_generated_pdf_parseable(tmp_path: Path) -> None:
+    futu_generator = import_module("generators.futu_generator").FutuGenerator
+    output_path = tmp_path / "futu" / "test_futu.pdf"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    generator = futu_generator(
+        Path(__file__).parent.parent
+        / "pdf_fixtures"
+        / "templates"
+        / "futu_template.yaml"
+    )
+    generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
+
+    _assert_valid_pdf(output_path)
+    text, tables = _read_pdf_text_and_tables(output_path)
+    rows = _extract_futu_rows(tables)
+
+    assert "Futu Securities - Monthly Statement" in text
+    assert "Activity and Valuation" in text
+    assert "SGD 20,000.00" in text
+    assert len(rows) == 8
+    assert rows[0][1] == "VALUATION"
+    assert rows[0][2] == "Stock and options valuation"
+    assert _parse_decimal(rows[0][3]) == Decimal("323730.00")
+    assert all(FUTU_DATE_PATTERN.match(row[0]) for row in rows)
+
+
+def test_ac8_13_10_futu_fake_data_count_boundaries() -> None:
+    generate_futu_transactions = import_module(
+        "data.fake_data"
+    ).generate_futu_transactions
+    start_date = datetime(2025, 1, 1)
+
+    zero_txns, zero_closing = generate_futu_transactions(
+        start_date,
+        count=0,
+        opening_balance=Decimal("100.00"),
+    )
+    one_txn, one_closing = generate_futu_transactions(
+        start_date,
+        count=1,
+        opening_balance=Decimal("100.00"),
+    )
+
+    assert len(zero_txns) == 1
+    assert len(one_txn) == 1
+    assert zero_txns[0]["type"] == "VALUATION"
+    assert one_txn[0]["type"] == "VALUATION"
+    assert zero_closing == Decimal("323830.00")
+    assert one_closing == Decimal("323830.00")
 
 
 def test_ac9_3_2_dbs_generated_pdf_parseable(tmp_path: Path) -> None:
