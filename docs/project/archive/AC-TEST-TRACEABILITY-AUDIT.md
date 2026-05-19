@@ -516,7 +516,7 @@
 | AC8.13.7 | yes | Strict full statement journey fails on rejected AI/OCR parsing | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.8 | yes | Strict upload readiness E2E does not accept rejected statements | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.9 | yes | Production release runs prod-safe read-only E2E smoke | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
-| AC8.13.10 | yes | Multi-brokerage PDF upload -> position import -> latest portfolio value | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.10 | yes | Multi-brokerage PDF upload -> position import -> latest portfolio value | `apps/backend/tests/accounting/test_validation.py`<br>`apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py`<br>`apps/backend/tests/portfolio/test_brokerage_position_parsing.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.11 | yes | Staging health check diagnoses API route 404 with route probes | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.12 | yes | AI/OCR gate failures include statement validation context | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 

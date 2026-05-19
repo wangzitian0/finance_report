@@ -75,6 +75,34 @@ def test_validate_balance_tolerance():
     assert Decimal(result["difference"]) <= Decimal("0.10")
 
 
+def test_validate_balance_normalizes_signed_outflows():
+    """AC8.13.10/Issue #409: Balance validation treats direction as the sign source."""
+    extracted = {
+        "opening_balance": "100.00",
+        "closing_balance": "80.00",
+        "transactions": [{"amount": "-20.00", "direction": "OUT"}],
+    }
+
+    result = validate_balance(extracted)
+
+    assert result["balance_valid"] is True
+    assert result["difference"] == "0.00"
+
+
+def test_validate_balance_infers_non_standard_signed_outflows():
+    """AC8.13.10/Issue #409: Non-standard direction values fall back to amount sign."""
+    extracted = {
+        "opening_balance": "100.00",
+        "closing_balance": "80.00",
+        "transactions": [{"amount": "-20.00", "direction": "DEBIT"}],
+    }
+
+    result = validate_balance(extracted)
+
+    assert result["balance_valid"] is True
+    assert result["difference"] == "0.00"
+
+
 def test_validate_balance_error_path():
     """Invalid transaction payloads should surface as validation errors."""
     extracted = {
@@ -100,6 +128,30 @@ def test_compute_confidence_score_large_transaction_count():
     missing_fields = []
     score = compute_confidence_score(extracted, balance_result, missing_fields)
     assert score >= 0
+
+
+def test_compute_confidence_score_normalizes_signed_outflow_progression():
+    """AC8.13.10/Issue #409: Running-balance scoring normalizes signed OUT rows."""
+    extracted = {
+        "institution": "Moomoo",
+        "currency": "SGD",
+        "period_start": "2026-05-01",
+        "period_end": "2026-05-31",
+        "opening_balance": "100.00",
+        "closing_balance": "90.00",
+        "transactions": [
+            {"amount": "10.00", "direction": "IN", "currency": "SGD", "balance_after": "110.00"},
+            {"amount": "-20.00", "direction": "DEBIT", "currency": "SGD", "balance_after": "90.00"},
+        ],
+    }
+
+    score = compute_confidence_score(
+        extracted,
+        {"balance_valid": True, "difference": "0.00"},
+        missing_fields=[],
+    )
+
+    assert score == 100
 
 
 def test_compute_confidence_score_invalid_difference() -> None:
