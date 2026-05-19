@@ -1,0 +1,90 @@
+# Staging AI/OCR Gate Workflow
+#
+# Triggers after a successful Deploy Staging workflow.
+# Separates provider-backed parsing correctness from deploy health.
+
+name: Staging AI/OCR Gate
+
+on:
+  workflow_run:
+    workflows: ["Deploy Staging"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-ai-ocr
+  cancel-in-progress: true
+
+env:
+  APP_URL: https://report-staging.zitian.party
+  TEST_ENV: staging
+  SKIP_UI_TESTS: false
+  STRICT_E2E_GATES: true
+  PARSING_TIMEOUT_MS: 480000
+  STAGING_E2E_PRIMARY_MODEL: glm-5.1
+  STAGING_E2E_OCR_MODEL: glm-4.6v
+  STAGING_E2E_VISION_MODEL: glm-4.6v
+
+jobs:
+  ai-ocr-gate:
+    name: Staging AI/OCR Gate
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve expected SHA
+        id: expected_sha
+        run: |
+          full_sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "short_sha=${full_sha:0:7}" >> "$GITHUB_OUTPUT"
+          echo "Validating staging AI/OCR for commit ${full_sha}"
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Run Staging AI/OCR Gate
+        env:
+          EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}
+        run: |
+          run_timed_phase() {
+            local phase_name="$1"
+            shift
+            local start
+            local end
+            local duration
+            local status
+
+            start=$(date +%s)
+            echo "::group::${phase_name}"
+            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
+            "$@"
+            status=$?
+            set -e
+            end=$(date +%s)
+            duration=$((end - start))
+            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
+            echo "::endgroup::"
+            return "$status"
+          }
+
+          echo "Starting Staging AI/OCR Gate for $APP_URL"
+          echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+
+          run_timed_phase "Staging AI/OCR Version Check" \
+            pytest tests/e2e/test_version_check.py -v -m "smoke"
+
+          run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
+            pytest \
+              tests/e2e/test_statement_full_journey.py \
+              tests/e2e/test_brokerage_upload_to_portfolio_value.py \
+              tests/e2e/test_statement_upload_e2e.py \
+              -v -m "llm"
+
+          echo "Staging AI/OCR Gate passed."

@@ -133,7 +133,6 @@ jobs:
           TEST_ENV: staging
           SKIP_UI_TESTS: false
           STRICT_E2E_GATES: true
-          PARSING_TIMEOUT_MS: 480000
           EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
         run: |
           run_timed_phase() {
@@ -168,14 +167,7 @@ jobs:
           run_timed_phase "Phase 2: Core Flow Validation (Python)" \
             pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
 
-          run_timed_phase "Phase 3: AI/OCR Gate (single process, primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
-            pytest \
-            tests/e2e/test_statement_full_journey.py \
-            tests/e2e/test_brokerage_upload_to_portfolio_value.py \
-            tests/e2e/test_statement_upload_e2e.py \
-            -v -m "llm"
-          
-          echo "✅ Staging E2E Pipeline passed!"
+          echo "✅ Staging deploy health gate passed!"
 
       - name: Performance Benchmark
         continue-on-error: true  # Don't block deploy, but report issues

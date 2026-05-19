@@ -325,6 +325,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.11 | Staging health check diagnoses API route 404 with route probes | `test_AC8_13_11_health_check_diagnoses_staging_api_route_404` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.12 | AI/OCR gate failures include statement validation context | `test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.13 | Staging deploy cancels stale runs and bounds E2E gate duration with phase timing logs | `test_AC8_13_13_staging_deploy_fast_fail_guardrails` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.14 | Provider-backed staging AI/OCR gate runs separately from deploy health | `test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 61
@@ -342,10 +343,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 13/13 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails)
+  - AC8.13: 14/14 (Tier 3 E2E — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate)
 - Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 2 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`), 3 Playwright (skip without `APP_URL` or `FRONTEND_URL`)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 13/13 Tier 3/deploy-gate ACs (total 67 ACs: 54 Tier 1 + 13 Tier 3/deploy-gate)
+- **Current state**: 50/54 Tier 1 ACs (92.6%) + AC8.13 14/14 Tier 3/deploy-gate ACs (total 68 ACs: 54 Tier 1 + 14 Tier 3/deploy-gate)
 
 ---
 
@@ -443,16 +444,16 @@ These scenarios represent the "Vertical Slices" of user value.
 2. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
    - **Status**: Implemented hard gate — requires `APP_URL` pointing to a running frontend+backend
    - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
-   - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips and reports the statement id, validation error, parsing progress, confidence, and selected model. Post-merge staging is the deploy-blocking AI/OCR gate.
-   - **Provider budget rule**: Tests marked `llm` run serially in the post-merge staging job, not under the `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging gate. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate.
-   - **Fast-fail guardrail**: Staging tracks the latest `main`, cancels stale in-progress deploy runs, caps the deploy job at 30 minutes, caps the E2E step at 22 minutes, and emits phase timing logs for smoke, core non-LLM E2E, and serialized AI/OCR.
+   - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips and reports the statement id, validation error, parsing progress, confidence, and selected model. The separate post-merge `Staging AI/OCR Gate` is the provider-backed AI/OCR gate.
+   - **Provider budget rule**: Tests marked `llm` run serially in `.github/workflows/staging-ai-ocr-gate.yml`, not under the staging deploy `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging AI/OCR gate. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate.
+   - **Fast-fail guardrail**: Staging tracks the latest `main`, cancels stale in-progress deploy runs, caps the deploy job at 30 minutes, caps the deploy E2E step at 22 minutes, and emits phase timing logs for smoke and core non-LLM E2E. Provider-backed OCR parsing runs afterward in the separate `Staging AI/OCR Gate`.
    - **Route diagnostics**: If staging `/api/health` remains 404, `scripts/health_check.sh` probes `/api/ping` and `/` and identifies a likely Traefik API route miss or web-route shadow before failing the deploy.
 
 3. **Multi-Brokerage Upload to Portfolio Value (Tier 3)** (`test_brokerage_upload_to_portfolio_value.py`):
    - **Status**: Implemented hard gate for Issue #404
    - **Coverage**: AC8.13.10 (Moomoo + Futu PDF upload, real OCR parse polling, parsed-statement position import, holdings visibility, balance-sheet asset value)
    - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures.
-   - **Provider budget rule**: Runs in the same serialized `llm` staging phase as the DBS full journey.
+   - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS full journey.
 
 4. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
    - **Status**: Implemented for production release
