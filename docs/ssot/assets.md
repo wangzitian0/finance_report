@@ -54,6 +54,10 @@ For each latest atomic position:
 
 `_get_or_create_broker_account` automatically creates an `ASSET`-type account for each broker encountered during reconciliation. Broker name falls back to `"Unknown Broker"` when not provided.
 
+### Latest Holdings Valuation Date
+
+`GET /portfolio/holdings` without `as_of_date` returns the latest portfolio value. The valuation date is `today` unless the user's latest imported `AtomicPosition.snapshot_date` is newer, which can happen for current-month brokerage statement fixtures or provider outputs that normalize month-only periods to month end. Explicit `as_of_date` requests remain date-bounded and must not use future snapshots.
+
 ---
 
 ## 3. API Endpoints
