@@ -45,6 +45,8 @@
 - Uses GitHub Actions `services:` (ephemeral Postgres container)
 - **Completely ephemeral**: Destroyed after job finishes
 - Database: `finance_report_test` (no namespace needed, job-isolated)
+- Runtime, test, script, CI, dependency, and coverage-policy changes run the full backend/frontend/unified coverage gate.
+- Lightweight documentation, markdown, issue-template, and `.github/workflows/docs.yml` changes skip the heavy backend/frontend/coverage jobs while still running lint, SSOT checks, AC traceability, and the final aggregate check.
 
 **PR Preview** — Full deployment with code changes:
 - **Builds Docker images** from PR branch
@@ -116,9 +118,9 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 |-------------|-----------|---------|----------|
 | **Local Dev** | None (manual testing) | Fast iteration | — |
 | **Local CI** | Unit + Integration (90% backend, 96% unified) | Pre-push validation | ~30s |
-| **GitHub CI** | Unit + Integration (90% backend, 96% unified) | Quality gate | ~2min |
-| **PR Preview** | Health check only | Deployment validation | ~30s |
-| **Staging** | Smoke + Performance | Full validation | ~5min |
+| **GitHub CI** | Lint, AC traceability, unit + integration with unified coverage for heavy changes | Quality gate | ~7min heavy / lightweight skips heavy jobs |
+| **PR Preview** | Health check + non-LLM E2E against per-PR Dokploy environment | Deployment validation | ~3-5min |
+| **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR gate runs separately | Full validation | ~6min deploy + variable AI/OCR gate |
 | **Production** | Health check only | Availability check | ~10s |
 
 ---

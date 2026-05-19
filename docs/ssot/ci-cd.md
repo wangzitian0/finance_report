@@ -12,25 +12,49 @@
 The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
 
 ```
-lint → backend shards → frontend → unified-coverage → finish
+classify-changes → lint → backend shards + frontend → unified-coverage → finish
+                  ↘ ac-traceability ───────────────────────↗
 ```
 
 ### Job Details
 
 | Job | Purpose | Dependencies |
 |-----|---------|--------------|
+| **classify-changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
-| **backend** (Shards 1-4) | Backend unit + integration tests | `needs: [lint]` |
-| **frontend** | Frontend build + tests | None (runs in parallel with backend) |
-| **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls | `needs: [backend, frontend]` |
-| **finish** | Aggregate all job results | `needs: [backend, frontend, lint, unified-coverage]` |
+| **backend** (Shards 1-4) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes, lint]` |
+| **frontend** | Frontend build + tests when heavy CI is required | `needs: [classify-changes]` |
+| **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [classify-changes, backend, frontend]` |
+| **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | `needs: [lint]` |
+| **finish** | Aggregate all required and skipped job results | `needs: [classify-changes, backend, frontend, lint, unified-coverage, ac-traceability]` |
 
 ### Key CI Properties
 
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
-2. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
-3. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
-4. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
+3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
+4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation.
+5. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
+6. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
+7. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+
+### PR vs Main CI Responsibilities
+
+Pull requests run the same heavy CI path as `main` when runtime, tests, scripts,
+CI, dependency, or coverage-policy files change. This keeps branch protection
+strict before merge.
+
+Pushes to `main` still run heavy CI for runtime changes even though the merged PR
+already ran required checks. The retained post-merge run provides three signals
+that PR checks cannot fully replace: validation of the exact merge commit,
+Coveralls upload from `main`, and a final gate before post-merge staging/AI
+workflows consume the new commit.
+
+Lightweight changes do not repeat the heavy path on either PRs or `main`.
+Lightweight means all changed files are limited to documentation, markdown,
+issue templates, or `.github/workflows/docs.yml`. Other workflow changes are not
+skipped because they may affect CI, deploy, or release behavior and must exercise
+the full gate.
 
 ---
 
@@ -93,11 +117,13 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - `scripts/test_lifecycle.py` — DB lifecycle (accepts coverage flags from callers)
 
 **CI Optimization** (`.github/workflows/ci.yml`):
+- Change classification skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
 - 4-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation
+- Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
@@ -146,6 +172,13 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Total duration: **6m 24s** (Backend: 5m 52s, Frontend: 1m 30s)
 - Test execution: 893 tests in 4m 47s (**320ms avg**)
 - Caching: UV ✅ (2.9s), Next.js ✅, venv ✅
+
+**CI Pipeline (2026-05-19 observed baseline):**
+- Full heavy CI on `main`: **~7m 02s**.
+- Longest backend shard: **~6m 03s**.
+- Frontend build and coverage test: **~2m 32s** before npm cache standardization.
+- Unified coverage: **~28s**.
+- Lightweight docs/docs-workflow changes skip backend, frontend, and unified coverage; lint, AC traceability, and finish still run.
 
 **Backend Test Parallelization:**
 
