@@ -75,6 +75,27 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     assert "statement=last_payload" in brokerage
 
 
+def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
+    """AC8.13.13: Staging deploy cancels stale runs and bounds E2E duration."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "group: staging-deploy" in workflow
+    assert "cancel-in-progress: true" in workflow
+    assert "timeout-minutes: 30" in workflow
+    assert "timeout-minutes: 22" in workflow
+    assert "run_timed_phase()" in workflow
+    assert "[phase:start]" in workflow
+    assert "[phase:end]" in workflow
+    assert "duration=%ss" in workflow
+    assert 'run_timed_phase "Phase 1: Smoke Check (Shell)"' in workflow
+    assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
+    assert 'run_timed_phase "Phase 3: AI/OCR Gate' in workflow
+    assert "stale in-progress staging deploys are cancelled" in ci_cd
+    assert "30-minute job timeout" in ci_cd
+    assert "22-minute E2E step timeout" in ci_cd
+
+
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
     workflow = read(".github/workflows/production-release.yml")
@@ -104,7 +125,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     deploy_script = read("scripts/dokploy_deploy.sh")
 
     assert "group: staging-deploy" in workflow
-    assert "cancel-in-progress: false" in workflow
+    assert "cancel-in-progress: true" in workflow
     assert "workflow_dispatch:" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
     assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow

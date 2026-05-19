@@ -15,7 +15,7 @@ on:
 
 concurrency:
   group: staging-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -30,6 +30,7 @@ jobs:
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       packages: write
     outputs:
@@ -126,6 +127,7 @@ jobs:
         uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
+        timeout-minutes: 22
         env:
           APP_URL: https://report-staging.zitian.party
           TEST_ENV: staging
@@ -134,18 +136,40 @@ jobs:
           PARSING_TIMEOUT_MS: 480000
           EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
         run: |
+          run_timed_phase() {
+            local phase_name="$1"
+            shift
+            local start
+            local end
+            local duration
+            local status
+
+            start=$(date +%s)
+            echo "::group::${phase_name}"
+            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
+            "$@"
+            status=$?
+            set -e
+            end=$(date +%s)
+            duration=$((end - start))
+            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
+            echo "::endgroup::"
+            return "$status"
+          }
+
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
-          echo "--- Phase 1: Smoke Check (Shell) ---"
-          bash scripts/smoke_test.sh "$APP_URL" staging
+          run_timed_phase "Phase 1: Smoke Check (Shell)" \
+            bash scripts/smoke_test.sh "$APP_URL" staging
           
-          echo "--- Phase 2: Core Flow Validation (Python) ---"
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
-          pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
+          run_timed_phase "Phase 2: Core Flow Validation (Python)" \
+            pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
 
-          echo "--- Phase 3: AI/OCR Gate (single process, primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}) ---"
-          pytest \
+          run_timed_phase "Phase 3: AI/OCR Gate (single process, primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
+            pytest \
             tests/e2e/test_statement_full_journey.py \
             tests/e2e/test_brokerage_upload_to_portfolio_value.py \
             tests/e2e/test_statement_upload_e2e.py \
