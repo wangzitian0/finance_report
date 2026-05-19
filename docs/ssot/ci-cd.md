@@ -22,14 +22,14 @@ lint → backend shards → frontend → unified-coverage → finish
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
 | **backend** (Shards 1-4) | Backend unit + integration tests | `needs: [lint]` |
 | **frontend** | Frontend build + tests | None (runs in parallel with backend) |
-| **unified-coverage** | Calculate unified coverage, compare to baseline, update Coveralls | `needs: [backend, frontend]` |
+| **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls | `needs: [backend, frontend]` |
 | **finish** | Aggregate all job results | `needs: [backend, frontend, lint, unified-coverage]` |
 
 ### Key CI Properties
 
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
 2. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
-3. **Baseline Auto-Update**: On main branch pushes, `unified-coverage` job commits `unified-coverage.json` with `[skip ci]`.
+3. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
 4. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ---
@@ -41,8 +41,8 @@ The CI workflow enforces a **no-regression policy** for test coverage.
 ### How It Works
 
 1. **Baseline Storage**: `unified-coverage.json` at repo root.
-   - Created automatically on first successful CI run on `main`
-   - Updated automatically on each subsequent `main` push
+   - Updated manually through PR when the coverage policy or measured baseline changes
+   - Not auto-committed by CI because branch protection requires reviewed PRs
 
 2. **Comparison Logic**:
    - Reads `unified-coverage.json` before calculating final coverage
@@ -50,6 +50,11 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - Uses `round(x, 2)` for floating-point comparison
    - **Zero tolerance**: `current < baseline` → CI fails immediately
    - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
+3. **Source-tree/LCOV Logic**:
+   - `scripts/coverage_policy.py` defines the single component policy used by coverage calculation and audit checks
+   - `scripts/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
+   - `scripts/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
+   - New source modules are automatically required to appear in LCOV unless explicitly excluded by policy
 
 3. **Environment Variables**:
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
@@ -91,6 +96,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - 4-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
+- Coverage policy audited after backend, frontend, and scripts LCOV reports exist
+- Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
@@ -127,7 +134,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 ## Coverage Requirements
 
 - Backend line coverage: **≥ 90%** (enforced by `pytest-cov`)
-- Unified coverage: **96%** (enforced by `calculate_unified_coverage.py`)
+- Unified coverage: **no-regression from `unified-coverage.json`** (currently 94.38% floor after AC8.13.15 policy unification)
 - Branch coverage: Required (via `--cov-branch`)
 - See [coverage.md](./coverage.md) and [tdd.md](./tdd.md) for details
 

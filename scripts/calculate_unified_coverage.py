@@ -19,6 +19,8 @@ import os
 import sys
 from pathlib import Path
 
+from coverage_policy import CoverageComponent, get_component
+
 # Configuration
 ROOT_DIR = Path(__file__).parent.parent
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
@@ -37,7 +39,6 @@ BLACKLIST_PATTERNS = [
     "/venv/",
     "__pycache__",
     ".pyc",
-    "test_",
     "_test.py",
     ".test.ts",
     ".test.tsx",
@@ -57,10 +58,13 @@ BLACKLIST_PATTERNS = [
 def is_test_file(file_path: str) -> bool:
     """Check if a file should be excluded from code coverage calculation."""
     path = file_path.replace("\\", "/")
-    
+    basename = path.rsplit("/", 1)[-1]
+
     for pattern in BLACKLIST_PATTERNS:
         if pattern in path:
             return True
+    if basename.startswith("test_"):
+        return True
     return False
 
 
@@ -99,6 +103,14 @@ def count_code_lines(directory: Path, extensions: list[str]) -> dict:
         "total_lines": total_lines,
         "file_count": file_count,
         "files": files_detail[:10]  # Only keep first 10 for summary
+    }
+
+
+def count_policy_files(component: CoverageComponent) -> dict:
+    expected_sources = component.expected_sources(ROOT_DIR)
+    return {
+        "file_count": len(expected_sources),
+        "files": [{"path": path} for path in sorted(expected_sources)[:10]],
     }
 
 
@@ -156,51 +168,29 @@ def parse_lcov_file(lcov_path: Path) -> dict:
     }
 
 
-def get_backend_coverage() -> dict:
-    lcov_path = BACKEND_DIR / "coverage.lcov"
-    ci_lcov_path = ROOT_DIR / "coverage" / "backend.lcov"
-    if ci_lcov_path.exists():
-        lcov_path = ci_lcov_path
+def get_component_coverage(component: CoverageComponent) -> dict:
+    lcov_path = component.lcov_path(ROOT_DIR)
     coverage_data = parse_lcov_file(lcov_path)
-    code_stats = count_code_lines(BACKEND_DIR / "src", [".py"])
-    total_lines = coverage_data["total_measured_lines"] or code_stats["total_lines"]
+    policy_stats = count_policy_files(component)
+    total_lines = coverage_data["total_measured_lines"]
     return {
         "total_lines": total_lines,
         "covered_lines": coverage_data["covered_lines"],
         "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
-        "file_count": code_stats["file_count"],
+        "file_count": policy_stats["file_count"],
     }
+
+
+def get_backend_coverage() -> dict:
+    return get_component_coverage(get_component("backend"))
 
 
 def get_frontend_coverage() -> dict:
-    lcov_path = FRONTEND_DIR / "coverage" / "lcov.info"
-    ci_lcov_path = ROOT_DIR / "coverage" / "frontend.lcov"
-    if ci_lcov_path.exists():
-        lcov_path = ci_lcov_path
-    coverage_data = parse_lcov_file(lcov_path)
-    code_stats = count_code_lines(FRONTEND_DIR / "src", [".ts", ".tsx"])
-    total_lines = coverage_data["total_measured_lines"] or code_stats["total_lines"]
-    return {
-        "total_lines": total_lines,
-        "covered_lines": coverage_data["covered_lines"],
-        "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
-        "file_count": code_stats["file_count"],
-    }
+    return get_component_coverage(get_component("frontend"))
 
 
 def get_scripts_coverage() -> dict:
-    lcov_path = ROOT_DIR / "coverage" / "scripts.lcov"
-    if not lcov_path.exists():
-        lcov_path = ROOT_DIR / "coverage-scripts.lcov"
-    coverage_data = parse_lcov_file(lcov_path)
-    code_stats = count_code_lines(SCRIPTS_DIR, [".py", ".sh"])
-    total_lines = coverage_data["total_measured_lines"] or code_stats["total_lines"]
-    return {
-        "total_lines": total_lines,
-        "covered_lines": coverage_data["covered_lines"],
-        "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
-        "file_count": code_stats["file_count"],
-    }
+    return get_component_coverage(get_component("scripts"))
 
 
 def calculate_unified_coverage(backend: dict, frontend: dict, scripts: dict) -> dict:

@@ -14,6 +14,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import test_lifecycle as tl  # noqa: E402
 
 
+def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
+    """AC8.13.15: Script coverage policy can see PDF fixture tool modules."""
+    modules = [
+        "pdf_fixtures.analyzers.analyze_pdf",
+        "pdf_fixtures.analyzers.pdf_analyzer",
+        "pdf_fixtures.generate_pdf_fixtures",
+        "pdf_fixtures.generators.moomoo_generator",
+        "pdf_fixtures.generators.pingan_generator",
+        "pdf_fixtures.validators",
+        "pdf_fixtures.validators.pdf_validator",
+    ]
+
+    for module in modules:
+        assert importlib.import_module(module)
+
+
 def test_AC16_13_1_sanitize_namespace_normalization():
     assert tl._sanitize_namespace("Feature/ABC-123") == "feature_abc_123"
     with pytest.raises(ValueError):

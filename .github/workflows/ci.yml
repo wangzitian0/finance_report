@@ -241,6 +241,10 @@ jobs:
             --cov-config=/tmp/scripts-coveragerc \
             --cov-report=lcov:coverage/scripts.lcov \
             -x -q
+      - name: Audit coverage policy
+        run: |
+          uv run python scripts/check_coverage_policy.py
+
       - name: Calculate unified coverage
         run: |
           uv run python scripts/calculate_unified_coverage.py
@@ -252,13 +256,7 @@ jobs:
 
       - name: Merge all coverage into unified LCOV
         run: |
-          if [ -f coverage/backend.lcov ] && [ -f coverage/frontend.lcov ]; then
-            cat coverage/backend.lcov coverage/frontend.lcov > coverage/unified.lcov
-          elif [ -f coverage/backend.lcov ]; then
-            cp coverage/backend.lcov coverage/unified.lcov
-          elif [ -f coverage/frontend.lcov ]; then
-            cp coverage/frontend.lcov coverage/unified.lcov
-          fi
+          uv run python scripts/build_unified_lcov.py coverage/unified.lcov
 
       - name: Upload unified coverage to Coveralls
         if: github.event_name == 'push'

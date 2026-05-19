@@ -5,7 +5,6 @@ test reference, and the check correctly identifies covered vs missing ACs.
 
 import sys
 from pathlib import Path
-from typing import NamedTuple
 
 import pytest
 

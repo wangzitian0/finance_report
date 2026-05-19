@@ -171,7 +171,9 @@ def parse_args() -> argparse.Namespace:
         help="Path to infrastructure AC registry (default: docs/infra_registry.yaml)",
     )
     parser.add_argument(
-        "--test-dirs", nargs="+", default=["apps/backend/tests", "apps/frontend/src"]
+        "--test-dirs",
+        nargs="+",
+        default=["apps/backend/tests", "apps/frontend/src", "scripts/tests", "tests/e2e"],
     )
     parser.add_argument("--report-only", action="store_true")
     parser.add_argument("--verbose", action="store_true")

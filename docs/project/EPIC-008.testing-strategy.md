@@ -46,6 +46,8 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - An AC counts as "covered" when it has a **passing Tier 1+ test** that exercises the real code path (not a mock/stub).
 - Tier 2/3 tests that `skip` due to missing env vars (e.g., `FRONTEND_URL`) do NOT count toward coverage.
 - The **AC pass rate** = (ACs with at least one passing Tier 1+ test) / (Total ACs).
+- CI source coverage uses the shared coverage policy in `scripts/coverage_policy.py`. New backend, frontend, and script modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
+- **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)

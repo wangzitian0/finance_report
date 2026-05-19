@@ -6,7 +6,6 @@ including blacklist pattern exclusions and threshold enforcement.
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -62,6 +61,9 @@ class TestIsTestFile:
 
     def test_normal_py_included(self):
         assert cuc.is_test_file("apps/backend/src/routers/accounts.py") is False
+
+    def test_filename_containing_test_is_not_excluded(self):
+        assert cuc.is_test_file("apps/backend/src/services/latest_report.py") is False
 
     def test_normal_ts_included(self):
         assert cuc.is_test_file("apps/frontend/src/lib/api.ts") is False
@@ -869,8 +871,6 @@ class TestMainBaselineExceptionPaths:
 
         # Patch json.load to raise a generic Exception
         import json as _json
-        original_load = _json.load
-
         def raiser(f):
             raise RuntimeError("disk read error")
 

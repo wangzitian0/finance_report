@@ -1,26 +1,26 @@
 {
-  "total_lines": 12979,
-  "covered_lines": 12530,
-  "coverage_percent": 96.49,
+  "total_lines": 14948,
+  "covered_lines": 14116,
+  "coverage_percent": 94.38,
   "breakdown": {
     "backend": {
-      "total_lines": 7519,
-      "covered_lines": 7424,
-      "coverage_percent": 98.69,
-      "file_count": 100
+      "total_lines": 8506,
+      "covered_lines": 8416,
+      "coverage_percent": 98.89,
+      "file_count": 93
     },
     "frontend": {
-      "total_lines": 2205,
-      "covered_lines": 2028,
-      "coverage_percent": 91.92,
-      "file_count": 66
+      "total_lines": 2338,
+      "covered_lines": 2151,
+      "coverage_percent": 91.95,
+      "file_count": 78
     },
     "scripts": {
-      "total_lines": 3255,
-      "covered_lines": 3078,
-      "coverage_percent": 94.51,
-      "file_count": 31
+      "total_lines": 4104,
+      "covered_lines": 3549,
+      "coverage_percent": 86.43,
+      "file_count": 44
     }
   },
-  "_note": "Baseline rebased after PR #346 (FX reporting consistency + storage sweep). storage_sweep.py added ~79 executable backend lines (orphan S3 sweep background service). Floors set 0.05% below CI-measured actuals: backend=98.74%, frontend=91.97%, scripts=94.56%, unified=96.54%. Future PRs should ratchet forward from this floor. Prior baseline (99.06% backend on 7440 lines) was before storage_sweep.py was added."
+  "_note": "AC8.13.15 baseline reset after coverage policy unification. Percent floors are 0.05 below local Python 3.12 measurements: backend=98.94, frontend=92.00, scripts=86.48, unified=94.43. CI still uses zero-tolerance no-regression against these floors."
 }
