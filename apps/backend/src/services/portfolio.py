@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -79,8 +79,7 @@ class PortfolioService:
         Raises:
             PortfolioNotFoundError: If user has no positions
         """
-        # Default to today if not specified
-        eval_date = as_of_date or date.today()
+        eval_date = as_of_date or await self._default_holdings_eval_date(db, user_id)
 
         # Get all managed positions for user
         positions_query = (
@@ -597,6 +596,16 @@ class PortfolioService:
 
         # No price data available
         raise AssetNotFoundError(f"No price data available for {position.asset_identifier} on {eval_date}")
+
+    async def _default_holdings_eval_date(self, db: AsyncSession, user_id: UUID) -> date:
+        """Use today unless the latest imported portfolio snapshot is newer."""
+        latest_snapshot_date = await db.scalar(
+            select(func.max(AtomicPosition.snapshot_date)).where(AtomicPosition.user_id == user_id)
+        )
+        today = date.today()
+        if latest_snapshot_date and latest_snapshot_date > today:
+            return latest_snapshot_date
+        return today
 
     async def _get_latest_atomic(
         self,

@@ -103,6 +103,74 @@ async def test_get_holdings_happy_path(db, test_user, svc, active_position, atom
 
 
 @pytest.mark.asyncio
+async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, test_user, svc, account):
+    """AC8.13.10/Issue #424: Latest holdings include current-month brokerage snapshots."""
+    future_snapshot_date = date.today() + timedelta(days=12)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="FULLERTON_SGD_MMF",
+        quantity=Decimal("100"),
+        cost_basis=Decimal("1000.00"),
+        currency="SGD",
+        acquisition_date=future_snapshot_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    atom = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=future_snapshot_date,
+        asset_identifier="FULLERTON_SGD_MMF",
+        broker="Moomoo",
+        quantity=Decimal("100"),
+        market_value=Decimal("1234.00"),
+        currency="SGD",
+        dedup_hash="future_brokerage_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, atom])
+    await db.flush()
+
+    holdings = await svc.get_holdings(db, test_user.id)
+
+    assert len(holdings) == 1
+    assert holdings[0].asset_identifier == "FULLERTON_SGD_MMF"
+    assert holdings[0].market_value == Decimal("1234.00")
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db, test_user, svc, account):
+    """AC8.13.10/Issue #424: Explicit historical holdings remain date bounded."""
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="FUTU_STOCK_AND_OPTIONS",
+        quantity=Decimal("1"),
+        cost_basis=Decimal("250.00"),
+        currency="SGD",
+        acquisition_date=date.today() + timedelta(days=12),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    atom = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date.today() + timedelta(days=12),
+        asset_identifier="FUTU_STOCK_AND_OPTIONS",
+        broker="Futu",
+        quantity=Decimal("1"),
+        market_value=Decimal("250.00"),
+        currency="SGD",
+        dedup_hash="explicit_date_future_brokerage_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, atom])
+    await db.flush()
+
+    with pytest.raises(AssetNotFoundError):
+        await svc.get_holdings(db, test_user.id, as_of_date=date.today())
+
+
+@pytest.mark.asyncio
 async def test_get_holdings_no_positions_raises(db, test_user, svc):
     """AC17.1.2: Holdings on empty portfolio raises PortfolioNotFoundError.
 
