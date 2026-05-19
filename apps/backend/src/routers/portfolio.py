@@ -87,7 +87,7 @@ async def get_holdings(
         holdings = await _portfolio_service.get_holdings(
             db=db,
             user_id=user_id,
-            as_of_date=as_of_date or date.today(),
+            as_of_date=as_of_date,
             include_disposed=include_disposed,
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
