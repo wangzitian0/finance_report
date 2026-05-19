@@ -107,6 +107,89 @@ async def test_get_holdings_with_date_filter(client: AsyncClient, portfolio_with
 
 
 @pytest.mark.asyncio
+async def test_get_holdings_defaults_to_future_imported_snapshot(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC8.13.10: Default holdings endpoint returns latest imported snapshot."""
+    future_date = date.today() + timedelta(days=12)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="FULLERTON-SGD-MMF",
+        quantity=Decimal("100"),
+        cost_basis=Decimal("1000.00"),
+        currency="SGD",
+        acquisition_date=date.today(),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=future_date,
+        asset_identifier="FULLERTON-SGD-MMF",
+        broker="Moomoo E2E Portfolio",
+        quantity=Decimal("100"),
+        market_value=Decimal("1234.00"),
+        currency="SGD",
+        dedup_hash="router_future_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, atomic])
+    await db.commit()
+
+    response = await client.get("/portfolio/holdings")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["asset_identifier"] == "FULLERTON-SGD-MMF"
+    assert data[0]["market_value"] == "1234.00"
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC8.13.10: Explicit holdings date remains date-bounded."""
+    future_date = date.today() + timedelta(days=12)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="FULLERTON-SGD-MMF",
+        quantity=Decimal("100"),
+        cost_basis=Decimal("1000.00"),
+        currency="SGD",
+        acquisition_date=date.today(),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=future_date,
+        asset_identifier="FULLERTON-SGD-MMF",
+        broker="Moomoo E2E Portfolio",
+        quantity=Decimal("100"),
+        market_value=Decimal("1234.00"),
+        currency="SGD",
+        dedup_hash="router_explicit_future_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, atomic])
+    await db.commit()
+
+    response = await client.get(f"/portfolio/holdings?as_of_date={date.today().isoformat()}")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.asyncio
 async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with_data):
     """AC17.6.4: GET /portfolio/holdings with include_disposed=true returns 200.
 
