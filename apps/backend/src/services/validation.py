@@ -23,7 +23,11 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         net = Decimal("0")
         for txn in extracted.get("transactions", []):
             amount = Decimal(str(txn["amount"]))
-            if txn.get("direction") == "IN":
+            direction = str(txn.get("direction", "IN")).upper()
+            if direction not in {"IN", "OUT"}:
+                direction = "OUT" if amount < 0 else "IN"
+            amount = abs(amount)
+            if direction == "IN":
                 net += amount
             else:
                 net -= amount
@@ -139,10 +143,13 @@ def _score_balance_progression(transactions: list[dict[str, Any]]) -> int:
     for txn in transactions:
         bal = txn.get("balance_after")
         amt = txn.get("amount")
-        direction = txn.get("direction", "IN")
+        direction = str(txn.get("direction", "IN")).upper()
         if bal is not None and amt is not None:
             try:
-                balances.append((Decimal(str(bal)), Decimal(str(amt)), direction))
+                amount = Decimal(str(amt))
+                if direction not in {"IN", "OUT"}:
+                    direction = "OUT" if amount < 0 else "IN"
+                balances.append((Decimal(str(bal)), abs(amount), direction))
             except (ValueError, TypeError, InvalidOperation):
                 continue
 

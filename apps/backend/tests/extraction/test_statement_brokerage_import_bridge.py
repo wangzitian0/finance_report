@@ -144,6 +144,55 @@ async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user
 
 
 @pytest.mark.asyncio
+async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing():
+    """AC8.13.10/Issue #409: Signed OUT brokerage rows do not stall parsed routing."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "Moomoo",
+            "account_last4": "1582",
+            "currency": "SGD",
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+            "opening_balance": "10000.00",
+            "closing_balance": "10500.00",
+            "transactions": [
+                {
+                    "date": "2026-05-18",
+                    "description": "Fullerton SGD Money Market Fund",
+                    "amount": "1000.00",
+                    "direction": "IN",
+                    "currency": "SGD",
+                    "balance_after": "11000.00",
+                },
+                {
+                    "date": "2026-05-19",
+                    "description": "Withdrawal",
+                    "amount": "-500.00",
+                    "direction": "OUT",
+                    "currency": "SGD",
+                    "balance_after": "10500.00",
+                },
+            ],
+        }
+    )
+
+    statement, transactions = await service.parse_document(
+        file_path=Path("moomoo-statement.pdf"),
+        institution="Moomoo",
+        user_id=uuid4(),
+        file_content=b"%PDF-1.7",
+        file_hash="issue-409-signed-outflow",
+        original_filename="moomoo-statement.pdf",
+    )
+
+    assert statement.status == BankStatementStatus.PARSED
+    assert statement.balance_validated is True
+    assert transactions[1].direction == "OUT"
+    assert transactions[1].amount == Decimal("500.00")
+
+
+@pytest.mark.asyncio
 async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test_user, monkeypatch):
     """AC17.4.7: Bank statement payloads do not call brokerage import."""
     statement = _parsed_statement(test_user.id, "bank-hash")

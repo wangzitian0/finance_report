@@ -425,7 +425,13 @@ class ExtractionService:
                         )
                         continue
                     raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
-                direction = txn.get("direction", "IN")
+                raw_direction = str(txn.get("direction", "IN")).upper()
+                if raw_direction in {"IN", "OUT"}:
+                    direction = raw_direction
+                else:
+                    direction = "OUT" if amount < 0 else "IN"
+
+                amount = abs(amount)
                 if direction == "IN":
                     net_transactions += amount
                 else:
