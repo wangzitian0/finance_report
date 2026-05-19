@@ -194,7 +194,7 @@ async def test_parse_document_normalizes_signed_outflows_before_brokerage_routin
 
 @pytest.mark.asyncio
 async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
-    """AC8.13.10/Issue #409: Non-standard signed directions normalize deterministically."""
+    """AC8.13.10/Issue #409: Non-standard debit directions normalize deterministically."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -208,7 +208,7 @@ async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
                 {
                     "date": "2026-05-19",
                     "description": "Withdrawal",
-                    "amount": "-500.00",
+                    "amount": "500.00",
                     "direction": "DEBIT",
                     "currency": "SGD",
                 },

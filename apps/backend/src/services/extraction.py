@@ -28,6 +28,7 @@ from src.services.pii_redaction import detect_pii
 from src.services.storage import redact_presigned_url
 from src.services.validation import (
     compute_confidence_score,
+    normalize_amount_direction,
     route_by_threshold,
     validate_balance,
     validate_balance_explicit,
@@ -425,13 +426,7 @@ class ExtractionService:
                         )
                         continue
                     raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
-                raw_direction = str(txn.get("direction", "IN")).upper()
-                if raw_direction in {"IN", "OUT"}:
-                    direction = raw_direction
-                else:
-                    direction = "OUT" if amount < 0 else "IN"
-
-                amount = abs(amount)
+                amount, direction = normalize_amount_direction(amount, txn.get("direction"))
                 if direction == "IN":
                     net_transactions += amount
                 else:

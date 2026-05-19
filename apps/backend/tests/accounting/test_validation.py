@@ -90,11 +90,11 @@ def test_validate_balance_normalizes_signed_outflows():
 
 
 def test_validate_balance_infers_non_standard_signed_outflows():
-    """AC8.13.10/Issue #409: Non-standard direction values fall back to amount sign."""
+    """AC8.13.10/Issue #409: Non-standard debit directions normalize to OUT."""
     extracted = {
         "opening_balance": "100.00",
         "closing_balance": "80.00",
-        "transactions": [{"amount": "-20.00", "direction": "DEBIT"}],
+        "transactions": [{"amount": "20.00", "direction": "DEBIT"}],
     }
 
     result = validate_balance(extracted)
@@ -141,7 +141,7 @@ def test_compute_confidence_score_normalizes_signed_outflow_progression():
         "closing_balance": "90.00",
         "transactions": [
             {"amount": "10.00", "direction": "IN", "currency": "SGD", "balance_after": "110.00"},
-            {"amount": "-20.00", "direction": "DEBIT", "currency": "SGD", "balance_after": "90.00"},
+            {"amount": "20.00", "direction": "DEBIT", "currency": "SGD", "balance_after": "90.00"},
         ],
     }
 

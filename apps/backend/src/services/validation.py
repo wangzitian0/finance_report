@@ -9,6 +9,20 @@ from typing import Any
 from src.models.statement import BankStatementStatus
 
 BALANCE_TOLERANCE = Decimal("0.10")
+IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
+OUT_DIRECTION_ALIASES = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
+
+
+def normalize_amount_direction(amount: Decimal, direction_value: Any = None) -> tuple[Decimal, str]:
+    """Return absolute amount plus canonical IN/OUT direction."""
+    direction = str(direction_value or "").strip().upper()
+    if direction in IN_DIRECTION_ALIASES:
+        canonical_direction = "IN"
+    elif direction in OUT_DIRECTION_ALIASES:
+        canonical_direction = "OUT"
+    else:
+        canonical_direction = "OUT" if amount < 0 else "IN"
+    return abs(amount), canonical_direction
 
 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
@@ -23,10 +37,7 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         net = Decimal("0")
         for txn in extracted.get("transactions", []):
             amount = Decimal(str(txn["amount"]))
-            direction = str(txn.get("direction", "IN")).upper()
-            if direction not in {"IN", "OUT"}:
-                direction = "OUT" if amount < 0 else "IN"
-            amount = abs(amount)
+            amount, direction = normalize_amount_direction(amount, txn.get("direction"))
             if direction == "IN":
                 net += amount
             else:
@@ -147,9 +158,8 @@ def _score_balance_progression(transactions: list[dict[str, Any]]) -> int:
         if bal is not None and amt is not None:
             try:
                 amount = Decimal(str(amt))
-                if direction not in {"IN", "OUT"}:
-                    direction = "OUT" if amount < 0 else "IN"
-                balances.append((Decimal(str(bal)), abs(amount), direction))
+                amount, direction = normalize_amount_direction(amount, direction)
+                balances.append((Decimal(str(bal)), amount, direction))
             except (ValueError, TypeError, InvalidOperation):
                 continue
 
