@@ -515,7 +515,7 @@ def _brokerage_import_not_ready_reason(statement: BankStatement) -> str:
             )
         if progress == 100:
             return "Provider parsing completed without importable brokerage transactions"
-        return "Provider parsing has not completed; statement must reach parsed before brokerage import"
+        return "Provider parsing has not completed; statement must be parsed before brokerage import"
 
     return f"Statement must be parsed before importing brokerage positions; current status={status_value}"
 
