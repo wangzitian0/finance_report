@@ -98,6 +98,45 @@ async def _upload_brokerage_pdf(
     return str(statement_id)
 
 
+def _transaction_count(payload: dict | None) -> int | None:
+    if not payload:
+        return None
+    transactions = payload.get("transactions")
+    if isinstance(transactions, list):
+        return len(transactions)
+    return None
+
+
+def _statement_poll_failure_message(statement_id: str, last_payload: dict | None) -> str:
+    if not last_payload:
+        return (
+            f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; "
+            "no poll payload was returned"
+        )
+
+    status = last_payload.get("status")
+    progress = last_payload.get("parsing_progress")
+    tx_count = _transaction_count(last_payload)
+    validation_error = last_payload.get("validation_error")
+    balance_validated = last_payload.get("balance_validated")
+
+    if status in {"uploaded", "parsing"} and progress == 100 and tx_count and tx_count > 0:
+        reason = "internal state-transition failure after OCR extraction"
+    elif progress == 100 and tx_count == 0:
+        reason = "provider parsing completed without importable transactions"
+    elif status in {"uploaded", "parsing"}:
+        reason = "provider parsing did not complete before timeout"
+    else:
+        reason = f"unexpected statement status {status!r}"
+
+    return (
+        f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; "
+        f"{reason}; status={status!r}; parsing_progress={progress!r}; "
+        f"transactions={tx_count!r}; balance_validated={balance_validated!r}; "
+        f"validation_error={validation_error!r}"
+    )
+
+
 async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: str) -> dict:
     deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
@@ -120,9 +159,24 @@ async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: st
             return last_payload
         await asyncio.sleep(5)
 
-    pytest.fail(
-        f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms. last payload: {last_payload}"
+    pytest.fail(_statement_poll_failure_message(statement_id, last_payload))
+
+
+def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
+    """AC8.13.10/Issue #409: E2E timeout distinguishes parsed-data routing stalls."""
+    message = _statement_poll_failure_message(
+        "stmt-409",
+        {
+            "status": "uploaded",
+            "parsing_progress": 100,
+            "transactions": [{"id": "txn-1"}],
+            "balance_validated": False,
+            "validation_error": None,
+        },
     )
+
+    assert "internal state-transition failure after OCR extraction" in message
+    assert "transactions=1" in message
 
 
 @pytest.mark.e2e
