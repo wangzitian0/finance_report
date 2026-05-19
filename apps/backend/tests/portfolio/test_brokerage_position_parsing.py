@@ -436,6 +436,69 @@ async def test_statement_scoped_brokerage_import_requires_parsed_status(client, 
 
 
 @pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_explains_internal_state_transition_stall(
+    client,
+    db,
+    test_user,
+):
+    """AC8.13.10/Issue #409: Import errors distinguish parsed-data routing stalls."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/stalled.pdf",
+        file_hash="issue-409-stalled",
+        original_filename="moomoo-stalled.pdf",
+        institution="Moomoo",
+        currency="SGD",
+        status=BankStatementStatus.UPLOADED,
+        parsing_progress=100,
+        balance_validated=False,
+        transactions=[
+            BankStatementTransaction(
+                txn_date=date(2026, 5, 19),
+                description="Withdrawal",
+                amount=Decimal("500.00"),
+                direction="OUT",
+            )
+        ],
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 400
+    assert "Internal state-transition failure after OCR extraction" in response.text
+    assert "transactions=1" in response.text
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_explains_provider_parse_failure(client, db, test_user):
+    """AC8.13.10/Issue #409: Import errors distinguish provider parsing failures."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/rejected.pdf",
+        file_hash="issue-409-rejected",
+        original_filename="moomoo-rejected.pdf",
+        institution="Moomoo",
+        currency="SGD",
+        status=BankStatementStatus.REJECTED,
+        validation_error="OCR provider returned invalid JSON",
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 400
+    assert "Provider parsing failed before brokerage import" in response.text
+    assert "OCR provider returned invalid JSON" in response.text
+
+
+@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_returns_404_for_missing_statement(client):
     """AC8.13.10/Issue #404: Statement-scoped brokerage import is user-scoped."""
     response = await client.post(f"/statements/{uuid4()}/brokerage/import")

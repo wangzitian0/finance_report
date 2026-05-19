@@ -497,6 +497,29 @@ def _brokerage_payload_from_statement(statement: BankStatement) -> dict:
     }
 
 
+def _brokerage_import_not_ready_reason(statement: BankStatement) -> str:
+    """Explain why a brokerage statement cannot be imported yet."""
+    status_value = statement.status.value if hasattr(statement.status, "value") else str(statement.status)
+    transaction_count = len(statement.transactions or [])
+    progress = statement.parsing_progress
+    validation_error = statement.validation_error
+
+    if status_value == BankStatementStatus.REJECTED.value:
+        return f"Provider parsing failed before brokerage import: {validation_error or 'statement rejected'}"
+    if status_value in {BankStatementStatus.UPLOADED.value, BankStatementStatus.PARSING.value}:
+        if progress == 100 and transaction_count > 0:
+            return (
+                "Internal state-transition failure after OCR extraction: "
+                f"status={status_value}, parsing_progress=100, transactions={transaction_count}, "
+                f"balance_validated={statement.balance_validated}"
+            )
+        if progress == 100:
+            return "Provider parsing completed without importable brokerage transactions"
+        return "Provider parsing has not completed; statement must reach parsed before brokerage import"
+
+    return f"Statement must be parsed before importing brokerage positions; current status={status_value}"
+
+
 @router.post("/{statement_id}/brokerage/import", response_model=BrokerageImportResponse)
 async def import_brokerage_statement_positions(
     statement_id: UUID,
@@ -515,7 +538,7 @@ async def import_brokerage_statement_positions(
     if not statement:
         raise_not_found("Statement")
     if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.APPROVED):
-        raise_bad_request("Statement must be parsed before importing brokerage positions")
+        raise_bad_request(_brokerage_import_not_ready_reason(statement))
 
     payload = _brokerage_payload_from_statement(statement)
     import_result = await _BROKERAGE_IMPORT_SERVICE.import_positions(
