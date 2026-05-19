@@ -121,6 +121,35 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow() -> None:
     assert "Staging AI/OCR Gate" in ci_cd
 
 
+def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
+    """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    environments = read("docs/ssot/environments.md")
+
+    assert "name: Classify Changes" in workflow
+    assert "heavy_required: ${{ steps.classify.outputs.heavy_required }}" in workflow
+    assert '"docs/"' in workflow
+    assert '".github/ISSUE_TEMPLATE/"' in workflow
+    assert '".github/workflows/docs.yml"' in workflow
+    assert "runtime-or-ci-paths-changed" in workflow
+    assert "lightweight-docs-or-docs-workflow-only" in workflow
+    assert "needs: [changes, lint]" in workflow
+    assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
+    assert "name: AC Traceability Check" in workflow
+    assert "needs: [changes, backend, frontend, lint, unified-coverage, ac-traceability]" in workflow
+    assert "Heavy backend/frontend/coverage jobs skipped for lightweight changes." in workflow
+    assert "uses: actions/setup-node@v4" in workflow
+    assert "cache: npm" in workflow
+    assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
+    assert "run: npm ci" in workflow
+    assert "run: npm install" not in workflow
+    assert "PR vs Main CI Responsibilities" in ci_cd
+    assert "Lightweight changes do not repeat the heavy path" in ci_cd
+    assert "Frontend dependency installation uses `actions/setup-node@v4`" in ci_cd
+    assert "lightweight documentation" in environments.lower()
+
+
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
     workflow = read(".github/workflows/production-release.yml")
