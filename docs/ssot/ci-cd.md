@@ -95,7 +95,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **Post-merge staging E2E** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in the same staging deploy job.
-- Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so post-merge deployments and the provider-backed GLM gate queue instead of overlapping.
+- Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: true`, so stale in-progress staging deploys are cancelled when a newer `main` commit is pushed. Staging tracks the latest `main` commit; older queued deploy validation is not authoritative.
+- The staging deploy job has a 30-minute job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke, core non-LLM E2E, and serialized AI/OCR phases so timeout and latency failures identify the active phase.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed deployment.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
