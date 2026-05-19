@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 935 | 100% |
-| **Mandatory ACs** | 775 | 82.9% |
+| **Total ACs (registries)** | 936 | 100% |
+| **Mandatory ACs** | 776 | 82.9% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 775 | 100.0% |
+| **Mandatory ACs with test reference** | 776 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 182 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 69 | 0 | 63 | 63 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 70 | 0 | 64 | 64 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 69
-- **Mandatory ACs**: 63
-- **Mandatory ACs with test reference**: 63 (100.0%)
+- **Total ACs**: 70
+- **Mandatory ACs**: 64
+- **Mandatory ACs with test reference**: 64 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -520,6 +520,7 @@
 | AC8.13.11 | yes | Staging health check diagnoses API route 404 with route probes | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.12 | yes | AI/OCR gate failures include statement validation context | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.13 | yes | Staging deploy cancels stale runs and bounds E2E gate duration with phase timing logs | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.14 | yes | Provider-backed staging AI/OCR gate runs separately from deploy health | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

@@ -92,19 +92,25 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
 
-**Post-merge staging E2E** (`.github/workflows/staging-deploy.yml`):
+**Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
-- Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in the same staging deploy job.
+- Basic staging deploy feedback no longer waits on provider-backed OCR parsing. Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
 - Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: true`, so stale in-progress staging deploys are cancelled when a newer `main` commit is pushed. Staging tracks the latest `main` commit; older queued deploy validation is not authoritative.
-- The staging deploy job has a 30-minute job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke, core non-LLM E2E, and serialized AI/OCR phases so timeout and latency failures identify the active phase.
+- The staging deploy job has a 30-minute job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke and core non-LLM E2E so timeout and latency failures identify the active phase.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
-- The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed deployment.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
-- The serialized GLM gate includes `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, which uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, portfolio valuation, or reporting failed.
+
+**Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
+- `Staging AI/OCR Gate` runs automatically after `Deploy Staging` completes successfully on `main`, and can also be triggered manually via `workflow_dispatch`.
+- The workflow uses a global `staging-ai-ocr` concurrency group with `cancel-in-progress: true` because staging is a singleton environment and only the newest provider-backed validation is authoritative.
+- Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in this separate provider-backed gate.
+- The gate checks out the same `workflow_run.head_sha` that deployed to staging and passes its short SHA as `EXPECTED_SHA`, so version checks still validate the deployed commit.
+- The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed provider gate.
+- The serialized GLM gate includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, and `tests/e2e/test_brokerage_upload_to_portfolio_value.py`. The brokerage test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, portfolio valuation, or reporting failed.
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
 - PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
-- PR preview E2E explicitly excludes tests marked `llm`. The post-merge staging job is the single automated CI entry point that may spend provider quota.
+- PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 > **Local vs GitHub CI Parallelism**

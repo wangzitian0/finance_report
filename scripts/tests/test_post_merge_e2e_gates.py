@@ -90,10 +90,35 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "duration=%ss" in workflow
     assert 'run_timed_phase "Phase 1: Smoke Check (Shell)"' in workflow
     assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
-    assert 'run_timed_phase "Phase 3: AI/OCR Gate' in workflow
     assert "stale in-progress staging deploys are cancelled" in ci_cd
     assert "30-minute job timeout" in ci_cd
     assert "22-minute E2E step timeout" in ci_cd
+
+
+def test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow() -> None:
+    """AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
+    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "name: Staging AI/OCR Gate" in ai_workflow
+    assert 'workflows: ["Deploy Staging"]' in ai_workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in ai_workflow
+    assert "workflow_dispatch:" in ai_workflow
+    assert "group: staging-ai-ocr" in ai_workflow
+    assert "timeout-minutes: 22" in ai_workflow
+    assert "STRICT_E2E_GATES: true" in ai_workflow
+    assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
+    assert "EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}" in ai_workflow
+    assert "test_version_check.py" in ai_workflow
+    assert 'run_timed_phase "Staging AI/OCR Gate' in ai_workflow
+    assert "test_statement_full_journey.py" in ai_workflow
+    assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
+    assert "test_statement_upload_e2e.py" in ai_workflow
+    assert '-v -m "llm"' in ai_workflow
+    assert '-v -m "llm"' not in deploy_workflow
+    assert "Basic staging deploy feedback no longer waits on provider-backed OCR parsing" in ci_cd
+    assert "Staging AI/OCR Gate" in ci_cd
 
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
@@ -118,6 +143,7 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
     workflow = read(".github/workflows/staging-deploy.yml")
+    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     pr_workflow = read(".github/workflows/pr-test.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
@@ -138,9 +164,9 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert 'update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE"' in deploy_script
     assert 'update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)"' in deploy_script
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
-    assert "PARSING_TIMEOUT_MS: 480000" in workflow
-    assert "test_brokerage_upload_to_portfolio_value.py" in workflow
-    assert '-v -m "llm"' in workflow
+    assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
+    assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
+    assert '-v -m "llm"' in ai_workflow
     assert "@pytest.mark.llm" in journey
     assert "@pytest.mark.llm" in brokerage
     assert upload.count("@pytest.mark.llm") >= 2
@@ -157,14 +183,13 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
-    workflow = read(".github/workflows/staging-deploy.yml")
+    workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")
     generator = read("scripts/pdf_fixtures/generate_pdf_fixtures.py")
 
     assert "test_brokerage_upload_to_portfolio_value.py" in workflow
     assert '-m "llm"' in workflow
-    assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "pytest.mark.critical" in brokerage
     assert "pytest.mark.llm" in brokerage
     assert '("moomoo", "Moomoo E2E Portfolio")' in brokerage
