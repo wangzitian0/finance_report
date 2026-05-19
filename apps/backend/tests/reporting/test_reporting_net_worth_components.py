@@ -123,7 +123,7 @@ async def _create_position_snapshot(
             asset_type=AssetType.STOCK,
             sector="Technology",
             geography="US",
-            dedup_hash=f"{user_id}-{asset_identifier}-{as_of_date.isoformat()}",
+            dedup_hash=f"position-{uuid4().hex}",
             source_documents={},
         )
     )
@@ -209,6 +209,39 @@ async def test_portfolio_market_value_counts_when_ledger_has_no_cost_basis(db: A
     report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
 
     assert report["total_assets"] == Decimal("1250.00")
+    assert any(line["name"] == "Moomoo market valuation adjustment" for line in report["assets"])
+
+
+@pytest.mark.asyncio
+async def test_current_balance_sheet_uses_latest_future_brokerage_snapshot(db: AsyncSession, test_user):
+    """AC8.13.10: Current balance sheet includes latest imported brokerage snapshots."""
+    report_date = date.today()
+    snapshot_date = (
+        date(report_date.year + 1, 1, 31)
+        if report_date.month == 12
+        else date(
+            report_date.year,
+            report_date.month + 1,
+            1,
+        )
+    )
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="FULLERTON_SGD_MMF",
+        quantity=Decimal("100"),
+        cost_basis=Decimal("0.00"),
+        market_value=Decimal("1234.00"),
+        as_of_date=snapshot_date,
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    assert report["total_assets"] == Decimal("1234.00")
+    assert report["net_worth_adjustment_gain_loss"] == Decimal("1234.00")
     assert any(line["name"] == "Moomoo market valuation adjustment" for line in report["assets"])
 
 
@@ -503,10 +536,10 @@ async def test_income_statement_includes_applied_classification_breakdown(db: As
     )
 
     assert report["classification_breakdown"] == [
-            {
-                "account_name": "Salary",
-                "account_type": "INCOME",
-                "classified_count": 1,
-                "avg_confidence": 95.0,
-            }
+        {
+            "account_name": "Salary",
+            "account_type": "INCOME",
+            "classified_count": 1,
+            "avg_confidence": 95.0,
+        }
     ]

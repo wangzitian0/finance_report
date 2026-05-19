@@ -146,7 +146,8 @@ Reports are generated in a single base currency (user configurable, default: SGD
 - Use **period-end rate** for balance sheet items
 - Use **average rate** for income statement items
 - Record calculated unrealized FX gains/losses separately
-- Use the requested balance sheet `as_of_date` for manual valuation snapshots and portfolio market valuation adjustments
+- Use the requested balance sheet `as_of_date` for manual valuation snapshots.
+- For portfolio market valuation adjustments, historical balance sheets remain date-bounded to the requested `as_of_date`; the current-day balance sheet uses the latest imported brokerage snapshot when provider output normalizes a current statement to a future period end.
 - Return `fx_warnings` when an average-rate calculation falls back to a spot rate
 
 ```python
@@ -164,7 +165,7 @@ The balance sheet combines three source classes:
 | Source | Rule |
 |--------|------|
 | Journal lines | Aggregate posted/reconciled asset, liability, and equity account balances through the report date |
-| Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - ledger-backed position cost basis` |
+| Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - ledger-backed position cost basis`; current-day reports may use the latest imported brokerage snapshot date to match `/portfolio/holdings` |
 | Manual valuation snapshots | Add latest in-scope asset/liability snapshots from `/assets/valuation-components` as synthetic report lines |
 
 Portfolio adjustments prevent double counting without removing broker cash. If position cost basis already exists as a debit to the broker account, only the market-value delta is added to assets. If no cost-basis journal exists, the full market value is added.
