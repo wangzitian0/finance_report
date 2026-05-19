@@ -9,6 +9,7 @@ import { PortfolioHolding } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
+import { formatCurrencyLocale } from "@/lib/currency";
 
 export default function PortfolioPage() {
     const [showDisposed, setShowDisposed] = useState(false);
@@ -20,6 +21,13 @@ export default function PortfolioPage() {
                 `/api/portfolio/holdings${showDisposed ? "?include_disposed=true" : ""}`
             ),
     });
+
+    const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
+    const totalPortfolioValue = activeHoldings.reduce((sum, h) => {
+        const val = parseFloat(h.market_value);
+        return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+    const primaryCurrency = activeHoldings[0]?.currency ?? "USD";
 
     return (
         <div className="p-6">
@@ -37,6 +45,19 @@ export default function PortfolioPage() {
                     Update Prices
                 </Link>
             </div>
+
+            {/* Total Portfolio Value Banner */}
+            {!isLoading && !error && activeHoldings.length > 0 && (
+                <div className="mb-6 card p-5" data-testid="total-portfolio-value">
+                    <p className="text-xs text-muted uppercase tracking-wide mb-1">Total Portfolio Value</p>
+                    <p className="text-3xl font-bold text-[var(--accent)]">
+                        {formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}
+                    </p>
+                    <p className="text-xs text-muted mt-1">
+                        Active holdings · {activeHoldings.length} position{activeHoldings.length !== 1 ? "s" : ""}
+                    </p>
+                </div>
+            )}
 
             <div className="grid gap-4 md:grid-cols-3 mb-6">
                 <PerformanceCard />

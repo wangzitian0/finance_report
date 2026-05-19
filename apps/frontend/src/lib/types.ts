@@ -360,3 +360,16 @@ export interface ProcessingPendingListResponse {
     items: ProcessingPendingItem[];
     total: number;
 }
+
+// ── Brokerage Import (EPIC-017 / statement import completion) ─────────────
+
+export interface BrokerageImportResponse {
+    broker: string;
+    parsed_positions: number;
+    created_atomic_positions: number;
+    existing_atomic_positions: number;
+    reconcile_created: number;
+    reconcile_updated: number;
+    reconcile_disposed: number;
+    skipped: number;
+}
