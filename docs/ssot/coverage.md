@@ -22,20 +22,32 @@ unified_coverage = total_covered_lines / total_executable_lines
                    (backend_executable + frontend_executable + scripts_executable)
 ```
 
-**CI Gate**: No-regression baseline comparison (zero tolerance for drops). No fixed minimum threshold enforced.
+**CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum threshold enforced.
 
-**Current state** (as of this branch):
+**Current state** (AC8.13.15 measured baseline reset; committed floor is 0.05% lower to avoid runner noise):
 
 | Component | Covered | Executable | Coverage |
 |-----------|---------|------------|----------|
-| Backend   | 5,808   | 6,180      | 94.48%   |
-| Frontend  | 1,420   | 1,669      | 85.08%   |
-| Scripts   | 1,402   | 2,061      | 68.02%   |
-| **Unified** | **8,630** | **9,910** | **87.08%** |
+| Backend   | 8,416   | 8,506      | 98.94%   |
+| Frontend  | 2,151   | 2,338      | 92.00%   |
+| Scripts   | 3,549   | 4,104      | 86.48%   |
+| **Unified** | **14,116** | **14,948** | **94.43%** |
 
 ---
 
 ## Components
+
+The authoritative component/file policy lives in `scripts/coverage_policy.py`. Coverage tools must emit LCOV source paths that match that policy:
+
+| Component | Source Root | LCOV Path Prefix | Main Report |
+|-----------|-------------|------------------|-------------|
+| Backend | `apps/backend/src` | `src/...` relative to `apps/backend` | `coverage/backend.lcov` |
+| Frontend | `apps/frontend/src` | `src/...` relative to `apps/frontend` | `coverage/frontend.lcov` |
+| Scripts | `scripts` | `scripts/...` relative to repo root | `coverage/scripts.lcov` |
+
+`scripts/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
+
+`scripts/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
 
 ### Backend Coverage
 
@@ -46,6 +58,7 @@ unified_coverage = total_covered_lines / total_executable_lines
   - `tests/**`
   - `migrations/**`
   - `__init__.py` files
+  - `src/main.py`
 
 ### Frontend Coverage
 
@@ -54,7 +67,7 @@ unified_coverage = total_covered_lines / total_executable_lines
 - **Output**: `apps/frontend/coverage/lcov.info` (copied to `coverage/frontend.lcov` in CI)
 - **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); Coveralls uploads must use `base-path: apps/frontend`.
 - **Coveralls upload**: frontend/unified Coveralls uploads run on `push` only; PRs rely on the local unified no-regression gate and backend Coveralls flag to avoid comparing a new frontend flag against the old backend-only Coveralls baseline.
-- **Key config**: `all: true` — ensures ALL source files appear in LCOV, not just those imported by tests
+- **Key config**: `include: ['src/**/*.{ts,tsx}']` plus the shared policy audit ensures source files appear in LCOV consistently.
 - **Excluded**:
   - `**/tests/**`, `**/__tests__/**`
   - `**/*.test.ts`, `**/*.spec.ts`
@@ -64,6 +77,11 @@ unified_coverage = total_covered_lines / total_executable_lines
 
 - **Tool**: pytest-cov
 - **Output**: `coverage-scripts.lcov`
+- **CI Output**: `coverage/scripts.lcov`
+- **Excluded**:
+  - `scripts/tests/**`
+  - Python test modules under `scripts/`
+  - Shell scripts are not part of LCOV executable-line coverage
 
 ---
 
@@ -85,7 +103,9 @@ jobs:
     # Downloads all artifacts
     # Merges backend shards → coverage/backend.lcov
     # Runs: python scripts/calculate_unified_coverage.py
+    # Runs: python scripts/check_coverage_policy.py
     # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
+    # Builds repository-root-relative backend + frontend + scripts LCOV for Coveralls
 ```
 
 ### Coverage Calculation
@@ -148,10 +168,10 @@ python scripts/calculate_unified_coverage.py
 
 | Mode    | Backend | Frontend (vitest) | Unified (CI) |
 |---------|---------|-------------------|--------------|
-| CI      | 90%     | ~85% lines        | 96%          |
-| Local   | 90%     | ~85% lines        | 96% (unified)|
+| CI      | 90%     | 87% lines         | No regression from baseline |
+| Local   | 90%     | 87% lines         | No regression from baseline |
 
-> **Note**: Frontend vitest thresholds are auto-updated by `autoUpdate: true` in `vitest.config.ts`. They reflect actual measured coverage across all 50 source files (including untested pages that score 0%), so the threshold is intentionally low while overall quality is tracked at the unified level.
+> **Note**: The unified baseline is the primary cross-component gate. Frontend vitest keeps its own local line/function/branch floors, while CI also verifies that frontend LCOV files match the shared policy.
 
 ---
 
@@ -166,10 +186,8 @@ omit = [
     "__init__.py",
     "models/__init__.py",
     "schemas/__init__.py",
-    "schemas/user.py",
     "services/__init__.py",
     "routers/__init__.py",
-    "routers/users.py",
     "main.py",
     "tests/**",
     "migrations/**",
@@ -182,7 +200,6 @@ omit = [
 coverage: {
   provider: 'v8',
   reporter: ['text', 'json', 'html', 'lcov'],
-  all: true,                        // Include ALL src files, even untested ones
   include: ['src/**/*.{ts,tsx}'],   // Scope to source only
   exclude: [
     'node_modules/', '.next/', 'coverage/',
@@ -192,11 +209,11 @@ coverage: {
     '**/vitest.setup.ts', '**/*.config.*', '**/types/**',
   ],
   thresholds: {
-    lines: 14,       // auto-updated by autoUpdate:true
-    functions: 9,
-    branches: 9,
-    statements: 13,
-    autoUpdate: true,
+    lines: 87,
+    functions: 80,
+    branches: 70,
+    statements: 87,
+    autoUpdate: false,
   },
 }
 ```
@@ -228,9 +245,9 @@ cp apps/frontend/coverage/lcov.info coverage/frontend.lcov
 python scripts/calculate_unified_coverage.py
 ```
 
-### Frontend vitest thresholds fail after adding `all: true`
+### Coverage policy audit fails after adding a module
 
-With `all: true`, all 50 source files appear in coverage including untested pages (score 0%). This lowers the threshold from the old "tested files only" number (~66%) to the true "all files" number (~14%). This is **correct and expected** — the old number was misleading.
+The new source file must either appear in the matching LCOV report or be explicitly excluded in `scripts/coverage_policy.py`. Prefer adding tests/import coverage for real modules. Only exclude generated, type-only, test-only, or entrypoint files.
 
 ### CI fails with coverage error
 
@@ -262,8 +279,8 @@ cat unified-coverage.json
 | Component | Setting | Location |
 |-----------|---------|---------|
 | **Tool** | pytest-cov (built into pytest) | `apps/backend/pyproject.toml` |
-| **Current Threshold** | 90% backend (enforced by CI); 96% unified | `pyproject.toml` `[tool.pytest.ini_options]` |
-| **Target Threshold** | 96% unified (backend + frontend + scripts) | `calculate_unified_coverage.py` |
+| **Current Threshold** | 90% backend; no-regression unified baseline | `pyproject.toml`, `unified-coverage.json` |
+| **Target Threshold** | Ratchet unified baseline upward when coverage improves | `calculate_unified_coverage.py` |
 | **Branch Coverage** | Enabled via `--cov-branch` | `pyproject.toml` |
 | **Source Scope** | `src/` directory | `pyproject.toml` `[tool.coverage.run]` |
 | **Output Formats** | XML, terminal, LCOV | `pyproject.toml` |
@@ -274,7 +291,8 @@ cat unified-coverage.json
 |-------|-----------|---------|--------|
 | 2026-01-29 (Initial) | 95% → 97% | TDD transformation goal | Reverted to 95% (pending coverage improvement) |
 | 2026-01-29 | 97% → 95% | Allow current PRs to pass | Temporary |
-| 2026-03 (Current) | 90% backend; 96% unified | TDD transformation + unified coverage system | ✅ Active |
+| 2026-03 | 90% backend; no-regression unified | TDD transformation + unified coverage system | ✅ Active |
+| 2026-05 (Current) | 90% backend; 94.38% unified floor | AC8.13.15 coverage policy unification | ✅ Active |
 
 **Note**: Branch coverage (`--cov-branch`) remains enabled for stricter quality control regardless of threshold.
 
@@ -290,7 +308,7 @@ addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --c
 ```
 
 **Changes**:
-1. Threshold: 95% → **90%** backend (unified system handles overall quality at 96%)
+1. Threshold: 95% → **90%** backend (unified no-regression handles overall quality)
 2. Added `--cov-branch`: Now tracks branch coverage (stricter)
 3. Applies to: All test runs (local, CI, PR tests)
 
@@ -302,7 +320,7 @@ addopts = "--cov=src --cov-report=term-missing --cov-report=xml --cov-branch --c
 
 | Metric | Description | Requirement |
 |---------|-------------|-------------|
-| **Line Coverage** | Percentage of executable lines executed | ≥ 90% backend / 96% unified |
+| **Line Coverage** | Percentage of executable lines executed | ≥ 90% backend / no unified regression |
 | **Branch Coverage** | Percentage of conditional branches taken | ≥ 95% (implied by line) |
 
 **Why Branch Coverage Matters**:
@@ -418,7 +436,7 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
     parallel: true
 ```
 
-**Enforcement**: pytest-cov exits with error code if backend coverage < 90%; unified coverage gate enforces 96% across all components.
+**Enforcement**: pytest-cov exits with error code if backend coverage < 90%; the unified gate prevents regressions against `unified-coverage.json` across all components.
 
 ### Coveralls Integration
 
@@ -432,7 +450,7 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
 
 ### Beyond Line Coverage
 
-**96% unified coverage is the minimum threshold**. For true quality, consider:
+**Unified coverage must not regress from the committed baseline**. For true quality, consider:
 
 | Metric | Tool | Target |
 |---------|-------|--------|
@@ -447,7 +465,7 @@ When reviewing coverage gaps:
 
 ```markdown
 ## Coverage Assessment
- [ ] Unified coverage ≥ 96% (run `python scripts/calculate_unified_coverage.py`)
+ [ ] Unified coverage has no baseline regression (run `python scripts/calculate_unified_coverage.py`)
 - [ ] Branch coverage verified with `--cov-branch`
 - [ ] No `pragma: no cover` without justification
 - [ ] Missing lines are truly non-testable (not just untested)
@@ -496,7 +514,7 @@ When reviewing coverage gaps:
 ## Success Criteria
 
 **Quantitative**:
- [ ] All PRs maintain ≥ 96% unified coverage (no-regression gate)
+ [ ] All PRs maintain or improve unified coverage from baseline
  [ ] CI fails if unified coverage drops below baseline
 - [ ] Branch coverage tracked via `--cov-branch`
 - [ ] Coveralls badge reflects actual coverage

@@ -1270,6 +1270,11 @@ acs:
     epic_name: testing-strategy
     description: 'Provider-backed staging AI/OCR gate runs separately from deploy health'
     mandatory: true
+  - id: AC8.13.15
+    epic: 8
+    epic_name: testing-strategy
+    description: 'Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned'
+    mandatory: true
   # EPIC-011: asset-lifecycle
   - id: AC11.1.1
     epic: 11
