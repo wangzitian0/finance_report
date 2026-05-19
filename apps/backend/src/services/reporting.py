@@ -398,6 +398,11 @@ async def _build_portfolio_market_adjustment_lines(
     so cash balances are not accidentally netted out.
     """
     ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
+    portfolio_service = PortfolioService()
+    portfolio_eval_date = as_of_date
+    if as_of_date == date.today():
+        portfolio_eval_date = await portfolio_service._default_holdings_eval_date(db, user_id)
+
     result = await db.execute(
         select(ManagedPosition, Account)
         .join(Account, ManagedPosition.account_id == Account.id)
@@ -407,20 +412,19 @@ async def _build_portfolio_market_adjustment_lines(
         .where(Account.is_active.is_(True))
     )
 
-    portfolio_service = PortfolioService()
     market_value_by_account: dict[UUID, Decimal] = {}
     cost_basis_by_account: dict[UUID, Decimal] = {}
     account_by_id: dict[UUID, Account] = {}
 
     for position, account in result.all():
         try:
-            latest_price = await portfolio_service._get_latest_price(db, position, as_of_date, user_id)
+            latest_price = await portfolio_service._get_latest_price(db, position, portfolio_eval_date, user_id)
         except AssetNotFoundError:
             logger.warning(
                 "Skipping portfolio valuation without market price",
                 position_id=str(position.id),
                 asset_identifier=position.asset_identifier,
-                as_of_date=as_of_date.isoformat(),
+                as_of_date=portfolio_eval_date.isoformat(),
             )
             continue
 
@@ -434,7 +438,7 @@ async def _build_portfolio_market_adjustment_lines(
                     amount=market_value,
                     currency=source_currency,
                     target_currency=target_currency,
-                    rate_date=as_of_date,
+                    rate_date=portfolio_eval_date,
                 )
                 cost_basis = await fx.convert_amount(
                     db,
