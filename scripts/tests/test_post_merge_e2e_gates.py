@@ -150,6 +150,25 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "lightweight documentation" in environments.lower()
 
 
+def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
+    """AC8.13.17: AC traceability checks registry generation before audit output."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert (
+        "uv run --with pyyaml python scripts/generate_ac_registry.py --check"
+        in workflow
+    )
+    assert (
+        "uv run --with pyyaml python scripts/build_ac_traceability.py --check"
+        in workflow
+    )
+    assert workflow.index("scripts/generate_ac_registry.py --check") < workflow.index(
+        "scripts/build_ac_traceability.py --check"
+    )
+    assert "without rewriting historical registry descriptions" in ci_cd
+
+
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
     workflow = read(".github/workflows/production-release.yml")
