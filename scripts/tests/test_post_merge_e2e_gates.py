@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -27,19 +26,53 @@ def test_AC8_13_7_full_statement_journey_is_a_hard_ai_ocr_gate() -> None:
     assert "@pytest.mark.critical" in journey
     assert "fail_or_skip_ai_ocr_gate(" in test_body
     assert "status=rejected" in test_body
+    assert "/api/statements/{statement_id}" in test_body
+    assert "validation_error" in read("tests/e2e/conftest.py")
+    assert "Last statement payload" in test_body
     assert "pytest.skip(" not in test_body
 
 
 def test_AC8_13_8_upload_readiness_gate_rejects_rejected_status() -> None:
     """AC8.13.8: Upload readiness E2E does not accept rejected statements."""
     upload = read("tests/e2e/test_statement_upload_e2e.py")
-    test_body = upload.split("async def test_statement_upload_full_flow", 1)[1].split(
-        "@pytest.mark.e2e", 1
-    )[0]
+    test_body = upload.split("async def test_statement_upload_full_flow", 1)[1].split("@pytest.mark.e2e", 1)[0]
 
     assert "AI/OCR readiness gate" in test_body
     assert "fail_or_skip_ai_ocr_gate(" in test_body
+    assert "statement=statement" in test_body
     assert '"rejected"' not in test_body.split("assert status in", 1)[1]
+
+
+def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
+    """AC8.13.11: Staging health 404 reports API route diagnostics."""
+    health_check = read("scripts/health_check.sh")
+
+    assert "print_404_route_diagnostics" in health_check
+    assert "Traefik API route is missing or shadowed" in health_check
+    assert 'probe_route "API ping" "$APP_BASE_URL/api/ping"' in health_check
+    assert 'probe_route "Frontend shell" "$APP_BASE_URL/"' in health_check
+    assert '[[ "$http_code" == "404" ]]' in health_check
+
+
+def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
+    """AC8.13.12: AI/OCR gate failures include statement validation context."""
+    conftest = read("tests/e2e/conftest.py")
+    journey = read("tests/e2e/test_statement_full_journey.py")
+    upload = read("tests/e2e/test_statement_upload_e2e.py")
+    brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
+
+    assert "format_ai_ocr_gate_failure" in conftest
+    for token in (
+        "validation_error",
+        "confidence_score",
+        "parsing_progress",
+        "balance_validated",
+    ):
+        assert token in conftest
+    assert "model=default_model" in journey
+    assert "statement=last_statement" in journey
+    assert "statement=statement" in upload
+    assert "statement=last_payload" in brokerage
 
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
@@ -76,34 +109,13 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
     assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow
     assert "STAGING_E2E_VISION_MODEL: glm-4.6v" in workflow
-    assert (
-        "DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}"
-        in workflow
-    )
-    assert (
-        "DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}"
-        in workflow
-    )
-    assert (
-        "DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}"
-        in workflow
-    )
-    assert (
-        'update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE"'
-        in deploy_script
-    )
-    assert (
-        'update_env_var "$new_env" "OCR_MODEL" "$DEPLOY_OCR_MODEL_OVERRIDE"'
-        in deploy_script
-    )
-    assert (
-        'update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE"'
-        in deploy_script
-    )
-    assert (
-        'update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)"'
-        in deploy_script
-    )
+    assert "DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}" in workflow
+    assert "DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}" in workflow
+    assert "DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}" in workflow
+    assert 'update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE"' in deploy_script
+    assert 'update_env_var "$new_env" "OCR_MODEL" "$DEPLOY_OCR_MODEL_OVERRIDE"' in deploy_script
+    assert 'update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE"' in deploy_script
+    assert 'update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)"' in deploy_script
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in workflow
@@ -131,7 +143,7 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
 
     assert "test_brokerage_upload_to_portfolio_value.py" in workflow
     assert '-m "llm"' in workflow
-    assert "pytest tests/e2e -v -m \"(smoke or e2e) and not llm\" -n 4" in workflow
+    assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "pytest.mark.critical" in brokerage
     assert "pytest.mark.llm" in brokerage
     assert '("moomoo", "Moomoo E2E Portfolio")' in brokerage

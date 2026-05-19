@@ -47,6 +47,40 @@ response_file=$(mktemp)
 error_file=$(mktemp)
 register_cleanup "$response_file" "$error_file"
 
+APP_BASE_URL="${HEALTH_URL%/api/health}"
+
+probe_route() {
+  local label="$1"
+  local url="$2"
+  local probe_file
+  local probe_error_file
+  local code
+
+  probe_file=$(mktemp)
+  probe_error_file=$(mktemp)
+
+  code=$(curl -sS --max-time 5 -o "$probe_file" -w "%{http_code}" "$url" 2>"$probe_error_file" || echo "000")
+  echo "  - $label: HTTP $code ($url)"
+  if [[ "$code" == "000" ]]; then
+    sed -n '1,3p' "$probe_error_file" 2>/dev/null || true
+  else
+    sed -n '1,3p' "$probe_file" 2>/dev/null || true
+  fi
+
+  rm -f "$probe_file" "$probe_error_file"
+}
+
+print_404_route_diagnostics() {
+  echo ""
+  echo "Route diagnostics:"
+  echo "The backend health endpoint returned 404 after deployment."
+  echo "This usually means the Traefik API route is missing or shadowed by the frontend route."
+  echo "Expected route: Host(report*) && PathPrefix(/api) -> backend, with higher priority than the web route."
+  probe_route "API ping" "$APP_BASE_URL/api/ping"
+  probe_route "Frontend shell" "$APP_BASE_URL/"
+  echo ""
+}
+
 echo "Starting health check for $ENVIRONMENT environment"
 echo "URL: $HEALTH_URL"
 echo "Max attempts: $MAX_ATTEMPTS (timeout: $((MAX_ATTEMPTS * 10))s)"
@@ -101,6 +135,9 @@ while (( attempt <= MAX_ATTEMPTS )); do
       echo "Response:"
       cat "$response_file" 2>/dev/null || echo "(no response body)"
       echo ""
+      if [[ "$http_code" == "404" ]]; then
+        print_404_route_diagnostics
+      fi
       echo "Troubleshooting: Check SigNoz for application logs"
       echo "========================================="
       exit 1

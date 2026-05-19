@@ -98,6 +98,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so post-merge deployments and the provider-backed GLM gate queue instead of overlapping.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed deployment.
+- Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
 - The serialized GLM gate includes `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, which uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. Failures identify whether OCR parsing, brokerage import, portfolio valuation, or reporting failed.
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
@@ -183,7 +184,9 @@ reachable. `tests/e2e/test_statement_full_journey.py::test_dbs_statement_full_jo
 is the AI/OCR hard gate: DBS PDF upload must reach `parsed`, show transactions,
 approve, and load the balance sheet. A `rejected` parsing status is a deploy
 failure because it usually indicates AI provider, OCR, secret, or model config
-breakage.
+breakage. Rejection failures include the selected model and statement validation
+context (`validation_error`, `parsing_progress`, `confidence_score`, and
+`balance_validated`) so the post-merge gate is actionable from the CI log.
 
 `tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value`
 is the upload-to-report portfolio hard gate for Issue #404. It proves that at

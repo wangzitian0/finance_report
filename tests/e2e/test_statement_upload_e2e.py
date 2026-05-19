@@ -114,9 +114,7 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(model_select).not_to_have_value("", timeout=15_000)
     await model_select.select_option(index=0)
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
-        timeout=5_000
-    )
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -136,17 +134,14 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     await expect(statement_row).to_be_visible(timeout=15_000)
     # Verify the statement is immediately accessible via the API.
     # Read the JWT from localStorage, then use Playwright's request API (no JS-in-browser needed).
-    token = await page.evaluate(
-        "() => window.localStorage.getItem('finance_access_token')"
-    )
+    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     api_resp = await page.request.get(
         _get_url(f"/api/statements/{statement_id}"),
         headers=headers,
     )
     assert api_resp.status == 200, (
-        f"GET /api/statements/{statement_id} returned {api_resp.status} \u2014 "
-        f"response body: {await api_resp.text()}"
+        f"GET /api/statements/{statement_id} returned {api_resp.status} \u2014 response body: {await api_resp.text()}"
     )
     statement = await api_resp.json()
     assert statement and statement.get("id") == statement_id
@@ -154,7 +149,10 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     # validation failed before the full journey can even poll to parsed.
     status = statement.get("status")
     if status == "rejected":
-        fail_or_skip_ai_ocr_gate("Statement upload returned status=rejected")
+        fail_or_skip_ai_ocr_gate(
+            "Statement upload returned status=rejected",
+            statement=statement,
+        )
     assert status in {"uploaded", "parsing", "parsed", "approved"}, (
         f"Unexpected statement status: {statement.get('status')}"
     )
@@ -178,9 +176,7 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
 
     await page.locator("#institution").fill("E2E Model Test Bank")
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
-        timeout=5_000
-    )
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
     async with page.expect_response(
         lambda r: "/api/statements/upload" in r.url,
@@ -193,9 +189,7 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
         f"expected 2xx. Response body: {await upload_resp.text()}"
     )
 
-    await expect(
-        page.locator("a").filter(has_text="E2E Model Test Bank").first
-    ).to_be_visible(timeout=15_000)
+    await expect(page.locator("a").filter(has_text="E2E Model Test Bank").first).to_be_visible(timeout=15_000)
 
 
 @pytest.mark.e2e
@@ -217,9 +211,5 @@ async def test_stale_model_id_auto_cleanup(authenticated_page: Page) -> None:
     await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")')
     await page.reload()
     await page.wait_for_load_state("networkidle")
-    stored_model: str | None = await page.evaluate(
-        'localStorage.getItem("statement_model_v1")'
-    )
-    assert stored_model != stale_id, (
-        f"Stale model ID '{stale_id}' was not cleared from localStorage after reload"
-    )
+    stored_model: str | None = await page.evaluate('localStorage.getItem("statement_model_v1")')
+    assert stored_model != stale_id, f"Stale model ID '{stale_id}' was not cleared from localStorage after reload"
