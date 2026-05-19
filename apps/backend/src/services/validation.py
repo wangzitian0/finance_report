@@ -9,6 +9,20 @@ from typing import Any
 from src.models.statement import BankStatementStatus
 
 BALANCE_TOLERANCE = Decimal("0.10")
+IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
+OUT_DIRECTION_ALIASES = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
+
+
+def normalize_amount_direction(amount: Decimal, direction_value: Any = None) -> tuple[Decimal, str]:
+    """Return absolute amount plus canonical IN/OUT direction."""
+    direction = str(direction_value or "").strip().upper()
+    if direction in IN_DIRECTION_ALIASES:
+        canonical_direction = "IN"
+    elif direction in OUT_DIRECTION_ALIASES:
+        canonical_direction = "OUT"
+    else:
+        canonical_direction = "OUT" if amount < 0 else "IN"
+    return abs(amount), canonical_direction
 
 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
@@ -23,7 +37,8 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         net = Decimal("0")
         for txn in extracted.get("transactions", []):
             amount = Decimal(str(txn["amount"]))
-            if txn.get("direction") == "IN":
+            amount, direction = normalize_amount_direction(amount, txn.get("direction"))
+            if direction == "IN":
                 net += amount
             else:
                 net -= amount
@@ -139,10 +154,12 @@ def _score_balance_progression(transactions: list[dict[str, Any]]) -> int:
     for txn in transactions:
         bal = txn.get("balance_after")
         amt = txn.get("amount")
-        direction = txn.get("direction", "IN")
+        direction = str(txn.get("direction", "IN")).upper()
         if bal is not None and amt is not None:
             try:
-                balances.append((Decimal(str(bal)), Decimal(str(amt)), direction))
+                amount = Decimal(str(amt))
+                amount, direction = normalize_amount_direction(amount, direction)
+                balances.append((Decimal(str(bal)), amount, direction))
             except (ValueError, TypeError, InvalidOperation):
                 continue
 

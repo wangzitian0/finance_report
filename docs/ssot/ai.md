@@ -113,7 +113,8 @@ The advisor only reads summarized, posted/reconciled data:
 2. Client sends the selected `model` in `POST /api/chat`.
 3. If omitted, the service uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS` for chat responses.
 4. Statement OCR uses `OCR_MODEL`; if it is separate from `VISION_MODEL`, the provider layout parsing API runs first, otherwise the shared vision OCR path is used directly.
-5. The post-merge staging brokerage gate uses the same configured OCR path for PDF uploads. It does not mock OCR: Moomoo and Futu PDF fixtures are sent through `/api/statements/upload`, then parsed statements are imported into portfolio positions through `/api/statements/{id}/brokerage/import`.
+5. Statement OCR stores transaction amounts as non-negative `Decimal` values and uses `direction` as the sign source. Signed model outputs such as `{"amount": "-500.00", "direction": "OUT"}` are normalized before balance validation and routing.
+6. The post-merge staging brokerage gate uses the same configured OCR path for PDF uploads. It does not mock OCR: Moomoo and Futu PDF fixtures are sent through `/api/statements/upload`, then parsed statements are imported into portfolio positions through `/api/statements/{id}/brokerage/import`.
 
 ### SOP-003: Cached Common Q&A
 

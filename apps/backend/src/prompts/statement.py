@@ -41,7 +41,7 @@ Output format (JSON object - NOT an array):
 
 Important Rules:
 1. Output MUST be a single JSON object starting with `{`, NOT an array `[`, and no markdown
-2. All amounts as strings with 2 decimal places, no commas (e.g., "10000.00")
+2. All amounts as non-negative strings with 2 decimal places, no commas (e.g., "10000.00")
 3. Dates in YYYY-MM-DD format
 4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals
 5. Include ALL transactions visible in the document
