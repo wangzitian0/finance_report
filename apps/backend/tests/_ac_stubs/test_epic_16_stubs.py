@@ -616,26 +616,6 @@ def test_ac16_16_8_stub() -> None:
     pytest.skip("AC ref only - not yet implemented")
 
 
-# AC ref: AC16.17.1
-def test_ac16_17_1_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
-# AC ref: AC16.17.2
-def test_ac16_17_2_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
-# AC ref: AC16.17.3
-def test_ac16_17_3_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
-# AC ref: AC16.17.4
-def test_ac16_17_4_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
 # AC ref: AC16.17.5
 def test_ac16_17_5_stub() -> None:
     pytest.skip("AC ref only - not yet implemented")
@@ -663,21 +643,6 @@ def test_ac16_18_2_stub() -> None:
 
 # AC ref: AC16.18.3
 def test_ac16_18_3_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
-# AC ref: AC16.18.4
-def test_ac16_18_4_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
-# AC ref: AC16.18.5
-def test_ac16_18_5_stub() -> None:
-    pytest.skip("AC ref only - not yet implemented")
-
-
-# AC ref: AC16.18.6
-def test_ac16_18_6_stub() -> None:
     pytest.skip("AC ref only - not yet implemented")
 
 
