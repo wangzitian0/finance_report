@@ -146,7 +146,7 @@ async def test_get_holdings_defaults_to_future_imported_snapshot(
     data = response.json()
     assert len(data) == 1
     assert data[0]["asset_identifier"] == "FULLERTON-SGD-MMF"
-    assert data[0]["market_value"] == "1234.00"
+    assert Decimal(data[0]["market_value"]) == Decimal("1234.00")
 
 
 @pytest.mark.asyncio
