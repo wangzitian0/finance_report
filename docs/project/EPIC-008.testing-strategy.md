@@ -49,6 +49,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - CI source coverage uses the shared coverage policy in `scripts/coverage_policy.py`. New backend, frontend, and script modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
 - **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 - **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
+- **AC8.13.17**: AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -331,6 +332,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.14 | Provider-backed staging AI/OCR gate runs separately from deploy health | `test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.15 | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `test_*coverage_policy*` / `test_build_unified_lcov*` | `scripts/tests/` | P0 |
 | AC8.13.16 | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `test_AC8_13_16_ci_change_classification_and_frontend_cache` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
+| AC8.13.17 | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | `test_main_appends_missing_ac_without_rewriting_existing_registry` / `test_AC8_13_17_ac_traceability_runs_registry_generation_check` | `scripts/tests/test_generate_ac_registry.py` / `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 62

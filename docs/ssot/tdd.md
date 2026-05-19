@@ -148,6 +148,16 @@ async def test_balanced_entry_passes():
     # Test implementation...
 ```
 
+### Registry Generation Guardrail
+
+`scripts/generate_ac_registry.py` is append-only for existing registry history:
+it discovers AC definitions from EPIC markdown, preserves canonical descriptions
+already present in `docs/ac_registry.yaml` and `docs/infra_registry.yaml`,
+validates registry `total` fields against actual entry counts, and only appends
+newly defined ACs. CI runs `python scripts/generate_ac_registry.py --check`
+before rebuilding the AC-to-test audit so EPIC additions cannot bypass the
+registry while historical AC wording stays stable.
+
 ### Implementation Guidelines
 
 #### 1. EPIC Document Update Checklist

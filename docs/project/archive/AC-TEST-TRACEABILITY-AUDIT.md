@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 938 | 100% |
-| **Mandatory ACs** | 778 | 82.9% |
+| **Total ACs (registries)** | 939 | 100% |
+| **Mandatory ACs** | 779 | 83.0% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 778 | 100.0% |
+| **Mandatory ACs with test reference** | 779 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 185 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 72 | 0 | 66 | 66 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 73 | 0 | 67 | 67 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 72
-- **Mandatory ACs**: 66
-- **Mandatory ACs with test reference**: 66 (100.0%)
+- **Total ACs**: 73
+- **Mandatory ACs**: 67
+- **Mandatory ACs with test reference**: 67 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -522,7 +522,8 @@
 | AC8.13.13 | yes | Staging deploy cancels stale runs and bounds E2E gate duration with phase timing logs | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.14 | yes | Provider-backed staging AI/OCR gate runs separately from deploy health | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.15 | yes | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `scripts/tests/test_build_unified_lcov.py`<br>`scripts/tests/test_coverage_policy.py`<br>`scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ |
-| AC8.13.16 | yes | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.16 | yes | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | `scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

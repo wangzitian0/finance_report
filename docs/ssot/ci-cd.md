@@ -33,7 +33,7 @@ classify-changes → lint → backend shards + frontend → unified-coverage →
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
-4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation.
+4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `scripts/build_ac_traceability.py --check`.
 5. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
 6. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
 7. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
