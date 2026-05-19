@@ -1250,6 +1250,16 @@ acs:
     epic_name: testing-strategy
     description: 'Multi-brokerage PDF upload -> position import -> latest portfolio value'
     mandatory: true
+  - id: AC8.13.11
+    epic: 8
+    epic_name: testing-strategy
+    description: 'Staging health check diagnoses API route 404 with route probes'
+    mandatory: true
+  - id: AC8.13.12
+    epic: 8
+    epic_name: testing-strategy
+    description: 'AI/OCR gate failures include statement validation context'
+    mandatory: true
   # EPIC-011: asset-lifecycle
   - id: AC11.1.1
     epic: 11

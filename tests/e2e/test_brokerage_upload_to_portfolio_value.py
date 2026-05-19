@@ -54,11 +54,7 @@ def _get_pdf_path(source: str) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        pytest.skip(
-            f"PDF fixture generation failed for {source}.\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+        pytest.skip(f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
     pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
     if not pdfs:
         pytest.skip(f"PDF generation for {source} produced no files in {source_dir}")
@@ -77,9 +73,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:
     response = await client.get(_api_url("/ai/models?modality=image"))
-    assert response.status_code == 200, (
-        f"model catalog request failed: {response.status_code} {response.text}"
-    )
+    assert response.status_code == 200, f"model catalog request failed: {response.status_code} {response.text}"
     payload = response.json()
     return payload.get("default_model") or payload["models"][0]["id"]
 
@@ -98,9 +92,7 @@ async def _upload_brokerage_pdf(
             data={"institution": institution, "model": model},
             files={"file": (pdf_path.name, fh, "application/pdf")},
         )
-    assert response.status_code in (200, 201, 202), (
-        f"{source} upload failed: {response.status_code} {response.text}"
-    )
+    assert response.status_code in (200, 201, 202), f"{source} upload failed: {response.status_code} {response.text}"
     statement_id = response.json().get("id")
     assert statement_id, f"{source} upload response missing id: {response.text}"
     return str(statement_id)
@@ -118,8 +110,8 @@ async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: st
         status = last_payload.get("status")
         if status == "rejected":
             fail_or_skip_ai_ocr_gate(
-                f"brokerage OCR/import gate rejected statement {statement_id}: "
-                f"{last_payload.get('validation_error')}"
+                f"brokerage OCR/import gate rejected statement {statement_id}: {last_payload.get('validation_error')}",
+                statement=last_payload,
             )
         if status == "parsed":
             assert last_payload.get("transactions"), (
@@ -129,8 +121,7 @@ async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: st
         await asyncio.sleep(5)
 
     pytest.fail(
-        f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms. "
-        f"last payload: {last_payload}"
+        f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms. last payload: {last_payload}"
     )
 
 
@@ -161,25 +152,17 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
                 )
             )
 
-        parsed_statements = [
-            await _wait_for_parsed_statement(client, statement_id)
-            for statement_id in statement_ids
-        ]
+        parsed_statements = [await _wait_for_parsed_statement(client, statement_id) for statement_id in statement_ids]
         assert len(parsed_statements) == 2
 
         imported_positions = Decimal("0")
         for parsed_statement in parsed_statements:
-            response = await client.post(
-                _api_url(f"/statements/{parsed_statement['id']}/brokerage/import")
-            )
+            response = await client.post(_api_url(f"/statements/{parsed_statement['id']}/brokerage/import"))
             assert response.status_code == 200, (
-                f"brokerage import failed for {parsed_statement['id']}: "
-                f"{response.status_code} {response.text}"
+                f"brokerage import failed for {parsed_statement['id']}: {response.status_code} {response.text}"
             )
             payload = response.json()
-            assert payload["parsed_positions"] > 0, (
-                f"no positions imported for {parsed_statement['id']}: {payload}"
-            )
+            assert payload["parsed_positions"] > 0, f"no positions imported for {parsed_statement['id']}: {payload}"
             imported_positions += Decimal(str(payload["parsed_positions"]))
 
         holdings_response = await client.get(_api_url("/portfolio/holdings"))
@@ -191,14 +174,10 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
         total_market_value = sum(Decimal(str(item["market_value"])) for item in holdings)
         assert total_market_value > Decimal("0.00"), f"holdings have no market value: {holdings}"
 
-        balance_response = await client.get(
-            _api_url(f"/reports/balance-sheet?as_of_date={date.today().isoformat()}")
-        )
+        balance_response = await client.get(_api_url(f"/reports/balance-sheet?as_of_date={date.today().isoformat()}"))
         assert balance_response.status_code == 200, (
             f"balance sheet check failed: {balance_response.status_code} {balance_response.text}"
         )
         balance_sheet = balance_response.json()
         assert Decimal(str(balance_sheet["total_assets"])) >= total_market_value, balance_sheet
-        assert Decimal(str(balance_sheet["net_worth_adjustment_gain_loss"])) > Decimal("0.00"), (
-            balance_sheet
-        )
+        assert Decimal(str(balance_sheet["net_worth_adjustment_gain_loss"])) > Decimal("0.00"), balance_sheet

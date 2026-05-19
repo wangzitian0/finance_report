@@ -75,9 +75,7 @@ def _get_dbs_pdf_path() -> Path:
         )
     pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf")) if dbs_dir.exists() else []
     if not pdfs:
-        pytest.skip(
-            f"PDF generation script exited 0 but produced no output in {dbs_dir} — skipping."
-        )
+        pytest.skip(f"PDF generation script exited 0 but produced no output in {dbs_dir} — skipping.")
     return pdfs[-1]
 
 
@@ -115,9 +113,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     await page.wait_for_load_state("networkidle")
 
     if "/login" in page.url:
-        pytest.fail(
-            f"Redirected to /login despite authenticated_page fixture. URL: {page.url}"
-        )
+        pytest.fail(f"Redirected to /login despite authenticated_page fixture. URL: {page.url}")
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
     # Fetch the default model from the backend API and select it explicitly.
@@ -125,63 +121,68 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     models_resp = await page.evaluate(
         "async () => { const r = await fetch('/api/ai/models?modality=image'); return r.json(); }"
     )
-    default_model: str = (
-        models_resp.get("default_model") or models_resp["models"][0]["id"]
-    )
+    default_model: str = models_resp.get("default_model") or models_resp["models"][0]["id"]
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=15_000)
     await expect(model_select).not_to_have_value("", timeout=15_000)
     await model_select.select_option(value=default_model)
     await page.set_input_files("#file-upload", str(pdf_path))
-    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(
-        timeout=5_000
-    )
+    await expect(page.locator("p.font-medium", has_text=pdf_path.name)).to_be_visible(timeout=5_000)
 
-    async with (
-        page.expect_response(
-            lambda r: "/api/statements/upload" in r.url,
-            timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
-        ) as resp_info
-    ):
+    async with page.expect_response(
+        lambda r: "/api/statements/upload" in r.url,
+        timeout=120_000,  # Upload + AI model validation may take up to 120s on cold-start
+    ) as resp_info:
         await page.get_by_role("button", name="Upload & Parse Statement").click()
     upload_resp = await resp_info.value
     assert upload_resp.status in (200, 201, 202), (
         f"Upload endpoint returned unexpected status {upload_resp.status} — "
         f"expected 2xx. Response body: {await upload_resp.text()}"
     )
+    upload_body = await upload_resp.json()
+    statement_id = upload_body.get("id")
+    assert statement_id, f"Upload response missing 'id' field: {upload_body}"
+    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     # === AC8.13.2: Poll until "parsed" status badge appears in the list ===
     # The list page polls via TanStack Query every 3 s — we wait up to PARSING_TIMEOUT_MS.
     statement_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
     await expect(statement_row).to_be_visible(timeout=15_000)
 
-    parsed_badge = (
-        page.locator("a")
-        .filter(has_text=INSTITUTION_LABEL)
-        .locator("span.badge", has_text="parsed")
-    )
-    rejected_badge = (
-        page.locator("a")
-        .filter(has_text=INSTITUTION_LABEL)
-        .locator("span.badge", has_text="rejected")
-    )
-    # Poll until parsed, but fail fast if rejected appears (AI parsing error).
+    parsed_badge = page.locator("a").filter(has_text=INSTITUTION_LABEL).locator("span.badge", has_text="parsed")
+    rejected_badge = page.locator("a").filter(has_text=INSTITUTION_LABEL).locator("span.badge", has_text="rejected")
+    # Poll the statement API by ID until parsed, but fail fast with the stored
+    # validation error if the AI/OCR provider rejects parsing.
     # This avoids waiting the full PARSING_TIMEOUT_MS when the AI service fails.
     import asyncio
 
     deadline = asyncio.get_event_loop().time() + PARSING_TIMEOUT_MS / 1000
+    last_statement: dict | None = None
     while asyncio.get_event_loop().time() < deadline:
-        if await rejected_badge.is_visible():
+        api_resp = await page.request.get(
+            _get_url(f"/api/statements/{statement_id}"),
+            headers=headers,
+        )
+        assert api_resp.status == 200, (
+            f"GET /api/statements/{statement_id} returned {api_resp.status} — response body: {await api_resp.text()}"
+        )
+        last_statement = await api_resp.json()
+        if last_statement.get("status") == "rejected" or await rejected_badge.is_visible():
             fail_or_skip_ai_ocr_gate(
                 "Statement parsing failed (status=rejected) — AI service may be "
-                "unavailable or misconfigured on the test environment."
+                "unavailable or misconfigured on the test environment.",
+                statement=last_statement,
+                model=default_model,
             )
-        if await parsed_badge.is_visible():
+        if last_statement.get("status") == "parsed":
+            await expect(parsed_badge).to_be_visible(timeout=15_000)
             break
         await page.wait_for_timeout(3_000)
     else:
         pytest.fail(
-            f"Statement never reached 'parsed' status within {PARSING_TIMEOUT_MS}ms"
+            f"Statement never reached 'parsed' status within {PARSING_TIMEOUT_MS}ms. "
+            f"Last statement payload: {last_statement}"
         )
 
     # === AC8.13.3: Detail page shows transactions ===
@@ -190,44 +191,30 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     # can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
-    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(
-        timeout=10_000
-    )
+    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(timeout=10_000)
     await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10_000)
 
     # === AC8.13.4: Start Review → approve via ConfirmDialog ===
     await page.get_by_role("link", name=re.compile("Start Review")).click()
-    await expect(page).to_have_url(
-        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
-    )
+    await expect(page).to_have_url(re.compile(r"/statements/[^/]+/review$"), timeout=15_000)
     await page.get_by_role("button", name="Approve").click()
     dialog = page.locator('[role="dialog"]')
     await expect(dialog).to_be_visible(timeout=5_000)
     confirm_button = dialog.get_by_role("button", name="Approve")
     await expect(confirm_button).to_be_visible(timeout=3_000)
     await confirm_button.click()
-    await expect(page).to_have_url(
-        re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000
-    )
-    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(page).to_have_url(re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000)
+    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(timeout=15_000)
 
     await page.goto(_get_url("/statements"))
     await expect(page).to_have_url(re.compile(r"/statements$"), timeout=15_000)
     approved_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
     await expect(approved_row).to_be_visible(timeout=15_000)
-    await expect(approved_row.locator("span.badge", has_text="approved")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(approved_row.locator("span.badge", has_text="approved")).to_be_visible(timeout=15_000)
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))
     await page.wait_for_load_state("networkidle")
 
-    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(
-        timeout=10_000
-    )
-    await expect(page.get_by_text("Assets", exact=False).first).to_be_visible(
-        timeout=10_000
-    )
+    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(timeout=10_000)
+    await expect(page.get_by_text("Assets", exact=False).first).to_be_visible(timeout=10_000)
