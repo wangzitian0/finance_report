@@ -246,7 +246,7 @@ During PR review:
 - Local coverage threshold: **90%** backend (`--cov-fail-under=90` in pyproject.toml); **96%** unified
 - CI coverage threshold: No-regression baseline + unified 96% gate
 - Branch coverage tracking: enabled via `--cov-branch`
-- **CI now enforces no-regression**: Each shard runs ~25% of tests, merged unified coverage validated post-merge
+- **CI now enforces no-regression**: Each backend shard runs ~17% of tests, merged unified coverage validated post-merge
 
 #### 2.1 Local Configuration
 
