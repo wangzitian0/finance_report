@@ -273,3 +273,30 @@ Adjusted based on decision complexity:
 **Recorder**: Zitian Wang  
 **Completion Time**: 2026-01-09 20:04 UTC  
 **Git Commit**: `9ceeb62`
+
+---
+
+## Documentation Operating Model — 2026-05-20
+
+**Decision**: Project truth now follows `README.md -> EPIC -> AC -> test`.
+
+**Rationale**:
+- `README.md` is the project fact entry point for EPIC status, proof metrics,
+  blocker links, and generated-report links.
+- `vision.md` is a decision filter for ambiguous direction and should not own
+  implementation status.
+- EPIC documents own scope and AC definitions.
+- AC registries are generated from EPIC documents.
+- Tests and generated reports are the proof layer.
+
+**Follow-up issues**:
+- [#452](https://github.com/wangzitian0/finance_report/issues/452) — Harden AC
+  traceability against stub and placeholder tests.
+- [#453](https://github.com/wangzitian0/finance_report/issues/453) — Move
+  code-owned SSOT facts into common packages or generated contracts.
+- [#454](https://github.com/wangzitian0/finance_report/issues/454) — Convert
+  manual-verification ACs into automated tests or explicit manual gates.
+- [#455](https://github.com/wangzitian0/finance_report/issues/455) — Generate
+  README EPIC status and completion metrics from registries and test reports.
+- [#456](https://github.com/wangzitian0/finance_report/issues/456) — Fix
+  AC-to-EPIC mismatch and invalid test references.

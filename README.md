@@ -1,121 +1,183 @@
 # Finance Report
 
-<div align="center">
+Personal finance system for accurate, auditable asset reporting: double-entry
+bookkeeping, statement import, reconciliation, reports, AI-assisted review, and
+portfolio tracking.
 
-### 📚 **[View Full Documentation →](https://wangzitian0.github.io/finance_report/)**
+## Operating Model
 
-*Complete user guides, API reference, and technical documentation*
+Engineering truth is organized as:
 
----
+```text
+README -> EPIC -> AC -> test
+```
 
-[![Documentation](https://img.shields.io/badge/docs-wangzitian0.github.io%2Ffinance__report-blue.svg?logo=readthedocs)](https://wangzitian0.github.io/finance_report/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?logo=next.js)](https://nextjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192.svg?logo=postgresql)](https://www.postgresql.org/)
-[![Coverage Status](https://coveralls.io/repos/github/wangzitian0/finance_report/badge.svg?branch=main)](https://coveralls.io/github/wangzitian0/finance_report?branch=main)
-[![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%203%20Flash%20Preview-4285F4.svg?logo=google)](https://ai.google.dev/)
+- **README** is the project fact entry point: current EPIC map, proof status,
+  open blockers, and links to generated reports.
+- **EPIC documents** in `docs/project/EPIC-*.md` describe scope and acceptance
+  criteria.
+- **AC registries** are generated from EPIC documents:
+  `docs/ac_registry.yaml` and `docs/infra_registry.yaml`.
+- **Tests** are the proof. A referenced AC is not enough; behavior must be
+  asserted by real tests.
 
-</div>
+`vision.md` is intentionally different. It is a decision filter for ambiguous
+product and architecture choices. It guides endless iteration, but it does not
+own implementation status.
 
-Personal financial management system featuring **double-entry bookkeeping**, **AI-powered statement parsing**, and **intelligent bank reconciliation**.
+## Current Proof Snapshot
 
-## ✨ Features
+Generated sources:
 
-- **Double-Entry Bookkeeping** — Proper accounting with enforced balance validation
-- **AI Statement Parsing** — Upload bank PDFs, auto-extract transactions via Gemini
-- **Smart Reconciliation** — Fuzzy matching engine with 85%+ auto-accept accuracy
-- **Financial Reports** — Balance sheet, income statement, trend analysis
-- **Multi-Currency** — SGD base with FX rate support
-- **Portfolio Management** — Investment holdings tracking with XIRR, cost basis (FIFO/LIFO/AvgCost), sector allocation
+- AC coverage report: `docs/analysis/test-ac-coverage-report.md`
+- Coverage baseline: `unified-coverage.json`
+- Coverage policy owner: `scripts/coverage_policy.py`
 
-## 🚀 Quick Start
+Current generated numbers:
+
+| Metric | Current |
+|---|---:|
+| Registered ACs | 960 |
+| ACs with real test-candidate references | 717 / 960 (74.7%) |
+| Registered ACs without real test reference | 243 |
+| Stub-only AC placeholders | 223 |
+| Invalid AC refs in real tests | 2 |
+| Unified coverage floor | 94.38% |
+| Backend / Frontend / Scripts coverage floors | 98.89% / 91.95% / 86.43% |
+
+Important caveat: the current AC coverage analyzer excludes `_ac_stubs`, but it
+does not yet reject placeholder assertions such as `expect(true).toBe(true)`.
+That work is tracked in
+[issue #452](https://github.com/wangzitian0/finance_report/issues/452).
+
+## EPIC Map
+
+Completion below separates project status from proof status. "AC proof" is from
+the generated AC coverage report and should not be hand-edited without
+refreshing the report.
+
+| EPIC | Scope | Project status | AC proof |
+|---|---|---|---:|
+| [EPIC-001](docs/project/EPIC-001.phase0-setup.md) | Infrastructure & authentication | Complete with deferred debt | 19 / 29 (65.5%) |
+| [EPIC-002](docs/project/EPIC-002.double-entry-core.md) | Double-entry bookkeeping core | Complete | 52 / 59 (88.1%) |
+| [EPIC-003](docs/project/EPIC-003.statement-parsing.md) | Statement parsing | Complete, TDD aligned | 33 / 39 (84.6%) |
+| [EPIC-004](docs/project/EPIC-004.reconciliation-engine.md) | Reconciliation engine | Complete, TDD aligned | 34 / 39 (87.2%) |
+| [EPIC-005](docs/project/EPIC-005.reporting-visualization.md) | Reports & visualization | Complete, with investment metric gaps | 31 / 36 (86.1%) |
+| [EPIC-006](docs/project/EPIC-006.ai-advisor.md) | AI advisor | Complete | 52 / 63 (82.5%) |
+| [EPIC-007](docs/project/EPIC-007.deployment.md) | Deployment | Complete, manual-gate heavy | 6 / 39 (15.4%) |
+| [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates | Core complete | 70 / 88 (79.5%) |
+| [EPIC-009](docs/project/EPIC-009.pdf-fixture-generation.md) | PDF fixture generation | Complete, manual-gate heavy | 0 / 37 (0.0%) |
+| [EPIC-010](docs/project/EPIC-010.signoz-logging.md) | SigNoz logging | Complete, manual-gate heavy | 0 / 21 (0.0%) |
+| [EPIC-011](docs/project/EPIC-011.asset-lifecycle.md) | Asset lifecycle | In progress (P0 complete) | 38 / 38 (100.0%) |
+| [EPIC-012](docs/project/EPIC-012.foundation-libs.md) | Foundation libraries | In progress | 52 / 62 (83.9%) |
+| [EPIC-013](docs/project/EPIC-013.statement-parsing-v2.md) | Statement parsing v2 | Complete | 54 / 60 (90.0%) |
+| [EPIC-014](docs/project/EPIC-014.ttd-transformation.md) | TDD/TTD transformation | In progress | 0 / 6 (0.0%) |
+| [EPIC-015](docs/project/EPIC-015.processing-account.md) | Processing account | Complete, TDD aligned | 28 / 28 (100.0%) |
+| [EPIC-016](docs/project/EPIC-016.two-stage-review-ui.md) | Two-stage review UI | Planned / active foundation | 156 / 214 (72.9%) |
+| [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | Portfolio management | Planned / partially implemented | 79 / 79 (100.0%) |
+| [EPIC-018](docs/project/EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline | In progress | 13 / 23 (56.5%) |
+
+Known proof-quality caveats:
+
+- Placeholder frontend tests currently inflate EPIC-011, EPIC-016, EPIC-017,
+  and EPIC-018 proof status. See
+  [issue #452](https://github.com/wangzitian0/finance_report/issues/452).
+- Manual-verification ACs need automation or an explicit manual-gate category.
+  See [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
+- Invalid AC references and AC-to-EPIC mismatches need explicit cleanup. See
+  [issue #456](https://github.com/wangzitian0/finance_report/issues/456).
+- README EPIC metrics should eventually be generated or validated by CI. See
+  [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
+
+## Current Vision Blockers
+
+Minimum blocker set for a fresh user to reach the accurate-dashboard journey:
+
+1. Upload flow polish: `wangzitian0/finance_report#366`
+2. Stage 1 review entry in sidebar: `wangzitian0/finance_report#365`
+3. Unified approval path: `wangzitian0/finance_report#362`
+4. Stage 2 run-level review UI: `wangzitian0/finance_report#368`
+5. Approve -> auto-post journal entries: `wangzitian0/finance_report#363`
+6. Processing account sidebar/status: `wangzitian0/finance_report#367`
+7. Reconciliation idempotency: `wangzitian0/finance_report#354`
+8. Unrealized FX gain/loss reporting: `wangzitian0/finance_report#197`
+9. PDF export for reports: `wangzitian0/finance_report#205`
+10. Dashboard empty-state onboarding: `wangzitian0/finance_report#369`
+
+## Documentation Debt Tracked As Issues
+
+- [#452](https://github.com/wangzitian0/finance_report/issues/452):
+  Harden AC traceability against stub and placeholder tests.
+- [#453](https://github.com/wangzitian0/finance_report/issues/453):
+  Move code-owned SSOT facts into common packages or generated contracts.
+- [#454](https://github.com/wangzitian0/finance_report/issues/454):
+  Convert manual-verification ACs into automated tests or explicit manual gates.
+- [#455](https://github.com/wangzitian0/finance_report/issues/455):
+  Generate README EPIC status and completion metrics from registries and test
+  reports.
+- [#456](https://github.com/wangzitian0/finance_report/issues/456):
+  Fix AC-to-EPIC mismatch and invalid test references.
+
+## Quick Start
 
 ```bash
-# Clone and setup
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-# Start development
-moon run :dev              # Starts infra, shows instructions for backend/frontend
-moon run :dev -- --backend # Backend only
-moon run :dev -- --frontend # Frontend only
+moon run :setup
+moon run :dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open <http://localhost:3000>.
 
-## 🛠️ Development
-
-This project uses [Moonrepo](https://moonrepo.dev/) with **6 unified commands**:
+## Development Commands
 
 ```bash
-# Setup
-moon run :setup            # Install all dependencies
-
-# Development
-moon run :dev              # Start dev environment
+moon run :dev              # Start local development environment
 moon run :dev -- --backend # Backend only
 moon run :dev -- --frontend # Frontend only
 
-# Testing
+moon run :lint             # Lint all workspaces
+moon run :lint -- --fix    # Lint and auto-fix where supported
+
 moon run :test             # Full tests with coverage
-moon run :test -- --fast   # Fast mode (no coverage, TDD)
-moon run :test -- --smart  # Smart mode (coverage on changed files)
+moon run :test -- --fast   # Fast TDD loop without coverage
+moon run :test -- --smart  # Changed-file coverage mode
 moon run :test -- --e2e    # E2E tests
 
-# Code Quality
-moon run :lint             # Check all
-moon run :lint -- --fix    # Check + auto-fix
-
-# Build
 moon run :build            # Build frontend
-
-# Cleanup
-moon run :clean            # Clean resources
+moon run :clean            # Clean local resources
 ```
 
-Backend tests run with coverage enabled, and coverage is monitored as part of the TDD workflow. See [TDD workflow](docs/ssot/tdd.md) for testing patterns.
+See `docs/ssot/development.md` for environment details and `docs/ssot/ci-cd.md`
+for CI gates.
 
-**Multi-Repo Isolation**: Run tests in parallel across multiple repo copies:
+## Architecture
 
-```bash
-BRANCH_NAME=feature-auth moon run :test           # Explicit namespace
-BRANCH_NAME=feature-auth WORKSPACE_ID=alice moon run :test  # Per-developer
-moon run :test                                     # Auto-detect from git
-```
-
-See [development.md](docs/ssot/development.md) for detailed workflows.
-
-## API Auth
-
-The API uses **JWT (JSON Web Token)** with Bearer authentication. User-scoped requests require a valid token in the `Authorization` header. See [auth.md](docs/ssot/auth.md) for details.
-
-## 📚 Documentation
-
-| Resource | Description |
-|----------|-------------|
-| [📖 **Documentation Site**](https://wangzitian0.github.io/finance_report/) | **Complete documentation** — User guides, API reference, and technical docs |
-| [vision.md](./vision.md) | Project vision and decision criteria |
-| [docs/ssot/](./docs/ssot/) | Technical SSOT (Single Source of Truth) |
-| [AGENTS.md](./AGENTS.md) | AI agent guidelines |
-
-> 💡 **Documentation is automatically deployed** to [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/) via GitHub Pages on every push to `main`.
-
-### Build Documentation Locally
-
-```bash
-pip install -r docs/requirements.txt
-mkdocs serve   # http://127.0.0.1:8000
-mkdocs build   # output: site/
-```
-
-## 🏗️ Architecture
-
-```
+```text
 apps/
 ├── backend/     # FastAPI + SQLAlchemy + PostgreSQL
-└── frontend/    # Next.js 14 + TypeScript
+└── frontend/    # Next.js + TypeScript
+
+scripts/         # CI, coverage, registry, fixture, and lifecycle tools
+docs/project/    # EPICs and project audit reports
+docs/ssot/       # Rationale docs that link to code owners and proof tests
 ```
 
-## 📄 License
+Code-owned facts should live in code or generated contracts, not prose. The
+migration path is tracked in
+[issue #453](https://github.com/wangzitian0/finance_report/issues/453).
+
+## Key Links
+
+| Resource | Purpose |
+|---|---|
+| [vision.md](vision.md) | Decision filter and long-term direction |
+| [docs/project/](docs/project/) | EPIC documents and project audits |
+| [docs/ssot/](docs/ssot/) | Rationale docs, code-owner links, proof references |
+| [docs/analysis/test-ac-coverage-report.md](docs/analysis/test-ac-coverage-report.md) | Generated AC-to-test coverage report |
+| [docs/agents/](docs/agents/) | Agent workflow and red-line rules |
+
+## License
 
 MIT
