@@ -90,7 +90,8 @@ describe("Sidebar and WorkspaceTabs", () => {
     render(<Sidebar />)
 
     await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
-    await waitFor(() => expect(screen.getByText("Review")).toBeInTheDocument())
+    const reviewLink = await screen.findByRole("link", { name: /Review/i })
+    expect(reviewLink).toHaveAttribute("href", "/review")
     expect(screen.getByText(expectedReviewBadgeCountFromMocks)).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
