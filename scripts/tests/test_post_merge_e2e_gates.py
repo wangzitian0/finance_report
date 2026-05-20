@@ -428,7 +428,7 @@ def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
 
 
 def test_AC8_13_27_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> None:
-    """AC8.13.27: deterministic upload-to-dashboard gate uses a critical fresh-user fixture flow."""
+    """AC8.13.27/28/29/30: deterministic upload-to-dashboard gate covers the full fresh-user flow."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     epic = read("docs/project/EPIC-008.testing-strategy.md")
 
@@ -440,6 +440,9 @@ def test_AC8_13_27_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     assert "vision_hard_gate_statement.csv" in gate
     assert "pytest.skip(" in gate
     assert "AC8.13.27" in epic
+    assert "AC8.13.28" in epic
+    assert "AC8.13.29" in epic
+    assert "AC8.13.30" in epic
     assert "test_statement_upload_to_dashboard_vision_hard_gate" in epic
 
 
