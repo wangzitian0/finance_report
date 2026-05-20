@@ -53,7 +53,7 @@ The authoritative component/file policy lives in `scripts/coverage_policy.py`. C
 
 - **Tool**: pytest + pytest-cov
 - **Config**: `apps/backend/pyproject.toml`
-- **Output**: `coverage-backend-{shard}.lcov` (4 shards, merged into `coverage/backend.lcov`)
+- **Output**: `coverage-backend-{shard}.lcov` (6 shards, merged into `coverage/backend.lcov`)
 - **Excluded**:
   - `tests/**`
   - `migrations/**`
@@ -92,7 +92,7 @@ The authoritative component/file policy lives in `scripts/coverage_policy.py`. C
 ```yaml
 jobs:
   backend:
-    # 4 shards → coverage-backend-{0..3}.lcov
+    # 6 shards → coverage-backend-{1..6}.lcov
 
   frontend:
     # vitest --coverage → lcov.info

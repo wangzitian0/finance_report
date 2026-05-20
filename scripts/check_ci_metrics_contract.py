@@ -136,6 +136,8 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
             "scripts/wait_for_github_status.py",
             '--context "Coveralls - unified"',
+            "Backend Tests (Shard ${{ matrix.shard }}/6)",
+            "--splits 6",
             "--failure-confirmation-seconds",
         )
         for token in required_workflow_tokens:

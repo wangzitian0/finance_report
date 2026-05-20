@@ -79,6 +79,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert workflow.index("scripts/check_ci_metrics_contract.py") < workflow.index(
         "scripts/check_coverage_policy.py"
     )
+    assert "Backend Tests (Shard ${{ matrix.shard }}/6)" in workflow
+    assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
+    assert "--splits 6" in workflow
     assert "--failure-confirmation-seconds" in workflow
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd

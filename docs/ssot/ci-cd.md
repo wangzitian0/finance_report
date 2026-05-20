@@ -23,7 +23,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 |-----|---------|--------------|
 | **classify-changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
-| **backend** (Shards 1-4) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
+| **backend** (Shards 1-6) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
 | **frontend** | Frontend build + tests when heavy CI is required | `needs: [classify-changes]` |
 | **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [classify-changes, backend, frontend]` |
 | **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
@@ -134,8 +134,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
 - Backend shards and AC traceability run in parallel with lint once change classification has finished, so lint remains visible without delaying independent test work.
-- 4-way parallel test sharding via `pytest-split`
-- Each shard: `pytest --splits 4 --group N`
+- 6-way parallel test sharding via `pytest-split`
+- Each shard: `pytest --splits 6 --group N`
 - Coverage reports merged post-run
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
@@ -176,7 +176,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 >
 > | Environment | Parallelism | Test Scope | Resource Usage |
 > |-------------|-------------|------------|----------------|
-> | **GitHub CI** | `-n auto` + `--splits 4` | ~25% tests per shard | Low (ephemeral runners) |
+> | **GitHub CI** | `-n auto` + `--splits 6` | ~17% tests per shard | Medium (ephemeral runners) |
 > | **Local CI** | `-n 4` (fixed) | 100% tests | Controlled (shared machine) |
 >
 > This is intentional design, not inconsistency.
@@ -200,8 +200,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Caching: UV ✅ (2.9s), Next.js ✅, venv ✅
 
 **CI Pipeline (2026-05-19 observed baseline):**
-- Full heavy CI on `main`: **~7m 02s**.
-- Longest backend shard: **~6m 03s**.
+- Full heavy CI on `main`: **~7m 39s** before 6-way backend sharding.
+- Longest backend shard: **~6m 23s** before 6-way backend sharding.
 - Frontend build and coverage test: **~2m 32s** before npm cache standardization.
 - Unified coverage: **~28s**.
 - Lightweight docs/docs-workflow changes skip backend, frontend, and unified coverage; lint, AC traceability, and finish still run.
