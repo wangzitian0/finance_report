@@ -5,6 +5,12 @@
 > **Phase**: Tooling Enhancement (Phase 3-5)
 > **Duration**: 3-4 weeks
 > **Owner**: Development Team
+>
+> **2026-05-20 alignment note**: Current project status and proof metrics live
+> in the root [README](../../README.md) and generated
+> [AC coverage report](../analysis/test-ac-coverage-report.md). This EPIC owns
+> the TTD transformation scope; code/test migration follow-ups are tracked by
+> issues #452, #453, #454, #455, and #456.
 
 ## 📌 Executive Summary
 

@@ -267,3 +267,33 @@ Prompt 模板:
 **记录者**: Zitian Wang
 **完成时间**: 2026-01-09 20:04 UTC
 **Git 提交**: `9ceeb62`
+
+---
+
+## 📌 文档运行模型 — 2026-05-20
+
+> **权威英文版**: 参见 [DECISIONS.md](./DECISIONS.md) 中的
+> "Documentation Operating Model — 2026-05-20"。
+
+**决策**: 项目事实层级调整为 `README.md -> EPIC -> AC -> test`。
+
+**原因**:
+
+- `README.md` 是项目事实入口，承载 EPIC 状态、proof 指标、blocker 链接和生成报告入口。
+- `vision.md` 只保留为遇到具体问题迟疑时的方向性决策过滤器，不再承载实现状态。
+- EPIC 文档负责范围和 AC 定义。
+- AC registry 从 EPIC 文档生成。
+- 测试和生成报告是 proof 层。
+
+**后续 issue**:
+
+- [#452](https://github.com/wangzitian0/finance_report/issues/452) — 收紧
+  AC traceability，避免 stub 和 placeholder 测试被算作 proof。
+- [#453](https://github.com/wangzitian0/finance_report/issues/453) — 将
+  code-owned SSOT 事实迁移到 common package 或 generated contract。
+- [#454](https://github.com/wangzitian0/finance_report/issues/454) — 将
+  manual-verification AC 转为自动化测试或显式 manual gate。
+- [#455](https://github.com/wangzitian0/finance_report/issues/455) — 从
+  registry 和测试报告生成或校验 README 的 EPIC 状态与完成度。
+- [#456](https://github.com/wangzitian0/finance_report/issues/456) — 修复
+  AC-to-EPIC mismatch 和 invalid test references。

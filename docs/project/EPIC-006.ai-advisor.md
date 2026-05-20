@@ -10,7 +10,9 @@
 
 ## 🎯 Objective
 
-Build a conversational AI financial advisor based on Gemini 2.0 Flash (free) to help users understand their financial status, interpret reports, and answer financial questions.
+Build a conversational AI financial advisor based on the configured AI provider
+and models in `apps/backend/src/config.py` to help users understand their
+financial status, interpret reports, and answer financial questions.
 
 **Core Principles**:
 ```

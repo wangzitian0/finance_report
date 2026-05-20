@@ -15,10 +15,8 @@ https://report.zitian.party/api
 
 ## Authentication
 
-!!! note "Coming Soon"
-    Authentication is being implemented. Currently, the API is open for demo purposes.
-
-Future authentication will use JWT tokens:
+Finance Report uses JWT bearer authentication. See
+[Auth SSOT](../ssot/auth.md) for the current contract.
 
 ```bash
 curl -X POST /api/auth/login \
