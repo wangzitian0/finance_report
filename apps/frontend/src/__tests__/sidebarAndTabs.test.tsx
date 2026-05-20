@@ -73,6 +73,9 @@ describe("Sidebar and WorkspaceTabs", () => {
       if (path === "/api/statements/stage2/queue") {
         return { pending_matches: [{ id: "m1", status: "pending_review" }, { id: "m2", status: "accepted" }] }
       }
+      if (path === "/api/accounts/processing/summary") {
+        return { pending_count: 0, pending_total: "0.00", current_balance: "0.00", currency: "SGD", oldest_pending_date: null }
+      }
       return {}
     })
     workspaceMockData = {
@@ -139,6 +142,36 @@ describe("Sidebar and WorkspaceTabs", () => {
     render(<Sidebar />)
     expect(screen.getByText("Portfolio")).toBeInTheDocument()
     expect(screen.queryByText("Assets")).not.toBeInTheDocument()
+  })
+
+  it("AC15.7.6 shows Processing between Reconciliation and AI Advisor", async () => {
+    render(<Sidebar />)
+
+    await waitFor(() => expect(screen.getByText("Processing")).toBeInTheDocument())
+    const labels = screen.getAllByRole("link").map((link) => link.textContent ?? "")
+    expect(labels.indexOf("Reconciliation")).toBeLessThan(labels.indexOf("Processing"))
+    expect(labels.indexOf("Processing")).toBeLessThan(labels.indexOf("AI Advisor"))
+  })
+
+  it("AC15.7.7 shows a sidebar warning when Processing Account balance is non-zero", async () => {
+    mockedApiFetch.mockImplementation(async (path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return { items: [], total: 0 }
+      }
+      if (path === "/api/statements/stage2/queue") {
+        return { pending_matches: [] }
+      }
+      if (path === "/api/accounts/processing/summary") {
+        return { pending_count: 1, pending_total: "100.00", current_balance: "100.00", currency: "SGD", oldest_pending_date: "2026-05-01" }
+      }
+      return {}
+    })
+
+    render(<Sidebar />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Processing Account has unresolved balance")).toBeInTheDocument()
+    })
   })
 
   it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {

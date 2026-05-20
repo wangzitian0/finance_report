@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { AlertTriangle, Clock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { ProcessingSummaryResponse } from "@/lib/types";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrency, isAmountZero } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 
 export default function ProcessingSummaryCard() {
@@ -40,37 +40,47 @@ export default function ProcessingSummaryCard() {
   if (error) {
     return (
       <div className="card p-5 border-[var(--error)]/30">
-        <p className="text-xs text-muted uppercase tracking-wide">Processing</p>
+        <p className="text-xs text-muted uppercase">Processing</p>
         <p className="text-sm text-[var(--error)] mt-1">Error loading data</p>
       </div>
     );
   }
 
-  if (!summary || summary.pending_count === 0) {
-    return (
-      <div className="card p-5">
-        <p className="text-xs text-muted uppercase tracking-wide">Processing</p>
-        <p className="text-2xl font-semibold mt-1">0</p>
-        <p className="text-xs text-muted mt-1">No pending transfers</p>
-      </div>
-    );
-  }
+  const pendingCount = summary?.pending_count ?? 0;
+  const currentBalance = summary?.current_balance ?? summary?.pending_total ?? "0.00";
+  const currency = summary?.currency ?? "SGD";
+  const hasUnresolvedBalance = !isAmountZero(currentBalance, 0);
 
   return (
     <Link href="/processing" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
       <div className="flex justify-between items-start">
         <div>
-          <p className="text-xs text-muted uppercase tracking-wide">Processing</p>
-          <p className="text-2xl font-semibold mt-1 text-[var(--warning)]" data-testid="processing-count">
-            {summary.pending_count || 0} Pending
+          <p className="text-xs text-muted uppercase">Processing</p>
+          <p
+            className={`text-2xl font-semibold mt-1 ${hasUnresolvedBalance ? "text-[var(--warning)]" : ""}`}
+            data-testid="processing-balance"
+          >
+            {formatCurrency(currentBalance, currency)}
           </p>
-          <p className="text-sm font-medium mt-1">
-            {formatCurrencyLocale(Number(summary.pending_total), summary.currency, "en-US", { maximumFractionDigits: 0 })}
+          <p className="text-sm font-medium mt-1" data-testid="processing-count">
+            {pendingCount} Pending
           </p>
         </div>
-        <Clock className="w-5 h-5 text-muted" />
+        {hasUnresolvedBalance ? (
+          <AlertTriangle
+            className="w-5 h-5 text-[var(--warning)]"
+            aria-label="Unresolved Processing Account balance"
+          />
+        ) : (
+          <Clock className="w-5 h-5 text-muted" aria-hidden="true" />
+        )}
       </div>
-      {summary.oldest_pending_date && (
+      {hasUnresolvedBalance ? (
+        <p className="text-xs text-[var(--warning)] mt-2">Unresolved in-transit balance</p>
+      ) : (
+        <p className="text-xs text-muted mt-2">Balanced</p>
+      )}
+      {summary?.oldest_pending_date && (
         <p className="text-xs text-muted mt-2">
           Oldest: {formatDateDisplay(summary.oldest_pending_date)}
         </p>

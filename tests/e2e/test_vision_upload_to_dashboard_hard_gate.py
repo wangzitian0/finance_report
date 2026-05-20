@@ -231,6 +231,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     assert processing_summary == {
         "pending_count": 0,
         "pending_total": "0.00",
+        "current_balance": "0.00",
         "currency": "SGD",
         "oldest_pending_date": None,
     }
@@ -263,7 +264,11 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     await page.wait_for_load_state("networkidle")
     await expect(page.get_by_role("heading", name="Dashboard")).to_be_visible(timeout=10_000)
     await expect(
-        page.locator(".card").filter(has_text="Processing").filter(has_text="No pending transfers")
+        page.locator(".card")
+        .filter(has_text="Processing")
+        .filter(has_text="SGD 0.00")
+        .filter(has_text="0 Pending")
+        .filter(has_text="Balanced")
     ).to_be_visible()
     await expect(
         page.locator(".card")

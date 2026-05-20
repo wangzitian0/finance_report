@@ -41,6 +41,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     mockedApiFetch.mockResolvedValue({
       pending_count: 1,
       pending_total: "100.00",
+      current_balance: "100.00",
       currency: "SGD",
       oldest_pending_date: "2026-05-01"
     });
@@ -52,10 +53,11 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     });
   });
 
-  it('AC15.7.2 — ProcessingSummaryCard renders fields', async () => {
+  it('AC15.7.2 / AC15.7.8 — ProcessingSummaryCard renders fields and current balance warning', async () => {
     mockedApiFetch.mockResolvedValue({
       pending_count: 3,
       pending_total: "150.00",
+      current_balance: "150.00",
       currency: "SGD",
       oldest_pending_date: "2026-04-15"
     });
@@ -64,6 +66,8 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('processing-count')).toHaveTextContent('3 Pending');
+      expect(screen.getByTestId('processing-balance')).toHaveTextContent(/150/);
+      expect(screen.getByLabelText(/unresolved processing account balance/i)).toBeInTheDocument();
       expect(screen.getByText(/150/)).toBeInTheDocument();
       expect(screen.getByText(/Apr 15, 2026/)).toBeInTheDocument();
     });
@@ -138,7 +142,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
   it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {
     mockedApiFetch.mockImplementation((path) => {
       if (path === '/api/accounts/processing/summary') {
-        return Promise.resolve({ pending_count: 2, pending_total: "200.00", currency: "SGD", oldest_pending_date: "2026-05-01" });
+        return Promise.resolve({ pending_count: 2, pending_total: "200.00", current_balance: "200.00", currency: "SGD", oldest_pending_date: "2026-05-01" });
       }
       if (path === '/api/reports/balance-sheet') {
         return Promise.resolve({ assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "2026-05-04", is_balanced: true });
@@ -165,6 +169,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('processing-count')).toHaveTextContent('2 Pending');
+      expect(screen.getByTestId('processing-balance')).toHaveTextContent(/200/);
     }, { timeout: 2000 });
   });
 });

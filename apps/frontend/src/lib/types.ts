@@ -341,6 +341,7 @@ export interface PriceUpdateResponse {
 export interface ProcessingSummaryResponse {
     pending_count: number;
     pending_total: string;
+    current_balance: string;
     currency: string;
     oldest_pending_date: string | null;
 }
