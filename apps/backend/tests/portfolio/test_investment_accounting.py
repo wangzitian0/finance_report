@@ -2,6 +2,8 @@
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -60,6 +62,14 @@ def svc() -> InvestmentAccountingService:
 
 def _line_amount(entry, account_id, direction):
     return next(line.amount for line in entry.lines if line.account_id == account_id and line.direction == direction)
+
+
+class _ScalarStub:
+    def __init__(self, value):
+        self.value = value
+
+    async def scalar(self, _query):
+        return self.value
 
 
 @pytest.mark.asyncio
@@ -478,4 +488,32 @@ async def test_investment_accounting_rejects_invalid_transactions(
             cash_account_id=chart["cash"].id,
             investment_account_id=chart["investment"].id,
             dividend_income_account_id=chart["dividend_income"].id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_investment_accounting_rejects_invalid_account_and_position_helpers(
+    svc: InvestmentAccountingService,
+):
+    """AC17.5.1/AC17.5.2: Ledger helpers reject invalid accounts and missing positions."""
+    user_id = uuid4()
+    account_id = uuid4()
+
+    with pytest.raises(InvestmentAccountingValidationError, match=f"account {account_id} not found"):
+        await svc._get_account(_ScalarStub(None), user_id, account_id, AccountType.ASSET)
+
+    liability_account = SimpleNamespace(name="Loan", type=AccountType.LIABILITY, is_active=True)
+    with pytest.raises(InvestmentAccountingValidationError, match="account Loan must be ASSET"):
+        await svc._get_account(_ScalarStub(liability_account), user_id, account_id, AccountType.ASSET)
+
+    inactive_account = SimpleNamespace(name="Closed Cash", type=AccountType.ASSET, is_active=False)
+    with pytest.raises(InvestmentAccountingValidationError, match="account Closed Cash is inactive"):
+        await svc._get_account(_ScalarStub(inactive_account), user_id, account_id, AccountType.ASSET)
+
+    with pytest.raises(InvestmentAccountingValidationError, match="position MISSING not found"):
+        await svc._get_position(
+            _ScalarStub(None),
+            user_id=user_id,
+            account_id=account_id,
+            asset_identifier="MISSING",
         )
