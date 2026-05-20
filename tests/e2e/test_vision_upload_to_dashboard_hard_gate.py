@@ -1,7 +1,7 @@
 """
 Tier 3 Browser/API E2E: deterministic upload-to-dashboard vision hard gate.
 
-AC8.13.22–AC8.13.26 / issue #341 follow-up:
+AC8.13.27–AC8.13.31 / issue #341 follow-up:
 - fresh isolated user uploads a deterministic CSV fixture
 - completes Stage 1 review and verifies auto-posted journal entries
 - reruns reconciliation and verifies Stage 2 completion + idempotency
@@ -11,8 +11,8 @@ AC8.13.22–AC8.13.26 / issue #341 follow-up:
 
 from __future__ import annotations
 
-import csv
 import asyncio
+import csv
 import os
 import re
 from collections.abc import Sequence
@@ -117,7 +117,7 @@ def _assert_expected_totals(payload: dict, expected: dict[str, Decimal], keys: S
 @pytest.mark.tier3
 @pytest.mark.critical
 async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page_unique: Page) -> None:
-    """AC8.13.22–AC8.13.26: upload fixture → review → trusted totals on dashboard/reports."""
+    """AC8.13.27–AC8.13.31: upload fixture -> review -> trusted totals on dashboard/reports."""
     page = authenticated_page_unique
     fixture_path = _require_fixture_path()
 
@@ -296,7 +296,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
 
 def test_vision_fixture_totals_match_expected_values() -> None:
-    """AC8.13.26: deterministic fixture totals stay pinned to exact reporting values."""
+    """AC8.13.31: deterministic fixture totals stay pinned to exact reporting values."""
     rows = _read_fixture_rows()
     income = sum((_money(row["Amount"]) for row in rows if _money(row["Amount"]) > Decimal("0.00")), Decimal("0.00"))
     expenses = sum((-_money(row["Amount"]) for row in rows if _money(row["Amount"]) < Decimal("0.00")), Decimal("0.00"))
@@ -309,7 +309,7 @@ def test_vision_fixture_totals_match_expected_values() -> None:
 
 
 def test_vision_fixture_balances_to_zero_for_stage1_approval() -> None:
-    """AC8.13.23: fixture net cash is zero so Stage 1 CSV approval remains balance-valid."""
+    """AC8.13.28: fixture net cash is zero so Stage 1 CSV approval remains balance-valid."""
     rows = _read_fixture_rows()
     net_cash = sum((_money(row["Amount"]) for row in rows), Decimal("0.00"))
 
