@@ -378,6 +378,20 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v4
+
+    - name: Write CI timing summary
+      if: ${{ always() }}
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python scripts/github_workflow_timing_summary.py \
+          --repo "${{ github.repository }}" \
+          --run-id "${{ github.run_id }}" \
+          --title "CI Timing Summary" \
+          --summary-path "$GITHUB_STEP_SUMMARY"
+
     - name: Check job status
       run: |
         echo "Change Classification: ${{ needs.changes.result }}"

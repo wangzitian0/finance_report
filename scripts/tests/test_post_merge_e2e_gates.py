@@ -425,3 +425,40 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
     ):
         assert token in gate
     assert "upload-to-dashboard vision hard gate" in ci_cd
+
+
+def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None:
+    """AC8.13.33: shared E2E setup caches Python and Playwright install work."""
+    action = read(".github/actions/setup-e2e-tests/action.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Cache E2E virtualenv" in action
+    assert "path: .venv" in action
+    assert "e2e-venv-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}" in action
+    assert "Cache Playwright browsers" in action
+    assert "path: ~/.cache/ms-playwright" in action
+    assert "playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}" in action
+    assert "if [ ! -x .venv/bin/python ]; then" in action
+    assert "uv pip install -r tests/e2e/requirements.txt" in action
+    assert "shared E2E setup action caches `.venv` and Playwright browsers" in ci_cd
+
+
+def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
+    """AC8.13.34: CI and post-merge workflows report queue and critical-path timing."""
+    ci_workflow = read(".github/workflows/ci.yml")
+    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    timing_script = read("scripts/github_workflow_timing_summary.py")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Write CI timing summary" in ci_workflow
+    assert "scripts/github_workflow_timing_summary.py" in ci_workflow
+    assert '--title "CI Timing Summary"' in ci_workflow
+    assert "--run-id \"${{ github.run_id }}\"" in ci_workflow
+    assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
+    assert "post-merge-summary:" in deploy_workflow
+    assert "needs: [build-and-deploy, ai-ocr-gate]" in deploy_workflow
+    assert "Write post-merge timing summary" in deploy_workflow
+    assert '--title "Post-merge Timing Summary"' in deploy_workflow
+    assert "Queue delay" in timing_script
+    assert "Longest completed job" in timing_script
+    assert "GitHub Step Summary" in ci_cd

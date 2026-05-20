@@ -142,6 +142,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
 - CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports a confirmed `failure`/`error`, or never appears before timeout.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
+- The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 
 **Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
 - This file is a historical/manual snapshot, not the current CI source of truth.
@@ -150,6 +151,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
+- The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, PR preview, and production smoke runs do not repeatedly download identical E2E dependencies.
 - Staging deploy waits for the same commit's `CI` push workflow to complete successfully before building images, pushing `staging` tags, or changing the Dokploy staging environment. If matching CI fails, is cancelled, or times out, staging is not overwritten.
 - Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
 - Automatic provider-backed AI/OCR validation runs as a downstream job in the same serialized post-merge workflow unit. This keeps staging stable for the SHA under validation: a newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running.
@@ -158,6 +160,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - The automatic AI/OCR job has a 30-minute job timeout, while the provider-backed pytest step remains capped at 22 minutes.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
+- The post-merge workflow appends a GitHub Step Summary after deploy health and AI/OCR finish, making queue time, serial execution time, and slow jobs visible without manually scraping logs.
 
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
 - Automatic `Staging AI/OCR Gate` execution lives in `.github/workflows/staging-deploy.yml` and starts only after deploy health succeeds in the same serialized post-merge workflow unit.
@@ -206,6 +209,17 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Frontend build and coverage test: **~2m 32s** before npm cache standardization.
 - Unified coverage: **~28s**.
 - Lightweight docs/docs-workflow changes skip backend, frontend, and unified coverage; lint, AC traceability, and finish still run.
+
+**CI Pipeline (2026-05-20 after 6-way backend sharding):**
+- Full heavy CI execution window on `main`: **~5m 48s** after jobs start; run wall time may be higher when GitHub queues the run.
+- Longest backend shard: **~4m 48s**.
+- Unified coverage: **~42s**, including scripts coverage and Coveralls unified status wait.
+- The timing summary reports queue delay separately from execution time so future regressions can distinguish runner capacity from workflow critical-path changes.
+
+**Post-merge staging (2026-05-20 observed baseline):**
+- Build and deploy job execution: **~5m 19s**.
+- Automatic AI/OCR gate execution: **~4m 38s**.
+- AI/OCR `Setup E2E Tests`: **~2m 54s** before E2E virtualenv and Playwright browser caching.
 
 **Backend Test Parallelization:**
 
