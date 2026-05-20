@@ -381,6 +381,35 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
     assert "run in parallel with lint" in ci_cd
 
 
+def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
+    """AC8.13.27: PR CI waits for the external Coveralls unified status."""
+    workflow = read(".github/workflows/ci.yml")
+    wait_script = read("scripts/wait_for_github_status.py")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    unified_block = workflow.split("- name: Upload unified coverage to Coveralls", 1)[
+        1
+    ].split("- name: Wait for Coveralls unified status", 1)[0]
+    frontend_block = workflow.split("- name: Upload frontend to Coveralls", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+
+    assert "github.event_name == 'push'" not in unified_block
+    assert "github.event_name == 'push'" not in frontend_block
+    assert "statuses: read" in workflow
+    assert "scripts/wait_for_github_status.py" in workflow
+    assert '--context "Coveralls - unified"' in workflow
+    assert workflow.index("Upload unified coverage to Coveralls") < workflow.index(
+        "Wait for Coveralls unified status"
+    )
+    assert workflow.index("Wait for Coveralls unified status") < workflow.index(
+        "Upload backend to Coveralls"
+    )
+    assert "wait_for_status_success" in wait_script
+    assert "Coveralls - unified" in ci_cd
+    assert "Pull requests wait for the external `Coveralls - unified` status" in ci_cd
+
+
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
     workflow = read(".github/workflows/staging-deploy.yml")

@@ -59,6 +59,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
 - **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
 - **AC8.13.26**: CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift.
+- **AC8.13.27**: PR and main CI wait for the external Coveralls unified coverage status before passing.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -351,11 +352,12 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `scripts/tests/` | P0 |
+| AC8.13.27 | PR and main CI wait for the external Coveralls unified coverage status before passing | `test_AC8_13_27_*` | `scripts/tests/` | P0 |
 
 **Traceability Result**:
-- Total AC IDs: 62
+- Total AC IDs: 63
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 51/62 (82.3%); 8 additional covered by Tier 3 E2E (AC8.13)**
+- **ACs with passing Tier 1 tests: 51/63 (81.0%); 9 additional covered by Tier 3 E2E/CI guardrails (AC8.13)**
 - ACs covered by AC group:
   - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
   - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
@@ -368,10 +370,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 16/16 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification)
+  - AC8.13: 17/17 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating)
 - Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 2 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`), 3 Playwright (skip without `APP_URL` or `FRONTEND_URL`)
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 51/55 Tier 1 ACs (92.7%) + AC8.13 16/16 Tier 3/deploy-gate/CI guardrail ACs (total 71 ACs: 55 Tier 1 + 16 Tier 3/deploy-gate/CI guardrail)
+- **Current state**: 51/55 Tier 1 ACs (92.7%) + AC8.13 17/17 Tier 3/deploy-gate/CI guardrail ACs (total 72 ACs: 55 Tier 1 + 17 Tier 3/deploy-gate/CI guardrail)
 
 ---
 
