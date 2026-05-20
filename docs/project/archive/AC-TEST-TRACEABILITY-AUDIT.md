@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 954 | 100% |
-| **Mandatory ACs** | 794 | 83.2% |
+| **Total ACs (registries)** | 959 | 100% |
+| **Mandatory ACs** | 799 | 83.3% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 794 | 100.0% |
+| **Mandatory ACs with test reference** | 799 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 193 | - |
+| **Test files referenced** | 194 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 83 | 0 | 77 | 77 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 88 | 0 | 82 | 82 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 83
-- **Mandatory ACs**: 77
-- **Mandatory ACs with test reference**: 77 (100.0%)
+- **Total ACs**: 88
+- **Mandatory ACs**: 82
+- **Mandatory ACs with test reference**: 82 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -534,6 +534,11 @@
 | AC8.13.25 | yes | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.26 | yes | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift. | `scripts/tests/test_ci_metrics_contract.py` | ✅ |
 | AC8.13.27 | yes | PR and main CI wait for the external Coveralls unified coverage status before passing. | `scripts/tests/test_post_merge_e2e_gates.py`<br>`scripts/tests/test_wait_for_github_status.py` | ✅ |
+| AC8.13.28 | yes | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.29 | yes | Stage 1 review auto-posts journal entries from the deterministic fixture. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.30 | yes | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.31 | yes | Processing Account summary and pending page stay visible and correct for the cleared run. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.32 | yes | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

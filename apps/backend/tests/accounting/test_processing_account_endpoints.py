@@ -45,6 +45,7 @@ async def test_processing_summary_empty(client: AsyncClient) -> None:
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["pending_count"] == 0
+    assert data["pending_total"] == "0.00"
     assert Decimal(data["pending_total"]) == Decimal("0")
     assert data["currency"] == "SGD"
     assert data["oldest_pending_date"] is None
@@ -97,9 +98,7 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
 
 
 @pytest.mark.asyncio
-async def test_pending_total_uses_net_balance_not_sum_of_legs(
-    client: AsyncClient, db: AsyncSession, test_user
-) -> None:
+async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClient, db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")
     savings = await _seed_account(db, user_id, "Savings", "1002")

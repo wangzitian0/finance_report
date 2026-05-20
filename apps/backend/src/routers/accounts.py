@@ -95,7 +95,7 @@ async def get_processing_summary(
     pending_count = len(unpaired)
     debits = sum((item["amount"] for item in unpaired if item["direction"] == "OUT"), start=Decimal("0"))
     credits = sum((item["amount"] for item in unpaired if item["direction"] == "IN"), start=Decimal("0"))
-    pending_total = abs(debits - credits)
+    pending_total = abs(debits - credits).quantize(Decimal("0.01"))
     oldest_pending_date = min((item["date"] for item in unpaired), default=None)
     return ProcessingSummaryResponse(
         pending_count=pending_count,

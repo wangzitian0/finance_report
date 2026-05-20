@@ -1247,6 +1247,14 @@ class ExtractionService:
             )
             raise ExtractionError(f"No valid transactions found in CSV for {institution}")
 
+        inferred_closing_balance = sum(
+            (
+                Decimal(str(txn["amount"])) if txn.get("direction") == "IN" else -Decimal(str(txn["amount"]))
+                for txn in transactions
+            ),
+            Decimal("0.00"),
+        )
+
         logger.info(
             "CSV parsing completed",
             institution=institution,
@@ -1259,6 +1267,8 @@ class ExtractionService:
             "currency": "SGD",
             "period_start": period_start.isoformat() if period_start else None,
             "period_end": period_end.isoformat() if period_end else None,
+            "opening_balance": "0.00",
+            "closing_balance": str(inferred_closing_balance),
             "transactions": transactions,
         }
 
