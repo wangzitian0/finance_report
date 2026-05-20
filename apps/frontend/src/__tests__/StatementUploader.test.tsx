@@ -109,6 +109,35 @@ describe("StatementUploader model selection", () => {
     });
   });
 
+  it("AC8.4.1 hides AI model selection for CSV uploads and submits without model", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+
+    render(<StatementUploader />);
+
+    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
+    const file = new File(["date,description,amount"], "statement.csv", { type: "text/csv" });
+    await userEvent.upload(fileInput, file);
+
+    expect(screen.queryByLabelText(/ai model/i)).not.toBeInTheDocument();
+    expect(screen.getByText("CSV files are parsed directly")).toBeInTheDocument();
+    expect(screen.getByText("No AI model needed.")).toBeInTheDocument();
+
+    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    await userEvent.click(uploadButton);
+
+    await waitFor(() => {
+      expect(apiUpload).toHaveBeenCalledTimes(1);
+    });
+
+    const formData = vi.mocked(apiUpload).mock.calls[0]?.[1] as FormData;
+    expect(formData.get("file")).toBe(file);
+    expect(formData.get("model")).toBeNull();
+  });
+
   it("errors when default model is not in the filtered catalog", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",

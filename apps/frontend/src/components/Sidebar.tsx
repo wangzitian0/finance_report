@@ -177,7 +177,7 @@ export function Sidebar() {
                             key={item.href}
                             href={item.href}
                             className={`
-                flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
+                relative flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
                 transition-colors text-sm
                 ${isActive
                                     ? "bg-[var(--accent-muted)] text-[var(--accent)]"

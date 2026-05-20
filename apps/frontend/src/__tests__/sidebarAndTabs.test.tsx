@@ -104,6 +104,26 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(pushMock).toHaveBeenCalledWith("/login")
   })
 
+  it("AC15.7.3 exposes Processing Account in sidebar", async () => {
+    mockedApiFetch.mockImplementation(async (path: string) => {
+      if (path === "/api/statements/pending-review") {
+        return { items: [], total: 0 }
+      }
+      if (path === "/api/statements/stage2/queue") {
+        return { pending_matches: [] }
+      }
+      if (path === "/api/accounts/processing/summary") {
+        return { pending_count: 4, pending_total: "1250.00", current_balance: "0.00", currency: "SGD", oldest_pending_date: "2026-05-01" }
+      }
+      return {}
+    })
+
+    render(<Sidebar />)
+
+    const processingLink = await screen.findByRole("link", { name: /Processing/i })
+    expect(processingLink).toHaveAttribute("href", "/processing")
+  })
+
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
     pathnameMock = "/reports/balance-sheet"
     render(<WorkspaceTabs />)

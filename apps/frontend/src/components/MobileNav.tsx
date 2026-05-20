@@ -22,7 +22,7 @@ interface NavItem {
 const mobileNavItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
     { icon: FileText, label: "Review", href: "/statements" },
-    { icon: Zap, label: "Processing", href: "/reconciliation" },
+    { icon: Zap, label: "Processing", href: "/processing" },
     { icon: Wallet, label: "Portfolio", href: "/portfolio" },
 ];
 

@@ -14,9 +14,10 @@ describe("MobileNav coverage (AC16.23.6)", () => {
         const trigger = screen.getByLabelText("Open navigation menu");
         fireEvent.click(trigger);
         const dashboardLink = screen.getByRole("link", { name: /dashboard/i });
+        const processingLink = screen.getByRole("link", { name: /processing/i });
         expect(dashboardLink).toBeInTheDocument();
         expect(screen.getByRole("link", { name: /review/i })).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: /processing/i })).toBeInTheDocument();
+        expect(processingLink).toHaveAttribute("href", "/processing");
         expect(screen.getByRole("link", { name: /portfolio/i })).toBeInTheDocument();
         expect(dashboardLink.className).toContain("accent-muted");
 
