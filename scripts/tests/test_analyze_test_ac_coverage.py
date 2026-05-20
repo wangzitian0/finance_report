@@ -40,6 +40,11 @@ acs:
     epic_name: placeholders
     description: stub only
     mandatory: true
+  - id: AC4.4.4
+    epic: 4
+    epic_name: untested
+    description: no real or stub reference
+    mandatory: true
 """.strip()
             + "\n",
             encoding="utf-8",
@@ -96,7 +101,7 @@ acs:
 
         assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1"}
         assert result.stub_only_ids == {"AC3.3.3"}
-        assert result.untested_ids == ["AC3.3.3"]
+        assert result.untested_ids == ["AC3.3.3", "AC4.4.4"]
 
         assert "AC9.9.9" in result.invalid_real_refs
         assert "apps/backend/tests/test_backend_real.py" in result.invalid_real_refs["AC9.9.9"]
@@ -127,6 +132,61 @@ acs:
         assert "Stub-only AC placeholders (`_ac_stubs`)" in report
         assert "Registered ACs with no real test reference" in report
         assert "EPIC-003 (placeholders) — 1 untested" in report
+        assert "EPIC-004 (untested) — 1 untested" in report
+
+    def test_analyze_repo_handles_missing_duplicate_unreadable_and_external_paths(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        self._write_registry(tmp_path)
+        self._write_tests(tmp_path)
+
+        missing_registry = tmp_path / "docs" / "missing_registry.yaml"
+        duplicate_registry = tmp_path / "docs" / "duplicate_registry.yaml"
+        extra_ac_id = "AC" + "5.5.5"
+        duplicate_registry.write_text(
+            f"""
+version: '1.0'
+total: 2
+acs:
+  - id: AC1.1.1
+    epic: 99
+    epic_name: duplicate
+    description: should be ignored
+  - id: {extra_ac_id}
+    epic: 5
+    epic_name: extra
+    description: extra registry entry
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        registry = coverage.load_registry(
+            (
+                tmp_path / "docs" / "ac_registry.yaml",
+                missing_registry,
+                duplicate_registry,
+            )
+        )
+
+        assert registry["AC1.1.1"].epic == 1
+        assert registry[extra_ac_id].epic == 5
+
+        external_file = tmp_path.parent / "external_ac_test.py"
+        assert coverage._relative(external_file, tmp_path) == str(external_file)
+
+        references, source_real_refs, source_stub_refs = coverage.collect_references(
+            [
+                coverage.ScanFile(source="backend", path=tmp_path / "missing.py"),
+                coverage.ScanFile(source="backend", path=external_file),
+            ],
+            repo_root=tmp_path,
+        )
+
+        assert references == {}
+        assert source_real_refs == {}
+        assert source_stub_refs == {}
 
 
 class TestMain:
@@ -163,3 +223,43 @@ class TestMain:
         text = output.read_text(encoding="utf-8")
         assert "AC Coverage Analysis Report" in text
         assert "Registered ACs" in text
+
+    def test_main_can_print_report_to_stdout(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        capsys,
+    ) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "ac_registry.yaml").write_text(
+            "version: '1.0'\ntotal: 1\nacs:\n  - id: AC1.1.1\n    epic: 1\n    epic_name: phase0\n    description: demo\n    mandatory: true\n",
+            encoding="utf-8",
+        )
+        (docs / "infra_registry.yaml").write_text(
+            "version: '1.0'\ntotal: 0\nacs: []\n",
+            encoding="utf-8",
+        )
+        backend = tmp_path / "apps" / "backend" / "tests"
+        backend.mkdir(parents=True, exist_ok=True)
+        (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
+
+        output = tmp_path / "docs" / "analysis" / "out.md"
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "analyze_test_ac_coverage.py",
+                "--repo-root",
+                str(tmp_path),
+                "--output",
+                str(output),
+                "--stdout",
+            ],
+        )
+
+        assert coverage.main() == 0
+        captured = capsys.readouterr()
+        assert "AC Coverage Analysis Report" in captured.out
+        assert "Summary: registered=1" in captured.out
