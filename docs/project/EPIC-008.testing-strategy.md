@@ -59,11 +59,12 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
 - **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
 - **AC8.13.26**: CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift.
-- **AC8.13.27**: Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E.
-- **AC8.13.28**: Stage 1 review auto-posts journal entries from the deterministic fixture.
-- **AC8.13.29**: Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state.
-- **AC8.13.30**: Processing Account summary and pending page stay visible and correct for the cleared run.
-- **AC8.13.31**: Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture.
+- **AC8.13.27**: PR and main CI wait for the external Coveralls unified coverage status before passing.
+- **AC8.13.28**: Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E.
+- **AC8.13.29**: Stage 1 review auto-posts journal entries from the deterministic fixture.
+- **AC8.13.30**: Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state.
+- **AC8.13.31**: Processing Account summary and pending page stay visible and correct for the cleared run.
+- **AC8.13.32**: Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -356,16 +357,17 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `scripts/tests/` | P0 |
-| AC8.13.27 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
-| AC8.13.28 | Stage 1 review auto-posts journal entries from the deterministic fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
-| AC8.13.29 | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
-| AC8.13.30 | Processing Account summary and pending page stay visible and correct for the cleared run | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
-| AC8.13.31 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+| AC8.13.27 | PR and main CI wait for the external Coveralls unified coverage status before passing | `test_AC8_13_27_*` | `scripts/tests/` | P0 |
+| AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+| AC8.13.29 | Stage 1 review auto-posts journal entries from the deterministic fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+| AC8.13.30 | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+| AC8.13.31 | Processing Account summary and pending page stay visible and correct for the cleared run | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+| AC8.13.32 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 
 **Traceability Result**:
-- Total AC IDs: 81
+- Total AC IDs: 68
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 51/81 (63.0%); additional deploy-gate coverage is provided by AC8.13 Tier 3 E2E**
+- **ACs with passing Tier 1 tests: 51/68 (75.0%); additional deploy-gate coverage is provided by AC8.13 Tier 3 E2E**
 - ACs covered by AC group:
   - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
   - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
@@ -378,10 +380,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 26/26 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, CI metrics contract, and the deterministic upload-to-dashboard vision hard gate)
+  - AC8.13: 22/22 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating, and the deterministic upload-to-dashboard vision hard gate)
 - Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 3 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`), plus browser-backed Playwright suites used when `APP_URL` or `FRONTEND_URL` is available
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 51/55 Tier 1 ACs (92.7%) + AC8.13 26/26 Tier 3/deploy-gate/CI guardrail ACs (total 81 ACs: 55 Tier 1 + 26 Tier 3/deploy-gate/CI guardrail)
+- **Current state**: 51/55 Tier 1 ACs (92.7%) + AC8.13 22/22 Tier 3/deploy-gate/CI guardrail ACs (total 77 ACs: 55 Tier 1 + 22 Tier 3/deploy-gate/CI guardrail)
 
 ---
 
@@ -395,7 +397,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | `tests/e2e/test_statement_upload_e2e.py` | Playwright | Tier 3 | 2 | Statement upload + model selection (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_statement_full_journey.py` | Playwright | Tier 3 | 1 | Full journey: DBS PDF upload → parse polling → detail/transactions → approve → balance sheet (AC8.13.1–5) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | API E2E | Tier 3 | 1 | Issue #404 hard gate: Moomoo + Futu PDF upload → real OCR parsing → brokerage import → holdings + balance sheet value (AC8.13.10) |
-| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Playwright/API | Tier 3 | 3 | Deterministic vision gate: fresh-user CSV upload → Stage 1 auto-post → reconciliation idempotency → Stage 2 cleared state → processing visibility → exact dashboard/report totals (AC8.13.27–31) |
+| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Playwright/API | Tier 3 | 3 | Deterministic vision gate: fresh-user CSV upload → Stage 1 auto-post → reconciliation idempotency → Stage 2 cleared state → processing visibility → exact dashboard/report totals (AC8.13.28–32) |
 | `tests/e2e/test_production_readonly_smoke.py` | Playwright/API | Tier 3 | 3 | Production-safe read-only smoke: health, auth boundary, browser shell, optional credential-gated dashboard |
 | `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |

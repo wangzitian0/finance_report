@@ -1,7 +1,7 @@
 """
 Tier 3 Browser/API E2E: deterministic upload-to-dashboard vision hard gate.
 
-AC8.13.27–AC8.13.31 / issue #341 follow-up:
+AC8.13.28–AC8.13.32 / issue #341 follow-up:
 - fresh isolated user uploads a deterministic CSV fixture
 - completes Stage 1 review and verifies auto-posted journal entries
 - reruns reconciliation and verifies Stage 2 completion + idempotency
@@ -117,7 +117,7 @@ def _assert_expected_totals(payload: dict, expected: dict[str, Decimal], keys: S
 @pytest.mark.tier3
 @pytest.mark.critical
 async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page_unique: Page) -> None:
-    """AC8.13.27–AC8.13.31: upload fixture -> review -> trusted totals on dashboard/reports."""
+    """AC8.13.28–AC8.13.32: upload fixture -> review -> trusted totals on dashboard/reports."""
     page = authenticated_page_unique
     fixture_path = _require_fixture_path()
 
@@ -132,8 +132,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         await page.get_by_role("button", name="Upload & Parse Statement").click()
     upload_resp = await upload_info.value
     assert upload_resp.status in (200, 201, 202), (
-        f"Upload endpoint returned unexpected status {upload_resp.status}. "
-        f"Body: {await upload_resp.text()}"
+        f"Upload endpoint returned unexpected status {upload_resp.status}. Body: {await upload_resp.text()}"
     )
     upload_body = await upload_resp.json()
     statement_id = upload_body.get("id")
@@ -154,7 +153,9 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     approve_button = page.get_by_role("button", name="Approve").first
     await expect(approve_button).to_be_enabled(timeout=10_000)
-    async with page.expect_response(lambda r: f"/api/statements/{statement_id}/review/approve" in r.url) as approve_info:
+    async with page.expect_response(
+        lambda r: f"/api/statements/{statement_id}/review/approve" in r.url
+    ) as approve_info:
         await approve_button.click()
         dialog = page.locator('[role="dialog"]')
         await expect(dialog).to_be_visible(timeout=5_000)
@@ -171,9 +172,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     assert journal_entries["total"] == EXPECTED_TOTALS["transaction_count"]
     assert len(journal_entries["items"]) == EXPECTED_TOTALS["transaction_count"]
     assert {item["status"].lower() for item in journal_entries["items"]} == {"posted"}
-    assert {item["memo"] for item in journal_entries["items"]} == {
-        row["Description"] for row in _read_fixture_rows()
-    }
+    assert {item["memo"] for item in journal_entries["items"]} == {row["Description"] for row in _read_fixture_rows()}
 
     reconciliation_headers = await _auth_headers(page)
     first_run = await _api_json(
@@ -263,40 +262,92 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("networkidle")
     await expect(page.get_by_text("Dashboard")).to_be_visible(timeout=10_000)
-    await expect(page.locator(".card").filter(has_text="Processing").filter(has_text="No pending transfers")).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="Total Assets").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_assets"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="Net Assets").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_assets"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="This Month — Income").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_income"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="This Month — Expenses").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_expenses"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="This Month — Net").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))).to_be_visible()
+    await expect(
+        page.locator(".card").filter(has_text="Processing").filter(has_text="No pending transfers")
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Total Assets")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_assets"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Net Assets")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_assets"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="This Month — Income")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_income"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="This Month — Expenses")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_expenses"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="This Month — Net")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))
+    ).to_be_visible()
 
     await page.goto(_get_url(f"/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD"))
     await page.wait_for_load_state("networkidle")
     await expect(page.get_by_text("Balance Sheet")).to_be_visible(timeout=10_000)
-    await expect(page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")).to_contain_text(_format_grouped_int(EXPECTED_TOTALS["total_assets"]))
+    await expect(page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")).to_contain_text(
+        _format_grouped_int(EXPECTED_TOTALS["total_assets"])
+    )
     await expect(page.locator(".card").filter(has_text="Liabilities").filter(has_text="Total:")).to_contain_text(
         _format_grouped_int(EXPECTED_TOTALS["total_liabilities"])
     )
 
     await page.goto(
-        _get_url(f"/reports/income-statement?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD")
+        _get_url(
+            f"/reports/income-statement?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD"
+        )
     )
     await page.wait_for_load_state("networkidle")
     await expect(page.get_by_text("Income Statement")).to_be_visible(timeout=10_000)
-    await expect(page.locator(".card").filter(has_text="Total Income").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_income"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="Total Expenses").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_expenses"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="Net Income").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Total Income")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_income"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Total Expenses")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_expenses"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Net Income")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))
+    ).to_be_visible()
 
-    await page.goto(_get_url(f"/reports/cash-flow?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD"))
+    await page.goto(
+        _get_url(f"/reports/cash-flow?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD")
+    )
     await page.wait_for_load_state("networkidle")
     await expect(page.get_by_text("Cash Flow Statement")).to_be_visible(timeout=10_000)
-    await expect(page.locator(".card").filter(has_text="Net Cash Flow").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_cash_flow"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="Beginning Cash").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["beginning_cash"]))).to_be_visible()
-    await expect(page.locator(".card").filter(has_text="Ending Cash").filter(has_text=_format_grouped_int(EXPECTED_TOTALS["ending_cash"]))).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Net Cash Flow")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_cash_flow"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Beginning Cash")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["beginning_cash"]))
+    ).to_be_visible()
+    await expect(
+        page.locator(".card")
+        .filter(has_text="Ending Cash")
+        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["ending_cash"]))
+    ).to_be_visible()
 
 
 def test_vision_fixture_totals_match_expected_values() -> None:
-    """AC8.13.31: deterministic fixture totals stay pinned to exact reporting values."""
+    """AC8.13.32: deterministic fixture totals stay pinned to exact reporting values."""
     rows = _read_fixture_rows()
     income = sum((_money(row["Amount"]) for row in rows if _money(row["Amount"]) > Decimal("0.00")), Decimal("0.00"))
     expenses = sum((-_money(row["Amount"]) for row in rows if _money(row["Amount"]) < Decimal("0.00")), Decimal("0.00"))
@@ -309,7 +360,7 @@ def test_vision_fixture_totals_match_expected_values() -> None:
 
 
 def test_vision_fixture_balances_to_zero_for_stage1_approval() -> None:
-    """AC8.13.28: fixture net cash is zero so Stage 1 CSV approval remains balance-valid."""
+    """AC8.13.29: fixture net cash is zero so Stage 1 CSV approval remains balance-valid."""
     rows = _read_fixture_rows()
     net_cash = sum((_money(row["Amount"]) for row in rows), Decimal("0.00"))
 
