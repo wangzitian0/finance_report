@@ -1,258 +1,165 @@
-"""Tests for scripts/analyze_test_ac_coverage.py"""
+"""Tests for scripts/analyze_test_ac_coverage.py."""
 
-import pytest
-from pathlib import Path
+from __future__ import annotations
+
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from analyze_test_ac_coverage import (
-    suggest_ac,
-    extract_test_functions,
-    EPIC_MAPPING,
-)
+import analyze_test_ac_coverage as coverage
 
 
-class TestSuggestAc:
-    """Tests for suggest_ac function - returns AC suggestion based on keywords."""
+class TestAnalyzeRepo:
+    def _write_registry(self, repo_root: Path) -> None:
+        docs = repo_root / "docs"
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "ac_registry.yaml").write_text(
+            """
+version: '1.0'
+total: 4
+acs:
+  - id: AC1.1.1
+    epic: 1
+    epic_name: phase0
+    description: backend real
+    mandatory: true
+  - id: AC1.1.2
+    epic: 1
+    epic_name: phase0
+    description: frontend real
+    mandatory: true
+  - id: AC2.2.1
+    epic: 2
+    epic_name: testing-strategy
+    description: e2e real
+    mandatory: true
+  - id: AC3.3.3
+    epic: 3
+    epic_name: placeholders
+    description: stub only
+    mandatory: true
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        (docs / "infra_registry.yaml").write_text(
+            "version: '1.0'\ntotal: 0\nacs: []\n",
+            encoding="utf-8",
+        )
 
-    def test_accounting_domain_balance_keyword(self):
-        epic_info = EPIC_MAPPING["accounting"]
-        result = suggest_ac("test_balance_validation", "accounting", epic_info)
-        assert "AC2.2.x" in result
-        assert "Balance Validation" in result
+    def _write_tests(self, repo_root: Path) -> None:
+        backend = repo_root / "apps" / "backend" / "tests"
+        frontend = repo_root / "apps" / "frontend" / "src" / "__tests__"
+        e2e = repo_root / "tests" / "e2e"
+        repo_e2e = repo_root / "repo" / "e2e_regressions"
+        stubs = backend / "_ac_stubs"
 
-    def test_accounting_domain_equation_keyword(self):
-        epic_info = EPIC_MAPPING["accounting"]
-        result = suggest_ac("test_accounting_equation_holds", "accounting", epic_info)
-        assert "AC2.2.x" in result
+        backend.mkdir(parents=True, exist_ok=True)
+        frontend.mkdir(parents=True, exist_ok=True)
+        e2e.mkdir(parents=True, exist_ok=True)
+        repo_e2e.mkdir(parents=True, exist_ok=True)
+        stubs.mkdir(parents=True, exist_ok=True)
 
-    def test_accounting_domain_void_keyword(self):
-        epic_info = EPIC_MAPPING["accounting"]
-        result = suggest_ac("test_voided_entry_excluded", "accounting", epic_info)
-        assert "AC2.3.x" in result
-        assert "Voiding" in result
+        (backend / "test_backend_real.py").write_text(
+            'def test_backend_real():\n    """AC1.1.1 AC9.9.9"""\n    assert True\n',
+            encoding="utf-8",
+        )
+        (frontend / "dashboard.test.tsx").write_text(
+            "// AC1.1.2\n// AC18.4.4\nexport {}\n",
+            encoding="utf-8",
+        )
+        (e2e / "test_core.py").write_text(
+            "# AC2.2.1\n",
+            encoding="utf-8",
+        )
+        (repo_e2e / "test_regression.py").write_text(
+            "# AC2.2.1\n",
+            encoding="utf-8",
+        )
+        (stubs / "test_placeholder.py").write_text(
+            "import pytest\n# AC3.3.3\n# AC8.12.7\ndef test_stub():\n    pytest.skip('placeholder')\n",
+            encoding="utf-8",
+        )
 
-    def test_accounting_domain_journal_keyword(self):
-        epic_info = EPIC_MAPPING["accounting"]
-        result = suggest_ac("test_create_journal_entry", "accounting", epic_info)
-        assert "AC2.1.x" in result
-        assert "Journal Entry" in result
+    def test_analyze_repo_classifies_real_stub_invalid_and_untested(self, tmp_path: Path) -> None:
+        self._write_registry(tmp_path)
+        self._write_tests(tmp_path)
 
-    def test_accounting_domain_default(self):
-        epic_info = EPIC_MAPPING["accounting"]
-        result = suggest_ac("test_something_unrelated", "accounting", epic_info)
-        assert "AC2.x.x" in result
-        assert "Accounting Core" in result
+        result = coverage.analyze_repo(tmp_path)
 
-    def test_extraction_domain_balance_valid(self):
-        epic_info = EPIC_MAPPING["extraction"]
-        result = suggest_ac("test_balance_validation_works", "extraction", epic_info)
-        assert "AC3.1.x" in result
+        assert result.source_file_counts["backend"] == 2
+        assert result.source_file_counts["frontend"] == 1
+        assert result.source_file_counts["e2e"] == 1
+        assert result.source_file_counts["repo_e2e"] == 1
 
-    def test_extraction_domain_confidence(self):
-        epic_info = EPIC_MAPPING["extraction"]
-        result = suggest_ac("test_confidence_score_calc", "extraction", epic_info)
-        assert "AC3.2.x" in result
+        assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1"}
+        assert result.stub_only_ids == {"AC3.3.3"}
+        assert result.untested_ids == ["AC3.3.3"]
 
-    def test_extraction_domain_parse(self):
-        epic_info = EPIC_MAPPING["extraction"]
-        result = suggest_ac("test_parse_statement", "extraction", epic_info)
-        assert "AC3.3.x" in result
+        assert "AC9.9.9" in result.invalid_real_refs
+        assert "apps/backend/tests/test_backend_real.py" in result.invalid_real_refs["AC9.9.9"]
+        assert "AC18.4.4" in result.invalid_real_refs
+        assert "apps/frontend/src/__tests__/dashboard.test.tsx" in result.invalid_real_refs["AC18.4.4"]
 
-    def test_extraction_domain_upload(self):
-        epic_info = EPIC_MAPPING["extraction"]
-        result = suggest_ac("test_upload_file", "extraction", epic_info)
-        assert "AC3.4.x" in result
+        assert "AC8.12.7" in result.invalid_stub_refs
+        assert (
+            "apps/backend/tests/_ac_stubs/test_placeholder.py"
+            in result.invalid_stub_refs["AC8.12.7"]
+        )
 
-    def test_reconciliation_domain_score(self):
-        epic_info = EPIC_MAPPING["reconciliation"]
-        result = suggest_ac("test_score_calculation", "reconciliation", epic_info)
-        assert "AC4.2.x" in result
+    def test_render_markdown_contains_required_sections(self, tmp_path: Path) -> None:
+        self._write_registry(tmp_path)
+        self._write_tests(tmp_path)
 
-    def test_reconciliation_domain_accept_without_score_in_name(self):
-        epic_info = EPIC_MAPPING["reconciliation"]
-        result = suggest_ac("test_auto_accept_entry", "reconciliation", epic_info)
-        assert "AC4.3.x" in result
+        result = coverage.analyze_repo(tmp_path)
+        report = coverage.render_markdown(
+            result,
+            generated_at=datetime(2026, 5, 19, 13, 29, 12, tzinfo=timezone.utc),
+        )
 
-    def test_reconciliation_domain_match(self):
-        epic_info = EPIC_MAPPING["reconciliation"]
-        result = suggest_ac("test_match_transactions", "reconciliation", epic_info)
-        assert "AC4.1.x" in result
-
-    def test_reconciliation_domain_anomaly(self):
-        epic_info = EPIC_MAPPING["reconciliation"]
-        result = suggest_ac("test_anomaly_detection", "reconciliation", epic_info)
-        assert "AC4.4.x" in result
-
-    def test_reporting_domain_balance_sheet(self):
-        epic_info = EPIC_MAPPING["reporting"]
-        result = suggest_ac("test_balance_sheet_report", "reporting", epic_info)
-        assert "AC5.1.x" in result
-
-    def test_reporting_domain_income(self):
-        epic_info = EPIC_MAPPING["reporting"]
-        result = suggest_ac("test_income_statement", "reporting", epic_info)
-        assert "AC5.2.x" in result
-
-    def test_reporting_domain_fx(self):
-        epic_info = EPIC_MAPPING["reporting"]
-        result = suggest_ac("test_fx_conversion", "reporting", epic_info)
-        assert "AC5.3.x" in result
-
-    def test_reporting_domain_snapshot(self):
-        epic_info = EPIC_MAPPING["reporting"]
-        result = suggest_ac("test_financial_snapshot", "reporting", epic_info)
-        assert "AC5.4.x" in result
-
-    def test_ai_domain_chat(self):
-        epic_info = EPIC_MAPPING["ai"]
-        result = suggest_ac("test_chat_response", "ai", epic_info)
-        assert "AC6.1.x" in result
-
-    def test_ai_domain_model(self):
-        epic_info = EPIC_MAPPING["ai"]
-        result = suggest_ac("test_model_selection", "ai", epic_info)
-        assert "AC6.2.x" in result
-
-    def test_ai_domain_streaming(self):
-        epic_info = EPIC_MAPPING["ai"]
-        result = suggest_ac("test_streaming_response", "ai", epic_info)
-        assert "AC6.3.x" in result
-
-    def test_ai_domain_advisor(self):
-        epic_info = EPIC_MAPPING["ai"]
-        result = suggest_ac("test_advisor_recommendation", "ai", epic_info)
-        assert "AC6.4.x" in result
-
-    def test_assets_domain_depreciation(self):
-        epic_info = EPIC_MAPPING["assets"]
-        result = suggest_ac("test_depreciation_calc", "assets", epic_info)
-        assert "AC11.2.x" in result
-
-    def test_assets_domain_purchase(self):
-        epic_info = EPIC_MAPPING["assets"]
-        result = suggest_ac("test_asset_purchase", "assets", epic_info)
-        assert "AC11.1.x" in result
-
-    def test_assets_domain_disposal(self):
-        epic_info = EPIC_MAPPING["assets"]
-        result = suggest_ac("test_asset_disposal", "assets", epic_info)
-        assert "AC11.3.x" in result
-
-    def test_auth_domain_login(self):
-        epic_info = EPIC_MAPPING["auth"]
-        result = suggest_ac("test_user_login", "auth", epic_info)
-        assert "AC1.1.x" in result
-
-    def test_infra_domain_config(self):
-        epic_info = EPIC_MAPPING["infra"]
-        result = suggest_ac("test_config_loading", "infra", epic_info)
-        assert "AC1.2.x" in result
-
-    def test_infra_domain_migration(self):
-        epic_info = EPIC_MAPPING["infra"]
-        result = suggest_ac("test_schema_migration", "infra", epic_info)
-        assert "AC1.3.x" in result
-
-    def test_api_domain_rate_limit(self):
-        epic_info = EPIC_MAPPING["infra"]
-        result = suggest_ac("test_rate_limit_enforced", "api", epic_info)
-        assert "AC1.4.x" in result
-
-    def test_unknown_domain_returns_uncategorized(self):
-        epic_info = {"epic": "EPIC-999", "ac_prefix": "AC99", "keywords": []}
-        result = suggest_ac("test_something", "unknown", epic_info)
-        assert "AC99.x.x" in result
-        assert "Uncategorized" in result
-
-
-class TestExtractTestFunctions:
-    def test_returns_empty_list_for_missing_file(self, tmp_path, capsys):
-        missing_file = tmp_path / "nonexistent.py"
-        result = extract_test_functions(missing_file)
-        assert result == []
-        captured = capsys.readouterr()
-        assert "Error parsing" in captured.out
-    def test_returns_empty_list_for_syntax_error_file(self, tmp_path, capsys):
-        bad_file = tmp_path / "test_bad.py"
-        bad_file.write_text("def test_broken(\n")
-        result = extract_test_functions(bad_file)
-
-        assert result == []
-        captured = capsys.readouterr()
-        assert "Error parsing" in captured.out
-
-    def test_returns_empty_for_file_outside_project_root(self, tmp_path, capsys):
-        test_file = tmp_path / "test_sample.py"
-        test_file.write_text('''
-def test_example_one():
-    pass
-''')
-
-        result = extract_test_functions(test_file)
-
-        assert result == []
-        captured = capsys.readouterr()
-        assert "Error parsing" in captured.out
-
-    def test_handles_empty_file(self, tmp_path):
-        test_file = tmp_path / "test_empty.py"
-        test_file.write_text("")
-        result = extract_test_functions(test_file)
-
-        assert result == []
-
-    def test_handles_file_with_no_test_functions(self, tmp_path, capsys):
-        test_file = tmp_path / "test_no_tests.py"
-        test_file.write_text('''
-def helper():
-    pass
-''')
-
-        result = extract_test_functions(test_file)
-
-        assert result == []
-
-    def test_extracts_from_real_project_test_file(self):
-        project_root = Path(__file__).parent.parent.parent
-        existing_test = project_root / "scripts" / "tests" / "test_merge_lcov.py"
-
-        if not existing_test.exists():
-            pytest.skip("No existing test file to test with")
-
-        result = extract_test_functions(existing_test)
-
-        assert len(result) > 0
-        assert all(f.function_name.startswith("test_") for f in result)
-
-    def test_ac_pattern_detection_with_real_file(self):
-        project_root = Path(__file__).parent.parent.parent
-        existing_tests = project_root / "apps" / "backend" / "tests" / "accounting"
-
-        test_files = list(existing_tests.glob("test_*.py")) if existing_tests.exists() else []
-
-        if not test_files:
-            pytest.skip("No test files found in accounting tests")
-
-        result = extract_test_functions(test_files[0])
-
-        if result:
-            func = result[0]
-            assert hasattr(func, "function_name")
-            assert hasattr(func, "has_ac")
-            assert hasattr(func, "domain")
-            assert hasattr(func, "suggested_ac")
-            assert isinstance(func.has_ac, bool)
+        assert "Coverage accounting (EPIC-008 aligned)" in report
+        assert "Scan scope summary" in report
+        assert "Invalid AC references (unregistered)" in report
+        assert "`AC18.4.4`" in report
+        assert "`AC9.9.9`" in report
+        assert "Stub-only AC placeholders (`_ac_stubs`)" in report
+        assert "Registered ACs with no real test reference" in report
+        assert "EPIC-003 (placeholders) — 1 untested" in report
 
 
 class TestMain:
-    def test_main_runs_with_real_tests_dir(self, capsys):
-        from analyze_test_ac_coverage import main
-        project_root = Path(__file__).parent.parent.parent
-        tests_dir = project_root / "apps" / "backend" / "tests"
-        if not tests_dir.exists():
-            pytest.skip("Backend tests dir not found")
-        main()
-        captured = capsys.readouterr()
-        assert "TEST AC COVERAGE SUMMARY" in captured.out or "Scanning" in captured.out
+    def test_main_writes_report_file(self, tmp_path: Path, monkeypatch) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "ac_registry.yaml").write_text(
+            "version: '1.0'\ntotal: 1\nacs:\n  - id: AC1.1.1\n    epic: 1\n    epic_name: phase0\n    description: demo\n    mandatory: true\n",
+            encoding="utf-8",
+        )
+        (docs / "infra_registry.yaml").write_text("version: '1.0'\ntotal: 0\nacs: []\n", encoding="utf-8")
+        backend = tmp_path / "apps" / "backend" / "tests"
+        backend.mkdir(parents=True, exist_ok=True)
+        (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
+
+        output = tmp_path / "docs" / "analysis" / "out.md"
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "analyze_test_ac_coverage.py",
+                "--repo-root",
+                str(tmp_path),
+                "--output",
+                str(output),
+            ],
+        )
+
+        exit_code = coverage.main()
+
+        assert exit_code == 0
+        assert output.exists()
+        text = output.read_text(encoding="utf-8")
+        assert "AC Coverage Analysis Report" in text
+        assert "Registered ACs" in text

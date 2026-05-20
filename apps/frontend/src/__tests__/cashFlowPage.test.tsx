@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -11,6 +11,10 @@ vi.mock("next/link", () => ({
 
 vi.mock("@/components/charts/SankeyChart", () => ({
   SankeyChart: () => <div>SankeyChartMock</div>,
+}))
+
+vi.mock("@/hooks/useCurrencies", () => ({
+  useCurrencies: () => ({ currencies: ["SGD", "USD", "EUR"], loading: false }),
 }))
 
 vi.mock("@/lib/api", () => ({
@@ -59,6 +63,25 @@ describe("CashFlowPage", () => {
     expect(screen.getByText("Operating Activities")).toBeInTheDocument()
     expect(screen.getByText("Investing Activities")).toBeInTheDocument()
     expect(screen.getByText("Financing Activities")).toBeInTheDocument()
+    expect(screen.getByText("Sales")).toBeInTheDocument()
+    expect(screen.getByText("Main ops")).toBeInTheDocument()
+
+    expect(screen.getByRole("link", { name: "AI Interpretation" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/chat?prompt=")
+    )
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
+    expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/api/reports/export?report_type=cash-flow")
+    )
+
+    const netCashFlowCard = screen.getByText("Net Cash Flow").closest("div")
+    const beginningCashCard = screen.getByText("Beginning Cash").closest("div")
+    const endingCashCard = screen.getByText("Ending Cash").closest("div")
+    expect(netCashFlowCard).toHaveTextContent("900.00")
+    expect(beginningCashCard).toHaveTextContent("5,000.00")
+    expect(endingCashCard).toHaveTextContent("5,900.00")
   })
 
   it("AC16.14.9 renders sankey chart when summary exists", async () => {
@@ -82,5 +105,39 @@ describe("CashFlowPage", () => {
     render(<CashFlowPage />)
 
     await waitFor(() => expect(screen.getByText("SankeyChartMock")).toBeInTheDocument())
+  })
+
+  it("AC16.14.10 refetches when filters change and shows empty category states", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+      currency: "USD",
+      operating: [],
+      investing: [],
+      financing: [],
+      summary: {
+        operating_activities: 0,
+        investing_activities: 0,
+        financing_activities: 0,
+        net_cash_flow: 0,
+        beginning_cash: 0,
+        ending_cash: 0,
+      },
+    })
+
+    const { container } = render(<CashFlowPage />)
+
+    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+
+    const dateInputs = container.querySelectorAll('input[type="date"]')
+    expect(dateInputs).toHaveLength(2)
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "USD" } })
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining("currency=USD")
+      )
+    )
+    expect(screen.getAllByText("No items in this category.")).toHaveLength(3)
   })
 })

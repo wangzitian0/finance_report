@@ -62,6 +62,18 @@ describe("IncomeStatementPage", () => {
     expect(screen.getByText("BarChartMock")).toBeInTheDocument()
     expect(screen.getByText("Salary")).toBeInTheDocument()
     expect(screen.getByText("Rent")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "AI Interpretation" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/chat?prompt=")
+    )
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
+    expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/api/reports/export?report_type=income-statement")
+    )
+    expect(screen.getByText("Total Income").closest("div")).toHaveTextContent("5,000.00")
+    expect(screen.getByText("Total Expenses").closest("div")).toHaveTextContent("1,200.00")
+    expect(screen.getByText("Net Income").closest("div")).toHaveTextContent("3,800.00")
   })
 
   it("AC16.14.6 supports selecting and clearing tags", async () => {
@@ -82,6 +94,10 @@ describe("IncomeStatementPage", () => {
 
     await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Business" }))
+    await waitFor(() => {
+      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
+      expect(lastCall).toContain("tags=business")
+    })
 
     const clearAllButton = await screen.findByRole("button", { name: "Clear all" })
     expect(clearAllButton).toBeInTheDocument()
@@ -89,6 +105,57 @@ describe("IncomeStatementPage", () => {
     fireEvent.click(clearAllButton)
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument()
+    })
+  })
+
+  it("AC16.14.10 shows active filters and empty-state messages", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+      currency: "USD",
+      income: [],
+      expenses: [],
+      total_income: 0,
+      total_expenses: 0,
+      net_income: 0,
+      trends: [],
+      filters_applied: { tags: ["business"], account_type: "INCOME" },
+    })
+
+    render(<IncomeStatementPage />)
+
+    await waitFor(() => expect(screen.getByText("Active filters:")).toBeInTheDocument())
+    expect(screen.getByText("INCOME")).toBeInTheDocument()
+    expect(screen.getByText("business")).toBeInTheDocument()
+    expect(screen.getByText("No trend data yet.")).toBeInTheDocument()
+    expect(screen.getByText("No income categories.")).toBeInTheDocument()
+    expect(screen.getByText("No expense categories.")).toBeInTheDocument()
+  })
+
+  it("AC16.14.11 refetches when account type and tags change", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+      currency: "SGD",
+      income: [],
+      expenses: [],
+      total_income: 0,
+      total_expenses: 0,
+      net_income: 0,
+      trends: [],
+      filters_applied: { tags: null, account_type: null },
+    })
+
+    render(<IncomeStatementPage />)
+
+    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
+    const selects = screen.getAllByRole("combobox")
+    fireEvent.change(selects[1], { target: { value: "INCOME" } })
+
+    await waitFor(() => {
+      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
+      expect(lastCall).toContain("/api/reports/income-statement?")
+      expect(lastCall).toContain("account_type=INCOME")
     })
   })
 })

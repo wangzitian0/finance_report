@@ -139,7 +139,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.6.2 | Annualized return (TWR) computed correctly | `TBD` | `TBD (test to be implemented)` | P0 |
 | AC5.6.3 | Dividend yield = annual dividends / current value | `TBD` | `TBD (test to be implemented)` | P0 |
 | AC5.6.4 | Annualized income in income statement KPI block | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_reporting_dashboard_fixture_exact_totals` | `reporting/test_reporting.py` | P0 |
 | AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `TBD` | `TBD (test to be implemented)` | P1 |
 
 **Traceability Result**:

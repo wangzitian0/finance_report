@@ -381,6 +381,35 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
     assert "run in parallel with lint" in ci_cd
 
 
+def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
+    """AC8.13.27: PR CI waits for the external Coveralls unified status."""
+    workflow = read(".github/workflows/ci.yml")
+    wait_script = read("scripts/wait_for_github_status.py")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    unified_block = workflow.split("- name: Upload unified coverage to Coveralls", 1)[
+        1
+    ].split("- name: Wait for Coveralls unified status", 1)[0]
+    frontend_block = workflow.split("- name: Upload frontend to Coveralls", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+
+    assert "github.event_name == 'push'" not in unified_block
+    assert "github.event_name == 'push'" not in frontend_block
+    assert "statuses: read" in workflow
+    assert "scripts/wait_for_github_status.py" in workflow
+    assert '--context "Coveralls - unified"' in workflow
+    assert workflow.index("Upload unified coverage to Coveralls") < workflow.index(
+        "Wait for Coveralls unified status"
+    )
+    assert workflow.index("Wait for Coveralls unified status") < workflow.index(
+        "Upload backend to Coveralls"
+    )
+    assert "wait_for_status_success" in wait_script
+    assert "Coveralls - unified" in ci_cd
+    assert "Pull requests wait for the external `Coveralls - unified` status" in ci_cd
+
+
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
     workflow = read(".github/workflows/staging-deploy.yml")
@@ -427,8 +456,8 @@ def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
         assert token in brokerage
 
 
-def test_AC8_13_27_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> None:
-    """AC8.13.27/28/29/30: deterministic upload-to-dashboard gate covers the full fresh-user flow."""
+def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> None:
+    """AC8.13.28/29/30/31: deterministic upload-to-dashboard gate covers the full fresh-user flow."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     epic = read("docs/project/EPIC-008.testing-strategy.md")
 
@@ -439,15 +468,15 @@ def test_AC8_13_27_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     assert "authenticated_page_unique" in gate
     assert "vision_hard_gate_statement.csv" in gate
     assert "pytest.skip(" in gate
-    assert "AC8.13.27" in epic
     assert "AC8.13.28" in epic
     assert "AC8.13.29" in epic
     assert "AC8.13.30" in epic
+    assert "AC8.13.31" in epic
     assert "test_statement_upload_to_dashboard_vision_hard_gate" in epic
 
 
-def test_AC8_13_31_vision_hard_gate_proves_trusted_reporting_totals() -> None:
-    """AC8.13.31: deterministic vision gate asserts exact trusted accounting/report totals."""
+def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
+    """AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
