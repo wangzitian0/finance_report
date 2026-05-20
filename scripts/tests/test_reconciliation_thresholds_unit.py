@@ -23,6 +23,7 @@ def _load_reconciliation_module():
     """Load reconciliation without importing src.services package exports."""
     previous_services = sys.modules.get("src.services")
     previous_accounting = sys.modules.get("src.services.accounting")
+    previous_logger = sys.modules.get("src.logger")
     previous_processing = sys.modules.get("src.services.processing_account")
 
     services_package = ModuleType("src.services")
@@ -30,6 +31,8 @@ def _load_reconciliation_module():
     accounting_module = ModuleType("src.services.accounting")
     accounting_module.ValidationError = ValueError
     accounting_module.validate_journal_balance = Mock()
+    logger_module = ModuleType("src.logger")
+    logger_module.get_logger = Mock(return_value=Mock())
     processing_module = ModuleType("src.services.processing_account")
     processing_module.create_transfer_in_entry = AsyncMock()
     processing_module.create_transfer_out_entry = AsyncMock()
@@ -38,6 +41,7 @@ def _load_reconciliation_module():
 
     sys.modules["src.services"] = services_package
     sys.modules["src.services.accounting"] = accounting_module
+    sys.modules["src.logger"] = logger_module
     sys.modules["src.services.processing_account"] = processing_module
 
     try:
@@ -60,6 +64,10 @@ def _load_reconciliation_module():
             sys.modules.pop("src.services.accounting", None)
         else:
             sys.modules["src.services.accounting"] = previous_accounting
+        if previous_logger is None:
+            sys.modules.pop("src.logger", None)
+        else:
+            sys.modules["src.logger"] = previous_logger
         if previous_processing is None:
             sys.modules.pop("src.services.processing_account", None)
         else:
@@ -143,15 +151,33 @@ async def test_execute_matching_score_thresholds(
     )
 
     with (
-        patch.object(reconciliation_module, "_validate_layer_consistency", new=AsyncMock()),
-        patch.object(reconciliation_module, "detect_transfer_pattern", return_value=False),
+        patch.object(
+            reconciliation_module, "_validate_layer_consistency", new=AsyncMock()
+        ),
+        patch.object(
+            reconciliation_module, "detect_transfer_pattern", return_value=False
+        ),
         patch.object(reconciliation_module, "is_entry_balanced", return_value=True),
-        patch.object(reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)),
-        patch.object(reconciliation_module, "calculate_match_score", new=AsyncMock(return_value=candidate)),
-        patch.object(reconciliation_module, "find_transfer_pairs", new=AsyncMock(return_value=[])),
-        patch.object(reconciliation_module, "_get_existing_active_match", new=AsyncMock(return_value=None)),
+        patch.object(
+            reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)
+        ),
+        patch.object(
+            reconciliation_module,
+            "calculate_match_score",
+            new=AsyncMock(return_value=candidate),
+        ),
+        patch.object(
+            reconciliation_module, "find_transfer_pairs", new=AsyncMock(return_value=[])
+        ),
+        patch.object(
+            reconciliation_module,
+            "_get_existing_active_match",
+            new=AsyncMock(return_value=None),
+        ),
     ):
-        matches = await execute_matching(db, user_id=uuid4(), statement_id=txn.statement_id)
+        matches = await execute_matching(
+            db, user_id=uuid4(), statement_id=txn.statement_id
+        )
 
     assert len(matches) == expected_match_count
     assert txn.status == expected_txn_status
@@ -189,15 +215,33 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
     )
 
     with (
-        patch.object(reconciliation_module, "_validate_layer_consistency", new=AsyncMock()),
-        patch.object(reconciliation_module, "detect_transfer_pattern", return_value=False),
+        patch.object(
+            reconciliation_module, "_validate_layer_consistency", new=AsyncMock()
+        ),
+        patch.object(
+            reconciliation_module, "detect_transfer_pattern", return_value=False
+        ),
         patch.object(reconciliation_module, "is_entry_balanced", return_value=True),
-        patch.object(reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)),
-        patch.object(reconciliation_module, "calculate_match_score", new=AsyncMock(return_value=candidate)),
-        patch.object(reconciliation_module, "find_transfer_pairs", new=AsyncMock(return_value=[])),
-        patch.object(reconciliation_module, "_get_existing_active_match", new=AsyncMock(return_value=existing_match)),
+        patch.object(
+            reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)
+        ),
+        patch.object(
+            reconciliation_module,
+            "calculate_match_score",
+            new=AsyncMock(return_value=candidate),
+        ),
+        patch.object(
+            reconciliation_module, "find_transfer_pairs", new=AsyncMock(return_value=[])
+        ),
+        patch.object(
+            reconciliation_module,
+            "_get_existing_active_match",
+            new=AsyncMock(return_value=existing_match),
+        ),
     ):
-        matches = await execute_matching(db, user_id=uuid4(), statement_id=txn.statement_id)
+        matches = await execute_matching(
+            db, user_id=uuid4(), statement_id=txn.statement_id
+        )
 
     assert matches == []
     assert txn.status == BankTransactionStatus.PENDING
