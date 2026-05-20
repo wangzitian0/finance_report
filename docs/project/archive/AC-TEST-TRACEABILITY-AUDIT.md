@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 964 | 100% |
-| **Mandatory ACs** | 804 | 83.4% |
+| **Total ACs (registries)** | 967 | 100% |
+| **Mandatory ACs** | 807 | 83.5% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 804 | 100.0% |
+| **Mandatory ACs with test reference** | 807 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 195 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -41,7 +41,7 @@
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 214 | 0 | 190 | 190 | 100.0% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 79 | 0 | 36 | 36 | 100.0% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 82 | 0 | 39 | 39 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
 ---
@@ -1121,9 +1121,9 @@
 
 <a id="epic-017-portfolio-management"></a>
 
-- **Total ACs**: 79
-- **Mandatory ACs**: 36
-- **Mandatory ACs with test reference**: 36 (100.0%)
+- **Total ACs**: 82
+- **Mandatory ACs**: 39
+- **Mandatory ACs with test reference**: 39 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1206,6 +1206,9 @@
 | AC17.8.3 | yes | Import failure shows actionable error without sensitive data | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
 | AC17.8.4 | yes | Portfolio page shows total portfolio value prominently after import | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | ✅ |
 | AC17.8.5 | yes | Import button hidden for non-parsed/approved statements (partial batch) | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.9.1 | yes | Historical holdings quantity and market value come from the latest AtomicPosition snapshot at or before as_of_date | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
+| AC17.9.2 | yes | Portfolio holdings API returns date-bounded snapshot quantities for explicit as_of_date requests | `apps/backend/tests/portfolio/test_portfolio_router.py` | ✅ |
+| AC17.9.3 | yes | Portfolio page exposes an as-of date selector and passes it to /api/portfolio/holdings | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | ✅ |
 
 ---
 
