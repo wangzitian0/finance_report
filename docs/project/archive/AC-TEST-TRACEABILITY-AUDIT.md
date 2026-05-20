@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 939 | 100% |
-| **Mandatory ACs** | 779 | 83.0% |
+| **Total ACs (registries)** | 944 | 100% |
+| **Mandatory ACs** | 784 | 83.1% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 779 | 100.0% |
+| **Mandatory ACs with test reference** | 784 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 185 | - |
+| **Test files referenced** | 187 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -41,7 +41,7 @@
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 213 | 0 | 189 | 189 | 100.0% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 74 | 0 | 31 | 31 | 100.0% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 79 | 0 | 36 | 36 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
 ---
@@ -1101,9 +1101,9 @@
 
 <a id="epic-017-portfolio-management"></a>
 
-- **Total ACs**: 74
-- **Mandatory ACs**: 31
-- **Mandatory ACs with test reference**: 31 (100.0%)
+- **Total ACs**: 79
+- **Mandatory ACs**: 36
+- **Mandatory ACs with test reference**: 36 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1181,6 +1181,11 @@
 | AC17.7.4 | yes | Realized P&L tab shows lot-level table {lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_ | `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts` | ✅ |
 | AC17.7.5 | yes | Portfolio summary card on dashboard adds realized_pnl_ytd and dividend_income_ytd figures from GET /api/portfolio/summar | `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts` | ✅ |
 | AC17.7.6 | yes | Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render | `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts` | ✅ |
+| AC17.8.1 | yes | Import to Portfolio button visible for parsed/approved statements | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.8.2 | yes | Import result banner with stats and portfolio link shown on success | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.8.3 | yes | Import failure shows actionable error without sensitive data | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.8.4 | yes | Portfolio page shows total portfolio value prominently after import | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | ✅ |
+| AC17.8.5 | yes | Import button hidden for non-parsed/approved statements (partial batch) | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
 
 ---
 

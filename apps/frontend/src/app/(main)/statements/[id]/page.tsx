@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { BankStatement, BankStatementTransaction } from "@/lib/types";
+import { BankStatement, BankStatementTransaction, BrokerageImportResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/currency";
 
 const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -27,6 +27,9 @@ export default function StatementDetailPage() {
     const [consecutiveErrors, setConsecutiveErrors] = useState(0);
     const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
     const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
+    const [importResult, setImportResult] = useState<BrokerageImportResponse | null>(null);
+    const [importError, setImportError] = useState<string | null>(null);
+    const [importLoading, setImportLoading] = useState(false);
     const approvedNow = approvedRedirect && statement?.status === "approved";
 
     const fetchStatement = useCallback(async () => {
@@ -117,6 +120,29 @@ export default function StatementDetailPage() {
         }
     };
 
+    const handleBrokerageImport = async () => {
+        setImportLoading(true);
+        setImportError(null);
+        setImportResult(null);
+        try {
+            const result = await apiFetch<BrokerageImportResponse>(
+                `/api/statements/${statementId}/brokerage/import`,
+                { method: "POST" },
+            );
+            setImportResult(result);
+            showToast("Brokerage positions imported successfully", "success");
+        } catch (err) {
+            // Surface a safe, actionable message — never expose raw credentials or
+            // internal storage paths returned by the server.
+            const raw = err instanceof Error ? err.message : "Import failed";
+            const safe = raw.replace(/https?:\/\/\S+/g, "[URL]").replace(/s3:\/\/\S+/g, "[URL]");
+            setImportError(safe);
+            showToast("Brokerage import failed", "error");
+        } finally {
+            setImportLoading(false);
+        }
+    };
+
     const formatAmount = (amount: number, direction: string, currency?: string | null) => {
         const sign = direction === "IN" ? "+" : "-";
         const prefix = currency ? `${currency} ` : "";
@@ -160,6 +186,7 @@ export default function StatementDetailPage() {
     }
 
     const canRetry = statement.status === "parsed" || statement.status === "rejected" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
+    const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved");
 
     return (
         <div className="p-6">
@@ -224,6 +251,23 @@ export default function StatementDetailPage() {
                         </svg>
                         Start Review →
                     </Link>
+                    {canImport && (
+                        <button
+                            onClick={handleBrokerageImport}
+                            disabled={importLoading}
+                            className="btn-secondary flex items-center gap-2"
+                            aria-label="Import brokerage positions to portfolio"
+                        >
+                            {importLoading ? (
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+                                </svg>
+                            )}
+                            {importLoading ? "Importing..." : "Import to Portfolio"}
+                        </button>
+                    )}
                     {canRetry && (
                         <button
                             onClick={handleRetry}
@@ -249,6 +293,56 @@ export default function StatementDetailPage() {
                     <div className="mt-2 flex items-center gap-2">
                         <Link href="/journal" className="btn-secondary text-sm">View in Journal</Link>
                         <Link href="/reports" className="btn-secondary text-sm">Go to Reports</Link>
+                    </div>
+                </div>
+            )}
+
+            {/* Brokerage Import Result */}
+            {importResult && (
+                <div className="mb-4 p-4 border border-[var(--success)]/30 bg-[var(--success-muted)] rounded-lg" data-testid="import-result-banner">
+                    <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-[var(--success)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                            <div className="font-medium text-[var(--success)] mb-2">
+                                Brokerage positions imported successfully
+                            </div>
+                            <div className="text-sm space-y-0.5 mb-3">
+                                <div><span className="text-muted">Broker:</span> <span className="font-medium">{importResult.broker}</span></div>
+                                <div><span className="text-muted">Positions parsed:</span> <span className="font-medium">{importResult.parsed_positions}</span></div>
+                                <div><span className="text-muted">New holdings created:</span> <span className="font-medium">{importResult.created_atomic_positions}</span></div>
+                                <div><span className="text-muted">Holdings reconciled:</span> <span className="font-medium">{importResult.reconcile_created + importResult.reconcile_updated}</span></div>
+                                {importResult.skipped > 0 && (
+                                    <div><span className="text-muted">Skipped:</span> <span className="font-medium">{importResult.skipped}</span></div>
+                                )}
+                            </div>
+                            <Link href="/portfolio" className="btn-secondary text-sm" aria-label="View portfolio after import">
+                                View Portfolio →
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Brokerage Import Error */}
+            {importError && (
+                <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg" data-testid="import-error-banner">
+                    <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                            <div className="font-medium text-[var(--error)] mb-1">Brokerage Import Failed</div>
+                            <div className="text-sm text-[var(--foreground-muted)] mb-3">{importError}</div>
+                            <button
+                                onClick={handleBrokerageImport}
+                                disabled={importLoading}
+                                className="btn-secondary text-sm"
+                            >
+                                Retry Import
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
