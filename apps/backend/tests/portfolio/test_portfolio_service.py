@@ -166,8 +166,210 @@ async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db,
     db.add_all([position, atom])
     await db.flush()
 
-    with pytest.raises(AssetNotFoundError):
+    with pytest.raises(PortfolioNotFoundError):
         await svc.get_holdings(db, test_user.id, as_of_date=date.today())
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_as_of_uses_historical_atomic_snapshot(db, test_user, svc, account):
+    """AC17.9.1: Explicit as-of holdings derive quantity and value from the selected snapshot."""
+    historical_date = date(2025, 1, 31)
+    current_date = date(2025, 2, 28)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="VWRA",
+        quantity=Decimal("20"),
+        cost_basis=Decimal("3000.00"),
+        currency="SGD",
+        acquisition_date=historical_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    historical_snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=historical_date,
+        asset_identifier="VWRA",
+        broker="Test Investment",
+        quantity=Decimal("10"),
+        market_value=Decimal("1200.00"),
+        currency="SGD",
+        sector="Global",
+        geography="World",
+        asset_type="etf",
+        dedup_hash="vwra_historical_snapshot",
+        source_documents={},
+    )
+    current_snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=current_date,
+        asset_identifier="VWRA",
+        broker="Test Investment",
+        quantity=Decimal("20"),
+        market_value=Decimal("3000.00"),
+        currency="SGD",
+        sector="Global",
+        geography="World",
+        asset_type="etf",
+        dedup_hash="vwra_current_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, historical_snapshot, current_snapshot])
+    await db.flush()
+
+    holdings = await svc.get_holdings(db, test_user.id, as_of_date=historical_date)
+
+    assert len(holdings) == 1
+    assert holdings[0].asset_identifier == "VWRA"
+    assert holdings[0].quantity == Decimal("10")
+    assert holdings[0].market_value == Decimal("1200.00")
+    assert holdings[0].cost_basis == Decimal("1200.00")
+    assert holdings[0].sector == "Global"
+    assert holdings[0].asset_type == "etf"
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_as_of_converts_snapshot_currency(db, test_user, svc, account):
+    """AC17.9.1: Explicit as-of holdings convert snapshot market value to base currency."""
+    as_of_date = date(2025, 1, 31)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="MSFT",
+        quantity=Decimal("5"),
+        cost_basis=Decimal("500.00"),
+        currency="USD",
+        acquisition_date=as_of_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=as_of_date,
+        asset_identifier="MSFT",
+        broker="Test Investment",
+        quantity=Decimal("5"),
+        market_value=Decimal("100.00"),
+        currency="USD",
+        dedup_hash="msft_historical_usd_snapshot",
+        source_documents={},
+    )
+    rate = FxRate(
+        base_currency="USD",
+        quote_currency="SGD",
+        rate=Decimal("1.35"),
+        rate_date=as_of_date,
+        source="test",
+    )
+    db.add_all([position, snapshot, rate])
+    await db.flush()
+
+    holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date)
+
+    assert len(holdings) == 1
+    assert holdings[0].asset_identifier == "MSFT"
+    assert holdings[0].market_value == Decimal("135.00000000")
+    assert holdings[0].cost_basis == Decimal("135.00000000")
+    assert holdings[0].currency == "SGD"
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_as_of_filters_zero_quantity_snapshot(db, test_user, svc, account):
+    """AC17.9.1: Explicit as-of holdings treat zero-quantity snapshots as disposed."""
+    as_of_date = date(2025, 1, 31)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="CLOSED",
+        quantity=Decimal("0"),
+        cost_basis=Decimal("0.00"),
+        currency="SGD",
+        acquisition_date=as_of_date,
+        status=PositionStatus.DISPOSED,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=as_of_date,
+        asset_identifier="CLOSED",
+        broker="Test Investment",
+        quantity=Decimal("0"),
+        market_value=Decimal("0.00"),
+        currency="SGD",
+        dedup_hash="closed_historical_zero_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, snapshot])
+    await db.flush()
+
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.get_holdings(db, test_user.id, as_of_date=as_of_date)
+
+    holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date, include_disposed=True)
+
+    assert len(holdings) == 1
+    assert holdings[0].asset_identifier == "CLOSED"
+    assert holdings[0].status == PositionStatus.DISPOSED
+    assert holdings[0].disposal_date == as_of_date
+    assert holdings[0].unrealized_pnl_percent == Decimal("0.00")
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_as_of_skips_unreconciled_snapshot(db, test_user, svc):
+    """AC17.9.1: Explicit as-of holdings skip snapshots without a managed position."""
+    as_of_date = date(2025, 1, 31)
+    snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=as_of_date,
+        asset_identifier="UNRECONCILED",
+        broker="External Broker",
+        quantity=Decimal("1"),
+        market_value=Decimal("10.00"),
+        currency="SGD",
+        dedup_hash="unreconciled_historical_snapshot",
+        source_documents={},
+    )
+    db.add(snapshot)
+    await db.flush()
+
+    with pytest.raises(PortfolioNotFoundError):
+        await svc.get_holdings(db, test_user.id, as_of_date=as_of_date)
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_explicit_as_of_falls_back_when_snapshot_broker_unmatched(db, test_user, svc, account):
+    """AC17.9.1: Explicit as-of holdings fall back when snapshot broker metadata is unavailable."""
+    as_of_date = date(2025, 1, 31)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="FALLBACK",
+        quantity=Decimal("2"),
+        cost_basis=Decimal("20.00"),
+        currency="SGD",
+        acquisition_date=as_of_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=as_of_date,
+        asset_identifier="FALLBACK",
+        broker="External Broker",
+        quantity=Decimal("2"),
+        market_value=Decimal("30.00"),
+        currency="SGD",
+        dedup_hash="fallback_historical_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, snapshot])
+    await db.flush()
+
+    holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date)
+
+    assert len(holdings) == 1
+    assert holdings[0].asset_identifier == "FALLBACK"
+    assert holdings[0].market_value == Decimal("30.00")
 
 
 @pytest.mark.asyncio

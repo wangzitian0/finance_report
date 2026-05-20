@@ -56,7 +56,9 @@ For each latest atomic position:
 
 ### Latest Holdings Valuation Date
 
-`GET /portfolio/holdings` without `as_of_date` returns the latest portfolio value. The valuation date is `today` unless the user's latest imported `AtomicPosition.snapshot_date` is newer, which can happen for current-month brokerage statement fixtures or provider outputs that normalize month-only periods to month end. Explicit `as_of_date` requests remain date-bounded and must not use future snapshots.
+`GET /portfolio/holdings` without `as_of_date` returns the latest portfolio value from `ManagedPosition` plus the latest eligible price snapshot. The valuation date is `today` unless the user's latest imported `AtomicPosition.snapshot_date` is newer, which can happen for current-month brokerage statement fixtures or provider outputs that normalize month-only periods to month end.
+
+Explicit `as_of_date` requests are point-in-time views: holdings are derived from the latest immutable `AtomicPosition` snapshot per `(asset_identifier, broker)` at or before the requested date. Quantity and market value must come from that selected snapshot, and future snapshots must not be used. Cost basis remains a snapshot-value proxy until lot-level buy/sell accounting is implemented under EPIC-017 follow-up work.
 
 ---
 

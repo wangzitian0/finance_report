@@ -190,6 +190,62 @@ async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
 
 
 @pytest.mark.asyncio
+async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC17.9.2: GET /portfolio/holdings with as_of_date returns historical snapshot quantity/value."""
+    historical_date = date(2025, 1, 31)
+    current_date = date(2025, 2, 28)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="VWRA",
+        quantity=Decimal("20"),
+        cost_basis=Decimal("3000.00"),
+        currency="SGD",
+        acquisition_date=historical_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    historical_atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=historical_date,
+        asset_identifier="VWRA",
+        broker="Investment Account",
+        quantity=Decimal("10"),
+        market_value=Decimal("1200.00"),
+        currency="SGD",
+        dedup_hash="router_vwra_historical_snapshot",
+        source_documents={},
+    )
+    current_atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=current_date,
+        asset_identifier="VWRA",
+        broker="Investment Account",
+        quantity=Decimal("20"),
+        market_value=Decimal("3000.00"),
+        currency="SGD",
+        dedup_hash="router_vwra_current_snapshot",
+        source_documents={},
+    )
+    db.add_all([position, historical_atomic, current_atomic])
+    await db.commit()
+
+    response = await client.get(f"/portfolio/holdings?as_of_date={historical_date.isoformat()}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["asset_identifier"] == "VWRA"
+    assert Decimal(data[0]["quantity"]) == Decimal("10.000000")
+    assert Decimal(data[0]["market_value"]) == Decimal("1200.00")
+
+
+@pytest.mark.asyncio
 async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with_data):
     """AC17.6.4: GET /portfolio/holdings with include_disposed=true returns 200.
 
