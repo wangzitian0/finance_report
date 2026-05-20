@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -16,7 +17,58 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
 from src.models import BankTransactionStatus, ReconciliationMatch, ReconciliationStatus  # noqa: E402
-from src.services.reconciliation import MatchCandidate, execute_matching  # noqa: E402
+
+
+def _load_reconciliation_module():
+    """Load reconciliation without importing src.services package exports."""
+    previous_services = sys.modules.get("src.services")
+    previous_accounting = sys.modules.get("src.services.accounting")
+    previous_processing = sys.modules.get("src.services.processing_account")
+
+    services_package = ModuleType("src.services")
+    services_package.__path__ = []  # type: ignore[attr-defined]
+    accounting_module = ModuleType("src.services.accounting")
+    accounting_module.ValidationError = ValueError
+    accounting_module.validate_journal_balance = Mock()
+    processing_module = ModuleType("src.services.processing_account")
+    processing_module.create_transfer_in_entry = AsyncMock()
+    processing_module.create_transfer_out_entry = AsyncMock()
+    processing_module.detect_transfer_pattern = Mock(return_value=False)
+    processing_module.find_transfer_pairs = AsyncMock(return_value=[])
+
+    sys.modules["src.services"] = services_package
+    sys.modules["src.services.accounting"] = accounting_module
+    sys.modules["src.services.processing_account"] = processing_module
+
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_reconciliation_under_test",
+            REPO_ROOT / "apps" / "backend" / "src" / "services" / "reconciliation.py",
+        )
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        if previous_services is None:
+            sys.modules.pop("src.services", None)
+        else:
+            sys.modules["src.services"] = previous_services
+        if previous_accounting is None:
+            sys.modules.pop("src.services.accounting", None)
+        else:
+            sys.modules["src.services.accounting"] = previous_accounting
+        if previous_processing is None:
+            sys.modules.pop("src.services.processing_account", None)
+        else:
+            sys.modules["src.services.processing_account"] = previous_processing
+
+
+reconciliation_module = _load_reconciliation_module()
+MatchCandidate = reconciliation_module.MatchCandidate
+execute_matching = reconciliation_module.execute_matching
 
 
 class _ScalarResult:
@@ -91,13 +143,13 @@ async def test_execute_matching_score_thresholds(
     )
 
     with (
-        patch("src.services.reconciliation._validate_layer_consistency", new=AsyncMock()),
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.is_entry_balanced", return_value=True),
-        patch("src.services.reconciliation.score_pattern", new=AsyncMock(return_value=0.0)),
-        patch("src.services.reconciliation.calculate_match_score", new=AsyncMock(return_value=candidate)),
-        patch("src.services.reconciliation.find_transfer_pairs", new=AsyncMock(return_value=[])),
-        patch("src.services.reconciliation._get_existing_active_match", new=AsyncMock(return_value=None)),
+        patch.object(reconciliation_module, "_validate_layer_consistency", new=AsyncMock()),
+        patch.object(reconciliation_module, "detect_transfer_pattern", return_value=False),
+        patch.object(reconciliation_module, "is_entry_balanced", return_value=True),
+        patch.object(reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)),
+        patch.object(reconciliation_module, "calculate_match_score", new=AsyncMock(return_value=candidate)),
+        patch.object(reconciliation_module, "find_transfer_pairs", new=AsyncMock(return_value=[])),
+        patch.object(reconciliation_module, "_get_existing_active_match", new=AsyncMock(return_value=None)),
     ):
         matches = await execute_matching(db, user_id=uuid4(), statement_id=txn.statement_id)
 
@@ -137,16 +189,13 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
     )
 
     with (
-        patch("src.services.reconciliation._validate_layer_consistency", new=AsyncMock()),
-        patch("src.services.reconciliation.detect_transfer_pattern", return_value=False),
-        patch("src.services.reconciliation.is_entry_balanced", return_value=True),
-        patch("src.services.reconciliation.score_pattern", new=AsyncMock(return_value=0.0)),
-        patch("src.services.reconciliation.calculate_match_score", new=AsyncMock(return_value=candidate)),
-        patch("src.services.reconciliation.find_transfer_pairs", new=AsyncMock(return_value=[])),
-        patch(
-            "src.services.reconciliation._get_existing_active_match",
-            new=AsyncMock(return_value=existing_match),
-        ),
+        patch.object(reconciliation_module, "_validate_layer_consistency", new=AsyncMock()),
+        patch.object(reconciliation_module, "detect_transfer_pattern", return_value=False),
+        patch.object(reconciliation_module, "is_entry_balanced", return_value=True),
+        patch.object(reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)),
+        patch.object(reconciliation_module, "calculate_match_score", new=AsyncMock(return_value=candidate)),
+        patch.object(reconciliation_module, "find_transfer_pairs", new=AsyncMock(return_value=[])),
+        patch.object(reconciliation_module, "_get_existing_active_match", new=AsyncMock(return_value=existing_match)),
     ):
         matches = await execute_matching(db, user_id=uuid4(), statement_id=txn.statement_id)
 
