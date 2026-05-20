@@ -1,10 +1,11 @@
 # Staging Deployment Workflow
 #
 # Triggers: Push to main branch
-# Actions: Build images → Deploy to staging → Smoke test
+# Actions: Wait for CI → Build images → Deploy to staging → Smoke/E2E → AI/OCR gate
 #
-# Staging validates post-merge commits serially and keeps only the latest
-# pending run when pushes arrive faster than the singleton environment can run.
+# Staging validates post-merge commits as a single serial workflow unit and
+# keeps only the latest pending run when pushes arrive faster than the
+# singleton environment can run.
 # Data is persisted between deployments.
 
 name: Deploy Staging
@@ -15,7 +16,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: staging-deploy
+  group: staging-post-merge-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -31,8 +32,10 @@ jobs:
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     permissions:
+      actions: read
+      contents: read
       packages: write
     outputs:
       commit_sha: ${{ steps.get_sha.outputs.short_sha }}
@@ -49,6 +52,21 @@ jobs:
           short_sha=$(git rev-parse --short HEAD)
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
+
+      - name: Wait for matching CI success
+        if: ${{ github.event_name == 'push' }}
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/wait_for_github_ci.py \
+            --repo "${{ github.repository }}" \
+            --sha "${{ github.sha }}" \
+            --workflow CI \
+            --branch main \
+            --event push \
+            --timeout-seconds 2700 \
+            --poll-seconds 30
 
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
@@ -190,3 +208,65 @@ jobs:
           done
           
           echo "Performance benchmark complete."
+
+  ai-ocr-gate:
+    name: Staging AI/OCR Gate
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      APP_URL: https://report-staging.zitian.party
+      TEST_ENV: staging
+      SKIP_UI_TESTS: false
+      STRICT_E2E_GATES: true
+      PARSING_TIMEOUT_MS: 480000
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Run Staging AI/OCR Gate
+        timeout-minutes: 22
+        env:
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
+        run: |
+          run_timed_phase() {
+            local phase_name="$1"
+            shift
+            local start
+            local end
+            local duration
+            local status
+
+            start=$(date +%s)
+            echo "::group::${phase_name}"
+            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
+            "$@"
+            status=$?
+            set -e
+            end=$(date +%s)
+            duration=$((end - start))
+            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
+            echo "::endgroup::"
+            return "$status"
+          }
+
+          echo "Starting Staging AI/OCR Gate for $APP_URL"
+          echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+
+          run_timed_phase "Staging AI/OCR Version Check" \
+            pytest tests/e2e/test_version_check.py -v -m "smoke"
+
+          run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
+            pytest \
+              tests/e2e/test_statement_full_journey.py \
+              tests/e2e/test_brokerage_upload_to_portfolio_value.py \
+              tests/e2e/test_statement_upload_e2e.py \
+              -v -m "llm"
+
+          echo "Staging AI/OCR Gate passed."

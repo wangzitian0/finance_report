@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-20 04:24:23 UTC by `scripts/analyze_test_ac_coverage.py`
+> Generated: 2026-05-20 06:22:55 UTC by `scripts/analyze_test_ac_coverage.py`
 
 ## Coverage accounting (EPIC-008 aligned)
 
@@ -13,10 +13,10 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 948 |
-| Covered by real test candidates | 710 (74.9%) |
+| Registered ACs | 953 |
+| Covered by real test candidates | 710 (74.5%) |
 | Stub-only placeholders (`_ac_stubs`) | 225 |
-| Registered but untested | 238 |
+| Registered but untested | 243 |
 | Invalid AC refs in real tests | 2 |
 | Invalid AC refs in stubs | 0 |
 
@@ -27,7 +27,7 @@
 | backend | 178 | 534 | 363 |
 | frontend | 81 | 176 | 0 |
 | e2e | 9 | 11 | 0 |
-| repo_e2e | 0 | 0 | 0 |
+| repo_e2e | 18 | 0 | 0 |
 
 ## Coverage by EPIC
 
@@ -40,7 +40,7 @@
 | EPIC-005 | reporting-visualization | 36 | 30 | 6 | 6 | 83.3% |
 | EPIC-006 | ai-advisor | 63 | 52 | 11 | 11 | 82.5% |
 | EPIC-007 | deployment | 39 | 6 | 33 | 33 | 15.4% |
-| EPIC-008 | testing-strategy | 77 | 65 | 0 | 12 | 84.4% |
+| EPIC-008 | testing-strategy | 82 | 65 | 0 | 17 | 79.3% |
 | EPIC-009 | pdf-fixture-generation | 37 | 0 | 36 | 37 | 0.0% |
 | EPIC-010 | signoz-logging | 21 | 0 | 21 | 21 | 0.0% |
 | EPIC-011 | asset-lifecycle | 38 | 38 | 0 | 0 | 100.0% |
@@ -319,9 +319,9 @@
 
 `AC7.1.1`, `AC7.1.2`, `AC7.1.3`, `AC7.2.1`, `AC7.2.2`, `AC7.2.3`, `AC7.2.4`, `AC7.2.5`, `AC7.3.1`, `AC7.3.2`, `AC7.3.3`, `AC7.3.4`, `AC7.3.5`, `AC7.4.1`, `AC7.4.2`, `AC7.4.3`, `AC7.4.4`, `AC7.4.5`, `AC7.4.6`, `AC7.5.1`, `AC7.5.2`, `AC7.5.3`, `AC7.5.4`, `AC7.5.5`, `AC7.6.2`, `AC7.9.1`, `AC7.9.2`, `AC7.9.3`, `AC7.9.4`, `AC7.9.5`, `AC7.9.6`, `AC7.9.7`, `AC7.9.8`
 
-### EPIC-008 (testing-strategy) — 12 untested
+### EPIC-008 (testing-strategy) — 17 untested
 
-`AC8.13.6`, `AC8.13.7`, `AC8.13.8`, `AC8.13.11`, `AC8.13.12`, `AC8.13.13`, `AC8.13.14`, `AC8.13.15`, `AC8.13.16`, `AC8.13.17`, `AC8.13.20`, `AC8.13.21`
+`AC8.13.6`, `AC8.13.7`, `AC8.13.8`, `AC8.13.11`, `AC8.13.12`, `AC8.13.13`, `AC8.13.14`, `AC8.13.15`, `AC8.13.16`, `AC8.13.17`, `AC8.13.20`, `AC8.13.21`, `AC8.13.22`, `AC8.13.23`, `AC8.13.24`, `AC8.13.25`, `AC8.13.26`
 
 ### EPIC-009 (pdf-fixture-generation) — 37 untested
 
