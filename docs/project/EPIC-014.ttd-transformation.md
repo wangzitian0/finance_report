@@ -309,6 +309,7 @@ Every SOP document should follow this structure:
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
+- [../../AGENTS.md](../../AGENTS.md) — repository-wide agent and contributor entry point.
 - [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
 - [./AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — historical consistency audit snapshot.
 - [./DECISIONS.md](./DECISIONS.md) — project decision log.
@@ -350,6 +351,22 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - ✅ All SOPs have automated tool backing
 - ✅ Pre-commit hooks enforce static constraints (mypy + validate_schemas)
 - ✅ CI pipeline enforces runtime constraints (smoke_test.sh integrated in pr-test.yml)
+
+#### 4.3 Archive Integration Notes
+
+The project archive has been swept and its useful operating-model content is
+owned by active EPICs:
+
+- Historical AC audit inventories are now lineage only; current metrics come
+  from generated registries and the AC coverage report.
+- QA standardization guardrails are owned by EPIC-012, SSOT docs, and tests
+  instead of standalone archive reports.
+- Testing implementation and coverage plans are owned by EPIC-008 plus the
+  generated coverage policy/report.
+- EPIC-specific implementation and gap notes were folded into EPIC-002,
+  EPIC-004, EPIC-011, EPIC-012, and EPIC-013.
+- Future documentation/code/test conversion work is tracked by issues #452,
+  #453, #454, #455, and #456 instead of prose-only TODOs.
 
 ---
 

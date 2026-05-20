@@ -25,6 +25,25 @@ README -> EPIC -> AC -> test
 product and architecture choices. It guides endless iteration, but it does not
 own implementation status.
 
+## Structure & SSOT Layers
+
+The structure-level SSOT is visible from the README so new work can navigate
+from project intent to executable proof without reading archive fragments.
+
+| Layer | Owner | What It Shows | Proof / Guard |
+|---|---|---|---|
+| Project entry | `README.md` | EPIC map, current proof snapshot, blocker issues | `docs/analysis/test-ac-coverage-report.md` |
+| Decision filter | `vision.md` | Direction for ambiguous product and architecture choices | Referenced by EPIC vision anchors |
+| Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
+| EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
+| AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml` | Generated acceptance criteria inventory | `scripts/generate_ac_registry.py --check` |
+| SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `scripts/check_ssot_ownership.py` |
+| Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Current AC-to-test and coverage evidence | `scripts/check_ac_traceability.py`, `scripts/coverage_policy.py` |
+
+Implementation facts should be code-owned where possible. Prose SSOT documents
+explain rationale and link to code, tests, generated registries, or issues
+rather than duplicating code behavior.
+
 ## Current Proof Snapshot
 
 Generated sources:

@@ -186,6 +186,8 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [../../apps/backend/README.md](../../apps/backend/README.md) — backend module entry point.
 - [../../apps/frontend/README.md](../../apps/frontend/README.md) — frontend module entry point.
 - [../reference/api-overview.md](../reference/api-overview.md) — API conventions and auth entry point.
+- [../ssot/auth.md](../ssot/auth.md) — authentication architecture rationale.
+- [../ssot/frontend-patterns.md](../ssot/frontend-patterns.md) — frontend integration and API-client patterns.
 
 ---
 

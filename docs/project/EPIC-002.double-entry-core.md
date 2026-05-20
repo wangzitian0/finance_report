@@ -315,6 +315,25 @@ def test_many_lines_entry():
 
 ---
 
+## 🗄️ Archive Integration Notes
+
+The useful material from `docs/project/archive/EPIC-002-*` is consolidated here
+as current EPIC-owned context:
+
+- The durable design is the `JournalEntry` header plus `JournalLine` line-item
+  model. Account balances are calculated from posted journal lines rather than
+  stored as mutable account state.
+- Monetary values use `Decimal`/`DECIMAL(18,2)` paths; float-safety belongs to
+  AC2.8 and the decimal safety tests, not to prose-only rules.
+- Journal status flow is `draft -> posted -> reconciled|void`; voiding creates a
+  reversal entry instead of mutating posted history.
+- Multi-currency support lives at journal-line level through `currency` and
+  `fx_rate`.
+- API walkthroughs from the archive are historical examples. Current endpoint
+  behavior is owned by AC2.10 and the API reference docs.
+
+---
+
 ## 🔗 Deliverables
 
 - [x] `apps/backend/src/models/account.py` - Account model

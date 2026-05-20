@@ -28,8 +28,8 @@ AC-to-EPIC mismatch cleanup and invalid real-test AC references are tracked in
 | Report | Date | Scope | Status |
 |---|---|---|---|
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | 2026-05-04 | Vision -> EPIC -> AC consistency | Historical; superseded for current metrics by generated AC coverage report |
-| [archive/AC-AUDIT-2026-02-25.md](./archive/AC-AUDIT-2026-02-25.md) | 2026-02-25 | AC numbering compliance | Archived |
-| [archive/AC-TEST-TRACEABILITY-AUDIT.md](./archive/AC-TEST-TRACEABILITY-AUDIT.md) | 2026-02 era | Test -> AC traceability | Archived; legacy AC inventory |
+| [archive/AC-AUDIT-2026-02-25.md](./archive/AC-AUDIT-2026-02-25.md) | 2026-02-25 | AC numbering compliance | Archived; lineage folded into EPIC-014 |
+| [archive/AC-TEST-TRACEABILITY-AUDIT.md](./archive/AC-TEST-TRACEABILITY-AUDIT.md) | 2026-02 era | Test -> AC traceability | Archived; legacy inventory superseded by generated registry/report tooling |
 
 ## Audit Rules
 
@@ -48,6 +48,18 @@ generated AC coverage report. Current testing gaps are tracked by issues
 [#452](https://github.com/wangzitian0/finance_report/issues/452),
 [#454](https://github.com/wangzitian0/finance_report/issues/454), and
 [#456](https://github.com/wangzitian0/finance_report/issues/456).
+
+`docs/project/archive/**` was swept on 2026-05-20. Useful archive content is
+now owned by active EPICs:
+
+| Archive Source | Current Owner |
+|---|---|
+| `EPIC-002-*` | EPIC-002 archive integration notes |
+| `EPIC-004.reconciliation-accuracy-report.md` | EPIC-004 issues and archive integration notes |
+| `EPIC-ENCODING-SUMMARY.md` | EPIC-011, EPIC-012, EPIC-013, EPIC-014 |
+| `EPIC-QA-Standardization.md`, `QA_REPORT_20260121.md` | EPIC-012 and EPIC-014 |
+| `TEST-COVERAGE-PLAN.md`, `testing-gap-analysis.md`, `testing-implementation.md` | EPIC-008 and generated coverage reports |
+| AC audit archives | This audit index and EPIC-014 |
 
 Related cleanup issues:
 

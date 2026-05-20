@@ -2007,6 +2007,22 @@ All key decisions confirmed based on requirements:
 - [schema.md](../ssot/schema.md) — Database models
 - [reporting.md](../ssot/reporting.md) — Financial reports
 - [market_data.md](../ssot/market_data.md) — Market data sources
+- [assets.md](../ssot/assets.md) — Asset lifecycle rationale and proof references
+
+---
+
+## 🗄️ Archive Integration Notes
+
+The EPIC encoding archive is folded into this EPIC as explicit remaining scope:
+
+- Basic position reconciliation is P0-complete, but the broader user stories are
+  not all implemented as coded product features.
+- Depreciation schedules need a backend service/model and journal-entry
+  integration before depreciation can be considered complete.
+- ESOP/RSU tracking needs an explicit scope decision and, if in scope, models,
+  services, endpoints, and dashboard surfacing.
+- The 4-layer migration is incomplete until uploaded documents produce atomic
+  position snapshots instead of position snapshots being created manually.
 
 ---
 

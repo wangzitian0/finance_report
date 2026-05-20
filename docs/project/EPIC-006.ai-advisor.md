@@ -384,6 +384,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) — AI advisor user guide.
 - [../reference/api-chat.md](../reference/api-chat.md) — AI advisor API reference.
+- [../ssot/ai.md](../ssot/ai.md) — AI model policy, safety, and fallback rationale.
 
 ---
 
