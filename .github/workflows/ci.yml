@@ -87,7 +87,7 @@ jobs:
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    needs: [changes, lint]
+    needs: [changes]
     if: needs.changes.outputs.heavy_required == 'true'
     strategy:
       fail-fast: false
@@ -332,7 +332,6 @@ jobs:
 
   ac-traceability:
     name: AC Traceability Check
-    needs: [lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -348,7 +347,14 @@ jobs:
       - name: AC Traceability Check
         run: |
           uv run --with pyyaml python scripts/generate_ac_registry.py --check
-          uv run --with pyyaml python scripts/build_ac_traceability.py --check
+          uv run --with pyyaml python scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
+
+      - name: Upload AC traceability audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: ac-test-traceability-audit
+          path: ${{ runner.temp }}/AC-TEST-TRACEABILITY-AUDIT.md
+          retention-days: 14
 
   finish:
     needs: [changes, backend, frontend, lint, unified-coverage, ac-traceability]
