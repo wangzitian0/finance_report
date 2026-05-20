@@ -483,6 +483,9 @@ Stage 2: Run-Level Review (Consistency Checks)
 | AC16.12.2 | Dashboard page renders error fallback and retry action when API request fails | ⏳ |
 | AC16.12.3 | Dashboard page renders KPI, charts, and recent activity when API requests succeed | ⏳ |
 | AC16.12.4 | Dashboard page renders empty-state copy when trend or activity datasets are empty | ⏳ |
+| AC16.12.17 | Dashboard page renders first-time onboarding when accounts, statements, or posted review output are missing | ⏳ |
+| AC16.12.18 | Dashboard onboarding links users to Accounts, Statements upload, and Review in one click | ⏳ |
+| AC16.12.19 | Dashboard hides onboarding once an approved statement and posted journal entry exist | ⏳ |
 | AC16.12.5 | Login page submits login payload and redirects on success | ⏳ |
 | AC16.12.6 | Login page toggles register mode and switches endpoint for submit | ⏳ |
 | AC16.12.7 | Login page shows API error messages and resets loading state on failure | ⏳ |
