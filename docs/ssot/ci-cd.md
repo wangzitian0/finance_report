@@ -12,8 +12,9 @@
 The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
 
 ```
-classify-changes → lint → backend shards + frontend → unified-coverage → finish
-                  ↘ ac-traceability ───────────────────────↗
+classify-changes → backend shards + frontend → unified-coverage → finish
+               ↘ lint ─────────────────────────────────────↗
+               ↘ ac-traceability ──────────────────────────↗
 ```
 
 ### Job Details
@@ -22,10 +23,10 @@ classify-changes → lint → backend shards + frontend → unified-coverage →
 |-----|---------|--------------|
 | **classify-changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
-| **backend** (Shards 1-4) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes, lint]` |
+| **backend** (Shards 1-4) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
 | **frontend** | Frontend build + tests when heavy CI is required | `needs: [classify-changes]` |
 | **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [classify-changes, backend, frontend]` |
-| **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | `needs: [lint]` |
+| **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
 | **finish** | Aggregate all required and skipped job results | `needs: [classify-changes, backend, frontend, lint, unified-coverage, ac-traceability]` |
 
 ### Key CI Properties
@@ -33,10 +34,11 @@ classify-changes → lint → backend shards + frontend → unified-coverage →
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
-4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `scripts/build_ac_traceability.py --check`.
+4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. CI does not fail solely because the checked-in archive copy is stale.
 5. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
-6. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
-7. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
+7. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
+8. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ### PR vs Main CI Responsibilities
 
@@ -76,11 +78,18 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
 3. **Source-tree/LCOV Logic**:
    - `scripts/coverage_policy.py` defines the single component policy used by coverage calculation and audit checks
+   - `scripts/check_ci_metrics_contract.py` first discovers source roots and fails CI when a new `apps/*/src` or `packages/*/src` source root is not represented in `scripts/coverage_policy.py`
    - `scripts/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
    - `scripts/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
    - New source modules are automatically required to appear in LCOV unless explicitly excluded by policy
+   - New `apps/*/src` or `packages/*/src` source roots fail CI until they are added to the coverage policy and report pipeline
 
-3. **Environment Variables**:
+4. **Metric Semantics**:
+   - Line coverage is the only numeric source coverage metric enforced by the no-regression gate
+   - AC traceability is a reference metric, not behavioral coverage
+   - Behavioral product coverage must be proven by Tier 1+ tests and explicit product E2E gates, not by an AC string appearing in a test file
+
+5. **Environment Variables**:
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
    - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; baseline comparison is primary gate)
 
@@ -119,6 +128,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **CI Optimization** (`.github/workflows/ci.yml`):
 - Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
+- Backend shards and AC traceability run in parallel with lint once change classification has finished, so lint remains visible without delaying independent test work.
 - 4-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
@@ -128,19 +138,21 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
-- Basic staging deploy feedback no longer waits on provider-backed OCR parsing. Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
-- Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so GitHub Actions does not cancel a running deploy when a newer `main` commit is pushed. Because GitHub concurrency allows at most one running and one pending run per group, the latest pending deploy is retained and older pending deploys may be replaced. This is latest-pending serial validation, not strict FIFO for every SHA.
-- The staging deploy job has a 30-minute job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke and core non-LLM E2E so timeout and latency failures identify the active phase.
+- Staging deploy waits for the same commit's `CI` push workflow to complete successfully before building images, pushing `staging` tags, or changing the Dokploy staging environment. If matching CI fails, is cancelled, or times out, staging is not overwritten.
+- Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
+- Automatic provider-backed AI/OCR validation runs as a downstream job in the same serialized post-merge workflow unit. This keeps staging stable for the SHA under validation: a newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running.
+- Staging deploys use a workflow-level `staging-post-merge-${{ github.ref }}` concurrency group with `cancel-in-progress: false`, so GitHub Actions does not cancel a running post-merge lane when a newer `main` commit is pushed. Because GitHub concurrency allows at most one running and one pending run per group, the latest pending post-merge run is retained and older pending runs may be replaced. This is latest-pending serial validation, not strict FIFO for every SHA.
+- The staging deploy-health job has a 75-minute deploy-health job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke and core non-LLM E2E so timeout and latency failures identify the active phase.
+- The automatic AI/OCR job has a 30-minute job timeout, while the provider-backed pytest step remains capped at 22 minutes.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
 
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
-- `Staging AI/OCR Gate` runs automatically after `Deploy Staging` completes successfully on `main`, and can also be triggered manually via `workflow_dispatch`.
-- The workflow uses a global `staging-ai-ocr` concurrency group with `cancel-in-progress: false`, so a running provider-backed gate is not interrupted by a newer commit. GitHub retains the latest pending gate when pushes arrive faster than the singleton staging environment can validate them; strict per-SHA FIFO would require an external queue or scheduler because GitHub concurrency does not keep multiple pending runs per group.
-- Automatic AI/OCR gates wait for the same commit's `CI` push workflow to complete successfully before spending provider quota. If the matching CI run fails, is cancelled, or times out, the provider-backed gate fails before calling real OCR/LLM tests.
-- The AI/OCR job timeout includes CI waiting plus provider validation: the matching-CI wait step is capped at 45 minutes, and the provider-backed pytest step remains capped at 22 minutes.
-- Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in this separate provider-backed gate.
-- The gate checks out the same `workflow_run.head_sha` that deployed to staging and passes its short SHA as `EXPECTED_SHA`, so version checks still validate the deployed commit.
+- Automatic `Staging AI/OCR Gate` execution lives in `.github/workflows/staging-deploy.yml` and starts only after deploy health succeeds in the same serialized post-merge workflow unit.
+- `.github/workflows/staging-ai-ocr-gate.yml` remains as a manual recovery entry point via `workflow_dispatch` for rerunning provider-backed validation against the currently selected ref.
+- Automatic AI/OCR gates inherit the deploy workflow's same-SHA CI wait before spending provider quota. If the matching CI run fails, is cancelled, or times out, the staging deploy workflow fails before calling real OCR/LLM tests or changing staging.
+- Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in this provider-backed gate.
+- The automatic gate passes the deployed short SHA as `EXPECTED_SHA`, so version checks still validate the deployed commit before provider-backed parsing starts.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed provider gate.
 - The serialized GLM gate includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, and `tests/e2e/test_brokerage_upload_to_portfolio_value.py`. The brokerage test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, portfolio valuation, or reporting failed.
 

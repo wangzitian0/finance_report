@@ -1,19 +1,16 @@
 # Staging AI/OCR Gate Workflow
 #
-# Triggers after a successful Deploy Staging workflow.
-# Separates provider-backed parsing correctness from deploy health.
+# Manual recovery entry point for provider-backed staging parsing correctness.
+# Automatic post-merge AI/OCR validation runs inside Deploy Staging so the
+# staging environment is not overwritten mid-gate.
 
 name: Staging AI/OCR Gate
 
 on:
-  workflow_run:
-    workflows: ["Deploy Staging"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: staging-ai-ocr
+  group: staging-manual-ai-ocr-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -33,75 +30,19 @@ env:
 jobs:
   ai-ocr-gate:
     name: Staging AI/OCR Gate
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Resolve expected SHA
         id: expected_sha
         run: |
-          full_sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          full_sha="${{ github.sha }}"
           echo "full_sha=${full_sha}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${full_sha:0:7}" >> "$GITHUB_OUTPUT"
-          echo "Validating staging AI/OCR for commit ${full_sha}"
-
-      - name: Wait for matching CI success
-        if: ${{ github.event_name == 'workflow_run' }}
-        timeout-minutes: 45
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_FULL_SHA: ${{ steps.expected_sha.outputs.full_sha }}
-        run: |
-          set -euo pipefail
-
-          deadline=$((SECONDS + 2700))
-          while [ "$SECONDS" -lt "$deadline" ]; do
-            runs_json="$(gh run list \
-              --repo "${{ github.repository }}" \
-              --workflow "CI" \
-              --branch main \
-              --commit "$EXPECTED_FULL_SHA" \
-              --event push \
-              --json databaseId,status,conclusion,url \
-              --limit 10)"
-            ci_state="$(python - "$runs_json" <<'PY'
-          import json
-          import sys
-
-          runs = json.loads(sys.argv[1])
-          if not runs:
-              print("missing")
-              raise SystemExit
-          run = runs[0]
-          print("|".join(str(run.get(key) or "") for key in ("status", "conclusion", "url")))
-          PY
-          )"
-
-            if [ "$ci_state" = "missing" ]; then
-              echo "No CI run found yet for $EXPECTED_FULL_SHA; waiting..."
-              sleep 30
-              continue
-            fi
-
-            IFS='|' read -r status conclusion url <<< "$ci_state"
-            echo "CI for $EXPECTED_FULL_SHA: status=$status conclusion=${conclusion:-pending} url=$url"
-            if [ "$status" = "completed" ]; then
-              if [ "$conclusion" = "success" ]; then
-                exit 0
-              fi
-              echo "::error::Skipping provider-backed AI/OCR gate because matching CI concluded '$conclusion': $url"
-              exit 1
-            fi
-            sleep 30
-          done
-
-          echo "::error::Timed out waiting for matching CI success for $EXPECTED_FULL_SHA"
-          exit 1
+          echo "Manually validating staging AI/OCR for commit ${full_sha}"
 
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests

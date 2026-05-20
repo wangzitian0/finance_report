@@ -15,7 +15,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine  # noqa: E402
+from src.models import (  # noqa: E402
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntrySourceType,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.services.processing_account import (  # noqa: E402
     _calculate_pair_confidence,
     find_transfer_pairs,
