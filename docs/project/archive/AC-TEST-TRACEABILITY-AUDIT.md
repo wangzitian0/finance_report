@@ -18,7 +18,7 @@
 | **Deprecated ACs** | 3 | 0.3% |
 | **Mandatory ACs with test reference** | 799 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 194 | - |
+| **Test files referenced** | 195 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -229,8 +229,8 @@
 | AC4.2.1 | yes | Many-to-One (Batch Payment) | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ |
 | AC4.2.2 | yes | Many-to-One Bonus | `apps/backend/tests/api/test_reconciliation_router.py` | ✅ |
 | AC4.2.3 | yes | One-to-Many (Split) | `apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ |
-| AC4.3.1 | yes | Auto-Accept Logic | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_dual_read.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_engine.py`<br>`apps/backend/tests/reconciliation/test_review_queue.py` | ✅ |
-| AC4.3.2 | yes | Review Queue Logic | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ |
+| AC4.3.1 | yes | Auto-Accept Logic | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_dual_read.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_engine.py`<br>`apps/backend/tests/reconciliation/test_review_queue.py`<br>`scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ |
+| AC4.3.2 | yes | Review Queue Logic | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_engine.py`<br>`scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ |
 | AC4.3.3 | yes | Batch Accept | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_router_additional.py` | ✅ |
 | AC4.3.4 | no |  | `apps/backend/tests/api/test_reconciliation_router.py` | ✅ (optional) |
 | AC4.3.5 | no |  | `apps/backend/tests/api/test_reconciliation_router.py` | ✅ (optional) |
@@ -249,7 +249,7 @@
 | AC4.5.1 | yes | Anomaly Detection Core | `apps/backend/tests/api/test_reconciliation_router.py`<br>`apps/backend/tests/reconciliation/test_anomaly_detection.py`<br>`apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ |
 | AC4.5.2 | no |  | `apps/backend/tests/api/test_reconciliation_router.py` | ✅ (optional) |
 | AC4.6.1 | yes | 0.1 USD boundary: amount delta = 0.10 USD passes, 0.11 USD fails | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` | ✅ |
-| AC4.6.2 | yes | Transfer detection: matching OUT/IN within ±3 days not mis-reconciled | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` | ✅ |
+| AC4.6.2 | yes | Transfer detection: matching OUT/IN within ±3 days not mis-reconciled | `scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ |
 | AC4.6.3 | yes | source_type=manual wins over auto_matched in conflict | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` | ✅ |
 | AC4.6.4 | yes | Stage 2 batch approve blocked when duplicate flags unresolved | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` | ✅ |
 | AC4.6.5 | yes | Reconciliation score considers source_type weight (manual > auto) | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` | ✅ |
@@ -862,11 +862,11 @@
 | AC15.2.1 | yes | Transfer OUT Entry | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
 | AC15.2.2 | yes | Transfer IN Entry | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
 | AC15.2.3 | yes | Paired Transfers Zero Balance | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
-| AC15.3.1 | yes | Unpaired Transfer Visible | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
+| AC15.3.1 | yes | Unpaired Transfer Visible | `apps/backend/tests/accounting/test_processing_account.py`<br>`scripts/tests/test_processing_account_service_unit.py` | ✅ |
 | AC15.3.2 | yes | Accounting Equation Holds | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
 | AC15.4.1 | yes | Keyword Detection | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
 | AC15.4.2 | yes | Non-Transfer Detection | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
-| AC15.4.3 | yes | Auto-Pairing Above Threshold | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
+| AC15.4.3 | yes | Auto-Pairing Above Threshold | `apps/backend/tests/accounting/test_processing_account.py`<br>`scripts/tests/test_processing_account_service_unit.py` | ✅ |
 | AC15.5.1 | yes | Amount Scoring (Exact) | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
 | AC15.5.2 | yes | Amount Scoring (Tiers) | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
 | AC15.5.3 | yes | Description Scoring | `apps/backend/tests/accounting/test_processing_account.py` | ✅ |
@@ -874,15 +874,15 @@
 | AC15.6.1 | yes | Transfer Detection During Reconciliation | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
 | AC15.6.2 | yes | Transfer Detection Skips (No Account) | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
 | AC15.6.3 | yes | Transfer IN Detection | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
-| AC15.6.4 | yes | Auto-Pairing Phase | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
-| AC15.6.5 | yes | Unpaired Transfer Balance | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
+| AC15.6.4 | yes | Auto-Pairing Phase | `apps/backend/tests/reconciliation/test_transfer_integration.py`<br>`scripts/tests/test_processing_account_service_unit.py` | ✅ |
+| AC15.6.5 | yes | Unpaired Transfer Balance | `apps/backend/tests/reconciliation/test_transfer_integration.py`<br>`scripts/tests/test_processing_account_service_unit.py` | ✅ |
 | AC15.6.6 | yes | Normal Matching Preserved | `apps/backend/tests/reconciliation/test_transfer_integration.py` | ✅ |
 | AC15.6.7 | yes | Idempotent Transfer Detection | `apps/backend/tests/reconciliation/test_transfer_idempotency.py` | ✅ |
-| AC15.7.1 | yes | API endpoint GET /api/accounts/processing/summary returns {pending_count, pending_total, currency, oldest_pending_date} | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
-| AC15.7.2 | yes | Dashboard "Processing / In-Transit" card renders the four fields with currency code | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
-| AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
-| AC15.7.4 | yes | Pending entries older than 7 days render a warning badge on the listing row | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
-| AC15.7.5 | yes | Frontend test mounts ProcessingSummaryCard and asserts pending_count + pending_total labels render | `apps/backend/tests/_ac_stubs/test_epic_15_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
+| AC15.7.1 | yes | API endpoint GET /api/accounts/processing/summary returns {pending_count, pending_total, currency, oldest_pending_date} | `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
+| AC15.7.2 | yes | Dashboard "Processing / In-Transit" card renders the four fields with currency code | `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
+| AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>`scripts/tests/test_processing_account_service_unit.py` | ✅ |
+| AC15.7.4 | yes | Pending entries older than 7 days render a warning badge on the listing row | `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>`scripts/tests/test_processing_account_service_unit.py` | ✅ |
+| AC15.7.5 | yes | Frontend test mounts ProcessingSummaryCard and asserts pending_count + pending_total labels render | `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ |
 
 ---
 
