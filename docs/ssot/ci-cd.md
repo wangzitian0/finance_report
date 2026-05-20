@@ -93,6 +93,7 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - Line coverage is the only numeric source coverage metric enforced by the no-regression gate
    - AC traceability is a reference metric, not behavioral coverage
    - Behavioral product coverage must be proven by Tier 1+ tests and explicit product E2E gates, not by an AC string appearing in a test file
+   - Hardening traceability so stubs and placeholder assertions cannot count as proof is tracked in [issue #452](https://github.com/wangzitian0/finance_report/issues/452)
 
 5. **Environment Variables**:
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)

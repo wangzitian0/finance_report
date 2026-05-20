@@ -213,6 +213,12 @@ Accounting Equation Verification: Reports must comply with accounting equation
 - [ ] Performance tests with high transaction volumes (stress testing) are missing.
 - [ ] Tests for partial date ranges (fiscal year boundaries) are missing.
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/reports.md](../user-guide/reports.md) — report and dashboard user guide.
+
 ---
 
 ## ❓ Q&A (Clarification Required)

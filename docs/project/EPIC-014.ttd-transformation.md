@@ -5,6 +5,12 @@
 > **Phase**: Tooling Enhancement (Phase 3-5)
 > **Duration**: 3-4 weeks
 > **Owner**: Development Team
+>
+> **2026-05-20 alignment note**: Current project status and proof metrics live
+> in the root [README](../../README.md) and generated
+> [AC coverage report](../analysis/test-ac-coverage-report.md). This EPIC owns
+> the TTD transformation scope; code/test migration follow-ups are tracked by
+> issues #452, #453, #454, #455, and #456.
 
 ## 📌 Executive Summary
 
@@ -299,6 +305,25 @@ Every SOP document should follow this structure:
 - Issue: `#XXX`
 ```
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../../AGENTS.md](../../AGENTS.md) — repository-wide agent and contributor entry point.
+- [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
+- [./AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — historical consistency audit snapshot.
+- [./DECISIONS.md](./DECISIONS.md) — project decision log.
+- [./DECISIONS_ZH.md](./DECISIONS_ZH.md) — Chinese mirror of project decision notes.
+- [../ssot/tdd.md](../ssot/tdd.md) — canonical EPIC -> AC -> test workflow.
+- [../agents/orchestration.md](../agents/orchestration.md) — agent workflow governance.
+- [../agents/red-lines.md](../agents/red-lines.md) — security and engineering hard stops.
+- [../contributing/branch-policy.md](../contributing/branch-policy.md) — branch and PR workflow.
+- [../../.github/copilot-instructions.md](../../.github/copilot-instructions.md) — Copilot-specific contributor instructions.
+- [../../.github/instructions/frontend.instructions.md](../../.github/instructions/frontend.instructions.md) — frontend assistant instructions.
+- [../../.github/instructions/python.instructions.md](../../.github/instructions/python.instructions.md) — Python assistant instructions.
+- [../../.github/pull_request_template.md](../../.github/pull_request_template.md) — PR description contract.
+- [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — test-suite organization, jointly owned with EPIC-008.
+
 #### 4.2 SOP Inventory & Gap Analysis
 
 | SOP Area | Current Doc | Tool | Gap |
@@ -326,6 +351,22 @@ Every SOP document should follow this structure:
 - ✅ All SOPs have automated tool backing
 - ✅ Pre-commit hooks enforce static constraints (mypy + validate_schemas)
 - ✅ CI pipeline enforces runtime constraints (smoke_test.sh integrated in pr-test.yml)
+
+#### 4.3 Archive Integration Notes
+
+The project archive has been swept and its useful operating-model content is
+owned by active EPICs:
+
+- Historical AC audit inventories are now lineage only; current metrics come
+  from generated registries and the AC coverage report.
+- QA standardization guardrails are owned by EPIC-012, SSOT docs, and tests
+  instead of standalone archive reports.
+- Testing implementation and coverage plans are owned by EPIC-008 plus the
+  generated coverage policy/report.
+- EPIC-specific implementation and gap notes were folded into EPIC-002,
+  EPIC-004, EPIC-011, EPIC-012, and EPIC-013.
+- Future documentation/code/test conversion work is tracked by issues #452,
+  #453, #454, #455, and #456 instead of prose-only TODOs.
 
 ---
 

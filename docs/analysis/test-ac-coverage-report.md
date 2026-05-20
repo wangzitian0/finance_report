@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-20 06:22:55 UTC by `scripts/analyze_test_ac_coverage.py`
+> Generated: 2026-05-20 09:07:50 UTC by `scripts/analyze_test_ac_coverage.py`
 
 ## Coverage accounting (EPIC-008 aligned)
 
@@ -13,9 +13,9 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 953 |
-| Covered by real test candidates | 710 (74.5%) |
-| Stub-only placeholders (`_ac_stubs`) | 225 |
+| Registered ACs | 960 |
+| Covered by real test candidates | 717 (74.7%) |
+| Stub-only placeholders (`_ac_stubs`) | 223 |
 | Registered but untested | 243 |
 | Invalid AC refs in real tests | 2 |
 | Invalid AC refs in stubs | 0 |
@@ -24,9 +24,9 @@
 
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (stub) |
 |---|---:|---:|---:|
-| backend | 178 | 534 | 363 |
+| backend | 177 | 536 | 357 |
 | frontend | 81 | 176 | 0 |
-| e2e | 9 | 11 | 0 |
+| e2e | 10 | 16 | 0 |
 | repo_e2e | 18 | 0 | 0 |
 
 ## Coverage by EPIC
@@ -36,11 +36,11 @@
 | EPIC-001 | phase0-setup | 29 | 19 | 10 | 10 | 65.5% |
 | EPIC-002 | double-entry-core | 59 | 52 | 7 | 7 | 88.1% |
 | EPIC-003 | statement-parsing | 39 | 33 | 6 | 6 | 84.6% |
-| EPIC-004 | reconciliation-engine | 39 | 34 | 5 | 5 | 87.2% |
-| EPIC-005 | reporting-visualization | 36 | 30 | 6 | 6 | 83.3% |
+| EPIC-004 | reconciliation-engine | 39 | 34 | 4 | 5 | 87.2% |
+| EPIC-005 | reporting-visualization | 36 | 31 | 5 | 5 | 86.1% |
 | EPIC-006 | ai-advisor | 63 | 52 | 11 | 11 | 82.5% |
 | EPIC-007 | deployment | 39 | 6 | 33 | 33 | 15.4% |
-| EPIC-008 | testing-strategy | 82 | 65 | 0 | 17 | 79.3% |
+| EPIC-008 | testing-strategy | 88 | 70 | 0 | 18 | 79.5% |
 | EPIC-009 | pdf-fixture-generation | 37 | 0 | 36 | 37 | 0.0% |
 | EPIC-010 | signoz-logging | 21 | 0 | 21 | 21 | 0.0% |
 | EPIC-011 | asset-lifecycle | 38 | 38 | 0 | 0 | 100.0% |
@@ -48,7 +48,7 @@
 | EPIC-013 | statement-parsing-v2 | 60 | 54 | 6 | 6 | 90.0% |
 | EPIC-014 | ttd-transformation | 6 | 0 | 6 | 6 | 0.0% |
 | EPIC-015 | processing-account | 28 | 28 | 0 | 0 | 100.0% |
-| EPIC-016 | two-stage-review-ui | 213 | 155 | 58 | 58 | 72.8% |
+| EPIC-016 | two-stage-review-ui | 214 | 156 | 58 | 58 | 72.9% |
 | EPIC-017 | portfolio-management | 79 | 79 | 0 | 0 | 100.0% |
 | EPIC-018 | ai-driven-pipeline | 23 | 13 | 10 | 10 | 56.5% |
 
@@ -87,7 +87,6 @@
 | `AC3.3.3` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
 | `AC3.5.3` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
 | `AC4.6.1` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
-| `AC4.6.2` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
 | `AC4.6.3` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
 | `AC4.6.4` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
 | `AC4.6.5` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
@@ -95,7 +94,6 @@
 | `AC5.6.2` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
 | `AC5.6.3` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
 | `AC5.6.4` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
-| `AC5.6.5` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
 | `AC5.6.6` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
 | `AC6.1.2` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
 | `AC6.1.3` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
@@ -307,9 +305,9 @@
 
 `AC4.6.1`, `AC4.6.2`, `AC4.6.3`, `AC4.6.4`, `AC4.6.5`
 
-### EPIC-005 (reporting-visualization) — 6 untested
+### EPIC-005 (reporting-visualization) — 5 untested
 
-`AC5.6.1`, `AC5.6.2`, `AC5.6.3`, `AC5.6.4`, `AC5.6.5`, `AC5.6.6`
+`AC5.6.1`, `AC5.6.2`, `AC5.6.3`, `AC5.6.4`, `AC5.6.6`
 
 ### EPIC-006 (ai-advisor) — 11 untested
 
@@ -319,9 +317,9 @@
 
 `AC7.1.1`, `AC7.1.2`, `AC7.1.3`, `AC7.2.1`, `AC7.2.2`, `AC7.2.3`, `AC7.2.4`, `AC7.2.5`, `AC7.3.1`, `AC7.3.2`, `AC7.3.3`, `AC7.3.4`, `AC7.3.5`, `AC7.4.1`, `AC7.4.2`, `AC7.4.3`, `AC7.4.4`, `AC7.4.5`, `AC7.4.6`, `AC7.5.1`, `AC7.5.2`, `AC7.5.3`, `AC7.5.4`, `AC7.5.5`, `AC7.6.2`, `AC7.9.1`, `AC7.9.2`, `AC7.9.3`, `AC7.9.4`, `AC7.9.5`, `AC7.9.6`, `AC7.9.7`, `AC7.9.8`
 
-### EPIC-008 (testing-strategy) — 17 untested
+### EPIC-008 (testing-strategy) — 18 untested
 
-`AC8.13.6`, `AC8.13.7`, `AC8.13.8`, `AC8.13.11`, `AC8.13.12`, `AC8.13.13`, `AC8.13.14`, `AC8.13.15`, `AC8.13.16`, `AC8.13.17`, `AC8.13.20`, `AC8.13.21`, `AC8.13.22`, `AC8.13.23`, `AC8.13.24`, `AC8.13.25`, `AC8.13.26`
+`AC8.13.6`, `AC8.13.7`, `AC8.13.8`, `AC8.13.11`, `AC8.13.12`, `AC8.13.13`, `AC8.13.14`, `AC8.13.15`, `AC8.13.16`, `AC8.13.17`, `AC8.13.20`, `AC8.13.21`, `AC8.13.22`, `AC8.13.23`, `AC8.13.24`, `AC8.13.25`, `AC8.13.26`, `AC8.13.27`
 
 ### EPIC-009 (pdf-fixture-generation) — 37 untested
 

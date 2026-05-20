@@ -6,7 +6,8 @@ Welcome to the **Finance Report** documentation — your comprehensive guide to 
 
 Read the North Star goals and decision criteria before deep technical work:
 
-- [Project Vision (North Star)](target.md)
+- [Project Vision](target.md)
+- [Project status and EPIC proof summary](../README.md)
 
 ## 📖 Documentation Guide
 
@@ -90,15 +91,17 @@ New to Finance Report? Follow these steps:
 
 ## 🌟 Key Features
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Double-Entry Bookkeeping** | Every transaction balanced with debits and credits | ✅ Available |
-| **Chart of Accounts** | 5 account types: Asset, Liability, Equity, Income, Expense | ✅ Available |
-| **Bank Statement Import** | Upload PDF/CSV bank statements | ✅ Available |
-| **AI-Powered Parsing** | Gemini 2.0 Flash (free) extracts transactions from statements | ✅ Available |
-| **Smart Reconciliation** | Multi-dimensional matching with confidence scoring | ✅ Available |
-| **Financial Reports** | Balance sheet, income statement, cash flow | 🚧 Coming Soon |
-| **AI Financial Advisor** | Personalized insights and recommendations | ✅ Available |
+Feature status and proof live in the root [README](../README.md) and EPIC
+documents. This page only provides navigation:
+
+| Feature | Entry point |
+|---------|-------------|
+| **Double-Entry Bookkeeping** | [EPIC-002](project/EPIC-002.double-entry-core.md) |
+| **Statement Import** | [EPIC-003](project/EPIC-003.statement-parsing.md) and [EPIC-013](project/EPIC-013.statement-parsing-v2.md) |
+| **Reconciliation** | [EPIC-004](project/EPIC-004.reconciliation-engine.md) |
+| **Reports & Visualization** | [EPIC-005](project/EPIC-005.reporting-visualization.md) |
+| **AI Advisor** | [EPIC-006](project/EPIC-006.ai-advisor.md) |
+| **Portfolio Management** | [EPIC-017](project/EPIC-017.portfolio-management.md) |
 
 ## 📚 Documentation Structure
 
@@ -124,7 +127,7 @@ Complete REST API documentation:
 - [AI Advisor API](reference/api-chat.md) — Chat and insights endpoints
 
 ### Technical Documentation (SSOT)
-Single Source of Truth for technical decisions:
+Rationale docs with links to code owners, generated contracts, and proof tests:
 
 - [Architecture Overview](ssot/README.md) — System architecture and design principles
 - [Accounting Model](ssot/accounting.md) — Double-entry bookkeeping rules
@@ -158,12 +161,12 @@ graph TB
     end
     
     subgraph AI["AI Services"]
-        Gemini[Gemini 2.0 Flash (free)]
+        Provider[Configured AI Provider]
     end
     
     UI --> TQ --> API
     API --> SVC --> DB
-    SVC --> Gemini
+    SVC --> Provider
 ```
 
 For detailed architecture documentation, see [Architecture Overview](ssot/README.md).

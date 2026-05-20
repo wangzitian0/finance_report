@@ -2,8 +2,8 @@
 
 Finance Report provides financial reports and dashboards to help you understand your financial position.
 
-!!! note "Coming Soon"
-    Full reporting features are being developed in EPIC-005. Current functionality is limited.
+Current project status and proof for reports live in the root
+[README](../../README.md) and [EPIC-005](../project/EPIC-005.reporting-visualization.md).
 
 ## Available Reports
 

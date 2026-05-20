@@ -19,7 +19,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | Role | Focus | Review Opinion |
 |------|--------|----------|
 | 🏗️ **Architect** | Decoupled Design | AI only handles parsing, does not write directly to ledger, errors filtered through validation layer |
-| 💻 **Developer** | API Integration | Gemini 2.0 Flash (free) single-model parsing; user retry selects a different model |
+| 💻 **Developer** | API Integration | Parsing uses the configured AI provider and model from `apps/backend/src/config.py`; user retry may select a different model |
 | 📊 **Accountant** | Data Integrity | Opening + Transactions ≈ Closing, reject if validation fails |
 | 🔗 **Reconciler** | Downstream Dependencies | Parsing results must be structured for matching algorithms |
 | 🧪 **Tester** | Parsing Accuracy | Multi-bank, multi-format coverage testing, target ≥ 95% |
@@ -36,7 +36,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 - [x] Alembic migration script
 - [x] Pydantic Schema
 
-### Gemini Integration (Backend)
+### AI Provider Integration (Backend)
 
 - [x] `services/extraction.py` - Document parsing service
   - [x] `parse_pdf()` - PDF parsing (OpenRouter Free Models)
@@ -245,9 +245,15 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 ## Issues & Gaps
 
 - [x] Align BankStatement and BankStatementTransaction fields with SSOT.
-- [x] Align model/config with SSOT (Gemini 2.0 Flash).
+- [x] Align model/config with `apps/backend/src/config.py` and `docs/ssot/ai.md`.
 - [x] Add confidence scoring and review queue routing.
 - [x] Enforce balance validation routing.
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/reconciliation.md](../user-guide/reconciliation.md) — statement upload and AI extraction portions of the reconciliation workflow.
 
 ---
 

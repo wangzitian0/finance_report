@@ -1,39 +1,70 @@
 # Audit Index
 
-> This file is the single entry point for all AC / traceability audit reports.
-> Readers should start here and follow links to the relevant report.
+This file indexes project consistency and traceability audits. Use generated
+reports for current metrics.
 
----
+## Current Generated Reports
 
-## Current Audit (Active)
+| Report | Purpose |
+|---|---|
+| [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Current AC-to-test coverage, stub-only ACs, untested ACs, invalid AC references |
 
-| Report | Date | Scope | Branch |
-|--------|------|-------|--------|
-| [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | 2026-05-04 | Full vision → EPIC → AC → test consistency | `audit/vision-epic-ac-alignment` |
+Current generated AC snapshot:
 
-**Latest findings summary**: 760 ACs across 18 EPICs (553 feature + 207 infrastructure) — 0 orphans, 0 duplicates, 0 EPIC↔registry mismatches.
-See the report for P0/P1/P2 fix details and follow-up actions.
+- 960 registered ACs
+- 717 ACs with real test-candidate references
+- 243 registered ACs without real test reference
+- 223 stub-only placeholders
+- 2 invalid AC refs in real tests
 
----
+Placeholder assertion detection is not yet enforced; see
+[#452](https://github.com/wangzitian0/finance_report/issues/452).
 
-## Archived Audits
+AC-to-EPIC mismatch cleanup and invalid real-test AC references are tracked in
+[#456](https://github.com/wangzitian0/finance_report/issues/456).
 
-Older reports are kept in [`docs/project/archive/`](./archive/) for historical reference.
-They are **not current**; do not use them for rule interpretation.
+## Historical Audits
 
-| Report | Date | Scope | Why Archived |
-|--------|------|-------|--------------|
-| [AC-AUDIT-2026-02-25.md](./archive/AC-AUDIT-2026-02-25.md) | 2026-02-25 | AC numbering compliance | Superseded by 2026-05-04 audit |
-| [AC-TEST-TRACEABILITY-AUDIT.md](./archive/AC-TEST-TRACEABILITY-AUDIT.md) | 2026-02 era | Test ↔ AC traceability (542-AC era) | Body reflects legacy AC inventory; head refreshed in 2026-05-04 audit |
+| Report | Date | Scope | Status |
+|---|---|---|---|
+| [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | 2026-05-04 | Vision -> EPIC -> AC consistency | Historical; superseded for current metrics by generated AC coverage report |
+| [archive/AC-AUDIT-2026-02-25.md](./archive/AC-AUDIT-2026-02-25.md) | 2026-02-25 | AC numbering compliance | Archived; lineage folded into EPIC-014 |
+| [archive/AC-TEST-TRACEABILITY-AUDIT.md](./archive/AC-TEST-TRACEABILITY-AUDIT.md) | 2026-02 era | Test -> AC traceability | Archived; legacy inventory superseded by generated registry/report tooling |
 
----
+## Audit Rules
 
-## How to File a New Audit
+1. Current counts should come from scripts, not hand-maintained prose.
+2. New project audits should explain what was checked and link to generated
+   evidence.
+3. When an audit finds work that belongs in code or tests, create an issue and
+   reference it instead of encoding future behavior in prose.
 
-1. Create `docs/project/AC-AUDIT-YYYY-MM-DD.md` following the structure of the current report.
-2. Update this index: move the previous "Current" entry to "Archived Audits" and add the new report.
-3. Append a summary to `docs/project/DECISIONS.md` under a dated heading.
+## Retired Standalone Reports
 
----
+The root `TESTING_GAP_ANALYSIS.md` report was retired during the 2026-05-20
+documentation cleanup. Its old hand-written testing narrative duplicated
+`docs/ssot/tdd.md`, `docs/ssot/coverage.md`, `docs/ssot/ci-cd.md`, and the
+generated AC coverage report. Current testing gaps are tracked by issues
+[#452](https://github.com/wangzitian0/finance_report/issues/452),
+[#454](https://github.com/wangzitian0/finance_report/issues/454), and
+[#456](https://github.com/wangzitian0/finance_report/issues/456).
 
-> **Last Updated**: 2026-05-05
+`docs/project/archive/**` was swept on 2026-05-20. Useful archive content is
+now owned by active EPICs:
+
+| Archive Source | Current Owner |
+|---|---|
+| `EPIC-002-*` | EPIC-002 archive integration notes |
+| `EPIC-004.reconciliation-accuracy-report.md` | EPIC-004 issues and archive integration notes |
+| `EPIC-ENCODING-SUMMARY.md` | EPIC-011, EPIC-012, EPIC-013, EPIC-014 |
+| `EPIC-QA-Standardization.md`, `QA_REPORT_20260121.md` | EPIC-012 and EPIC-014 |
+| `TEST-COVERAGE-PLAN.md`, `testing-gap-analysis.md`, `testing-implementation.md` | EPIC-008 and generated coverage reports |
+| AC audit archives | This audit index and EPIC-014 |
+
+Related cleanup issues:
+
+- [#452](https://github.com/wangzitian0/finance_report/issues/452)
+- [#453](https://github.com/wangzitian0/finance_report/issues/453)
+- [#454](https://github.com/wangzitian0/finance_report/issues/454)
+- [#455](https://github.com/wangzitian0/finance_report/issues/455)
+- [#456](https://github.com/wangzitian0/finance_report/issues/456)

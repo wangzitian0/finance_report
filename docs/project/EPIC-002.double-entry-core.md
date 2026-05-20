@@ -315,6 +315,25 @@ def test_many_lines_entry():
 
 ---
 
+## 🗄️ Archive Integration Notes
+
+The useful material from `docs/project/archive/EPIC-002-*` is consolidated here
+as current EPIC-owned context:
+
+- The durable design is the `JournalEntry` header plus `JournalLine` line-item
+  model. Account balances are calculated from posted journal lines rather than
+  stored as mutable account state.
+- Monetary values use `Decimal`/`DECIMAL(18,2)` paths; float-safety belongs to
+  AC2.8 and the decimal safety tests, not to prose-only rules.
+- Journal status flow is `draft -> posted -> reconciled|void`; voiding creates a
+  reversal entry instead of mutating posted history.
+- Multi-currency support lives at journal-line level through `currency` and
+  `fx_rate`.
+- API walkthroughs from the archive are historical examples. Current endpoint
+  behavior is owned by AC2.10 and the API reference docs.
+
+---
+
 ## 🔗 Deliverables
 
 - [x] `apps/backend/src/models/account.py` - Account model
@@ -349,6 +368,15 @@ def test_many_lines_entry():
 - [x] Data model checklist now matches SSOT fields for `Account`, `JournalEntry`, and `JournalLine` to avoid schema drift.
 - [x] Multi-currency clarified: EPIC-002 requires `fx_rate` on non-base currency lines with manual input or market_data lookup; EPIC-005 extends automation.
 - [x] JournalLine audit fields aligned with SSOT (added `updated_at`, removed duplicate `updated_at` on JournalEntry).
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/accounts.md](../user-guide/accounts.md) — account-management user guide.
+- [../user-guide/journal-entries.md](../user-guide/journal-entries.md) — journal-entry user guide.
+- [../reference/api-accounts.md](../reference/api-accounts.md) — accounts API reference.
+- [../reference/api-journal.md](../reference/api-journal.md) — journal API reference.
 
 ---
 

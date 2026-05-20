@@ -216,6 +216,25 @@ Automatically match bank transactions with journal entries, implementing intelli
 ## Issues & Gaps
 
 - [ ] Explicit 0.1 USD tolerance check is implicit in scoring but needs a dedicated boundary test.
+- [ ] Archive baseline validation still needs a current synthetic accuracy run,
+      100-transaction manual false-positive audit, and 10,000-transaction
+      benchmark evidence before the `>=95%`, `<0.5%`, `<2%`, and `<10s`
+      targets can be treated as measured production-quality metrics.
+
+## 🗄️ Archive Integration Notes
+
+`docs/project/archive/EPIC-004.reconciliation-accuracy-report.md` is folded into
+this EPIC as a historical baseline: scoring dimensions, threshold routing,
+review queue flow, and anomaly handling were implemented, but the old archive
+had pending accuracy and performance measurements. Current work should add AC
+or test evidence rather than hand-maintained accuracy prose.
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/reconciliation.md](../user-guide/reconciliation.md) — matching, review, and unmatched transaction workflow.
+- [../reference/api-reconciliation.md](../reference/api-reconciliation.md) — reconciliation API reference.
 
 ---
 

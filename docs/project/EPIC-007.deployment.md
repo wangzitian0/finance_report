@@ -273,6 +273,15 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ---
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../ssot/deployment.md](../ssot/deployment.md) — deployment architecture, Vault, staging, and release rationale.
+- [../ssot/environments.md](../ssot/environments.md) — six-environment taxonomy and isolation model.
+
+---
+
 ## 📅 Timeline
 
 | Phase | Content | Estimated Hours |

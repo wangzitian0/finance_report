@@ -1,253 +1,132 @@
-# Finance Report Vision (North Star)
+# Finance Report Vision
 
 ## Terminal Goal
 
 **An accurate asset dashboard.**
 
-I need to know at any time:
-- How much money do I have? Where is it distributed across accounts?
-- How much did I earn this month? How much did I spend?
+At any time, the system should help answer:
+
+- How much money do I have, and where is it distributed?
+- How much did I earn and spend this month?
 - How are my investments performing?
-- What is my annualized income considering ESOP/salary/multiple factors?
+- What is my annualized income across salary, ESOP, dividends, and other
+  long-term components?
 
-### Core Challenge: Data Accuracy
+## Core Challenge
 
-Asset data is scattered across multiple banks and brokers, in various formats (PDF, CSV, images).
-Manual entry is prone to omissions; automated parsing can produce errors.
-**How do we ensure the dashboard data is accurate?**
+Financial data is scattered across banks, brokers, statements, PDFs, CSVs, and
+manual records. Manual entry can omit data; automated extraction can be wrong.
 
----
+The product exists to make asset data trustworthy, auditable, and explainable.
 
-## Purpose
-
-Build a self-hosted, professional-grade personal finance system that is trustworthy, auditable, and explainable.
-
-**Target Users**
-- Individuals and households who want accurate balance sheets, P&L, and cash flow from real accounts.
-- Power users who value reconciliation accuracy and full data ownership over convenience.
-
-**Success Outcomes**
-- Double-entry bookkeeping is enforced and always balanced.
-- Bank/broker statements can be imported and reconciled with high confidence.
-- Financial reports are accurate, explainable, and multi-currency aware.
-- Self-hosting is first-class: deployable without vendor lock-in.
-
----
-
-## Core Idea: Confidence Accumulation
-
-Inspired by **knowledge graph construction**:
-
-```
-Traditional ETL:
-  Raw data → Clean → Load → Query
-  (assumes data is correct)
-
-Knowledge Graph:
-  Raw data (Mention) → Extract → Entity → Link → Fuse → Knowledge
-  (staged confirmation, accumulating confidence)
-```
-
-### Our Approach
-
-```
-Raw PDF/CSV
-    ↓ Adapter extraction (LLM/OCR/model)
-    ↓ AI categorization (suggested_category + confidence) ← EPIC-018 Phase 1
-Record (source_type + events)
-    ↓ Balance verification (machine)
-    ↓ Human confirmation (Stage 1)
-Confirmed Record
-    ↓ Dedup + matching (machine + AI semantic scoring) ← EPIC-018 Phase 3
-    ↓ Human correction → few-shot learning ← EPIC-018 Phase 2
-    ↓ Human confirmation (Stage 2)
-Knowledge (trusted data)
-    ↓ Export (Layer 3 classification-aware reports) ← EPIC-018 Phase 4
-Dashboard and reports (Native Portfolio Engine)
-```
-
-**Key insight: only confirmed data becomes knowledge.**
-
----
-
-## Principles
+## Product Principles
 
 - Accounting integrity is non-negotiable.
-- SSOT defines technical truth; this document defines macro intent.
-- AI is a parsing and explanation layer, not a source of record.
-  - AI suggestions are never auto-posted; they flow through the review queue.
-  - User corrections feed back as few-shot examples, improving future suggestions.
-  - AI features are gated by feature flags (`enable_ai_reconciliation`) to control costs.
-- Every feature must preserve auditability and traceability.
-- Prefer deterministic logic for core bookkeeping; AI assists where rules are insufficient.
-  - Classification priority: Keyword rules > Regex rules > AI suggestion > Uncategorized.
-  - AI reconciliation scoring only activates for ambiguous matches (60-84 range).
+- Confirmed data is more valuable than merely imported data.
+- AI may parse, classify, explain, and suggest; it must not become the source of
+  record.
+- Deterministic logic owns core bookkeeping and report calculations.
+- Human review should reduce uncertainty without hiding important details.
+- Self-hosting and data ownership are first-class constraints.
+- Every workflow should preserve traceability from source document to ledger to
+  report.
+
+## Confidence Accumulation
+
+The guiding model is staged confidence:
+
+```text
+raw source
+  -> extracted record
+  -> machine validation
+  -> human confirmation
+  -> reconciliation and deduplication
+  -> trusted ledger knowledge
+  -> dashboard and reports
+```
+
+Only trusted or explicitly reviewed data should drive conclusions that claim to
+be accurate.
 
 <a id="decision-filter-accuracy-auditability"></a>
+
 ## Decision Filter
 
-Use this when choices are unclear:
-1. Does this improve accuracy, auditability, or reconciliation confidence?
-2. Does this keep the system self-hostable and data-private?
-3. Does this reduce user cognitive load without hiding critical details?
-4. Does it align with the double-entry model and SSOT constraints?
+Use this when product or architecture choices are ambiguous:
+
+1. Does it improve accuracy, auditability, or reconciliation confidence?
+2. Does it keep the system self-hostable and data-private?
+3. Does it reduce user cognitive load without hiding critical details?
+4. Does it preserve double-entry integrity and traceability?
+5. Can the behavior be expressed as EPIC -> AC -> test?
+
+If the answer is unclear, choose the smaller step that improves proof quality.
+
+## Strategic Decisions
+
+<a id="decision-1-portfolio-self-developed"></a>
+
+### Portfolio Is Native
+
+Portfolio management is part of the system, not an external integration layer.
+The product should support holdings, cost basis, dividends, allocation, and
+performance metrics while remaining tied to the accounting model.
+
+<a id="decision-2-event-middle-layer"></a>
+<a id="decision-3-record-layer"></a>
+
+### Record Layer Before Ledger Knowledge
+
+Source documents should be reviewed as records before they become trusted
+ledger facts. A record carries source metadata, validation results, and
+traceability back to the original file.
+
+<a id="decision-4-two-stage-review"></a>
+
+### Two-Stage Review
+
+Review should separate:
+
+1. **Record-level review**: did this source parse correctly?
+2. **Run-level review**: does the whole batch reconcile consistently?
+
+This keeps local parse errors from being mixed with cross-document consistency
+questions.
+
+<a id="decision-5-processing-account"></a>
+
+### Processing Account For In-Transit Funds
+
+Transfers can leave one account before arriving in another. A virtual
+Processing account makes in-transit funds visible instead of letting money
+appear to disappear.
+
+### Manual Data Is Explicitly Trusted
+
+Some assets and liabilities cannot be verified by imported statements. Manual
+records are trusted because the user explicitly supplied them, but they should
+remain clearly labeled as manual/trusted data.
+
+<a id="decision-7-tech-stack"></a>
+
+### FastAPI + Next.js + PostgreSQL
+
+The current stack exists because the domain needs transactional control,
+Decimal-safe accounting, explicit schemas, and a self-hostable deployment model.
 
 ## Non-Goals
 
 - Replacing accounting logic with LLMs.
-- <a id="non-goals-not-budgeting-app"></a>Becoming a consumer budgeting app with bank OAuth aggregation.
-- <a id="non-goals-not-robo-advisor"></a>Trading, portfolio optimization, or robo-advisory automation.
+- <a id="non-goals-not-budgeting-app"></a>Becoming a consumer budgeting app
+  centered on bank OAuth aggregation.
+- <a id="non-goals-not-robo-advisor"></a>Trading, portfolio optimization, or
+  robo-advisory automation.
 
----
+## Relationship To Project Documents
 
-## Design Decisions
+This file does not own project status. Current implementation status lives in
+`README.md`, EPIC scope lives in `docs/project/`, and proof lives in AC
+registries plus tests.
 
-> Each decision follows **Problem → Choice → Result** format.
-> When future decisions are unclear, return here to check alignment.
-
-<a id="decision-1-portfolio-self-developed"></a>
-### Decision 1: Portfolio Management Strategy (Updated 2026-02)
-
-**Problem**: Portfolio calculations are complex (IRR, time-weighted returns, multi-currency FX).
-
-**Choice**:
-- ✅ **100% Self-Developed** → Full integration with double-entry bookkeeping, custom UI, self-hosted. No external portfolio management tools used.
-
-**Result**: Implement full-featured portfolio management in-house (EPIC-017):
-- Holdings dashboard with XIRR, time-weighted return, money-weighted return
-- Brokerage statement auto-parsing (Moomoo, Futu, Interactive Brokers)
-- Manual market price updates (user updates every few months)
-- Sector/geography/asset class allocation
-- Dividend tracking and cost basis methods (FIFO/LIFO/AvgCost)
-
-**Why the Change**: Strategic decision to eliminate external dependencies and ensure deep integration with the core accounting system. "100% Self-Developed" is the final state.
-
-<a id="decision-2-event-middle-layer"></a>
-### Decision 2: Why an Event Middle Layer?
-
-**Problem**: Converting directly from PDF to target formats?
-
-**Choice**:
-- ❌ Direct conversion → Tight coupling between input and output, hard to extend
-- ✅ Event middle layer → Decoupled, output target is swappable
-
-**Benefits**:
-- Multiple inputs (DBS PDF, Moomoo CSV) → Unified Events
-- Unified Events → Multiple outputs (Native Reports, CSV, future integrations)
-
-<a id="decision-3-record-layer"></a>
-### Decision 3: Why a Record Layer?
-
-**Problem**: Why not output Events directly?
-
-**Choice**: Introduce a Record layer (source document level).
-
-**Benefits**:
-- **Balance verification**: Records have opening/closing balances — `closing = opening + sum(events)`
-- **Traceability**: Every Event knows which source file it came from
-- **Atomic review**: One PDF is approved/rejected as a unit, no need to review line-by-line
-
-<a id="decision-4-two-stage-review"></a>
-### Decision 4: Why Two-Stage Review?
-
-**Problem**: Too much to review at once?
-
-**Choice**: Split into two stages:
-1. **Record-level**: Is this PDF parsed correctly? (single file, easy to judge)
-2. **Run-level**: Is the whole batch consistent? (cross-file, look at the big picture)
-
-**Benefits**:
-- Catch problems early (parsing errors found in Stage 1)
-- Reduce rework (no need to redo everything)
-- Lower cognitive load (focus on one dimension at a time)
-
-<a id="decision-5-processing-account"></a>
-### Decision 5: Why a Processing Account?
-
-**Problem**: Bank A transfers out, 3 days later Bank B receives — where are the funds in between?
-
-**Choice**: Introduce a virtual Processing account.
-
-```
-Day 1: A transfers out
-  A: TRANSFER_OUT -10,000
-  Processing: TRANSFER_IN +10,000  ← funds in Processing
-
-Day 3: B receives
-  Processing: TRANSFER_OUT -10,000
-  B: TRANSFER_IN +10,000           ← funds arrive at B
-```
-
-**Benefits**:
-- At any moment `sum(all accounts) + Processing = constant`
-- Delayed transfers never cause funds to "disappear"
-- Unpaired transfers are immediately visible (Processing balance ≠ 0)
-
-### Decision 6: Why Manual = TRUSTED?
-
-**Problem**: Some data cannot be automatically imported (ESOP, insurance, loans).
-
-**Choice**: Manual input is treated as highest confidence.
-
-**Logic**:
-- User enters manually → User is responsible for accuracy
-- No balance verification → Cannot verify (no corresponding bank statement)
-- Trust directly → Takes priority when conflicting with other sources
-
-**Priority hierarchy**:
-```
-Manual (user-entered)  →  TRUSTED   (highest confidence)
-User-confirmed         →  HIGH
-Auto-matched (≥85)     →  MEDIUM
-Auto-parsed            →  LOW       (lowest confidence)
-```
-
-**Scenarios**: ESOP vesting, insurance premiums, loans to friends.
-
-<a id="decision-7-tech-stack"></a>
-### Decision 7: Why FastAPI + Next.js? (Tech Stack Evolution)
-
-**Problem**: Need storage, authentication, background tasks.
-
-**Original choice** (2024): Appwrite → Self-hosted, fast development, data ownership.
-
-**Evolved choice** (2025): FastAPI + Next.js + PostgreSQL.
-
-**Why the change**:
-- Appwrite's rigid data model didn't fit double-entry bookkeeping constraints
-- Needed fine-grained control over accounting logic and transaction boundaries
-- FastAPI + SQLAlchemy gives full control over the data layer
-- PostgreSQL's DECIMAL and transaction support are critical for financial accuracy
-
-**Result**: More upfront work, but full control over the domain model. Infrastructure (Docker, Dokploy) handles deployment. See `docs/ssot/development.md` for the current stack.
-
----
-
-## Tradeoffs
-
-### What We Do
-- ✅ Asset tracking (banks, brokers, multi-currency)
-- ✅ Data verification (balance reconciliation, human confirmation)
-- ✅ Audit trail (immutable, traceable)
-- ✅ AI-assisted categorization (EPIC-018 Phase 1) — AI suggests categories during extraction, human confirms
-- ✅ AI feedback learning (EPIC-018 Phase 2) — User corrections become few-shot examples for future prompts
-- ✅ AI-assisted reconciliation (EPIC-018 Phase 3) — Hybrid scoring for ambiguous matches, opt-in via feature flag
-- ✅ AI CSV parsing (EPIC-018 Phase 4) — Fallback for unknown bank CSV formats, preserves hardcoded parsers for known banks
-- ✅ Liability tracking (mortgages) — Supported via EPIC-011 (asset purchase + monthly payment journal entries, net equity tracking)
-
-### What We Don't Do
-- ❌ Budget management → Not a core need
-
-### Why?
-Focus on the core: **asset data accuracy**.
-Other features can iterate later, but if the data is wrong, everything is useless.
-
----
-
-## Where to Look Next
-
-- Technical truth: `docs/ssot/`
-- Project status: `docs/project/README.md`
-- Developer entry: `README.md`
-
-**Last updated**: 2026-03-18
+Vision changes should be rare and directional. Implementation details should be
+captured as EPIC -> AC -> test, or as code-owned contracts referenced by docs.

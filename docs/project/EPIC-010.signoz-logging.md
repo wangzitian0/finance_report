@@ -187,6 +187,13 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 ## 🔗 References
 
-- SSOT Observability: `docs/ssot/observability.md`
+- SSOT Observability: [../ssot/observability.md](../ssot/observability.md)
 - Platform Observability: `repo/docs/ssot/ops.observability.md`
 - Deployment EPIC: `docs/project/EPIC-007.deployment.md`
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../ssot/observability.md](../ssot/observability.md) — platform observability rationale.
+- [../ssot/observability-logging.md](../ssot/observability-logging.md) — structured logging and OTEL trace/log correlation.

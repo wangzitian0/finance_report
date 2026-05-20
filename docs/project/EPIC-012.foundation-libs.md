@@ -334,6 +334,26 @@ This EPIC addresses technical debt in the foundational libraries that all module
 
 ---
 
+## 🗄️ Archive Integration Notes
+
+Useful foundation-library gaps from `docs/project/archive/EPIC-ENCODING-SUMMARY.md`,
+`docs/project/archive/EPIC-QA-Standardization.md`, and
+`docs/project/archive/QA_REPORT_20260121.md` are consolidated here:
+
+- Service transaction boundaries remain the main open architecture issue:
+  service code should use `flush()` while routers own `commit()`. See H2 and
+  issue #182.
+- Environment variable lifecycle is guarded by config sync tests and
+  `scripts/check_env_keys.py`; archive prose about config drift is superseded by
+  those checks and `docs/ssot/development.md`.
+- Frontend API base URL normalization, schema enum naming, Alembic filename
+  guardrails, and Decimal safety are current guardrail topics owned by tests and
+  SSOT references, not standalone QA reports.
+- Prometheus-style `/metrics` was reviewed and deferred because current
+  observability flows through SigNoz OTLP.
+
+---
+
 ## 📝 Audit Summary
 
 ### Current Foundation Libraries

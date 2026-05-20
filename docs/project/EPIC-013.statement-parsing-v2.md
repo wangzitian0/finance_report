@@ -218,6 +218,21 @@ The following item was identified during the vision.md recovery audit as a featu
 
 - **source_type Priority Logic** — Conflict resolution when multiple sources (bank_statement, manual, ai_extracted, csv_import) report different values for the same transaction. Higher-priority sources override lower-priority ones per vision.md Decision 6. Requires extending the confidence scoring framework with source-aware weighting. Tracked in [project README TODO](./README.md).
 
+## 🗄️ Archive Integration Notes
+
+The useful EPIC-013 items from `docs/project/archive/EPIC-ENCODING-SUMMARY.md`
+are consolidated as current proof gaps:
+
+- Institution auto-detection accepts omitted `institution` for PDF/image flows,
+  but still needs provider-backed integration evidence that real document
+  headers/logos produce the expected institution.
+- Currency and running-balance display are delivered as V2 objectives, but UI
+  tests should continue to prove the transaction table keeps those columns
+  visible.
+- V1 and V2 confidence scoring tests coexist; production paths should keep
+  proving that V2 factors, including balance progression and currency
+  consistency, are the active scoring path.
+
 ## 📏 Acceptance Criteria
 
 - All extraction tests pass

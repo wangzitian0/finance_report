@@ -523,3 +523,34 @@ bash scripts/smoke_test.sh http://localhost:3000 dev
 # Run with UI visible (debugging)
 HEADLESS=false pytest tests/e2e -v
 ```
+
+## 6. Archive Integration Notes
+
+Useful content from `docs/project/archive/testing-implementation.md`,
+`docs/project/archive/testing-gap-analysis.md`, and
+`docs/project/archive/TEST-COVERAGE-PLAN.md` is consolidated into this EPIC and
+the current generated coverage report:
+
+- The durable testing assets are factories, performance/load-test entry points,
+  Playwright E2E scaffolding, Moon task integration, and critical-path smoke
+  gates.
+- Historical coverage numbers in the archive are superseded by
+  `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json`, and
+  `scripts/coverage_policy.py`.
+- The business-critical service focus remains valid: reporting,
+  reconciliation, FX revaluation, assets, review queue, processing account,
+  accounting, and validation.
+- Skipped Tier 2/3 tests and placeholder assertions do not count as proof under
+  the current policy; hardening that rule is tracked by
+  [#452](https://github.com/wangzitian0/finance_report/issues/452) and
+  [#454](https://github.com/wangzitian0/finance_report/issues/454).
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) — generated AC coverage report.
+- [../ssot/coverage.md](../ssot/coverage.md) — coverage policy semantics.
+- [../ssot/ci-cd.md](../ssot/ci-cd.md) — CI gate semantics.
+- [../ssot/env_smoke_test.md](../ssot/env_smoke_test.md) — environment smoke-test rationale and command semantics.
+- [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — backend test-suite navigation.

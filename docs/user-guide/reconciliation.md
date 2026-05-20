@@ -34,7 +34,7 @@ flowchart TB
 
 | Format | Description | AI Parsing |
 |--------|-------------|------------|
-| **PDF** | Bank statement PDF | ✅ Gemini 2.0 Flash (free) |
+| **PDF** | Bank statement PDF | ✅ Configured AI provider |
 | **CSV** | Exported transactions | ✅ Pattern matching |
 | **OFX** | Open Financial Exchange | 🚧 Coming soon |
 
@@ -55,7 +55,7 @@ curl -X POST https://report.zitian.party/api/statements/upload \
 
 ## Step 2: AI Extraction
 
-Gemini 2.0 Flash (free) automatically extracts:
+The configured AI provider automatically extracts:
 
 - Transaction date
 - Description/Payee

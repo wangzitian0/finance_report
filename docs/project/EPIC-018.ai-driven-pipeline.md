@@ -304,3 +304,9 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 **Priority**: P0 — confidence visibility is a vision-critical trust signal; AI review queue is the human-in-the-loop hinge for the entire AI pipeline.
 **Estimated effort**: 2 days ConfidenceBadge + integration • 4-5 days AI Suggestion Queue • 2 days Settings AI toggles • 2-3 days Audit Trail panel • 1-2 days frontend tests. **Total ~11-14 days frontend**, assumes Phase 1-4 backend endpoints from this EPIC are landed.
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../ssot/source-type-priority.md](../ssot/source-type-priority.md) — confidence and source trust hierarchy used by AI-assisted flows.

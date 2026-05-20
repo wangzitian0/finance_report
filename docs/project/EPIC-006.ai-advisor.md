@@ -10,7 +10,9 @@
 
 ## 🎯 Objective
 
-Build a conversational AI financial advisor based on Gemini 2.0 Flash (free) to help users understand their financial status, interpret reports, and answer financial questions.
+Build a conversational AI financial advisor based on the configured AI provider
+and models in `apps/backend/src/config.py` to help users understand their
+financial status, interpret reports, and answer financial questions.
 
 **Core Principles**:
 ```
@@ -375,6 +377,14 @@ The above analysis is for reference only.
 - [x] Data handling scope clarified in SSOT (summary-only, redaction, future local swap).
 - [x] SSOT added for AI advisor data model, prompt policy, and access scope.
 - [x] Dependencies updated to include EPIC-002 and EPIC-004.
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) — AI advisor user guide.
+- [../reference/api-chat.md](../reference/api-chat.md) — AI advisor API reference.
+- [../ssot/ai.md](../ssot/ai.md) — AI model policy, safety, and fallback rationale.
 
 ---
 
