@@ -152,11 +152,19 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.5.4 | Extraction Flow Tests | `test_extraction_flow` | `extraction/test_extraction_flow.py` | P0 |
 | AC3.5.5 | Statement Parsing Supervisor | `test_statement_parsing_supervisor` | `extraction/test_statement_parsing_supervisor.py` | P1 |
 
+### AC3.6: Statement-Account Mapping Hardening
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.6.1 | Unique Prior Mapping | `test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
+| AC3.6.2 | No Silent Fallback Posting | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
+| AC3.6.3 | Ambiguous Mapping Blocked | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
+| AC3.6.4 | Explicit First-Upload Account Creation | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 15
+- Total AC IDs: 18
 - Requirements converted to AC IDs: 100% (EPIC-003 checklist + must-have standards)
 - Requirements with test references: 100%
-- Test files: 5
+- Test files: 7
 
 ---
 
@@ -170,6 +178,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | **Balance validation 100% enforced** | `test_balance_valid`, `test_balance_invalid` | 🔴 Critical |
 | **Confidence score routing enforced** | `test_high_confidence`, `test_medium_confidence` | 🔴 Critical |
 | **Parsing errors not persisted** | `test_extraction_error_not_persisted` | 🔴 Critical |
+| **Statement account confirmed before posting** | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | 🔴 Critical |
 | Support PDF format (DBS/POSB, CMB, Maybank) | `test_dbs_fixture_has_valid_structure` | Required |
 | Support CSV format (Wise/fintech, generic) | `test_csv_parsing.py` suite | Required |
 | File size limit 10MB | `test_upload_file_exceeds_10mb_limit` | Required |

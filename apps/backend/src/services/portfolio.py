@@ -79,7 +79,15 @@ class PortfolioService:
         Raises:
             PortfolioNotFoundError: If user has no positions
         """
-        eval_date = as_of_date or await self._default_holdings_eval_date(db, user_id)
+        if as_of_date is not None:
+            return await self._get_snapshot_holdings(
+                db,
+                user_id=user_id,
+                as_of_date=as_of_date,
+                include_disposed=include_disposed,
+            )
+
+        eval_date = await self._default_holdings_eval_date(db, user_id)
 
         # Get all managed positions for user
         positions_query = (
@@ -170,6 +178,144 @@ class PortfolioService:
 
         await db.flush()
         return holdings
+
+    async def _get_snapshot_holdings(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        as_of_date: date,
+        include_disposed: bool,
+    ) -> Sequence[HoldingResponse]:
+        """Return point-in-time holdings from immutable AtomicPosition snapshots."""
+        latest_snapshot_subquery = (
+            select(
+                AtomicPosition.id,
+                func.row_number()
+                .over(
+                    partition_by=[AtomicPosition.asset_identifier, AtomicPosition.broker],
+                    order_by=[AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc()],
+                )
+                .label("rn"),
+            )
+            .where(AtomicPosition.user_id == user_id)
+            .where(AtomicPosition.snapshot_date <= as_of_date)
+            .subquery()
+        )
+
+        result = await db.execute(
+            select(AtomicPosition)
+            .join(latest_snapshot_subquery, AtomicPosition.id == latest_snapshot_subquery.c.id)
+            .where(latest_snapshot_subquery.c.rn == 1)
+            .order_by(AtomicPosition.asset_identifier)
+        )
+        snapshots = list(result.scalars().all())
+        if not snapshots:
+            raise PortfolioNotFoundError(f"No holdings found for user {user_id} as of {as_of_date}")
+
+        holdings: list[HoldingResponse] = []
+        for snapshot in snapshots:
+            status = PositionStatus.DISPOSED if snapshot.quantity == Decimal("0") else PositionStatus.ACTIVE
+            if status == PositionStatus.DISPOSED and not include_disposed:
+                continue
+
+            position = await self._get_managed_position_for_snapshot(db, user_id=user_id, snapshot=snapshot)
+            if position is None:
+                logger.warning(
+                    "Skipping atomic snapshot without reconciled managed position",
+                    snapshot_id=str(snapshot.id),
+                    asset_identifier=snapshot.asset_identifier,
+                    as_of_date=as_of_date.isoformat(),
+                )
+                continue
+
+            market_value = snapshot.market_value
+            cost_basis = snapshot.market_value
+            currency = snapshot.currency
+            if snapshot.currency != settings.base_currency:
+                converted_market_value = await fx.convert_amount(
+                    db,
+                    amount=market_value,
+                    currency=snapshot.currency,
+                    target_currency=settings.base_currency,
+                    rate_date=as_of_date,
+                )
+                converted_cost_basis = await fx.convert_amount(
+                    db,
+                    amount=cost_basis,
+                    currency=snapshot.currency,
+                    target_currency=settings.base_currency,
+                    rate_date=as_of_date,
+                )
+                currency = settings.base_currency
+            else:
+                converted_market_value = market_value
+                converted_cost_basis = cost_basis
+
+            unrealized_pnl = converted_market_value - converted_cost_basis
+            if converted_cost_basis != Decimal("0"):
+                unrealized_pnl_percent = (unrealized_pnl / converted_cost_basis) * Decimal("100")
+            else:
+                unrealized_pnl_percent = Decimal("0")
+
+            holdings.append(
+                HoldingResponse(
+                    id=position.id,
+                    user_id=user_id,
+                    account_id=position.account_id,
+                    asset_identifier=snapshot.asset_identifier,
+                    quantity=snapshot.quantity,
+                    cost_basis=converted_cost_basis,
+                    market_value=converted_market_value,
+                    unrealized_pnl=unrealized_pnl,
+                    unrealized_pnl_percent=unrealized_pnl_percent.quantize(Decimal("0.01")),
+                    currency=currency,
+                    acquisition_date=position.acquisition_date,
+                    disposal_date=snapshot.snapshot_date if status == PositionStatus.DISPOSED else None,
+                    status=status,
+                    cost_basis_method=position.cost_basis_method,
+                    account_name=position.account.name if position.account else None,
+                    asset_type=snapshot.asset_type,
+                    sector=snapshot.sector,
+                    geography=snapshot.geography,
+                )
+            )
+
+        if not holdings:
+            raise PortfolioNotFoundError(f"No holdings found for user {user_id} as of {as_of_date}")
+
+        await db.flush()
+        return holdings
+
+    async def _get_managed_position_for_snapshot(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        snapshot: AtomicPosition,
+    ) -> ManagedPosition | None:
+        """Find the reconciled managed position that corresponds to an atomic snapshot."""
+        result = await db.execute(
+            select(ManagedPosition)
+            .where(ManagedPosition.user_id == user_id)
+            .where(ManagedPosition.asset_identifier == snapshot.asset_identifier)
+            .options(selectinload(ManagedPosition.account))
+        )
+        positions = list(result.scalars().all())
+        if not positions:
+            return None
+
+        broker = (snapshot.broker or "").strip().lower()
+        if broker:
+            for position in positions:
+                account = position.account
+                metadata_broker = str((position.position_metadata or {}).get("broker", "")).strip().lower()
+                account_name = account.name.strip().lower() if account else ""
+                if metadata_broker == broker or account_name == broker:
+                    return position
+
+        active_position = next((position for position in positions if position.status == PositionStatus.ACTIVE), None)
+        return active_position or positions[0]
 
     async def calculate_realized_pnl(
         self,

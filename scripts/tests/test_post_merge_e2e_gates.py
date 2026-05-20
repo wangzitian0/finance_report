@@ -253,6 +253,7 @@ def test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success() -> None:
     assert "scripts/wait_for_github_ci.py" in workflow
     assert "--workflow CI" in workflow
     assert '--sha "${{ github.sha }}"' in workflow
+    assert "--poll-seconds 10" in workflow
     assert workflow.index("Wait for matching CI success") < workflow.index("Build and push Backend")
     assert "gh run list" in wait_script
     assert "matching CI run failed" in wait_script

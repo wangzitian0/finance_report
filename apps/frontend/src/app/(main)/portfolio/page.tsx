@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { CalendarDays, X } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { PortfolioHolding } from "@/lib/types";
@@ -13,13 +14,21 @@ import { formatCurrencyLocale } from "@/lib/currency";
 
 export default function PortfolioPage() {
     const [showDisposed, setShowDisposed] = useState(false);
+    const [asOfDate, setAsOfDate] = useState("");
 
     const { data: holdings, isLoading, error, refetch } = useQuery({
-        queryKey: ["portfolio-holdings", showDisposed],
-        queryFn: () =>
-            apiFetch<PortfolioHolding[]>(
-                `/api/portfolio/holdings${showDisposed ? "?include_disposed=true" : ""}`
-            ),
+        queryKey: ["portfolio-holdings", showDisposed, asOfDate],
+        queryFn: () => {
+            const params = new URLSearchParams();
+            if (showDisposed) {
+                params.set("include_disposed", "true");
+            }
+            if (asOfDate) {
+                params.set("as_of_date", asOfDate);
+            }
+            const query = params.toString();
+            return apiFetch<PortfolioHolding[]>(`/api/portfolio/holdings${query ? `?${query}` : ""}`);
+        },
     });
 
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
@@ -65,17 +74,40 @@ export default function PortfolioPage() {
                 <AllocationChart type="geography" title="Geography Allocation" />
             </div>
 
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                 <h2 className="text-lg font-semibold">Holdings</h2>
-                <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={showDisposed}
-                        onChange={(e) => setShowDisposed(e.target.checked)}
-                        className="rounded"
-                    />
-                    Show disposed
-                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-muted">
+                        <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                        <span>As of</span>
+                        <input
+                            type="date"
+                            value={asOfDate}
+                            onChange={(e) => setAsOfDate(e.target.value)}
+                            className="rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)]"
+                            aria-label="Portfolio as-of date"
+                        />
+                    </label>
+                    {asOfDate ? (
+                        <button
+                            type="button"
+                            onClick={() => setAsOfDate("")}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-[var(--border)] text-muted hover:text-[var(--foreground)]"
+                            aria-label="Clear portfolio as-of date"
+                        >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                    ) : null}
+                    <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={showDisposed}
+                            onChange={(e) => setShowDisposed(e.target.checked)}
+                            className="rounded"
+                        />
+                        Show disposed
+                    </label>
+                </div>
             </div>
 
             {isLoading ? (

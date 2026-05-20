@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 960 | 100% |
-| **Mandatory ACs** | 800 | 83.3% |
+| **Total ACs (registries)** | 967 | 100% |
+| **Mandatory ACs** | 807 | 83.5% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 800 | 100.0% |
+| **Mandatory ACs with test reference** | 807 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 195 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -27,7 +27,7 @@
 |------|------|-----------|------------|-----------|---------------|----------|
 | [EPIC-001](#epic-001-phase0-setup) | phase0-setup | 29 | 0 | 27 | 27 | 100.0% |
 | [EPIC-002](#epic-002-double-entry-core) | double-entry-core | 59 | 0 | 44 | 44 | 100.0% |
-| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 39 | 0 | 19 | 19 | 100.0% |
+| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 43 | 0 | 23 | 23 | 100.0% |
 | [EPIC-004](#epic-004-reconciliation-engine) | reconciliation-engine | 39 | 0 | 18 | 18 | 100.0% |
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
@@ -41,7 +41,7 @@
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 214 | 0 | 190 | 190 | 100.0% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 79 | 0 | 36 | 36 | 100.0% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 82 | 0 | 39 | 39 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
 ---
@@ -164,9 +164,9 @@
 
 <a id="epic-003-statement-parsing"></a>
 
-- **Total ACs**: 39
-- **Mandatory ACs**: 19
-- **Mandatory ACs with test reference**: 19 (100.0%)
+- **Total ACs**: 43
+- **Mandatory ACs**: 23
+- **Mandatory ACs with test reference**: 23 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -209,6 +209,10 @@
 | AC3.5.23 | no |  | `apps/backend/tests/api/test_statements_router.py` | ✅ (optional) |
 | AC3.5.24 | no |  | `apps/backend/tests/api/test_statements_router.py` | ✅ (optional) |
 | AC3.5.25 | no |  | `apps/backend/tests/api/test_statements_router.py` | ✅ (optional) |
+| AC3.6.1 | yes | Unique Prior Mapping | `apps/backend/tests/api/test_statements_router.py` | ✅ |
+| AC3.6.2 | yes | No Silent Fallback Posting | `apps/backend/tests/api/test_statements_router.py`<br>`apps/backend/tests/reconciliation/test_review_queue.py` | ✅ |
+| AC3.6.3 | yes | Ambiguous Mapping Blocked | `apps/backend/tests/api/test_statements_router.py` | ✅ |
+| AC3.6.4 | yes | Explicit First-Upload Account Creation | `apps/backend/tests/api/test_statements_router.py` | ✅ |
 
 ---
 
@@ -1117,9 +1121,9 @@
 
 <a id="epic-017-portfolio-management"></a>
 
-- **Total ACs**: 79
-- **Mandatory ACs**: 36
-- **Mandatory ACs with test reference**: 36 (100.0%)
+- **Total ACs**: 82
+- **Mandatory ACs**: 39
+- **Mandatory ACs with test reference**: 39 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1202,6 +1206,9 @@
 | AC17.8.3 | yes | Import failure shows actionable error without sensitive data | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
 | AC17.8.4 | yes | Portfolio page shows total portfolio value prominently after import | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | ✅ |
 | AC17.8.5 | yes | Import button hidden for non-parsed/approved statements (partial batch) | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.9.1 | yes | Historical holdings quantity and market value come from the latest AtomicPosition snapshot at or before as_of_date | `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ |
+| AC17.9.2 | yes | Portfolio holdings API returns date-bounded snapshot quantities for explicit as_of_date requests | `apps/backend/tests/portfolio/test_portfolio_router.py` | ✅ |
+| AC17.9.3 | yes | Portfolio page exposes an as-of date selector and passes it to /api/portfolio/holdings | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | ✅ |
 
 ---
 

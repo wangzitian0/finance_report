@@ -23,7 +23,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 |-----|---------|--------------|
 | **classify-changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
-| **backend** (Shards 1-4) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
+| **backend** (Shards 1-6) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
 | **frontend** | Frontend build + tests when heavy CI is required | `needs: [classify-changes]` |
 | **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [classify-changes, backend, frontend]` |
 | **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
@@ -35,7 +35,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. CI does not fail solely because the checked-in archive copy is stale.
-5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, so asynchronous Coveralls regressions are blocked before merge.
+5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, and `main` pushes use the same gate before post-merge staging, so asynchronous Coveralls regressions are blocked before merge and before staging. A terminal external failure is re-polled once before CI fails; confirmed coverage decreases, errors, and missing statuses still fail closed.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
 8. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
@@ -51,8 +51,11 @@ already ran required checks. The retained post-merge run provides three signals
 that PR checks cannot fully replace: validation of the exact merge commit,
 Coveralls status from `main`, and a final gate before post-merge staging/AI
 workflows consume the new commit. The same `Coveralls - unified` status gate runs
-on PR and `main`, so the post-merge lane should not be the first place an
-external unified coverage decrease is observed.
+on PR and `main`, so the post-merge lane should not be the first place a
+confirmed external unified coverage decrease is observed. The gate re-checks a
+terminal external failure before failing to reduce unexpected failures from
+transient external status flips without weakening confirmed coverage-decrease
+detection.
 
 Lightweight changes do not repeat the heavy path on either PRs or `main`.
 Lightweight means all changed files are limited to documentation, markdown,
@@ -132,13 +135,18 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
 - Backend shards and AC traceability run in parallel with lint once change classification has finished, so lint remains visible without delaying independent test work.
-- 4-way parallel test sharding via `pytest-split`
-- Each shard: `pytest --splits 4 --group N`
+- 6-way parallel test sharding via `pytest-split`
+- Each shard: `pytest --splits 6 --group N`
 - Coverage reports merged post-run
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
-- CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports `failure`, `error`, or never appears before timeout.
+- CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports a confirmed `failure`/`error`, or never appears before timeout.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
+
+**Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
+- This file is a historical/manual snapshot, not the current CI source of truth.
+- Routine PRs should not refresh it solely because ACs or test references changed; the current audit is generated in CI and uploaded as the `ac-test-traceability-audit` artifact.
+- Refresh the checked-in archive only for an intentional documentation snapshot/release, otherwise it creates unnecessary merge conflicts across parallel PRs.
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
@@ -169,7 +177,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 >
 > | Environment | Parallelism | Test Scope | Resource Usage |
 > |-------------|-------------|------------|----------------|
-> | **GitHub CI** | `-n auto` + `--splits 4` | ~25% tests per shard | Low (ephemeral runners) |
+> | **GitHub CI** | `-n auto` + `--splits 6` | ~17% tests per shard | Medium (ephemeral runners) |
 > | **Local CI** | `-n 4` (fixed) | 100% tests | Controlled (shared machine) |
 >
 > This is intentional design, not inconsistency.
@@ -193,8 +201,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Caching: UV ✅ (2.9s), Next.js ✅, venv ✅
 
 **CI Pipeline (2026-05-19 observed baseline):**
-- Full heavy CI on `main`: **~7m 02s**.
-- Longest backend shard: **~6m 03s**.
+- Full heavy CI on `main`: **~7m 39s** before 6-way backend sharding.
+- Longest backend shard: **~6m 23s** before 6-way backend sharding.
 - Frontend build and coverage test: **~2m 32s** before npm cache standardization.
 - Unified coverage: **~28s**.
 - Lightweight docs/docs-workflow changes skip backend, frontend, and unified coverage; lint, AC traceability, and finish still run.

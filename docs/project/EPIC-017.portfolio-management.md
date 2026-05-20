@@ -299,6 +299,14 @@ Build a **100% self-developed** investment portfolio management system with comp
 | AC17.8.4 | Portfolio page shows total portfolio value prominently after import | `AC17.8.4 shows total portfolio value banner when active holdings are loaded` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
 | AC17.8.5 | Import button hidden for non-parsed/approved statements (partial batch) | `AC17.8.5 does not show Import to Portfolio for non-parsed statements` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
 
+### AC17.9: Point-in-Time Portfolio Snapshots
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.9.1 | Historical holdings quantity and market value come from the latest AtomicPosition snapshot at or before `as_of_date` | `test_get_holdings_explicit_as_of_uses_historical_atomic_snapshot` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.9.2 | Portfolio holdings API returns date-bounded snapshot quantities for explicit `as_of_date` requests | `test_get_holdings_explicit_date_uses_historical_snapshot_quantity` | `portfolio/test_portfolio_router.py` | P0 |
+| AC17.9.3 | Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings` | `AC17.9.3 passes selected as-of date to holdings API` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
+
 **Traceability Result**:
 - Total AC IDs: 27
 - Requirements converted to AC IDs: 100% (EPIC-017 Must Have checklist)

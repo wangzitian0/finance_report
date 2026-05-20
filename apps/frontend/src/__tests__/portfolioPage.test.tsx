@@ -163,6 +163,26 @@ describe("PortfolioPage", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true")
   })
 
+  it("AC17.9.3 passes selected as-of date to holdings API", async () => {
+    mockedApiFetch.mockResolvedValue([mockHolding])
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText("Portfolio as-of date"), {
+      target: { value: "2025-01-31" },
+    })
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenLastCalledWith("/api/portfolio/holdings?as_of_date=2025-01-31"),
+    )
+
+    fireEvent.click(screen.getByLabelText("Clear portfolio as-of date"))
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenLastCalledWith("/api/portfolio/holdings"))
+  })
+
   it("has a link to the prices page", async () => {
     mockedApiFetch.mockResolvedValue([])
 

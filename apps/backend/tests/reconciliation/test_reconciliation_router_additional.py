@@ -31,11 +31,11 @@ from src.schemas.reconciliation import (
 )
 
 
-async def _create_statement(db: AsyncSession, user_id) -> BankStatement:
+async def _create_statement(db: AsyncSession, user_id, account_id=None) -> BankStatement:
     today = date.today()
     statement = BankStatement(
         user_id=user_id,
-        account_id=None,
+        account_id=account_id,
         file_path="statements/test.pdf",
         file_hash=str(uuid4()),
         original_filename="test.pdf",
@@ -314,7 +314,10 @@ async def test_pending_review_queue_returns_items(db: AsyncSession, test_user) -
 @pytest.mark.asyncio
 async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     """[AC4.3.3] Test batch accept functionality."""
-    statement = await _create_statement(db, test_user.id)
+    account = Account(user_id=test_user.id, name="Mapped Reconciliation Account", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    statement = await _create_statement(db, test_user.id, account_id=account.id)
     txn_accept = await _create_transaction(
         db, statement.id, amount=Decimal("7.00"), status=BankStatementTransactionStatus.PENDING
     )

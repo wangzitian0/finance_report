@@ -68,15 +68,18 @@ def wait_for_status_success(
     context: str,
     timeout_seconds: int = 300,
     poll_seconds: int = 10,
+    failure_confirmation_seconds: int = 0,
     monotonic=time.monotonic,
     sleep=time.sleep,
 ) -> GitHubCommitStatus:
     """Poll GitHub until the requested commit status succeeds or fails."""
     deadline = monotonic() + timeout_seconds
+    terminal_failure_seen = False
 
     while True:
         status = _latest_status_for_context(_run_gh_status(repo, sha), context)
         if status is None:
+            terminal_failure_seen = False
             print(f"Waiting for GitHub status {context!r} on {sha}: not found")
         else:
             print(
@@ -87,10 +90,19 @@ def wait_for_status_success(
             if status.state == "success":
                 return status
             if status.state in {"failure", "error"}:
+                if failure_confirmation_seconds > 0 and not terminal_failure_seen:
+                    print(
+                        f"Confirming terminal GitHub status {context!r} on {sha} "
+                        f"after {failure_confirmation_seconds}s"
+                    )
+                    terminal_failure_seen = True
+                    sleep(failure_confirmation_seconds)
+                    continue
                 raise RuntimeError(
                     f"{context} failed for {sha}: "
                     f"{status.description or status.state} {status.target_url or ''}"
                 )
+            terminal_failure_seen = False
 
         if monotonic() >= deadline:
             raise TimeoutError(
@@ -108,6 +120,12 @@ def main() -> None:
     parser.add_argument("--context", required=True)
     parser.add_argument("--timeout-seconds", type=int, default=300)
     parser.add_argument("--poll-seconds", type=int, default=10)
+    parser.add_argument(
+        "--failure-confirmation-seconds",
+        type=int,
+        default=0,
+        help="Re-poll after a failure/error status before failing.",
+    )
     args = parser.parse_args()
 
     try:
@@ -117,6 +135,7 @@ def main() -> None:
             context=args.context,
             timeout_seconds=args.timeout_seconds,
             poll_seconds=args.poll_seconds,
+            failure_confirmation_seconds=args.failure_confirmation_seconds,
         )
     except (RuntimeError, TimeoutError) as exc:
         print(f"::error title=GitHub status wait failed::{exc}", file=sys.stderr)

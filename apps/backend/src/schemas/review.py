@@ -71,6 +71,10 @@ class EditAndApproveRequest(BaseModel):
     edits: list[TransactionEditRequest] = Field(default_factory=list)
 
 
+class Stage1ApprovalRequest(BaseModel):
+    create_account_if_missing: bool = False
+
+
 class SetOpeningBalanceRequest(BaseModel):
     opening_balance: Decimal = Field(..., ge=Decimal("0"))
 

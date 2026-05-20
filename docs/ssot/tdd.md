@@ -83,6 +83,15 @@ Manual verification cleanup is tracked in
 Invalid AC references and AC-to-EPIC mismatch cleanup are tracked in
 [issue #456](https://github.com/wangzitian0/finance_report/issues/456).
 
+Current coverage enforcement:
+
+- Backend pytest keeps a 90% local source-coverage threshold.
+- Unified coverage is a no-regression baseline gate from
+  `unified-coverage.json`, not a hand-written fixed percentage in this TDD doc.
+- Branch coverage tracking is enabled for backend tests.
+- CI merges coverage across shards and validates the unified baseline before the
+  overall CI gate passes.
+
 ## Required Local Checks
 
 Use these before claiming a documentation or implementation change is aligned:
