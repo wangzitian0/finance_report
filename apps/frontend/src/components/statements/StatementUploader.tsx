@@ -52,6 +52,10 @@ function removeSafeStorage(key: string): void {
     }
 }
 
+function getFileExtension(fileName: string): string {
+    return fileName.split(".").pop()?.toLowerCase() || "";
+}
+
 interface StatementUploaderProps {
     onUploadComplete?: () => void;
     onError?: (error: string) => void;
@@ -70,6 +74,7 @@ export default function StatementUploader({
     const [models, setModels] = useState<AiModelOption[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [modelLoading, setModelLoading] = useState(true);
+    const isCsvFile = file ? getFileExtension(file.name) === "csv" : false;
 
     useEffect(() => {
         let active = true;
@@ -123,7 +128,7 @@ export default function StatementUploader({
 
     const validateAndSetFile = useCallback(function validateAndSetFile(f: File): void {
         const validExtensions = new Set(["pdf", "csv", "png", "jpg", "jpeg"]);
-        const extension = f.name.split(".").pop()?.toLowerCase() || "";
+        const extension = getFileExtension(f.name);
         if (!validExtensions.has(extension)) {
             setError(`Invalid file type: .${extension}. Allowed: PDF, CSV, PNG, JPG`);
             return;
@@ -175,16 +180,21 @@ export default function StatementUploader({
             if (institution.trim()) {
                 formData.append("institution", institution.trim());
             }
-            if (!selectedModel) {
+            if (!isCsvFile && !selectedModel) {
                 setError("Please select an AI model");
                 return;
             }
-            formData.append("model", selectedModel);
+            if (!isCsvFile) {
+                formData.append("model", selectedModel);
+            }
 
             const { apiUpload } = await import("@/lib/api");
             await apiUpload("/api/statements/upload", formData);
 
-            showToast("Statement uploaded! AI parsing in progress...", "success");
+            showToast(
+                isCsvFile ? "Statement uploaded! CSV parsing in progress..." : "Statement uploaded! AI parsing in progress...",
+                "success"
+            );
             setFile(null);
             setInstitution("");
             onUploadComplete?.();
@@ -287,38 +297,45 @@ export default function StatementUploader({
             )}
 
             {/* Model Selection */}
-            <div>
-                <label htmlFor="ai-model" className="block text-sm font-medium mb-1.5">
-                    AI Model
-                </label>
-                <select
-                    id="ai-model"
-                    className="input"
-                    value={selectedModel}
-                    onChange={(e) => {
-                        const next = e.target.value;
-                        setSelectedModel(next);
-                        if (next) {
-                            setSafeStorage(STORAGE_KEY, next, showToast);
-                        }
-                    }}
-                    disabled={modelLoading}
-                    aria-label="AI model"
-                >
-                    {models.length === 0 ? (
-                        <option value="">No models available</option>
-                    ) : (
-                        models.map((model) => (
-                            <option key={model.id} value={model.id}>
-                                {model.name || model.id} — {model.is_free ? "Free" : "Paid"}
-                            </option>
-                        ))
-                    )}
-                </select>
-                <p className="text-xs text-muted mt-1">
-                    Defaults to the configured OCR model. Paid models are available if enabled.
-                </p>
-            </div>
+            {isCsvFile ? (
+                <div className="rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-3 py-2">
+                    <p className="text-sm font-medium">CSV files are parsed directly</p>
+                    <p className="text-xs text-muted mt-1">No AI model needed.</p>
+                </div>
+            ) : (
+                <div>
+                    <label htmlFor="ai-model" className="block text-sm font-medium mb-1.5">
+                        AI Model
+                    </label>
+                    <select
+                        id="ai-model"
+                        className="input"
+                        value={selectedModel}
+                        onChange={(e) => {
+                            const next = e.target.value;
+                            setSelectedModel(next);
+                            if (next) {
+                                setSafeStorage(STORAGE_KEY, next, showToast);
+                            }
+                        }}
+                        disabled={modelLoading}
+                        aria-label="AI model"
+                    >
+                        {models.length === 0 ? (
+                            <option value="">No models available</option>
+                        ) : (
+                            models.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                    {model.name || model.id} — {model.is_free ? "Free" : "Paid"}
+                                </option>
+                            ))
+                        )}
+                    </select>
+                    <p className="text-xs text-muted mt-1">
+                        Defaults to the configured OCR model. Paid models are available if enabled.
+                    </p>
+                </div>
+            )}
 
             {/* Upload Button */}
             <button
