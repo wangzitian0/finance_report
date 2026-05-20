@@ -289,9 +289,35 @@ describe("DashboardPage", () => {
     render(<DashboardPage />)
 
     await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
-    expect(screen.getByText("Build your first accurate dashboard")).toBeInTheDocument()
+    expect(screen.getByText("Build your first accurate financial view")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Add your first account/i })).toHaveAttribute("href", "/accounts")
     expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/statements")
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
+  })
+
+  it("AC16.12.17 keeps onboarding visible with partial progress markers", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [],
+        total_assets: 0,
+        total_liabilities: 0,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({ currency: "USD", trends: [] })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "parsed" }], total: 1 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
+    expect(screen.getAllByText("Done")).toHaveLength(2)
+    expect(screen.getByText("Next")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
   })
 

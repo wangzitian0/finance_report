@@ -187,7 +187,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs text-muted uppercase tracking-wide">Getting started</p>
-              <h2 className="text-lg font-semibold mt-1">Build your first accurate dashboard</h2>
+              <h2 className="text-lg font-semibold mt-1">Build your first accurate financial view</h2>
               <p className="text-sm text-muted mt-1">Upload, review, and approve a statement to replace this guide with real financial data.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[520px]">
