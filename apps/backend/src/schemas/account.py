@@ -56,6 +56,7 @@ AccountListResponse = ListResponse[AccountResponse]
 class ProcessingSummaryResponse(BaseResponse):
     pending_count: int
     pending_total: Annotated[Decimal, Field(decimal_places=2)]
+    current_balance: Annotated[Decimal, Field(decimal_places=2)]
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     oldest_pending_date: date | None = None
 

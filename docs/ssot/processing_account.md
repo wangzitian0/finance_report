@@ -43,6 +43,8 @@ Day 3:
 
 **Key Insight**: Processing account balance represents **unconfirmed in-transit funds**. When Processing balance ≠ 0, there are unpaired transfers.
 
+**Visibility Rule**: Processing is hidden from normal user-managed account lists, but it must remain visible as a dedicated Processing sidebar entry and as a dashboard status card. The dashboard card shows the signed current Processing Account balance. Any non-zero current balance must render a warning indicator on both the sidebar entry and the dashboard card.
+
 ---
 
 ## 3. Architecture Model
@@ -58,7 +60,7 @@ Processing is a **system-managed Asset account** with special properties:
 | **Name** | "Processing - [User Email]" | Per-user instance |
 | **Code** | "1199" | Asset subgroup (following 11xx pattern for current assets) |
 | **Normal Balance** | Debit (ideally $0) | Should self-cancel when transfers pair |
-| **Visibility** | Hidden in reports by default | Internal clearing mechanism |
+| **Visibility** | Hidden from normal account lists and standard reports; visible in dedicated Processing UI and dashboard status | Internal clearing mechanism with explicit in-transit warning |
 
 ### Transfer Detection Flow
 

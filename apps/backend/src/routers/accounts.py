@@ -27,6 +27,7 @@ from src.services import (
 )
 from src.services.processing_account import (
     find_transfer_pairs,
+    get_processing_balance,
     get_unpaired_transfers,
     list_processing_transfer_legs,
 )
@@ -96,10 +97,12 @@ async def get_processing_summary(
     debits = sum((item["amount"] for item in unpaired if item["direction"] == "OUT"), start=Decimal("0"))
     credits = sum((item["amount"] for item in unpaired if item["direction"] == "IN"), start=Decimal("0"))
     pending_total = abs(debits - credits).quantize(Decimal("0.01"))
+    current_balance = (await get_processing_balance(db, user_id)).quantize(Decimal("0.01"))
     oldest_pending_date = min((item["date"] for item in unpaired), default=None)
     return ProcessingSummaryResponse(
         pending_count=pending_count,
         pending_total=pending_total,
+        current_balance=current_balance,
         currency=settings.base_currency,
         oldest_pending_date=oldest_pending_date,
     )

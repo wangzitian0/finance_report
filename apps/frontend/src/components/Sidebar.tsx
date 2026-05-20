@@ -6,6 +6,8 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { isAmountZero } from "@/lib/currency";
+import type { ProcessingSummaryResponse } from "@/lib/types";
 import { useState, useEffect } from "react";
 import {
     LayoutDashboard,
@@ -16,6 +18,7 @@ import {
     Wallet,
     BarChart3,
     Link2,
+    Clock,
     MessageSquare,
     Zap,
     LogOut,
@@ -42,6 +45,7 @@ const navItems: NavItem[] = [
     { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
     { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
+    { icon: Clock, label: "Processing", href: "/processing", protected: true },
     { icon: MessageSquare, label: "AI Advisor", href: "/chat", protected: true },
 ];
 
@@ -52,6 +56,7 @@ export function Sidebar() {
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isAuth, setIsAuth] = useState(false);
     const [pendingReviewCount, setPendingReviewCount] = useState(0);
+    const [hasProcessingBalanceWarning, setHasProcessingBalanceWarning] = useState(false);
 
     useEffect(() => {
         setUserEmail(getUserEmail());
@@ -85,6 +90,32 @@ export function Sidebar() {
         return () => {
             window.clearInterval(refreshInterval);
             window.removeEventListener("focus", fetchPendingReviewCount);
+        };
+    }, [isAuth]);
+
+    useEffect(() => {
+        if (!isAuth) {
+            setHasProcessingBalanceWarning(false);
+            return;
+        }
+
+        const fetchProcessingSummary = async () => {
+            try {
+                const summary = await apiFetch<ProcessingSummaryResponse>("/api/accounts/processing/summary");
+                const balance = summary.current_balance ?? summary.pending_total ?? "0.00";
+                setHasProcessingBalanceWarning(!isAmountZero(balance, 0));
+            } catch {
+                setHasProcessingBalanceWarning(false);
+            }
+        };
+
+        fetchProcessingSummary();
+        const refreshInterval = window.setInterval(fetchProcessingSummary, 30000);
+        window.addEventListener("focus", fetchProcessingSummary);
+
+        return () => {
+            window.clearInterval(refreshInterval);
+            window.removeEventListener("focus", fetchProcessingSummary);
         };
     }, [isAuth]);
 
@@ -140,6 +171,7 @@ export function Sidebar() {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                     const IconComponent = item.icon;
                     const badgeCount = item.href === "/review" ? pendingReviewCount : 0;
+                    const showProcessingWarning = item.href === "/processing" && hasProcessingBalanceWarning;
                     return (
                         <Link
                             key={item.href}
@@ -156,7 +188,15 @@ export function Sidebar() {
                             title={isCollapsed ? item.label : undefined}
                             aria-label={isCollapsed ? item.label : undefined}
                         >
-                            <IconComponent className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+                            <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                                <IconComponent className="w-5 h-5" aria-hidden="true" />
+                                {showProcessingWarning && (
+                                    <span
+                                        className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--warning)] ring-2 ring-[var(--background-card)]"
+                                        aria-label="Processing Account has unresolved balance"
+                                    />
+                                )}
+                            </span>
                             {!isCollapsed && (
                                 <>
                                     <span className="font-medium">{item.label}</span>
@@ -164,6 +204,9 @@ export function Sidebar() {
                                         <span className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--warning)] px-1.5 py-0.5 text-xs font-semibold text-white">
                                             {badgeCount}
                                         </span>
+                                    )}
+                                    {showProcessingWarning && (
+                                        <span className="ml-auto h-2.5 w-2.5 rounded-full bg-[var(--warning)]" aria-hidden="true" />
                                     )}
                                 </>
                             )}
