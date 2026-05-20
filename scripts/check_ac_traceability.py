@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
+
+from ac_traceability_refs import AC_PATTERN, classify_reference_file
 
 try:
     import yaml
@@ -25,12 +27,22 @@ class AC(NamedTuple):
 
 class TraceabilityResult(NamedTuple):
     covered: list[str]
+    placeholder_only: list[str]
+    stub_only: list[str]
     missing: list[str]
     total: int
     mandatory_total: int
 
 
-AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
+@dataclass
+class ACReferenceStats:
+    real_files: set[str] = field(default_factory=set)
+    placeholder_files: set[str] = field(default_factory=set)
+    stub_files: set[str] = field(default_factory=set)
+
+    @property
+    def all_files(self) -> set[str]:
+        return self.real_files | self.placeholder_files | self.stub_files
 
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 
@@ -85,34 +97,69 @@ def find_test_files(test_dirs: list[Path]) -> list[Path]:
     return test_files
 
 
-def collect_referenced_acs(test_files: list[Path]) -> dict[str, list[str]]:
-    references: dict[str, list[str]] = {}
+def collect_referenced_acs(test_files: list[Path]) -> dict[str, ACReferenceStats]:
+    references: dict[str, ACReferenceStats] = {}
     for fpath in test_files:
         try:
             content = fpath.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
+        kind = classify_reference_file(fpath, content)
         for m in AC_PATTERN.finditer(content):
             ac_id = m.group(0)
-            references.setdefault(ac_id, []).append(str(fpath))
+            stats = references.setdefault(ac_id, ACReferenceStats())
+            if kind == "stub":
+                stats.stub_files.add(str(fpath))
+            elif kind == "placeholder":
+                stats.placeholder_files.add(str(fpath))
+            else:
+                stats.real_files.add(str(fpath))
     return references
 
 
 def check_traceability(
-    acs: list[AC], references: dict[str, list[str]]
+    acs: list[AC], references: dict[str, ACReferenceStats]
 ) -> TraceabilityResult:
     mandatory = [ac for ac in acs if ac.mandatory]
-    covered = [ac.id for ac in mandatory if ac.id in references]
-    missing = [ac.id for ac in mandatory if ac.id not in references]
+    covered = [
+        ac.id
+        for ac in mandatory
+        if references.get(ac.id) and references[ac.id].real_files
+    ]
+    placeholder_only = [
+        ac.id
+        for ac in mandatory
+        if references.get(ac.id)
+        and not references[ac.id].real_files
+        and references[ac.id].placeholder_files
+    ]
+    stub_only = [
+        ac.id
+        for ac in mandatory
+        if references.get(ac.id)
+        and not references[ac.id].real_files
+        and not references[ac.id].placeholder_files
+        and references[ac.id].stub_files
+    ]
+    missing = [
+        ac.id
+        for ac in mandatory
+        if not references.get(ac.id) or not references[ac.id].all_files
+    ]
     return TraceabilityResult(
-        covered=covered, missing=missing, total=len(acs), mandatory_total=len(mandatory)
+        covered=covered,
+        placeholder_only=placeholder_only,
+        stub_only=stub_only,
+        missing=missing,
+        total=len(acs),
+        mandatory_total=len(mandatory),
     )
 
 
 def print_report(
     result: TraceabilityResult,
     acs: list[AC],
-    references: dict[str, list[str]],
+    references: dict[str, ACReferenceStats],
     verbose: bool = False,
 ) -> None:
     ac_by_id = {ac.id: ac for ac in acs}
@@ -126,8 +173,10 @@ def print_report(
     print("AC TRACEABILITY REPORT")
     print(f"{'=' * 60}")
     print(f"Registry: {result.total} total ACs, {result.mandatory_total} mandatory")
-    print(f"Covered : {len(result.covered)} ({coverage_pct:.1f}%)")
-    print(f"Missing : {len(result.missing)}")
+    print(f"Real covered     : {len(result.covered)} ({coverage_pct:.1f}%)")
+    print(f"Placeholder-only : {len(result.placeholder_only)}")
+    print(f"Stub-only        : {len(result.stub_only)}")
+    print(f"Missing          : {len(result.missing)}")
     print(f"{'=' * 60}\n")
 
     if result.missing:
@@ -145,12 +194,12 @@ def print_report(
         print()
 
     if verbose and result.covered:
-        print("ACs WITH TEST COVERAGE:\n")
+        print("ACs WITH REAL TEST REFERENCES:\n")
         for ac_id in sorted(
             result.covered, key=lambda x: [int(p) for p in x[2:].split(".")]
         ):
             print(f"  OK {ac_id}: {ac_by_id[ac_id].description}")
-            for f in references.get(ac_id, [])[:2]:
+            for f in sorted(references.get(ac_id, ACReferenceStats()).real_files)[:2]:
                 print(f"       -> {f}")
         print()
 
@@ -223,14 +272,15 @@ def main() -> int:
     if result.missing and not args.report_only:
         print(
             f"TRACEABILITY GATE FAILED: {len(result.missing)} mandatory AC(s) have no test reference.\n"
-            f'  Add docstrings like """AC{result.missing[0]}: description""" to at least one test per AC.',
+            f'  Add docstrings like """{result.missing[0]}: description""" to at least one test per AC.',
             file=sys.stderr,
         )
         return 1
 
     if not result.missing:
         print(
-            f"TRACEABILITY GATE PASSED: all {result.mandatory_total} mandatory ACs have test coverage."
+            "TRACEABILITY GATE PASSED: all mandatory ACs have at least one "
+            "AC reference. See the report for real/stub/placeholder counts."
         )
 
     return 0

@@ -18,7 +18,7 @@ class TestAnalyzeRepo:
         (docs / "ac_registry.yaml").write_text(
             """
 version: '1.0'
-total: 4
+total: 6
 acs:
   - id: AC1.1.1
     epic: 1
@@ -44,6 +44,11 @@ acs:
     epic: 4
     epic_name: untested
     description: no real or stub reference
+    mandatory: true
+  - id: AC5.5.5
+    epic: 5
+    epic_name: frontend-placeholders
+    description: placeholder-only assertion
     mandatory: true
 """.strip()
             + "\n",
@@ -75,6 +80,12 @@ acs:
             "// AC1.1.2\n// AC18.4.4\nexport {}\n",
             encoding="utf-8",
         )
+        (frontend / "uiGapAudit.test.ts").write_text(
+            "test('AC5.5.5 and AC19.1.1 placeholders', () => {\n"
+            "  expect(true).toBe(true);\n"
+            "});\n",
+            encoding="utf-8",
+        )
         (e2e / "test_core.py").write_text(
             "# AC2.2.1\n",
             encoding="utf-8",
@@ -89,19 +100,22 @@ acs:
         )
 
     def test_analyze_repo_classifies_real_stub_invalid_and_untested(self, tmp_path: Path) -> None:
+        """AC8.13.35: Coverage analysis separates real, placeholder, and stub refs."""
         self._write_registry(tmp_path)
         self._write_tests(tmp_path)
 
         result = coverage.analyze_repo(tmp_path)
 
         assert result.source_file_counts["backend"] == 2
-        assert result.source_file_counts["frontend"] == 1
+        assert result.source_file_counts["frontend"] == 2
+        assert result.source_placeholder_ref_counts["frontend"] == 2
         assert result.source_file_counts["e2e"] == 1
         assert result.source_file_counts["repo_e2e"] == 1
 
         assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1"}
+        assert result.placeholder_only_ids == {"AC5.5.5"}
         assert result.stub_only_ids == {"AC3.3.3"}
-        assert result.untested_ids == ["AC3.3.3", "AC4.4.4"]
+        assert result.untested_ids == ["AC3.3.3", "AC4.4.4", "AC5.5.5"]
 
         assert "AC9.9.9" in result.invalid_real_refs
         assert "apps/backend/tests/test_backend_real.py" in result.invalid_real_refs["AC9.9.9"]
@@ -113,8 +127,14 @@ acs:
             "apps/backend/tests/_ac_stubs/test_placeholder.py"
             in result.invalid_stub_refs["AC8.12.7"]
         )
+        assert "AC19.1.1" in result.invalid_placeholder_refs
+        assert (
+            "apps/frontend/src/__tests__/uiGapAudit.test.ts"
+            in result.invalid_placeholder_refs["AC19.1.1"]
+        )
 
     def test_render_markdown_contains_required_sections(self, tmp_path: Path) -> None:
+        """AC8.13.35: The analysis report lists placeholder-only AC references."""
         self._write_registry(tmp_path)
         self._write_tests(tmp_path)
 
@@ -129,10 +149,13 @@ acs:
         assert "Invalid AC references (unregistered)" in report
         assert "`AC18.4.4`" in report
         assert "`AC9.9.9`" in report
+        assert "Placeholder-only AC assertions" in report
+        assert "`AC19.1.1`" in report
         assert "Stub-only AC placeholders (`_ac_stubs`)" in report
         assert "Registered ACs with no real test reference" in report
         assert "EPIC-003 (placeholders) — 1 untested" in report
         assert "EPIC-004 (untested) — 1 untested" in report
+        assert "EPIC-005 (frontend-placeholders) — 1 untested" in report
 
     def test_analyze_repo_handles_missing_duplicate_unreadable_and_external_paths(
         self,
@@ -176,7 +199,7 @@ acs:
         external_file = tmp_path.parent / "external_ac_test.py"
         assert coverage._relative(external_file, tmp_path) == str(external_file)
 
-        references, source_real_refs, source_stub_refs = coverage.collect_references(
+        references, source_real_refs, source_placeholder_refs, source_stub_refs = coverage.collect_references(
             [
                 coverage.ScanFile(source="backend", path=tmp_path / "missing.py"),
                 coverage.ScanFile(source="backend", path=external_file),
@@ -186,6 +209,7 @@ acs:
 
         assert references == {}
         assert source_real_refs == {}
+        assert source_placeholder_refs == {}
         assert source_stub_refs == {}
 
 

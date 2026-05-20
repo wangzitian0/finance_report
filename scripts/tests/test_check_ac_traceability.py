@@ -148,7 +148,7 @@ class TestCollectReferencedAcs:
         f1 = self._write_test(tmp_path, "test_a.py", "# AC1.1.1\n")
         f2 = self._write_test(tmp_path, "test_b.py", "# AC1.1.1\n")
         refs = cat.collect_referenced_acs([f1, f2])
-        assert len(refs["AC1.1.1"]) == 2
+        assert len(refs["AC1.1.1"].real_files) == 2
 
     def test_no_references_returns_empty(self, tmp_path):
         f = self._write_test(tmp_path, "test_empty.py", "def test_nothing(): pass\n")
@@ -159,6 +159,26 @@ class TestCollectReferencedAcs:
         f = self._write_test(tmp_path, "test_partial.py", "# AC1.1 is not a valid ID\n")
         refs = cat.collect_referenced_acs([f])
         assert "AC1.1" not in refs
+
+    def test_classifies_placeholder_assertion(self, tmp_path):
+        """AC8.13.35: Trivial placeholder assertions are not real AC coverage."""
+        f = self._write_test(
+            tmp_path,
+            "uiGapAudit.test.ts",
+            "test('AC1.1.1 placeholder', () => { expect(true).toBe(true); });\n",
+        )
+        refs = cat.collect_referenced_acs([f])
+        assert str(f) in refs["AC1.1.1"].placeholder_files
+        assert refs["AC1.1.1"].real_files == set()
+
+    def test_classifies_ac_stub_directory(self, tmp_path):
+        """AC8.13.35: AC stub files are tracked separately from real tests."""
+        stub_dir = tmp_path / "_ac_stubs"
+        stub_dir.mkdir()
+        f = self._write_test(stub_dir, "test_stub.py", "# AC1.1.1\ndef test_stub(): pass\n")
+        refs = cat.collect_referenced_acs([f])
+        assert str(f) in refs["AC1.1.1"].stub_files
+        assert refs["AC1.1.1"].real_files == set()
 
 
 class TestCheckTraceability:
@@ -171,7 +191,10 @@ class TestCheckTraceability:
 
     def test_all_covered(self):
         acs = [self._make_ac("AC1.1.1"), self._make_ac("AC1.1.2")]
-        refs = {"AC1.1.1": ["test_a.py"], "AC1.1.2": ["test_b.py"]}
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(real_files={"test_a.py"}),
+            "AC1.1.2": cat.ACReferenceStats(real_files={"test_b.py"}),
+        }
         result = cat.check_traceability(acs, refs)
         assert result.missing == []
         assert sorted(result.covered) == ["AC1.1.1", "AC1.1.2"]
@@ -187,14 +210,16 @@ class TestCheckTraceability:
             self._make_ac("AC1.1.1", mandatory=True),
             self._make_ac("AC1.1.2", mandatory=False),
         ]
-        refs = {"AC1.1.1": ["test_a.py"]}
+        refs = {"AC1.1.1": cat.ACReferenceStats(real_files={"test_a.py"})}
         result = cat.check_traceability(acs, refs)
         assert result.missing == []
         assert result.mandatory_total == 1
 
     def test_total_count(self):
         acs = [self._make_ac("AC1.1.1"), self._make_ac("AC1.1.2")]
-        result = cat.check_traceability(acs, {"AC1.1.1": ["f.py"]})
+        result = cat.check_traceability(
+            acs, {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})}
+        )
         assert result.total == 2
         assert result.mandatory_total == 2
 
@@ -204,11 +229,31 @@ class TestCheckTraceability:
             self._make_ac("AC1.1.2"),
             self._make_ac("AC1.1.3"),
         ]
-        refs = {"AC1.1.1": ["f.py"], "AC1.1.3": ["g.py"]}
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(real_files={"f.py"}),
+            "AC1.1.3": cat.ACReferenceStats(real_files={"g.py"}),
+        }
         result = cat.check_traceability(acs, refs)
         assert "AC1.1.2" in result.missing
         assert "AC1.1.1" in result.covered
         assert "AC1.1.3" in result.covered
+
+    def test_placeholder_and_stub_refs_do_not_count_as_real_coverage(self):
+        """AC8.13.35: Non-real AC references stay visible but uncovered."""
+        acs = [
+            self._make_ac("AC1.1.1"),
+            self._make_ac("AC1.1.2"),
+            self._make_ac("AC1.1.3"),
+        ]
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(placeholder_files={"placeholder.test.ts"}),
+            "AC1.1.2": cat.ACReferenceStats(stub_files={"_ac_stubs/test_stub.py"}),
+        }
+        result = cat.check_traceability(acs, refs)
+        assert result.covered == []
+        assert result.placeholder_only == ["AC1.1.1"]
+        assert result.stub_only == ["AC1.1.2"]
+        assert result.missing == ["AC1.1.3"]
 
 
 class TestPrintReport:
@@ -226,16 +271,26 @@ class TestPrintReport:
     def test_prints_without_error(self, capsys):
         acs = [self._make_ac("AC1.1.1")]
         result = cat.TraceabilityResult(
-            covered=["AC1.1.1"], missing=[], total=1, mandatory_total=1
+            covered=["AC1.1.1"],
+            placeholder_only=[],
+            stub_only=[],
+            missing=[],
+            total=1,
+            mandatory_total=1,
         )
-        cat.print_report(result, acs, {"AC1.1.1": ["f.py"]})
+        cat.print_report(result, acs, {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})})
         out = capsys.readouterr().out
         assert "AC TRACEABILITY REPORT" in out
 
     def test_shows_missing_acs(self, capsys):
         acs = [self._make_ac("AC1.1.1")]
         result = cat.TraceabilityResult(
-            covered=[], missing=["AC1.1.1"], total=1, mandatory_total=1
+            covered=[],
+            placeholder_only=[],
+            stub_only=[],
+            missing=["AC1.1.1"],
+            total=1,
+            mandatory_total=1,
         )
         cat.print_report(result, acs, {})
         out = capsys.readouterr().out
@@ -245,15 +300,30 @@ class TestPrintReport:
     def test_verbose_shows_covered(self, capsys):
         acs = [self._make_ac("AC1.1.1")]
         result = cat.TraceabilityResult(
-            covered=["AC1.1.1"], missing=[], total=1, mandatory_total=1
+            covered=["AC1.1.1"],
+            placeholder_only=[],
+            stub_only=[],
+            missing=[],
+            total=1,
+            mandatory_total=1,
         )
-        cat.print_report(result, acs, {"AC1.1.1": ["f.py"]}, verbose=True)
+        cat.print_report(
+            result,
+            acs,
+            {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})},
+            verbose=True,
+        )
         out = capsys.readouterr().out
         assert "OK" in out or "AC1.1.1" in out
 
     def test_zero_mandatory_no_crash(self, capsys):
         result = cat.TraceabilityResult(
-            covered=[], missing=[], total=0, mandatory_total=0
+            covered=[],
+            placeholder_only=[],
+            stub_only=[],
+            missing=[],
+            total=0,
+            mandatory_total=0,
         )
         cat.print_report(result, [], {})
         capsys.readouterr()

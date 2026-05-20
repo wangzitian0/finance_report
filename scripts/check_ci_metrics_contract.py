@@ -156,6 +156,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         for token in (
             "single CI metrics contract",
             "AC traceability is a reference metric, not behavioral coverage",
+            "trivial placeholder assertions",
             "New `apps/*/src` or `packages/*/src` source roots fail CI",
         ):
             if token not in ci_cd_text:
@@ -166,6 +167,10 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         if "not behavioral coverage" not in traceability_text:
             errors.append(
                 "AC traceability builder must state that references are not behavioral coverage"
+            )
+        if "placeholder assertions" not in traceability_text:
+            errors.append(
+                "AC traceability builder must distinguish placeholder assertions from real references"
             )
 
     return errors

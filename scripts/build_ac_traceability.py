@@ -30,9 +30,12 @@ import os
 import re
 import sys
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import NamedTuple
+
+from ac_traceability_refs import AC_PATTERN, classify_reference_file
 
 try:
     import yaml
@@ -53,10 +56,10 @@ DEFAULT_TEST_DIRS = (
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src",
     REPO_ROOT / "scripts" / "tests",
+    REPO_ROOT / "tests" / "e2e",
 )
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "project" / "archive" / "AC-TEST-TRACEABILITY-AUDIT.md"
 
-AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 
 _DATE_LINE_RE = re.compile(r"^> \*\*Generated\*\*: \d{4}-\d{2}-\d{2}")
@@ -80,6 +83,24 @@ class AC(NamedTuple):
     epic_name: str
     description: str
     mandatory: bool
+
+
+@dataclass
+class ACReferenceStats:
+    real_files: set[Path] = field(default_factory=set)
+    placeholder_files: set[Path] = field(default_factory=set)
+    stub_files: set[Path] = field(default_factory=set)
+
+    @property
+    def all_files(self) -> set[Path]:
+        return self.real_files | self.placeholder_files | self.stub_files
+
+    def files_for_report(self) -> list[tuple[str, Path]]:
+        rows: list[tuple[str, Path]] = []
+        rows.extend(("real", path) for path in sorted(self.real_files))
+        rows.extend(("placeholder", path) for path in sorted(self.placeholder_files))
+        rows.extend(("stub", path) for path in sorted(self.stub_files))
+        return rows
 
 
 # ---------------------------------------------------------------------------
@@ -138,18 +159,24 @@ def find_test_files(test_dirs: list[Path]) -> list[Path]:
     return sorted(found)
 
 
-def collect_references(test_files: list[Path]) -> dict[str, list[Path]]:
-    """Return ``{ac_id: [test_file_path, ...]}`` (each path appears at most once per AC)."""
-    refs: dict[str, set[Path]] = defaultdict(set)
+def collect_references(test_files: list[Path]) -> dict[str, ACReferenceStats]:
+    """Return reference stats keyed by AC ID."""
+    refs: dict[str, ACReferenceStats] = defaultdict(ACReferenceStats)
     for fpath in test_files:
         try:
             content = fpath.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
+        kind = classify_reference_file(fpath, content)
         for m in AC_PATTERN.finditer(content):
-            refs[m.group(0)].add(fpath)
-    # Convert to sorted lists for deterministic output.
-    return {ac_id: sorted(paths) for ac_id, paths in refs.items()}
+            stats = refs[m.group(0)]
+            if kind == "stub":
+                stats.stub_files.add(fpath)
+            elif kind == "placeholder":
+                stats.placeholder_files.add(fpath)
+            else:
+                stats.real_files.add(fpath)
+    return dict(refs)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +230,7 @@ def _slug(epic_num: int, epic_name: str) -> str:
 
 def render_document(
     acs: list[AC],
-    references: dict[str, list[Path]],
+    references: dict[str, ACReferenceStats],
     test_dirs: list[Path],
     today: str,
 ) -> str:
@@ -227,12 +254,37 @@ def render_document(
     deprecated_ids = {ac.id for ac in acs if _is_deprecated(ac)}
     mandatory_acs = [ac for ac in acs if ac.mandatory and ac.id not in deprecated_ids]
     deprecated_count = len(deprecated_ids)
-    covered_ids = {ac.id for ac in mandatory_acs if ac.id in references}
-    missing_ids = {ac.id for ac in mandatory_acs if ac.id not in references}
+    real_covered_ids = {
+        ac.id
+        for ac in mandatory_acs
+        if references.get(ac.id) and references[ac.id].real_files
+    }
+    placeholder_only_ids = {
+        ac.id
+        for ac in mandatory_acs
+        if references.get(ac.id)
+        and not references[ac.id].real_files
+        and references[ac.id].placeholder_files
+    }
+    stub_only_ids = {
+        ac.id
+        for ac in mandatory_acs
+        if references.get(ac.id)
+        and not references[ac.id].real_files
+        and not references[ac.id].placeholder_files
+        and references[ac.id].stub_files
+    }
+    missing_ids = {
+        ac.id
+        for ac in mandatory_acs
+        if not references.get(ac.id) or not references[ac.id].all_files
+    }
     manual_count = sum(1 for ac in acs if _is_manual(ac) and ac.id not in deprecated_ids)
-    test_files_referenced = sorted({p for paths in references.values() for p in paths})
+    test_files_referenced = sorted(
+        {path for stats in references.values() for path in stats.all_files}
+    )
     coverage_pct = (
-        (len(covered_ids) / len(mandatory_acs) * 100.0) if mandatory_acs else 100.0
+        (len(real_covered_ids) / len(mandatory_acs) * 100.0) if mandatory_acs else 100.0
     )
 
     lines: list[str] = []
@@ -248,8 +300,9 @@ def render_document(
         "> **Purpose**: Complete mapping of every Acceptance Criterion "
         "(`ACx.y.z`) declared in `docs/ac_registry.yaml` + "
         "`docs/infra_registry.yaml` to the test file(s) that reference it. "
-        "This is not behavioral coverage; use it together with line coverage "
-        "and product-level E2E evidence."
+        "This is not behavioral coverage; it separates real test candidates "
+        "from `_ac_stubs` and trivial placeholder assertions so product-level "
+        "E2E evidence remains the source of behavioral proof."
     )
     lines.append(
         "> **Scope**: All EPICs in `docs/project/`. Test scan: "
@@ -284,12 +337,18 @@ def render_document(
         f"{(deprecated_count / total_acs * 100.0) if total_acs else 0.0:.1f}% |"
     )
     lines.append(
-        f"| **Mandatory ACs with test reference** | {len(covered_ids)} | "
+        f"| **Mandatory ACs with real test reference** | {len(real_covered_ids)} | "
         f"{coverage_pct:.1f}% |"
     )
     lines.append(
-        f"| **Mandatory ACs without test reference** | {len(missing_ids)} | "
-        f"{(100.0 - coverage_pct):.1f}% |"
+        f"| **Mandatory ACs with only placeholder reference** | "
+        f"{len(placeholder_only_ids)} | - |"
+    )
+    lines.append(
+        f"| **Mandatory ACs with only stub reference** | {len(stub_only_ids)} | - |"
+    )
+    lines.append(
+        f"| **Mandatory ACs without any test reference** | {len(missing_ids)} | - |"
     )
     lines.append(
         f"| **Test files referenced** | {len(test_files_referenced)} | - |"
@@ -305,22 +364,28 @@ def render_document(
     lines.append("### Coverage by EPIC")
     lines.append("")
     lines.append(
-        "| EPIC | Name | Total ACs | Deprecated | Mandatory | With Test Ref | Coverage |"
+        "| EPIC | Name | Total ACs | Deprecated | Mandatory | Real Ref | Placeholder-only | Stub-only | Missing | Real Coverage |"
     )
     lines.append(
-        "|------|------|-----------|------------|-----------|---------------|----------|"
+        "|------|------|-----------|------------|-----------|----------|------------------|-----------|---------|---------------|"
     )
     for epic_num in sorted(by_epic):
         epic_acs = by_epic[epic_num]
         dep_count = sum(1 for ac in epic_acs if ac.id in deprecated_ids)
         mand = [ac for ac in epic_acs if ac.mandatory and ac.id not in deprecated_ids]
-        cov = sum(1 for ac in mand if ac.id in references)
-        pct = (cov / len(mand) * 100.0) if mand else 100.0
+        real_cov = sum(
+            1 for ac in mand if references.get(ac.id) and references[ac.id].real_files
+        )
+        placeholder_only = sum(1 for ac in mand if ac.id in placeholder_only_ids)
+        stub_only = sum(1 for ac in mand if ac.id in stub_only_ids)
+        missing = sum(1 for ac in mand if ac.id in missing_ids)
+        pct = (real_cov / len(mand) * 100.0) if mand else 100.0
         slug = _slug(epic_num, epic_names[epic_num])
         lines.append(
             f"| [EPIC-{epic_num:03d}](#{slug}) | "
             f"{_md_escape(epic_names[epic_num])} | "
-            f"{len(epic_acs)} | {dep_count} | {len(mand)} | {cov} | {pct:.1f}% |"
+            f"{len(epic_acs)} | {dep_count} | {len(mand)} | {real_cov} | "
+            f"{placeholder_only} | {stub_only} | {missing} | {pct:.1f}% |"
         )
     lines.append("")
     lines.append("---")
@@ -331,8 +396,10 @@ def render_document(
         epic_acs = by_epic[epic_num]
         dep_in_epic = sum(1 for ac in epic_acs if ac.id in deprecated_ids)
         mand = [ac for ac in epic_acs if ac.mandatory and ac.id not in deprecated_ids]
-        cov = sum(1 for ac in mand if ac.id in references)
-        pct = (cov / len(mand) * 100.0) if mand else 100.0
+        real_cov = sum(
+            1 for ac in mand if references.get(ac.id) and references[ac.id].real_files
+        )
+        pct = (real_cov / len(mand) * 100.0) if mand else 100.0
         slug = _slug(epic_num, epic_names[epic_num])
 
         lines.append(f"## 📋 EPIC-{epic_num:03d}: {epic_names[epic_num]}")
@@ -343,7 +410,19 @@ def render_document(
         if dep_in_epic:
             lines.append(f"- **Deprecated ACs**: {dep_in_epic}")
         lines.append(f"- **Mandatory ACs**: {len(mand)}")
-        lines.append(f"- **Mandatory ACs with test reference**: {cov} ({pct:.1f}%)")
+        lines.append(f"- **Mandatory ACs with real test reference**: {real_cov} ({pct:.1f}%)")
+        lines.append(
+            f"- **Mandatory ACs with only placeholder reference**: "
+            f"{sum(1 for ac in mand if ac.id in placeholder_only_ids)}"
+        )
+        lines.append(
+            f"- **Mandatory ACs with only stub reference**: "
+            f"{sum(1 for ac in mand if ac.id in stub_only_ids)}"
+        )
+        lines.append(
+            f"- **Mandatory ACs without any test reference**: "
+            f"{sum(1 for ac in mand if ac.id in missing_ids)}"
+        )
         lines.append("")
         lines.append("| AC ID | Mandatory | Description | Test References | Status |")
         lines.append("|-------|-----------|-------------|-----------------|--------|")
@@ -353,13 +432,26 @@ def render_document(
                 status = "🚫 deprecated"
                 mandatory_cell = "deprecated"
             else:
-                paths = references.get(ac.id, [])
-                if paths:
-                    refs_cell = "<br>".join(f"`{_rel(p)}`" for p in paths)
+                stats = references.get(ac.id, ACReferenceStats())
+                report_paths = stats.files_for_report()
+                if report_paths:
+                    refs_cell = "<br>".join(
+                        f"{kind}: `{_rel(path)}`" for kind, path in report_paths
+                    )
                     if ac.mandatory:
-                        status = "✅"
+                        if stats.real_files:
+                            status = "✅ real"
+                        elif stats.placeholder_files:
+                            status = "🧪 placeholder-only"
+                        else:
+                            status = "🧱 stub-only"
                     else:
-                        status = "✅ (optional)"
+                        if stats.real_files:
+                            status = "✅ real (optional)"
+                        elif stats.placeholder_files:
+                            status = "🧪 placeholder-only (optional)"
+                        else:
+                            status = "🧱 stub-only (optional)"
                 else:
                     refs_cell = "_none_"
                     if not ac.mandatory:
@@ -429,7 +521,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Directory to scan for test files (repeatable). "
-            "Defaults to apps/backend/tests + apps/frontend/src + scripts/tests."
+            "Defaults to apps/backend/tests + apps/frontend/src + scripts/tests + tests/e2e."
         ),
     )
     p.add_argument(

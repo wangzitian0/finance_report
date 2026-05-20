@@ -161,7 +161,7 @@ class TestCollectReferences:
         f = tmp_path / "test_x.py"
         f.write_text("AC1.1.1 again AC1.1.1\n")
         refs = bat.collect_references([f])
-        assert refs["AC1.1.1"].count(f) == 1
+        assert len(refs["AC1.1.1"].real_files) == 1
 
     def test_multiple_files(self, tmp_path):
         f1 = tmp_path / "test_a.py"
@@ -169,7 +169,7 @@ class TestCollectReferences:
         f1.write_text("AC1.1.1")
         f2.write_text("AC1.1.1")
         refs = bat.collect_references([f1, f2])
-        assert len(refs["AC1.1.1"]) == 2
+        assert len(refs["AC1.1.1"].real_files) == 2
 
     def test_unreadable_file_skipped(self, tmp_path):
         f = tmp_path / "test_x.py"
@@ -177,6 +177,20 @@ class TestCollectReferences:
         with mock.patch.object(Path, "read_text", side_effect=OSError("no access")):
             refs = bat.collect_references([f])
         assert refs == {}
+
+    def test_classifies_placeholder_and_stub_references(self, tmp_path):
+        """AC8.13.35: The audit builder separates placeholder and stub references."""
+        placeholder = tmp_path / "gap.test.ts"
+        placeholder.write_text("test('AC1.1.1', () => expect(true).toBe(true));\n")
+        stub_dir = tmp_path / "_ac_stubs"
+        stub_dir.mkdir()
+        stub = stub_dir / "test_stub.py"
+        stub.write_text("# AC2.1.1\ndef test_stub(): pass\n")
+
+        refs = bat.collect_references([placeholder, stub])
+
+        assert refs["AC1.1.1"].placeholder_files == {placeholder}
+        assert refs["AC2.1.1"].stub_files == {stub}
 
 
 class TestHelpers:
@@ -292,9 +306,9 @@ class TestRenderDocument:
         acs = self._make_acs()
         f = tmp_path / "test_x.py"
         f.touch()
-        refs = {"AC1.1.1": [f]}
+        refs = {"AC1.1.1": bat.ACReferenceStats(real_files={f})}
         rendered = bat.render_document(acs, refs, [tmp_path], "2024-01-01")
-        assert "✅" in rendered
+        assert "✅ real" in rendered
 
     def test_missing_mandatory_shows_missing(self, tmp_path):
         acs = self._make_acs()
@@ -315,9 +329,35 @@ class TestRenderDocument:
         acs = [bat.AC("AC1.1.2", 1, "x", "optional feature", False)]
         f = tmp_path / "test_x.py"
         f.touch()
-        refs = {"AC1.1.2": [f]}
+        refs = {"AC1.1.2": bat.ACReferenceStats(real_files={f})}
         rendered = bat.render_document(acs, refs, [tmp_path], "2024-01-01")
-        assert "✅ (optional)" in rendered
+        assert "✅ real (optional)" in rendered
+
+    def test_placeholder_and_stub_statuses_are_not_real_coverage(self, tmp_path):
+        """AC8.13.35: Audit output reports fake references without counting coverage."""
+        acs = [
+            bat.AC("AC1.1.1", 1, "x", "placeholder AC", True),
+            bat.AC("AC1.1.2", 1, "x", "stub AC", True),
+        ]
+        rendered = bat.render_document(
+            acs,
+            {
+                "AC1.1.1": bat.ACReferenceStats(
+                    placeholder_files={tmp_path / "gap.test.ts"}
+                ),
+                "AC1.1.2": bat.ACReferenceStats(
+                    stub_files={tmp_path / "_ac_stubs" / "test_stub.py"}
+                ),
+            },
+            [tmp_path],
+            "2024-01-01",
+        )
+
+        assert "| **Mandatory ACs with real test reference** | 0 | 0.0% |" in rendered
+        assert "| **Mandatory ACs with only placeholder reference** | 1 | - |" in rendered
+        assert "| **Mandatory ACs with only stub reference** | 1 | - |" in rendered
+        assert "🧪 placeholder-only" in rendered
+        assert "🧱 stub-only" in rendered
 
     def test_deprecated_ac_shows_deprecated_status(self, tmp_path):
         acs = [bat.AC("AC12.24.1", 12, "x", "~~deprecated feature~~", True)]
@@ -334,7 +374,12 @@ class TestRenderDocument:
             bat.AC("AC1.1.1", 1, "x", "normal AC", True),
             bat.AC("AC12.24.1", 12, "x", "~~deprecated~~", True),
         ]
-        rendered = bat.render_document(acs, {"AC1.1.1": [tmp_path / "test_x.py"]}, [tmp_path], "2024-01-01")
+        rendered = bat.render_document(
+            acs,
+            {"AC1.1.1": bat.ACReferenceStats(real_files={tmp_path / "test_x.py"})},
+            [tmp_path],
+            "2024-01-01",
+        )
         # Only 1 mandatory AC (the non-deprecated one), covered 1
         assert "| **Mandatory ACs** | 1 |" in rendered
 
