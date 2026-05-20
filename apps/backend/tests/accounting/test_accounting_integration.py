@@ -498,7 +498,7 @@ async def test_create_journal_entry_custom_source_type(db: AsyncSession, bank_ac
         source_id=source_id,
     )
 
-    assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
+    assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert entry.source_id == source_id
     await db.commit()
 

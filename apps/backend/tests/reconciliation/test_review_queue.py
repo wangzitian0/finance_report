@@ -209,7 +209,7 @@ async def test_accept_match_creates_missing_journal_entry(db, test_user):
     assert len(result.journal_entry_ids) == 1
     entry = await db.get(JournalEntry, UUID(result.journal_entry_ids[0]))
     assert entry is not None
-    assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
+    assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
     assert entry.source_id == txn.id
     assert entry.status == JournalEntryStatus.RECONCILED
 

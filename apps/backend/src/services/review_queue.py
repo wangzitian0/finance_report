@@ -27,6 +27,11 @@ from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.services.accounting import ValidationError, validate_journal_balance
 from src.services.reconciliation import entry_total_amount
+from src.services.source_type_priority import (
+    STATEMENT_SOURCE_TYPES,
+    normalize_source_type,
+    promote_entry_source_type,
+)
 
 
 async def get_pending_items(
@@ -91,7 +96,7 @@ async def accept_match(
         existing_entry_result = await db.execute(
             select(JournalEntry)
             .where(JournalEntry.user_id == user_id)
-            .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+            .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
             .where(JournalEntry.source_id == txn.id)
             .where(JournalEntry.status != JournalEntryStatus.VOID)
             .limit(1)
@@ -138,6 +143,7 @@ async def accept_match(
         for entry in result.scalars():
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
+                promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
 
     await db.flush()
     return match
@@ -260,6 +266,7 @@ async def create_entry_from_txn(
     *,
     user_id: UUID,
     auto_post: bool = False,
+    source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: BankStatement | None = None,
     preloaded_bank_account: Account | None = None,
 ) -> JournalEntry:
@@ -393,7 +400,7 @@ async def create_entry_from_txn(
         user_id=user_id,
         entry_date=txn.txn_date,
         memo=txn.description,
-        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        source_type=normalize_source_type(source_type),
         source_id=txn.id,
         status=JournalEntryStatus.POSTED if auto_post else JournalEntryStatus.DRAFT,
     )

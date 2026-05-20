@@ -18,6 +18,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.services.source_type_priority import normalize_source_type
 
 
 class AccountingError(Exception):
@@ -232,7 +233,7 @@ async def create_journal_entry(
         user_id=user_id,
         entry_date=entry_date,
         memo=memo,
-        source_type=source_type,
+        source_type=normalize_source_type(source_type),
         source_id=source_id,
     )
     db.add(entry)

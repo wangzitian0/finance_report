@@ -10,7 +10,6 @@ from src.models import (
     BankStatement,
     BankStatementTransaction,
     JournalEntry,
-    JournalEntrySourceType,
     JournalEntryStatus,
 )
 from src.models.consistency_check import CheckStatus, CheckType
@@ -32,6 +31,7 @@ from src.services.consistency_checks import (
     run_all_consistency_checks,
 )
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
+from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.utils import raise_not_found
 
 router = APIRouter(prefix="/statements", tags=["review"])
@@ -173,7 +173,7 @@ async def batch_approve_matches(
             existing_entry_result = await db.execute(
                 select(JournalEntry.id)
                 .where(JournalEntry.user_id == user_id)
-                .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+                .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
                 .where(JournalEntry.source_id == match.bank_txn_id)
                 .where(JournalEntry.status != JournalEntryStatus.VOID)
                 .limit(1)

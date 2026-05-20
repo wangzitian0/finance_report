@@ -42,6 +42,7 @@ from src.services import (
     statement_validation as statement_validation_mod,
 )
 from src.services.review_queue import create_entry_from_txn
+from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_parsing import handle_parse_failure
 
 pytestmark = pytest.mark.asyncio
@@ -1347,17 +1348,14 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     entries_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id.in_(txn_ids))
         .options(selectinload(JournalEntry.lines))
     )
     entries = entries_result.scalars().all()
     assert len(entries) == 2
     assert all(entry.status == JournalEntryStatus.POSTED for entry in entries)
-    assert all(
-        any(line.account_id == bank_account_id for line in entry.lines)
-        for entry in entries
-    )
+    assert all(any(line.account_id == bank_account_id for line in entry.lines) for entry in entries)
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
@@ -1407,7 +1405,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn_id)
         .options(selectinload(JournalEntry.lines))
     )
@@ -1446,7 +1444,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
     )
     assert entry_result.scalars().all() == []
 
@@ -1570,7 +1568,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn_id)
         .options(selectinload(JournalEntry.lines))
     )
@@ -1679,7 +1677,7 @@ async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, te
     generated_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn.id)
     )
     assert generated_result.scalar_one_or_none() is None
@@ -1730,7 +1728,7 @@ async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(
     generated_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn.id)
     )
     generated = generated_result.scalar_one_or_none()
@@ -2330,7 +2328,7 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn.id)
     )
     entries = list(entry_result.scalars().all())
@@ -2351,7 +2349,7 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     second_entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn.id)
     )
     assert len(list(second_entry_result.scalars().all())) == 1
@@ -2407,7 +2405,7 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn.id)
     )
     assert len(list(entry_result.scalars().all())) == 1

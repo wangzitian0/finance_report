@@ -203,12 +203,12 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.10.1 | Source type stamped on manual entry creation | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC13.10.2 | Auto-match sets source_type=auto_matched | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC13.10.3 | Stage-1 approve promotes to user_confirmed | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC13.10.4 | Manual entry wins over auto_parsed in conflict | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC13.10.5 | source_type cannot be downgraded | `TBD` | `TBD (test to be implemented)` | P1 |
-| AC13.10.6 | All four source_type values accepted by API | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC13.10.1 | Source type stamped on manual entry creation | `test_source_type_stamped_on_create` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
+| AC13.10.2 | Auto-match sets source_type=auto_matched | `test_auto_match_sets_source_type` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
+| AC13.10.3 | Stage-1 approve promotes to user_confirmed | `test_stage1_approve_promotes_source_type` | `apps/backend/tests/extraction/test_source_type_promotion.py` | P0 |
+| AC13.10.4 | Manual entry wins over auto_parsed in conflict | `test_manual_wins_conflict_resolution` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
+| AC13.10.5 | source_type cannot be downgraded | `test_source_type_no_downgrade` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |
+| AC13.10.6 | All four source_type values accepted by API | `test_all_four_source_type_values_accepted_by_api` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |
 
 ---
 
@@ -216,7 +216,7 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 The following item was identified during the vision.md recovery audit as a feature designed in vision but not yet tracked in this EPIC:
 
-- **source_type Priority Logic** — Conflict resolution when multiple sources (bank_statement, manual, ai_extracted, csv_import) report different values for the same transaction. Higher-priority sources override lower-priority ones per vision.md Decision 6. Requires extending the confidence scoring framework with source-aware weighting. Tracked in [project README TODO](./README.md).
+- **source_type Priority Logic** — Implemented for journal entries in #395. Remaining future source types such as CSV import should map into the same hierarchy instead of adding a parallel priority system.
 
 ## 🗄️ Archive Integration Notes
 

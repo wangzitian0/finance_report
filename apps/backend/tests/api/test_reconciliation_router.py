@@ -35,12 +35,12 @@ from src.models import (
     BankStatementTransaction,
     BankStatementTransactionStatus,
     JournalEntry,
-    JournalEntrySourceType,
     ReconciliationMatch,
     ReconciliationStatus,
     User,
 )
 from src.schemas.reconciliation import ReconciliationStatusEnum
+from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
 
 def create_test_statement(db, user: User, **kwargs):
@@ -431,7 +431,7 @@ class TestReconciliationEndpoints:
         entries_result = await db.execute(
             select(JournalEntry)
             .where(JournalEntry.user_id == test_user.id)
-            .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+            .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
             .where(JournalEntry.source_id == transaction.id)
         )
         entries = entries_result.scalars().all()
@@ -454,9 +454,7 @@ class TestReconciliationEndpoints:
         data = response.json()
         assert data["created_count"] == 2
 
-        entries_result = await db.execute(
-            select(JournalEntry).where(JournalEntry.source_id.in_([txn1.id, txn2.id]))
-        )
+        entries_result = await db.execute(select(JournalEntry).where(JournalEntry.source_id.in_([txn1.id, txn2.id])))
         entries = entries_result.scalars().all()
         assert len(entries) == 2
 
@@ -467,7 +465,9 @@ class TestReconciliationEndpoints:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "txn_ids" in response.json()["detail"]
 
-    async def test_batch_create_entries_all_respects_max_limit(self, client: AsyncClient, db, test_user: User, monkeypatch):
+    async def test_batch_create_entries_all_respects_max_limit(
+        self, client: AsyncClient, db, test_user: User, monkeypatch
+    ):
         """all=True batch create should reject oversized unmatched sets."""
         from src.routers import reconciliation as reconciliation_router
 

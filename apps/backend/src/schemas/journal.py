@@ -5,11 +5,12 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.models.journal import Direction, JournalEntrySourceType, JournalEntryStatus
 from src.schemas.base import BaseResponse, ListResponse
 from src.services.confidence_tier import ConfidenceTier
+from src.services.source_type_priority import normalize_source_type
 
 
 class JournalLineBase(BaseModel):
@@ -46,6 +47,12 @@ class JournalEntryBase(BaseModel):
     memo: Annotated[str, Field(min_length=1, max_length=500)]
     source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL
     source_id: UUID | None = None
+
+    @field_validator("source_type", mode="before")
+    @classmethod
+    def normalize_source_type(cls, value: JournalEntrySourceType | str | None) -> JournalEntrySourceType:
+        """Normalize deprecated legacy source types on API input."""
+        return normalize_source_type(value)
 
 
 class JournalEntryCreate(JournalEntryBase):
