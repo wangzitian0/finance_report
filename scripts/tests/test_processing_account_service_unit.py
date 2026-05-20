@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -24,12 +25,48 @@ from src.models import (  # noqa: E402
     JournalEntryStatus,
     JournalLine,
 )
-from src.services.processing_account import (  # noqa: E402
-    _calculate_pair_confidence,
-    find_transfer_pairs,
-    get_processing_balance,
-    list_processing_transfer_legs,
-)
+
+
+def _load_processing_account_module():
+    """Load the target module without importing src.services package exports."""
+    previous_services = sys.modules.get("src.services")
+    previous_account_service = sys.modules.get("src.services.account_service")
+
+    services_package = ModuleType("src.services")
+    services_package.__path__ = []  # type: ignore[attr-defined]
+    account_service_module = ModuleType("src.services.account_service")
+    account_service_module.get_or_create_processing_account = AsyncMock()
+
+    sys.modules["src.services"] = services_package
+    sys.modules["src.services.account_service"] = account_service_module
+
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_processing_account_under_test",
+            REPO_ROOT / "apps" / "backend" / "src" / "services" / "processing_account.py",
+        )
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        if previous_services is None:
+            sys.modules.pop("src.services", None)
+        else:
+            sys.modules["src.services"] = previous_services
+        if previous_account_service is None:
+            sys.modules.pop("src.services.account_service", None)
+        else:
+            sys.modules["src.services.account_service"] = previous_account_service
+
+
+processing_account_module = _load_processing_account_module()
+_calculate_pair_confidence = processing_account_module._calculate_pair_confidence
+find_transfer_pairs = processing_account_module.find_transfer_pairs
+get_processing_balance = processing_account_module.get_processing_balance
+list_processing_transfer_legs = processing_account_module.list_processing_transfer_legs
 
 
 class _ScalarUniqueResult:
@@ -119,8 +156,9 @@ async def test_find_transfer_pairs_delayed_transfer_auto_pairs() -> None:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_ScalarUniqueResult([out_entry, in_entry]))
 
-    with patch(
-        "src.services.processing_account.get_or_create_processing_account",
+    with patch.object(
+        processing_account_module,
+        "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
         pairs = await find_transfer_pairs(db, user_id, threshold=85)
@@ -162,8 +200,9 @@ async def test_find_transfer_pairs_keeps_partial_match_in_review_band() -> None:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_ScalarUniqueResult([out_entry, in_entry]))
 
-    with patch(
-        "src.services.processing_account.get_or_create_processing_account",
+    with patch.object(
+        processing_account_module,
+        "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
         review_pairs = await find_transfer_pairs(db, user_id, threshold=60)
@@ -207,8 +246,9 @@ async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_ScalarUniqueResult([out_entry, in_entry]))
 
-    with patch(
-        "src.services.processing_account.get_or_create_processing_account",
+    with patch.object(
+        processing_account_module,
+        "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
         pairs = await find_transfer_pairs(db, user_id, threshold=60)
@@ -226,8 +266,9 @@ async def test_processing_balance_uses_decimal_net_balance() -> None:
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_ScalarUniqueResult([debit_line, credit_line]))
 
-    with patch(
-        "src.services.processing_account.get_or_create_processing_account",
+    with patch.object(
+        processing_account_module,
+        "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
         balance = await get_processing_balance(db, uuid4())
@@ -266,8 +307,9 @@ async def test_list_processing_transfer_legs_keeps_unpaired_status_visible() -> 
     db = AsyncMock()
     db.execute = AsyncMock(return_value=_ScalarUniqueResult([out_entry, in_entry]))
 
-    with patch(
-        "src.services.processing_account.get_or_create_processing_account",
+    with patch.object(
+        processing_account_module,
+        "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
         legs = await list_processing_transfer_legs(db, user_id)
