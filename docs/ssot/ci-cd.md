@@ -35,7 +35,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. CI does not fail solely because the checked-in archive copy is stale.
-5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, so asynchronous Coveralls regressions are blocked before merge.
+5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, and `main` pushes use the same gate before post-merge staging, so asynchronous Coveralls regressions are blocked before merge and before staging. A terminal external failure is re-polled once before CI fails; confirmed coverage decreases, errors, and missing statuses still fail closed.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
 8. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
@@ -51,8 +51,11 @@ already ran required checks. The retained post-merge run provides three signals
 that PR checks cannot fully replace: validation of the exact merge commit,
 Coveralls status from `main`, and a final gate before post-merge staging/AI
 workflows consume the new commit. The same `Coveralls - unified` status gate runs
-on PR and `main`, so the post-merge lane should not be the first place an
-external unified coverage decrease is observed.
+on PR and `main`, so the post-merge lane should not be the first place a
+confirmed external unified coverage decrease is observed. The gate re-checks a
+terminal external failure before failing to reduce unexpected failures from
+transient external status flips without weakening confirmed coverage-decrease
+detection.
 
 Lightweight changes do not repeat the heavy path on either PRs or `main`.
 Lightweight means all changed files are limited to documentation, markdown,
@@ -136,8 +139,13 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coverage reports merged post-run
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
-- CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports `failure`, `error`, or never appears before timeout.
+- CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports a confirmed `failure`/`error`, or never appears before timeout.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
+
+**Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
+- This file is a historical/manual snapshot, not the current CI source of truth.
+- Routine PRs should not refresh it solely because ACs or test references changed; the current audit is generated in CI and uploaded as the `ac-test-traceability-audit` artifact.
+- Refresh the checked-in archive only for an intentional documentation snapshot/release, otherwise it creates unnecessary merge conflicts across parallel PRs.
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.

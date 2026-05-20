@@ -136,6 +136,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
             "scripts/wait_for_github_status.py",
             '--context "Coveralls - unified"',
+            "--failure-confirmation-seconds",
         )
         for token in required_workflow_tokens:
             if token not in workflow_text:

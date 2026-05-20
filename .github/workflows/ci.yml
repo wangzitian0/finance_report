@@ -328,7 +328,8 @@ jobs:
             --sha "${{ github.sha }}" \
             --context "Coveralls - unified" \
             --timeout-seconds 300 \
-            --poll-seconds 10
+            --poll-seconds 10 \
+            --failure-confirmation-seconds 30
 
       - name: Upload backend to Coveralls (per-flag)
         uses: coverallsapp/github-action@v2
