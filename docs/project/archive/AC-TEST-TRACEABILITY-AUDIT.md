@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-19 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-20 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 939 | 100% |
-| **Mandatory ACs** | 779 | 83.0% |
+| **Total ACs (registries)** | 948 | 100% |
+| **Mandatory ACs** | 788 | 83.1% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 779 | 100.0% |
+| **Mandatory ACs with test reference** | 788 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 186 | - |
+| **Test files referenced** | 191 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 73 | 0 | 67 | 67 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 77 | 0 | 71 | 71 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -41,7 +41,7 @@
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 213 | 0 | 189 | 189 | 100.0% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 74 | 0 | 31 | 31 | 100.0% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 79 | 0 | 36 | 36 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
 ---
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 73
-- **Mandatory ACs**: 67
-- **Mandatory ACs with test reference**: 67 (100.0%)
+- **Total ACs**: 77
+- **Mandatory ACs**: 71
+- **Mandatory ACs with test reference**: 71 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -524,6 +524,10 @@
 | AC8.13.15 | yes | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `scripts/tests/test_build_unified_lcov.py`<br>`scripts/tests/test_coverage_policy.py`<br>`scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ |
 | AC8.13.16 | yes | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | `scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.18 | yes | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets. | `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | ✅ |
+| AC8.13.19 | yes | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnos | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.20 | yes | CI change classification is covered by multi-commit and markdown edge-case regression tests. | `scripts/tests/test_ci_change_classifier.py` | ✅ |
+| AC8.13.21 | yes | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 
@@ -1032,19 +1036,19 @@
 | AC16.16.6 | yes | Journal page filters entries by status and renders totals | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/journalPage.test.tsx` | ✅ |
 | AC16.16.7 | yes | Journal page draft actions post and delete entries with API calls | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/journalPage.test.tsx` | ✅ |
 | AC16.16.8 | yes | Journal page void flow submits reason and refreshes entries | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/journalPage.test.tsx` | ✅ |
-| AC16.17.1 | yes | Stage 2 review queue shows failure fallback and supports retry | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
-| AC16.17.2 | yes | Stage 2 review queue indicates unresolved checks and disables batch approval | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
-| AC16.17.3 | yes | Stage 2 review queue performs batch reject and approve API workflows | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
-| AC16.17.4 | yes | Stage 2 review queue resolves consistency checks through dialog actions | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
+| AC16.17.1 | yes | Stage 2 review queue shows failure fallback and supports retry | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | ✅ |
+| AC16.17.2 | yes | Stage 2 review queue indicates unresolved checks and disables batch approval | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | ✅ |
+| AC16.17.3 | yes | Stage 2 review queue performs batch reject and approve API workflows | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | ✅ |
+| AC16.17.4 | yes | Stage 2 review queue resolves consistency checks through dialog actions | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | ✅ |
 | AC16.17.5 | yes | Root layout composes Providers and AuthGuard around children | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/rootLayout.test.tsx` | ✅ |
 | AC16.17.6 | yes | Providers wraps children with QueryClientProvider | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/providers.test.tsx` | ✅ |
 | AC16.17.7 | yes | API catch-all handlers return JSON 503 for all HTTP methods | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/apiCatchAllRoute.test.ts` | ✅ |
 | AC16.18.1 | yes | Statement detail page loads statement data and renders parsed transactions summary | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/backend/tests/api/test_statements_router.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
 | AC16.18.2 | yes | Statement detail page approve and reject actions call corresponding APIs | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
 | AC16.18.3 | yes | Statement detail page retry action posts retry API and refreshes data | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementDetailPage.test.tsx` | ✅ |
-| AC16.18.4 | yes | Statement review page shows error fallback and supports retry | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
-| AC16.18.5 | yes | Statement review page disables approve when balance validation fails | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
-| AC16.18.6 | yes | Statement review page approve and reject actions call APIs and navigate back to statements | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
+| AC16.18.4 | yes | Statement review page shows error fallback and supports retry | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | ✅ |
+| AC16.18.5 | yes | Statement review page disables approve when balance validation fails | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | ✅ |
+| AC16.18.6 | yes | Statement review page approve and reject actions call APIs and navigate back to statements | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | ✅ |
 | AC16.19.1 | yes | App shell renders workspace providers and main content with collapse-aware layout | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/shellAndAuth.test.tsx` | ✅ |
 | AC16.19.2 | yes | Auth guard redirects unauthenticated protected routes and allows public routes | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/shellAndAuth.test.tsx` | ✅ |
 | AC16.19.3 | yes | Sidebar shows auth-aware actions and logout triggers clearUser plus login redirect | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | ✅ |
@@ -1087,7 +1091,7 @@
 | AC16.22.6 | yes | All service methods mutating pending_review enforce user_id ownership | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ |
 | AC16.23.1 | yes | Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
 | AC16.23.2 | yes | TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
-| AC16.23.3 | yes | Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/assetsPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
+| AC16.23.3 | yes | Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/assetsPage.test.tsx`<br>`apps/frontend/src/__tests__/statementReviewPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
 | AC16.23.4 | yes | Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string for shareable links | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/assetsPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
 | AC16.23.5 | yes | Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/reportsPage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
 | AC16.23.6 | yes | Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>`apps/frontend/src/__tests__/epic016Components.test.tsx`<br>`apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`<br>`apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts` | ✅ |
@@ -1101,9 +1105,9 @@
 
 <a id="epic-017-portfolio-management"></a>
 
-- **Total ACs**: 74
-- **Mandatory ACs**: 31
-- **Mandatory ACs with test reference**: 31 (100.0%)
+- **Total ACs**: 79
+- **Mandatory ACs**: 36
+- **Mandatory ACs with test reference**: 36 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1181,6 +1185,11 @@
 | AC17.7.4 | yes | Realized P&L tab shows lot-level table {lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_ | `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts` | ✅ |
 | AC17.7.5 | yes | Portfolio summary card on dashboard adds realized_pnl_ytd and dividend_income_ytd figures from GET /api/portfolio/summar | `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts` | ✅ |
 | AC17.7.6 | yes | Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render | `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py`<br>`apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts` | ✅ |
+| AC17.8.1 | yes | Import to Portfolio button visible for parsed/approved statements | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.8.2 | yes | Import result banner with stats and portfolio link shown on success | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.8.3 | yes | Import failure shows actionable error without sensitive data | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
+| AC17.8.4 | yes | Portfolio page shows total portfolio value prominently after import | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | ✅ |
+| AC17.8.5 | yes | Import button hidden for non-parsed/approved statements (partial batch) | `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ |
 
 ---
 

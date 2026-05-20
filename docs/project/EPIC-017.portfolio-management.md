@@ -289,8 +289,18 @@ Build a **100% self-developed** investment portfolio management system with comp
 | AC17.6.1 | Full Buy/Sell Cycle | `TBD` | `TBD (test to be implemented)` | P0 |
 | AC17.6.2 | Dividend Accrual to Income | `TBD` | `TBD (test to be implemented)` | P0 |
 
+### AC17.8: Brokerage Import Completion UI
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.8.1 | Import to Portfolio button visible for parsed/approved statements | `AC17.8.1 shows Import to Portfolio button for parsed statement` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
+| AC17.8.2 | Import result banner with stats and portfolio link shown on success | `AC17.8.2 shows import result banner and portfolio link on success` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
+| AC17.8.3 | Import failure shows actionable error without sensitive data | `AC17.8.3 shows actionable import error banner without exposing sensitive data` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
+| AC17.8.4 | Portfolio page shows total portfolio value prominently after import | `AC17.8.4 shows total portfolio value banner when active holdings are loaded` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
+| AC17.8.5 | Import button hidden for non-parsed/approved statements (partial batch) | `AC17.8.5 does not show Import to Portfolio for non-parsed statements` | `frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 22
+- Total AC IDs: 27
 - Requirements converted to AC IDs: 100% (EPIC-017 Must Have checklist)
 - Requirements with test references: 100% (some TBD — tests to be implemented)
 - Test files: 3 implemented (`test_portfolio_service.py`, `test_performance_service.py`, `test_allocation_service.py`); 3 TBD (`test_cost_basis_methods.py`, `test_brokerage_parsing.py`, integration tests)

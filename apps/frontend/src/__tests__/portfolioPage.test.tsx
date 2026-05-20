@@ -171,4 +171,26 @@ describe("PortfolioPage", () => {
     const link = screen.getByText("Update Prices").closest("a")
     expect(link).toHaveAttribute("href", "/portfolio/prices")
   })
+
+  it("AC17.8.4 shows total portfolio value banner when active holdings are loaded", async () => {
+    mockedApiFetch.mockResolvedValue([mockHolding])
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByTestId("total-portfolio-value")).toBeInTheDocument(),
+    )
+    expect(screen.getByText("Total Portfolio Value")).toBeInTheDocument()
+    // mockHolding.market_value = "1800.00" with currency "USD"
+    expect(screen.getByTestId("total-portfolio-value")).toHaveTextContent("1,800")
+  })
+
+  it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {
+    mockedApiFetch.mockResolvedValue([])
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("No holdings found")).toBeInTheDocument())
+    expect(screen.queryByTestId("total-portfolio-value")).not.toBeInTheDocument()
+  })
 })

@@ -3,7 +3,8 @@
 # Triggers: Push to main branch
 # Actions: Build images → Deploy to staging → Smoke test
 #
-# Staging tracks the latest main branch commit.
+# Staging validates post-merge commits serially and keeps only the latest
+# pending run when pushes arrive faster than the singleton environment can run.
 # Data is persisted between deployments.
 
 name: Deploy Staging
@@ -15,7 +16,7 @@ on:
 
 concurrency:
   group: staging-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io

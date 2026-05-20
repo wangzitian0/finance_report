@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -42,57 +42,10 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed-files.txt
           fi
 
-          python - <<'PY'
-          from pathlib import Path
-          import os
-
-          files = [line.strip() for line in Path("changed-files.txt").read_text().splitlines() if line.strip()]
-
-          lightweight_exact = {
-              "AGENTS.md",
-              "README.md",
-              "vision.md",
-              ".github/copilot-instructions.md",
-              ".github/workflows/docs.yml",
-          }
-          lightweight_prefixes = (
-              "docs/",
-              ".github/ISSUE_TEMPLATE/",
-          )
-
-          def is_lightweight(path: str) -> bool:
-              if path in lightweight_exact:
-                  return True
-              if path.endswith(".md"):
-                  return True
-              return path.startswith(lightweight_prefixes)
-
-          heavy_files = [path for path in files if not is_lightweight(path)]
-          heavy_required = bool(heavy_files or not files)
-          reason = (
-              "runtime-or-ci-paths-changed"
-              if heavy_files
-              else "no-changed-files-detected"
-              if not files
-              else "lightweight-docs-or-docs-workflow-only"
-          )
-
-          output = Path(os.environ["GITHUB_OUTPUT"])
-          with output.open("a") as fh:
-              fh.write(f"heavy_required={str(heavy_required).lower()}\n")
-              fh.write(f"reason={reason}\n")
-
-          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
-          with summary.open("a") as fh:
-              fh.write("## Change Classification\n\n")
-              fh.write(f"- Heavy CI required: `{str(heavy_required).lower()}`\n")
-              fh.write(f"- Reason: `{reason}`\n")
-              fh.write(f"- Changed files: `{len(files)}`\n")
-              if heavy_files:
-                  fh.write("\nHeavy-triggering files:\n\n")
-                  for path in heavy_files[:50]:
-                      fh.write(f"- `{path}`\n")
-          PY
+          python scripts/ci_change_classifier.py \
+            --changed-files changed-files.txt \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
 
   lint:
     name: Lint

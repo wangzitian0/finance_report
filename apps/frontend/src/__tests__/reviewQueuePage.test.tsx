@@ -1,89 +1,266 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import { apiFetch } from "@/lib/api";
+
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
+
+const replaceMock = vi.fn();
+const pushMock = vi.fn();
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("next/navigation", () => ({
-    useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
-    useSearchParams: vi.fn(() => ({ get: () => null })),
-    usePathname: vi.fn(() => "/"),
+    useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
+    useSearchParams: vi.fn(() => new URLSearchParams()),
+    usePathname: vi.fn(() => "/reconciliation/review-queue"),
 }));
 
 const mockedApi = vi.mocked(apiFetch);
+
+const queueData = {
+    pending_matches: [
+        {
+            id: "m1",
+            match_score: 88,
+            status: "pending_review",
+            created_at: "2024-01-03T00:00:00Z",
+            description: "Transfer",
+            amount: 20,
+            txn_date: "2024-01-03",
+        },
+    ],
+    consistency_checks: [],
+    has_unresolved_checks: false,
+};
+
+const duplicateCheck = {
+    id: "c1",
+    check_type: "duplicate",
+    status: "pending",
+    related_txn_ids: [],
+    details: { message: "Duplicate transfer" },
+    severity: "high",
+    resolved_at: null,
+    resolution_note: null,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+};
 
 describe("ReviewQueuePage interactive flows", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    it("shows unresolved checks banner and disables Approve when unresolved", async () => {
-        const data = {
-            pending_matches: [{ id: 'm1', match_score: 90, status: 'pending', amount: 10, txn_date: '2024-01-02' }],
-            consistency_checks: [{ id: 'c1', check_type: 'duplicate', status: 'pending', related_txn_ids: [], details: { message: 'dup' }, severity: 'high', resolved_at: null, resolution_note: null, created_at: '2024-01-01', updated_at: '2024-01-01' }],
-            has_unresolved_checks: true,
-        };
+    it("AC16.17.1 shows loading feedback while the Stage 2 queue is pending", () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/stage2/queue") {
+                return new Promise(() => undefined) as Promise<never>;
+            }
 
-        // initial queue fetch
-        mockedApi.mockResolvedValueOnce(data);
-        // filtered checks
-        mockedApi.mockResolvedValueOnce({ items: data.consistency_checks });
+            return Promise.resolve({ items: [] });
+        });
 
-        renderReviewComponent(<ReviewQueuePage /> as any);
+        renderReviewComponent(<ReviewQueuePage /> as never);
 
-        expect(await screen.findByText('Unresolved consistency checks block batch approval')).toBeInTheDocument();
-
-        // After load, Approve button should be disabled due to unresolved checks
-        const approve = await screen.findByRole('button', { name: /Approve Selected/ });
-        expect(approve).toBeDisabled();
+        expect(screen.getByText("Loading review queue...")).toBeInTheDocument();
     });
 
-    it("selects and approves matches when resolved checks and shows toast result", async () => {
-        const data = {
-            pending_matches: [
-                { id: 'm2', match_score: 88, status: 'pending', amount: 20, txn_date: '2024-01-03', description: 'match' },
-            ],
-            consistency_checks: [],
-            has_unresolved_checks: false,
-        };
+    it("AC16.17.1 shows an error fallback and retries the Stage 2 queue fetch", async () => {
+        let queueAttempts = 0;
 
-        // queue
-        mockedApi.mockResolvedValueOnce(data);
-        // filtered checks
-        mockedApi.mockResolvedValueOnce({ items: [] });
-        // batch approve response
-        mockedApi.mockResolvedValueOnce({ success: true, approved_count: 1 });
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/stage2/queue") {
+                queueAttempts += 1;
+                if (queueAttempts === 1) {
+                    return Promise.reject(new Error("queue exploded"));
+                }
 
-        renderReviewComponent(<ReviewQueuePage /> as any);
-
-        // wait for table
-        expect(await screen.findByText('Pending Matches')).toBeInTheDocument();
-
-        // select the row checkbox by locating the row that contains the match description
-        const row = await screen.findByText('match');
-        const tr = row.closest('tr');
-        const rowCheckbox = tr?.querySelector('input[type="checkbox"]') as HTMLInputElement;
-        expect(rowCheckbox).toBeTruthy();
-        fireEvent.click(rowCheckbox);
-
-        // Approve should be enabled
-        const approve = await screen.findByRole('button', { name: /Approve Selected/ });
-        expect(approve).toBeEnabled();
-
-        fireEvent.click(approve);
-
-        // ensure the batch-approve API was called (third mock call)
-        await (async () => {
-            // wait for at least 3 calls: initial queue, filtered checks, then batch approve
-            for (let i = 0; i < 20; i++) {
-                if (mockedApi.mock.calls.length >= 3) return;
-                await new Promise((r) => setTimeout(r, 50));
+                return Promise.resolve(queueData);
             }
-        })();
 
-        expect(mockedApi.mock.calls.length).toBeGreaterThanOrEqual(3);
-        const found = mockedApi.mock.calls.some((c) => typeof c[0] === 'string' && c[0].includes('batch-approve-matches'));
-        expect(found).toBe(true);
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        expect(await screen.findByText("Failed to load review queue")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+        expect(await screen.findByText("Pending Matches")).toBeInTheDocument();
+        expect(queueAttempts).toBe(2);
+    });
+
+    it("AC16.17.2 renders empty states when no checks or matches remain", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve({
+                    pending_matches: [],
+                    consistency_checks: [],
+                    has_unresolved_checks: false,
+                });
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        expect(await screen.findByText("No pending checks")).toBeInTheDocument();
+        expect(screen.getByText("No pending matches")).toBeInTheDocument();
+    });
+
+    it("AC16.17.2 disables batch approval while unresolved checks remain", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve({
+                    pending_matches: queueData.pending_matches,
+                    consistency_checks: [duplicateCheck],
+                    has_unresolved_checks: true,
+                });
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [duplicateCheck] });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        expect(await screen.findByText("Unresolved consistency checks block batch approval")).toBeInTheDocument();
+
+        const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+        expect(approveButton).toBeDisabled();
+    });
+
+    it("AC16.17.3 approves selected matches through the batch approval API", async () => {
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve(queueData);
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] });
+            }
+
+            if (path === "/api/statements/batch-approve-matches") {
+                expect(options).toMatchObject({
+                    method: "POST",
+                    body: JSON.stringify({ match_ids: ["m1"] }),
+                });
+                return Promise.resolve({ success: true, approved_count: 1 });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        fireEvent.click(await screen.findByText("Transfer"));
+        fireEvent.click(screen.getByRole("button", { name: /Approve Selected/i }));
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/statements/batch-approve-matches",
+                expect.objectContaining({
+                    method: "POST",
+                    body: JSON.stringify({ match_ids: ["m1"] }),
+                }),
+            );
+        });
+    });
+
+    it("AC16.17.3 rejects selected matches through the batch rejection API", async () => {
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve(queueData);
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] });
+            }
+
+            if (path === "/api/statements/batch-reject-matches") {
+                expect(options).toMatchObject({
+                    method: "POST",
+                    body: JSON.stringify({ match_ids: ["m1"] }),
+                });
+                return Promise.resolve({ success: true, rejected_count: 1 });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        fireEvent.click(await screen.findByText("Transfer"));
+        fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/statements/batch-reject-matches",
+                expect.objectContaining({
+                    method: "POST",
+                    body: JSON.stringify({ match_ids: ["m1"] }),
+                }),
+            );
+        });
+    });
+
+    it("AC16.17.4 resolves a consistency check from the dialog actions", async () => {
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve({
+                    pending_matches: [],
+                    consistency_checks: [duplicateCheck],
+                    has_unresolved_checks: true,
+                });
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [duplicateCheck] });
+            }
+
+            if (path === "/api/statements/consistency-checks/c1/resolve") {
+                expect(options).toMatchObject({
+                    method: "POST",
+                    body: JSON.stringify({ action: "approve", note: "Looks good" }),
+                });
+                return Promise.resolve({ success: true });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Resolve" }));
+
+        const dialog = await screen.findByRole("dialog", { name: "Resolve Consistency Check" });
+        fireEvent.change(within(dialog).getByRole("textbox"), {
+            target: { value: "Looks good" },
+        });
+        fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/statements/consistency-checks/c1/resolve",
+                expect.objectContaining({
+                    method: "POST",
+                    body: JSON.stringify({ action: "approve", note: "Looks good" }),
+                }),
+            );
+        });
     });
 });
