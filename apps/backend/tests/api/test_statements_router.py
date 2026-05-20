@@ -2039,6 +2039,108 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     assert len(list(second_entry_result.scalars().all())) == 1
 
 
+async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user):
+    """AC16.24.4: Batch approval links an existing source journal entry instead of duplicating it."""
+    statement = build_statement(test_user.id, "hash_batch_reuse_source", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 18),
+        description="Existing source entry payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=85,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[match.id]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["approved_count"] == 1
+    assert result["journal_entries_created"] == 0
+    assert result["journal_entries_reconciled"] == 1
+
+    await db.refresh(match)
+    await db.refresh(entry)
+    assert match.journal_entry_ids == [str(entry.id)]
+    assert entry.status == JournalEntryStatus.RECONCILED
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+    )
+    assert len(list(entry_result.scalars().all())) == 1
+
+
+async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_user):
+    """AC16.24.4: Batch approval preserves acceptance amount validation failures."""
+    statement = build_statement(test_user.id, "hash_batch_mismatch", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 19),
+        description="Mismatched payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    entry_source_txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 19),
+        description="Different payment",
+        amount=Decimal("100.00"),
+        direction="OUT",
+    )
+    db.add_all([txn, entry_source_txn])
+    await db.commit()
+    await db.refresh(txn)
+    await db.refresh(entry_source_txn)
+
+    entry = await create_entry_from_txn(db, entry_source_txn, user_id=test_user.id, auto_post=True)
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=85,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await review_router.batch_approve_matches(
+            request=BatchApproveRequest(match_ids=[match.id]),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "Amount mismatch" in exc_info.value.detail
+
+
 async def test_batch_reject_matches_empty_list(db, test_user):
     """Given empty match_ids,
     When batch_reject_matches is called,
