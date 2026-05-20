@@ -36,8 +36,9 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. CI does not fail solely because the checked-in archive copy is stale.
 5. **Coveralls Upload**: All upload steps have `github-token` authentication. `continue-on-error: true` preserved.
-6. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
-7. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
+7. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
+8. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ### PR vs Main CI Responsibilities
 
@@ -77,11 +78,18 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
 3. **Source-tree/LCOV Logic**:
    - `scripts/coverage_policy.py` defines the single component policy used by coverage calculation and audit checks
+   - `scripts/check_ci_metrics_contract.py` first discovers source roots and fails CI when a new `apps/*/src` or `packages/*/src` source root is not represented in `scripts/coverage_policy.py`
    - `scripts/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
    - `scripts/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
    - New source modules are automatically required to appear in LCOV unless explicitly excluded by policy
+   - New `apps/*/src` or `packages/*/src` source roots fail CI until they are added to the coverage policy and report pipeline
 
-3. **Environment Variables**:
+4. **Metric Semantics**:
+   - Line coverage is the only numeric source coverage metric enforced by the no-regression gate
+   - AC traceability is a reference metric, not behavioral coverage
+   - Behavioral product coverage must be proven by Tier 1+ tests and explicit product E2E gates, not by an AC string appearing in a test file
+
+5. **Environment Variables**:
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
    - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; baseline comparison is primary gate)
 
