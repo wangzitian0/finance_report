@@ -290,3 +290,43 @@ def test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success() -> None:
     assert "--event push" in workflow
     assert "Skipping provider-backed AI/OCR gate because matching CI concluded" in workflow
     assert "before spending provider quota" in ci_cd
+
+
+def test_AC8_13_22_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> None:
+    """AC8.13.22: deterministic upload-to-dashboard gate uses a critical fresh-user fixture flow."""
+    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+
+    assert "@pytest.mark.e2e" in gate
+    assert "@pytest.mark.tier3" in gate
+    assert "@pytest.mark.critical" in gate
+    assert "@pytest.mark.llm" not in gate
+    assert "authenticated_page_unique" in gate
+    assert "vision_hard_gate_statement.csv" in gate
+    assert "pytest.skip(" in gate
+    assert "AC8.13.22" in epic
+    assert "test_statement_upload_to_dashboard_vision_hard_gate" in epic
+
+
+def test_AC8_13_26_vision_hard_gate_proves_trusted_reporting_totals() -> None:
+    """AC8.13.26: deterministic vision gate asserts exact trusted accounting/report totals."""
+    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    for token in (
+        "journal_entries_created",
+        "/api/reconciliation/run",
+        "/api/statements/stage2/queue",
+        "/api/accounts/processing/summary",
+        "/dashboard",
+        "/reports/balance-sheet",
+        "/reports/income-statement",
+        "/reports/cash-flow",
+        '"total_income": Decimal("5600.00")',
+        '"total_expenses": Decimal("5600.00")',
+        '"net_income": Decimal("0.00")',
+        '"No pending matches"',
+        '"No pending transfers found."',
+    ):
+        assert token in gate
+    assert "upload-to-dashboard vision hard gate" in ci_cd

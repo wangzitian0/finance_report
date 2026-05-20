@@ -13,11 +13,11 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 948 | 100% |
-| **Mandatory ACs** | 788 | 83.1% |
+| **Total ACs (registries)** | 953 | 100% |
+| **Mandatory ACs** | 793 | 83.2% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 788 | 100.0% |
-| **Mandatory ACs without test reference** | 0 | 0.0% |
+| **Mandatory ACs with test reference** | 790 | 99.6% |
+| **Mandatory ACs without test reference** | 3 | 0.4% |
 | **Test files referenced** | 190 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 77 | 0 | 71 | 71 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 82 | 0 | 76 | 73 | 96.1% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 77
-- **Mandatory ACs**: 71
-- **Mandatory ACs with test reference**: 71 (100.0%)
+- **Total ACs**: 82
+- **Mandatory ACs**: 76
+- **Mandatory ACs with test reference**: 73 (96.1%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -528,6 +528,11 @@
 | AC8.13.19 | yes | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnos | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.20 | yes | CI change classification is covered by multi-commit and markdown edge-case regression tests. | `scripts/tests/test_ci_change_classifier.py` | ✅ |
 | AC8.13.21 | yes | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.22 | yes | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.23 | yes | Stage 1 review auto-posts journal entries from the deterministic fixture | _none_ | ❌ missing |
+| AC8.13.24 | yes | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | _none_ | ❌ missing |
+| AC8.13.25 | yes | Processing Account summary and pending page stay visible and correct for the cleared run | _none_ | ❌ missing |
+| AC8.13.26 | yes | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

@@ -238,6 +238,13 @@ breakage. Rejection failures include the selected model and statement validation
 context (`validation_error`, `parsing_progress`, `confidence_score`, and
 `balance_validated`) so the post-merge gate is actionable from the CI log.
 
+`tests/e2e/test_vision_upload_to_dashboard_hard_gate.py::test_statement_upload_to_dashboard_vision_hard_gate`
+is the deterministic upload-to-dashboard vision hard gate. It runs in the
+staging non-LLM deploy gate with a fresh isolated user, uploads a deterministic
+CSV fixture, verifies Stage 1 auto-posted journal entries, reruns
+reconciliation to a cleared Stage 2 state, asserts Processing visibility, and
+checks exact dashboard, balance-sheet, income-statement, and cash-flow totals.
+
 `tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value`
 is the upload-to-report portfolio hard gate for Issue #404. It proves that at
 least two brokerage PDFs can be parsed by the real configured OCR path, imported
