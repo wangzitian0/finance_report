@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-19 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-20 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`.
 
@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 944 | 100% |
-| **Mandatory ACs** | 784 | 83.1% |
+| **Total ACs (registries)** | 948 | 100% |
+| **Mandatory ACs** | 788 | 83.1% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 784 | 100.0% |
+| **Mandatory ACs with test reference** | 788 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 187 | - |
+| **Test files referenced** | 190 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 73 | 0 | 67 | 67 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 77 | 0 | 71 | 71 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 73
-- **Mandatory ACs**: 67
-- **Mandatory ACs with test reference**: 67 (100.0%)
+- **Total ACs**: 77
+- **Mandatory ACs**: 71
+- **Mandatory ACs with test reference**: 71 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -524,6 +524,10 @@
 | AC8.13.15 | yes | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `scripts/tests/test_build_unified_lcov.py`<br>`scripts/tests/test_coverage_policy.py`<br>`scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ |
 | AC8.13.16 | yes | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | `scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.18 | yes | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets. | `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | ✅ |
+| AC8.13.19 | yes | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnos | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.20 | yes | CI change classification is covered by multi-commit and markdown edge-case regression tests. | `scripts/tests/test_ci_change_classifier.py` | ✅ |
+| AC8.13.21 | yes | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 

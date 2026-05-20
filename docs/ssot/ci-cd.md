@@ -117,7 +117,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - `scripts/test_lifecycle.py` — DB lifecycle (accepts coverage flags from callers)
 
 **CI Optimization** (`.github/workflows/ci.yml`):
-- Change classification skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
+- Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
+- Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
 - 4-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 4 --group N`
 - Coverage reports merged post-run
@@ -128,14 +129,16 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - Basic staging deploy feedback no longer waits on provider-backed OCR parsing. Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
-- Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: true`, so stale in-progress staging deploys are cancelled when a newer `main` commit is pushed. Staging tracks the latest `main` commit; older queued deploy validation is not authoritative.
+- Staging deploys use a workflow-level `staging-deploy` concurrency group with `cancel-in-progress: false`, so GitHub Actions does not cancel a running deploy when a newer `main` commit is pushed. Because GitHub concurrency allows at most one running and one pending run per group, the latest pending deploy is retained and older pending deploys may be replaced. This is latest-pending serial validation, not strict FIFO for every SHA.
 - The staging deploy job has a 30-minute job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke and core non-LLM E2E so timeout and latency failures identify the active phase.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
 
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
 - `Staging AI/OCR Gate` runs automatically after `Deploy Staging` completes successfully on `main`, and can also be triggered manually via `workflow_dispatch`.
-- The workflow uses a global `staging-ai-ocr` concurrency group with `cancel-in-progress: true` because staging is a singleton environment and only the newest provider-backed validation is authoritative.
+- The workflow uses a global `staging-ai-ocr` concurrency group with `cancel-in-progress: false`, so a running provider-backed gate is not interrupted by a newer commit. GitHub retains the latest pending gate when pushes arrive faster than the singleton staging environment can validate them; strict per-SHA FIFO would require an external queue or scheduler because GitHub concurrency does not keep multiple pending runs per group.
+- Automatic AI/OCR gates wait for the same commit's `CI` push workflow to complete successfully before spending provider quota. If the matching CI run fails, is cancelled, or times out, the provider-backed gate fails before calling real OCR/LLM tests.
+- The AI/OCR job timeout includes CI waiting plus provider validation: the matching-CI wait step is capped at 45 minutes, and the provider-backed pytest step remains capped at 22 minutes.
 - Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in this separate provider-backed gate.
 - The gate checks out the same `workflow_run.head_sha` that deployed to staging and passes its short SHA as `EXPECTED_SHA`, so version checks still validate the deployed commit.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed provider gate.
@@ -238,7 +241,13 @@ context (`validation_error`, `parsing_progress`, `confidence_score`, and
 `tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value`
 is the upload-to-report portfolio hard gate for Issue #404. It proves that at
 least two brokerage PDFs can be parsed by the real configured OCR path, imported
-as portfolio positions, and reflected in the latest balance-sheet asset value.
+as portfolio positions, and reflected in the latest balance-sheet market
+valuation adjustment lines. The gate intentionally does not compare imported
+holdings to whole `total_assets`: unrelated staging ledger lines, including
+negative cash or bank balances from other E2E journeys, can lower total assets
+without invalidating portfolio valuation coverage. Failure output includes the
+holdings total market value, valuation adjustment total, non-portfolio asset
+total, total assets, net worth adjustment, and relevant asset lines.
 
 PR preview E2E intentionally excludes the `llm` marker and does not inject the
 provider API key. This keeps provider spend and concurrency concentrated in the

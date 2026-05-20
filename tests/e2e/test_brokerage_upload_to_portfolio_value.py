@@ -110,8 +110,7 @@ def _transaction_count(payload: dict | None) -> int | None:
 def _statement_poll_failure_message(statement_id: str, last_payload: dict | None) -> str:
     if not last_payload:
         return (
-            f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; "
-            "no poll payload was returned"
+            f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; no poll payload was returned"
         )
 
     status = last_payload.get("status")
@@ -135,6 +134,86 @@ def _statement_poll_failure_message(statement_id: str, last_payload: dict | None
         f"transactions={tx_count!r}; balance_validated={balance_validated!r}; "
         f"validation_error={validation_error!r}"
     )
+
+
+def _money(value: object) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+def _balance_sheet_asset_lines(balance_sheet: dict) -> list[dict]:
+    assets = balance_sheet.get("assets")
+    assert isinstance(assets, list), f"balance sheet missing asset lines: {balance_sheet}"
+    return [line for line in assets if isinstance(line, dict)]
+
+
+def _market_valuation_lines(balance_sheet: dict) -> list[dict]:
+    return [
+        line
+        for line in _balance_sheet_asset_lines(balance_sheet)
+        if "market valuation adjustment" in str(line.get("name", "")).lower()
+    ]
+
+
+def _line_total(lines: list[dict]) -> Decimal:
+    return sum((_money(line.get("amount", "0")) for line in lines), Decimal("0.00")).quantize(Decimal("0.01"))
+
+
+def _portfolio_valuation_failure_message(
+    *,
+    holdings: list[dict],
+    total_market_value: Decimal,
+    imported_positions: Decimal,
+    balance_sheet: dict,
+) -> str:
+    asset_lines = _balance_sheet_asset_lines(balance_sheet)
+    valuation_lines = _market_valuation_lines(balance_sheet)
+    valuation_total = _line_total(valuation_lines)
+    non_portfolio_asset_total = _line_total([line for line in asset_lines if line not in valuation_lines])
+    relevant_asset_lines = [
+        {
+            "name": line.get("name"),
+            "amount": str(line.get("amount")),
+        }
+        for line in asset_lines
+        if line in valuation_lines or _money(line.get("amount", "0")) < Decimal("0.00")
+    ]
+
+    return (
+        "portfolio market valuation coverage failed; "
+        f"imported_positions={imported_positions}; "
+        f"holdings_count={len(holdings)}; "
+        f"holdings_total_market_value={total_market_value}; "
+        f"market_valuation_adjustment_total={valuation_total}; "
+        f"non_portfolio_asset_total={non_portfolio_asset_total}; "
+        f"total_assets={balance_sheet.get('total_assets')}; "
+        f"net_worth_adjustment_gain_loss={balance_sheet.get('net_worth_adjustment_gain_loss')}; "
+        f"relevant_asset_lines={relevant_asset_lines}"
+    )
+
+
+def _assert_portfolio_market_valuation_covered(
+    *,
+    holdings: list[dict],
+    imported_positions: Decimal,
+    balance_sheet: dict,
+) -> None:
+    total_market_value = sum((_money(item["market_value"]) for item in holdings), Decimal("0.00")).quantize(
+        Decimal("0.01")
+    )
+    assert total_market_value > Decimal("0.00"), f"holdings have no market value: {holdings}"
+
+    valuation_lines = _market_valuation_lines(balance_sheet)
+    valuation_total = _line_total(valuation_lines)
+    failure_message = _portfolio_valuation_failure_message(
+        holdings=holdings,
+        total_market_value=total_market_value,
+        imported_positions=imported_positions,
+        balance_sheet=balance_sheet,
+    )
+
+    assert valuation_lines, failure_message
+    assert valuation_total >= total_market_value, failure_message
+    assert _money(balance_sheet["net_worth_adjustment_gain_loss"]) > Decimal("0.00"), failure_message
 
 
 async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: str) -> dict:
@@ -177,6 +256,53 @@ def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
 
     assert "internal state-transition failure after OCR extraction" in message
     assert "transactions=1" in message
+
+
+def test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines() -> None:
+    """AC8.13.18/Issue #433: Gate checks portfolio valuation lines, not total assets."""
+    holdings = [{"market_value": "324980.5000000"}]
+    balance_sheet = {
+        "assets": [
+            {"name": "Bank - Main", "amount": "-578.78"},
+            {"name": "Futu market valuation adjustment", "amount": "323730.00"},
+            {"name": "Moomoo market valuation adjustment", "amount": "1250.50"},
+        ],
+        "total_assets": "324401.72",
+        "net_worth_adjustment_gain_loss": "324980.50",
+    }
+
+    _assert_portfolio_market_valuation_covered(
+        holdings=holdings,
+        imported_positions=Decimal("2"),
+        balance_sheet=balance_sheet,
+    )
+
+
+def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
+    """AC8.13.19/Issue #433: Gate failure messages expose valuation and non-portfolio totals."""
+    holdings = [{"market_value": "100.00"}]
+    balance_sheet = {
+        "assets": [
+            {"name": "Bank - Main", "amount": "-10.00"},
+            {"name": "Moomoo market valuation adjustment", "amount": "20.00"},
+        ],
+        "total_assets": "10.00",
+        "net_worth_adjustment_gain_loss": "20.00",
+    }
+
+    message = _portfolio_valuation_failure_message(
+        holdings=holdings,
+        total_market_value=Decimal("100.00"),
+        imported_positions=Decimal("1"),
+        balance_sheet=balance_sheet,
+    )
+
+    assert "imported_positions=1" in message
+    assert "holdings_total_market_value=100.00" in message
+    assert "market_valuation_adjustment_total=20.00" in message
+    assert "non_portfolio_asset_total=-10.00" in message
+    assert "Moomoo market valuation adjustment" in message
+    assert "Bank - Main" in message
 
 
 @pytest.mark.e2e
@@ -225,13 +351,14 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
         )
         holdings = holdings_response.json()
         assert len(holdings) >= int(imported_positions), f"missing imported holdings: {holdings}"
-        total_market_value = sum(Decimal(str(item["market_value"])) for item in holdings)
-        assert total_market_value > Decimal("0.00"), f"holdings have no market value: {holdings}"
 
         balance_response = await client.get(_api_url(f"/reports/balance-sheet?as_of_date={date.today().isoformat()}"))
         assert balance_response.status_code == 200, (
             f"balance sheet check failed: {balance_response.status_code} {balance_response.text}"
         )
         balance_sheet = balance_response.json()
-        assert Decimal(str(balance_sheet["total_assets"])) >= total_market_value, balance_sheet
-        assert Decimal(str(balance_sheet["net_worth_adjustment_gain_loss"])) > Decimal("0.00"), balance_sheet
+        _assert_portfolio_market_valuation_covered(
+            holdings=holdings,
+            imported_positions=imported_positions,
+            balance_sheet=balance_sheet,
+        )

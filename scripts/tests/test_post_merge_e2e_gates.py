@@ -76,12 +76,12 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
-    """AC8.13.13: Staging deploy cancels stale runs and bounds E2E duration."""
+    """AC8.13.13: Staging deploy does not cancel running main validations."""
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "group: staging-deploy" in workflow
-    assert "cancel-in-progress: true" in workflow
+    assert "cancel-in-progress: false" in workflow
     assert "timeout-minutes: 30" in workflow
     assert "timeout-minutes: 22" in workflow
     assert "run_timed_phase()" in workflow
@@ -90,7 +90,8 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "duration=%ss" in workflow
     assert 'run_timed_phase "Phase 1: Smoke Check (Shell)"' in workflow
     assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
-    assert "stale in-progress staging deploys are cancelled" in ci_cd
+    assert "does not cancel a running deploy" in ci_cd
+    assert "latest pending deploy is retained" in ci_cd
     assert "30-minute job timeout" in ci_cd
     assert "22-minute E2E step timeout" in ci_cd
 
@@ -106,12 +107,15 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow() -> None:
     assert "github.event.workflow_run.conclusion == 'success'" in ai_workflow
     assert "workflow_dispatch:" in ai_workflow
     assert "group: staging-ai-ocr" in ai_workflow
+    assert "cancel-in-progress: false" in ai_workflow
     assert "timeout-minutes: 22" in ai_workflow
     assert "STRICT_E2E_GATES: true" in ai_workflow
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
     assert "EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}" in ai_workflow
     assert "test_version_check.py" in ai_workflow
     assert 'run_timed_phase "Staging AI/OCR Gate' in ai_workflow
+    assert "Wait for matching CI success" in ai_workflow
+    assert '--workflow "CI"' in ai_workflow
     assert "test_statement_full_journey.py" in ai_workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
     assert "test_statement_upload_e2e.py" in ai_workflow
@@ -124,16 +128,21 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow() -> None:
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
+    classifier = read("scripts/ci_change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
 
     assert "name: Classify Changes" in workflow
     assert "heavy_required: ${{ steps.classify.outputs.heavy_required }}" in workflow
-    assert '"docs/"' in workflow
-    assert '".github/ISSUE_TEMPLATE/"' in workflow
-    assert '".github/workflows/docs.yml"' in workflow
-    assert "runtime-or-ci-paths-changed" in workflow
-    assert "lightweight-docs-or-docs-workflow-only" in workflow
+    assert "scripts/ci_change_classifier.py" in workflow
+    assert "--changed-files changed-files.txt" in workflow
+    assert '"docs/"' in classifier
+    assert '".github/ISSUE_TEMPLATE/"' in classifier
+    assert '".github/workflows/docs.yml"' in classifier
+    assert "path.endswith" not in workflow
+    assert "path.endswith" not in classifier
+    assert "runtime-or-ci-paths-changed" in classifier
+    assert "lightweight-docs-or-docs-workflow-only" in classifier
     assert "needs: [changes, lint]" in workflow
     assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
     assert "name: AC Traceability Check" in workflow
@@ -147,6 +156,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "PR vs Main CI Responsibilities" in ci_cd
     assert "Lightweight changes do not repeat the heavy path" in ci_cd
     assert "Frontend dependency installation uses `actions/setup-node@v4`" in ci_cd
+    assert "Markdown outside the documented lightweight trees is treated as heavy" in ci_cd
     assert "lightweight documentation" in environments.lower()
 
 
@@ -155,14 +165,8 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert (
-        "uv run --with pyyaml python scripts/generate_ac_registry.py --check"
-        in workflow
-    )
-    assert (
-        "uv run --with pyyaml python scripts/build_ac_traceability.py --check"
-        in workflow
-    )
+    assert "uv run --with pyyaml python scripts/generate_ac_registry.py --check" in workflow
+    assert "uv run --with pyyaml python scripts/build_ac_traceability.py --check" in workflow
     assert workflow.index("scripts/generate_ac_registry.py --check") < workflow.index(
         "scripts/build_ac_traceability.py --check"
     )
@@ -199,7 +203,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     deploy_script = read("scripts/dokploy_deploy.sh")
 
     assert "group: staging-deploy" in workflow
-    assert "cancel-in-progress: true" in workflow
+    assert "cancel-in-progress: false" in workflow
     assert "workflow_dispatch:" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
     assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow
@@ -213,6 +217,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert 'update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)"' in deploy_script
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
+    assert "Wait for matching CI success" in ai_workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
     assert '-v -m "llm"' in ai_workflow
     assert "@pytest.mark.llm" in journey
@@ -248,7 +253,40 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     assert "/reports/balance-sheet" in brokerage
     assert "fail_or_skip_ai_ocr_gate(" in brokerage
     assert "parsed_positions" in brokerage
-    assert "total_assets" in brokerage
+    assert "_assert_portfolio_market_valuation_covered" in brokerage
+    assert "_market_valuation_lines" in brokerage
+    assert "market_valuation_adjustment_total" in brokerage
+    assert "non_portfolio_asset_total" in brokerage
     assert "BrokeragePositionImportService" in statements_router
     assert "Statement must be parsed before importing brokerage positions" in statements_router
     assert '"futu"' in generator
+
+
+def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
+    """AC8.13.19: Brokerage gate failures include portfolio valuation diagnostics."""
+    brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
+
+    for token in (
+        "imported_positions=",
+        "holdings_total_market_value=",
+        "market_valuation_adjustment_total=",
+        "non_portfolio_asset_total=",
+        "net_worth_adjustment_gain_loss=",
+        "relevant_asset_lines=",
+    ):
+        assert token in brokerage
+
+
+def test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success() -> None:
+    """AC8.13.21: Provider-backed post-merge gate waits for same-SHA CI success."""
+    workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "permissions:" in workflow
+    assert "actions: read" in workflow
+    assert "Wait for matching CI success" in workflow
+    assert "EXPECTED_FULL_SHA: ${{ steps.expected_sha.outputs.full_sha }}" in workflow
+    assert '--commit "$EXPECTED_FULL_SHA"' in workflow
+    assert "--event push" in workflow
+    assert "Skipping provider-backed AI/OCR gate because matching CI concluded" in workflow
+    assert "before spending provider quota" in ci_cd
