@@ -261,7 +261,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_text("Dashboard")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Dashboard")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card").filter(has_text="Processing").filter(has_text="No pending transfers")
     ).to_be_visible()
@@ -293,7 +293,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await page.goto(_get_url(f"/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_text("Balance Sheet")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(timeout=10_000)
     await expect(page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")).to_contain_text(
         _format_grouped_int(EXPECTED_TOTALS["total_assets"])
     )
@@ -307,7 +307,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         )
     )
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_text("Income Statement")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
         .filter(has_text="Total Income")
@@ -328,7 +328,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         _get_url(f"/reports/cash-flow?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD")
     )
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_text("Cash Flow Statement")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Cash Flow Statement")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
         .filter(has_text="Net Cash Flow")
