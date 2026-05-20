@@ -277,17 +277,17 @@ Build a **100% self-developed** investment portfolio management system with comp
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.5.1 | Buy Transaction → Journal Entry | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC17.5.3 | Dividend → Journal Entry → Income Statement | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.5.1 | Buy Transaction → Journal Entry | `test_buy_transaction_creates_balanced_journal_entry_and_lot` | `portfolio/test_investment_accounting.py` | P0 |
+| AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `test_sell_transaction_uses_fifo_and_records_realized_gain`, `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
+| AC17.5.3 | Dividend → Journal Entry → Income Statement | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
 
 ### AC17.6: Integration & End-to-End
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.6.1 | Full Buy/Sell Cycle | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC17.6.2 | Dividend Accrual to Income | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.6.1 | Full Buy/Sell Cycle | `test_sell_transaction_uses_fifo_and_records_realized_gain` | `portfolio/test_investment_accounting.py` | P0 |
+| AC17.6.2 | Dividend Accrual to Income | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
 
 ### AC17.8: Brokerage Import Completion UI
 
@@ -311,7 +311,7 @@ Build a **100% self-developed** investment portfolio management system with comp
 - Total AC IDs: 27
 - Requirements converted to AC IDs: 100% (EPIC-017 Must Have checklist)
 - Requirements with test references: 100% (some TBD — tests to be implemented)
-- Test files: 3 implemented (`test_portfolio_service.py`, `test_performance_service.py`, `test_allocation_service.py`); 3 TBD (`test_cost_basis_methods.py`, `test_brokerage_parsing.py`, integration tests)
+- Test files: 4 implemented (`test_portfolio_service.py`, `test_performance_service.py`, `test_allocation_service.py`, `test_investment_accounting.py`); remaining brokerage/parser coverage lives in dedicated parsing and bridge tests.
 
 ---
 

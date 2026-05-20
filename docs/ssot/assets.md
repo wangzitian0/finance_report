@@ -58,7 +58,17 @@ For each latest atomic position:
 
 `GET /portfolio/holdings` without `as_of_date` returns the latest portfolio value from `ManagedPosition` plus the latest eligible price snapshot. The valuation date is `today` unless the user's latest imported `AtomicPosition.snapshot_date` is newer, which can happen for current-month brokerage statement fixtures or provider outputs that normalize month-only periods to month end.
 
-Explicit `as_of_date` requests are point-in-time views: holdings are derived from the latest immutable `AtomicPosition` snapshot per `(asset_identifier, broker)` at or before the requested date. Quantity and market value must come from that selected snapshot, and future snapshots must not be used. Cost basis remains a snapshot-value proxy until lot-level buy/sell accounting is implemented under EPIC-017 follow-up work.
+Explicit `as_of_date` requests are point-in-time views: holdings are derived from the latest immutable `AtomicPosition` snapshot per `(asset_identifier, broker)` at or before the requested date. Quantity and market value must come from that selected snapshot, and future snapshots must not be used. When structured brokerage transactions are available, `InvestmentTransaction` and `InvestmentLot` provide the auditable cost-basis trail for buy/sell/dividend accounting; snapshot-only imports still use market value as the fallback cost-basis proxy.
+
+### Investment Accounting Pipeline
+
+Structured brokerage transactions are posted through `InvestmentAccountingService`:
+
+1. **Buy**: debit the investment asset account, credit brokerage cash, create an `InvestmentTransaction`, create an `InvestmentLot`, and increase `ManagedPosition.quantity` plus `cost_basis`.
+2. **Sell**: consume open lots by the explicit `CostBasisMethod` (`FIFO`, `LIFO`, or `AvgCost`), debit brokerage cash, credit the investment asset account at consumed cost basis, record realized gain/loss to the realized P&L income account, and update `ManagedPosition.realized_pnl`.
+3. **Dividend**: debit brokerage cash, credit dividend income, persist `DividendIncome`, and link the event to the position through `InvestmentTransaction`.
+
+Until #395 expands source-type trust semantics, investment-accounting journal entries use `source_type=system` and preserve any upstream parser/source identifier in `source_id`.
 
 ---
 
@@ -164,6 +174,51 @@ CREATE TABLE managed_positions (
 );
 ```
 
+### InvestmentTransaction
+
+```sql
+CREATE TABLE investment_transactions (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    position_id UUID REFERENCES managed_positions(id) ON DELETE SET NULL,
+    journal_entry_id UUID REFERENCES journal_entries(id) ON DELETE SET NULL,
+    source_id UUID,
+    transaction_date DATE NOT NULL,
+    transaction_type investment_transaction_type_enum NOT NULL,
+    asset_identifier VARCHAR(100) NOT NULL,
+    quantity NUMERIC(18,6),
+    unit_price NUMERIC(18,6),
+    gross_amount NUMERIC(18,2) NOT NULL,
+    fees NUMERIC(18,2) NOT NULL,
+    currency VARCHAR(3) NOT NULL,
+    cost_basis NUMERIC(18,2),
+    realized_pnl NUMERIC(18,2),
+    cost_basis_method cost_basis_method_enum,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+```
+
+### InvestmentLot
+
+```sql
+CREATE TABLE investment_lots (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    position_id UUID NOT NULL REFERENCES managed_positions(id) ON DELETE CASCADE,
+    opening_transaction_id UUID NOT NULL REFERENCES investment_transactions(id) ON DELETE CASCADE,
+    asset_identifier VARCHAR(100) NOT NULL,
+    acquisition_date DATE NOT NULL,
+    original_quantity NUMERIC(18,6) NOT NULL,
+    remaining_quantity NUMERIC(18,6) NOT NULL,
+    unit_cost NUMERIC(18,6) NOT NULL,
+    currency VARCHAR(3) NOT NULL,
+    disposed_date DATE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+```
+
 ### PositionStatus Enum
 
 | Value | Meaning |
@@ -200,7 +255,7 @@ Manual snapshots cover property value, mortgage or loan balance, CPF or long-ter
 
 ### ✅ Recommended Patterns
 - **Pattern A**: Use `Decimal` for all monetary/quantity fields (never `float`)
-- **Pattern B**: `cost_basis` uses `market_value` as proxy — true FIFO/LIFO lot tracking is future scope
+- **Pattern B**: Use `InvestmentLot` for realized P&L whenever buy/sell transactions are available; use snapshot market value as a fallback proxy only for position-snapshot imports without transaction detail.
 - **Pattern C**: Reconciliation is idempotent — running twice with same data produces same result
 - **Pattern D**: Always record `position_metadata` (JSONB) for audit trail of source data
 - **Pattern E**: Manual valuation values are positive `Decimal` amounts; use `liquidity_class` to separate liquid, restricted, illiquid, and liability presentation.

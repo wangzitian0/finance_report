@@ -112,16 +112,11 @@ Known proof-quality caveats:
 
 Minimum blocker set for a fresh user to reach the accurate-dashboard journey:
 
-1. Upload flow polish: `wangzitian0/finance_report#366`
-2. Stage 1 review entry in sidebar: `wangzitian0/finance_report#365`
-3. Unified approval path: `wangzitian0/finance_report#362`
-4. Stage 2 run-level review UI: `wangzitian0/finance_report#368`
-5. Approve -> auto-post journal entries: `wangzitian0/finance_report#363`
-6. Processing account sidebar/status: `wangzitian0/finance_report#367`
-7. Reconciliation idempotency: `wangzitian0/finance_report#354`
-8. Unrealized FX gain/loss reporting: `wangzitian0/finance_report#197`
-9. PDF export for reports: `wangzitian0/finance_report#205`
-10. Dashboard empty-state onboarding: `wangzitian0/finance_report#369`
+1. North-star PDF upload to accurate net worth: `wangzitian0/finance_report#444`
+2. Brokerage buy/sell/dividend investment accounting: `wangzitian0/finance_report#393`
+3. Source-type trust hierarchy and no-downgrade promotion: `wangzitian0/finance_report#395`
+4. Account-level statement coverage and balance continuity: `wangzitian0/finance_report#396`
+5. Processing account sidebar/status: `wangzitian0/finance_report#367`
 
 ## Documentation Debt Tracked As Issues
 

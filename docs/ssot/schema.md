@@ -270,6 +270,49 @@ Journal entry line table.
 | event_type | VARCHAR(100) | | Event type |
 | tags | JSONB | | Tags |
 
+### InvestmentTransactions
+Auditable brokerage transaction table for buy, sell, and dividend accounting.
+
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| position_id | UUID | FK -> ManagedPositions | Linked position |
+| journal_entry_id | UUID | FK -> JournalEntries | Posted ledger entry |
+| source_id | UUID | | Upstream statement/parser source |
+| transaction_date | DATE | NOT NULL | Trade or payment date |
+| transaction_type | ENUM | NOT NULL | buy/sell/dividend |
+| asset_identifier | VARCHAR(100) | NOT NULL | Symbol or broker identifier |
+| quantity | DECIMAL(18,6) | | Units for buy/sell |
+| unit_price | DECIMAL(18,6) | | Per-unit trade price |
+| gross_amount | DECIMAL(18,2) | NOT NULL | Posted cash or trade amount |
+| fees | DECIMAL(18,2) | NOT NULL | Brokerage fees included in accounting |
+| currency | VARCHAR(3) | NOT NULL | Transaction currency |
+| cost_basis | DECIMAL(18,2) | | Consumed or created cost basis |
+| realized_pnl | DECIMAL(18,2) | | Realized gain/loss for sells |
+| cost_basis_method | ENUM | | FIFO/LIFO/AvgCost used for the transaction |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
+
+### InvestmentLots
+Open lot table used for FIFO, LIFO, and average-cost realized P&L.
+
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| position_id | UUID | FK -> ManagedPositions, NOT NULL | Linked position |
+| opening_transaction_id | UUID | FK -> InvestmentTransactions, NOT NULL | Buy transaction that opened the lot |
+| asset_identifier | VARCHAR(100) | NOT NULL | Symbol or broker identifier |
+| acquisition_date | DATE | NOT NULL | Lot acquisition date |
+| original_quantity | DECIMAL(18,6) | NOT NULL | Original units |
+| remaining_quantity | DECIMAL(18,6) | NOT NULL | Unsold units |
+| unit_cost | DECIMAL(18,6) | NOT NULL | Cost per unit |
+| currency | VARCHAR(3) | NOT NULL | Lot currency |
+| disposed_date | DATE | | Date the lot was fully consumed |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
+
 ### ChatSessions
 Chat session header table.
 
