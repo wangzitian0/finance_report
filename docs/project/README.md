@@ -70,6 +70,7 @@ sync with ACs and tests.
 | [../../apps/frontend/README.md](../../apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
 | [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping |
 | [../agents/orchestration.md](../agents/orchestration.md), [../agents/red-lines.md](../agents/red-lines.md), and [../contributing/branch-policy.md](../contributing/branch-policy.md) | EPIC-014 | Agent and contributor workflow governance |
+| [../../.github/copilot-instructions.md](../../.github/copilot-instructions.md), [../../.github/instructions/frontend.instructions.md](../../.github/instructions/frontend.instructions.md), [../../.github/instructions/python.instructions.md](../../.github/instructions/python.instructions.md), and [../../.github/pull_request_template.md](../../.github/pull_request_template.md) | EPIC-014 | GitHub contributor and assistant workflow surfaces |
 | [../ssot/README.md](../ssot/README.md) and [../ssot/*.md](../ssot/README.md) | SSOT manifest + related EPICs | Rationale, code-owner links, and proof references |
 | [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api-accounts.md](../reference/api-accounts.md) | EPIC-002 | Account user/API surface |
 | [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api-journal.md](../reference/api-journal.md) | EPIC-002 | Journal user/API surface |
@@ -79,7 +80,8 @@ sync with ACs and tests.
 | [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api-chat.md](../reference/api-chat.md) | EPIC-006 | AI advisor user/API surface |
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
 | [../../scripts/pdf_fixtures/README.md](../../scripts/pdf_fixtures/README.md) and [../../scripts/pdf_fixtures/FONT_HANDLING.md](../../scripts/pdf_fixtures/FONT_HANDLING.md) | EPIC-009 | PDF fixture tool documentation |
-| [AUDITS.md](./AUDITS.md) | EPIC-014 | Current audit index and retired report notes |
+| [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
+| [DECISIONS.md](./DECISIONS.md) and [DECISIONS_ZH.md](./DECISIONS_ZH.md) | EPIC-014 | Project decision logs |
 
 ## Known Documentation Debt
 

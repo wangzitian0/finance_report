@@ -310,10 +310,17 @@ Every SOP document should follow this structure:
 These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
+- [./AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — historical consistency audit snapshot.
+- [./DECISIONS.md](./DECISIONS.md) — project decision log.
+- [./DECISIONS_ZH.md](./DECISIONS_ZH.md) — Chinese mirror of project decision notes.
 - [../ssot/tdd.md](../ssot/tdd.md) — canonical EPIC -> AC -> test workflow.
 - [../agents/orchestration.md](../agents/orchestration.md) — agent workflow governance.
 - [../agents/red-lines.md](../agents/red-lines.md) — security and engineering hard stops.
 - [../contributing/branch-policy.md](../contributing/branch-policy.md) — branch and PR workflow.
+- [../../.github/copilot-instructions.md](../../.github/copilot-instructions.md) — Copilot-specific contributor instructions.
+- [../../.github/instructions/frontend.instructions.md](../../.github/instructions/frontend.instructions.md) — frontend assistant instructions.
+- [../../.github/instructions/python.instructions.md](../../.github/instructions/python.instructions.md) — Python assistant instructions.
+- [../../.github/pull_request_template.md](../../.github/pull_request_template.md) — PR description contract.
 - [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — test-suite organization, jointly owned with EPIC-008.
 
 #### 4.2 SOP Inventory & Gap Analysis
