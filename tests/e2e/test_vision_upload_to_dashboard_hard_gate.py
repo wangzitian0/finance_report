@@ -221,7 +221,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await page.goto(_get_url(f"/review/run/{statement_id}"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_text("Stage 2 Run Review")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Stage 2 Run Review")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text("No pending matches")).to_be_visible(timeout=10_000)
     run_approve_button = page.get_by_role("button", name="Approve Run")
     await expect(run_approve_button).to_be_disabled()
@@ -237,7 +237,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await page.goto(_get_url("/processing"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_text("Processing Transfers")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Processing Transfers")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text("No pending transfers found.")).to_be_visible(timeout=10_000)
 
     balance_sheet = await _api_json(page, f"/api/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD")
