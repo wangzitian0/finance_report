@@ -3,6 +3,8 @@
 
 Joins the feature and infra AC registries against every test reference found
 in the configured test directories and emits a complete Markdown report.
+This is a reference metric, not behavioral coverage: a referenced AC proves
+traceability only, while the owning test still has to assert the real behavior.
 
 The output is fully mechanical: running this script twice must produce an
 identical file (modulo the generation date) when run with the same
@@ -245,7 +247,9 @@ def render_document(
     lines.append(
         "> **Purpose**: Complete mapping of every Acceptance Criterion "
         "(`ACx.y.z`) declared in `docs/ac_registry.yaml` + "
-        "`docs/infra_registry.yaml` to the test file(s) that reference it."
+        "`docs/infra_registry.yaml` to the test file(s) that reference it. "
+        "This is not behavioral coverage; use it together with line coverage "
+        "and product-level E2E evidence."
     )
     lines.append(
         "> **Scope**: All EPICs in `docs/project/`. Test scan: "

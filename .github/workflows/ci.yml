@@ -287,6 +287,9 @@ jobs:
             --cov-config=/tmp/scripts-coveragerc \
             --cov-report=lcov:coverage/scripts.lcov \
             -x -q
+      - name: Check CI metrics contract
+        run: |
+          uv run python scripts/check_ci_metrics_contract.py
       - name: Audit coverage policy
         run: |
           uv run python scripts/check_coverage_policy.py
