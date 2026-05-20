@@ -56,8 +56,8 @@
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
-| AC1.1.1 | yes | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
-| AC1.1.2 | yes | apps/backend/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
+| AC1.1.1 | yes | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
+| AC1.1.2 | yes | apps/backend/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
 | AC1.1.3 | yes | apps/frontend/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_check_ac_traceability.py` | ✅ |
 | AC1.1.4 | yes | infra/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py` | ✅ |
 | AC1.2.1 | yes | FastAPI project structure exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py` | ✅ |
@@ -104,7 +104,7 @@
 | AC2.1.4 | yes | Update account successfully | `apps/backend/tests/accounting/test_accounts_service.py` | ✅ |
 | AC2.1.5 | yes | Update non-existent account fails | `apps/backend/tests/accounting/test_accounts_service.py` | ✅ |
 | AC2.1.6 | yes | List accounts with filters | `apps/backend/tests/accounting/test_accounts_service.py` | ✅ |
-| AC2.2.1 | yes | Balanced entry passes validation | `apps/backend/tests/accounting/test_accounting.py`<br>`apps/backend/tests/review/test_consistency_checks.py` | ✅ |
+| AC2.2.1 | yes | Balanced entry passes validation | `apps/backend/tests/accounting/test_accounting.py`<br>`apps/backend/tests/review/test_consistency_checks.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py` | ✅ |
 | AC2.2.2 | yes | Unbalanced entry fails validation | `apps/backend/tests/accounting/test_accounting.py` | ✅ |
 | AC2.2.3 | yes | Single-line entry fails (minimum 2 lines) | `apps/backend/tests/accounting/test_accounting.py`<br>`apps/backend/tests/accounting/test_accounting_service_errors.py` | ✅ |
 | AC2.2.4 | yes | Decimal precision maintained | `apps/backend/tests/accounting/test_accounting.py` | ✅ |
@@ -180,7 +180,7 @@
 | AC3.2.3 | yes | Completeness Validation | `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ |
 | AC3.3.1 | yes | High Confidence (Auto-Accept) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ |
 | AC3.3.2 | yes | Medium Confidence (Review) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ |
-| AC3.3.3 | yes | Low Confidence (Manual) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ |
+| AC3.3.3 | yes | Low Confidence (Manual) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py` | ✅ |
 | AC3.4.1 | yes | Invalid Parse Not Persisted | `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ |
 | AC3.4.2 | yes | Unsupported File Type | `apps/backend/tests/extraction/test_extraction_flow.py` | ✅ |
 | AC3.4.3 | yes | Extraction Timeout | `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ |

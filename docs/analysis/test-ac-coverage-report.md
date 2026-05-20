@@ -1,261 +1,352 @@
-# Test AC Coverage Analysis Report
-
-**Generated:** 2026-02-09  
-**Purpose:** Identify all test functions without AC (Acceptance Criteria) numbers for TTD transformation
-
----
-
-## Executive Summary
-
-### Overall Coverage
-
-- **Total test functions:** 391
-- **With AC numbers:** 133 (34.0%)
-- **Without AC numbers:** 258 (66.0%)
-
-### Coverage by EPIC
-
-| EPIC | Name | Coverage | With AC | Without AC | Total |
-|------|------|----------|---------|------------|-------|
-| EPIC-001 | Infrastructure & Authentication | 24.6% | 48 | 147 | 195 |
-| EPIC-002 | Double-Entry Bookkeeping Core | 100.0% | 14 | 0 | 14 |
-| EPIC-003 | Smart Statement Parsing | 52.6% | 51 | 46 | 97 |
-| EPIC-004 | Reconciliation Engine & Matching | 20.0% | 6 | 24 | 30 |
-| EPIC-005 | Financial Reports & Visualization | 0.0% | 0 | 18 | 18 |
-| EPIC-006 | AI Financial Advisor | 75.7% | 28 | 9 | 37 |
-
----
-
-## Domain-Level Breakdown
-
-### EPIC-002: Double-Entry Bookkeeping Core (0% coverage)
-
-**Total:** 14 tests | **Missing:** 14 tests
-
-#### Critical Tests Needing AC Numbers
-
-1. **Balance Validation (test_validation.py)**
-   - `test_validate_balance_mismatch` → **AC2.2.1**
-   - `test_validate_balance_tolerance` → **AC2.2.2**
-   - `test_validate_balance_error_path` → **AC2.2.3**
-   - `test_validate_balance_incomplete_transaction` → **AC2.2.4**
-
-2. **Decimal Safety (test_decimal_safety.py)**
-   - `test_decimal_parsing_from_string` → **AC2.4.1** (Golden Path)
-   - `test_float_injection_safety` → **AC2.4.2** (Guardrail)
-   - `test_scientific_notation_rejection` → **AC2.4.3** (Guardrail)
-
-3. **Confidence Scoring (test_validation.py)**
-   - `test_compute_confidence_score_small_diff` → **AC2.3.1**
-   - `test_compute_confidence_score_with_missing_fields` → **AC2.3.2**
-   - `test_compute_confidence_score_invalid_difference` → **AC2.3.3**
-   - `test_compute_confidence_score_large_transaction_count` → **AC2.3.4**
-
-4. **Routing Logic (test_validation.py)**
-   - `test_route_by_threshold` → **AC2.5.1**
-   - `test_validate_completeness_missing_fields` → **AC2.5.2**
-
-5. **Equation Tests (test_accounting_equation.py)**
-   - `test_user_id` → **AC2.1.1** (User scoping)
-
----
-
-### EPIC-003: Smart Statement Parsing (52.6% coverage)
-
-**Total:** 97 tests | **Missing:** 46 tests
-
-#### High-Priority Missing AC Numbers
-
-**Balance Validation (13.1.x)**
-- Already has good coverage with AC13.1.1-13.1.3
-- Missing: Helper function tests (test_extraction_coverage_fix.py)
-
-**Confidence Scoring (13.2.x)**
-- `test_compute_event_confidence_missing_fields` → **AC13.2.3**
-- `test_all_fixtures_have_high_confidence` → **AC13.2.4** (Critical)
-
-**Statement Parsing (13.3.x)**
-- 30+ utility tests in `test_extraction_coverage_fix.py` need categorization
-- Suggest: **AC13.3.x** for parsing utilities (sanitize, safe_date, safe_decimal)
-
-**Storage (13.4.x)**
-- `test_upload_bytes_*` tests → **AC13.4.1-13.4.5** (File upload & S3)
-
-**Logging (13.5.x)**
-- `test_extract_status_code_*` tests → **AC13.5.1-13.5.6** (Status code extraction)
-
----
-
-### EPIC-004: Reconciliation Engine (20% coverage)
-
-**Total:** 30 tests | **Missing:** 24 tests
-
-#### Critical Missing AC Numbers
-
-**Match Scoring (4.2.x)**
-- `test_score_business_logic_combinations` → **AC4.2.1**
-- `test_score_business_logic_out_equity` → **AC4.2.2**
-- `test_score_business_logic_out_unknown` → **AC4.2.3**
-- `test_score_date_proximity` → **AC4.2.4**
-- `test_score_business_logic_variants` → **AC4.2.5**
-
-**Auto-Accept/Review Queue (4.3.x)**
-- `test_auto_accept_helper` → **AC4.3.3**
-
-**Engine Utilities (4.4.x)**
-- `test_normalize_text_and_grouping` → **AC4.4.1**
-- `test_extract_merchant_tokens` → **AC4.4.2**
-- `test_build_many_to_one_groups_skips_empty_descriptions` → **AC4.4.3**
-- `test_prune_candidates*` → **AC4.4.4**
-
-**Configuration (4.5.x)**
-- `test_load_reconciliation_config_*` → **AC4.5.1-4.5.4** (YAML + env config)
-
----
-
-### EPIC-005: Financial Reports (0% coverage)
-
-**Total:** 18 tests | **Missing:** 18 tests
-
-#### All Tests Need AC Numbers
-
-**Balance Sheet (5.1.x)**
-- Currently no dedicated tests identified
-
-**Income Statement (5.2.x)**
-- Currently no dedicated tests identified
-
-**Multi-Currency (5.3.x)**
-- `test_normalize_currency_defaults_to_base` → **AC5.3.1**
-
-**Financial Snapshots (5.4.x)**
-- `test_data_setup_reports` → **AC5.4.1**
-
-**Reporting Helpers (5.5.x)**
-- `test_iter_periods_*` → **AC5.5.1-5.5.3** (Period iteration)
-- `test_add_months_caps_day` → **AC5.5.4**
-- `test_month_helpers` → **AC5.5.5**
-- `test_quantize_money_handles_ints` → **AC5.5.6**
-- `test_signed_amount_respects_account_direction` → **AC5.5.7**
-
-**FX Rate Support (5.6.x)**
-- `test_user_id` (test_reporting_fx.py) → **AC5.6.1**
-- `test_fx_cache_*` tests → **AC5.6.2-5.6.4**
-
----
-
-### EPIC-006: AI Financial Advisor (75.7% coverage)
-
-**Total:** 37 tests | **Missing:** 9 tests (lowest priority)
-
-#### Missing AC Numbers
-
-**Model Representation (6.5.x)**
-- `test_*_repr` tests (7 tests) → **AC6.5.1-6.5.7**
-- These test `__repr__` methods for AI context
-
-**Validation (6.6.x)**
-- `test_validation_confidence_with_invalid_amount` → **AC6.6.1**
-- `test_validation_route_by_threshold` → **AC6.6.2**
-
----
-
-### EPIC-001: Infrastructure (24.6% coverage)
-
-**Total:** 195 tests | **Missing:** 147 tests
-
-#### Categorization Needed
-
-**Authentication (1.1.x)**
-- Rate limit tests → **AC1.1.4-1.1.9** (10 tests)
-- Client IP extraction → **AC1.1.10-1.1.13** (4 tests)
-
-**Configuration (1.2.x)**
-- Config parsing tests → **AC1.2.1-1.2.6** (6 tests)
-- Boot sequence tests → **AC1.2.7-1.2.15** (9 tests)
-
-**Database Schema (1.3.x)**
-- User schema tests → **AC1.3.1-1.3.8** (8 tests)
-- Migration tests → **AC1.3.9-1.3.11** (3 tests)
-- Schema guardrails → **AC1.3.12-1.3.14** (3 tests)
-
-**API Layer (1.4.x)**
-- Schema validation tests → **AC1.4.1-1.4.13** (13 tests in test_schemas.py)
-- Router tests → **AC1.4.14-1.4.16** (3 tests in test_routers.py)
-
-**Exception Handling (1.5.x)**
-- 27 exception tests → **AC1.5.1-1.5.27**
-
-**Model Metadata (1.6.x)**
-- Model table name/relationship tests → **AC1.6.1-1.6.10** (10 tests)
-
-**Utilities (1.7.x)**
-- PII redaction → **AC1.7.1-1.7.15** (15 tests)
-- Deduplication → **AC1.7.16-1.7.19** (4 tests)
-- FX revaluation → **AC1.7.20-1.7.21** (2 tests)
-- Security/JWT → **AC1.7.22-1.7.27** (6 tests)
-
----
-
-## Recommended Action Plan
-
-### Phase 1: Critical Business Logic (Priority 1)
-
-1. **EPIC-002 (Accounting Core)** - 14 tests
-   - All tests are critical for financial integrity
-   - Suggested timeline: 1-2 hours
-
-2. **EPIC-004 (Reconciliation)** - 24 tests
-   - Core matching engine logic
-   - Suggested timeline: 2-3 hours
-
-3. **EPIC-005 (Reporting)** - 18 tests
-   - Financial report accuracy
-   - Suggested timeline: 2 hours
-
-### Phase 2: Feature Completeness (Priority 2)
-
-4. **EPIC-003 (Statement Parsing)** - 46 tests
-   - 52.6% already done, finish remaining
-   - Suggested timeline: 3-4 hours
-
-5. **EPIC-006 (AI Features)** - 9 tests
-   - 75.7% already done, low priority
-   - Suggested timeline: 1 hour
-
-### Phase 3: Infrastructure (Priority 3)
-
-6. **EPIC-001 (Infrastructure)** - 147 tests
-   - Many are utility/helper tests
-   - Can be batched by category
-   - Suggested timeline: 8-10 hours
-
----
-
-## Next Steps
-
-1. **Review this report** with stakeholders
-2. **Assign AC numbers** following the suggested categorization
-3. **Update test docstrings** with AC numbers
-4. **Verify coverage** by re-running `python scripts/analyze_test_ac_coverage.py`
-5. **Link to EPIC documents** - Ensure each AC is documented in the corresponding EPIC file
-
----
-
-## Script Usage
-
-To regenerate this report:
-
-```bash
-python scripts/analyze_test_ac_coverage.py
-```
-
-The script automatically:
-- Scans all test files in `apps/backend/tests/`
-- Detects AC pattern `ACx.y.z` or `[ACx.y.z]` in docstrings
-- Categorizes tests by domain and suggests AC numbers
-- Generates coverage statistics by EPIC
-
----
-
-*Generated by: `scripts/analyze_test_ac_coverage.py`*
+# AC Coverage Analysis Report
+
+> Generated: 2026-05-20 06:22:55 UTC by `scripts/analyze_test_ac_coverage.py`
+
+## Coverage accounting (EPIC-008 aligned)
+
+- Covered AC = has at least one real test reference outside `apps/backend/tests/_ac_stubs/`.
+- `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered.
+- Invalid AC references are AC IDs found in tests but missing from registries.
+- Untested AC = registered AC without any real passing-test candidate reference.
+
+## Executive summary
+
+| Metric | Count |
+|---|---:|
+| Registered ACs | 953 |
+| Covered by real test candidates | 710 (74.5%) |
+| Stub-only placeholders (`_ac_stubs`) | 225 |
+| Registered but untested | 243 |
+| Invalid AC refs in real tests | 2 |
+| Invalid AC refs in stubs | 0 |
+
+## Scan scope summary
+
+| Source | Files scanned | Unique AC refs (real) | Unique AC refs (stub) |
+|---|---:|---:|---:|
+| backend | 178 | 534 | 363 |
+| frontend | 81 | 176 | 0 |
+| e2e | 9 | 11 | 0 |
+| repo_e2e | 18 | 0 | 0 |
+
+## Coverage by EPIC
+
+| EPIC | Name | Registered | Covered | Stub-only | Untested | Coverage |
+|---|---|---:|---:|---:|---:|---:|
+| EPIC-001 | phase0-setup | 29 | 19 | 10 | 10 | 65.5% |
+| EPIC-002 | double-entry-core | 59 | 52 | 7 | 7 | 88.1% |
+| EPIC-003 | statement-parsing | 39 | 33 | 6 | 6 | 84.6% |
+| EPIC-004 | reconciliation-engine | 39 | 34 | 5 | 5 | 87.2% |
+| EPIC-005 | reporting-visualization | 36 | 30 | 6 | 6 | 83.3% |
+| EPIC-006 | ai-advisor | 63 | 52 | 11 | 11 | 82.5% |
+| EPIC-007 | deployment | 39 | 6 | 33 | 33 | 15.4% |
+| EPIC-008 | testing-strategy | 82 | 65 | 0 | 17 | 79.3% |
+| EPIC-009 | pdf-fixture-generation | 37 | 0 | 36 | 37 | 0.0% |
+| EPIC-010 | signoz-logging | 21 | 0 | 21 | 21 | 0.0% |
+| EPIC-011 | asset-lifecycle | 38 | 38 | 0 | 0 | 100.0% |
+| EPIC-012 | foundation-libs | 62 | 52 | 10 | 10 | 83.9% |
+| EPIC-013 | statement-parsing-v2 | 60 | 54 | 6 | 6 | 90.0% |
+| EPIC-014 | ttd-transformation | 6 | 0 | 6 | 6 | 0.0% |
+| EPIC-015 | processing-account | 28 | 28 | 0 | 0 | 100.0% |
+| EPIC-016 | two-stage-review-ui | 213 | 155 | 58 | 58 | 72.8% |
+| EPIC-017 | portfolio-management | 79 | 79 | 0 | 0 | 100.0% |
+| EPIC-018 | ai-driven-pipeline | 23 | 13 | 10 | 10 | 56.5% |
+
+## Invalid AC references (unregistered)
+
+| AC ID | Real test files | Stub files |
+|---|---|---|
+| `AC8.12.7` | `apps/backend/tests/extraction/test_extraction_error_paths.py` | _none_ |
+| `AC18.4.4` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | _none_ |
+
+## Stub-only AC placeholders (`_ac_stubs`)
+
+| AC ID | Stub file references |
+|---|---|
+| `AC1.2.3` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.2.4` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.2.5` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.3.2` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.3.3` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.4.3` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.4.4` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.5.3` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.5.4` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC1.5.5` | `apps/backend/tests/_ac_stubs/test_epic_01_stubs.py` |
+| `AC2.2.6` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC2.4.3` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC2.4.4` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC2.4.5` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC2.5.3` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC2.9.2` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC2.9.4` | `apps/backend/tests/_ac_stubs/test_epic_02_stubs.py` |
+| `AC3.2.1` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
+| `AC3.2.2` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
+| `AC3.3.1` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
+| `AC3.3.2` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
+| `AC3.3.3` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
+| `AC3.5.3` | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` |
+| `AC4.6.1` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
+| `AC4.6.2` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
+| `AC4.6.3` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
+| `AC4.6.4` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
+| `AC4.6.5` | `apps/backend/tests/_ac_stubs/test_epic_04_stubs.py` |
+| `AC5.6.1` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
+| `AC5.6.2` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
+| `AC5.6.3` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
+| `AC5.6.4` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
+| `AC5.6.5` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
+| `AC5.6.6` | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` |
+| `AC6.1.2` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.1.3` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.1.4` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.2.3` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.2.4` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.12.1` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.12.2` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.12.3` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.12.4` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.12.5` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC6.12.6` | `apps/backend/tests/_ac_stubs/test_epic_06_stubs.py` |
+| `AC7.1.1` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.1.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.1.3` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.2.1` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.2.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.2.3` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.2.4` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.2.5` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.3.1` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.3.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.3.3` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.3.4` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.3.5` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.4.1` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.4.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.4.3` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.4.4` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.4.5` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.4.6` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.5.1` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.5.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.5.3` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.5.4` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.5.5` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.6.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.1` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.2` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.3` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.4` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.5` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.6` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.7` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC7.9.8` | `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` |
+| `AC9.1.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.1.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.1.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.1.4` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.1.5` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.1.6` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.4` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.5` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.6` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.2.7` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.3.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.3.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.3.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.3.4` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.3.5` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.3.6` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.4.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.4.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.4.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.4.4` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.5.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.5.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.5.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.5.4` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.5.5` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.6.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.6.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.6.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.6.4` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.6.5` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.7.1` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.7.2` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC9.7.3` | `apps/backend/tests/_ac_stubs/test_epic_09_stubs.py` |
+| `AC10.1.1` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.1.2` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.1.3` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.2.2` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.4.1` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.4.2` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.5.1` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.5.2` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.5.3` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.5.4` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.6.1` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.6.2` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.6.3` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.6.4` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.1` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.2` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.3` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.4` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.5` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.6` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC10.7.7` | `apps/backend/tests/_ac_stubs/test_epic_10_stubs.py` |
+| `AC12.19.1` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.22.1` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.22.2` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.23.1` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.23.2` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.23.3` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.23.4` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.24.1` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.24.2` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC12.24.3` | `apps/backend/tests/_ac_stubs/test_epic_12_stubs.py` |
+| `AC13.10.1` | `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` |
+| `AC13.10.2` | `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` |
+| `AC13.10.3` | `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` |
+| `AC13.10.4` | `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` |
+| `AC13.10.5` | `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` |
+| `AC13.10.6` | `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` |
+| `AC14.1.1` | `apps/backend/tests/_ac_stubs/test_epic_14_stubs.py` |
+| `AC14.1.2` | `apps/backend/tests/_ac_stubs/test_epic_14_stubs.py` |
+| `AC14.1.3` | `apps/backend/tests/_ac_stubs/test_epic_14_stubs.py` |
+| `AC14.1.4` | `apps/backend/tests/_ac_stubs/test_epic_14_stubs.py` |
+| `AC14.1.5` | `apps/backend/tests/_ac_stubs/test_epic_14_stubs.py` |
+| `AC14.1.6` | `apps/backend/tests/_ac_stubs/test_epic_14_stubs.py` |
+| `AC16.1.1` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.1.2` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.1.3` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.2.1` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.2.2` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.2.3` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.2.4` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.5.1` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.10.5` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.1` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.2` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.3` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.4` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.5` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.6` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.7` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.8` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.9` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.10` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.11` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.12` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.13` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.14` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.15` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.16` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.17` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.18` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.19` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.20` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.21` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.22` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.23` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.24` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.25` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.26` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.27` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.28` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.29` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.30` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.11.31` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.1` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.2` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.3` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.4` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.5` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.6` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.7` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.8` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.9` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.10` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.11` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.13.12` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.22.1` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.22.2` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.22.3` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.22.4` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.22.5` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC16.22.6` | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` |
+| `AC18.1.1` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.1.2` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.1.3` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.1.4` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.1.5` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.1.6` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.3.2` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.3.3` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.4.1` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+| `AC18.4.2` | `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` |
+
+## Registered ACs with no real test reference
+
+### EPIC-001 (phase0-setup) — 10 untested
+
+`AC1.2.3`, `AC1.2.4`, `AC1.2.5`, `AC1.3.2`, `AC1.3.3`, `AC1.4.3`, `AC1.4.4`, `AC1.5.3`, `AC1.5.4`, `AC1.5.5`
+
+### EPIC-002 (double-entry-core) — 7 untested
+
+`AC2.2.6`, `AC2.4.3`, `AC2.4.4`, `AC2.4.5`, `AC2.5.3`, `AC2.9.2`, `AC2.9.4`
+
+### EPIC-003 (statement-parsing) — 6 untested
+
+`AC3.2.1`, `AC3.2.2`, `AC3.3.1`, `AC3.3.2`, `AC3.3.3`, `AC3.5.3`
+
+### EPIC-004 (reconciliation-engine) — 5 untested
+
+`AC4.6.1`, `AC4.6.2`, `AC4.6.3`, `AC4.6.4`, `AC4.6.5`
+
+### EPIC-005 (reporting-visualization) — 6 untested
+
+`AC5.6.1`, `AC5.6.2`, `AC5.6.3`, `AC5.6.4`, `AC5.6.5`, `AC5.6.6`
+
+### EPIC-006 (ai-advisor) — 11 untested
+
+`AC6.1.2`, `AC6.1.3`, `AC6.1.4`, `AC6.2.3`, `AC6.2.4`, `AC6.12.1`, `AC6.12.2`, `AC6.12.3`, `AC6.12.4`, `AC6.12.5`, `AC6.12.6`
+
+### EPIC-007 (deployment) — 33 untested
+
+`AC7.1.1`, `AC7.1.2`, `AC7.1.3`, `AC7.2.1`, `AC7.2.2`, `AC7.2.3`, `AC7.2.4`, `AC7.2.5`, `AC7.3.1`, `AC7.3.2`, `AC7.3.3`, `AC7.3.4`, `AC7.3.5`, `AC7.4.1`, `AC7.4.2`, `AC7.4.3`, `AC7.4.4`, `AC7.4.5`, `AC7.4.6`, `AC7.5.1`, `AC7.5.2`, `AC7.5.3`, `AC7.5.4`, `AC7.5.5`, `AC7.6.2`, `AC7.9.1`, `AC7.9.2`, `AC7.9.3`, `AC7.9.4`, `AC7.9.5`, `AC7.9.6`, `AC7.9.7`, `AC7.9.8`
+
+### EPIC-008 (testing-strategy) — 17 untested
+
+`AC8.13.6`, `AC8.13.7`, `AC8.13.8`, `AC8.13.11`, `AC8.13.12`, `AC8.13.13`, `AC8.13.14`, `AC8.13.15`, `AC8.13.16`, `AC8.13.17`, `AC8.13.20`, `AC8.13.21`, `AC8.13.22`, `AC8.13.23`, `AC8.13.24`, `AC8.13.25`, `AC8.13.26`
+
+### EPIC-009 (pdf-fixture-generation) — 37 untested
+
+`AC9.1.1`, `AC9.1.2`, `AC9.1.3`, `AC9.1.4`, `AC9.1.5`, `AC9.1.6`, `AC9.2.1`, `AC9.2.2`, `AC9.2.3`, `AC9.2.4`, `AC9.2.5`, `AC9.2.6`, `AC9.2.7`, `AC9.3.1`, `AC9.3.2`, `AC9.3.3`, `AC9.3.4`, `AC9.3.5`, `AC9.3.6`, `AC9.3.7`, `AC9.4.1`, `AC9.4.2`, `AC9.4.3`, `AC9.4.4`, `AC9.5.1`, `AC9.5.2`, `AC9.5.3`, `AC9.5.4`, `AC9.5.5`, `AC9.6.1`, `AC9.6.2`, `AC9.6.3`, `AC9.6.4`, `AC9.6.5`, `AC9.7.1`, `AC9.7.2`, `AC9.7.3`
+
+### EPIC-010 (signoz-logging) — 21 untested
+
+`AC10.1.1`, `AC10.1.2`, `AC10.1.3`, `AC10.2.2`, `AC10.4.1`, `AC10.4.2`, `AC10.5.1`, `AC10.5.2`, `AC10.5.3`, `AC10.5.4`, `AC10.6.1`, `AC10.6.2`, `AC10.6.3`, `AC10.6.4`, `AC10.7.1`, `AC10.7.2`, `AC10.7.3`, `AC10.7.4`, `AC10.7.5`, `AC10.7.6`, `AC10.7.7`
+
+### EPIC-012 (foundation-libs) — 10 untested
+
+`AC12.19.1`, `AC12.22.1`, `AC12.22.2`, `AC12.23.1`, `AC12.23.2`, `AC12.23.3`, `AC12.23.4`, `AC12.24.1`, `AC12.24.2`, `AC12.24.3`
+
+### EPIC-013 (statement-parsing-v2) — 6 untested
+
+`AC13.10.1`, `AC13.10.2`, `AC13.10.3`, `AC13.10.4`, `AC13.10.5`, `AC13.10.6`
+
+### EPIC-014 (ttd-transformation) — 6 untested
+
+`AC14.1.1`, `AC14.1.2`, `AC14.1.3`, `AC14.1.4`, `AC14.1.5`, `AC14.1.6`
+
+### EPIC-016 (two-stage-review-ui) — 58 untested
+
+`AC16.1.1`, `AC16.1.2`, `AC16.1.3`, `AC16.2.1`, `AC16.2.2`, `AC16.2.3`, `AC16.2.4`, `AC16.5.1`, `AC16.10.5`, `AC16.11.1`, `AC16.11.2`, `AC16.11.3`, `AC16.11.4`, `AC16.11.5`, `AC16.11.6`, `AC16.11.7`, `AC16.11.8`, `AC16.11.9`, `AC16.11.10`, `AC16.11.11`, `AC16.11.12`, `AC16.11.13`, `AC16.11.14`, `AC16.11.15`, `AC16.11.16`, `AC16.11.17`, `AC16.11.18`, `AC16.11.19`, `AC16.11.20`, `AC16.11.21`, `AC16.11.22`, `AC16.11.23`, `AC16.11.24`, `AC16.11.25`, `AC16.11.26`, `AC16.11.27`, `AC16.11.28`, `AC16.11.29`, `AC16.11.30`, `AC16.11.31`, `AC16.13.1`, `AC16.13.2`, `AC16.13.3`, `AC16.13.4`, `AC16.13.5`, `AC16.13.6`, `AC16.13.7`, `AC16.13.8`, `AC16.13.9`, `AC16.13.10`, `AC16.13.11`, `AC16.13.12`, `AC16.22.1`, `AC16.22.2`, `AC16.22.3`, `AC16.22.4`, `AC16.22.5`, `AC16.22.6`
+
+### EPIC-018 (ai-driven-pipeline) — 10 untested
+
+`AC18.1.1`, `AC18.1.2`, `AC18.1.3`, `AC18.1.4`, `AC18.1.5`, `AC18.1.6`, `AC18.3.2`, `AC18.3.3`, `AC18.4.1`, `AC18.4.2`
