@@ -297,7 +297,7 @@
 | AC5.6.2 | yes | Annualized return (TWR) computed correctly | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.3 | yes | Dividend yield = annual dividends / current value | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.4 | yes | Annualized income in income statement KPI block | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
-| AC5.6.5 | yes | Unrealized P&L reflected in balance sheet equity | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
+| AC5.6.5 | yes | Unrealized P&L reflected in balance sheet equity | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/backend/tests/reporting/test_reporting.py` | ✅ |
 | AC5.6.6 | yes | MWR (money-weighted return) matches XIRR for single cashflow | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.7 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py`<br>`apps/backend/tests/reporting/test_reporting_fx_revaluation_integration.py` | ✅ (optional) |
 | AC5.6.8 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
@@ -1015,8 +1015,8 @@
 | AC16.14.7 | yes | Cash-flow page renders loading and error retry states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx` | ✅ |
 | AC16.14.8 | yes | Cash-flow page renders summary and section cards on success | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx` | ✅ |
 | AC16.14.9 | yes | Cash-flow page renders sankey chart when summary exists | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx` | ✅ |
-| AC16.14.10 | yes | Statements page renders loading, error, empty, and populated states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
-| AC16.14.11 | yes | Statements page enables polling when parsing status is present | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
+| AC16.14.10 | yes | Statements page renders loading, error, empty, and populated states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx`<br>`apps/frontend/src/__tests__/incomeStatementPage.test.tsx`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
+| AC16.14.11 | yes | Statements page enables polling when parsing status is present | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/incomeStatementPage.test.tsx`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
 | AC16.14.12 | yes | Statements page delete action calls delete API and toast on confirm | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
 | AC16.15.1 | yes | Accounts page renders loading and error retry states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/accountsPage.test.tsx` | ✅ |
 | AC16.15.2 | yes | Accounts page renders grouped account cards and type filters on successful fetch | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/accountsPage.test.tsx` | ✅ |

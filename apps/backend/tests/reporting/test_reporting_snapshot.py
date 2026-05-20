@@ -1,6 +1,6 @@
 """Tests for Reporting Snapshot Service."""
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -176,3 +176,54 @@ class TestReportingSnapshotService:
                     rule_version_id=rule.id,
                     report_data={"test": "data"},
                 )
+
+    async def test_create_snapshot_scopes_latest_to_same_report_date(self, db, test_user):
+        """Creating a new snapshot only retires the latest snapshot for the same report date."""
+        service = ReportingSnapshotService()
+
+        rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Snapshot rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={},
+            created_by=test_user.id,
+        )
+        db.add(rule)
+        await db.flush()
+
+        january = await service.create_snapshot(
+            db,
+            user_id=test_user.id,
+            report_type=ReportType.BALANCE_SHEET,
+            as_of_date=date(2024, 1, 31),
+            rule_version_id=rule.id,
+            report_data={"month": "jan"},
+        )
+        before_create = datetime.now(UTC)
+        february = await service.create_snapshot(
+            db,
+            user_id=test_user.id,
+            report_type=ReportType.BALANCE_SHEET,
+            as_of_date=date(2024, 2, 29),
+            rule_version_id=rule.id,
+            report_data={"month": "feb"},
+            ttl_seconds=120,
+        )
+        after_create = datetime.now(UTC)
+        await db.refresh(january)
+        await db.refresh(february)
+
+        assert january.is_latest is True
+        assert february.is_latest is True
+        assert february.ttl is not None
+        assert before_create + timedelta(seconds=120) <= february.ttl <= after_create + timedelta(seconds=120)
+
+        missing = await service.get_snapshot(
+            db,
+            user_id=test_user.id,
+            report_type=ReportType.BALANCE_SHEET,
+            as_of_date=date(2024, 3, 31),
+        )
+        assert missing is None

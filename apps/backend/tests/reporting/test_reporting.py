@@ -203,6 +203,206 @@ async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts,
 
 
 @pytest.mark.asyncio
+async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_of_accounts, test_user_id):
+    """[AC5.1.1][AC5.2.1][AC5.3.1][AC5.6.5] Deterministic fixture yields exact report totals."""
+    cash, liability, equity, income, expense = chart_of_accounts
+
+    owner_contribution = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 1),
+        memo="Owner contribution",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    salary_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 10),
+        memo="Salary",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    rent_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 15),
+        memo="Rent",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    credit_card_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 20),
+        memo="Credit card drawdown",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([owner_contribution, salary_entry, rent_entry, credit_card_entry])
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=owner_contribution.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=owner_contribution.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=salary_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("500.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=salary_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("500.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=rent_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("200.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=rent_entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("200.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=credit_card_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("300.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=credit_card_entry.id,
+                account_id=liability.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("300.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    balance_sheet = await generate_balance_sheet(
+        db,
+        test_user_id,
+        as_of_date=date(2025, 1, 31),
+        currency="SGD",
+    )
+    income_statement = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+    )
+    cash_flow = await generate_cash_flow(
+        db,
+        test_user_id,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        currency="SGD",
+    )
+
+    assert balance_sheet["total_assets"] == Decimal("1600.00")
+    assert balance_sheet["total_liabilities"] == Decimal("300.00")
+    assert balance_sheet["total_equity"] == Decimal("1000.00")
+    assert balance_sheet["net_income"] == Decimal("300.00")
+    assert balance_sheet["unrealized_fx_gain_loss"] == Decimal("0.00")
+    assert balance_sheet["net_worth_adjustment_gain_loss"] == Decimal("0.00")
+    assert balance_sheet["equation_delta"] == Decimal("0.00")
+    assert balance_sheet["is_balanced"] is True
+    assert balance_sheet["assets"] == [
+        {
+            "account_id": cash.id,
+            "name": "Cash",
+            "type": AccountType.ASSET,
+            "parent_id": None,
+            "amount": Decimal("1600.00"),
+        }
+    ]
+    assert balance_sheet["liabilities"] == [
+        {
+            "account_id": liability.id,
+            "name": "Credit Card",
+            "type": AccountType.LIABILITY,
+            "parent_id": None,
+            "amount": Decimal("300.00"),
+        }
+    ]
+
+    assert income_statement["total_income"] == Decimal("500.00")
+    assert income_statement["total_expenses"] == Decimal("200.00")
+    assert income_statement["net_income"] == Decimal("300.00")
+    assert income_statement["unrealized_fx_gain_loss"] == Decimal("0.00")
+    assert income_statement["comprehensive_income"] == Decimal("300.00")
+    assert income_statement["trends"] == [
+        {
+            "period_start": date(2025, 1, 1),
+            "period_end": date(2025, 1, 31),
+            "total_income": Decimal("500.00"),
+            "total_expenses": Decimal("200.00"),
+            "net_income": Decimal("300.00"),
+        }
+    ]
+
+    assert cash_flow["operating"] == [
+        {
+            "category": "Operating",
+            "subcategory": "Salary",
+            "amount": Decimal("500.00"),
+            "description": "Inflow - Salary",
+        },
+        {
+            "category": "Operating",
+            "subcategory": "Dining",
+            "amount": Decimal("200.00"),
+            "description": "Outflow - Dining",
+        },
+    ]
+    assert cash_flow["investing"] == []
+    assert cash_flow["financing"] == [
+        {
+            "category": "Financing",
+            "subcategory": "Owner Equity",
+            "amount": Decimal("1000.00"),
+            "description": "Inflow - Owner Equity",
+        },
+        {
+            "category": "Financing",
+            "subcategory": "Credit Card",
+            "amount": Decimal("300.00"),
+            "description": "Inflow - Credit Card",
+        },
+    ]
+    assert cash_flow["summary"] == {
+        "operating_activities": Decimal("700.00"),
+        "investing_activities": Decimal("0.00"),
+        "financing_activities": Decimal("1300.00"),
+        "net_cash_flow": Decimal("1600.00"),
+        "beginning_cash": Decimal("0.00"),
+        "ending_cash": Decimal("1600.00"),
+    }
+
+
+@pytest.mark.asyncio
 async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash, _liability, equity, *_rest = chart_of_accounts
     entry = JournalEntry(
@@ -834,6 +1034,14 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     assert "net_cash_flow" in summary
     assert "beginning_cash" in summary
     assert "ending_cash" in summary
+    assert summary == {
+        "operating_activities": Decimal("3500.00"),
+        "investing_activities": Decimal("0.00"),
+        "financing_activities": Decimal("5000.00"),
+        "net_cash_flow": Decimal("7500.00"),
+        "beginning_cash": Decimal("0.00"),
+        "ending_cash": Decimal("7500.00"),
+    }
 
 
 @pytest.mark.asyncio
