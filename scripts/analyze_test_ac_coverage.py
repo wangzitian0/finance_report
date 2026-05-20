@@ -26,14 +26,14 @@ from typing import Any
 
 import yaml
 
+from ac_traceability_refs import AC_PATTERN, classify_reference_file
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_REGISTRY_PATHS = (
     REPO_ROOT / "docs" / "ac_registry.yaml",
     REPO_ROOT / "docs" / "infra_registry.yaml",
 )
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "analysis" / "test-ac-coverage-report.md"
-
-AC_PATTERN = re.compile(r"\bAC\d+\.\d+\.\d+\b")
 
 SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
     ("backend", REPO_ROOT / "apps" / "backend" / "tests", ("**/*.py",)),
@@ -58,8 +58,10 @@ class ACRecord:
 @dataclass
 class ACReferenceStats:
     real_files: set[str] = field(default_factory=set)
+    placeholder_files: set[str] = field(default_factory=set)
     stub_files: set[str] = field(default_factory=set)
     real_sources: set[str] = field(default_factory=set)
+    placeholder_sources: set[str] = field(default_factory=set)
     stub_sources: set[str] = field(default_factory=set)
 
 
@@ -75,11 +77,14 @@ class AnalysisResult:
     references: dict[str, ACReferenceStats]
     source_file_counts: dict[str, int]
     source_real_ref_counts: dict[str, int]
+    source_placeholder_ref_counts: dict[str, int]
     source_stub_ref_counts: dict[str, int]
     covered_ids: set[str]
+    placeholder_only_ids: set[str]
     stub_only_ids: set[str]
     untested_ids: list[str]
     invalid_real_refs: dict[str, list[str]]
+    invalid_placeholder_refs: dict[str, list[str]]
     invalid_stub_refs: dict[str, list[str]]
 
 
@@ -89,6 +94,7 @@ class EpicStats:
     epic_name: str
     registered: int = 0
     covered: int = 0
+    placeholder_only: int = 0
     stub_only: int = 0
     untested: int = 0
 
@@ -103,10 +109,6 @@ def _relative(path: Path, root: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
-
-
-def _is_stub_file(path: Path) -> bool:
-    return "_ac_stubs" in path.parts
 
 
 def load_registry(registry_paths: tuple[Path, ...] = DEFAULT_REGISTRY_PATHS) -> dict[str, ACRecord]:
@@ -153,9 +155,15 @@ def discover_test_files(repo_root: Path = REPO_ROOT) -> tuple[list[ScanFile], di
 def collect_references(
     scan_files: list[ScanFile],
     repo_root: Path = REPO_ROOT,
-) -> tuple[dict[str, ACReferenceStats], dict[str, set[str]], dict[str, set[str]]]:
+) -> tuple[
+    dict[str, ACReferenceStats],
+    dict[str, set[str]],
+    dict[str, set[str]],
+    dict[str, set[str]],
+]:
     references: dict[str, ACReferenceStats] = defaultdict(ACReferenceStats)
     source_real_refs: dict[str, set[str]] = defaultdict(set)
+    source_placeholder_refs: dict[str, set[str]] = defaultdict(set)
     source_stub_refs: dict[str, set[str]] = defaultdict(set)
 
     for scan_file in scan_files:
@@ -164,22 +172,26 @@ def collect_references(
         except OSError:
             continue
 
-        is_stub = _is_stub_file(scan_file.path)
+        kind = classify_reference_file(scan_file.path, content)
         rel_path = _relative(scan_file.path, repo_root)
 
         for match in AC_PATTERN.finditer(content):
             ac_id = match.group(0)
             ref_stats = references[ac_id]
-            if is_stub:
+            if kind == "stub":
                 ref_stats.stub_files.add(rel_path)
                 ref_stats.stub_sources.add(scan_file.source)
                 source_stub_refs[scan_file.source].add(ac_id)
+            elif kind == "placeholder":
+                ref_stats.placeholder_files.add(rel_path)
+                ref_stats.placeholder_sources.add(scan_file.source)
+                source_placeholder_refs[scan_file.source].add(ac_id)
             else:
                 ref_stats.real_files.add(rel_path)
                 ref_stats.real_sources.add(scan_file.source)
                 source_real_refs[scan_file.source].add(ac_id)
 
-    return references, source_real_refs, source_stub_refs
+    return references, source_real_refs, source_placeholder_refs, source_stub_refs
 
 
 def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
@@ -190,7 +202,7 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
         )
     )
     scan_files, source_file_counts = discover_test_files(repo_root)
-    references, source_real_refs, source_stub_refs = collect_references(scan_files, repo_root)
+    references, source_real_refs, source_placeholder_refs, source_stub_refs = collect_references(scan_files, repo_root)
 
     covered_ids = {
         ac_id
@@ -200,7 +212,15 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
     stub_only_ids = {
         ac_id
         for ac_id, ref_stats in references.items()
-        if ac_id in registry and not ref_stats.real_files and ref_stats.stub_files
+        if ac_id in registry
+        and not ref_stats.real_files
+        and not ref_stats.placeholder_files
+        and ref_stats.stub_files
+    }
+    placeholder_only_ids = {
+        ac_id
+        for ac_id, ref_stats in references.items()
+        if ac_id in registry and not ref_stats.real_files and ref_stats.placeholder_files
     }
 
     untested_ids = sorted(
@@ -218,8 +238,14 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
         for ac_id, ref_stats in references.items()
         if ac_id not in registry and ref_stats.stub_files
     }
+    invalid_placeholder_refs = {
+        ac_id: sorted(ref_stats.placeholder_files)
+        for ac_id, ref_stats in references.items()
+        if ac_id not in registry and ref_stats.placeholder_files
+    }
 
     source_real_ref_counts = {source: len(source_real_refs.get(source, set())) for source, *_ in SCAN_TARGETS}
+    source_placeholder_ref_counts = {source: len(source_placeholder_refs.get(source, set())) for source, *_ in SCAN_TARGETS}
     source_stub_ref_counts = {source: len(source_stub_refs.get(source, set())) for source, *_ in SCAN_TARGETS}
 
     return AnalysisResult(
@@ -227,11 +253,14 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
         references=dict(references),
         source_file_counts=source_file_counts,
         source_real_ref_counts=source_real_ref_counts,
+        source_placeholder_ref_counts=source_placeholder_ref_counts,
         source_stub_ref_counts=source_stub_ref_counts,
         covered_ids=covered_ids,
+        placeholder_only_ids=placeholder_only_ids,
         stub_only_ids=stub_only_ids,
         untested_ids=untested_ids,
         invalid_real_refs=dict(sorted(invalid_real_refs.items(), key=lambda item: _ac_sort_key(item[0]))),
+        invalid_placeholder_refs=dict(sorted(invalid_placeholder_refs.items(), key=lambda item: _ac_sort_key(item[0]))),
         invalid_stub_refs=dict(sorted(invalid_stub_refs.items(), key=lambda item: _ac_sort_key(item[0]))),
     )
 
@@ -243,6 +272,9 @@ def _epic_stats(result: AnalysisResult) -> list[EpicStats]:
         stats.registered += 1
         if ac.id in result.covered_ids:
             stats.covered += 1
+        elif ac.id in result.placeholder_only_ids:
+            stats.placeholder_only += 1
+            stats.untested += 1
         elif ac.id in result.stub_only_ids:
             stats.stub_only += 1
             stats.untested += 1
@@ -267,9 +299,11 @@ def _render_file_list(paths: list[str]) -> str:
 def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     total_registered = len(result.registry)
     covered_count = len(result.covered_ids)
+    placeholder_only_count = len(result.placeholder_only_ids)
     stub_only_count = len(result.stub_only_ids)
     untested_count = len(result.untested_ids)
     invalid_real_count = len(result.invalid_real_refs)
+    invalid_placeholder_count = len(result.invalid_placeholder_refs)
     invalid_stub_count = len(result.invalid_stub_refs)
 
     coverage_pct = (covered_count / total_registered * 100.0) if total_registered else 100.0
@@ -283,7 +317,8 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("")
     lines.append("## Coverage accounting (EPIC-008 aligned)")
     lines.append("")
-    lines.append("- Covered AC = has at least one real test reference outside `apps/backend/tests/_ac_stubs/`.")
+    lines.append("- Covered AC = has at least one real test reference outside `_ac_stubs` and trivial placeholder assertions.")
+    lines.append("- `expect(true).toBe(true)` style references are tracked as placeholder-only and **do not** count as covered.")
     lines.append("- `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered.")
     lines.append("- Invalid AC references are AC IDs found in tests but missing from registries.")
     lines.append("- Untested AC = registered AC without any real passing-test candidate reference.")
@@ -294,52 +329,61 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("|---|---:|")
     lines.append(f"| Registered ACs | {total_registered} |")
     lines.append(f"| Covered by real test candidates | {covered_count} ({coverage_pct:.1f}%) |")
+    lines.append(f"| Placeholder-only assertions | {placeholder_only_count} |")
     lines.append(f"| Stub-only placeholders (`_ac_stubs`) | {stub_only_count} |")
     lines.append(f"| Registered but untested | {untested_count} |")
     lines.append(f"| Invalid AC refs in real tests | {invalid_real_count} |")
+    lines.append(f"| Invalid AC refs in placeholders | {invalid_placeholder_count} |")
     lines.append(f"| Invalid AC refs in stubs | {invalid_stub_count} |")
     lines.append("")
 
     lines.append("## Scan scope summary")
     lines.append("")
-    lines.append("| Source | Files scanned | Unique AC refs (real) | Unique AC refs (stub) |")
-    lines.append("|---|---:|---:|---:|")
+    lines.append("| Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |")
+    lines.append("|---|---:|---:|---:|---:|")
     for source, *_ in SCAN_TARGETS:
         lines.append(
             f"| {source} | {result.source_file_counts.get(source, 0)} | "
-            f"{result.source_real_ref_counts.get(source, 0)} | {result.source_stub_ref_counts.get(source, 0)} |"
+            f"{result.source_real_ref_counts.get(source, 0)} | "
+            f"{result.source_placeholder_ref_counts.get(source, 0)} | "
+            f"{result.source_stub_ref_counts.get(source, 0)} |"
         )
     lines.append("")
 
     lines.append("## Coverage by EPIC")
     lines.append("")
-    lines.append("| EPIC | Name | Registered | Covered | Stub-only | Untested | Coverage |")
-    lines.append("|---|---|---:|---:|---:|---:|---:|")
+    lines.append("| EPIC | Name | Registered | Covered | Placeholder-only | Stub-only | Untested | Coverage |")
+    lines.append("|---|---|---:|---:|---:|---:|---:|---:|")
     for epic in _epic_stats(result):
         epic_coverage_pct = (
             epic.covered / epic.registered * 100.0 if epic.registered else 100.0
         )
         lines.append(
             f"| EPIC-{epic.epic:03d} | {epic.epic_name} | {epic.registered} | "
-            f"{epic.covered} | {epic.stub_only} | {epic.untested} | {epic_coverage_pct:.1f}% |"
+            f"{epic.covered} | {epic.placeholder_only} | {epic.stub_only} | "
+            f"{epic.untested} | {epic_coverage_pct:.1f}% |"
         )
     lines.append("")
 
     lines.append("## Invalid AC references (unregistered)")
     lines.append("")
-    if result.invalid_real_refs or result.invalid_stub_refs:
-        lines.append("| AC ID | Real test files | Stub files |")
-        lines.append("|---|---|---|")
+    if result.invalid_real_refs or result.invalid_placeholder_refs or result.invalid_stub_refs:
+        lines.append("| AC ID | Real test files | Placeholder files | Stub files |")
+        lines.append("|---|---|---|---|")
         invalid_ids = sorted(
-            set(result.invalid_real_refs) | set(result.invalid_stub_refs),
+            set(result.invalid_real_refs)
+            | set(result.invalid_placeholder_refs)
+            | set(result.invalid_stub_refs),
             key=_ac_sort_key,
         )
         for ac_id in invalid_ids:
             real_files = result.invalid_real_refs.get(ac_id, [])
+            placeholder_files = result.invalid_placeholder_refs.get(ac_id, [])
             stub_files = result.invalid_stub_refs.get(ac_id, [])
             lines.append(
                 f"| `{ac_id}` | "
                 f"{_render_file_list(real_files) if real_files else '_none_'} | "
+                f"{_render_file_list(placeholder_files) if placeholder_files else '_none_'} | "
                 f"{_render_file_list(stub_files) if stub_files else '_none_'} |"
             )
     else:
@@ -356,6 +400,18 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
             lines.append(f"| `{ac_id}` | {_render_file_list(files)} |")
     else:
         lines.append("No stub-only AC placeholders found.")
+    lines.append("")
+
+    lines.append("## Placeholder-only AC assertions")
+    lines.append("")
+    if result.placeholder_only_ids:
+        lines.append("| AC ID | Placeholder file references |")
+        lines.append("|---|---|")
+        for ac_id in sorted(result.placeholder_only_ids, key=_ac_sort_key):
+            files = sorted(result.references[ac_id].placeholder_files)
+            lines.append(f"| `{ac_id}` | {_render_file_list(files)} |")
+    else:
+        lines.append("No placeholder-only AC assertions found.")
     lines.append("")
 
     lines.append("## Registered ACs with no real test reference")
@@ -412,6 +468,7 @@ def main() -> int:
     print(
         "Summary: "
         f"registered={len(result.registry)}, covered={len(result.covered_ids)}, "
+        f"placeholder_only={len(result.placeholder_only_ids)}, "
         f"stub_only={len(result.stub_only_ids)}, untested={len(result.untested_ids)}, "
         f"invalid_real={len(result.invalid_real_refs)}"
     )

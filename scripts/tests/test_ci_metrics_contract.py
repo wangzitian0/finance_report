@@ -68,7 +68,7 @@ def test_AC8_13_26_current_source_roots_are_fully_governed_by_metrics_contract()
 
 
 def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics():
-    """AC8.13.26: CI enforces one metrics contract and documents its limits."""
+    """AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text(encoding="utf-8")
     traceability = (ROOT / "scripts/build_ac_traceability.py").read_text(
@@ -85,7 +85,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "--failure-confirmation-seconds" in workflow
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
+    assert "trivial placeholder assertions" in ci_cd
     assert "not behavioral coverage" in traceability
+    assert "placeholder assertions" in traceability
 
 
 def test_AC8_13_26_code_discovery_ignores_missing_non_code_and_test_trees(tmp_path):
