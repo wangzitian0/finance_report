@@ -246,6 +246,43 @@ async def test_current_balance_sheet_uses_latest_future_brokerage_snapshot(db: A
 
 
 @pytest.mark.asyncio
+async def test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines(db: AsyncSession, test_user):
+    """AC8.13.18: Portfolio valuation lines remain correct when total assets are lower."""
+    report_date = date(2025, 3, 31)
+    bank = await _create_account(db, test_user.id, name="Bank - Main", account_type=AccountType.ASSET)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    equity = await _create_account(db, test_user.id, name="Owner Equity", account_type=AccountType.EQUITY)
+    await _post_balanced_entry(
+        db,
+        test_user.id,
+        entry_date=report_date,
+        debit_account=equity,
+        credit_account=bank,
+        amount=Decimal("578.78"),
+    )
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="FULLERTON_SGD_MMF",
+        quantity=Decimal("100"),
+        cost_basis=Decimal("0.00"),
+        market_value=Decimal("1250.50"),
+        as_of_date=report_date,
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+    valuation_lines = [line for line in report["assets"] if "market valuation adjustment" in str(line["name"]).lower()]
+    valuation_total = sum((line["amount"] for line in valuation_lines), Decimal("0.00"))
+
+    assert report["total_assets"] == Decimal("671.72")
+    assert valuation_total == Decimal("1250.50")
+    assert report["net_worth_adjustment_gain_loss"] == Decimal("1250.50")
+    assert valuation_total > report["total_assets"]
+
+
+@pytest.mark.asyncio
 async def test_portfolio_market_adjustment_preserves_broker_cash_balance(db: AsyncSession, test_user):
     """AC17.5.4: Broker cash remains in net worth when positions are adjusted to market value."""
     report_date = date(2025, 3, 31)

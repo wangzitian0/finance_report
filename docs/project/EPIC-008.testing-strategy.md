@@ -50,6 +50,10 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 - **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
 - **AC8.13.17**: AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs.
+- **AC8.13.18**: Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets.
+- **AC8.13.19**: Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics.
+- **AC8.13.20**: CI change classification is covered by multi-commit and markdown edge-case regression tests.
+- **AC8.13.21**: Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -333,6 +337,10 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.15 | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `test_*coverage_policy*` / `test_build_unified_lcov*` | `scripts/tests/` | P0 |
 | AC8.13.16 | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `test_AC8_13_16_ci_change_classification_and_frontend_cache` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.17 | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | `test_main_appends_missing_ac_without_rewriting_existing_registry` / `test_AC8_13_17_ac_traceability_runs_registry_generation_check` | `scripts/tests/test_generate_ac_registry.py` / `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 |
+| AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
+| AC8.13.20 | CI change classification is covered by multi-commit and markdown edge-case regression tests | `test_AC8_13_20_*` | `scripts/tests/test_ci_change_classifier.py` | P1 |
+| AC8.13.21 | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running | `test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 62
@@ -452,14 +460,14 @@ These scenarios represent the "Vertical Slices" of user value.
    - **Status**: Implemented hard gate — requires `APP_URL` pointing to a running frontend+backend
    - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
    - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips and reports the statement id, validation error, parsing progress, confidence, and selected model. The separate post-merge `Staging AI/OCR Gate` is the provider-backed AI/OCR gate.
-   - **Provider budget rule**: Tests marked `llm` run serially in `.github/workflows/staging-ai-ocr-gate.yml`, not under the staging deploy `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging AI/OCR gate. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate.
-   - **Fast-fail guardrail**: Staging tracks the latest `main`, cancels stale in-progress deploy runs, caps the deploy job at 30 minutes, caps the deploy E2E step at 22 minutes, and emits phase timing logs for smoke and core non-LLM E2E. Provider-backed OCR parsing runs afterward in the separate `Staging AI/OCR Gate`.
+   - **Provider budget rule**: Tests marked `llm` run serially in `.github/workflows/staging-ai-ocr-gate.yml`, not under the staging deploy `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging AI/OCR gate. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate. The gate waits for the same SHA's `CI` push run to succeed before spending provider quota.
+   - **Fast-fail guardrail**: Staging post-merge workflows use GitHub concurrency without canceling a running validation. GitHub retains one running run and one latest pending run per group, so rapid pushes are batched to the latest pending commit rather than interrupting the active deploy/gate. The deploy job is capped at 30 minutes, the deploy E2E step is capped at 22 minutes, and phase timing logs identify smoke and core non-LLM E2E latency. Provider-backed OCR parsing runs afterward in the separate `Staging AI/OCR Gate`.
    - **Route diagnostics**: If staging `/api/health` remains 404, `scripts/health_check.sh` probes `/api/ping` and `/` and identifies a likely Traefik API route miss or web-route shadow before failing the deploy.
 
 3. **Multi-Brokerage Upload to Portfolio Value (Tier 3)** (`test_brokerage_upload_to_portfolio_value.py`):
    - **Status**: Implemented hard gate for Issue #404
-   - **Coverage**: AC8.13.10 (Moomoo + Futu PDF upload, real OCR parse polling, parsed-statement position import, holdings visibility, balance-sheet asset value)
-   - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures.
+   - **Coverage**: AC8.13.10 (Moomoo + Futu PDF upload, real OCR parse polling, parsed-statement position import, holdings visibility, balance-sheet asset value), AC8.13.18, AC8.13.19
+   - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures. Portfolio value coverage is checked against balance-sheet market valuation adjustment lines, not whole `total_assets`, so unrelated cash or bank lines cannot mask or falsely fail the imported portfolio valuation check. Failures include imported position count, holdings total market value, valuation adjustment total, non-portfolio asset total, total assets, net worth adjustment, and relevant asset lines.
    - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS full journey.
 
 4. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
