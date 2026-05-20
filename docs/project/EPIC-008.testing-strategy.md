@@ -367,7 +367,7 @@ These scenarios represent the "Vertical Slices" of user value.
 **Traceability Result**:
 - Total AC IDs: 68
 - Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 51/68 (75.0%); additional deploy-gate coverage is provided by AC8.13 Tier 3 E2E**
+- **ACs with passing Tier 1 tests: 51/68 (75.0%); additional deploy-gate coverage is provided by AC8.13 Tier 3 E2E/CI guardrails**
 - ACs covered by AC group:
   - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
   - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
@@ -380,7 +380,7 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 22/22 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating, and the deterministic upload-to-dashboard vision hard gate)
+  - AC8.13: 22/22 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating, CI metrics contract, and the deterministic upload-to-dashboard vision hard gate)
 - Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 3 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`), plus browser-backed Playwright suites used when `APP_URL` or `FRONTEND_URL` is available
 - **Previous state**: 44.9% with 22 Tier 1 tests
 - **Current state**: 51/55 Tier 1 ACs (92.7%) + AC8.13 22/22 Tier 3/deploy-gate/CI guardrail ACs (total 77 ACs: 55 Tier 1 + 22 Tier 3/deploy-gate/CI guardrail)
