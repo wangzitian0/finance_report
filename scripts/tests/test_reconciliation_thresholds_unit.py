@@ -25,6 +25,7 @@ def _load_reconciliation_module():
     previous_accounting = sys.modules.get("src.services.accounting")
     previous_logger = sys.modules.get("src.logger")
     previous_processing = sys.modules.get("src.services.processing_account")
+    previous_source_type_priority = sys.modules.get("src.services.source_type_priority")
 
     services_package = ModuleType("src.services")
     services_package.__path__ = []  # type: ignore[attr-defined]
@@ -38,11 +39,15 @@ def _load_reconciliation_module():
     processing_module.create_transfer_out_entry = AsyncMock()
     processing_module.detect_transfer_pattern = Mock(return_value=False)
     processing_module.find_transfer_pairs = AsyncMock(return_value=[])
+    source_type_priority_module = ModuleType("src.services.source_type_priority")
+    source_type_priority_module.promote_entry_source_type = Mock(return_value=False)
+    source_type_priority_module.source_type_rank = Mock(return_value=0)
 
     sys.modules["src.services"] = services_package
     sys.modules["src.services.accounting"] = accounting_module
     sys.modules["src.logger"] = logger_module
     sys.modules["src.services.processing_account"] = processing_module
+    sys.modules["src.services.source_type_priority"] = source_type_priority_module
 
     try:
         spec = importlib.util.spec_from_file_location(
@@ -72,6 +77,10 @@ def _load_reconciliation_module():
             sys.modules.pop("src.services.processing_account", None)
         else:
             sys.modules["src.services.processing_account"] = previous_processing
+        if previous_source_type_priority is None:
+            sys.modules.pop("src.services.source_type_priority", None)
+        else:
+            sys.modules["src.services.source_type_priority"] = previous_source_type_priority
 
 
 reconciliation_module = _load_reconciliation_module()
