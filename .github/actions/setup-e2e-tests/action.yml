@@ -14,11 +14,29 @@ runs:
       run: uv python install 3.12
       shell: bash
 
+    - name: Cache E2E virtualenv
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: e2e-venv-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}
+        restore-keys: |
+          e2e-venv-${{ runner.os }}-
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}
+        restore-keys: |
+          playwright-${{ runner.os }}-
+
     - name: Install Test Dependencies
       shell: bash
       run: |
-        # Create virtual environment and install dependencies
-        uv venv
+        # Reuse cached E2E dependencies when possible; uv only installs drift.
+        if [ ! -x .venv/bin/python ]; then
+          uv venv
+        fi
         uv pip install -r tests/e2e/requirements.txt
         
         # Add venv bin to PATH so subsequent steps can use 'pytest' and 'playwright' directly

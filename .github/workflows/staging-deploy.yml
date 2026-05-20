@@ -270,3 +270,26 @@ jobs:
               -v -m "llm"
 
           echo "Staging AI/OCR Gate passed."
+
+  post-merge-summary:
+    name: Post-merge Timing Summary
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy, ai-ocr-gate]
+    if: ${{ always() }}
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Write post-merge timing summary
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/github_workflow_timing_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --title "Post-merge Timing Summary" \
+            --summary-path "$GITHUB_STEP_SUMMARY"
