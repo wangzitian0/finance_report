@@ -220,6 +220,16 @@ class TestCheckTraceability:
         assert result.missing == []
         assert result.mandatory_total == 1
 
+    def test_deprecated_mandatory_not_required(self):
+        acs = [
+            cat.AC("AC1.1.1", 1, "test", "active behavior", True),
+            cat.AC("AC1.1.2", 1, "test", "~~deprecated behavior~~", True),
+        ]
+        refs = {"AC1.1.1": cat.ACReferenceStats(real_files={"test_a.py"})}
+        result = cat.check_traceability(acs, refs)
+        assert result.missing == []
+        assert result.mandatory_total == 1
+
     def test_total_count(self):
         acs = [self._make_ac("AC1.1.1"), self._make_ac("AC1.1.2")]
         result = cat.check_traceability(
@@ -377,6 +387,29 @@ class TestMain:
         )
         empty_infra = tmp_path / "empty_infra.yaml"
         empty_infra.write_text("version: '1.0'\ngroups: {}\n")
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "check_ac_traceability.py",
+                "--registry",
+                str(reg),
+                "--infra-registry",
+                str(empty_infra),
+                "--test-dirs",
+                str(test_dir),
+            ],
+        )
+        assert cat.main() == 1
+
+    def test_returns_one_with_placeholder_only(self, tmp_path, monkeypatch):
+        """AC8.13.35: Placeholder-only mandatory ACs fail the default gate."""
+        reg, test_dir = self._setup(
+            tmp_path,
+            SAMPLE_REGISTRY_YAML,
+            "test('AC1.1.1 placeholder', () => expect(true).toBe(true));\n# AC1.1.2\n",
+        )
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
         monkeypatch.setattr(
             "sys.argv",
             [

@@ -137,3 +137,20 @@ class Stage2ReviewQueueResponse(BaseModel):
     pending_matches: list[dict]
     consistency_checks: list[ConsistencyCheckResponse]
     has_unresolved_checks: bool
+
+
+class ReviewConflictCandidate(BaseModel):
+    """Candidate transaction conflict returned to Stage 1 conflict UI."""
+
+    id: UUID
+    txn_date: date
+    description: str
+    amount: Decimal
+    direction: str
+
+
+class ReviewConflictsResponse(BaseModel):
+    """Conflict candidates for a statement."""
+
+    duplicates: list[ReviewConflictCandidate] = Field(default_factory=list)
+    transfer_pairs: list[ReviewConflictCandidate] = Field(default_factory=list)

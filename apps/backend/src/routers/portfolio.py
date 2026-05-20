@@ -5,14 +5,21 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
+from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
+    CostBasisMethodUpdateRequest,
+    DividendEventResponse,
     HoldingResponse,
+    PortfolioSummaryDashboardResponse,
     PriceUpdateRequest as SchemaPriceUpdateRequest,
+    RealizedLotResponse,
 )
 from src.services import allocation, performance
 from src.services.brokerage_positions import BrokeragePositionImportService
@@ -96,6 +103,144 @@ async def get_holdings(
 
     logger.info("Retrieved holdings", count=len(holdings))
     return holdings
+
+
+@router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
+async def get_portfolio_summary(
+    db: DbSession,
+    user_id: CurrentUserId,
+    as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
+) -> PortfolioSummaryDashboardResponse:
+    """Get portfolio summary with YTD realized P&L and dividend income."""
+    report_date = as_of_date or date.today()
+    try:
+        summary = await _portfolio_service.get_portfolio_summary(db=db, user_id=user_id, as_of_date=as_of_date)
+    except (PortfolioNotFoundError, AssetNotFoundError):
+        return PortfolioSummaryDashboardResponse(
+            total_market_value=Decimal("0.00"),
+            total_cost_basis=Decimal("0.00"),
+            total_unrealized_pnl=Decimal("0.00"),
+            total_unrealized_pnl_percent=Decimal("0.00"),
+            total_realized_pnl=Decimal("0.00"),
+            total_realized_pnl_percent=Decimal("0.00"),
+            net_pnl=Decimal("0.00"),
+            net_pnl_percent=Decimal("0.00"),
+            holdings_count=0,
+            active_positions_count=0,
+            disposed_positions_count=0,
+            currency="SGD",
+            realized_pnl_ytd=Decimal("0.00"),
+            dividend_income_ytd=Decimal("0.00"),
+        )
+
+    year_start = date(report_date.year, 1, 1)
+    realized_result = await db.execute(
+        select(InvestmentTransaction)
+        .where(InvestmentTransaction.user_id == user_id)
+        .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL)
+        .where(InvestmentTransaction.transaction_date >= year_start)
+        .where(InvestmentTransaction.transaction_date <= report_date)
+    )
+    realized_pnl_ytd = sum((txn.realized_pnl or Decimal("0.00")) for txn in realized_result.scalars().all())
+
+    dividend_result = await db.execute(
+        select(DividendIncome)
+        .where(DividendIncome.user_id == user_id)
+        .where(DividendIncome.payment_date >= year_start)
+        .where(DividendIncome.payment_date <= report_date)
+    )
+    dividend_income_ytd = sum(dividend.amount for dividend in dividend_result.scalars().all())
+
+    data = summary.model_dump()
+    data["realized_pnl_ytd"] = Decimal(realized_pnl_ytd).quantize(Decimal("0.01"))
+    data["dividend_income_ytd"] = Decimal(dividend_income_ytd).quantize(Decimal("0.01"))
+    return PortfolioSummaryDashboardResponse(**data)
+
+
+@router.get("/{ticker}/dividends", response_model=list[DividendEventResponse])
+async def get_holding_dividends(
+    ticker: str,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> list[DividendEventResponse]:
+    """List dividend events for a holding ticker."""
+    result = await db.execute(
+        select(DividendIncome)
+        .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
+        .where(DividendIncome.user_id == user_id)
+        .where(ManagedPosition.user_id == user_id)
+        .where(ManagedPosition.asset_identifier == ticker)
+        .order_by(DividendIncome.payment_date.desc())
+    )
+    return [
+        DividendEventResponse(
+            id=dividend.id,
+            ex_date=dividend.payment_date,
+            pay_date=dividend.payment_date,
+            amount=dividend.amount,
+            currency=dividend.currency,
+            reinvested=False,
+        )
+        for dividend in result.scalars().all()
+    ]
+
+
+@router.get("/{ticker}/realized", response_model=list[RealizedLotResponse])
+async def get_holding_realized_lots(
+    ticker: str,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> list[RealizedLotResponse]:
+    """List lot-level realized P&L rows for a holding ticker."""
+    result = await db.execute(
+        select(InvestmentTransaction, ManagedPosition)
+        .outerjoin(ManagedPosition, InvestmentTransaction.position_id == ManagedPosition.id)
+        .where(InvestmentTransaction.user_id == user_id)
+        .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL)
+        .where(InvestmentTransaction.asset_identifier == ticker)
+        .order_by(InvestmentTransaction.transaction_date.desc())
+    )
+    rows = []
+    for txn, position in result.all():
+        acquired_date = position.acquisition_date if position else None
+        holding_period = (txn.transaction_date - acquired_date).days if acquired_date else None
+        rows.append(
+            RealizedLotResponse(
+                lot_id=txn.id,
+                acquired_date=acquired_date,
+                sold_date=txn.transaction_date,
+                quantity=txn.quantity or Decimal("0.000000"),
+                basis=(txn.cost_basis or Decimal("0.00")).quantize(Decimal("0.01")),
+                proceeds=(txn.gross_amount - txn.fees).quantize(Decimal("0.01")),
+                gain_loss=(txn.realized_pnl or Decimal("0.00")).quantize(Decimal("0.01")),
+                holding_period=holding_period,
+                currency=txn.currency,
+            )
+        )
+    return rows
+
+
+@router.patch("/{ticker}", response_model=dict)
+async def update_holding_cost_basis_method(
+    ticker: str,
+    request: CostBasisMethodUpdateRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> dict:
+    """Persist cost-basis method for all active positions matching a holding ticker."""
+    result = await db.execute(
+        select(ManagedPosition)
+        .where(ManagedPosition.user_id == user_id)
+        .where(ManagedPosition.asset_identifier == ticker)
+        .where(ManagedPosition.status == PositionStatus.ACTIVE)
+    )
+    positions = list(result.scalars().all())
+    if not positions:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Holding not found")
+    for position in positions:
+        position.cost_basis_method = request.cost_basis_method
+    await db.commit()
+    return {"updated_count": len(positions), "cost_basis_method": request.cost_basis_method.value}
 
 
 @router.get("/performance", response_model=PerformanceMetricsResponse)

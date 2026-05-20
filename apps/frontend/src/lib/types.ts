@@ -153,6 +153,31 @@ export interface IncomeStatementResponse {
     trends: IncomeStatementTrend[];
 }
 
+export interface AnnualizedIncomeResponse {
+    annualized_salary: number | string;
+    annualized_bonus: number | string;
+    annualized_dividend: number | string;
+    annualized_total: number | string;
+    currency: string;
+    as_of: string;
+}
+
+export interface RestrictedHolding {
+    ticker: string;
+    quantity: number | string;
+    vesting_schedule?: string | null;
+    unlock_date?: string | null;
+    fair_value: number | string;
+    currency: string;
+}
+
+export interface ValuationComponentsResponse {
+    items: unknown[];
+    total_assets: number | string;
+    total_liabilities: number | string;
+    net_worth_delta: number | string;
+}
+
 export interface ReconciliationStatsResponse {
     total_transactions: number;
     matched_transactions: number;
@@ -297,11 +322,49 @@ export interface PortfolioHolding {
     acquisition_date: string;
     disposal_date?: string | null;
     status: "active" | "disposed";
-    cost_basis_method?: "FIFO" | "LIFO" | "AVG_COST" | null;
+    cost_basis_method?: "FIFO" | "LIFO" | "AvgCost" | null;
     account_name?: string | null;
     asset_type?: string | null;
     sector?: string | null;
     geography?: string | null;
+}
+
+export interface PortfolioSummaryResponse {
+    total_market_value: string;
+    total_cost_basis: string;
+    total_unrealized_pnl: string;
+    total_unrealized_pnl_percent: string;
+    total_realized_pnl: string;
+    total_realized_pnl_percent: string;
+    net_pnl: string;
+    net_pnl_percent: string;
+    holdings_count: number;
+    active_positions_count: number;
+    disposed_positions_count: number;
+    currency: string;
+    realized_pnl_ytd: string;
+    dividend_income_ytd: string;
+}
+
+export interface DividendEvent {
+    id: string;
+    ex_date: string;
+    pay_date: string;
+    amount: string;
+    currency: string;
+    reinvested: boolean;
+}
+
+export interface RealizedLot {
+    lot_id: string;
+    acquired_date?: string | null;
+    sold_date: string;
+    quantity: string;
+    basis: string;
+    proceeds: string;
+    gain_loss: string;
+    holding_period?: number | null;
+    currency: string;
 }
 
 export interface PerformanceMetrics {

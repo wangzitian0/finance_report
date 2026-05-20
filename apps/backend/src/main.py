@@ -32,6 +32,7 @@ from src.routers import (
     auth,
     chat,
     corrections,
+    income,
     journal,
     portfolio,
     reports,
@@ -257,9 +258,11 @@ app.include_router(assets.router)
 app.include_router(chat.router)
 app.include_router(corrections.router)
 app.include_router(journal.router)
+app.include_router(income.router)
 app.include_router(reports.router)
 app.include_router(statements.router)
 app.include_router(review.router)
+app.include_router(review.conflicts_router)
 app.include_router(reconciliation_router)
 app.include_router(users.router)
 app.include_router(user_settings.router)

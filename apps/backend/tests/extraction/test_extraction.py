@@ -99,18 +99,18 @@ class TestConfidenceScoring:
         assert 60 <= score < 85, f"Expected medium confidence, got {score}"
 
     def test_low_confidence_empty_transactions(self):
-        """AC13.2.3: Test that no transactions lowers confidence (Manual)."""
+        """AC3.3.3/AC13.2.3: Missing transactions and invalid fields route to manual confidence."""
         extracted = {
             "institution": "DBS",
-            "period_start": "2025-01-01",
+            "period_start": "invalid-date",
             "period_end": "2025-01-31",
             "opening_balance": "0",
             "closing_balance": "0",
             "transactions": [],  # No transactions
         }
-        validation = {"balance_valid": True, "difference": "0.00"}
+        validation = {"balance_valid": False, "difference": "100.00"}
         score = self.service._compute_confidence(extracted, validation)
-        assert score < 100, "Empty transactions should lower confidence"
+        assert score < 60, "Low-confidence statements should require manual review"
 
 
 class TestFixtureData:

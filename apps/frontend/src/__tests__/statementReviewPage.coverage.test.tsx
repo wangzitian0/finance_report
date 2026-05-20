@@ -28,7 +28,7 @@ describe("StatementReviewPage - coverage additions", () => {
         expect(await screen.findByRole("link", { name: /Back to Statements/i })).toBeInTheDocument();
     });
 
-    it("handles inline edit flow: begin edit, change value, save triggers api", async () => {
+    it("AC16.11.33 handles inline edit flow: begin edit, change value, save triggers api", async () => {
         const stmt = {
             id: "s1",
             original_filename: "file.pdf",

@@ -133,5 +133,16 @@ class ValuationComponentsResponse(BaseModel):
     net_worth_delta: Annotated[Decimal, Field(decimal_places=2)]
 
 
+class RestrictedHoldingResponse(BaseModel):
+    """Restricted equity or locked holding surfaced for dashboard visibility."""
+
+    ticker: str
+    quantity: Annotated[Decimal, Field(decimal_places=6)]
+    vesting_schedule: str | None = None
+    unlock_date: date | None = None
+    fair_value: Annotated[Decimal, Field(decimal_places=2)]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+
+
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]
 ManualValuationSnapshotListResponse = ListResponse[ManualValuationSnapshotResponse]

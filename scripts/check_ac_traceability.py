@@ -115,10 +115,15 @@ def collect_referenced_acs(test_files: list[Path]) -> dict[str, ACReferenceStats
     return references
 
 
+def is_deprecated(ac: AC) -> bool:
+    description = ac.description.strip()
+    return description.startswith("~~") and description.endswith("~~") and len(description) > 4
+
+
 def check_traceability(
     acs: list[AC], references: dict[str, ACReferenceStats]
 ) -> TraceabilityResult:
-    mandatory = [ac for ac in acs if ac.mandatory]
+    mandatory = [ac for ac in acs if ac.mandatory and not is_deprecated(ac)]
     covered = [
         ac.id
         for ac in mandatory
@@ -272,7 +277,15 @@ def main() -> int:
     result = check_traceability(acs, references)
     print_report(result, acs, references, verbose=args.verbose)
 
-    if result.missing and not args.report_only:
+    if (result.missing or result.placeholder_only) and not args.report_only:
+        if result.placeholder_only:
+            print(
+                "TRACEABILITY GATE FAILED: "
+                f"{len(result.placeholder_only)} mandatory AC(s) are covered only by placeholder assertions.\n"
+                "  Replace expect(true).toBe(true), pure pass, or skipped placeholder tests with behavioral checks.",
+                file=sys.stderr,
+            )
+            return 1
         print(
             f"TRACEABILITY GATE FAILED: {len(result.missing)} mandatory AC(s) have no test reference.\n"
             f'  Add docstrings like """{result.missing[0]}: description""" to at least one test per AC.',
@@ -280,10 +293,10 @@ def main() -> int:
         )
         return 1
 
-    if not result.missing:
+    if not result.missing and not result.placeholder_only:
         print(
             "TRACEABILITY GATE PASSED: all mandatory ACs have at least one "
-            "AC reference. See the report for real/stub/placeholder counts."
+            "non-placeholder AC reference. Stub-only debt remains reported separately."
         )
 
     return 0

@@ -16,10 +16,13 @@ import {
   AccountListResponse,
   BankStatementListResponse,
   BalanceSheetResponse,
+  AnnualizedIncomeResponse,
   IncomeStatementResponse,
   JournalEntryListResponse,
   ReconciliationStatsResponse,
+  RestrictedHolding,
   TrendResponse,
+  ValuationComponentsResponse,
   UnmatchedTransactionsResponse
 } from "@/lib/types";
 
@@ -42,6 +45,10 @@ export default function DashboardPage() {
   const [unmatched, setUnmatched] = useState<UnmatchedTransactionsResponse | null>(null);
   const [recentEntries, setRecentEntries] = useState<JournalEntryListResponse | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [annualizedIncome, setAnnualizedIncome] = useState<AnnualizedIncomeResponse | null>(null);
+  const [restrictedHoldings, setRestrictedHoldings] = useState<RestrictedHolding[]>([]);
+  const [valuationComponents, setValuationComponents] = useState<ValuationComponentsResponse | null>(null);
+  const [includeRestricted, setIncludeRestricted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trendAccountId, setTrendAccountId] = useState<string | null>(null);
@@ -53,9 +60,24 @@ export default function DashboardPage() {
     const incomeEnd = formatDateInput(today);
     setLoading(true);
     try {
-      const [balanceData, incomeData, statsData, unmatchedData, journalData, accountData, statementData, postedJournalData] = await Promise.all([
+      const [
+        balanceData,
+        incomeData,
+        annualizedData,
+        restrictedData,
+        valuationData,
+        statsData,
+        unmatchedData,
+        journalData,
+        accountData,
+        statementData,
+        postedJournalData,
+      ] = await Promise.all([
         apiFetch<BalanceSheetResponse>("/api/reports/balance-sheet"),
         apiFetch<IncomeStatementResponse>(`/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`),
+        apiFetch<AnnualizedIncomeResponse>("/api/income/annualized"),
+        apiFetch<RestrictedHolding[]>("/api/assets/restricted"),
+        apiFetch<ValuationComponentsResponse>(`/api/assets/valuation-components?include_restricted=${includeRestricted ? "true" : "false"}`),
         apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
         apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
@@ -65,6 +87,9 @@ export default function DashboardPage() {
       ]);
       setBalanceSheet(balanceData || { assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "", is_balanced: true });
       setIncomeStatement(incomeData || { start_date: "", end_date: "", currency: "SGD", income: [], expenses: [], total_income: 0, total_expenses: 0, net_income: 0, trends: [] });
+      setAnnualizedIncome(annualizedData || { annualized_salary: 0, annualized_bonus: 0, annualized_dividend: 0, annualized_total: 0, currency: "SGD", as_of: "" });
+      setRestrictedHoldings(restrictedData || []);
+      setValuationComponents(valuationData || { items: [], total_assets: 0, total_liabilities: 0, net_worth_delta: 0 });
       setStats(statsData || { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
       setUnmatched(unmatchedData || { items: [], total: 0 });
       setRecentEntries(journalData || { items: [], total: 0 });
@@ -80,7 +105,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [includeRestricted]);
 
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet || !balanceSheet.assets) return;
@@ -106,7 +131,10 @@ export default function DashboardPage() {
     }
   }, [fetchTrend, balanceSheet]);
 
-  const netAssets = useMemo(() => balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0, [balanceSheet]);
+  const netAssets = useMemo(() => {
+    const ledgerNetAssets = balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0;
+    return ledgerNetAssets + (valuationComponents ? toNumber(valuationComponents.net_worth_delta) : 0);
+  }, [balanceSheet, valuationComponents]);
   const trendPoints = useMemo(() => trend ? trend.points.map((p) => ({ label: formatMonthLabel(p.period_start), value: toNumber(p.amount) })) : [], [trend]);
   const incomeBars = useMemo(() => incomeStatement && incomeStatement.trends ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {
@@ -247,6 +275,15 @@ export default function DashboardPage() {
                 {formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 })}
               </p>
               <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
+              <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={includeRestricted}
+                  onChange={(event) => setIncludeRestricted(event.target.checked)}
+                  className="rounded"
+                />
+                Include restricted holdings
+              </label>
             </div>
             {stats && (() => {
               const total = stats.total_transactions ?? 0;
@@ -272,6 +309,52 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <div className="grid gap-4 lg:grid-cols-2 mb-6">
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Annualized Income</p>
+          <p className="text-2xl font-semibold mt-1">
+            {annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_total), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
+          </p>
+          <p className="text-xs text-muted mt-1">
+            As of {annualizedIncome?.as_of ? formatDateDisplay(annualizedIncome.as_of) : "—"}
+          </p>
+          <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted">Salary</p>
+              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_salary), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Bonus</p>
+              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_bonus), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Dividend</p>
+              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_dividend), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase tracking-wide">Restricted Holdings</p>
+          {restrictedHoldings.length ? (
+            <div className="mt-3 space-y-2">
+              {restrictedHoldings.map((holding) => (
+                <div key={`${holding.ticker}-${holding.unlock_date ?? "locked"}`} className="flex items-center justify-between gap-3 rounded-md bg-[var(--background-muted)] p-3 text-sm">
+                  <div>
+                    <p className="font-medium">{holding.ticker}</p>
+                    <p className="text-xs text-muted" title={holding.vesting_schedule ?? undefined}>
+                      Unlock {holding.unlock_date ? formatDateDisplay(holding.unlock_date) : "TBD"}
+                    </p>
+                  </div>
+                  <p className="font-semibold">{formatCurrencyLocale(toNumber(holding.fair_value), holding.currency, "en-US", { maximumFractionDigits: 0 })}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted">No restricted holdings.</p>
+          )}
+        </div>
+      </div>
 
       {/* This Month KPI Cards */}
       {incomeStatement && incomeStatement.trends && incomeStatement.trends.length > 0 && (() => {

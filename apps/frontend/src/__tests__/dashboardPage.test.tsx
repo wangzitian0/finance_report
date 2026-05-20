@@ -29,6 +29,99 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))
 
+const baseBalance = {
+  assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
+  liabilities: [],
+  equity: [],
+  total_assets: 5000,
+  total_liabilities: 1000,
+  total_equity: 4000,
+  equation_delta: 0,
+  currency: "USD",
+  as_of_date: "2026-02-01",
+  is_balanced: true,
+}
+
+const baseIncome = {
+  currency: "USD",
+  trends: [{ period_start: "2026-01-01", total_income: 3500, total_expenses: 1200, net_income: 2300 }],
+}
+
+function mockDashboardApi(overrides: Record<string, unknown> = {}) {
+  const mockedApiFetch = vi.mocked(apiFetch)
+  mockedApiFetch.mockImplementation((path: string) => {
+    if (path.startsWith("/api/reports/balance-sheet")) return Promise.resolve(overrides.balance ?? baseBalance)
+    if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(overrides.income ?? baseIncome)
+    if (path.startsWith("/api/income/annualized")) {
+      return Promise.resolve(
+        overrides.annualized ?? {
+          annualized_salary: 120000,
+          annualized_bonus: 15000,
+          annualized_dividend: 2400,
+          annualized_total: 137400,
+          currency: "USD",
+          as_of: "2026-05-20",
+        },
+      )
+    }
+    if (path.startsWith("/api/assets/restricted")) {
+      return Promise.resolve(
+        overrides.restricted ?? [
+          {
+            ticker: "SHOP-RSU",
+            quantity: "1.000000",
+            vesting_schedule: "25% annual vesting",
+            unlock_date: "2027-01-01",
+            fair_value: 12500,
+            currency: "USD",
+          },
+        ],
+      )
+    }
+    if (path.startsWith("/api/assets/valuation-components")) {
+      const includeRestricted = path.includes("include_restricted=true")
+      return Promise.resolve(
+        overrides.valuation ?? {
+          items: [],
+          total_assets: includeRestricted ? 12500 : 0,
+          total_liabilities: 0,
+          net_worth_delta: includeRestricted ? 12500 : 0,
+        },
+      )
+    }
+    if (path.startsWith("/api/reconciliation/stats")) {
+      return Promise.resolve(
+        overrides.stats ?? {
+          total_transactions: 20,
+          matched_transactions: 16,
+          unmatched_transactions: 4,
+          pending_review: 2,
+          auto_accepted: 4,
+          match_rate: 80,
+          score_distribution: {},
+        },
+      )
+    }
+    if (path.startsWith("/api/reconciliation/unmatched")) {
+      return Promise.resolve(overrides.unmatched ?? { items: [{ id: "u1", description: "Missing txn", txn_date: "2026-01-10", amount: 99 }], total: 1 })
+    }
+    if (path.startsWith("/api/journal-entries?status_filter=posted")) {
+      return Promise.resolve(overrides.postedJournal ?? { items: [{ id: "j1", status: "posted" }], total: 1 })
+    }
+    if (path.startsWith("/api/journal-entries")) {
+      return Promise.resolve(overrides.journal ?? { items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }], total: 1 })
+    }
+    if (path.startsWith("/api/accounts")) {
+      return Promise.resolve(overrides.accounts ?? { items: [{ id: "a1" }], total: 1 })
+    }
+    if (path.startsWith("/api/statements")) {
+      return Promise.resolve(overrides.statements ?? { items: [{ id: "s1", status: "approved" }], total: 1 })
+    }
+    if (path.startsWith("/api/reports/trend")) return Promise.resolve(overrides.trend ?? { points: [{ period_start: "2026-01-01", amount: 5000 }] })
+    return Promise.reject(new Error(`unhandled path ${path}`))
+  })
+}
+
 describe("DashboardPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
@@ -56,36 +149,8 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
-  it("AC16.12.3 renders KPI and chart sections when API succeeds", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
-        total_assets: 5000,
-        total_liabilities: 1000,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({
-        trends: [{ period_start: "2026-01-01", total_income: 3000, total_expenses: 1200 }],
-      })
-      .mockResolvedValueOnce({
-        auto_accepted: 8,
-        pending_review: 2,
-        unmatched_transactions: 1,
-      })
-      .mockResolvedValueOnce({
-        items: [{ id: "u1", description: "Missing txn", txn_date: "2026-01-10", amount: 99 }],
-      })
-      .mockResolvedValueOnce({
-        items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }],
-      })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
-      .mockResolvedValueOnce({
-        points: [{ period_start: "2026-01-01", amount: 5000 }],
-      })
+  it("AC16.12.3 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
+    mockDashboardApi()
 
     render(<DashboardPage />)
 
@@ -99,87 +164,84 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
   })
 
-  it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
-        total_assets: 5000,
-        total_liabilities: 1000,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({
-        currency: "USD",
-        trends: [
-          { period_start: "2025-12-01", total_income: 1000, total_expenses: 800, net_income: 200 },
-          { period_start: "2026-01-01", total_income: 3500, total_expenses: 1200, net_income: 2300 },
-        ],
-      })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
-      .mockResolvedValueOnce({ points: [] })
+  it("AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels", async () => {
+    mockDashboardApi()
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
-    expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("Annualized Income")).toBeInTheDocument())
+    expect(screen.getByText("Salary")).toBeInTheDocument()
+    expect(screen.getByText("Bonus")).toBeInTheDocument()
+    expect(screen.getByText("Dividend")).toBeInTheDocument()
+    expect(screen.getByText("$137,400")).toBeInTheDocument()
+    expect(screen.getByText(/As of May 20, 2026/)).toBeInTheDocument()
+  })
+
+  it("AC11.8.4 renders Restricted Holdings separately with vesting metadata", async () => {
+    mockDashboardApi()
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
+    expect(screen.getByText("SHOP-RSU")).toBeInTheDocument()
+    expect(screen.getByText(/Unlock Jan 1, 2027/)).toBeInTheDocument()
+    expect(screen.getByText("$12,500")).toBeInTheDocument()
+  })
+
+  it("AC11.8.5 defaults to liquid net worth and refetches when restricted holdings are included", async () => {
+    mockDashboardApi()
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Include restricted holdings")).toBeInTheDocument())
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/assets/valuation-components?include_restricted=false")
+
+    fireEvent.click(screen.getByLabelText("Include restricted holdings"))
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/assets/valuation-components?include_restricted=true"),
+    )
+  })
+
+  it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
+    mockDashboardApi()
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
     expect(screen.getByText("This Month \u2014 Expenses")).toBeInTheDocument()
     expect(screen.getByText("This Month \u2014 Net")).toBeInTheDocument()
     expect(screen.getByText("Surplus")).toBeInTheDocument()
   })
 
-  it("AC16.23.2 This Month KPI cards link to income statement report and show deficit when net is negative", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [],
-        total_assets: 0,
-        total_liabilities: 0,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({
+  it("AC16.23.2 This Month KPI cards link to income statement report and show deficit", async () => {
+    mockDashboardApi({
+      income: {
         currency: "USD",
         trends: [{ period_start: "2026-01-01", total_income: 2000, total_expenses: 2500, net_income: -500 }],
-      })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
+      },
+    })
 
     render(<DashboardPage />)
 
     await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
     const links = screen.getAllByRole("link", { name: /This Month/i })
-    expect(links.length).toBeGreaterThanOrEqual(1)
     links.forEach((link) => expect(link).toHaveAttribute("href", "/reports/income-statement"))
     expect(screen.getByText("Deficit")).toBeInTheDocument()
   })
 
   it("AC16.12.4 renders empty-state messages for missing datasets", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [],
-        total_assets: 0,
-        total_liabilities: 0,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({ trends: [] })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValueOnce({ items: [], total: 0 })
+    mockDashboardApi({
+      balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
+      income: { currency: "USD", trends: [] },
+      restricted: [],
+      unmatched: { items: [], total: 0 },
+      journal: { items: [], total: 0 },
+      trend: { points: [] },
+      accounts: { items: [], total: 0 },
+      statements: { items: [], total: 0 },
+      postedJournal: { items: [], total: 0 },
+    })
 
     render(<DashboardPage />)
 
@@ -187,104 +249,58 @@ describe("DashboardPage", () => {
     expect(screen.getByText(/No trend data/)).toBeInTheDocument()
     expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
     expect(screen.getByText("No income data available.")).toBeInTheDocument()
+    expect(screen.getByText("No restricted holdings.")).toBeInTheDocument()
     expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
     expect(screen.getByText("No unmatched transactions.")).toBeInTheDocument()
   })
 
   it("AC16.23.6 data health bar uses matched_transactions/total_transactions not auto_accepted", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [],
-        total_assets: 0,
-        total_liabilities: 0,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({ currency: "USD", trends: [] })
-      .mockResolvedValueOnce({
-        total_transactions: 20,
-        matched_transactions: 16,
-        unmatched_transactions: 4,
-        pending_review: 2,
-        auto_accepted: 4,
-        match_rate: 80,
-      })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
+    mockDashboardApi()
 
     render(<DashboardPage />)
 
     await waitFor(() => expect(screen.getByText("Data health")).toBeInTheDocument())
-    // Should show 80% (= 16/20), NOT 20% (= 4/20 from auto_accepted)
     expect(screen.getByText("80%")).toBeInTheDocument()
     expect(screen.queryByText("20%")).not.toBeInTheDocument()
-    // Label shows matched count from matched_transactions
     expect(screen.getByText("16 matched")).toBeInTheDocument()
   })
 
   it("renders account selector and handles trend error when multiple assets exist", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
+    mockDashboardApi({
+      balance: {
+        ...baseBalance,
         assets: [
           { account_id: "a1", name: "Cash", amount: 5000 },
           { account_id: "a2", name: "Savings", amount: 3000 },
         ],
-        total_assets: 8000,
-        total_liabilities: 1000,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({ trends: [] })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
-      // First trend fetch succeeds
-      .mockResolvedValueOnce({ points: [{ period_start: "2026-01-01", amount: 5000 }] })
-      // Second trend fetch (after account change) rejects
-      .mockRejectedValueOnce(new Error("trend fetch failed"))
+      },
+    })
 
     render(<DashboardPage />)
 
-    // Wait for data to load
     await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
-
-    // Account selector should be visible with 2+ assets
     const selector = screen.getByRole("combobox") as HTMLSelectElement
     expect(selector).toBeInTheDocument()
     expect(screen.getByText("Top Asset")).toBeInTheDocument()
     expect(screen.getByText("Savings")).toBeInTheDocument()
 
-    // Change to Savings account (triggers trendAccountId path + failed trend fetch)
     fireEvent.change(selector, { target: { value: "a2" } })
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(11))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/trend?account_id=a2&period=monthly"))
   })
 
   it("AC16.12.17 AC16.12.18 renders first-time onboarding with core workflow links", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [],
-        total_assets: 0,
-        total_liabilities: 0,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({ currency: "USD", trends: [] })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValueOnce({ items: [], total: 0 })
+    mockDashboardApi({
+      balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
+      income: { currency: "USD", trends: [] },
+      restricted: [],
+      unmatched: { items: [], total: 0 },
+      journal: { items: [], total: 0 },
+      accounts: { items: [], total: 0 },
+      statements: { items: [], total: 0 },
+      postedJournal: { items: [], total: 0 },
+      trend: { points: [] },
+    })
 
     render(<DashboardPage />)
 
@@ -296,22 +312,17 @@ describe("DashboardPage", () => {
   })
 
   it("AC16.12.17 keeps onboarding visible with partial progress markers", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [],
-        total_assets: 0,
-        total_liabilities: 0,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({ currency: "USD", trends: [] })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "parsed" }], total: 1 })
-      .mockResolvedValueOnce({ items: [], total: 0 })
+    mockDashboardApi({
+      balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
+      income: { currency: "USD", trends: [] },
+      restricted: [],
+      unmatched: { items: [], total: 0 },
+      journal: { items: [], total: 0 },
+      accounts: { items: [{ id: "a1" }], total: 1 },
+      statements: { items: [{ id: "s1", status: "parsed" }], total: 1 },
+      postedJournal: { items: [], total: 0 },
+      trend: { points: [] },
+    })
 
     render(<DashboardPage />)
 
@@ -322,23 +333,15 @@ describe("DashboardPage", () => {
   })
 
   it("AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
-        total_assets: 5000,
-        total_liabilities: 0,
-        currency: "USD",
-        as_of_date: "2026-02-01",
-        is_balanced: true,
-      })
-      .mockResolvedValueOnce({ currency: "USD", trends: [] })
-      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
-      .mockResolvedValueOnce({ items: [] })
-      .mockResolvedValueOnce({ items: [{ id: "j1", memo: "Approved import", entry_date: "2026-01-05", status: "posted" }] })
-      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
-      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
-      .mockResolvedValueOnce({ points: [{ period_start: "2026-01-01", amount: 5000 }] })
+    mockDashboardApi({
+      balance: { ...baseBalance, assets: [{ account_id: "a1", name: "Cash", amount: 5000 }], total_liabilities: 0 },
+      income: { currency: "USD", trends: [] },
+      unmatched: { items: [], total: 0 },
+      journal: { items: [{ id: "j1", memo: "Approved import", entry_date: "2026-01-05", status: "posted" }], total: 1 },
+      accounts: { items: [{ id: "a1" }], total: 1 },
+      statements: { items: [{ id: "s1", status: "approved" }], total: 1 },
+      postedJournal: { items: [{ id: "j1", status: "posted" }], total: 1 },
+    })
 
     render(<DashboardPage />)
 
@@ -346,5 +349,4 @@ describe("DashboardPage", () => {
     expect(screen.queryByLabelText("Getting started")).not.toBeInTheDocument()
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })
-
 })

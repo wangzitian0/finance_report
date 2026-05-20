@@ -38,9 +38,9 @@ groups:
         epic_name: testing-strategy
         description: e2e real
         mandatory: true
-  AC3:
-    AC3.3:
-      - id: AC3.3.3
+  AC99:
+    AC99.3:
+      - id: AC99.3.3
         epic: 3
         epic_name: placeholders
         description: stub only
@@ -104,7 +104,7 @@ groups:
             encoding="utf-8",
         )
         (stubs / "test_placeholder.py").write_text(
-            "import pytest\n# AC3.3.3\n# AC8.12.7\ndef test_stub():\n    pytest.skip('placeholder')\n",
+            "import pytest\n# AC99.3.3\n# AC8.12.7\ndef test_stub():\n    pytest.skip('placeholder')\n",
             encoding="utf-8",
         )
 
@@ -125,8 +125,8 @@ groups:
 
         assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1"}
         assert result.placeholder_only_ids == {"AC5.5.5"}
-        assert result.stub_only_ids == {"AC3.3.3"}
-        assert result.untested_ids == ["AC3.3.3", "AC4.4.4", "AC5.5.5"]
+        assert result.stub_only_ids == {"AC99.3.3"}
+        assert result.untested_ids == ["AC4.4.4", "AC5.5.5", "AC99.3.3"]
 
         assert "AC9.9.9" in result.invalid_real_refs
         assert (

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import { PortfolioHolding } from "@/lib/types";
+import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 
@@ -31,10 +32,20 @@ function formatPnlPercent(value: string): string {
 export default function HoldingDetailPage() {
     const params = useParams();
     const ticker = decodeURIComponent(params.ticker as string);
+    const [activeTab, setActiveTab] = useState<"overview" | "dividends" | "realized">("overview");
+    const [savingMethod, setSavingMethod] = useState(false);
 
     const { data: allHoldings, isLoading, error, refetch } = useQuery({
         queryKey: ["portfolio-holdings-all"],
         queryFn: () => apiFetch<PortfolioHolding[]>("/api/portfolio/holdings?include_disposed=true"),
+    });
+    const { data: dividends = [], refetch: refetchDividends } = useQuery({
+        queryKey: ["portfolio-dividends", ticker],
+        queryFn: () => apiFetch<DividendEvent[]>(`/api/portfolio/${encodeURIComponent(ticker)}/dividends`),
+    });
+    const { data: realizedLots = [], refetch: refetchRealized } = useQuery({
+        queryKey: ["portfolio-realized", ticker],
+        queryFn: () => apiFetch<RealizedLot[]>(`/api/portfolio/${encodeURIComponent(ticker)}/realized`),
     });
 
     const holdings = allHoldings?.filter((h) => h.asset_identifier === ticker) ?? [];
@@ -88,6 +99,20 @@ export default function HoldingDetailPage() {
     }
 
     const primary = activeHoldings[0] ?? holdings[0];
+    const selectedCostBasisMethod = primary.cost_basis_method ?? "FIFO";
+
+    const updateCostBasisMethod = async (method: "FIFO" | "LIFO" | "AvgCost") => {
+        setSavingMethod(true);
+        try {
+            await apiFetch(`/api/portfolio/${encodeURIComponent(ticker)}`, {
+                method: "PATCH",
+                body: JSON.stringify({ cost_basis_method: method }),
+            });
+            await Promise.all([refetch(), refetchRealized(), refetchDividends()]);
+        } finally {
+            setSavingMethod(false);
+        }
+    };
 
     return (
         <div className="p-6">
@@ -109,6 +134,42 @@ export default function HoldingDetailPage() {
                 </p>
             </div>
 
+            <div className="mb-6 flex flex-col gap-3 border-b border-[var(--border)] pb-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-2" role="tablist" aria-label="Holding detail views">
+                    {[
+                        ["overview", "Overview"],
+                        ["dividends", "Dividends"],
+                        ["realized", "Realized P&L"],
+                    ].map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === value}
+                            onClick={() => setActiveTab(value as "overview" | "dividends" | "realized")}
+                            className={`rounded border px-3 py-1.5 text-sm ${activeTab === value ? "border-[var(--accent)] text-[var(--accent)]" : "border-[var(--border)] text-muted"}`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <label className="flex items-center gap-2 text-sm text-muted">
+                    <span>Cost basis method</span>
+                    <select
+                        value={selectedCostBasisMethod}
+                        disabled={savingMethod}
+                        onChange={(event) => updateCostBasisMethod(event.target.value as "FIFO" | "LIFO" | "AvgCost")}
+                        className="rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)]"
+                    >
+                        <option value="FIFO">FIFO</option>
+                        <option value="LIFO">LIFO</option>
+                        <option value="AvgCost">AvgCost</option>
+                    </select>
+                </label>
+            </div>
+
+            {activeTab === "overview" && (
+                <>
             <div className="grid gap-4 md:grid-cols-4 mb-6">
                 <div className="card p-5">
                     <p className="text-xs text-muted uppercase tracking-wide">Market Value</p>
@@ -202,6 +263,86 @@ export default function HoldingDetailPage() {
                                         <td className="px-4 py-2">{h.disposal_date ? formatDateDisplay(h.disposal_date) : "\u2014"}</td>
                                     </tr>
                                 ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+                </>
+            )}
+
+            {activeTab === "dividends" && (
+                <div className="card">
+                    <div className="card-header">
+                        <h2 className="text-sm font-medium">Dividend Events</h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-[var(--border)]">
+                                    <th className="text-left px-4 py-2 font-medium">Ex Date</th>
+                                    <th className="text-left px-4 py-2 font-medium">Pay Date</th>
+                                    <th className="text-right px-4 py-2 font-medium">Amount</th>
+                                    <th className="text-left px-4 py-2 font-medium">Currency</th>
+                                    <th className="text-left px-4 py-2 font-medium">Reinvested</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border)]">
+                                {dividends.length ? dividends.map((event) => (
+                                    <tr key={event.id}>
+                                        <td className="px-4 py-2">{formatDateDisplay(event.ex_date)}</td>
+                                        <td className="px-4 py-2">{formatDateDisplay(event.pay_date)}</td>
+                                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(event.amount, event.currency)}</td>
+                                        <td className="px-4 py-2">{event.currency}</td>
+                                        <td className="px-4 py-2">{event.reinvested ? "Yes" : "No"}</td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td className="px-4 py-6 text-center text-muted" colSpan={5}>No dividends recorded.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === "realized" && (
+                <div className="card">
+                    <div className="card-header">
+                        <h2 className="text-sm font-medium">Realized P&L Lots</h2>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-[var(--border)]">
+                                    <th className="text-left px-4 py-2 font-medium">Lot</th>
+                                    <th className="text-left px-4 py-2 font-medium">Acquired</th>
+                                    <th className="text-left px-4 py-2 font-medium">Sold</th>
+                                    <th className="text-right px-4 py-2 font-medium">Quantity</th>
+                                    <th className="text-right px-4 py-2 font-medium">Basis</th>
+                                    <th className="text-right px-4 py-2 font-medium">Proceeds</th>
+                                    <th className="text-right px-4 py-2 font-medium">Gain/Loss</th>
+                                    <th className="text-right px-4 py-2 font-medium">Holding Period</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border)]">
+                                {realizedLots.length ? realizedLots.map((lot) => (
+                                    <tr key={lot.lot_id}>
+                                        <td className="px-4 py-2 font-mono">{lot.lot_id.slice(0, 8)}</td>
+                                        <td className="px-4 py-2">{lot.acquired_date ? formatDateDisplay(lot.acquired_date) : "\u2014"}</td>
+                                        <td className="px-4 py-2">{formatDateDisplay(lot.sold_date)}</td>
+                                        <td className="px-4 py-2 text-right font-mono">{formatQuantity(lot.quantity)}</td>
+                                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(lot.basis, lot.currency)}</td>
+                                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(lot.proceeds, lot.currency)}</td>
+                                        <td className={`px-4 py-2 text-right font-medium ${getPnlColor(lot.gain_loss)}`}>{formatCurrencyLocale(lot.gain_loss, lot.currency)}</td>
+                                        <td className="px-4 py-2 text-right">{lot.holding_period ?? "\u2014"}</td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td className="px-4 py-6 text-center text-muted" colSpan={8}>No realized lots recorded.</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
