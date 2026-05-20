@@ -54,6 +54,10 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.19**: Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics.
 - **AC8.13.20**: CI change classification is covered by multi-commit and markdown edge-case regression tests.
 - **AC8.13.21**: Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running.
+- **AC8.13.22**: Staging deploy waits for the same SHA's CI success before building or deploying.
+- **AC8.13.23**: Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit.
+- **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
+- **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -333,7 +337,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.11 | Staging health check diagnoses API route 404 with route probes | `test_AC8_13_11_health_check_diagnoses_staging_api_route_404` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.12 | AI/OCR gate failures include statement validation context | `test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.13 | Staging deploy cancels stale runs and bounds E2E gate duration with phase timing logs | `test_AC8_13_13_staging_deploy_fast_fail_guardrails` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.14 | Provider-backed staging AI/OCR gate runs separately from deploy health | `test_AC8_13_14_staging_ai_ocr_gate_is_separate_workflow` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.14 | Provider-backed staging AI/OCR gate runs separately from deploy health | `test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.15 | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `test_*coverage_policy*` / `test_build_unified_lcov*` | `scripts/tests/` | P0 |
 | AC8.13.16 | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `test_AC8_13_16_ci_change_classification_and_frontend_cache` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.17 | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | `test_main_appends_missing_ac_without_rewriting_existing_registry` / `test_AC8_13_17_ac_traceability_runs_registry_generation_check` | `scripts/tests/test_generate_ac_registry.py` / `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
@@ -341,6 +345,10 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
 | AC8.13.20 | CI change classification is covered by multi-commit and markdown edge-case regression tests | `test_AC8_13_20_*` | `scripts/tests/test_ci_change_classifier.py` | P1 |
 | AC8.13.21 | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running | `test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.22 | Staging deploy waits for the same SHA's CI success before building or deploying | `test_AC8_13_22_staging_deploy_waits_for_matching_ci_before_building` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.23 | Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit | `test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
+| AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 
 **Traceability Result**:
 - Total AC IDs: 62
