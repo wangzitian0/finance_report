@@ -127,7 +127,7 @@ The following diagram shows how a bank statement travels from upload through to 
 | `POST /api/reconciliation/matches/{id}/accept` | `match_id`, bearer token | status → accepted; creates journal entry |
 | `POST /api/reconciliation/matches/{id}/reject` | `match_id`, bearer token | status → rejected |
 | `POST /api/reconciliation/batch-accept` | `[match_id]`, bearer token | Accepts all provided matches; blocked if any related consistency check is unresolved; creates journal entries |
-| `POST /api/statements/batch-approve-matches` | `statement_id`, `[match_id]`, bearer token | Stage 2 batch acceptance scoped to a statement; updates `ReconciliationMatch.status` to `accepted` |
+| `POST /api/statements/batch-approve-matches` | `statement_id`, `[match_id]`, bearer token | Stage 2 batch acceptance scoped to a statement; routes each pending match through `accept_match()`, creates missing journal entries or reconciles referenced entries, and returns accepted/created/reconciled counts |
 | `GET /api/reconciliation/pending` | bearer token | Returns `[ReconciliationMatch]` with `status=pending_review` |
 
 ---
@@ -141,6 +141,8 @@ The following diagram shows how a bank statement travels from upload through to 
 | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | Approve blocked if balance bad |
 | `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks (⏳ Planned) |
 | `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition (⏳ Planned) |
+| `test_batch_approve_matches_reconciles_referenced_entry` | `api/test_statements_router.py` | Stage 2 batch approval reconciles referenced journal entries |
+| `test_batch_approve_matches_creates_missing_entry_once` | `api/test_statements_router.py` | Stage 2 batch approval creates missing journal entries idempotently |
 | `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | Stage 1 approve raises source_type to user_confirmed (⏳ Planned) |
 
 ---

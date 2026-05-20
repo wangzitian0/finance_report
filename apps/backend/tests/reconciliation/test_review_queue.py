@@ -9,7 +9,7 @@ batch processing scenarios, and error handling.
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
@@ -20,6 +20,8 @@ from src.models import (
     BankStatementTransactionStatus,
     ClassificationRule,
     ClassificationStatus,
+    JournalEntry,
+    JournalEntrySourceType,
     JournalEntryStatus,
     ReconciliationStatus,
     RuleType,
@@ -177,6 +179,35 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
 
 
 @pytest.mark.asyncio
+async def test_accept_match_creates_missing_journal_entry(db, test_user):
+    """AC16.24.4: Accepting a Stage 2 match without entries creates and reconciles one journal entry."""
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        amount=Decimal("42.00"),
+        direction="OUT",
+    )
+    match = await ReconciliationMatchFactory.create_async(
+        db,
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    await db.commit()
+
+    result = await accept_match(db, str(match.id), user_id=test_user.id)
+
+    assert result.status == ReconciliationStatus.ACCEPTED
+    assert len(result.journal_entry_ids) == 1
+    entry = await db.get(JournalEntry, UUID(result.journal_entry_ids[0]))
+    assert entry is not None
+    assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
+    assert entry.source_id == txn.id
+    assert entry.status == JournalEntryStatus.RECONCILED
+
+
+@pytest.mark.asyncio
 async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
     txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id, amount=Decimal("100.00"))
@@ -252,7 +283,7 @@ async def test_batch_accept_empty_list(db, test_user):
 async def test_batch_accept_accepts_high_score_matches(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
 
-    txn1 = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)
+    txn1 = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id, amount=Decimal("100.00"))
     entry1, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
     match1 = await ReconciliationMatchFactory.create_async(
         db,
@@ -262,7 +293,7 @@ async def test_batch_accept_accepts_high_score_matches(db, test_user):
         status=ReconciliationStatus.PENDING_REVIEW,
     )
 
-    txn2 = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)
+    txn2 = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id, amount=Decimal("100.00"))
     entry2, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
     match2 = await ReconciliationMatchFactory.create_async(
         db,
@@ -300,7 +331,7 @@ async def test_batch_accept_skips_low_score(db, test_user):
 @pytest.mark.asyncio
 async def test_batch_accept_reconciles_journal_entries(db, test_user):
     stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-    txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)
+    txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id, amount=Decimal("100.00"))
     entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
     match = await ReconciliationMatchFactory.create_async(
         db,
