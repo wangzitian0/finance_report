@@ -90,8 +90,6 @@ def promote_entry_source_type(
     target_rank = source_type_rank(target_type)
     if target_rank < current_rank:
         if preserve_higher:
-            if entry.source_type != current:
-                entry.source_type = current
             return False
         raise SourceTypeDowngradeError(f"Cannot downgrade source_type from {current.value} to {target_type.value}")
 
