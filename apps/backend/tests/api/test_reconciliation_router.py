@@ -29,6 +29,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.models import (
+    Account,
+    AccountType,
     BankStatement,
     BankStatementTransaction,
     BankStatementTransactionStatus,
@@ -56,6 +58,18 @@ def create_test_statement(db, user: User, **kwargs):
     }
     defaults.update(kwargs)
     return BankStatement(**defaults)
+
+
+async def create_test_asset_account(db, user: User) -> Account:
+    account = Account(
+        user_id=user.id,
+        name=f"Mapped Bank {uuid4().hex[:8]}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    return account
 
 
 def create_test_transaction(db, statement: BankStatement, **kwargs):
@@ -206,7 +220,8 @@ class TestReconciliationEndpoints:
     async def test_accept_match_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.4: Test accepting a reconciliation match."""
         # GIVEN existing match
-        statement = create_test_statement(db, test_user)
+        account = await create_test_asset_account(db, test_user)
+        statement = create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 
@@ -274,7 +289,8 @@ class TestReconciliationEndpoints:
     async def test_batch_accept_success(self, client: AsyncClient, db, test_user: User):
         """AC4.2.1: Test batch accepting matches."""
         # GIVEN multiple matches
-        statement = create_test_statement(db, test_user)
+        account = await create_test_asset_account(db, test_user)
+        statement = create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 

@@ -28,8 +28,10 @@ interface BalanceValidationResult {
 
 interface StatementReview {
     id: string;
+    account_id: string | null;
     original_filename: string;
     institution: string;
+    account_last4: string | null;
     currency: string | null;
     period_start: string | null;
     period_end: string | null;
@@ -117,7 +119,10 @@ export default function StatementReviewPage() {
     });
 
     const approveMutation = useMutation({
-        mutationFn: () => apiFetch<Stage1ApprovalResponse>(`/api/statements/${statementId}/review/approve`, { method: "POST" }),
+        mutationFn: () => apiFetch<Stage1ApprovalResponse>(`/api/statements/${statementId}/review/approve`, {
+            method: "POST",
+            body: JSON.stringify({ create_account_if_missing: !data?.account_id }),
+        }),
         onSuccess: (result) => {
             const createdCount = result.journal_entries_created ?? 0;
             showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
@@ -304,7 +309,11 @@ export default function StatementReviewPage() {
                 onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)}
                 onConfirm={() => approveMutation.mutate()}
                 title="Approve Statement"
-                message="This will approve the statement with balance validation. Proceed?"
+                message={
+                    data.account_id
+                        ? "This will approve the statement with balance validation. Proceed?"
+                        : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"
+                }
                 confirmLabel="Approve"
                 loading={approveMutation.isPending}
             />
