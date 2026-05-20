@@ -13,12 +13,12 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 953 | 100% |
-| **Mandatory ACs** | 793 | 83.2% |
+| **Total ACs (registries)** | 959 | 100% |
+| **Mandatory ACs** | 799 | 83.3% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 793 | 100.0% |
+| **Mandatory ACs with test reference** | 799 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
-| **Test files referenced** | 193 | - |
+| **Test files referenced** | 195 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -32,7 +32,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 82 | 0 | 76 | 76 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 88 | 0 | 82 | 82 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 100.0% |
@@ -56,8 +56,8 @@
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
-| AC1.1.1 | yes | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
-| AC1.1.2 | yes | apps/backend/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
+| AC1.1.1 | yes | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_generate_ac_registry.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
+| AC1.1.2 | yes | apps/backend/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py`<br>`scripts/tests/test_audit_ac_epic_mismatches.py`<br>`scripts/tests/test_build_ac_traceability.py`<br>`scripts/tests/test_check_ac_traceability.py`<br>`scripts/tests/test_lint_doc_consistency.py` | ✅ |
 | AC1.1.3 | yes | apps/frontend/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py`<br>`scripts/tests/test_check_ac_traceability.py` | ✅ |
 | AC1.1.4 | yes | infra/moon.yml exists | `apps/backend/tests/review/test_statement_validation.py` | ✅ |
 | AC1.2.1 | yes | FastAPI project structure exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py` | ✅ |
@@ -104,7 +104,7 @@
 | AC2.1.4 | yes | Update account successfully | `apps/backend/tests/accounting/test_accounts_service.py` | ✅ |
 | AC2.1.5 | yes | Update non-existent account fails | `apps/backend/tests/accounting/test_accounts_service.py` | ✅ |
 | AC2.1.6 | yes | List accounts with filters | `apps/backend/tests/accounting/test_accounts_service.py` | ✅ |
-| AC2.2.1 | yes | Balanced entry passes validation | `apps/backend/tests/accounting/test_accounting.py`<br>`apps/backend/tests/review/test_consistency_checks.py` | ✅ |
+| AC2.2.1 | yes | Balanced entry passes validation | `apps/backend/tests/accounting/test_accounting.py`<br>`apps/backend/tests/review/test_consistency_checks.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py` | ✅ |
 | AC2.2.2 | yes | Unbalanced entry fails validation | `apps/backend/tests/accounting/test_accounting.py` | ✅ |
 | AC2.2.3 | yes | Single-line entry fails (minimum 2 lines) | `apps/backend/tests/accounting/test_accounting.py`<br>`apps/backend/tests/accounting/test_accounting_service_errors.py` | ✅ |
 | AC2.2.4 | yes | Decimal precision maintained | `apps/backend/tests/accounting/test_accounting.py` | ✅ |
@@ -180,7 +180,7 @@
 | AC3.2.3 | yes | Completeness Validation | `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ |
 | AC3.3.1 | yes | High Confidence (Auto-Accept) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ |
 | AC3.3.2 | yes | Medium Confidence (Review) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ |
-| AC3.3.3 | yes | Low Confidence (Manual) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ |
+| AC3.3.3 | yes | Low Confidence (Manual) | `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py`<br>`scripts/tests/test_analyze_test_ac_coverage.py` | ✅ |
 | AC3.4.1 | yes | Invalid Parse Not Persisted | `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ |
 | AC3.4.2 | yes | Unsupported File Type | `apps/backend/tests/extraction/test_extraction_flow.py` | ✅ |
 | AC3.4.3 | yes | Extraction Timeout | `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ |
@@ -297,7 +297,7 @@
 | AC5.6.2 | yes | Annualized return (TWR) computed correctly | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.3 | yes | Dividend yield = annual dividends / current value | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.4 | yes | Annualized income in income statement KPI block | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
-| AC5.6.5 | yes | Unrealized P&L reflected in balance sheet equity | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
+| AC5.6.5 | yes | Unrealized P&L reflected in balance sheet equity | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py`<br>`apps/backend/tests/reporting/test_reporting.py` | ✅ |
 | AC5.6.6 | yes | MWR (money-weighted return) matches XIRR for single cashflow | `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ |
 | AC5.6.7 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py`<br>`apps/backend/tests/reporting/test_reporting_fx_revaluation_integration.py` | ✅ (optional) |
 | AC5.6.8 | no |  | `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py` | ✅ (optional) |
@@ -445,9 +445,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 82
-- **Mandatory ACs**: 76
-- **Mandatory ACs with test reference**: 76 (100.0%)
+- **Total ACs**: 88
+- **Mandatory ACs**: 82
+- **Mandatory ACs with test reference**: 82 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -533,6 +533,12 @@
 | AC8.13.24 | yes | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.25 | yes | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 | AC8.13.26 | yes | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift. | `scripts/tests/test_ci_metrics_contract.py` | ✅ |
+| AC8.13.27 | yes | PR and main CI wait for the external Coveralls unified coverage status before passing. | `scripts/tests/test_post_merge_e2e_gates.py`<br>`scripts/tests/test_wait_for_github_status.py` | ✅ |
+| AC8.13.28 | yes | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.29 | yes | Stage 1 review auto-posts journal entries from the deterministic fixture. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.30 | yes | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.31 | yes | Processing Account summary and pending page stay visible and correct for the cleared run. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
+| AC8.13.32 | yes | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture. | `scripts/tests/test_post_merge_e2e_gates.py` | ✅ |
 
 ---
 
@@ -1020,8 +1026,8 @@
 | AC16.14.7 | yes | Cash-flow page renders loading and error retry states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx` | ✅ |
 | AC16.14.8 | yes | Cash-flow page renders summary and section cards on success | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx` | ✅ |
 | AC16.14.9 | yes | Cash-flow page renders sankey chart when summary exists | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx` | ✅ |
-| AC16.14.10 | yes | Statements page renders loading, error, empty, and populated states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
-| AC16.14.11 | yes | Statements page enables polling when parsing status is present | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
+| AC16.14.10 | yes | Statements page renders loading, error, empty, and populated states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/cashFlowPage.test.tsx`<br>`apps/frontend/src/__tests__/incomeStatementPage.test.tsx`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
+| AC16.14.11 | yes | Statements page enables polling when parsing status is present | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/incomeStatementPage.test.tsx`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
 | AC16.14.12 | yes | Statements page delete action calls delete API and toast on confirm | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/statementsPage.test.tsx` | ✅ |
 | AC16.15.1 | yes | Accounts page renders loading and error retry states | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/accountsPage.test.tsx` | ✅ |
 | AC16.15.2 | yes | Accounts page renders grouped account cards and type filters on successful fetch | `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py`<br>`apps/frontend/src/__tests__/accountsPage.test.tsx` | ✅ |

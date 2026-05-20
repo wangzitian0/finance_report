@@ -1,412 +1,427 @@
 #!/usr/bin/env python3
+"""Analyze AC-to-test coverage across backend, frontend, and E2E suites.
+
+This analyzer scans AC references (``ACx.y.z``) in:
+- ``apps/backend/tests/**/*.py``
+- ``apps/frontend/src/**/*.test.ts(x)``
+- ``tests/e2e/**/*.py``
+- ``repo/e2e_regressions/**/*.py`` (when present)
+
+Coverage accounting follows EPIC-008 rules:
+- Only references from real (non-``_ac_stubs``) tests count as passing-test candidates.
+- ``_ac_stubs`` references are tracked as placeholders and excluded from covered counts.
+- Invalid/unregistered AC references are reported with file paths.
+- Registered ACs missing real references are reported as untested.
 """
-Analyze test functions for AC (Acceptance Criteria) coverage.
 
-This script scans all test files in apps/backend/tests/ and identifies:
-1. Test functions without AC numbers in docstrings
-2. Suggested AC categorization based on file location and function name
-3. Summary statistics by EPIC/domain
+from __future__ import annotations
 
-AC Pattern: "ACx.y.z" or "[ACx.y.z]" in docstrings
-"""
-
-import ast
+import argparse
 import re
-from pathlib import Path
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import Dict, List
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-# AC pattern (e.g., AC2.2.1, [AC4.3.1], AC13.1.2)
-AC_PATTERN = re.compile(r"\[?AC\d+\.\d+\.\d+\]?")
+import yaml
 
-# EPIC mapping based on test file location and keywords
-EPIC_MAPPING = {
-    "accounting": {
-        "epic": "EPIC-002",
-        "name": "Double-Entry Bookkeeping Core",
-        "ac_prefix": "AC2",
-        "keywords": [
-            "journal",
-            "entry",
-            "balance",
-            "debit",
-            "credit",
-            "account",
-            "equation",
-            "voided",
-        ],
-    },
-    "extraction": {
-        "epic": "EPIC-003",
-        "name": "Smart Statement Parsing",
-        "ac_prefix": "AC3",
-        "keywords": [
-            "parse",
-            "extract",
-            "statement",
-            "pdf",
-            "upload",
-            "institution",
-            "balance",
-            "transaction",
-        ],
-    },
-    "reconciliation": {
-        "epic": "EPIC-004",
-        "name": "Reconciliation Engine & Matching",
-        "ac_prefix": "AC4",
-        "keywords": [
-            "match",
-            "reconcile",
-            "score",
-            "confidence",
-            "review",
-            "queue",
-            "accept",
-            "reject",
-        ],
-    },
-    "reporting": {
-        "epic": "EPIC-005",
-        "name": "Financial Reports & Visualization",
-        "ac_prefix": "AC5",
-        "keywords": [
-            "report",
-            "balance_sheet",
-            "income",
-            "statement",
-            "trend",
-            "analysis",
-            "visualization",
-        ],
-    },
-    "ai": {
-        "epic": "EPIC-006",
-        "name": "AI Financial Advisor",
-        "ac_prefix": "AC6",
-        "keywords": ["ai", "advisor", "chat", "openrouter", "model", "streaming"],
-    },
-    "auth": {
-        "epic": "EPIC-001",
-        "name": "Infrastructure & Authentication",
-        "ac_prefix": "AC1",
-        "keywords": ["auth", "login", "user", "session", "token", "permission"],
-    },
-    "infra": {
-        "epic": "EPIC-001",
-        "name": "Infrastructure & Authentication",
-        "ac_prefix": "AC1",
-        "keywords": [
-            "config",
-            "logger",
-            "migration",
-            "schema",
-            "rate_limit",
-            "exception",
-        ],
-    },
-    "api": {
-        "epic": "EPIC-001",
-        "name": "Infrastructure & Authentication",
-        "ac_prefix": "AC1",
-        "keywords": ["router", "endpoint", "schema", "validation"],
-    },
-    "assets": {
-        "epic": "EPIC-011",
-        "name": "Asset Lifecycle Management",
-        "ac_prefix": "AC11",
-        "keywords": ["asset", "depreciation", "purchase", "disposal"],
-    },
-    "market_data": {
-        "epic": "EPIC-005",
-        "name": "Financial Reports & Visualization (FX support)",
-        "ac_prefix": "AC5",
-        "keywords": ["fx", "exchange", "rate", "currency"],
-    },
-    "services": {
-        "epic": "EPIC-005",
-        "name": "Financial Reports & Visualization (Services)",
-        "ac_prefix": "AC5",
-        "keywords": ["fx_service", "anomaly"],
-    },
-}
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_REGISTRY_PATHS = (
+    REPO_ROOT / "docs" / "ac_registry.yaml",
+    REPO_ROOT / "docs" / "infra_registry.yaml",
+)
+DEFAULT_OUTPUT = REPO_ROOT / "docs" / "analysis" / "test-ac-coverage-report.md"
+
+AC_PATTERN = re.compile(r"\bAC\d+\.\d+\.\d+\b")
+
+SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
+    ("backend", REPO_ROOT / "apps" / "backend" / "tests", ("**/*.py",)),
+    (
+        "frontend",
+        REPO_ROOT / "apps" / "frontend" / "src",
+        ("**/*.test.ts", "**/*.test.tsx"),
+    ),
+    ("e2e", REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
+    ("repo_e2e", REPO_ROOT / "repo" / "e2e_regressions", ("**/*.py",)),
+)
+
+
+@dataclass(frozen=True)
+class ACRecord:
+    id: str
+    epic: int
+    epic_name: str
+    description: str
 
 
 @dataclass
-class TestFunction:
-    """Represents a test function."""
-
-    file_path: str
-    function_name: str
-    docstring: str
-    has_ac: bool
-    suggested_ac: str
-    domain: str
-    epic: str
+class ACReferenceStats:
+    real_files: set[str] = field(default_factory=set)
+    stub_files: set[str] = field(default_factory=set)
+    real_sources: set[str] = field(default_factory=set)
+    stub_sources: set[str] = field(default_factory=set)
 
 
-def extract_test_functions(file_path: Path) -> List[TestFunction]:
-    """Extract all test functions from a Python file."""
+@dataclass(frozen=True)
+class ScanFile:
+    source: str
+    path: Path
+
+
+@dataclass
+class AnalysisResult:
+    registry: dict[str, ACRecord]
+    references: dict[str, ACReferenceStats]
+    source_file_counts: dict[str, int]
+    source_real_ref_counts: dict[str, int]
+    source_stub_ref_counts: dict[str, int]
+    covered_ids: set[str]
+    stub_only_ids: set[str]
+    untested_ids: list[str]
+    invalid_real_refs: dict[str, list[str]]
+    invalid_stub_refs: dict[str, list[str]]
+
+
+@dataclass
+class EpicStats:
+    epic: int
+    epic_name: str
+    registered: int = 0
+    covered: int = 0
+    stub_only: int = 0
+    untested: int = 0
+
+
+def _ac_sort_key(ac_id: str) -> tuple[int, ...]:
+    parts = [int(value) for value in re.findall(r"\d+", ac_id)]
+    return tuple(parts) if parts else (999_999,)
+
+
+def _relative(path: Path, root: Path) -> str:
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        tree = ast.parse(content)
-        functions = []
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-                docstring = ast.get_docstring(node) or ""
-                has_ac = bool(AC_PATTERN.search(docstring))
-
-                # Determine domain from file path (derive repo root from __file__)
-                script_dir = Path(__file__).resolve().parent
-                repo_root = script_dir.parent
-                tests_dir = repo_root / "apps" / "backend" / "tests"
-                try:
-                    rel_path = file_path.relative_to(tests_dir)
-                except ValueError:
-                    rel_path = file_path
-                parts = rel_path.parts
-                domain = parts[0] if len(parts) > 1 else "root"
-
-                # Map domain to EPIC
-                epic_info = EPIC_MAPPING.get(
-                    domain,
-                    {
-                        "epic": "EPIC-001",
-                        "name": "Infrastructure & Authentication (Root Tests)",
-                        "ac_prefix": "AC1",
-                        "keywords": [],
-                    },
-                )
-
-                # Suggest AC based on domain and function name
-                suggested_ac = suggest_ac(node.name, domain, epic_info)
-
-                functions.append(
-                    TestFunction(
-                        file_path=str(file_path.relative_to(repo_root)),
-                        function_name=node.name,
-                        docstring=docstring.split("\n")[0] if docstring else "",
-                        has_ac=has_ac,
-                        suggested_ac=suggested_ac,
-                        domain=domain,
-                        epic=epic_info["epic"],
-                    )
-                )
-
-        return functions
-    except Exception as e:
-        print(f"Error parsing {file_path}: {e}")
-        return []
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
 
 
-def suggest_ac(function_name: str, domain: str, epic_info: Dict) -> str:
-    """Suggest an AC number based on function name and domain."""
-    ac_prefix = epic_info["ac_prefix"]
-    # Try to match keywords to subcategories
-    name_lower = function_name.lower()
-
-    # Domain-specific AC suggestions
-    if domain == "accounting":
-        if "balance" in name_lower or "equation" in name_lower:
-            return f"{ac_prefix}.2.x (Balance Validation)"
-        if "voided" in name_lower or "void" in name_lower:
-            return f"{ac_prefix}.3.x (Entry Lifecycle - Voiding)"
-        if "journal" in name_lower or "entry" in name_lower:
-            return f"{ac_prefix}.1.x (Journal Entry Creation)"
-        return f"{ac_prefix}.x.x (Accounting Core)"
-
-    elif domain == "extraction":
-        if "balance" in name_lower and "valid" in name_lower:
-            return f"{ac_prefix}.1.x (Balance Validation)"
-        if "confidence" in name_lower or "score" in name_lower:
-            return f"{ac_prefix}.2.x (Confidence Scoring)"
-        if "parse" in name_lower or "extract" in name_lower:
-            return f"{ac_prefix}.3.x (Statement Parsing)"
-        if "upload" in name_lower or "storage" in name_lower:
-            return f"{ac_prefix}.4.x (File Upload & Storage)"
-        return f"{ac_prefix}.x.x (Statement Parsing)"
-
-    elif domain == "reconciliation":
-        if "score" in name_lower or "confidence" in name_lower:
-            return f"{ac_prefix}.2.x (Match Scoring)"
-        if "accept" in name_lower or "reject" in name_lower:
-            return f"{ac_prefix}.3.x (Auto-Accept/Review Queue)"
-        if "match" in name_lower:
-            return f"{ac_prefix}.1.x (Matching Engine)"
-        if "anomaly" in name_lower:
-            return f"{ac_prefix}.4.x (Anomaly Detection)"
-        return f"{ac_prefix}.x.x (Reconciliation)"
-
-    elif domain == "reporting":
-        if "balance_sheet" in name_lower or "balance" in name_lower:
-            return f"{ac_prefix}.1.x (Balance Sheet)"
-        if "income" in name_lower or "profit" in name_lower or "loss" in name_lower:
-            return f"{ac_prefix}.2.x (Income Statement)"
-        if "fx" in name_lower or "currency" in name_lower:
-            return f"{ac_prefix}.3.x (Multi-Currency Support)"
-        if "snapshot" in name_lower:
-            return f"{ac_prefix}.4.x (Financial Snapshots)"
-        return f"{ac_prefix}.x.x (Reporting)"
-
-    elif domain == "ai":
-        if "chat" in name_lower:
-            return f"{ac_prefix}.1.x (Chat Interface)"
-        if "model" in name_lower:
-            return f"{ac_prefix}.2.x (Model Management)"
-        if "streaming" in name_lower:
-            return f"{ac_prefix}.3.x (Streaming Responses)"
-        if "advisor" in name_lower:
-            return f"{ac_prefix}.4.x (Financial Advisory)"
-        return f"{ac_prefix}.x.x (AI Features)"
-
-    elif domain == "assets":
-        if "depreciation" in name_lower:
-            return f"{ac_prefix}.2.x (Depreciation)"
-        if "purchase" in name_lower or "acquisition" in name_lower:
-            return f"{ac_prefix}.1.x (Asset Acquisition)"
-        if "disposal" in name_lower:
-            return f"{ac_prefix}.3.x (Asset Disposal)"
-        return f"{ac_prefix}.x.x (Asset Management)"
-
-    elif domain in ["auth", "infra", "api"]:
-        if "auth" in name_lower or "login" in name_lower:
-            return f"{ac_prefix}.1.x (Authentication)"
-        if "config" in name_lower:
-            return f"{ac_prefix}.2.x (Configuration)"
-        if "migration" in name_lower or "schema" in name_lower:
-            return f"{ac_prefix}.3.x (Database Schema)"
-        if "rate_limit" in name_lower:
-            return f"{ac_prefix}.4.x (Rate Limiting)"
-        return f"{ac_prefix}.x.x (Infrastructure)"
-
-    # Default
-    return f"{ac_prefix}.x.x (Uncategorized)"
+def _is_stub_file(path: Path) -> bool:
+    return "_ac_stubs" in path.parts
 
 
-def main():
-    """Main analysis function."""
-    script_dir = Path(__file__).resolve().parent
-    repo_root = script_dir.parent
-    tests_dir = repo_root / "apps" / "backend" / "tests"
+def load_registry(registry_paths: tuple[Path, ...] = DEFAULT_REGISTRY_PATHS) -> dict[str, ACRecord]:
+    registry: dict[str, ACRecord] = {}
+    for registry_path in registry_paths:
+        if not registry_path.exists():
+            continue
 
-    # Collect all test files
-    test_files = list(tests_dir.rglob("test_*.py"))
+        payload: dict[str, Any] = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+        for ac in payload.get("acs", []):
+            ac_id = str(ac["id"])
+            if ac_id in registry:
+                continue
+            registry[ac_id] = ACRecord(
+                id=ac_id,
+                epic=int(ac["epic"]),
+                epic_name=str(ac.get("epic_name", "")).strip() or f"EPIC-{int(ac['epic']):03d}",
+                description=str(ac.get("description", "")).strip(),
+            )
+    return registry
 
-    print(f"🔍 Scanning {len(test_files)} test files...\n")
 
-    all_functions = []
-    for test_file in test_files:
-        functions = extract_test_functions(test_file)
-        all_functions.extend(functions)
+def discover_test_files(repo_root: Path = REPO_ROOT) -> tuple[list[ScanFile], dict[str, int]]:
+    scan_files: list[ScanFile] = []
+    source_file_counts: dict[str, int] = {}
 
-    if not all_functions:
-        print("❌ No test functions found. Exiting.")
-        return
+    for source, _default_base, patterns in SCAN_TARGETS:
+        base = repo_root / _relative(_default_base, REPO_ROOT)
+        if not base.exists():
+            source_file_counts[source] = 0
+            continue
 
-    # Categorize
-    functions_with_ac = [f for f in all_functions if f.has_ac]
-    functions_without_ac = [f for f in all_functions if not f.has_ac]
+        source_paths: set[Path] = set()
+        for pattern in patterns:
+            source_paths.update(path for path in base.glob(pattern) if path.is_file())
 
-    # Statistics by EPIC
-    epic_stats: Dict[str, Dict[str, int]] = defaultdict(
-        lambda: {"total": 0, "with_ac": 0, "without_ac": 0}
+        ordered_paths = sorted(source_paths)
+        source_file_counts[source] = len(ordered_paths)
+        scan_files.extend(ScanFile(source=source, path=path) for path in ordered_paths)
+
+    return scan_files, source_file_counts
+
+
+def collect_references(
+    scan_files: list[ScanFile],
+    repo_root: Path = REPO_ROOT,
+) -> tuple[dict[str, ACReferenceStats], dict[str, set[str]], dict[str, set[str]]]:
+    references: dict[str, ACReferenceStats] = defaultdict(ACReferenceStats)
+    source_real_refs: dict[str, set[str]] = defaultdict(set)
+    source_stub_refs: dict[str, set[str]] = defaultdict(set)
+
+    for scan_file in scan_files:
+        try:
+            content = scan_file.path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+
+        is_stub = _is_stub_file(scan_file.path)
+        rel_path = _relative(scan_file.path, repo_root)
+
+        for match in AC_PATTERN.finditer(content):
+            ac_id = match.group(0)
+            ref_stats = references[ac_id]
+            if is_stub:
+                ref_stats.stub_files.add(rel_path)
+                ref_stats.stub_sources.add(scan_file.source)
+                source_stub_refs[scan_file.source].add(ac_id)
+            else:
+                ref_stats.real_files.add(rel_path)
+                ref_stats.real_sources.add(scan_file.source)
+                source_real_refs[scan_file.source].add(ac_id)
+
+    return references, source_real_refs, source_stub_refs
+
+
+def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
+    registry = load_registry(
+        registry_paths=(
+            repo_root / "docs" / "ac_registry.yaml",
+            repo_root / "docs" / "infra_registry.yaml",
+        )
     )
-    for func in all_functions:
-        epic_stats[func.epic]["total"] += 1
-        if func.has_ac:
-            epic_stats[func.epic]["with_ac"] += 1
+    scan_files, source_file_counts = discover_test_files(repo_root)
+    references, source_real_refs, source_stub_refs = collect_references(scan_files, repo_root)
+
+    covered_ids = {
+        ac_id
+        for ac_id, ref_stats in references.items()
+        if ac_id in registry and ref_stats.real_files
+    }
+    stub_only_ids = {
+        ac_id
+        for ac_id, ref_stats in references.items()
+        if ac_id in registry and not ref_stats.real_files and ref_stats.stub_files
+    }
+
+    untested_ids = sorted(
+        (ac_id for ac_id in registry if ac_id not in covered_ids),
+        key=_ac_sort_key,
+    )
+
+    invalid_real_refs = {
+        ac_id: sorted(ref_stats.real_files)
+        for ac_id, ref_stats in references.items()
+        if ac_id not in registry and ref_stats.real_files
+    }
+    invalid_stub_refs = {
+        ac_id: sorted(ref_stats.stub_files)
+        for ac_id, ref_stats in references.items()
+        if ac_id not in registry and ref_stats.stub_files
+    }
+
+    source_real_ref_counts = {source: len(source_real_refs.get(source, set())) for source, *_ in SCAN_TARGETS}
+    source_stub_ref_counts = {source: len(source_stub_refs.get(source, set())) for source, *_ in SCAN_TARGETS}
+
+    return AnalysisResult(
+        registry=registry,
+        references=dict(references),
+        source_file_counts=source_file_counts,
+        source_real_ref_counts=source_real_ref_counts,
+        source_stub_ref_counts=source_stub_ref_counts,
+        covered_ids=covered_ids,
+        stub_only_ids=stub_only_ids,
+        untested_ids=untested_ids,
+        invalid_real_refs=dict(sorted(invalid_real_refs.items(), key=lambda item: _ac_sort_key(item[0]))),
+        invalid_stub_refs=dict(sorted(invalid_stub_refs.items(), key=lambda item: _ac_sort_key(item[0]))),
+    )
+
+
+def _epic_stats(result: AnalysisResult) -> list[EpicStats]:
+    by_epic: dict[int, EpicStats] = {}
+    for ac in result.registry.values():
+        stats = by_epic.setdefault(ac.epic, EpicStats(epic=ac.epic, epic_name=ac.epic_name))
+        stats.registered += 1
+        if ac.id in result.covered_ids:
+            stats.covered += 1
+        elif ac.id in result.stub_only_ids:
+            stats.stub_only += 1
+            stats.untested += 1
         else:
-            epic_stats[func.epic]["without_ac"] += 1
+            stats.untested += 1
 
-    # Print summary
-    print("=" * 80)
-    print("📊 TEST AC COVERAGE SUMMARY")
-    print("=" * 80)
-    print(f"Total test functions: {len(all_functions)}")
+    return [by_epic[epic] for epic in sorted(by_epic)]
+
+
+def _group_untested_by_epic(result: AnalysisResult) -> dict[int, list[str]]:
+    grouped: dict[int, list[str]] = defaultdict(list)
+    for ac_id in result.untested_ids:
+        ac = result.registry[ac_id]
+        grouped[ac.epic].append(ac_id)
+    return dict(sorted(grouped.items()))
+
+
+def _render_file_list(paths: list[str]) -> str:
+    return "<br>".join(f"`{path}`" for path in paths)
+
+
+def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
+    total_registered = len(result.registry)
+    covered_count = len(result.covered_ids)
+    stub_only_count = len(result.stub_only_ids)
+    untested_count = len(result.untested_ids)
+    invalid_real_count = len(result.invalid_real_refs)
+    invalid_stub_count = len(result.invalid_stub_refs)
+
+    coverage_pct = (covered_count / total_registered * 100.0) if total_registered else 100.0
+
+    lines: list[str] = []
+    lines.append("# AC Coverage Analysis Report")
+    lines.append("")
+    lines.append(
+        f"> Generated: {generated_at.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')} by `scripts/analyze_test_ac_coverage.py`"
+    )
+    lines.append("")
+    lines.append("## Coverage accounting (EPIC-008 aligned)")
+    lines.append("")
+    lines.append("- Covered AC = has at least one real test reference outside `apps/backend/tests/_ac_stubs/`.")
+    lines.append("- `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered.")
+    lines.append("- Invalid AC references are AC IDs found in tests but missing from registries.")
+    lines.append("- Untested AC = registered AC without any real passing-test candidate reference.")
+    lines.append("")
+    lines.append("## Executive summary")
+    lines.append("")
+    lines.append("| Metric | Count |")
+    lines.append("|---|---:|")
+    lines.append(f"| Registered ACs | {total_registered} |")
+    lines.append(f"| Covered by real test candidates | {covered_count} ({coverage_pct:.1f}%) |")
+    lines.append(f"| Stub-only placeholders (`_ac_stubs`) | {stub_only_count} |")
+    lines.append(f"| Registered but untested | {untested_count} |")
+    lines.append(f"| Invalid AC refs in real tests | {invalid_real_count} |")
+    lines.append(f"| Invalid AC refs in stubs | {invalid_stub_count} |")
+    lines.append("")
+
+    lines.append("## Scan scope summary")
+    lines.append("")
+    lines.append("| Source | Files scanned | Unique AC refs (real) | Unique AC refs (stub) |")
+    lines.append("|---|---:|---:|---:|")
+    for source, *_ in SCAN_TARGETS:
+        lines.append(
+            f"| {source} | {result.source_file_counts.get(source, 0)} | "
+            f"{result.source_real_ref_counts.get(source, 0)} | {result.source_stub_ref_counts.get(source, 0)} |"
+        )
+    lines.append("")
+
+    lines.append("## Coverage by EPIC")
+    lines.append("")
+    lines.append("| EPIC | Name | Registered | Covered | Stub-only | Untested | Coverage |")
+    lines.append("|---|---|---:|---:|---:|---:|---:|")
+    for epic in _epic_stats(result):
+        epic_coverage_pct = (
+            epic.covered / epic.registered * 100.0 if epic.registered else 100.0
+        )
+        lines.append(
+            f"| EPIC-{epic.epic:03d} | {epic.epic_name} | {epic.registered} | "
+            f"{epic.covered} | {epic.stub_only} | {epic.untested} | {epic_coverage_pct:.1f}% |"
+        )
+    lines.append("")
+
+    lines.append("## Invalid AC references (unregistered)")
+    lines.append("")
+    if result.invalid_real_refs or result.invalid_stub_refs:
+        lines.append("| AC ID | Real test files | Stub files |")
+        lines.append("|---|---|---|")
+        invalid_ids = sorted(
+            set(result.invalid_real_refs) | set(result.invalid_stub_refs),
+            key=_ac_sort_key,
+        )
+        for ac_id in invalid_ids:
+            real_files = result.invalid_real_refs.get(ac_id, [])
+            stub_files = result.invalid_stub_refs.get(ac_id, [])
+            lines.append(
+                f"| `{ac_id}` | "
+                f"{_render_file_list(real_files) if real_files else '_none_'} | "
+                f"{_render_file_list(stub_files) if stub_files else '_none_'} |"
+            )
+    else:
+        lines.append("No invalid AC references found.")
+    lines.append("")
+
+    lines.append("## Stub-only AC placeholders (`_ac_stubs`)")
+    lines.append("")
+    if result.stub_only_ids:
+        lines.append("| AC ID | Stub file references |")
+        lines.append("|---|---|")
+        for ac_id in sorted(result.stub_only_ids, key=_ac_sort_key):
+            files = sorted(result.references[ac_id].stub_files)
+            lines.append(f"| `{ac_id}` | {_render_file_list(files)} |")
+    else:
+        lines.append("No stub-only AC placeholders found.")
+    lines.append("")
+
+    lines.append("## Registered ACs with no real test reference")
+    lines.append("")
+    grouped_untested = _group_untested_by_epic(result)
+    if grouped_untested:
+        for epic_number, ac_ids in grouped_untested.items():
+            epic_name = result.registry[ac_ids[0]].epic_name
+            lines.append(f"### EPIC-{epic_number:03d} ({epic_name}) — {len(ac_ids)} untested")
+            lines.append("")
+            lines.append(", ".join(f"`{ac_id}`" for ac_id in ac_ids))
+            lines.append("")
+    else:
+        lines.append("All registered ACs have at least one real test reference.")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Analyze AC coverage across test suites.")
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=REPO_ROOT,
+        help="Repository root path (default: auto-detected root)",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help="Markdown report output path",
+    )
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Also print report content to stdout",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    repo_root = args.repo_root.resolve()
+
+    result = analyze_repo(repo_root=repo_root)
+    report = render_markdown(result, generated_at=datetime.now(timezone.utc))
+
+    output_path = args.output if args.output.is_absolute() else repo_root / args.output
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(report, encoding="utf-8")
+
+    print(f"Wrote AC coverage report: {output_path}")
     print(
-        f"✅ With AC numbers: {len(functions_with_ac)} ({len(functions_with_ac) / len(all_functions) * 100:.1f}%)"
+        "Summary: "
+        f"registered={len(result.registry)}, covered={len(result.covered_ids)}, "
+        f"stub_only={len(result.stub_only_ids)}, untested={len(result.untested_ids)}, "
+        f"invalid_real={len(result.invalid_real_refs)}"
     )
-    print(
-        f"❌ Without AC numbers: {len(functions_without_ac)} ({len(functions_without_ac) / len(all_functions) * 100:.1f}%)"
-    )
-    print()
 
-    # Statistics by EPIC
-    print("=" * 80)
-    print("📈 COVERAGE BY EPIC")
-    print("=" * 80)
-    for epic in sorted(epic_stats.keys()):
-        stats = epic_stats[epic]
-        coverage = (
-            (stats["with_ac"] / stats["total"] * 100) if stats["total"] > 0 else 0
-        )
-        print(
-            f"{epic}: {stats['with_ac']}/{stats['total']} ({coverage:.1f}%) | Missing: {stats['without_ac']}"
-        )
-    print()
+    if args.stdout:
+        print()
+        print(report)
 
-    # Print tests without AC
-    print("=" * 80)
-    print("❌ TESTS WITHOUT AC NUMBERS")
-    print("=" * 80)
-
-    # Group by domain
-    by_domain: Dict[str, List[TestFunction]] = defaultdict(list)
-    for func in functions_without_ac:
-        by_domain[func.domain].append(func)
-
-    for domain in sorted(by_domain.keys()):
-        funcs = by_domain[domain]
-        epic = funcs[0].epic if funcs else "Unknown"
-        print(f"\n📁 {domain.upper()} ({epic}) - {len(funcs)} tests")
-        print("-" * 80)
-
-        for func in sorted(funcs, key=lambda x: (x.file_path, x.function_name)):
-            print(f"  • {func.function_name}")
-            print(f"    File: {func.file_path}")
-            print(f"    Suggested AC: {func.suggested_ac}")
-            if func.docstring:
-                print(f"    Docstring: {func.docstring[:70]}...")
-            print()
-
-    # Summary table
-    print("=" * 80)
-    print("📋 SUMMARY TABLE")
-    print("=" * 80)
-    print(
-        f"{'Domain':<20} {'EPIC':<12} {'Total':<8} {'With AC':<10} {'Without AC':<12} {'Coverage':<10}"
-    )
-    print("-" * 80)
-
-    domain_stats: Dict[str, Dict[str, int]] = defaultdict(
-        lambda: {"total": 0, "with_ac": 0, "without_ac": 0}
-    )
-    for func in all_functions:
-        domain_stats[func.domain]["total"] += 1
-        if func.has_ac:
-            domain_stats[func.domain]["with_ac"] += 1
-        else:
-            domain_stats[func.domain]["without_ac"] += 1
-
-    for domain in sorted(domain_stats.keys()):
-        stats = domain_stats[domain]
-        epic = EPIC_MAPPING.get(domain, {}).get("epic", "EPIC-001")
-        coverage = (
-            (stats["with_ac"] / stats["total"] * 100) if stats["total"] > 0 else 0
-        )
-        print(
-            f"{domain:<20} {epic:<12} {stats['total']:<8} {stats['with_ac']:<10} {stats['without_ac']:<12} {coverage:>6.1f}%"
-        )
-
-    print()
-    print("=" * 80)
-    print("✅ Analysis complete!")
-    print("=" * 80)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
