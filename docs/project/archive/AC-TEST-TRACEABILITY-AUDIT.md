@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 959 | 100% |
-| **Mandatory ACs** | 799 | 83.3% |
+| **Total ACs (registries)** | 960 | 100% |
+| **Mandatory ACs** | 800 | 83.3% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 799 | 100.0% |
+| **Mandatory ACs with test reference** | 800 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 195 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -40,7 +40,7 @@
 | [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 58 | 100.0% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 6 | 100.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 28 | 0 | 28 | 28 | 100.0% |
-| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 213 | 0 | 189 | 189 | 100.0% |
+| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 214 | 0 | 190 | 190 | 100.0% |
 | [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 79 | 0 | 36 | 36 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 23 | 100.0% |
 
@@ -890,9 +890,9 @@
 
 <a id="epic-016-two-stage-review-ui"></a>
 
-- **Total ACs**: 213
-- **Mandatory ACs**: 189
-- **Mandatory ACs with test reference**: 189 (100.0%)
+- **Total ACs**: 214
+- **Mandatory ACs**: 190
+- **Mandatory ACs with test reference**: 190 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -1109,6 +1109,7 @@
 | AC16.24.1 | yes | Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ |
 | AC16.24.2 | yes | Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ |
 | AC16.24.3 | yes | Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ |
+| AC16.24.4 | yes | Stage 2 batch approval routes accepted matches through the ledger-safe acceptance path, creating missing journal entries | `apps/backend/tests/api/test_statements_router.py`<br>`apps/backend/tests/reconciliation/test_review_queue.py` | ✅ |
 
 ---
 

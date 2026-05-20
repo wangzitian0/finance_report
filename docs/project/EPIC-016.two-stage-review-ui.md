@@ -732,6 +732,7 @@ Stage 2: Run-Level Review (Consistency Checks)
 - [x] **AC16.24.1** Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch
 - [x] **AC16.24.2** Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved
 - [x] **AC16.24.3** Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved
+- **AC16.24.4** - Stage 2 batch approval routes accepted matches through the ledger-safe acceptance path, creating missing journal entries or reconciling referenced entries without duplicating entries on retry
 
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 

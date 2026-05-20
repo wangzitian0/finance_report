@@ -26,7 +26,12 @@ from sqlalchemy import select
 from src.models import User
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models.statement import (
+    BankStatement,
+    BankStatementStatus,
+    BankStatementTransaction,
+    BankStatementTransactionStatus,
+)
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
 from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest
@@ -35,6 +40,7 @@ from src.services import (
     statement_parsing as statement_parsing_mod,
     statement_validation as statement_validation_mod,
 )
+from src.services.review_queue import create_entry_from_txn
 from src.services.statement_parsing import handle_parse_failure
 
 pytestmark = pytest.mark.asyncio
@@ -1908,6 +1914,129 @@ async def test_batch_approve_matches_success(db, test_user):
 
     assert result["success"] is True
     assert result["approved_count"] == 1
+
+
+async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
+    """AC16.24.4: Batch approving a pending Stage 2 match reconciles referenced ledger entries."""
+    statement = build_statement(test_user.id, "hash_batch_reconcile", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 16),
+        description="Referenced entry payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        match_score=85,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[match.id]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["approved_count"] == 1
+    assert result["journal_entries_created"] == 0
+    assert result["journal_entries_reconciled"] == 1
+
+    await db.refresh(match)
+    await db.refresh(txn)
+    await db.refresh(entry)
+    assert match.status == ReconciliationStatus.ACCEPTED
+    assert txn.status == BankStatementTransactionStatus.MATCHED
+    assert entry.status == JournalEntryStatus.RECONCILED
+
+
+async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
+    """AC16.24.4: Batch approval creates the missing journal entry and is idempotent."""
+    statement = build_statement(test_user.id, "hash_batch_create_once", 90)
+    statement.status = BankStatementStatus.APPROVED
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 17),
+        description="Missing entry payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=85,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[match.id]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["approved_count"] == 1
+    assert result["journal_entries_created"] == 1
+    assert result["journal_entries_reconciled"] == 1
+
+    await db.refresh(match)
+    await db.refresh(txn)
+    assert match.status == ReconciliationStatus.ACCEPTED
+    assert txn.status == BankStatementTransactionStatus.MATCHED
+    assert len(match.journal_entry_ids) == 1
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+    )
+    entries = list(entry_result.scalars().all())
+    assert len(entries) == 1
+    assert entries[0].status == JournalEntryStatus.RECONCILED
+
+    second_result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[match.id]),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert second_result["success"] is True
+    assert second_result["approved_count"] == 0
+    assert second_result["journal_entries_created"] == 0
+    assert second_result["journal_entries_reconciled"] == 0
+
+    second_entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn.id)
+    )
+    assert len(list(second_entry_result.scalars().all())) == 1
 
 
 async def test_batch_reject_matches_empty_list(db, test_user):

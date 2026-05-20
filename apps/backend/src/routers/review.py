@@ -6,7 +6,13 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
-from src.models import BankStatement, BankStatementTransaction
+from src.models import (
+    BankStatement,
+    BankStatementTransaction,
+    JournalEntry,
+    JournalEntrySourceType,
+    JournalEntryStatus,
+)
 from src.models.consistency_check import CheckStatus, CheckType
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas.review import (
@@ -25,7 +31,7 @@ from src.services.consistency_checks import (
     resolve_check,
     run_all_consistency_checks,
 )
-from src.services.review_queue import get_stage2_queue
+from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.utils import raise_not_found
 
 router = APIRouter(prefix="/statements", tags=["review"])
@@ -133,10 +139,17 @@ async def batch_approve_matches(
             "success": False,
             "error": "Cannot batch approve while there are unresolved consistency checks",
             "approved_count": 0,
+            "journal_entries_created": 0,
+            "journal_entries_reconciled": 0,
         }
 
     if not request.match_ids:
-        return {"success": True, "approved_count": 0}
+        return {
+            "success": True,
+            "approved_count": 0,
+            "journal_entries_created": 0,
+            "journal_entries_reconciled": 0,
+        }
 
     result = await db.execute(
         select(ReconciliationMatch)
@@ -151,16 +164,48 @@ async def batch_approve_matches(
     matches = list(result.scalars().all())
 
     approved_count = 0
+    journal_entries_created = 0
+    journal_entries_reconciled = 0
     for match in matches:
-        match.status = ReconciliationStatus.ACCEPTED
-        match.version += 1
+        before_entry_ids = set(match.journal_entry_ids or [])
+        had_source_entry = False
+        if match.bank_txn_id and not before_entry_ids:
+            existing_entry_result = await db.execute(
+                select(JournalEntry.id)
+                .where(JournalEntry.user_id == user_id)
+                .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+                .where(JournalEntry.source_id == match.bank_txn_id)
+                .where(JournalEntry.status != JournalEntryStatus.VOID)
+                .limit(1)
+            )
+            had_source_entry = existing_entry_result.scalar_one_or_none() is not None
+
+        try:
+            accepted_match = await accept_match_service(db, str(match.id), user_id=user_id)
+        except ValueError as exc:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        after_entry_ids = set(accepted_match.journal_entry_ids or [])
         approved_count += 1
+        if not before_entry_ids and not had_source_entry:
+            journal_entries_created += len(after_entry_ids)
+        if after_entry_ids:
+            reconciled_entries_result = await db.execute(
+                select(JournalEntry.id)
+                .where(JournalEntry.id.in_([UUID(entry_id) for entry_id in after_entry_ids]))
+                .where(JournalEntry.user_id == user_id)
+                .where(JournalEntry.status == JournalEntryStatus.RECONCILED)
+            )
+            journal_entries_reconciled += len(reconciled_entries_result.scalars().all())
 
     await db.commit()
 
     return {
         "success": True,
         "approved_count": approved_count,
+        "journal_entries_created": journal_entries_created,
+        "journal_entries_reconciled": journal_entries_reconciled,
     }
 
 

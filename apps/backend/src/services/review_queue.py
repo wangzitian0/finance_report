@@ -87,6 +87,23 @@ async def accept_match(
 
     txn = match.transaction
 
+    if txn and not match.journal_entry_ids:
+        existing_entry_result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+            .where(JournalEntry.source_id == txn.id)
+            .where(JournalEntry.status != JournalEntryStatus.VOID)
+            .limit(1)
+            .with_for_update()
+        )
+        existing_entry = existing_entry_result.scalar_one_or_none()
+        if existing_entry:
+            match.journal_entry_ids = [str(existing_entry.id)]
+        else:
+            created_entry = await create_entry_from_txn(db, txn, user_id=user_id, auto_post=True)
+            match.journal_entry_ids = [str(created_entry.id)]
+
     # Validate that journal entry amounts match transaction amount
     if match.journal_entry_ids and txn and not skip_amount_validation:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
@@ -198,35 +215,8 @@ async def batch_accept(
         )
 
     accepted: list[ReconciliationMatch] = []
-    # Collect all entry IDs to pre-fetch them
-    all_entry_ids = []
     for match in matches:
-        if match.journal_entry_ids:
-            all_entry_ids.extend([UUID(eid) for eid in match.journal_entry_ids])
-
-    # Pre-fetch all journal entries to avoid N+1 queries in the loop
-    entries_map = {}
-    if all_entry_ids:
-        entries_result = await db.execute(
-            select(JournalEntry).where(JournalEntry.id.in_(all_entry_ids)).where(JournalEntry.user_id == user_id)
-        )
-        entries_map = {entry.id: entry for entry in entries_result.scalars().all()}
-
-    for match in matches:
-        match.status = ReconciliationStatus.ACCEPTED
-        match.version += 1
-        accepted.append(match)
-
-        # Already loaded via selectinload
-        txn = match.transaction
-        if txn:
-            txn.status = BankStatementTransactionStatus.MATCHED
-
-        if match.journal_entry_ids:
-            for entry_id_str in match.journal_entry_ids:
-                entry = entries_map.get(UUID(entry_id_str))
-                if entry and entry.status != JournalEntryStatus.VOID:
-                    entry.status = JournalEntryStatus.RECONCILED
+        accepted.append(await accept_match(db, str(match.id), user_id=user_id))
 
     await db.flush()
     return accepted
