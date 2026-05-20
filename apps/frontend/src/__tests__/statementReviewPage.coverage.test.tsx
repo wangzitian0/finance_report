@@ -44,6 +44,7 @@ describe("StatementReviewPage - coverage additions", () => {
             pdf_url: null,
             transactions: [
                 { id: "t1", txn_date: "2024-01-02", description: "Lunch", amount: 12.5, direction: "OUT", currency: "SGD", confidence: "medium" },
+                { id: "t2", txn_date: "2024-01-03", description: "Salary", amount: 1000, direction: "IN", currency: "SGD", confidence: "high" },
             ],
         };
 
@@ -73,8 +74,15 @@ describe("StatementReviewPage - coverage additions", () => {
         // Save edits button should appear
         const saveBtn = await screen.findByRole("button", { name: /Save Edits/i });
         expect(saveBtn).toBeInTheDocument();
+        const discardBtn = await screen.findByRole("button", { name: /Discard/i });
+        fireEvent.click(discardBtn);
 
-        fireEvent.click(saveBtn);
+        fireEvent.click(await screen.findByText("Lunch"));
+        const secondInput = await screen.findByDisplayValue("Lunch");
+        fireEvent.change(secondInput, { target: { value: "Lunch at cafe" } });
+        fireEvent.blur(secondInput);
+
+        fireEvent.click(await screen.findByRole("button", { name: /Save Edits/i }));
 
         // edit API should have been called (third api call)
         await (async () => {
@@ -117,6 +125,9 @@ describe("StatementReviewPage - coverage additions", () => {
         expect(await screen.findByText(/Resolve Conflicts/i)).toBeInTheDocument();
         expect(screen.getByText("dup")).toBeInTheDocument();
         expect(screen.getByText("pair")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+        expect(screen.queryByText(/Resolve Conflicts/i)).not.toBeInTheDocument();
     });
 
     it("handles approve/reject confirm dialogs and API calls", async () => {
@@ -150,6 +161,9 @@ describe("StatementReviewPage - coverage additions", () => {
         const approveBtn = await screen.findByRole("button", { name: "Approve" });
         fireEvent.click(approveBtn);
 
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+        fireEvent.click(approveBtn);
+
         // dialog confirm - pick the Approve button inside the dialog
         const approveBtns = await screen.findAllByRole("button", { name: "Approve" });
         const dialogApprove = approveBtns.find((b) => b.closest('[role="dialog"]')) || approveBtns[approveBtns.length - 1];
@@ -164,9 +178,17 @@ describe("StatementReviewPage - coverage additions", () => {
             }
             expect(mockedApi.mock.calls.some(c => String(c[0]).includes("/review/approve"))).toBe(true);
         })();
+        const approveCall = mockedApi.mock.calls.find(c => String(c[0]).includes("/review/approve"));
+        expect(approveCall?.[1]).toMatchObject({
+            method: "POST",
+            body: JSON.stringify({ create_account_if_missing: true }),
+        });
 
         // Now test reject
         const rejectBtn = await screen.findByRole("button", { name: "Reject" });
+        fireEvent.click(rejectBtn);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
         fireEvent.click(rejectBtn);
 
         const rejectBtns = await screen.findAllByRole("button", { name: "Reject" });

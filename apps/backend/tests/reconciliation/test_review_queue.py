@@ -181,7 +181,14 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
 @pytest.mark.asyncio
 async def test_accept_match_creates_missing_journal_entry(db, test_user):
     """AC16.24.4: Accepting a Stage 2 match without entries creates and reconciles one journal entry."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    account = await AccountFactory.create_async(
+        db,
+        user_id=test_user.id,
+        name="Mapped Review Queue Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id, account_id=account.id)
     txn = await BankStatementTransactionFactory.create_async(
         db,
         statement_id=stmt.id,
@@ -423,7 +430,14 @@ async def test_create_entry_from_txn_dr_direction(db, test_user):
 
 @pytest.mark.asyncio
 async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    linked_account = await AccountFactory.create_async(
+        db,
+        user_id=test_user.id,
+        name="Mapped Bank Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id, account_id=linked_account.id)
     txn = await BankStatementTransactionFactory.create_async(
         db,
         statement_id=stmt.id,
@@ -434,6 +448,89 @@ async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_use
 
     entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
     assert entry.status == JournalEntryStatus.POSTED
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_auto_post_requires_account_mapping(db, test_user):
+    """AC3.6.2: Posted entries cannot silently use the Bank - Main fallback."""
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        direction="IN",
+        amount=Decimal("75.00"),
+    )
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Account mapping required before posting"):
+        await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_rejects_mismatched_preloaded_statement(db, test_user):
+    user_id = test_user.id
+    stmt = await BankStatementFactory.create_async(db, user_id=user_id)
+    other_stmt = await BankStatementFactory.create_async(db, user_id=user_id)
+    txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)
+    await db.flush()
+
+    with pytest.raises(ValueError, match="Preloaded statement does not match"):
+        await create_entry_from_txn(db, txn, user_id=user_id, preloaded_statement=other_stmt)
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_rejects_unowned_preloaded_bank_account(db, test_user):
+    user_id = test_user.id
+    stmt = await BankStatementFactory.create_async(db, user_id=user_id)
+    txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)
+    other_account = await AccountFactory.create_async(
+        db,
+        user_id=uuid4(),
+        name="Other User Preloaded Bank",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    await db.flush()
+
+    with pytest.raises(ValueError, match="Bank account does not belong to user"):
+        await create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            preloaded_statement=stmt,
+            preloaded_bank_account=other_account,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_entry_from_txn_rejects_mismatched_preloaded_bank_account(db, test_user):
+    user_id = test_user.id
+    statement_account = await AccountFactory.create_async(
+        db,
+        user_id=user_id,
+        name="Statement Bank",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    other_account = await AccountFactory.create_async(
+        db,
+        user_id=user_id,
+        name="Other Preloaded Bank",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    stmt = await BankStatementFactory.create_async(db, user_id=user_id, account_id=statement_account.id)
+    txn = await BankStatementTransactionFactory.create_async(db, statement_id=stmt.id)
+    await db.flush()
+
+    with pytest.raises(ValueError, match="Preloaded bank account does not match statement"):
+        await create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            preloaded_statement=stmt,
+            preloaded_bank_account=other_account,
+        )
 
 
 @pytest.mark.asyncio

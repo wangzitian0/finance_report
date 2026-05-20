@@ -22,8 +22,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
-from src.models import User
+from src.models import Account, AccountType, User
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
@@ -34,7 +35,7 @@ from src.models.statement import (
 )
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
-from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest
+from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest, Stage1ApprovalRequest
 from src.services import (
     ExtractionError,
     statement_parsing as statement_parsing_mod,
@@ -138,6 +139,18 @@ def build_statement(user_id, file_hash: str, confidence_score: int) -> BankState
         confidence_score=confidence_score,
         balance_validated=True,
     )
+
+
+async def create_statement_account(db, user_id, name: str = "DBS Statement Account") -> Account:
+    account = Account(
+        user_id=user_id,
+        name=name,
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    return account
 
 
 async def wait_for_background_tasks() -> None:
@@ -1290,30 +1303,44 @@ async def test_approve_statement_stage1_success(db, test_user, monkeypatch):
 
 
 async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
+    bank_account = Account(
+        user_id=test_user.id,
+        name="DBS Autosave",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(bank_account)
+    await db.flush()
+
     statement = build_statement(test_user.id, "hash_s1_posted", 88)
     statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
     statement.closing_balance = Decimal("115.00")
     db.add(statement)
     await db.flush()
+    statement_id = statement.id
 
     txn_in = BankStatementTransaction(
-        statement_id=statement.id,
+        statement_id=statement_id,
         txn_date=date(2025, 1, 2),
         description="Salary",
         amount=Decimal("20.00"),
         direction="IN",
     )
     txn_out = BankStatementTransaction(
-        statement_id=statement.id,
+        statement_id=statement_id,
         txn_date=date(2025, 1, 3),
         description="Lunch",
         amount=Decimal("5.00"),
         direction="OUT",
     )
     db.add_all([txn_in, txn_out])
+    await db.flush()
+    bank_account_id = bank_account.id
+    txn_ids = [txn_in.id, txn_out.id]
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
     assert result.journal_entries_created == 2
     assert result.status == BankStatementStatus.APPROVED
 
@@ -1321,11 +1348,292 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
         .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
-        .where(JournalEntry.source_id.in_([txn_in.id, txn_out.id]))
+        .where(JournalEntry.source_id.in_(txn_ids))
+        .options(selectinload(JournalEntry.lines))
     )
     entries = entries_result.scalars().all()
     assert len(entries) == 2
     assert all(entry.status == JournalEntryStatus.POSTED for entry in entries)
+    assert all(
+        any(line.account_id == bank_account_id for line in entry.lines)
+        for entry in entries
+    )
+
+
+async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
+    """AC3.6.1: Stage 1 posting may auto-map only from a unique prior confirmed statement."""
+    bank_account = Account(
+        user_id=test_user.id,
+        name="DBS Confirmed Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(bank_account)
+    await db.flush()
+
+    prior = build_statement(test_user.id, "hash_s1_prior_confirmed", 95)
+    prior.status = BankStatementStatus.APPROVED
+    prior.account_id = bank_account.id
+    db.add(prior)
+    await db.flush()
+
+    statement = build_statement(test_user.id, "hash_s1_auto_map", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    txn = BankStatementTransaction(
+        statement_id=statement_id,
+        txn_date=date(2025, 1, 5),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+    bank_account_id = bank_account.id
+    txn_id = txn.id
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+    assert result.journal_entries_created == 1
+
+    await db.refresh(statement)
+    assert statement.account_id == bank_account_id
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn_id)
+        .options(selectinload(JournalEntry.lines))
+    )
+    entry = entry_result.scalar_one()
+    assert any(line.account_id == bank_account_id for line in entry.lines)
+
+
+async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):
+    """AC3.6.2: Stage 1 posting blocks first uploads without an explicit account mapping."""
+    user_id = test_user.id
+    statement = build_statement(user_id, "hash_s1_unmapped", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement_id,
+            txn_date=date(2025, 1, 6),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Account mapping required" in str(exc.value.detail)
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+    )
+    assert entry_result.scalars().all() == []
+
+    fallback_result = await db.execute(
+        select(Account).where(Account.user_id == user_id).where(Account.name == "Bank - Main")
+    )
+    assert fallback_result.scalar_one_or_none() is None
+
+
+async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test_user):
+    """AC3.6.2: Stage 1 posting blocks unmapped statements with incomplete account metadata."""
+    user_id = test_user.id
+    statement = build_statement(user_id, "hash_s1_missing_account_metadata", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.account_last4 = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement_id,
+            txn_date=date(2025, 1, 6),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "metadata is missing" in str(exc.value.detail)
+
+
+async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(db, test_user):
+    """AC3.6.2: Stage 1 posting blocks stale statement account references."""
+    from uuid import uuid4
+
+    user_id = test_user.id
+    other_user_account = Account(
+        user_id=uuid4(),
+        name="Other User Bank",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(other_user_account)
+    await db.flush()
+
+    statement = build_statement(user_id, "hash_s1_invalid_account_mapping", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = other_user_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement_id,
+            txn_date=date(2025, 1, 6),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement account mapping is invalid" in str(exc.value.detail)
+
+
+async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(db, test_user):
+    """AC3.6.4: First upload approval can explicitly create and bind a statement account."""
+    user_id = test_user.id
+    statement = build_statement(user_id, "hash_s1_confirm_create_account", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.account_last4 = "9876"
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    txn = BankStatementTransaction(
+        statement_id=statement_id,
+        txn_date=date(2025, 1, 6),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+    txn_id = txn.id
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement_id,
+        db=db,
+        user_id=user_id,
+        request=Stage1ApprovalRequest(create_account_if_missing=True),
+    )
+
+    assert result.journal_entries_created == 1
+    await db.refresh(statement)
+    assert statement.account_id is not None
+
+    account = await db.get(Account, statement.account_id)
+    assert account is not None
+    assert account.name == "DBS *9876"
+    assert account.type == AccountType.ASSET
+    assert account.currency == "SGD"
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_id == txn_id)
+        .options(selectinload(JournalEntry.lines))
+    )
+    entry = entry_result.scalar_one()
+    assert any(line.account_id == account.id for line in entry.lines)
+
+    fallback_result = await db.execute(
+        select(Account).where(Account.user_id == user_id).where(Account.name == "Bank - Main")
+    )
+    assert fallback_result.scalar_one_or_none() is None
+
+
+async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, test_user):
+    """AC3.6.3: Stage 1 posting blocks ambiguous statement-account metadata matches."""
+    user_id = test_user.id
+    first_account = Account(
+        user_id=user_id,
+        name="DBS Account A",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    second_account = Account(
+        user_id=user_id,
+        name="DBS Account B",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add_all([first_account, second_account])
+    await db.flush()
+
+    first_prior = build_statement(user_id, "hash_s1_ambiguous_prior_a", 95)
+    first_prior.status = BankStatementStatus.APPROVED
+    first_prior.account_id = first_account.id
+    second_prior = build_statement(user_id, "hash_s1_ambiguous_prior_b", 95)
+    second_prior.status = BankStatementStatus.APPROVED
+    second_prior.account_id = second_account.id
+    db.add_all([first_prior, second_prior])
+    await db.flush()
+
+    statement = build_statement(user_id, "hash_s1_ambiguous", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement_id,
+            txn_date=date(2025, 1, 7),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Ambiguous account mapping" in str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, test_user):
@@ -1378,8 +1686,10 @@ async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, te
 
 
 async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(db, test_user):
+    account = await create_statement_account(db, test_user.id, "DBS Rejected Match")
     statement = build_statement(test_user.id, "hash_s1_rejected_match", 90)
     statement.status = BankStatementStatus.PARSED
+    statement.account_id = account.id
     statement.closing_balance = Decimal("90.00")
     db.add(statement)
     await db.flush()
@@ -1510,7 +1820,9 @@ async def test_edit_and_approve_statement_success(db, test_user):
     """
     from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
 
+    account = await create_statement_account(db, test_user.id, "DBS Edit Approve")
     statement = build_statement(test_user.id, "hash_edit_approve", 80)
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
     txn = BankStatementTransaction(
@@ -1879,8 +2191,10 @@ async def test_batch_approve_matches_success(db, test_user):
     """
     from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 
+    account = await create_statement_account(db, test_user.id, "DBS Batch Approval")
     statement = build_statement(test_user.id, "hash_batch_app", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 
@@ -1918,8 +2232,10 @@ async def test_batch_approve_matches_success(db, test_user):
 
 async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     """AC16.24.4: Batch approving a pending Stage 2 match reconciles referenced ledger entries."""
+    account = await create_statement_account(db, test_user.id, "DBS Batch Referenced")
     statement = build_statement(test_user.id, "hash_batch_reconcile", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 
@@ -1966,8 +2282,10 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
 
 async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     """AC16.24.4: Batch approval creates the missing journal entry and is idempotent."""
+    account = await create_statement_account(db, test_user.id, "DBS Batch Missing")
     statement = build_statement(test_user.id, "hash_batch_create_once", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 
@@ -2041,8 +2359,10 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
 
 async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user):
     """AC16.24.4: Batch approval links an existing source journal entry instead of duplicating it."""
+    account = await create_statement_account(db, test_user.id, "DBS Batch Existing Source")
     statement = build_statement(test_user.id, "hash_batch_reuse_source", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 
@@ -2095,8 +2415,10 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
 
 async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_user):
     """AC16.24.4: Batch approval preserves acceptance amount validation failures."""
+    account = await create_statement_account(db, test_user.id, "DBS Batch Mismatch")
     statement = build_statement(test_user.id, "hash_batch_mismatch", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 

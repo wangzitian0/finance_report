@@ -13,10 +13,10 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 960 | 100% |
-| **Mandatory ACs** | 800 | 83.3% |
+| **Total ACs (registries)** | 964 | 100% |
+| **Mandatory ACs** | 804 | 83.4% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with test reference** | 800 | 100.0% |
+| **Mandatory ACs with test reference** | 804 | 100.0% |
 | **Mandatory ACs without test reference** | 0 | 0.0% |
 | **Test files referenced** | 195 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
@@ -27,7 +27,7 @@
 |------|------|-----------|------------|-----------|---------------|----------|
 | [EPIC-001](#epic-001-phase0-setup) | phase0-setup | 29 | 0 | 27 | 27 | 100.0% |
 | [EPIC-002](#epic-002-double-entry-core) | double-entry-core | 59 | 0 | 44 | 44 | 100.0% |
-| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 39 | 0 | 19 | 19 | 100.0% |
+| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 43 | 0 | 23 | 23 | 100.0% |
 | [EPIC-004](#epic-004-reconciliation-engine) | reconciliation-engine | 39 | 0 | 18 | 18 | 100.0% |
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 100.0% |
@@ -164,9 +164,9 @@
 
 <a id="epic-003-statement-parsing"></a>
 
-- **Total ACs**: 39
-- **Mandatory ACs**: 19
-- **Mandatory ACs with test reference**: 19 (100.0%)
+- **Total ACs**: 43
+- **Mandatory ACs**: 23
+- **Mandatory ACs with test reference**: 23 (100.0%)
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
@@ -209,6 +209,10 @@
 | AC3.5.23 | no |  | `apps/backend/tests/api/test_statements_router.py` | ✅ (optional) |
 | AC3.5.24 | no |  | `apps/backend/tests/api/test_statements_router.py` | ✅ (optional) |
 | AC3.5.25 | no |  | `apps/backend/tests/api/test_statements_router.py` | ✅ (optional) |
+| AC3.6.1 | yes | Unique Prior Mapping | `apps/backend/tests/api/test_statements_router.py` | ✅ |
+| AC3.6.2 | yes | No Silent Fallback Posting | `apps/backend/tests/api/test_statements_router.py`<br>`apps/backend/tests/reconciliation/test_review_queue.py` | ✅ |
+| AC3.6.3 | yes | Ambiguous Mapping Blocked | `apps/backend/tests/api/test_statements_router.py` | ✅ |
+| AC3.6.4 | yes | Explicit First-Upload Account Creation | `apps/backend/tests/api/test_statements_router.py` | ✅ |
 
 ---
 

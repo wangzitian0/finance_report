@@ -265,7 +265,8 @@ async def create_entry_from_txn(
 ) -> JournalEntry:
     """Create a journal entry from a bank transaction.
 
-    Uses the statement's linked account if available, otherwise creates a default.
+    Uses the statement's linked account if available. Draft entries may still use
+    the legacy default account, but posted entries require an explicit mapping.
     When auto_post is True, the generated entry is created with POSTED status;
     otherwise it is created as DRAFT.
     preloaded_statement/preloaded_bank_account may be passed by trusted callers
@@ -287,7 +288,7 @@ async def create_entry_from_txn(
 
     currency = statement.currency or "SGD"
 
-    # Use statement's linked account if available, otherwise create default
+    # Use statement's linked account if available.
     bank_account: Account | None = preloaded_bank_account
     if bank_account is not None:
         if bank_account.user_id != user_id:
@@ -300,6 +301,9 @@ async def create_entry_from_txn(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
         )
         bank_account = account_result.scalar_one_or_none()
+
+    if not bank_account and auto_post:
+        raise ValueError("Account mapping required before posting. Confirm the statement account before posting.")
 
     if not bank_account:
         # Fallback: create or get default bank account

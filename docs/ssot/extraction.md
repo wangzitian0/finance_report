@@ -227,6 +227,24 @@ To prevent floating-point errors (e.g. `0.1 + 0.2 != 0.3`), the system enforces 
 
 > **Float Ban**: Any code found using `float` for currency calculation will be rejected by CI.
 
+## Statement Account Mapping
+
+Automatic journal posting from imported statements must never use a generic
+fallback account. Before Stage 1 approval creates posted journal entries, the
+statement must resolve to a user-owned asset account by one of these paths:
+
+1. The statement already has an explicit `account_id` selected by the user.
+2. A previous confirmed statement for the same user has exactly one account
+   matching `institution`, `account_last4`, and `currency`.
+3. The user explicitly confirms first-upload account creation during Stage 1
+   approval; the created asset account is bound to the statement before posted
+   journal entries are created.
+
+If no confident match exists, or multiple accounts match the same metadata, the
+approval flow must block posting with a clear account-mapping action item. Draft
+candidate entries may still use legacy defaults in manual workflows, but posted
+entries cannot silently use `Bank - Main`.
+
 ## Files
 
 | File | Purpose |
