@@ -305,6 +305,17 @@ Every SOP document should follow this structure:
 - Issue: `#XXX`
 ```
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
+- [../ssot/tdd.md](../ssot/tdd.md) — canonical EPIC -> AC -> test workflow.
+- [../agents/orchestration.md](../agents/orchestration.md) — agent workflow governance.
+- [../agents/red-lines.md](../agents/red-lines.md) — security and engineering hard stops.
+- [../contributing/branch-policy.md](../contributing/branch-policy.md) — branch and PR workflow.
+- [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — test-suite organization, jointly owned with EPIC-008.
+
 #### 4.2 SOP Inventory & Gap Analysis
 
 | SOP Area | Current Doc | Tool | Gap |

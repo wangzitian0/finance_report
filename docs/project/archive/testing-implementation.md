@@ -2,7 +2,8 @@
 
 **Status**: ✅ Complete (7/7 tasks)  
 **Date**: 2026-01-25  
-**Related**: TESTING_GAP_ANALYSIS.md
+**Related**: The retired root `TESTING_GAP_ANALYSIS.md` content was merged
+into [../AUDITS.md](../AUDITS.md).
 
 ---
 
@@ -287,7 +288,7 @@ collected 3 items / 3 deselected
 
 ---
 
-## Success Criteria (from TESTING_GAP_ANALYSIS.md)
+## Success Criteria (from retired testing gap analysis)
 
 **Short-term goals (1 month)**:
 - [x] ~~Config tests no longer hardcode values~~ (PR #151)
@@ -314,7 +315,7 @@ collected 3 items / 3 deselected
 
 ## Documentation References
 
-- **Testing Gap Analysis**: `TESTING_GAP_ANALYSIS.md`
+- **Testing Gap Analysis**: retired; see [../AUDITS.md](../AUDITS.md)
 - **Development Guide**: `docs/ssot/development.md`
 - **Factory Usage**: See docstrings in `tests/factories.py`
 - **Locust Docs**: https://docs.locust.io/
@@ -348,4 +349,5 @@ Remove the `@pytest.mark.skip` decorator once you:
 
 ---
 
-**Questions?** See `TESTING_GAP_ANALYSIS.md` for detailed rationale and priority matrix.
+**Questions?** See [../AUDITS.md](../AUDITS.md) for current audit ownership and
+generated proof links.

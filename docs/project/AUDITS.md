@@ -39,6 +39,16 @@ AC-to-EPIC mismatch cleanup and invalid real-test AC references are tracked in
 3. When an audit finds work that belongs in code or tests, create an issue and
    reference it instead of encoding future behavior in prose.
 
+## Retired Standalone Reports
+
+The root `TESTING_GAP_ANALYSIS.md` report was retired during the 2026-05-20
+documentation cleanup. Its old hand-written testing narrative duplicated
+`docs/ssot/tdd.md`, `docs/ssot/coverage.md`, `docs/ssot/ci-cd.md`, and the
+generated AC coverage report. Current testing gaps are tracked by issues
+[#452](https://github.com/wangzitian0/finance_report/issues/452),
+[#454](https://github.com/wangzitian0/finance_report/issues/454), and
+[#456](https://github.com/wangzitian0/finance_report/issues/456).
+
 Related cleanup issues:
 
 - [#452](https://github.com/wangzitian0/finance_report/issues/452)

@@ -217,6 +217,13 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 - [ ] Explicit 0.1 USD tolerance check is implicit in scoring but needs a dedicated boundary test.
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/reconciliation.md](../user-guide/reconciliation.md) — matching, review, and unmatched transaction workflow.
+- [../reference/api-reconciliation.md](../reference/api-reconciliation.md) — reconciliation API reference.
+
 ---
 
 ## ❓ Q&A (Clarification Required)

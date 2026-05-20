@@ -523,3 +523,12 @@ bash scripts/smoke_test.sh http://localhost:3000 dev
 # Run with UI visible (debugging)
 HEADLESS=false pytest tests/e2e -v
 ```
+
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) — generated AC coverage report.
+- [../ssot/coverage.md](../ssot/coverage.md) — coverage policy semantics.
+- [../ssot/ci-cd.md](../ssot/ci-cd.md) — CI gate semantics.
+- [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — backend test-suite navigation.

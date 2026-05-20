@@ -378,6 +378,13 @@ The above analysis is for reference only.
 - [x] SSOT added for AI advisor data model, prompt policy, and access scope.
 - [x] Dependencies updated to include EPIC-002 and EPIC-004.
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) — AI advisor user guide.
+- [../reference/api-chat.md](../reference/api-chat.md) — AI advisor API reference.
+
 ---
 
 ## ❓ Q&A (Clarification Required)

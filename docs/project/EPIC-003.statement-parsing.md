@@ -240,6 +240,12 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 - [x] Add confidence scoring and review queue routing.
 - [x] Enforce balance validation routing.
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/reconciliation.md](../user-guide/reconciliation.md) — statement upload and AI extraction portions of the reconciliation workflow.
+
 ---
 
 ## ❓ Q&A (Clarification Required)

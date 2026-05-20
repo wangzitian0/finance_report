@@ -350,6 +350,15 @@ def test_many_lines_entry():
 - [x] Multi-currency clarified: EPIC-002 requires `fx_rate` on non-base currency lines with manual input or market_data lookup; EPIC-005 extends automation.
 - [x] JournalLine audit fields aligned with SSOT (added `updated_at`, removed duplicate `updated_at` on JournalEntry).
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../user-guide/accounts.md](../user-guide/accounts.md) — account-management user guide.
+- [../user-guide/journal-entries.md](../user-guide/journal-entries.md) — journal-entry user guide.
+- [../reference/api-accounts.md](../reference/api-accounts.md) — accounts API reference.
+- [../reference/api-journal.md](../reference/api-journal.md) — journal API reference.
+
 ---
 
 ## ❓ Q&A (Clarification Required)

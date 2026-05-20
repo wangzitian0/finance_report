@@ -54,6 +54,33 @@ EPIC directory index.
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | Historical vision -> EPIC -> AC consistency audit |
 | [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Current generated AC-to-test coverage report |
 
+## Active Non-EPIC Documentation Ownership
+
+These documents are important enough to stay outside archive, but they are not
+project truth owners. Their EPIC owners must reference them and keep them in
+sync with ACs and tests.
+
+| Documentation surface | Owner EPIC | Role |
+|---|---|---|
+| [../../README.md](../../README.md) | Root project entry point | Status/proof summary generated or validated from registries and reports |
+| [../../vision.md](../../vision.md) and [../target.md](../target.md) | Vision layer | Decision filter, not implementation status |
+| [../index.md](../index.md) | EPIC-001 | Documentation site navigation |
+| [../user-guide/getting-started.md](../user-guide/getting-started.md) | EPIC-001 | First-use guide and onboarding route |
+| [../../apps/backend/README.md](../../apps/backend/README.md) | EPIC-001 | Backend module entry point |
+| [../../apps/frontend/README.md](../../apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
+| [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping |
+| [../agents/orchestration.md](../agents/orchestration.md), [../agents/red-lines.md](../agents/red-lines.md), and [../contributing/branch-policy.md](../contributing/branch-policy.md) | EPIC-014 | Agent and contributor workflow governance |
+| [../ssot/README.md](../ssot/README.md) and [../ssot/*.md](../ssot/README.md) | SSOT manifest + related EPICs | Rationale, code-owner links, and proof references |
+| [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api-accounts.md](../reference/api-accounts.md) | EPIC-002 | Account user/API surface |
+| [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api-journal.md](../reference/api-journal.md) | EPIC-002 | Journal user/API surface |
+| [../user-guide/reconciliation.md](../user-guide/reconciliation.md) | EPIC-003 / EPIC-004 | Upload, parsing, matching, and review user flow |
+| [../reference/api-reconciliation.md](../reference/api-reconciliation.md) | EPIC-004 | Reconciliation API surface |
+| [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
+| [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api-chat.md](../reference/api-chat.md) | EPIC-006 | AI advisor user/API surface |
+| [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
+| [../../scripts/pdf_fixtures/README.md](../../scripts/pdf_fixtures/README.md) and [../../scripts/pdf_fixtures/FONT_HANDLING.md](../../scripts/pdf_fixtures/FONT_HANDLING.md) | EPIC-009 | PDF fixture tool documentation |
+| [AUDITS.md](./AUDITS.md) | EPIC-014 | Current audit index and retired report notes |
+
 ## Known Documentation Debt
 
 - Harden AC traceability semantics:

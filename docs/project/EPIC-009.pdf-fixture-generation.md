@@ -440,6 +440,13 @@ table:
 - Existing: `scripts/generate_pdf_fixtures.py` (needs refactoring)
 - Adapters: `wealth_pipeline2/src/adapters/` (DBS, CMB, Mari Bank)
 
+## 📄 Owned Documentation Surfaces
+
+These non-EPIC docs are part of this EPIC's maintained surface:
+
+- [../../scripts/pdf_fixtures/README.md](../../scripts/pdf_fixtures/README.md) — PDF fixture tool usage.
+- [../../scripts/pdf_fixtures/FONT_HANDLING.md](../../scripts/pdf_fixtures/FONT_HANDLING.md) — fixture font fallback behavior.
+
 ---
 
 ## 🚀 Next Steps
