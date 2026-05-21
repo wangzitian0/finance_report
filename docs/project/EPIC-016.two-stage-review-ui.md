@@ -744,8 +744,8 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ### Acceptance Criteria — Infra (group 13, conflict resolution backend contract)
 
-- [ ] **AC16.13.13** Backend exposes `GET /api/review/conflicts/{statement_id}` returning `{duplicates: [...], transfer_pairs: [...]}` consumed by ConflictResolutionDialog
-- [ ] **AC16.13.14** Contract test asserts response schema and 404 when statement_id not found
+- [x] **AC16.13.13** Backend exposes `GET /api/review/conflicts/{statement_id}` returning `{duplicates: [...], transfer_pairs: [...]}` consumed by ConflictResolutionDialog
+- [x] **AC16.13.14** Contract test asserts response schema and 404 when statement_id not found
 
 **Priority**: P0 — Stage 1 monolith is the #1 reported UX blocker.
 **Estimated effort**: 6-8 days frontend (component split + inline edit + conflict dialog + mobile nav) + 2-3 days backend (conflicts endpoint) + 1-2 days test infra.

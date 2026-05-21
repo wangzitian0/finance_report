@@ -218,7 +218,7 @@ class TestHelpers:
         assert not bat._is_manual(ac)
 
     def test_is_deprecated_full_strikethrough(self):
-        ac = bat.AC("AC12.24.1", 12, "x", "~~metrics endpoint deprecated~~", True)
+        ac = bat.AC("AC99.24.1", 12, "x", "~~metrics endpoint deprecated~~", True)
         assert bat._is_deprecated(ac)
 
     def test_is_deprecated_false_no_strikethrough(self):
@@ -370,19 +370,19 @@ class TestRenderDocument:
         assert "🧱 stub-only" in rendered
 
     def test_deprecated_ac_shows_deprecated_status(self, tmp_path):
-        acs = [bat.AC("AC12.24.1", 12, "x", "~~deprecated feature~~", True)]
+        acs = [bat.AC("AC99.24.1", 12, "x", "~~deprecated feature~~", True)]
         rendered = bat.render_document(acs, {}, [tmp_path], "2024-01-01")
         assert "🚫 deprecated" in rendered
 
     def test_deprecated_ac_not_counted_as_missing(self, tmp_path):
-        acs = [bat.AC("AC12.24.1", 12, "x", "~~deprecated feature~~", True)]
+        acs = [bat.AC("AC99.24.1", 12, "x", "~~deprecated feature~~", True)]
         rendered = bat.render_document(acs, {}, [tmp_path], "2024-01-01")
         assert "❌ missing" not in rendered
 
     def test_deprecated_ac_not_counted_as_mandatory(self, tmp_path):
         acs = [
             bat.AC("AC1.1.1", 1, "x", "normal AC", True),
-            bat.AC("AC12.24.1", 12, "x", "~~deprecated~~", True),
+            bat.AC("AC99.24.1", 12, "x", "~~deprecated~~", True),
         ]
         rendered = bat.render_document(
             acs,
@@ -394,7 +394,7 @@ class TestRenderDocument:
         assert "| **Mandatory ACs** | 1 |" in rendered
 
     def test_deprecated_ac_appears_in_executive_summary(self, tmp_path):
-        acs = [bat.AC("AC12.24.1", 12, "x", "~~deprecated~~", True)]
+        acs = [bat.AC("AC99.24.1", 12, "x", "~~deprecated~~", True)]
         rendered = bat.render_document(acs, {}, [tmp_path], "2024-01-01")
         assert "**Deprecated ACs**" in rendered
 

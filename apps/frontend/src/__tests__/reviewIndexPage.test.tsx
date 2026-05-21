@@ -14,7 +14,7 @@ describe("Review index page", () => {
         vi.clearAllMocks();
     });
 
-    it("shows pending stage 1 and stage 2 items", async () => {
+    it("AC16.11.32 shows pending stage 1 and stage 2 items through renderReviewComponent", async () => {
         mockedApi.mockResolvedValueOnce({
             items: [
                 { id: "s1", original_filename: "Jan.pdf", institution: "DBS", confidence_score: 70, status: "parsed" },

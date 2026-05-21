@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
@@ -10,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.routers import portfolio as portfolio_router
+from src.services.portfolio import AssetNotFoundError
 
 
 @pytest.fixture
@@ -93,6 +97,142 @@ async def test_get_holdings_with_data(client: AsyncClient, portfolio_with_data):
     data = response.json()
     assert isinstance(data, list)
     assert len(data) > 0
+
+
+@pytest.mark.asyncio
+async def test_holding_detail_dividends_realized_and_cost_basis_endpoints(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    portfolio_with_data,
+):
+    """AC17.7.2/AC17.7.3/AC17.7.4: Holding detail APIs return dividends, realized lots, and persist method."""
+    position = portfolio_with_data["position"]
+    dividend = DividendIncome(
+        user_id=test_user.id,
+        position_id=position.id,
+        payment_date=date(2026, 2, 15),
+        amount=Decimal("42.50"),
+        currency="SGD",
+    )
+    sell = InvestmentTransaction(
+        user_id=test_user.id,
+        position_id=position.id,
+        transaction_date=date(2026, 3, 1),
+        transaction_type=InvestmentTransactionType.SELL,
+        asset_identifier="AAPL",
+        quantity=Decimal("5"),
+        unit_price=Decimal("130.00"),
+        gross_amount=Decimal("650.00"),
+        fees=Decimal("1.00"),
+        currency="SGD",
+        cost_basis=Decimal("500.00"),
+        realized_pnl=Decimal("149.00"),
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add_all([dividend, sell])
+    await db.commit()
+
+    dividends_response = await client.get("/portfolio/AAPL/dividends")
+    assert dividends_response.status_code == 200
+    assert dividends_response.json()[0] | {"id": dividends_response.json()[0]["id"]} == {
+        "id": dividends_response.json()[0]["id"],
+        "ex_date": "2026-02-15",
+        "pay_date": "2026-02-15",
+        "amount": "42.50",
+        "currency": "SGD",
+        "reinvested": False,
+    }
+
+    realized_response = await client.get("/portfolio/AAPL/realized")
+    assert realized_response.status_code == 200
+    realized = realized_response.json()[0]
+    assert realized["quantity"] == "5.000000"
+    assert realized["basis"] == "500.00"
+    assert realized["proceeds"] == "649.00"
+    assert realized["gain_loss"] == "149.00"
+
+    patch_response = await client.patch("/portfolio/AAPL", json={"cost_basis_method": "LIFO"})
+    assert patch_response.status_code == 200
+    assert patch_response.json() == {"updated_count": 1, "cost_basis_method": "LIFO"}
+    await db.refresh(position)
+    assert position.cost_basis_method == CostBasisMethod.LIFO
+
+
+@pytest.mark.asyncio
+async def test_portfolio_summary_returns_realized_and_dividend_ytd(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    portfolio_with_data,
+):
+    """AC17.7.5: Portfolio summary exposes realized_pnl_ytd and dividend_income_ytd."""
+    position = portfolio_with_data["position"]
+    db.add_all(
+        [
+            DividendIncome(
+                user_id=test_user.id,
+                position_id=position.id,
+                payment_date=date(date.today().year, 2, 15),
+                amount=Decimal("42.50"),
+                currency="SGD",
+            ),
+            InvestmentTransaction(
+                user_id=test_user.id,
+                position_id=position.id,
+                transaction_date=date(date.today().year, 3, 1),
+                transaction_type=InvestmentTransactionType.SELL,
+                asset_identifier="AAPL",
+                quantity=Decimal("5"),
+                unit_price=Decimal("130.00"),
+                gross_amount=Decimal("650.00"),
+                fees=Decimal("1.00"),
+                currency="SGD",
+                cost_basis=Decimal("500.00"),
+                realized_pnl=Decimal("149.00"),
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get("/portfolio/summary")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["realized_pnl_ytd"] == "149.00"
+    assert data["dividend_income_ytd"] == "42.50"
+
+
+@pytest.mark.asyncio
+async def test_portfolio_summary_returns_zeroes_when_service_has_no_holdings(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC17.7.5: Empty portfolio summary returns a zero dashboard contract."""
+    monkeypatch.setattr(
+        portfolio_router._portfolio_service,
+        "get_portfolio_summary",
+        AsyncMock(side_effect=AssetNotFoundError("no holdings")),
+    )
+
+    response = await client.get("/portfolio/summary?as_of_date=2026-05-20")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_market_value"] == "0.00"
+    assert data["realized_pnl_ytd"] == "0.00"
+    assert data["dividend_income_ytd"] == "0.00"
+    assert data["holdings_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_update_holding_cost_basis_method_returns_404_for_missing_holding(client: AsyncClient):
+    """AC17.7.3: Missing holding cost-basis updates return a stable 404."""
+    response = await client.patch("/portfolio/MISSING", json={"cost_basis_method": "FIFO"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Holding not found"
 
 
 @pytest.mark.asyncio

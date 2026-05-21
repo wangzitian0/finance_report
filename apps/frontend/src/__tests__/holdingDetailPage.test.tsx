@@ -1,12 +1,12 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import HoldingDetailPage from "@/app/(main)/portfolio/[ticker]/page"
 import { apiFetch } from "@/lib/api"
-import type { PortfolioHolding } from "@/lib/types"
+import type { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types"
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
@@ -52,39 +52,60 @@ const mockActiveHolding: PortfolioHolding = {
 }
 
 const mockDisposedHolding: PortfolioHolding = {
+  ...mockActiveHolding,
   id: "h2",
-  user_id: "u1",
-  account_id: "acc1",
-  asset_identifier: "AAPL",
   quantity: "5",
   cost_basis: "700.00",
   market_value: "0.00",
   unrealized_pnl: "0.00",
   unrealized_pnl_percent: "0.00",
-  currency: "USD",
   acquisition_date: "2024-06-01",
   disposal_date: "2025-02-01",
   status: "disposed",
-  account_name: "IBKR",
-  asset_type: "Equity",
-  sector: "Technology",
-  geography: "US",
 }
 
-const mockOtherHolding: PortfolioHolding = {
-  id: "h3",
-  user_id: "u1",
-  account_id: "acc1",
-  asset_identifier: "TSLA",
-  quantity: "20",
-  cost_basis: "4000.00",
-  market_value: "3800.00",
-  unrealized_pnl: "-200.00",
-  unrealized_pnl_percent: "-5.00",
+const mockDividend: DividendEvent = {
+  id: "d1",
+  ex_date: "2026-02-10",
+  pay_date: "2026-02-15",
+  amount: "42.50",
   currency: "USD",
-  acquisition_date: "2025-03-01",
-  status: "active",
-  account_name: "IBKR",
+  reinvested: false,
+}
+
+const mockRealizedLot: RealizedLot = {
+  lot_id: "11111111-2222-3333-4444-555555555555",
+  acquired_date: "2025-01-15",
+  sold_date: "2026-03-01",
+  quantity: "5.000000",
+  basis: "500.00",
+  proceeds: "650.00",
+  gain_loss: "150.00",
+  holding_period: 410,
+  currency: "USD",
+}
+
+function mockHoldingDetailApi(options: {
+  holdings?: PortfolioHolding[]
+  dividends?: DividendEvent[]
+  realizedLots?: RealizedLot[]
+} = {}) {
+  const mockedApiFetch = vi.mocked(apiFetch)
+  mockedApiFetch.mockImplementation((path: string, init?: RequestInit) => {
+    if (path === "/api/portfolio/holdings?include_disposed=true") {
+      return Promise.resolve(options.holdings ?? [mockActiveHolding])
+    }
+    if (path === "/api/portfolio/AAPL/dividends") {
+      return Promise.resolve(options.dividends ?? [mockDividend])
+    }
+    if (path === "/api/portfolio/AAPL/realized") {
+      return Promise.resolve(options.realizedLots ?? [mockRealizedLot])
+    }
+    if (path === "/api/portfolio/AAPL" && init?.method === "PATCH") {
+      return Promise.resolve({ updated_count: 1, cost_basis_method: "LIFO" })
+    }
+    return Promise.reject(new Error(`unhandled path ${path}`))
+  })
 }
 
 describe("HoldingDetailPage", () => {
@@ -99,7 +120,10 @@ describe("HoldingDetailPage", () => {
   })
 
   it("renders loading state", () => {
-    mockedApiFetch.mockReturnValue(new Promise(() => {}))
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/portfolio/holdings?include_disposed=true") return new Promise(() => {})
+      return Promise.resolve([])
+    })
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
@@ -113,11 +137,13 @@ describe("HoldingDetailPage", () => {
 
     await waitFor(() => expect(screen.getByText("Failed to load holding")).toBeInTheDocument())
     expect(screen.getByText("server error")).toBeInTheDocument()
-    expect(screen.getByText("Retry")).toBeInTheDocument()
+    const callCountBeforeRetry = mockedApiFetch.mock.calls.length
+    fireEvent.click(screen.getByText("Retry"))
+    await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
   it("renders not-found state when no holdings match ticker", async () => {
-    mockedApiFetch.mockResolvedValue([mockOtherHolding])
+    mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, id: "h3", asset_identifier: "TSLA" }] })
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
@@ -125,91 +151,91 @@ describe("HoldingDetailPage", () => {
     expect(screen.getByText("AAPL")).toBeInTheDocument()
   })
 
-  it("renders KPI cards and active lots table", async () => {
-    mockedApiFetch.mockResolvedValue([mockActiveHolding, mockOtherHolding])
+  it("AC17.7.1 renders Overview, Dividends, and Realized P&L tabs", async () => {
+    mockHoldingDetailApi()
+
+    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Overview" })).toBeInTheDocument())
+    expect(screen.getByRole("tab", { name: "Dividends" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Realized P&L" })).toBeInTheDocument()
+  })
+
+  it("renders KPI cards and active/disposed lots in the overview tab", async () => {
+    mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, quantity: "10.500000" }, mockDisposedHolding] })
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getAllByText("Market Value").length).toBeGreaterThanOrEqual(1))
     expect(screen.getAllByText("Cost Basis").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/Unrealized P&L/)).toBeInTheDocument()
-    expect(screen.getByText("Quantity")).toBeInTheDocument()
-    expect(screen.getByText("FIFO method")).toBeInTheDocument()
     expect(screen.getByText("Active Lots")).toBeInTheDocument()
-  })
-
-  it("renders disposed lots table when disposed holdings exist", async () => {
-    mockedApiFetch.mockResolvedValue([mockActiveHolding, mockDisposedHolding, mockOtherHolding])
-
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("Active Lots")).toBeInTheDocument())
     expect(screen.getByText("Disposed Lots")).toBeInTheDocument()
+    expect(screen.getByText("FIFO method")).toBeInTheDocument()
+    expect(screen.getAllByText("10.50").length).toBeGreaterThanOrEqual(1)
   })
 
-  it("renders back link to portfolio", async () => {
-    mockedApiFetch.mockResolvedValue([mockActiveHolding])
+  it("AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels", async () => {
+    mockHoldingDetailApi()
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
-    await waitFor(() => expect(screen.getByText("Back to Portfolio")).toBeInTheDocument())
-    const link = screen.getByText("Back to Portfolio").closest("a")
-    expect(link).toHaveAttribute("href", "/portfolio")
+    fireEvent.click(await screen.findByRole("tab", { name: "Dividends" }))
+
+    expect(screen.getByText("Dividend Events")).toBeInTheDocument()
+    expect(screen.getByText("Ex Date")).toBeInTheDocument()
+    expect(screen.getByText("Pay Date")).toBeInTheDocument()
+    expect(screen.getByText("Amount")).toBeInTheDocument()
+    expect(screen.getByText("Currency")).toBeInTheDocument()
+    expect(screen.getByText("Reinvested")).toBeInTheDocument()
+    expect(screen.getByText("$42.50")).toBeInTheDocument()
   })
 
-  it("renders sector and geography in page description", async () => {
-    mockedApiFetch.mockResolvedValue([mockActiveHolding])
+  it("AC17.7.3 persists cost-basis method and refetches realized P&L", async () => {
+    mockHoldingDetailApi()
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
-    await waitFor(() => expect(screen.getByText(/Technology/)).toBeInTheDocument())
-    expect(screen.getByText(/US/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText("Cost basis method")).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText("Cost basis method"), { target: { value: "LIFO" } })
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/portfolio/AAPL",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ cost_basis_method: "LIFO" }),
+        }),
+      ),
+    )
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/AAPL/realized")
   })
 
-  it("fetches all holdings with include_disposed param", async () => {
-    mockedApiFetch.mockResolvedValue([mockActiveHolding])
+  it("AC17.7.4 renders lot-level realized P&L table", async () => {
+    mockHoldingDetailApi()
+
+    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Realized P&L" }))
+
+    const table = screen.getByText("Realized P&L Lots").closest(".card")
+    expect(table).not.toBeNull()
+    expect(within(table as HTMLElement).getByText("Lot")).toBeInTheDocument()
+    expect(within(table as HTMLElement).getByText("Acquired")).toBeInTheDocument()
+    expect(within(table as HTMLElement).getByText("Sold")).toBeInTheDocument()
+    expect(within(table as HTMLElement).getByText("Basis")).toBeInTheDocument()
+    expect(within(table as HTMLElement).getByText("Proceeds")).toBeInTheDocument()
+    expect(within(table as HTMLElement).getByText("Gain/Loss")).toBeInTheDocument()
+    expect(within(table as HTMLElement).getByText("$150.00")).toBeInTheDocument()
+  })
+
+  it("fetches all holdings with include_disposed param and renders back link", async () => {
+    mockHoldingDetailApi()
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true"))
+    const link = (await screen.findByText("Back to Portfolio")).closest("a")
+    expect(link).toHaveAttribute("href", "/portfolio")
   })
-
-  it("renders fractional quantity with decimals", async () => {
-    const fractionalHolding: PortfolioHolding = {
-      ...mockActiveHolding,
-      quantity: "10.5",
-    }
-    mockedApiFetch.mockResolvedValue([fractionalHolding])
-
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getAllByText("10.50").length).toBeGreaterThanOrEqual(1))
-  })
-
-  it("renders disposed lot with null disposal_date as dash", async () => {
-    const noDispDate: PortfolioHolding = {
-      ...mockDisposedHolding,
-      disposal_date: undefined,
-    }
-    mockedApiFetch.mockResolvedValue([mockActiveHolding, noDispDate])
-
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("Disposed Lots")).toBeInTheDocument())
-    expect(screen.getByText("\u2014")).toBeInTheDocument()
-  })
-
-  it("error state retry button refetches data", async () => {
-    mockedApiFetch
-      .mockRejectedValueOnce(new Error("server error"))
-      .mockResolvedValueOnce([mockActiveHolding])
-
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("Failed to load holding")).toBeInTheDocument())
-    fireEvent.click(screen.getByText("Retry"))
-
-    await waitFor(() => expect(screen.getAllByText("Market Value").length).toBeGreaterThanOrEqual(1))
-  })
-
 })

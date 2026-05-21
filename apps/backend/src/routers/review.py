@@ -21,6 +21,8 @@ from src.schemas.review import (
     ConsistencyCheckListResponse,
     ConsistencyCheckResponse,
     ResolveCheckRequest,
+    ReviewConflictCandidate,
+    ReviewConflictsResponse,
     Stage2ReviewQueueResponse,
 )
 from src.services.confidence_tier import derive_confidence_tier
@@ -35,6 +37,60 @@ from src.services.review_queue import accept_match as accept_match_service, get_
 from src.utils import raise_not_found
 
 router = APIRouter(prefix="/statements", tags=["review"])
+conflicts_router = APIRouter(prefix="/review", tags=["review"])
+
+
+@conflicts_router.get("/conflicts/{statement_id}", response_model=ReviewConflictsResponse)
+async def get_review_conflicts(
+    statement_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReviewConflictsResponse:
+    """Return duplicate and transfer-pair candidates for a statement."""
+    statement_result = await db.execute(
+        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
+    )
+    statement = statement_result.scalar_one_or_none()
+    if not statement:
+        raise_not_found("Statement")
+
+    tx_result = await db.execute(
+        select(BankStatementTransaction)
+        .where(BankStatementTransaction.statement_id == statement_id)
+        .order_by(BankStatementTransaction.txn_date, BankStatementTransaction.description)
+    )
+    transactions = list(tx_result.scalars().all())
+
+    duplicates: list[ReviewConflictCandidate] = []
+    transfer_pairs: list[ReviewConflictCandidate] = []
+    seen: dict[tuple, BankStatementTransaction] = {}
+    for txn in transactions:
+        key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction)
+        if key in seen:
+            duplicates.extend(
+                [
+                    ReviewConflictCandidate.model_validate(seen[key], from_attributes=True),
+                    ReviewConflictCandidate.model_validate(txn, from_attributes=True),
+                ]
+            )
+        else:
+            seen[key] = txn
+
+    by_abs_amount: dict[tuple, BankStatementTransaction] = {}
+    for txn in transactions:
+        key = (txn.txn_date, txn.amount.copy_abs())
+        paired = by_abs_amount.get(key)
+        if paired and paired.direction != txn.direction:
+            transfer_pairs.extend(
+                [
+                    ReviewConflictCandidate.model_validate(paired, from_attributes=True),
+                    ReviewConflictCandidate.model_validate(txn, from_attributes=True),
+                ]
+            )
+        else:
+            by_abs_amount[key] = txn
+
+    return ReviewConflictsResponse(duplicates=duplicates, transfer_pairs=transfer_pairs)
 
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)

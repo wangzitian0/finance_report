@@ -6,10 +6,16 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models.layer3 import PositionStatus
+from src.models.layer3 import (
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+    PositionStatus,
+)
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -19,6 +25,7 @@ from src.schemas.assets import (
     ManualValuationSnapshotResponse,
     ManualValuationSnapshotUpdate,
     ReconcilePositionsResponse,
+    RestrictedHoldingResponse,
     ValuationComponentResponse,
     ValuationComponentsResponse,
 )
@@ -203,6 +210,46 @@ async def list_valuation_components(
         total_liabilities=result.total_liabilities,
         net_worth_delta=result.net_worth_delta,
     )
+
+
+@router.get("/restricted", response_model=list[RestrictedHoldingResponse])
+async def list_restricted_holdings(
+    db: DbSession,
+    user_id: CurrentUserId,
+    as_of_date: date | None = Query(default=None),
+) -> list[RestrictedHoldingResponse]:
+    """List latest ESOP/RSU/locked manual valuations as restricted holdings."""
+    report_date = as_of_date or date.today()
+    restricted_types = (
+        ManualValuationComponentType.ESOP,
+        ManualValuationComponentType.RSU,
+        ManualValuationComponentType.STOCK_OPTIONS,
+    )
+    result = await db.execute(
+        select(ManualValuationSnapshot)
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.as_of_date <= report_date)
+        .where(ManualValuationSnapshot.component_type.in_(restricted_types))
+        .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
+        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+    )
+
+    holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationSnapshot] = {}
+    for snapshot in result.scalars().all():
+        key = (snapshot.component_type, snapshot.source, snapshot.currency)
+        holdings.setdefault(key, snapshot)
+
+    return [
+        RestrictedHoldingResponse(
+            ticker=snapshot.source,
+            quantity=Decimal("1.000000"),
+            vesting_schedule=snapshot.notes,
+            unlock_date=snapshot.reminder_date,
+            fair_value=snapshot.value.quantize(Decimal("0.01")),
+            currency=snapshot.currency,
+        )
+        for snapshot in holdings.values()
+    ]
 
 
 @router.get("/positions/{position_id}", response_model=ManagedPositionResponse)

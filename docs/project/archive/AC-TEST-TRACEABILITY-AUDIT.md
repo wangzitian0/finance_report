@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-20 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-21 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it. This is not behavioral coverage; it separates real test candidates from `_ac_stubs` and trivial placeholder assertions so product-level E2E evidence remains the source of behavioral proof.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`, `tests/e2e`.
 
@@ -13,14 +13,14 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 973 | 100% |
-| **Mandatory ACs** | 813 | 83.6% |
+| **Total ACs (registries)** | 976 | 100% |
+| **Mandatory ACs** | 816 | 83.6% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with real test reference** | 584 | 71.8% |
-| **Mandatory ACs with only placeholder reference** | 17 | - |
+| **Mandatory ACs with real test reference** | 604 | 74.0% |
+| **Mandatory ACs with only placeholder reference** | 0 | - |
 | **Mandatory ACs with only stub reference** | 212 | - |
 | **Mandatory ACs without any test reference** | 0 | - |
-| **Test files referenced** | 201 | - |
+| **Test files referenced** | 205 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -29,7 +29,7 @@
 |------|------|-----------|------------|-----------|----------|------------------|-----------|---------|---------------|
 | [EPIC-001](#epic-001-phase0-setup) | phase0-setup | 29 | 0 | 27 | 18 | 0 | 9 | 0 | 66.7% |
 | [EPIC-002](#epic-002-double-entry-core) | double-entry-core | 59 | 0 | 44 | 37 | 0 | 7 | 0 | 84.1% |
-| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 43 | 0 | 23 | 17 | 1 | 5 | 0 | 73.9% |
+| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 43 | 0 | 23 | 18 | 0 | 5 | 0 | 78.3% |
 | [EPIC-004](#epic-004-reconciliation-engine) | reconciliation-engine | 39 | 0 | 18 | 14 | 0 | 4 | 0 | 77.8% |
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 20 | 0 | 5 | 0 | 80.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 44 | 0 | 11 | 0 | 80.0% |
@@ -37,13 +37,13 @@
 | [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 91 | 0 | 85 | 85 | 0 | 0 | 0 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 1 | 0 | 35 | 0 | 2.8% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 1 | 0 | 20 | 0 | 4.8% |
-| [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 32 | 6 | 0 | 0 | 84.2% |
+| [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 0 | 0 | 0 | 100.0% |
 | [EPIC-012](#epic-012-foundation-libs) | foundation-libs | 62 | 3 | 55 | 48 | 0 | 7 | 0 | 87.3% |
 | [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 52 | 0 | 6 | 0 | 89.7% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 0 | 0 | 6 | 0 | 0.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 31 | 0 | 31 | 31 | 0 | 0 | 0 | 100.0% |
-| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 214 | 0 | 190 | 131 | 4 | 55 | 0 | 68.9% |
-| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 82 | 0 | 39 | 33 | 6 | 0 | 0 | 84.6% |
+| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 217 | 0 | 193 | 138 | 0 | 55 | 0 | 71.5% |
+| [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 82 | 0 | 39 | 39 | 0 | 0 | 0 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 13 | 0 | 10 | 0 | 56.5% |
 
 ---
@@ -174,8 +174,8 @@
 
 - **Total ACs**: 43
 - **Mandatory ACs**: 23
-- **Mandatory ACs with real test reference**: 17 (73.9%)
-- **Mandatory ACs with only placeholder reference**: 1
+- **Mandatory ACs with real test reference**: 18 (78.3%)
+- **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 5
 - **Mandatory ACs without any test reference**: 0
 
@@ -191,7 +191,7 @@
 | AC3.2.3 | yes | Completeness Validation | real: `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ real |
 | AC3.3.1 | yes | High Confidence (Auto-Accept) | stub: `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | 🧱 stub-only |
 | AC3.3.2 | yes | Medium Confidence (Review) | stub: `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | 🧱 stub-only |
-| AC3.3.3 | yes | Low Confidence (Manual) | placeholder: `scripts/tests/test_analyze_test_ac_coverage.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | 🧪 placeholder-only |
+| AC3.3.3 | yes | Low Confidence (Manual) | real: `apps/backend/tests/extraction/test_extraction.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_03_stubs.py` | ✅ real |
 | AC3.4.1 | yes | Invalid Parse Not Persisted | real: `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ real |
 | AC3.4.2 | yes | Unsupported File Type | real: `apps/backend/tests/extraction/test_extraction_flow.py` | ✅ real |
 | AC3.4.3 | yes | Extraction Timeout | real: `apps/backend/tests/extraction/test_pdf_parsing.py` | ✅ real |
@@ -426,7 +426,7 @@
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
-| AC7.1.1 | yes | Infra2 submodule exists | real: `scripts/tests/test_generate_ac_registry.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ real |
+| AC7.1.1 | yes | Infra2 submodule exists | real: `scripts/tests/test_generate_ac_registry.py`<br>placeholder: `scripts/tests/test_build_ac_traceability.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ real |
 | AC7.1.2 | yes | Finance_report directory structure | stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | 🧱 stub-only |
 | AC7.1.3 | yes | README documentation exists | stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | 🧱 stub-only |
 | AC7.2.1 | yes | PostgreSQL container configured | stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | 🧱 stub-only |
@@ -496,7 +496,7 @@
 | AC8.3.3 | yes | Post Draft Entry | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
 | AC8.3.4 | yes | Unbalanced Entry Rejected | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
 | AC8.3.5 | yes | Journal Entry CRUD | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
-| AC8.4.1 | yes | Statement upload (CSV) | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
+| AC8.4.1 | yes | Statement upload (CSV) | real: `apps/backend/tests/e2e/test_core_journeys.py`<br>real: `apps/frontend/src/__tests__/StatementUploader.test.tsx` | ✅ real |
 | AC8.4.2 | yes | Statement list and get | real: `apps/backend/tests/e2e/test_core_journeys.py`<br>real: `tests/e2e/test_statement_upload_e2e.py` | ✅ real |
 | AC8.4.3 | yes | Statement full flow | real: `apps/backend/tests/e2e/test_core_journeys.py`<br>real: `tests/e2e/test_statement_upload_e2e.py` | ✅ real |
 | AC8.5.1 | yes | Reconciliation engine runs | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
@@ -553,8 +553,8 @@
 | AC8.13.14 | yes | Provider-backed staging AI/OCR gate runs separately from deploy health | real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
 | AC8.13.15 | yes | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | real: `scripts/tests/test_build_unified_lcov.py`<br>real: `scripts/tests/test_coverage_policy.py`<br>real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
 | AC8.13.16 | yes | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
-| AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
-| AC8.13.18 | yes | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets. | real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py`<br>real: `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | ✅ real |
+| AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | real: `scripts/tests/test_ac_registry_format.py`<br>real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
+| AC8.13.18 | yes | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets. | real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py`<br>real: `scripts/tests/test_ac_registry_format.py`<br>real: `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | ✅ real |
 | AC8.13.19 | yes | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnos | real: `scripts/tests/test_post_merge_e2e_gates.py`<br>real: `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | ✅ real |
 | AC8.13.20 | yes | CI change classification is covered by multi-commit and markdown edge-case regression tests. | real: `scripts/tests/test_ci_change_classifier.py` | ✅ real |
 | AC8.13.21 | yes | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running. | real: `scripts/tests/test_post_merge_e2e_gates.py`<br>real: `scripts/tests/test_wait_for_github_ci.py` | ✅ real |
@@ -671,8 +671,8 @@
 
 - **Total ACs**: 38
 - **Mandatory ACs**: 38
-- **Mandatory ACs with real test reference**: 32 (84.2%)
-- **Mandatory ACs with only placeholder reference**: 6
+- **Mandatory ACs with real test reference**: 38 (100.0%)
+- **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 0
 - **Mandatory ACs without any test reference**: 0
 
@@ -706,12 +706,12 @@
 | AC11.6.3 | yes | GET /assets/positions/{id}/depreciation returns 400 for disposed position | real: `apps/backend/tests/assets/test_assets_router.py` | ✅ real |
 | AC11.6.4 | yes | GET /assets/positions/{id}/depreciation returns 422 for invalid params | real: `apps/backend/tests/assets/test_asset_depreciation.py`<br>real: `apps/backend/tests/assets/test_assets_router.py` | ✅ real |
 | AC11.7.1 | yes | Verify position queries are isolated by user_id | real: `apps/backend/tests/assets/test_assets_router.py` | ✅ real |
-| AC11.8.1 | yes | API endpoint `GET /api/income/annualized` returns `{annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of}` derived from last 12 months of Income-type journal entries | placeholder: `apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | 🧪 placeholder-only |
-| AC11.8.2 | yes | Dashboard "Annualized Income" card renders the four annualized figures with the currency code and as_of date subtitle | placeholder: `apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | 🧪 placeholder-only |
-| AC11.8.3 | yes | API endpoint `GET /api/assets/restricted` returns ESOP/RSU/locked holdings with `{ticker, quantity, vesting_schedule, unlock_date, fair_value}` | placeholder: `apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | 🧪 placeholder-only |
-| AC11.8.4 | yes | Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip | placeholder: `apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | 🧪 placeholder-only |
-| AC11.8.5 | yes | Net worth calculation toggle on dashboard (include_restricted=true | placeholder: `apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | 🧪 placeholder-only |
-| AC11.8.6 | yes | Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render | placeholder: `apps/frontend/src/__tests__/uiGapAudit.annualizedIncome.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | 🧪 placeholder-only |
+| AC11.8.1 | yes | API endpoint `GET /api/income/annualized` returns `{annualized_salary, annualized_bonus, annualized_dividend, annualized_total, currency, as_of}` derived from last 12 months of Income-type journal entries | real: `apps/backend/tests/reporting/test_income_annualized_router.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | ✅ real |
+| AC11.8.2 | yes | Dashboard "Annualized Income" card renders the four annualized figures with the currency code and as_of date subtitle | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | ✅ real |
+| AC11.8.3 | yes | API endpoint `GET /api/assets/restricted` returns ESOP/RSU/locked holdings with `{ticker, quantity, vesting_schedule, unlock_date, fair_value}` | real: `apps/backend/tests/reporting/test_income_annualized_router.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | ✅ real |
+| AC11.8.4 | yes | Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | ✅ real |
+| AC11.8.5 | yes | Net worth calculation toggle on dashboard (include_restricted=true | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | ✅ real |
+| AC11.8.6 | yes | Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_11_stubs.py` | ✅ real |
 | AC11.9.1 | yes | Manual valuation snapshot CRUD supports property, CPF, tax, insurance, loan, and equity award components with audit timestamps | real: `apps/backend/tests/assets/test_manual_valuation_snapshots.py` | ✅ real |
 | AC11.9.2 | yes | Latest manual valuation snapshots aggregate into net worth components using Decimal arithmetic | real: `apps/backend/tests/assets/test_manual_valuation_snapshots.py` | ✅ real |
 | AC11.9.3 | yes | Restricted and illiquid manual valuation components can be excluded from liquid net worth views | real: `apps/backend/tests/assets/test_manual_valuation_snapshots.py` | ✅ real |
@@ -934,7 +934,7 @@
 | AC15.6.7 | yes | Idempotent Transfer Detection | real: `apps/backend/tests/reconciliation/test_transfer_idempotency.py` | ✅ real |
 | AC15.7.1 | yes | API endpoint GET /api/accounts/processing/summary returns {pending_count, pending_total, currency, oldest_pending_date} | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ real |
 | AC15.7.2 | yes | Dashboard "Processing / In-Transit" card renders the four fields with currency code | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ real |
-| AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>real: `scripts/tests/test_processing_account_service_unit.py` | ✅ real |
+| AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | real: `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`<br>real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>real: `scripts/tests/test_processing_account_service_unit.py` | ✅ real |
 | AC15.7.4 | yes | Pending entries older than 7 days render a warning badge on the listing row | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>real: `scripts/tests/test_processing_account_service_unit.py` | ✅ real |
 | AC15.7.5 | yes | Frontend test mounts ProcessingSummaryCard and asserts pending_count + pending_total labels render | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ real |
 | AC15.7.6 | yes | Sidebar navigation exposes a Processing entry between Reconciliation and AI Advisor | real: `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | ✅ real |
@@ -947,10 +947,10 @@
 
 <a id="epic-016-two-stage-review-ui"></a>
 
-- **Total ACs**: 214
-- **Mandatory ACs**: 190
-- **Mandatory ACs with real test reference**: 131 (68.9%)
-- **Mandatory ACs with only placeholder reference**: 4
+- **Total ACs**: 217
+- **Mandatory ACs**: 193
+- **Mandatory ACs with real test reference**: 138 (71.5%)
+- **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 55
 - **Mandatory ACs without any test reference**: 0
 
@@ -1045,8 +1045,8 @@
 | AC16.11.29 | yes | dev_backend — cleanup terminates tracked process and exits cleanly | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.11.30 | yes | cleanup_orphaned_dbs — drop_database returns true in dry-run mode | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.11.31 | yes | cleanup_orphaned_dbs — main forwards parsed flags to cleanup_orphaned | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
-| AC16.11.32 | yes | Vitest harness for Stage 1 split components — shared renderReviewComponent() helper in apps/frontend/src/__tests__/helpe | placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧪 placeholder-only |
-| AC16.11.33 | yes | Playwright smoke covers inline-edit happy path on Stage 1 (open review → edit amount → save → assert persisted) | placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧪 placeholder-only |
+| AC16.11.32 | yes | Vitest harness for Stage 1 split components — shared renderReviewComponent() helper in apps/frontend/src/__tests__/helpe | real: `apps/frontend/src/__tests__/reviewIndexPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.11.33 | yes | Playwright smoke covers inline-edit happy path on Stage 1 (open review → edit amount → save → assert persisted) | real: `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.12.1 | yes | Dashboard page shows loading state before API responses resolve | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.12.2 | yes | Dashboard page renders error fallback and retry action when API request fails | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.12.3 | yes | Dashboard page renders KPI, charts, and recent activity when API requests succeed | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
@@ -1063,6 +1063,9 @@
 | AC16.12.14 | no |  | real: `apps/frontend/src/__tests__/loginPage.test.tsx` | ✅ real (optional) |
 | AC16.12.15 | no |  | real: `apps/frontend/src/__tests__/loginPage.test.tsx` | ✅ real (optional) |
 | AC16.12.16 | no |  | real: `apps/frontend/src/__tests__/loginPage.test.tsx` | ✅ real (optional) |
+| AC16.12.17 | yes | Dashboard page renders first-time onboarding when accounts, statements, or posted review output are missing | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx` | ✅ real |
+| AC16.12.18 | yes | Dashboard onboarding links users to Accounts, Statements upload, and Review in one click | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx` | ✅ real |
+| AC16.12.19 | yes | Dashboard hides onboarding once an approved statement and posted journal entry exist | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx` | ✅ real |
 | AC16.13.1 | yes | test_lifecycle — sanitize_namespace normalizes branch/workspace names | real: `scripts/tests/test_generate_ac_registry.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.13.2 | yes | test_lifecycle — get_namespace honors BRANCH_NAME and optional WORKSPACE_ID | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.13.3 | yes | test_lifecycle — get_namespace falls back to git branch plus path hash when env vars absent | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
@@ -1075,8 +1078,8 @@
 | AC16.13.10 | yes | test_lifecycle — cleanup_worker_databases drops valid worker DB names and skips invalid names | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.13.11 | yes | test_lifecycle — _get_changed_files maps backend python paths into module import names | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.13.12 | yes | generate_test_pdfs — generate_statement writes table rows and closing balance from Decimal transactions | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
-| AC16.13.13 | yes | Backend exposes GET /api/review/conflicts/{statement_id} returning {duplicates: [...], transfer_pairs: [...]} consumed b | placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧪 placeholder-only |
-| AC16.13.14 | yes | Contract test asserts response schema and 404 when statement_id not found | placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧪 placeholder-only |
+| AC16.13.13 | yes | Backend exposes GET /api/review/conflicts/{statement_id} returning {duplicates: [...], transfer_pairs: [...]} consumed b | real: `apps/backend/tests/review/test_review_conflicts_router.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.13.14 | yes | Contract test asserts response schema and 404 when statement_id not found | real: `apps/backend/tests/review/test_review_conflicts_router.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.14.1 | yes | Balance-sheet page renders loading and error retry states | real: `apps/frontend/src/__tests__/balanceSheetPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.14.2 | yes | Balance-sheet page renders totals and account sections on successful fetch | real: `apps/frontend/src/__tests__/balanceSheetPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.14.3 | yes | Balance-sheet page toggles account tree expansion controls | real: `apps/frontend/src/__tests__/balanceSheetPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
@@ -1160,12 +1163,12 @@
 | AC16.22.4 | yes | Journal entry created only on accepted transition, never on pending_review | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.22.5 | yes | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.22.6 | yes | All service methods mutating pending_review enforce user_id ownership | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
-| AC16.23.1 | yes | Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
-| AC16.23.2 | yes | TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
-| AC16.23.3 | yes | Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair | real: `apps/frontend/src/__tests__/assetsPage.test.tsx`<br>real: `apps/frontend/src/__tests__/statementReviewPage.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
-| AC16.23.4 | yes | Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string for shareable links | real: `apps/frontend/src/__tests__/assetsPage.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
-| AC16.23.5 | yes | Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile | real: `apps/frontend/src/__tests__/reportsPage.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
-| AC16.23.6 | yes | Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>real: `apps/frontend/src/__tests__/epic016Components.test.tsx`<br>real: `apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.stage1Refactor.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.23.1 | yes | Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.23.2 | yes | TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.23.3 | yes | Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair | real: `apps/frontend/src/__tests__/assetsPage.test.tsx`<br>real: `apps/frontend/src/__tests__/statementReviewPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.23.4 | yes | Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string for shareable links | real: `apps/frontend/src/__tests__/assetsPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.23.5 | yes | Mobile navigation drawer (`<MobileNav />`) renders below 768 px with links to Dashboard / Review / Processing / Portfolio; existing desktop sidebar hidden on mobile | real: `apps/frontend/src/__tests__/reportsPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
+| AC16.23.6 | yes | Frontend tests mount each new component (PdfPreviewPane, TransactionTable, ConflictResolutionDialog, MobileNav) and assert primary affordance renders | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>real: `apps/frontend/src/__tests__/epic016Components.test.tsx`<br>real: `apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.24.1 | yes | Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch | real: `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ real |
 | AC16.24.2 | yes | Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved | real: `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ real |
 | AC16.24.3 | yes | Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved | real: `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | ✅ real |
@@ -1179,8 +1182,8 @@
 
 - **Total ACs**: 82
 - **Mandatory ACs**: 39
-- **Mandatory ACs with real test reference**: 33 (84.6%)
-- **Mandatory ACs with only placeholder reference**: 6
+- **Mandatory ACs with real test reference**: 39 (100.0%)
+- **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 0
 - **Mandatory ACs without any test reference**: 0
 
@@ -1254,12 +1257,12 @@
 | AC17.6.19 | no |  | real: `apps/backend/tests/portfolio/test_portfolio_router.py` | ✅ real (optional) |
 | AC17.6.20 | no |  | real: `apps/backend/tests/portfolio/test_portfolio_router.py` | ✅ real (optional) |
 | AC17.6.21 | no |  | real: `apps/backend/tests/portfolio/test_portfolio_router.py` | ✅ real (optional) |
-| AC17.7.1 | yes | Holding detail page /portfolio/[ticker] renders three tabs: Overview, Dividends, Realized P&L | placeholder: `apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | 🧪 placeholder-only |
-| AC17.7.2 | yes | Dividends tab lists historical dividend events {ex_date, pay_date, amount, currency, reinvested} from GET /api/portfolio | placeholder: `apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | 🧪 placeholder-only |
-| AC17.7.3 | yes | Cost-basis method selector (FIFO / LIFO / AvgCost) on holding detail page persists per-holding via PATCH /api/portfolio/ | placeholder: `apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | 🧪 placeholder-only |
-| AC17.7.4 | yes | Realized P&L tab shows lot-level table {lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_ | placeholder: `apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | 🧪 placeholder-only |
-| AC17.7.5 | yes | Portfolio summary card on dashboard adds realized_pnl_ytd and dividend_income_ytd figures from GET /api/portfolio/summar | placeholder: `apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | 🧪 placeholder-only |
-| AC17.7.6 | yes | Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render | placeholder: `apps/frontend/src/__tests__/uiGapAudit.portfolioFE.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | 🧪 placeholder-only |
+| AC17.7.1 | yes | Holding detail page /portfolio/[ticker] renders three tabs: Overview, Dividends, Realized P&L | real: `apps/frontend/src/__tests__/holdingDetailPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | ✅ real |
+| AC17.7.2 | yes | Dividends tab lists historical dividend events {ex_date, pay_date, amount, currency, reinvested} from GET /api/portfolio | real: `apps/backend/tests/portfolio/test_portfolio_router.py`<br>real: `apps/frontend/src/__tests__/holdingDetailPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | ✅ real |
+| AC17.7.3 | yes | Cost-basis method selector (FIFO / LIFO / AvgCost) on holding detail page persists per-holding via PATCH /api/portfolio/ | real: `apps/backend/tests/portfolio/test_portfolio_router.py`<br>real: `apps/frontend/src/__tests__/holdingDetailPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | ✅ real |
+| AC17.7.4 | yes | Realized P&L tab shows lot-level table {lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_ | real: `apps/backend/tests/portfolio/test_portfolio_router.py`<br>real: `apps/frontend/src/__tests__/holdingDetailPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | ✅ real |
+| AC17.7.5 | yes | Portfolio summary card on dashboard adds realized_pnl_ytd and dividend_income_ytd figures from GET /api/portfolio/summar | real: `apps/backend/tests/portfolio/test_portfolio_router.py`<br>real: `apps/frontend/src/__tests__/portfolioPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | ✅ real |
+| AC17.7.6 | yes | Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render | real: `apps/frontend/src/__tests__/holdingDetailPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_17_stubs.py` | ✅ real |
 | AC17.8.1 | yes | Import to Portfolio button visible for parsed/approved statements | real: `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ real |
 | AC17.8.2 | yes | Import result banner with stats and portfolio link shown on success | real: `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ real |
 | AC17.8.3 | yes | Import failure shows actionable error without sensitive data | real: `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx` | ✅ real |

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
-import { PortfolioHolding } from "@/lib/types";
+import { PortfolioHolding, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
@@ -29,6 +29,10 @@ export default function PortfolioPage() {
             const query = params.toString();
             return apiFetch<PortfolioHolding[]>(`/api/portfolio/holdings${query ? `?${query}` : ""}`);
         },
+    });
+    const { data: summary } = useQuery({
+        queryKey: ["portfolio-summary", asOfDate],
+        queryFn: () => apiFetch<PortfolioSummaryResponse>(`/api/portfolio/summary${asOfDate ? `?as_of_date=${asOfDate}` : ""}`),
     });
 
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
@@ -65,6 +69,18 @@ export default function PortfolioPage() {
                     <p className="text-xs text-muted mt-1">
                         Active holdings · {activeHoldings.length} position{activeHoldings.length !== 1 ? "s" : ""}
                     </p>
+                    {summary && (
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded border border-[var(--border)] p-3">
+                                <p className="text-xs text-muted uppercase tracking-wide">Realized P&L YTD</p>
+                                <p className="text-lg font-semibold">{formatCurrencyLocale(summary.realized_pnl_ytd, summary.currency)}</p>
+                            </div>
+                            <div className="rounded border border-[var(--border)] p-3">
+                                <p className="text-xs text-muted uppercase tracking-wide">Dividend Income YTD</p>
+                                <p className="text-lg font-semibold">{formatCurrencyLocale(summary.dividend_income_ytd, summary.currency)}</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

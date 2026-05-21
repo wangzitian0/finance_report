@@ -62,23 +62,46 @@ const mockHolding: PortfolioHolding = {
 }
 
 const mockHolding2: PortfolioHolding = {
+  ...mockHolding,
   id: "h2",
-  user_id: "u1",
-  account_id: "acc1",
   asset_identifier: "TSLA",
   quantity: "5",
   cost_basis: "1000.00",
   market_value: "900.00",
   unrealized_pnl: "-100.00",
   unrealized_pnl_percent: "-10.00",
-  currency: "USD",
-  acquisition_date: "2025-03-01",
   disposal_date: "2025-11-01",
   status: "disposed",
-  account_name: "IBKR",
-  asset_type: "Equity",
   sector: "Automotive",
-  geography: "US",
+}
+
+function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
+  const mockedApiFetch = vi.mocked(apiFetch)
+  mockedApiFetch.mockImplementation((path: string) => {
+    if (path.startsWith("/api/portfolio/summary")) {
+      return Promise.resolve({
+        total_market_value: "1800.00",
+        total_cost_basis: "1500.00",
+        total_unrealized_pnl: "300.00",
+        total_unrealized_pnl_percent: "20.00",
+        total_realized_pnl: "149.00",
+        total_realized_pnl_percent: "9.93",
+        net_pnl: "449.00",
+        net_pnl_percent: "29.93",
+        holdings_count: holdings.length,
+        active_positions_count: holdings.filter((h) => h.status === "active").length,
+        disposed_positions_count: holdings.filter((h) => h.status === "disposed").length,
+        currency: "USD",
+        realized_pnl_ytd: "149.00",
+        dividend_income_ytd: "42.50",
+      })
+    }
+    if (path.startsWith("/api/portfolio/holdings")) {
+      if (path.includes("include_disposed=true")) return Promise.resolve([mockHolding, mockHolding2])
+      return Promise.resolve(holdings)
+    }
+    return Promise.reject(new Error(`unhandled path ${path}`))
+  })
 }
 
 describe("PortfolioPage", () => {
@@ -94,7 +117,7 @@ describe("PortfolioPage", () => {
   })
 
   it("renders page header and child components", async () => {
-    mockedApiFetch.mockResolvedValue([mockHolding])
+    mockPortfolioApi()
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
@@ -107,7 +130,10 @@ describe("PortfolioPage", () => {
   })
 
   it("renders loading state while fetching holdings", () => {
-    mockedApiFetch.mockReturnValue(new Promise(() => {}))
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/portfolio/summary")) return Promise.resolve({})
+      return new Promise(() => {})
+    })
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
@@ -123,11 +149,11 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("network error")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Retry loading holdings" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(2))
   })
 
   it("renders empty state when no holdings", async () => {
-    mockedApiFetch.mockResolvedValue([])
+    mockPortfolioApi([])
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
@@ -136,7 +162,7 @@ describe("PortfolioPage", () => {
   })
 
   it("renders holdings table when data is loaded", async () => {
-    mockedApiFetch.mockResolvedValue([mockHolding])
+    mockPortfolioApi()
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
@@ -145,26 +171,20 @@ describe("PortfolioPage", () => {
   })
 
   it("toggles show disposed checkbox and refetches with include_disposed", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.includes("include_disposed=true")) {
-        return Promise.resolve([mockHolding, mockHolding2])
-      }
-      return Promise.resolve([mockHolding])
-    })
+    mockPortfolioApi()
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument())
 
-    const checkbox = screen.getByRole("checkbox")
-    fireEvent.click(checkbox)
+    fireEvent.click(screen.getByRole("checkbox"))
 
     await waitFor(() => expect(screen.getByText("TSLA")).toBeInTheDocument())
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true")
   })
 
   it("AC17.9.3 passes selected as-of date to holdings API", async () => {
-    mockedApiFetch.mockResolvedValue([mockHolding])
+    mockPortfolioApi()
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
@@ -175,16 +195,16 @@ describe("PortfolioPage", () => {
     })
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith("/api/portfolio/holdings?as_of_date=2025-01-31"),
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?as_of_date=2025-01-31"),
     )
 
     fireEvent.click(screen.getByLabelText("Clear portfolio as-of date"))
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenLastCalledWith("/api/portfolio/holdings"))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings"))
   })
 
   it("has a link to the prices page", async () => {
-    mockedApiFetch.mockResolvedValue([])
+    mockPortfolioApi([])
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
@@ -193,20 +213,28 @@ describe("PortfolioPage", () => {
   })
 
   it("AC17.8.4 shows total portfolio value banner when active holdings are loaded", async () => {
-    mockedApiFetch.mockResolvedValue([mockHolding])
+    mockPortfolioApi()
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
-    await waitFor(() =>
-      expect(screen.getByTestId("total-portfolio-value")).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByTestId("total-portfolio-value")).toBeInTheDocument())
     expect(screen.getByText("Total Portfolio Value")).toBeInTheDocument()
-    // mockHolding.market_value = "1800.00" with currency "USD"
     expect(screen.getByTestId("total-portfolio-value")).toHaveTextContent("1,800")
   })
 
+  it("AC17.7.5 renders realized P&L YTD and dividend income YTD from portfolio summary", async () => {
+    mockPortfolioApi()
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Realized P&L YTD")).toBeInTheDocument())
+    expect(screen.getByText("Dividend Income YTD")).toBeInTheDocument()
+    expect(screen.getByText("$149.00")).toBeInTheDocument()
+    expect(screen.getByText("$42.50")).toBeInTheDocument()
+  })
+
   it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {
-    mockedApiFetch.mockResolvedValue([])
+    mockPortfolioApi([])
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
