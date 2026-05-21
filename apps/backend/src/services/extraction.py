@@ -463,13 +463,11 @@ class ExtractionService:
 
             # For confidence score, we use the original extracted dict to maintain logic
             confidence = compute_confidence_score(extracted, balance_result)
-            status = (
-                BankStatementStatus.PARSED
-                if is_brokerage_payload and is_valid
-                else route_by_threshold(confidence, is_valid)
-            )
+            status = BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
 
             statement.balance_validated = is_valid
+            if is_brokerage_payload and not is_valid:
+                statement.validation_error = balance_result["notes"]
             statement.confidence_score = confidence
             statement.status = status
 

@@ -232,6 +232,55 @@ async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
 
 
 @pytest.mark.asyncio
+async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
+    """AC8.13.10/Issue #409: Brokerage payloads do not stall after OCR balance mismatch."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "Moomoo",
+            "currency": "SGD",
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+            "opening_balance": "0.00",
+            "closing_balance": "0.00",
+            "transactions": [
+                {
+                    "date": "2026-05-18",
+                    "description": "Fullerton SGD Money Market Fund",
+                    "amount": "1250.50",
+                    "direction": "IN",
+                    "currency": "SGD",
+                }
+            ],
+            "positions": [
+                {
+                    "symbol": "Fullerton SGD Money Market Fund",
+                    "quantity": "1250.50",
+                    "market_value": "1250.50",
+                    "currency": "SGD",
+                    "asset_type": "money_market",
+                }
+            ],
+        }
+    )
+
+    statement, transactions = await service.parse_document(
+        file_path=Path("moomoo-statement.pdf"),
+        institution="Moomoo",
+        user_id=uuid4(),
+        file_content=b"%PDF-1.7",
+        file_hash="issue-409-brokerage-balance-mismatch",
+        original_filename="moomoo-statement.pdf",
+    )
+
+    assert statement.status == BankStatementStatus.PARSED
+    assert statement.balance_validated is False
+    assert statement.validation_error == "Balance mismatch: expected 1250.50, got 0.00"
+    assert transactions[0].amount == Decimal("1250.50")
+    assert statement._extracted_payload["positions"][0]["market_value"] == "1250.50"
+
+
+@pytest.mark.asyncio
 async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test_user, monkeypatch):
     """AC17.4.7: Bank statement payloads do not call brokerage import."""
     statement = _parsed_statement(test_user.id, "bank-hash")

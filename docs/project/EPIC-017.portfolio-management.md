@@ -271,7 +271,7 @@ Build a **100% self-developed** investment portfolio management system with comp
 | AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.7 | Upload Parse-to-Import Bridge | `test_parse_statement_background_imports_brokerage_positions` | `extraction/test_statement_brokerage_import_bridge.py` | P0 |
+| AC17.4.7 | Upload Parse-to-Import Bridge | `test_parse_statement_background_imports_brokerage_positions`, `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `extraction/test_statement_brokerage_import_bridge.py` | P0 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
