@@ -10,17 +10,28 @@ Outputs a structured report grouped by file with suggested action per ref:
   - EXTEND-REGISTRY: ref is plausible but missing from registry
   - FIXTURE-EXCLUDE: synthetic test-of-tests fixture; exclude from lint scope
 """
+
 from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import yaml
+from ac_registry_format import load_registry_entries
 
 ROOT = Path(__file__).resolve().parent.parent
 AC_RE = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
-EXCL_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache", ".git", ".venv", "venv", "_ac_stubs"}
+EXCL_DIRS = {
+    "node_modules",
+    "__pycache__",
+    ".next",
+    "dist",
+    ".cache",
+    ".git",
+    ".venv",
+    "venv",
+    "_ac_stubs",
+}
 TEST_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 TEST_PREFIXES = ("test_",)
 
@@ -28,8 +39,7 @@ TEST_PREFIXES = ("test_",)
 def load_registry() -> dict[int, set[str]]:
     valid: dict[int, set[str]] = defaultdict(set)
     for fname in ("ac_registry.yaml", "infra_registry.yaml"):
-        data = yaml.safe_load((ROOT / "docs" / fname).read_text())
-        for ac in data.get("acs", []):
+        for ac in load_registry_entries(ROOT / "docs" / fname):
             valid[int(ac["epic"])].add(ac["id"])
     return valid
 
@@ -81,7 +91,7 @@ def main() -> None:
                     file_alt_epic[f][other_epic] += 1
     # Sort files by bad-ref count desc
     rows = sorted(per_file.items(), key=lambda kv: -sum(kv[1].values()))
-    print(f"# AC↔EPIC Mismatch Triage")
+    print("# AC↔EPIC Mismatch Triage")
     print()
     print(f"- Total ACx.y.z refs scanned: **{total_refs}**")
     print(f"- Mismatched refs: **{total_bad}**")
@@ -98,7 +108,11 @@ def main() -> None:
         suggest = ""
         if "scripts/tests/" in str(rel):
             suggest = "FIXTURE-EXCLUDE"
-        elif primary_epic is not None and alt and alt.most_common(1)[0][1] >= bad_total * 0.6:
+        elif (
+            primary_epic is not None
+            and alt
+            and alt.most_common(1)[0][1] >= bad_total * 0.6
+        ):
             tgt = alt.most_common(1)[0][0]
             suggest = f"RELOCATE-FILE → EPIC-{tgt} (or RENUMBER refs to EPIC-{tgt})"
         elif primary_epic is not None:

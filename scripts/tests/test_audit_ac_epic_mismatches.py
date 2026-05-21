@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import sys
-from io import StringIO
 from pathlib import Path
 from unittest import mock
 
-import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -13,22 +11,60 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import audit_ac_epic_mismatches as aam
 
 
-SAMPLE_REGISTRY_YAML = yaml.dump({
-    "version": "1.0",
-    "total": 3,
-    "acs": [
-        {"id": "AC1.1.1", "epic": 1, "epic_name": "phase0-setup", "description": "d1", "mandatory": True},
-        {"id": "AC1.1.2", "epic": 1, "epic_name": "phase0-setup", "description": "d2", "mandatory": False},
-        {"id": "AC2.1.1", "epic": 2, "epic_name": "double-entry", "description": "d3", "mandatory": True},
-    ],
-})
-INFRA_REGISTRY_YAML = yaml.dump({
-    "version": "1.0",
-    "total": 1,
-    "acs": [
-        {"id": "AC3.1.1", "epic": 3, "epic_name": "infra", "description": "d4", "mandatory": True},
-    ],
-})
+SAMPLE_REGISTRY_YAML = yaml.dump(
+    {
+        "version": "1.0",
+        "groups": {
+            "AC1": {
+                "AC1.1": [
+                    {
+                        "id": "AC1.1.1",
+                        "epic": 1,
+                        "epic_name": "phase0-setup",
+                        "description": "d1",
+                        "mandatory": True,
+                    },
+                    {
+                        "id": "AC1.1.2",
+                        "epic": 1,
+                        "epic_name": "phase0-setup",
+                        "description": "d2",
+                        "mandatory": False,
+                    },
+                ],
+            },
+            "AC2": {
+                "AC2.1": [
+                    {
+                        "id": "AC2.1.1",
+                        "epic": 2,
+                        "epic_name": "double-entry",
+                        "description": "d3",
+                        "mandatory": True,
+                    },
+                ],
+            },
+        },
+    }
+)
+INFRA_REGISTRY_YAML = yaml.dump(
+    {
+        "version": "1.0",
+        "groups": {
+            "AC3": {
+                "AC3.1": [
+                    {
+                        "id": "AC3.1.1",
+                        "epic": 3,
+                        "epic_name": "infra",
+                        "description": "d4",
+                        "mandatory": True,
+                    },
+                ],
+            },
+        },
+    }
+)
 
 
 class TestIsTestFile:
@@ -98,7 +134,7 @@ class TestLoadRegistry:
         docs = tmp_path / "docs"
         docs.mkdir()
         for fname in ("ac_registry.yaml", "infra_registry.yaml"):
-            (docs / fname).write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+            (docs / fname).write_text("version: '1.0'\ngroups: {}\n")
         with mock.patch.object(aam, "ROOT", tmp_path):
             valid = aam.load_registry()
         assert valid == {}
@@ -170,7 +206,7 @@ class TestMain:
         assert "Mismatched refs: **1**" in out
 
     def test_fixture_exclude_label_for_scripts_tests(self, tmp_path, capsys):
-        tests = self._setup(tmp_path)
+        self._setup(tmp_path)
         scripts_tests = tmp_path / "scripts" / "tests"
         scripts_tests.mkdir(parents=True)
         (scripts_tests / "test_x.py").write_text("# AC9.9.9\n")
@@ -182,16 +218,18 @@ class TestMain:
     def test_relocate_suggestion_when_alt_epic_matches(self, tmp_path, capsys):
         docs = tmp_path / "docs"
         docs.mkdir()
-        registry = yaml.dump({
-            "version": "1.0",
-            "total": 2,
-            "acs": [
-                {"id": "AC1.1.1", "epic": 1, "description": "d", "mandatory": True},
-                {"id": "AC2.1.1", "epic": 2, "description": "d", "mandatory": True},
-            ],
-        })
+        registry = yaml.dump(
+            {
+                "version": "1.0",
+                "total": 2,
+                "acs": [
+                    {"id": "AC1.1.1", "epic": 1, "description": "d", "mandatory": True},
+                    {"id": "AC2.1.1", "epic": 2, "description": "d", "mandatory": True},
+                ],
+            }
+        )
         (docs / "ac_registry.yaml").write_text(registry)
-        (docs / "infra_registry.yaml").write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        (docs / "infra_registry.yaml").write_text("version: '1.0'\ngroups: {}\n")
         tests = tmp_path / "tests"
         tests.mkdir()
         (tests / "test_x.py").write_text("AC2.1.1 AC2.1.2\n")
@@ -212,10 +250,14 @@ class TestMain:
         tests = self._setup(tmp_path)
         f = tests / "test_x.py"
         f.write_text("AC1.1.1\n")
-        preset_registry = {1: {"AC1.1.1": {"epic": 1, "description": "d", "mandatory": True}}}
+        preset_registry = {
+            1: {"AC1.1.1": {"epic": 1, "description": "d", "mandatory": True}}
+        }
         with mock.patch.object(aam, "ROOT", tmp_path):
             with mock.patch.object(aam, "load_registry", return_value=preset_registry):
-                with mock.patch.object(Path, "read_text", side_effect=OSError("no access")):
+                with mock.patch.object(
+                    Path, "read_text", side_effect=OSError("no access")
+                ):
                     aam.main()
         out = capsys.readouterr().out
         assert "Total ACx.y.z refs scanned: **0**" in out

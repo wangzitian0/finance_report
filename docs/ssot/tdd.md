@@ -30,6 +30,9 @@ AC IDs use `ACx.y.z`:
 | `z` | acceptance criterion within the block |
 
 Registry generation is code-owned by `scripts/generate_ac_registry.py`.
+Registry YAML is grouped by `ACx -> ACx.y` so unrelated scenarios do not share
+one append point. The files do not commit a mutable total; CI computes counts
+from the grouped entries.
 
 ```bash
 python scripts/generate_ac_registry.py --check

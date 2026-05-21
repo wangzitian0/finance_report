@@ -14,8 +14,6 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import lint_doc_consistency as ldc  # noqa: E402
@@ -65,30 +63,35 @@ AC3.1.1 upload PDF
 
 SAMPLE_REGISTRY_YAML = """\
 version: '1.0'
-total: 4
-acs:
-  - id: AC1.1.1
-    epic: 1
-    epic_name: phase0-setup
-    description: 'System is deployed'
-    mandatory: true
-  - id: AC1.1.2
-    epic: 1
-    epic_name: phase0-setup
-    description: 'Health check passes'
-    mandatory: false
-  - id: AC2.1.1
-    epic: 2
-    epic_name: double-entry-core
-    description: 'Balanced entries stored'
-    mandatory: true
-    status: deprecated
-  - id: AC3.1.1
-    epic: 3
-    epic_name: extraction
-    description: 'Upload PDF'
-    mandatory: true
-    status: stub
+groups:
+  AC1:
+    AC1.1:
+      - id: AC1.1.1
+        epic: 1
+        epic_name: phase0-setup
+        description: 'System is deployed'
+        mandatory: true
+      - id: AC1.1.2
+        epic: 1
+        epic_name: phase0-setup
+        description: 'Health check passes'
+        mandatory: false
+  AC2:
+    AC2.1:
+      - id: AC2.1.1
+        epic: 2
+        epic_name: double-entry-core
+        description: 'Balanced entries stored'
+        mandatory: true
+        status: deprecated
+  AC3:
+    AC3.1:
+      - id: AC3.1.1
+        epic: 3
+        epic_name: extraction
+        description: 'Upload PDF'
+        mandatory: true
+        status: stub
 """
 
 
@@ -173,7 +176,7 @@ class TestParseVisionAnchors:
         assert "my-slug" in ldc.parse_vision_anchors(text)
 
     def test_multiple_anchors(self):
-        text = "<a id=\"a\"></a> text <a id=\"b\"></a>"
+        text = '<a id="a"></a> text <a id="b"></a>'
         slugs = ldc.parse_vision_anchors(text)
         assert slugs == {"a", "b"}
 
@@ -185,22 +188,22 @@ class TestParseVisionAnchors:
 
 class TestParseEpicAnchor:
     def test_bold_variant(self):
-        text = '> **Vision Anchor**: `my-slug`\n'
+        text = "> **Vision Anchor**: `my-slug`\n"
         assert ldc.parse_epic_anchor(text) == "my-slug"
 
     def test_non_blockquote_variant(self):
-        text = '**Vision Anchor**: `another-slug`\n'
+        text = "**Vision Anchor**: `another-slug`\n"
         assert ldc.parse_epic_anchor(text) == "another-slug"
 
     def test_simple_blockquote_variant(self):
-        text = '> Vision Anchor: `simple-slug`\n'
+        text = "> Vision Anchor: `simple-slug`\n"
         assert ldc.parse_epic_anchor(text) == "simple-slug"
 
     def test_missing_returns_none(self):
         assert ldc.parse_epic_anchor("# EPIC-001\n\nNo anchor here.") is None
 
     def test_returns_first_match(self):
-        text = '> **Vision Anchor**: `first-slug`\n> **Vision Anchor**: `second-slug`'
+        text = "> **Vision Anchor**: `first-slug`\n> **Vision Anchor**: `second-slug`"
         assert ldc.parse_epic_anchor(text) == "first-slug"
 
 
@@ -211,10 +214,14 @@ class TestParseEpicAnchor:
 
 class TestLineIsAcAnnotation:
     def test_total_ac_ids_line(self):
-        assert ldc._line_is_ac_annotation("- Total AC IDs: 52 (AC2.11.1-2.11.3 removed)")
+        assert ldc._line_is_ac_annotation(
+            "- Total AC IDs: 52 (AC2.11.1-2.11.3 removed)"
+        )
 
     def test_removed_annotation(self):
-        assert ldc._line_is_ac_annotation("*(AC10.2.1 removed - canonical copy is AC12.1.1)*")
+        assert ldc._line_is_ac_annotation(
+            "*(AC10.2.1 removed - canonical copy is AC12.1.1)*"
+        )
 
     def test_duplicate_annotation(self):
         assert ldc._line_is_ac_annotation("(AC5.1.1 duplicate of AC5.1.2 canonical)")
@@ -249,7 +256,9 @@ class TestCollectAcRefsInEpics:
     def test_unreadable_file_skipped(self, tmp_path):
         epic = tmp_path / "EPIC-001.test.md"
         epic.write_text("AC1.1.1")
-        with mock.patch.object(Path, "read_text", side_effect=OSError("permission denied")):
+        with mock.patch.object(
+            Path, "read_text", side_effect=OSError("permission denied")
+        ):
             refs = ldc.collect_ac_refs_in_epics([epic])
         assert refs == {}
 
@@ -536,7 +545,7 @@ class TestMain:
         """Build a minimal passing environment in tmp_path and monkey-patch module globals."""
         vision = tmp_path / "vision.md"
         vision.write_text(
-            "# Vision\n\n<a id=\"decision-1-accounting\"></a>\nSome text.\n"
+            '# Vision\n\n<a id="decision-1-accounting"></a>\nSome text.\n'
         )
 
         # EPIC dir
@@ -550,12 +559,17 @@ class TestMain:
         # registry
         reg = tmp_path / "docs" / "ac_registry.yaml"
         reg.write_text(
-            "version: '1.0'\ntotal: 1\nacs:\n"
-            "  - id: AC1.1.1\n    epic: 1\n    epic_name: phase0-setup\n"
-            "    description: 'Setup'\n    mandatory: true\n"
+            "version: '1.0'\ngroups:\n"
+            "  AC1:\n"
+            "    AC1.1:\n"
+            "      - id: AC1.1.1\n"
+            "        epic: 1\n"
+            "        epic_name: phase0-setup\n"
+            "        description: 'Setup'\n"
+            "        mandatory: true\n"
         )
         infra = tmp_path / "docs" / "infra_registry.yaml"
-        infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        infra.write_text("version: '1.0'\ngroups: {}\n")
 
         # test file
         tests = tmp_path / "apps" / "backend" / "tests"
@@ -637,9 +651,9 @@ class TestMain:
         (epic_dir / "EPIC-001.setup.md").write_text("# No anchor\n")
         reg = tmp_path / "docs" / "ac_registry.yaml"
         reg.parent.mkdir(parents=True, exist_ok=True)
-        reg.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        reg.write_text("version: '1.0'\ngroups: {}\n")
         infra = tmp_path / "docs" / "infra_registry.yaml"
-        infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        infra.write_text("version: '1.0'\ngroups: {}\n")
         tests = tmp_path / "tests"
         tests.mkdir()
         with (

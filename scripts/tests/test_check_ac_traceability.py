@@ -15,23 +15,26 @@ import check_ac_traceability as cat  # noqa: E402
 
 SAMPLE_REGISTRY_YAML = """\
 version: '1.0'
-total: 3
-acs:
-  - id: AC1.1.1
-    epic: 1
-    epic_name: phase0-setup
-    description: 'System is deployed'
-    mandatory: true
-  - id: AC1.1.2
-    epic: 1
-    epic_name: phase0-setup
-    description: 'Health check passes'
-    mandatory: true
-  - id: AC2.1.1
-    epic: 2
-    epic_name: double-entry-core
-    description: 'Balanced entries stored'
-    mandatory: false
+groups:
+  AC1:
+    AC1.1:
+      - id: AC1.1.1
+        epic: 1
+        epic_name: phase0-setup
+        description: 'System is deployed'
+        mandatory: true
+      - id: AC1.1.2
+        epic: 1
+        epic_name: phase0-setup
+        description: 'Health check passes'
+        mandatory: true
+  AC2:
+    AC2.1:
+      - id: AC2.1.1
+        epic: 2
+        epic_name: double-entry-core
+        description: 'Balanced entries stored'
+        mandatory: false
 """
 
 
@@ -175,7 +178,9 @@ class TestCollectReferencedAcs:
         """AC8.13.35: AC stub files are tracked separately from real tests."""
         stub_dir = tmp_path / "_ac_stubs"
         stub_dir.mkdir()
-        f = self._write_test(stub_dir, "test_stub.py", "# AC1.1.1\ndef test_stub(): pass\n")
+        f = self._write_test(
+            stub_dir, "test_stub.py", "# AC1.1.1\ndef test_stub(): pass\n"
+        )
         refs = cat.collect_referenced_acs([f])
         assert str(f) in refs["AC1.1.1"].stub_files
         assert refs["AC1.1.1"].real_files == set()
@@ -278,7 +283,9 @@ class TestPrintReport:
             total=1,
             mandatory_total=1,
         )
-        cat.print_report(result, acs, {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})})
+        cat.print_report(
+            result, acs, {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})}
+        )
         out = capsys.readouterr().out
         assert "AC TRACEABILITY REPORT" in out
 
@@ -347,7 +354,7 @@ class TestMain:
             "# AC1.1.1\n# AC1.1.2\n",
         )
         empty_infra = tmp_path / "empty_infra.yaml"
-        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        empty_infra.write_text("version: '1.0'\ngroups: {}\n")
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -369,7 +376,7 @@ class TestMain:
             "no ac references here\n",
         )
         empty_infra = tmp_path / "empty_infra.yaml"
-        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        empty_infra.write_text("version: '1.0'\ngroups: {}\n")
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -391,7 +398,7 @@ class TestMain:
             "no ac references here\n",
         )
         empty_infra = tmp_path / "empty_infra.yaml"
-        empty_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        empty_infra.write_text("version: '1.0'\ngroups: {}\n")
         monkeypatch.setattr(
             "sys.argv",
             [
