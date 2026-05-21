@@ -532,9 +532,10 @@ HEADLESS=false pytest tests/e2e -v
 ## 6. Archive Integration Notes
 
 Useful content from `docs/project/archive/testing-implementation.md`,
-`docs/project/archive/testing-gap-analysis.md`, and
-`docs/project/archive/TEST-COVERAGE-PLAN.md` is consolidated into this EPIC and
-the current generated coverage report:
+`docs/project/archive/testing-gap-analysis.md`,
+`docs/project/archive/TEST-COVERAGE-PLAN.md`, and
+`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md` is consolidated into the
+active README -> EPIC -> AC registry -> tests -> CI artifact chain:
 
 - The durable testing assets are factories, performance/load-test entry points,
   Playwright E2E scaffolding, Moon task integration, and critical-path smoke
@@ -542,6 +543,8 @@ the current generated coverage report:
 - Historical coverage numbers in the archive are superseded by
   `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json`, and
   `scripts/coverage_policy.py`.
+- Historical AC traceability snapshots in the archive are superseded by the
+  generated `ac-test-traceability-audit` CI artifact.
 - The business-critical service focus remains valid: reporting,
   reconciliation, FX revaluation, assets, review queue, processing account,
   accounting, and validation.

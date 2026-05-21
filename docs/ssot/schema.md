@@ -368,6 +368,16 @@ Statement header table for imported statements.
 **Constraints**:
 - `(user_id, file_hash)` unique to prevent duplicate imports
 
+**Derived API Surface**:
+- `GET /api/accounts/coverage` derives account-level statement coverage from
+  approved `BankStatements` only. It reports the latest confirmed `period_end`
+  and `closing_balance` per active account/currency pair, stale status based on
+  the caller's `as_of` date and `stale_after_days`, and continuity issues for
+  gaps, overlaps, duplicate periods, and adjacent opening/closing mismatches.
+- One-day brokerage snapshots (`period_start == period_end`) can update the
+  latest confirmed source date and balance without forcing daily continuity;
+  monthly statements remain the baseline for gap and overlap detection.
+
 ### BankStatementTransactions
 Statement transaction table (reconciliation input).
 

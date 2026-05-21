@@ -686,6 +686,27 @@ groups:
         epic_name: statement-parsing
         description: Explicit First-Upload Account Creation
         mandatory: true
+    AC3.7:
+      - id: AC3.7.1
+        epic: 3
+        epic_name: statement-parsing
+        description: Latest Confirmed Source
+        mandatory: true
+      - id: AC3.7.2
+        epic: 3
+        epic_name: statement-parsing
+        description: Adjacent Opening Continuity
+        mandatory: true
+      - id: AC3.7.3
+        epic: 3
+        epic_name: statement-parsing
+        description: Missing/Overlapping/Duplicate Periods
+        mandatory: true
+      - id: AC3.7.4
+        epic: 3
+        epic_name: statement-parsing
+        description: Broker Daily Snapshot Override
+        mandatory: true
   AC4:
     AC4.1:
       - id: AC4.1.1
