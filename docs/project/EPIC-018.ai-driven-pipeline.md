@@ -248,6 +248,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.4.1 | 4 | Reports read Layer 3 `TransactionClassification` for category breakdowns |
 | AC18.4.2 | 4 | `ReportSnapshot` (Layer 4) generated and queryable via API |
 | AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback |
+| AC18.4.4 | 4 | Income statements include applied Layer 3 classification coverage |
 
 ---
 

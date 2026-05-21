@@ -177,7 +177,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
   })
 
-  it("AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels", async () => {
+  it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {
     mockDashboardApi()
 
     render(<DashboardPage />)

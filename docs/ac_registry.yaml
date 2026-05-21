@@ -1030,7 +1030,8 @@ groups:
       - id: AC5.6.4
         epic: 5
         epic_name: reporting-visualization
-        description: Annualized income in income statement KPI block
+        description: Annualized income KPI is surfaced through the dashboard/reporting path and delegates calculation ownership
+          to AC11.8.1
         mandatory: true
       - id: AC5.6.5
         epic: 5
@@ -1721,6 +1722,11 @@ groups:
         title: stub
         status: stub
         mandatory: false
+      - id: AC8.12.6
+        epic: 8
+        epic_name: testing-strategy
+        description: OCR/vision provider fallback, timeout, and empty-response errors are deterministic
+        mandatory: true
     AC8.13:
       - id: AC8.13.1
         epic: 8
@@ -3976,6 +3982,11 @@ groups:
         epic: 18
         epic_name: ai-driven-pipeline
         description: AI CSV parsing handles unknown institutions as fallback
+        mandatory: true
+      - id: AC18.4.4
+        epic: 18
+        epic_name: ai-driven-pipeline
+        description: '4'
         mandatory: true
     AC18.5:
       - id: AC18.5.1

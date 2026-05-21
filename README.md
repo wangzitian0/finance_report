@@ -56,17 +56,17 @@ Current generated numbers:
 
 | Metric | Current |
 |---|---:|
-| Registered ACs | 960 |
-| ACs with real test-candidate references | 717 / 960 (74.7%) |
-| Registered ACs without real test reference | 243 |
-| Stub-only AC placeholders | 223 |
-| Invalid AC refs in real tests | 2 |
+| Registered ACs | 982 |
+| ACs with real test-candidate references | 744 / 982 (75.8%) |
+| Registered ACs without real test reference | 238 |
+| Stub-only AC placeholders | 215 |
+| Invalid AC refs in real tests | 0 |
 | Unified coverage floor | 94.38% |
 | Backend / Frontend / Scripts coverage floors | 98.89% / 91.95% / 86.43% |
 
-Important caveat: the current AC coverage analyzer excludes `_ac_stubs`, but it
-does not yet reject placeholder assertions such as `expect(true).toBe(true)`.
-That work is tracked in
+Important caveat: the current AC coverage analyzer excludes `_ac_stubs` and
+trivial placeholder assertions from covered counts. Remaining proof-quality
+hardening is tracked in
 [issue #452](https://github.com/wangzitian0/finance_report/issues/452).
 
 ## EPIC Map
@@ -79,32 +79,33 @@ refreshing the report.
 |---|---|---|---:|
 | [EPIC-001](docs/project/EPIC-001.phase0-setup.md) | Infrastructure & authentication | Complete with deferred debt | 19 / 29 (65.5%) |
 | [EPIC-002](docs/project/EPIC-002.double-entry-core.md) | Double-entry bookkeeping core | Complete | 52 / 59 (88.1%) |
-| [EPIC-003](docs/project/EPIC-003.statement-parsing.md) | Statement parsing | Complete, TDD aligned | 33 / 39 (84.6%) |
+| [EPIC-003](docs/project/EPIC-003.statement-parsing.md) | Statement parsing | Complete, TDD aligned | 42 / 47 (89.4%) |
 | [EPIC-004](docs/project/EPIC-004.reconciliation-engine.md) | Reconciliation engine | Complete, TDD aligned | 34 / 39 (87.2%) |
-| [EPIC-005](docs/project/EPIC-005.reporting-visualization.md) | Reports & visualization | Complete, with investment metric gaps | 31 / 36 (86.1%) |
+| [EPIC-005](docs/project/EPIC-005.reporting-visualization.md) | Reports & visualization | Complete, with investment metric gaps | 32 / 36 (88.9%) |
 | [EPIC-006](docs/project/EPIC-006.ai-advisor.md) | AI advisor | Complete | 52 / 63 (82.5%) |
 | [EPIC-007](docs/project/EPIC-007.deployment.md) | Deployment | Complete, manual-gate heavy | 6 / 39 (15.4%) |
-| [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates | Core complete | 70 / 88 (79.5%) |
+| [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates | Core complete | 71 / 92 (77.2%) |
 | [EPIC-009](docs/project/EPIC-009.pdf-fixture-generation.md) | PDF fixture generation | Complete, manual-gate heavy | 0 / 37 (0.0%) |
 | [EPIC-010](docs/project/EPIC-010.signoz-logging.md) | SigNoz logging | Complete, manual-gate heavy | 0 / 21 (0.0%) |
 | [EPIC-011](docs/project/EPIC-011.asset-lifecycle.md) | Asset lifecycle | In progress (P0 complete) | 38 / 38 (100.0%) |
 | [EPIC-012](docs/project/EPIC-012.foundation-libs.md) | Foundation libraries | In progress | 52 / 62 (83.9%) |
-| [EPIC-013](docs/project/EPIC-013.statement-parsing-v2.md) | Statement parsing v2 | Complete | 54 / 60 (90.0%) |
+| [EPIC-013](docs/project/EPIC-013.statement-parsing-v2.md) | Statement parsing v2 | Complete | 60 / 60 (100.0%) |
 | [EPIC-014](docs/project/EPIC-014.ttd-transformation.md) | TDD/TTD transformation | In progress | 0 / 6 (0.0%) |
-| [EPIC-015](docs/project/EPIC-015.processing-account.md) | Processing account | Complete, TDD aligned | 28 / 28 (100.0%) |
-| [EPIC-016](docs/project/EPIC-016.two-stage-review-ui.md) | Two-stage review UI | Planned / active foundation | 156 / 214 (72.9%) |
-| [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | Portfolio management | Planned / partially implemented | 79 / 79 (100.0%) |
-| [EPIC-018](docs/project/EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline | In progress | 13 / 23 (56.5%) |
+| [EPIC-015](docs/project/EPIC-015.processing-account.md) | Processing account | Complete, TDD aligned | 31 / 31 (100.0%) |
+| [EPIC-016](docs/project/EPIC-016.two-stage-review-ui.md) | Two-stage review UI | Planned / active foundation | 159 / 217 (73.3%) |
+| [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | Portfolio management | Planned / partially implemented | 82 / 82 (100.0%) |
+| [EPIC-018](docs/project/EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline | In progress | 14 / 24 (58.3%) |
 
 Known proof-quality caveats:
 
-- Placeholder frontend tests currently inflate EPIC-011, EPIC-016, EPIC-017,
-  and EPIC-018 proof status. See
+- Placeholder and stub references do not count as covered, but remaining stub
+  debt still leaves EPIC-007, EPIC-009, EPIC-010, EPIC-014, EPIC-016, and
+  EPIC-018 proof weaker than their project status. See
   [issue #452](https://github.com/wangzitian0/finance_report/issues/452).
 - Manual-verification ACs need automation or an explicit manual-gate category.
   See [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
-- Invalid AC references and AC-to-EPIC mismatches need explicit cleanup. See
-  [issue #456](https://github.com/wangzitian0/finance_report/issues/456).
+- Invalid AC references are currently zero; AC-to-EPIC mismatch cleanup remains
+  tracked in [issue #456](https://github.com/wangzitian0/finance_report/issues/456).
 - README EPIC metrics should eventually be generated or validated by CI. See
   [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
 
@@ -113,10 +114,13 @@ Known proof-quality caveats:
 Minimum blocker set for a fresh user to reach the accurate-dashboard journey:
 
 1. North-star PDF upload to accurate net worth: `wangzitian0/finance_report#444`
-2. Brokerage buy/sell/dividend investment accounting: `wangzitian0/finance_report#393`
-3. Source-type trust hierarchy and no-downgrade promotion: `wangzitian0/finance_report#395`
-4. Account-level statement coverage and balance continuity: `wangzitian0/finance_report#396`
-5. Processing account sidebar/status: `wangzitian0/finance_report#367`
+
+Recently resolved blockers:
+
+- Brokerage buy/sell/dividend investment accounting: `wangzitian0/finance_report#393`
+- Source-type trust hierarchy and no-downgrade promotion: `wangzitian0/finance_report#395`
+- Account-level statement coverage and balance continuity: `wangzitian0/finance_report#396`
+- Processing account sidebar/status: `wangzitian0/finance_report#367`
 
 ## Documentation Debt Tracked As Issues
 

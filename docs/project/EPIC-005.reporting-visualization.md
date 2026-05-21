@@ -138,7 +138,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `TBD` | `TBD (test to be implemented)` | P0 |
 | AC5.6.2 | Annualized return (TWR) computed correctly | `TBD` | `TBD (test to be implemented)` | P0 |
 | AC5.6.3 | Dividend yield = annual dividends / current value | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC5.6.4 | Annualized income in income statement KPI block | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.4 | Annualized income KPI is surfaced through the dashboard/reporting path and delegates calculation ownership to AC11.8.1 | `test_annualized_income_endpoint_groups_last_12_month_income`, `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `reporting/test_income_annualized_router.py`, `frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
 | AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_reporting_dashboard_fixture_exact_totals` | `reporting/test_reporting.py` | P0 |
 | AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `TBD` | `TBD (test to be implemented)` | P1 |
 
