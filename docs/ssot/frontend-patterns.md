@@ -110,3 +110,12 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - `lib/types.ts` — `BrokerageImportResponse` interface
 - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
+
+## 8. Dashboard First-Run Onboarding
+
+The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
+
+### Code References
+
+- `app/(main)/dashboard/page.tsx` — onboarding detection and links
+- `src/__tests__/dashboardPage.test.tsx` — AC16.12.17–AC16.12.19 coverage

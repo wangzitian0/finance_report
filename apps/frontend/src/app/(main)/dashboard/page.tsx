@@ -13,6 +13,8 @@ import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesC
 import { PieChart } from "@/components/charts/PieChart";
 import { TrendChart } from "@/components/charts/TrendChart";
 import {
+  AccountListResponse,
+  BankStatementListResponse,
   BalanceSheetResponse,
   IncomeStatementResponse,
   JournalEntryListResponse,
@@ -25,6 +27,13 @@ const CHART_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "va
 
 const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
 
+interface OnboardingStatus {
+  accountCount: number;
+  statementCount: number;
+  approvedStatementCount: number;
+  postedEntryCount: number;
+}
+
 export default function DashboardPage() {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(null);
   const [incomeStatement, setIncomeStatement] = useState<IncomeStatementResponse | null>(null);
@@ -32,6 +41,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
   const [unmatched, setUnmatched] = useState<UnmatchedTransactionsResponse | null>(null);
   const [recentEntries, setRecentEntries] = useState<JournalEntryListResponse | null>(null);
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trendAccountId, setTrendAccountId] = useState<string | null>(null);
@@ -43,18 +53,27 @@ export default function DashboardPage() {
     const incomeEnd = formatDateInput(today);
     setLoading(true);
     try {
-      const [balanceData, incomeData, statsData, unmatchedData, journalData] = await Promise.all([
+      const [balanceData, incomeData, statsData, unmatchedData, journalData, accountData, statementData, postedJournalData] = await Promise.all([
         apiFetch<BalanceSheetResponse>("/api/reports/balance-sheet"),
         apiFetch<IncomeStatementResponse>(`/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`),
         apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
         apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
+        apiFetch<AccountListResponse>("/api/accounts?limit=1"),
+        apiFetch<BankStatementListResponse>("/api/statements"),
+        apiFetch<JournalEntryListResponse>("/api/journal-entries?status_filter=posted&limit=1"),
       ]);
       setBalanceSheet(balanceData || { assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "", is_balanced: true });
       setIncomeStatement(incomeData || { start_date: "", end_date: "", currency: "SGD", income: [], expenses: [], total_income: 0, total_expenses: 0, net_income: 0, trends: [] });
       setStats(statsData || { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
       setUnmatched(unmatchedData || { items: [], total: 0 });
       setRecentEntries(journalData || { items: [], total: 0 });
+      setOnboardingStatus({
+        accountCount: accountData?.total ?? 0,
+        statementCount: statementData?.total ?? 0,
+        approvedStatementCount: statementData?.items?.filter((statement) => statement.status === "approved").length ?? 0,
+        postedEntryCount: postedJournalData?.total ?? 0,
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
@@ -94,6 +113,18 @@ export default function DashboardPage() {
     if (!balanceSheet || !balanceSheet.assets) return [];
     return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: CHART_PALETTE[i % CHART_PALETTE.length] }));
   }, [balanceSheet]);
+  const isCoreFlowComplete = (onboardingStatus?.approvedStatementCount ?? 0) > 0 && (onboardingStatus?.postedEntryCount ?? 0) > 0;
+  const showOnboarding = onboardingStatus !== null && !isCoreFlowComplete;
+  const onboardingSteps = useMemo(() => {
+    const hasAccount = (onboardingStatus?.accountCount ?? 0) > 0;
+    const hasStatement = (onboardingStatus?.statementCount ?? 0) > 0;
+    const hasApprovedOutput = isCoreFlowComplete;
+    return [
+      { label: "Add your first account", href: "/accounts", done: hasAccount, Icon: Landmark },
+      { label: "Upload a bank statement", href: "/statements", done: hasStatement, Icon: FileText },
+      { label: "Review and approve", href: "/review", done: hasApprovedOutput, Icon: BookOpen },
+    ];
+  }, [isCoreFlowComplete, onboardingStatus]);
 
   if (loading) {
     return (
@@ -150,6 +181,36 @@ export default function DashboardPage() {
           <Link href="/reports/income-statement" className="btn-secondary text-sm">Income Statement</Link>
         </div>
       </div>
+
+      {showOnboarding && (
+        <section className="card p-5 mb-6 border-[var(--accent)]/40" aria-label="Getting started">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs text-muted uppercase tracking-wide">Getting started</p>
+              <h2 className="text-lg font-semibold mt-1">Build your first accurate financial view</h2>
+              <p className="text-sm text-muted mt-1">Upload, review, and approve a statement to replace this guide with real financial data.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[520px]">
+              {onboardingSteps.map(({ label, href, done, Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`rounded-md border p-3 text-sm transition-colors ${done
+                    ? "border-[var(--success)] bg-[var(--success-muted)]"
+                    : "border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--accent-muted)]"
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className={done ? "h-4 w-4 text-[var(--success)]" : "h-4 w-4 text-[var(--accent)]"} aria-hidden="true" />
+                    <span className="font-medium">{label}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">{done ? "Done" : "Next"}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">

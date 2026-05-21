@@ -80,6 +80,9 @@ describe("DashboardPage", () => {
       .mockResolvedValueOnce({
         items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }],
       })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
       .mockResolvedValueOnce({
         points: [{ period_start: "2026-01-01", amount: 5000 }],
       })
@@ -116,6 +119,9 @@ describe("DashboardPage", () => {
       .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
       .mockResolvedValueOnce({ items: [] })
       .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
       .mockResolvedValueOnce({ points: [] })
 
     render(<DashboardPage />)
@@ -144,6 +150,9 @@ describe("DashboardPage", () => {
       .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
       .mockResolvedValueOnce({ items: [] })
       .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
 
     render(<DashboardPage />)
 
@@ -168,6 +177,9 @@ describe("DashboardPage", () => {
       .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
       .mockResolvedValueOnce({ items: [] })
       .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
 
     render(<DashboardPage />)
 
@@ -200,6 +212,9 @@ describe("DashboardPage", () => {
       })
       .mockResolvedValueOnce({ items: [] })
       .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
 
     render(<DashboardPage />)
 
@@ -228,6 +243,9 @@ describe("DashboardPage", () => {
       .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
       .mockResolvedValueOnce({ items: [] })
       .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
       // First trend fetch succeeds
       .mockResolvedValueOnce({ points: [{ period_start: "2026-01-01", amount: 5000 }] })
       // Second trend fetch (after account change) rejects
@@ -247,7 +265,86 @@ describe("DashboardPage", () => {
     // Change to Savings account (triggers trendAccountId path + failed trend fetch)
     fireEvent.change(selector, { target: { value: "a2" } })
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(8))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(11))
+  })
+
+  it("AC16.12.17 AC16.12.18 renders first-time onboarding with core workflow links", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [],
+        total_assets: 0,
+        total_liabilities: 0,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({ currency: "USD", trends: [] })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
+    expect(screen.getByText("Build your first accurate financial view")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Add your first account/i })).toHaveAttribute("href", "/accounts")
+    expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/statements")
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
+  })
+
+  it("AC16.12.17 keeps onboarding visible with partial progress markers", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [],
+        total_assets: 0,
+        total_liabilities: 0,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({ currency: "USD", trends: [] })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "parsed" }], total: 1 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
+    expect(screen.getAllByText("Done")).toHaveLength(2)
+    expect(screen.getByText("Next")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
+  })
+
+  it("AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
+        total_assets: 5000,
+        total_liabilities: 0,
+        currency: "USD",
+        as_of_date: "2026-02-01",
+        is_balanced: true,
+      })
+      .mockResolvedValueOnce({ currency: "USD", trends: [] })
+      .mockResolvedValueOnce({ auto_accepted: 0, pending_review: 0, unmatched_transactions: 0 })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [{ id: "j1", memo: "Approved import", entry_date: "2026-01-05", status: "posted" }] })
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "s1", status: "approved" }], total: 1 })
+      .mockResolvedValueOnce({ items: [{ id: "j1", status: "posted" }], total: 1 })
+      .mockResolvedValueOnce({ points: [{ period_start: "2026-01-01", amount: 5000 }] })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
+    expect(screen.queryByLabelText("Getting started")).not.toBeInTheDocument()
+    expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })
 
 })
