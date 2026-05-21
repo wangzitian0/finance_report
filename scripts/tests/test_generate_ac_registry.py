@@ -240,6 +240,40 @@ class TestWriteRegistry:
 
         assert "It's done" in content
 
+    def test_default_output_alias_and_extra_metadata_are_preserved(
+        self, tmp_path, monkeypatch
+    ):
+        """AC8.13.17: Generated grouped registries keep canonical metadata."""
+        out = tmp_path / "ac_registry.yaml"
+        monkeypatch.setattr(gar, "OUTPUT", str(out))
+
+        gar.write_registry(
+            {
+                "AC8.13.17": {
+                    "epic": 8,
+                    "epic_name": "testing-strategy",
+                    "description": "Grouped registry",
+                    "owner": "ci",
+                }
+            }
+        )
+
+        content = out.read_text()
+        assert "owner: ci" in content
+        assert "AC8.13:" in content
+
+    def test_extract_definition_ignores_blank_and_invalid_table_rows(self):
+        assert gar._extract_ac_definition("   ") is None
+        assert gar._extract_ac_definition("| not-an-ac | ignored |\n") is None
+        assert gar._extract_ac_definition("plain reference to AC8.13.17 only") is None
+
+    def test_append_registry_entries_noops_for_empty_input(self, tmp_path):
+        out = tmp_path / "ac_registry.yaml"
+
+        gar.append_registry_entries({}, out)
+
+        assert not out.exists()
+
 
 class TestClassifyAc:
     """classify_ac routes ACs to feature or infra based on EPIC and group."""
@@ -516,3 +550,57 @@ class TestMain:
         assert "groups:" in content
         assert "Append-only generator behavior" in content
         assert "Canonical historical description" not in content
+
+    def test_main_check_succeeds_when_registry_is_current(self, tmp_path, monkeypatch):
+        """AC8.13.17: Check mode accepts current grouped registries."""
+        epic_dir = self._setup_epic_dir(tmp_path)
+        (epic_dir / "EPIC-008.testing-strategy.md").write_text(
+            "| AC8.13.17 | Append-only generator behavior |\n"
+        )
+        out_feature = tmp_path / "docs" / "ac_registry.yaml"
+        out_infra = tmp_path / "docs" / "infra_registry.yaml"
+        out_feature.write_text(
+            "version: '1.0'\n"
+            "groups:\n"
+            "  AC8:\n"
+            "    AC8.13:\n"
+            "      - id: AC8.13.17\n"
+            "        epic: 8\n"
+            "        epic_name: testing-strategy\n"
+            "        description: 'Append-only generator behavior'\n"
+            "        mandatory: true\n"
+        )
+        out_infra.write_text("version: '1.0'\ngroups: {}\n")
+        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
+        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
+        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+
+        assert gar.main(["--check"]) == 0
+
+    def test_main_normal_mode_noops_when_registry_is_current(
+        self, tmp_path, monkeypatch
+    ):
+        """AC8.13.17: Normal mode leaves current grouped registries valid."""
+        epic_dir = self._setup_epic_dir(tmp_path)
+        (epic_dir / "EPIC-008.testing-strategy.md").write_text(
+            "| AC8.13.17 | Append-only generator behavior |\n"
+        )
+        out_feature = tmp_path / "docs" / "ac_registry.yaml"
+        out_infra = tmp_path / "docs" / "infra_registry.yaml"
+        out_feature.write_text(
+            "version: '1.0'\n"
+            "groups:\n"
+            "  AC8:\n"
+            "    AC8.13:\n"
+            "      - id: AC8.13.17\n"
+            "        epic: 8\n"
+            "        epic_name: testing-strategy\n"
+            "        description: 'Append-only generator behavior'\n"
+            "        mandatory: true\n"
+        )
+        out_infra.write_text("version: '1.0'\ngroups: {}\n")
+        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
+        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
+        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+
+        assert gar.main() == 0
