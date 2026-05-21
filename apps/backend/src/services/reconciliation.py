@@ -27,6 +27,7 @@ from src.models import (
     BankStatementTransactionStatus,
     Direction,
     JournalEntry,
+    JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
     ReconciliationMatch,
@@ -40,6 +41,7 @@ from src.services.processing_account import (
     detect_transfer_pattern,
     find_transfer_pairs,
 )
+from src.services.source_type_priority import promote_entry_source_type, source_type_rank
 
 logger = get_logger(__name__)
 
@@ -173,6 +175,36 @@ class MatchCandidate:
     # Score components are 0-100 percentages, not monetary values.
     # Float is acceptable per AGENTS.md which requires Decimal only for money.
     breakdown: dict[str, float]
+
+
+def _candidate_source_rank(candidate: MatchCandidate, entries_by_id: dict[str, JournalEntry]) -> int:
+    """Return the highest source_type trust rank among a candidate's entries."""
+    return max(
+        (source_type_rank(entries_by_id[entry_id].source_type) for entry_id in candidate.journal_entry_ids), default=0
+    )
+
+
+def _candidate_is_better(
+    candidate: MatchCandidate,
+    best: MatchCandidate | None,
+    entries_by_id: dict[str, JournalEntry],
+) -> bool:
+    """Prefer higher score, then higher source_type trust for deterministic conflict resolution."""
+    if best is None:
+        return True
+    if candidate.score != best.score:
+        return candidate.score > best.score
+
+    candidate_rank = _candidate_source_rank(candidate, entries_by_id)
+    best_rank = _candidate_source_rank(best, entries_by_id)
+    if candidate_rank > best_rank:
+        candidate.breakdown["source_type_winner_rank"] = float(candidate_rank)
+        candidate.breakdown["source_type_loser_rank"] = float(best_rank)
+        return True
+    if candidate_rank < best_rank:
+        best.breakdown["source_type_winner_rank"] = float(best_rank)
+        best.breakdown["source_type_loser_rank"] = float(candidate_rank)
+    return False
 
 
 def entry_total_amount(entry: JournalEntry) -> Decimal:
@@ -1060,6 +1092,7 @@ async def execute_matching(
         .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
     )
     all_candidates = all_candidates_result.scalars().all()
+    entries_by_id = {str(entry.id): entry for entry in all_candidates}
 
     def get_candidates_for_date(txn_date: date) -> list[JournalEntry]:
         d_start = txn_date - timedelta(days=config.date_days)
@@ -1234,8 +1267,8 @@ async def execute_matching(
                 history_score_override=history_score,
             )
             candidate.breakdown["group_total"] = float(group_total)
-            if candidate.score >= config.pending_review and (
-                best_candidate is None or candidate.score > best_candidate.score
+            if candidate.score >= config.pending_review and _candidate_is_better(
+                candidate, best_candidate, entries_by_id
             ):
                 best_candidate = candidate
                 best_entry = entry
@@ -1283,6 +1316,7 @@ async def execute_matching(
                         txn.status = BankStatementTransactionStatus.MATCHED
                     if best_entry.status != JournalEntryStatus.VOID:
                         best_entry.status = JournalEntryStatus.RECONCILED
+                        promote_entry_source_type(best_entry, JournalEntrySourceType.AUTO_MATCHED)
                 else:
                     if not settings.enable_4_layer_read:
                         txn.status = BankStatementTransactionStatus.PENDING
@@ -1314,7 +1348,7 @@ async def execute_matching(
             candidate = await calculate_match_score(
                 db, txn, [entry], config, user_id=user_id, history_score_override=history_score
             )
-            if best_match is None or candidate.score > best_match.score:
+            if _candidate_is_better(candidate, best_match, entries_by_id):
                 best_match = candidate
 
         for entry_a, entry_b in combinations(candidates, 2):
@@ -1334,7 +1368,7 @@ async def execute_matching(
                 history_score_override=history_score,
             )
             candidate.breakdown["multi_entry"] = 1
-            if best_match is None or candidate.score > best_match.score:
+            if _candidate_is_better(candidate, best_match, entries_by_id):
                 best_match = candidate
 
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
@@ -1354,7 +1388,7 @@ async def execute_matching(
                 history_score_override=history_score,
             )
             candidate.breakdown["multi_entry"] = 2
-            if best_match is None or candidate.score > best_match.score:
+            if _candidate_is_better(candidate, best_match, entries_by_id):
                 best_match = candidate
 
         if not best_match or best_match.score < config.pending_review:
@@ -1406,6 +1440,7 @@ async def execute_matching(
                 for entry in result.scalars():
                     if entry.status != JournalEntryStatus.VOID:
                         entry.status = JournalEntryStatus.RECONCILED
+                        promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
         else:
             if not settings.enable_4_layer_read:
                 txn.status = BankStatementTransactionStatus.PENDING

@@ -8,6 +8,9 @@ from src.services.confidence_tier import derive_confidence_tier
     "source_type,expected",
     [
         (JournalEntrySourceType.MANUAL, "TRUSTED"),
+        (JournalEntrySourceType.USER_CONFIRMED, "HIGH"),
+        (JournalEntrySourceType.AUTO_MATCHED, "MEDIUM"),
+        (JournalEntrySourceType.AUTO_PARSED, "LOW"),
         (JournalEntrySourceType.BANK_STATEMENT, "LOW"),
         (JournalEntrySourceType.SYSTEM, "LOW"),
         (JournalEntrySourceType.FX_REVALUATION, "LOW"),

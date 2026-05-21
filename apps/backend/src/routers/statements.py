@@ -26,6 +26,7 @@ from src.models import (
     BankStatementTransaction,
     JournalEntry,
     JournalEntrySourceType,
+    JournalEntryStatus,
     ReconciliationMatch,
     ReconciliationStatus,
 )
@@ -50,6 +51,7 @@ from src.services import StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.review_queue import create_entry_from_txn
+from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
 from src.services.statement_parsing import parse_statement_background
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
@@ -91,12 +93,16 @@ async def _auto_create_posted_entries_for_statement(
         return 0
 
     existing_entry_result = await db.execute(
-        select(JournalEntry.source_id)
+        select(JournalEntry)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id.in_(txn_ids))
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
     )
-    existing_entry_txn_ids = set(existing_entry_result.scalars().all())
+    existing_entries = list(existing_entry_result.scalars().all())
+    for entry in existing_entries:
+        promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
+    existing_entry_txn_ids = {entry.source_id for entry in existing_entries}
 
     transfer_match_result = await db.execute(
         select(ReconciliationMatch)
@@ -125,6 +131,7 @@ async def _auto_create_posted_entries_for_statement(
             txn,
             user_id=user_id,
             auto_post=True,
+            source_type=JournalEntrySourceType.USER_CONFIRMED,
             preloaded_statement=statement,
             preloaded_bank_account=preloaded_bank_account,
         )

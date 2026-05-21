@@ -17,7 +17,6 @@ from src.models import (
     BankStatementTransactionStatus,
     Direction,
     JournalEntry,
-    JournalEntrySourceType,
     ReconciliationMatch,
     ReconciliationStatus,
 )
@@ -44,6 +43,7 @@ from src.services.review_queue import (
     get_pending_items,
     reject_match as reject_match_service,
 )
+from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
@@ -392,7 +392,7 @@ async def create_entry(
         select(JournalEntry)
         .options(selectinload(JournalEntry.lines))
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn.id)
         .limit(1)
     )
@@ -453,7 +453,7 @@ async def batch_create_entries(
     existing_entries_result = await db.execute(
         select(JournalEntry.source_id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type == JournalEntrySourceType.BANK_STATEMENT)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id.in_(txn_ids))
     )
     existing_source_ids = set(existing_entries_result.scalars().all())

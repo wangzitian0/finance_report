@@ -41,6 +41,11 @@ class JournalEntrySourceType(str, enum.Enum):
     """Source type of a journal entry."""
 
     MANUAL = "manual"
+    USER_CONFIRMED = "user_confirmed"
+    AUTO_MATCHED = "auto_matched"
+    AUTO_PARSED = "auto_parsed"
+    # Deprecated legacy value. New statement-derived entries should use
+    # AUTO_PARSED, USER_CONFIRMED, or AUTO_MATCHED.
     BANK_STATEMENT = "bank_statement"
     SYSTEM = "system"
     FX_REVALUATION = "fx_revaluation"
@@ -97,12 +102,9 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     @property
     def confidence_tier(self) -> str:
         """Derived UI confidence tier based on source type."""
-        return {
-            JournalEntrySourceType.MANUAL: "TRUSTED",
-            JournalEntrySourceType.BANK_STATEMENT: "LOW",
-            JournalEntrySourceType.SYSTEM: "LOW",
-            JournalEntrySourceType.FX_REVALUATION: "LOW",
-        }.get(self.source_type, "LOW")
+        from src.services.confidence_tier import derive_confidence_tier
+
+        return derive_confidence_tier(self.source_type)
 
 
 class JournalLine(Base, UUIDMixin, TimestampMixin):

@@ -550,7 +550,7 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     await db.commit()
 
     entry = await create_entry_from_txn(db, txn, user_id=user_id)
-    assert entry.source_type == JournalEntrySourceType.BANK_STATEMENT
+    assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert all(line.currency == "USD" for line in entry.lines)
 
     result = await db.execute(
