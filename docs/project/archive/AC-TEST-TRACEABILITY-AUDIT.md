@@ -16,11 +16,11 @@
 | **Total ACs (registries)** | 976 | 100% |
 | **Mandatory ACs** | 816 | 83.6% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with real test reference** | 604 | 74.0% |
+| **Mandatory ACs with real test reference** | 610 | 74.8% |
 | **Mandatory ACs with only placeholder reference** | 0 | - |
-| **Mandatory ACs with only stub reference** | 212 | - |
+| **Mandatory ACs with only stub reference** | 206 | - |
 | **Mandatory ACs without any test reference** | 0 | - |
-| **Test files referenced** | 205 | - |
+| **Test files referenced** | 206 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -39,7 +39,7 @@
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 1 | 0 | 20 | 0 | 4.8% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 0 | 0 | 0 | 100.0% |
 | [EPIC-012](#epic-012-foundation-libs) | foundation-libs | 62 | 3 | 55 | 48 | 0 | 7 | 0 | 87.3% |
-| [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 52 | 0 | 6 | 0 | 89.7% |
+| [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 58 | 0 | 0 | 0 | 100.0% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 0 | 0 | 6 | 0 | 0.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 31 | 0 | 31 | 31 | 0 | 0 | 0 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 217 | 0 | 193 | 138 | 0 | 55 | 0 | 71.5% |
@@ -804,9 +804,9 @@
 
 - **Total ACs**: 60
 - **Mandatory ACs**: 58
-- **Mandatory ACs with real test reference**: 52 (89.7%)
+- **Mandatory ACs with real test reference**: 58 (100.0%)
 - **Mandatory ACs with only placeholder reference**: 0
-- **Mandatory ACs with only stub reference**: 6
+- **Mandatory ACs with only stub reference**: 0
 - **Mandatory ACs without any test reference**: 0
 
 | AC ID | Mandatory | Description | Test References | Status |
@@ -863,12 +863,12 @@
 | AC13.8.13 | yes | Test missing currencies penalized | real: `apps/backend/tests/extraction/test_extraction.py` | ✅ real |
 | AC13.9.1 | yes | Test full score with all factors | real: `apps/backend/tests/extraction/test_extraction.py` | ✅ real |
 | AC13.9.2 | yes | Test no new factors caps at 85 | real: `apps/backend/tests/extraction/test_extraction.py` | ✅ real |
-| AC13.10.1 | yes | Source type stamped on manual entry creation | stub: `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` | 🧱 stub-only |
-| AC13.10.2 | yes | Auto-match sets source_type=auto_matched | stub: `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` | 🧱 stub-only |
-| AC13.10.3 | yes | Stage-1 approve promotes to user_confirmed | stub: `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` | 🧱 stub-only |
-| AC13.10.4 | yes | Manual entry wins over auto_parsed in conflict | stub: `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` | 🧱 stub-only |
-| AC13.10.5 | yes | source_type cannot be downgraded | stub: `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` | 🧱 stub-only |
-| AC13.10.6 | yes | All four source_type values accepted by API | stub: `apps/backend/tests/_ac_stubs/test_epic_13_stubs.py` | 🧱 stub-only |
+| AC13.10.1 | yes | Source type stamped on manual entry creation | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
+| AC13.10.2 | yes | Auto-match sets source_type=auto_matched | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
+| AC13.10.3 | yes | Stage-1 approve promotes to user_confirmed | real: `apps/backend/tests/extraction/test_source_type_promotion.py` | ✅ real |
+| AC13.10.4 | yes | Manual entry wins over auto_parsed in conflict | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
+| AC13.10.5 | yes | source_type cannot be downgraded | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
+| AC13.10.6 | yes | All four source_type values accepted by API | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC13.11.1 | no |  | real: `apps/backend/tests/extraction/test_extraction_error_paths.py` | ✅ real (optional) |
 | AC13.11.2 | no |  | real: `apps/backend/tests/extraction/test_deduplication.py` | ✅ real (optional) |
 
@@ -1231,7 +1231,7 @@
 | AC17.5.1 | yes | Buy Transaction → Journal Entry | real: `apps/backend/tests/portfolio/test_investment_accounting.py`<br>real: `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ real |
 | AC17.5.2 | yes | Sell Transaction → Journal Entry + Realized P&L | real: `apps/backend/tests/portfolio/test_investment_accounting.py`<br>real: `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ real |
 | AC17.5.3 | yes | Dividend → Journal Entry → Income Statement | real: `apps/backend/tests/portfolio/test_investment_accounting.py`<br>real: `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ real |
-| AC17.5.4 | yes | Unrealized P&L → Balance Sheet | real: `apps/backend/tests/portfolio/test_portfolio_service.py`<br>real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | ✅ real |
+| AC17.5.4 | yes | Unrealized P&L → Balance Sheet | real: `apps/backend/tests/portfolio/test_brokerage_position_parsing.py`<br>real: `apps/backend/tests/portfolio/test_portfolio_service.py`<br>real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | ✅ real |
 | AC17.5.5 | no |  | real: `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ real (optional) |
 | AC17.5.6 | no |  | real: `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ real (optional) |
 | AC17.5.7 | no |  | real: `apps/backend/tests/portfolio/test_portfolio_service.py` | ✅ real (optional) |

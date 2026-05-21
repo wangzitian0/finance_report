@@ -270,7 +270,7 @@ Build a **100% self-developed** investment portfolio management system with comp
 | AC17.4.3 | Interactive Brokers Parsing | `test_import_interactive_brokers_positions_idempotently_reconciles` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.4 | Broker Auto-Detection (Moomoo) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.5 | Broker Auto-Detection (Futu) | `test_detect_broker_moomoo_futu_and_interactive_brokers` | `portfolio/test_brokerage_position_parsing.py` | P1 |
-| AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint` | `portfolio/test_brokerage_position_parsing.py` | P1 |
+| AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.7 | Upload Parse-to-Import Bridge | `test_parse_statement_background_imports_brokerage_positions` | `extraction/test_statement_brokerage_import_bridge.py` | P0 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
@@ -280,7 +280,7 @@ Build a **100% self-developed** investment portfolio management system with comp
 | AC17.5.1 | Buy Transaction → Journal Entry | `test_buy_transaction_creates_balanced_journal_entry_and_lot` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `test_sell_transaction_uses_fifo_and_records_realized_gain`, `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.5.3 | Dividend → Journal Entry → Income Statement | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
-| AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
+| AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_happy_path`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_portfolio_service.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
 
 ### AC17.6: Integration & End-to-End
 
