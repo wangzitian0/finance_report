@@ -50,6 +50,7 @@ const baseIncome = {
 function mockDashboardApi(overrides: Record<string, unknown> = {}) {
   const mockedApiFetch = vi.mocked(apiFetch)
   const hasOverride = (key: string) => Object.prototype.hasOwnProperty.call(overrides, key)
+  let trendCalls = 0
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/reports/balance-sheet")) return Promise.resolve(overrides.balance ?? baseBalance)
     if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(overrides.income ?? baseIncome)
@@ -122,7 +123,13 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
     if (path.startsWith("/api/statements")) {
       return Promise.resolve(overrides.statements ?? { items: [{ id: "s1", status: "approved" }], total: 1 })
     }
-    if (path.startsWith("/api/reports/trend")) return Promise.resolve(overrides.trend ?? { points: [{ period_start: "2026-01-01", amount: 5000 }] })
+    if (path.startsWith("/api/reports/trend")) {
+      trendCalls += 1
+      if (overrides.rejectTrendAfterFirst && trendCalls > 1) {
+        return Promise.reject(new Error("trend fetch failed"))
+      }
+      return Promise.resolve(overrides.trend ?? { points: [{ period_start: "2026-01-01", amount: 5000 }] })
+    }
     return Promise.reject(new Error(`unhandled path ${path}`))
   })
 }
@@ -281,13 +288,16 @@ describe("DashboardPage", () => {
   })
 
   it("renders account selector and handles trend error when multiple assets exist", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
     mockDashboardApi({
+      rejectTrendAfterFirst: true,
       balance: {
         ...baseBalance,
         assets: [
           { account_id: "a1", name: "Cash", amount: 5000 },
           { account_id: "a2", name: "Savings", amount: 3000 },
         ],
+        total_assets: 8000,
       },
     })
 
@@ -302,6 +312,8 @@ describe("DashboardPage", () => {
     fireEvent.change(selector, { target: { value: "a2" } })
 
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/trend?account_id=a2&period=monthly"))
+    expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
+    consoleError.mockRestore()
   })
 
   it("AC16.12.17 AC16.12.18 renders first-time onboarding with core workflow links", async () => {
