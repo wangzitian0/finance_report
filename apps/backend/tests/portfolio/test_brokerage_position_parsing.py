@@ -413,6 +413,83 @@ async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client
 
 
 @pytest.mark.asyncio
+async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, test_user):
+    """AC8.13.10/AC17.4.6/AC17.5.4: Parsed brokerage import reaches holdings and balance sheet."""
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/full-path.pdf",
+        file_hash="core-path-moomoo",
+        original_filename="moomoo-core-path.pdf",
+        institution="Moomoo",
+        account_last4="1582",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("1250.50"),
+        status=BankStatementStatus.PARSED,
+        confidence_score=98,
+        balance_validated=True,
+        transactions=[
+            BankStatementTransaction(
+                txn_date=date(2026, 5, 18),
+                description="Fullerton SGD Money Market Fund",
+                amount=Decimal("1250.50"),
+                direction="IN",
+                reference=None,
+                currency="SGD",
+                balance_after=Decimal("1250.50"),
+                confidence=ConfidenceLevel.HIGH,
+                raw_text="Subscription 0001 Fullerton SGD Money Market Fund SGD 2026/05/18 settled 1.0000 1250.50 1250.50",
+            )
+        ],
+    )
+    statement_id = statement.id
+    db.add(statement)
+    await db.commit()
+
+    import_response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert import_response.status_code == 200
+    import_data = import_response.json()
+    assert import_data["broker"] == "Moomoo"
+    assert import_data["parsed_positions"] == 1
+    assert import_data["created_atomic_positions"] == 1
+    assert import_data["reconcile_created"] == 1
+
+    holdings_response = await client.get(
+        "/portfolio/holdings",
+        params={"as_of_date": "2026-05-31"},
+    )
+
+    assert holdings_response.status_code == 200
+    holdings = holdings_response.json()
+    assert len(holdings) == 1
+    assert holdings[0]["asset_identifier"] == "Fullerton SGD Money Market Fund"
+    assert holdings[0]["account_name"] == "Moomoo"
+    assert Decimal(str(holdings[0]["quantity"])) == Decimal("1250.50")
+    assert Decimal(str(holdings[0]["market_value"])) == Decimal("1250.50")
+    assert holdings[0]["currency"] == "SGD"
+
+    balance_response = await client.get(
+        "/reports/balance-sheet",
+        params={"as_of_date": "2026-05-31", "currency": "SGD"},
+    )
+
+    assert balance_response.status_code == 200
+    balance_sheet = balance_response.json()
+    assert Decimal(str(balance_sheet["total_assets"])) == Decimal("1250.50")
+    assert Decimal(str(balance_sheet["net_worth_adjustment_gain_loss"])) == Decimal("1250.50")
+    assert Decimal(str(balance_sheet["equation_delta"])) == Decimal("0.00")
+    assert balance_sheet["is_balanced"] is True
+    assert any(
+        line["name"] == "Moomoo market valuation adjustment" and Decimal(str(line["amount"])) == Decimal("1250.50")
+        for line in balance_sheet["assets"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_requires_parsed_status(client, db, test_user):
     """AC8.13.10/Issue #404: Position import cannot run before OCR parsing completes."""
     statement = BankStatement(
