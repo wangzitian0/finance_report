@@ -5,9 +5,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from check_coverage_policy import compare_component, run_audit  # noqa: E402
+import check_coverage_policy as check_policy  # noqa: E402
+from check_coverage_policy import compare_component, main, run_audit  # noqa: E402
 from coverage_policy import CoverageComponent, parse_lcov_sources  # noqa: E402
 
 
@@ -73,6 +76,49 @@ def test_run_audit_passes_when_tree_and_lcov_match(tmp_path):
     )
 
     assert run_audit(tmp_path, (component,)) == 0
+
+
+def test_run_audit_reports_missing_and_unexpected_files(tmp_path, capsys):
+    """AC8.13.15: Coverage policy failures enumerate source/report drift."""
+    component = _component(tmp_path)
+    missing_paths = [f"apps/backend/src/services/missing_{index}.py" for index in range(51)]
+    unexpected_records = [
+        f"SF:src/services/unexpected_{index}.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+        for index in range(51)
+    ]
+    for path in missing_paths:
+        _write(tmp_path, path)
+    _write(tmp_path, "coverage/sample.lcov", "".join(unexpected_records))
+
+    assert run_audit(tmp_path, (component,)) == 1
+
+    out = capsys.readouterr().out
+    assert "::error title=sample coverage missing files::51 source files are absent from LCOV" in out
+    assert "::error title=sample coverage unexpected files::51 LCOV files are outside the coverage policy" in out
+    assert "... 1 more missing files" in out
+    assert "... 1 more unexpected files" in out
+
+
+def test_main_exits_with_audit_result(tmp_path, monkeypatch):
+    """AC8.13.15: Coverage policy CLI returns the audit result code."""
+    called_with: list[Path] = []
+
+    def fake_run_audit(repo_root: Path) -> int:
+        called_with.append(repo_root)
+        return 9
+
+    monkeypatch.setattr(check_policy, "run_audit", fake_run_audit)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["check_coverage_policy.py", "--repo-root", str(tmp_path)],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 9
+    assert called_with == [tmp_path.resolve()]
 
 
 def test_lcov_sources_normalize_component_prefixed_paths(tmp_path):
