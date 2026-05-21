@@ -117,7 +117,11 @@ def collect_referenced_acs(test_files: list[Path]) -> dict[str, ACReferenceStats
 
 def is_deprecated(ac: AC) -> bool:
     description = ac.description.strip()
-    return description.startswith("~~") and description.endswith("~~") and len(description) > 4
+    return (
+        description.startswith("~~")
+        and description.endswith("~~")
+        and len(description) > 4
+    )
 
 
 def check_traceability(

@@ -20,7 +20,7 @@
 | **Mandatory ACs with only placeholder reference** | 0 | - |
 | **Mandatory ACs with only stub reference** | 212 | - |
 | **Mandatory ACs without any test reference** | 0 | - |
-| **Test files referenced** | 204 | - |
+| **Test files referenced** | 205 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -426,7 +426,7 @@
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
-| AC7.1.1 | yes | Infra2 submodule exists | real: `scripts/tests/test_generate_ac_registry.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ real |
+| AC7.1.1 | yes | Infra2 submodule exists | real: `scripts/tests/test_generate_ac_registry.py`<br>placeholder: `scripts/tests/test_build_ac_traceability.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | ✅ real |
 | AC7.1.2 | yes | Finance_report directory structure | stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | 🧱 stub-only |
 | AC7.1.3 | yes | README documentation exists | stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | 🧱 stub-only |
 | AC7.2.1 | yes | PostgreSQL container configured | stub: `apps/backend/tests/_ac_stubs/test_epic_07_stubs.py` | 🧱 stub-only |
@@ -553,8 +553,8 @@
 | AC8.13.14 | yes | Provider-backed staging AI/OCR gate runs separately from deploy health | real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
 | AC8.13.15 | yes | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | real: `scripts/tests/test_build_unified_lcov.py`<br>real: `scripts/tests/test_coverage_policy.py`<br>real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
 | AC8.13.16 | yes | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
-| AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
-| AC8.13.18 | yes | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets. | real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py`<br>real: `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | ✅ real |
+| AC8.13.17 | yes | AC registry generation preserves canonical registry descriptions, validates totals, and only appends newly defined ACs | real: `scripts/tests/test_ac_registry_format.py`<br>real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
+| AC8.13.18 | yes | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets. | real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py`<br>real: `scripts/tests/test_ac_registry_format.py`<br>real: `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | ✅ real |
 | AC8.13.19 | yes | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnos | real: `scripts/tests/test_post_merge_e2e_gates.py`<br>real: `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | ✅ real |
 | AC8.13.20 | yes | CI change classification is covered by multi-commit and markdown edge-case regression tests. | real: `scripts/tests/test_ci_change_classifier.py` | ✅ real |
 | AC8.13.21 | yes | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running. | real: `scripts/tests/test_post_merge_e2e_gates.py`<br>real: `scripts/tests/test_wait_for_github_ci.py` | ✅ real |
