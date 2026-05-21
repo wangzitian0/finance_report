@@ -52,11 +52,11 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
   const hasOverride = (key: string) => Object.prototype.hasOwnProperty.call(overrides, key)
   let trendCalls = 0
   mockedApiFetch.mockImplementation((path: string) => {
-    if (path.startsWith("/api/reports/balance-sheet")) return Promise.resolve(overrides.balance ?? baseBalance)
-    if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(overrides.income ?? baseIncome)
+    if (path.startsWith("/api/reports/balance-sheet")) return Promise.resolve(hasOverride("balance") ? overrides.balance : baseBalance)
+    if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(hasOverride("income") ? overrides.income : baseIncome)
     if (path.startsWith("/api/income/annualized")) {
       return Promise.resolve(
-        overrides.annualized ?? {
+        hasOverride("annualized") ? overrides.annualized : {
           annualized_salary: 120000,
           annualized_bonus: 15000,
           annualized_dividend: 2400,
@@ -97,7 +97,7 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
     }
     if (path.startsWith("/api/reconciliation/stats")) {
       return Promise.resolve(
-        overrides.stats ?? {
+        hasOverride("stats") ? overrides.stats : {
           total_transactions: 20,
           matched_transactions: 16,
           unmatched_transactions: 4,
@@ -109,22 +109,23 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
       )
     }
     if (path.startsWith("/api/reconciliation/unmatched")) {
-      return Promise.resolve(overrides.unmatched ?? { items: [{ id: "u1", description: "Missing txn", txn_date: "2026-01-10", amount: 99 }], total: 1 })
+      return Promise.resolve(hasOverride("unmatched") ? overrides.unmatched : { items: [{ id: "u1", description: "Missing txn", txn_date: "2026-01-10", amount: 99 }], total: 1 })
     }
     if (path.startsWith("/api/journal-entries?status_filter=posted")) {
-      return Promise.resolve(overrides.postedJournal ?? { items: [{ id: "j1", status: "posted" }], total: 1 })
+      return Promise.resolve(hasOverride("postedJournal") ? overrides.postedJournal : { items: [{ id: "j1", status: "posted" }], total: 1 })
     }
     if (path.startsWith("/api/journal-entries")) {
-      return Promise.resolve(overrides.journal ?? { items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }], total: 1 })
+      return Promise.resolve(hasOverride("journal") ? overrides.journal : { items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }], total: 1 })
     }
     if (path.startsWith("/api/accounts")) {
-      return Promise.resolve(overrides.accounts ?? { items: [{ id: "a1" }], total: 1 })
+      return Promise.resolve(hasOverride("accounts") ? overrides.accounts : { items: [{ id: "a1" }], total: 1 })
     }
     if (path.startsWith("/api/statements")) {
-      return Promise.resolve(overrides.statements ?? { items: [{ id: "s1", status: "approved" }], total: 1 })
+      return Promise.resolve(hasOverride("statements") ? overrides.statements : { items: [{ id: "s1", status: "approved" }], total: 1 })
     }
     if (path.startsWith("/api/reports/trend")) {
       trendCalls += 1
+      if (overrides.trendError) return Promise.reject(overrides.trendError)
       if (overrides.rejectTrendAfterFirst && trendCalls > 1) {
         return Promise.reject(new Error("trend fetch failed"))
       }
@@ -225,6 +226,28 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("$4,000").length).toBeGreaterThanOrEqual(1)
   })
 
+  it("uses empty fallbacks when primary dashboard APIs return null", async () => {
+    mockDashboardApi({
+      balance: null,
+      income: null,
+      annualized: null,
+      stats: null,
+      unmatched: null,
+      journal: null,
+      accounts: null,
+      statements: null,
+      postedJournal: null,
+    })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
+    expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
+    expect(screen.getByText("No income data available.")).toBeInTheDocument()
+    expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
+    expect(screen.getByText("No unmatched transactions.")).toBeInTheDocument()
+  })
+
   it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
     mockDashboardApi()
 
@@ -314,6 +337,19 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/trend?account_id=a2&period=monthly"))
     expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
     consoleError.mockRestore()
+  })
+
+  it("keeps the dashboard usable when trend fetch fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    mockDashboardApi({ trendError: new Error("trend failed") })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/No trend data/)).toBeInTheDocument())
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
+
+    consoleErrorSpy.mockRestore()
   })
 
   it("AC16.12.17 AC16.12.18 renders first-time onboarding with core workflow links", async () => {
