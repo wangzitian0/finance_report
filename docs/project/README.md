@@ -19,6 +19,10 @@ EPIC directory index.
 - AC definitions are discovered from EPIC documents and generated into
   `docs/ac_registry.yaml` and `docs/infra_registry.yaml`.
 - Test proof is reported by `docs/analysis/test-ac-coverage-report.md`.
+- Current AC traceability follows this live chain:
+  `README.md` -> `docs/project/EPIC-*.md` -> `docs/*_registry.yaml` ->
+  tests -> CI artifact. Do not refresh archive audit snapshots in routine
+  feature PRs.
 - Coverage policy is owned by `scripts/coverage_policy.py`.
 - Project status metrics should be generated or validated, not hand-maintained.
   See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).

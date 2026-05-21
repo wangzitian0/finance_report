@@ -1,6 +1,11 @@
 """Pydantic schemas package."""
 
 from src.schemas.account import (
+    AccountCoverageCadence,
+    AccountCoverageIssue,
+    AccountCoverageIssueType,
+    AccountCoverageListResponse,
+    AccountCoverageResponse,
     AccountCreate,
     AccountListResponse,
     AccountResponse,
@@ -97,6 +102,11 @@ from .extraction import (
 
 __all__ = [
     "AccountCreate",
+    "AccountCoverageCadence",
+    "AccountCoverageIssue",
+    "AccountCoverageIssueType",
+    "AccountCoverageListResponse",
+    "AccountCoverageResponse",
     "AccountListResponse",
     "AccountResponse",
     "AccountTrendResponse",

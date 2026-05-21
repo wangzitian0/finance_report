@@ -1,5 +1,6 @@
 """Account management API router."""
 
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import AccountType, JournalLine
 from src.schemas import (
+    AccountCoverageListResponse,
     AccountCreate,
     AccountListResponse,
     AccountResponse,
@@ -25,6 +27,7 @@ from src.services import (
     calculate_account_balance,
     calculate_account_balances,
 )
+from src.services.account_coverage import DEFAULT_STALE_AFTER_DAYS, get_account_statement_coverage
 from src.services.processing_account import (
     find_transfer_pairs,
     get_processing_balance,
@@ -118,6 +121,27 @@ async def list_processing_pending(
     legs = [leg for leg in await list_processing_transfer_legs(db, user_id) if leg["entry_id"] not in paired_ids]
     items = [ProcessingPendingItem(**leg) for leg in legs]
     return ProcessingPendingListResponse(items=items, total=len(items))
+
+
+@router.get("/coverage", response_model=AccountCoverageListResponse)
+async def list_account_statement_coverage(
+    db: DbSession,
+    user_id: CurrentUserId,
+    as_of: date | None = Query(None, description="Date used for stale-account evaluation"),
+    stale_after_days: int = Query(
+        DEFAULT_STALE_AFTER_DAYS,
+        ge=1,
+        le=366,
+        description="Number of days after latest confirmed source date before an account is stale",
+    ),
+) -> AccountCoverageListResponse:
+    """List statement coverage status for active accounts."""
+    return await get_account_statement_coverage(
+        db,
+        user_id,
+        as_of=as_of,
+        stale_after_days=stale_after_days,
+    )
 
 
 @router.get("/{account_id}", response_model=AccountResponse)

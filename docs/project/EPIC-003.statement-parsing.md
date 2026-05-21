@@ -160,11 +160,19 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.6.3 | Ambiguous Mapping Blocked | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
 | AC3.6.4 | Explicit First-Upload Account Creation | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
 
+### AC3.7: Account Statement Coverage
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.7.1 | Latest Confirmed Source | `test_account_coverage_reports_latest_confirmed_balance_and_stale_status` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.2 | Adjacent Opening Continuity | `test_account_coverage_detects_adjacent_opening_balance_mismatch` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.3 | Missing/Overlapping/Duplicate Periods | `test_account_coverage_reports_missing_overlapping_and_duplicate_ranges` | `accounting/test_account_statement_coverage.py` | P1 |
+| AC3.7.4 | Broker Daily Snapshot Override | `test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override` | `accounting/test_account_statement_coverage.py` | P1 |
+
 **Traceability Result**:
-- Total AC IDs: 18
+- Total AC IDs: 22
 - Requirements converted to AC IDs: 100% (EPIC-003 checklist + must-have standards)
 - Requirements with test references: 100%
-- Test files: 7
+- Test files: 8
 
 ---
 
@@ -179,6 +187,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | **Confidence score routing enforced** | `test_high_confidence`, `test_medium_confidence` | 🔴 Critical |
 | **Parsing errors not persisted** | `test_extraction_error_not_persisted` | 🔴 Critical |
 | **Statement account confirmed before posting** | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | 🔴 Critical |
+| **Account coverage visible before dashboard completion** | `test_account_coverage_reports_missing_overlapping_and_duplicate_ranges`, `test_account_coverage_detects_adjacent_opening_balance_mismatch` | Required |
 | Support PDF format (DBS/POSB, CMB, Maybank) | `test_dbs_fixture_has_valid_structure` | Required |
 | Support CSV format (Wise/fintech, generic) | `test_csv_parsing.py` suite | Required |
 | File size limit 10MB | `test_upload_file_exceeds_10mb_limit` | Required |

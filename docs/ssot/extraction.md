@@ -119,6 +119,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | GET | `/api/statements/{id}` | Get statement with transactions |
 | GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List items needing review |
+| GET | `/api/accounts/coverage` | Account-level latest confirmed source date, stale status, and statement period continuity issues |
 | POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) |
 | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
 | POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
@@ -245,6 +246,22 @@ If no confident match exists, or multiple accounts match the same metadata, the
 approval flow must block posting with a clear account-mapping action item. Draft
 candidate entries may still use legacy defaults in manual workflows, but posted
 entries cannot silently use `Bank - Main`.
+
+## Account Coverage Contract
+
+Approved statements are the only source for account-level statement coverage.
+`GET /api/accounts/coverage` returns one row per active account/currency pair
+with the latest confirmed source date, latest confirmed closing balance, stale
+status, and period-level continuity issues.
+
+Coverage checks compare monthly statement periods within each account/currency:
+
+- adjacent monthly statements must have `previous.closing_balance ==
+  current.opening_balance` within `BALANCE_TOLERANCE`;
+- gaps, overlaps, and duplicate monthly periods are emitted as issues before a
+  dashboard can treat the account as complete;
+- one-day broker snapshots may override the latest confirmed source date and
+  balance without requiring daily statement continuity.
 
 ## Files
 
