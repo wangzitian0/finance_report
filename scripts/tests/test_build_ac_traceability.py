@@ -20,34 +20,38 @@ import build_ac_traceability as bat  # noqa: E402
 
 SAMPLE_REGISTRY = """\
 version: '1.0'
-total: 3
-acs:
-  - id: AC1.1.1
-    epic: 1
-    epic_name: phase0-setup
-    description: 'System deployment check'
-    mandatory: true
-  - id: AC1.1.2
-    epic: 1
-    epic_name: phase0-setup
-    description: 'Manual verification needed'
-    mandatory: false
-  - id: AC2.1.1
-    epic: 2
-    epic_name: double-entry-core
-    description: 'Balanced entries stored'
-    mandatory: true
+groups:
+  AC1:
+    AC1.1:
+      - id: AC1.1.1
+        epic: 1
+        epic_name: phase0-setup
+        description: 'System deployment check'
+        mandatory: true
+      - id: AC1.1.2
+        epic: 1
+        epic_name: phase0-setup
+        description: 'Manual verification needed'
+        mandatory: false
+  AC2:
+    AC2.1:
+      - id: AC2.1.1
+        epic: 2
+        epic_name: double-entry-core
+        description: 'Balanced entries stored'
+        mandatory: true
 """
 
 INFRA_REGISTRY = """\
 version: '1.0'
-total: 1
-acs:
-  - id: IAC1.1.1
-    epic: 1
-    epic_name: phase0-setup
-    description: 'CI pipeline production deploy'
-    mandatory: true
+groups:
+  AC7:
+    AC7.1:
+      - id: AC7.1.1
+        epic: 7
+        epic_name: deployment
+        description: 'CI pipeline production deploy'
+        mandatory: true
 """
 
 
@@ -88,18 +92,19 @@ class TestLoadAllAcs:
         acs = bat.load_all_acs(feat, infra)
         ids = [ac.id for ac in acs]
         assert "AC1.1.1" in ids
-        assert "IAC1.1.1" in ids
+        assert "AC7.1.1" in ids
 
     def test_deduplication_feature_wins(self, tmp_path):
         dup_registry = """\
 version: '1.0'
-total: 1
-acs:
-  - id: AC1.1.1
-    epic: 1
-    epic_name: infra-version
-    description: 'Infra duplicate'
-    mandatory: false
+groups:
+  AC1:
+    AC1.1:
+      - id: AC1.1.1
+        epic: 1
+        epic_name: infra-version
+        description: 'Infra duplicate'
+        mandatory: false
 """
         feat = tmp_path / "ac_registry.yaml"
         feat.write_text(SAMPLE_REGISTRY)
@@ -269,7 +274,10 @@ class TestHelpers:
 
     def test_strip_date_normalizes_date_line(self):
         text = "> **Generated**: 2024-01-01 (mechanically by `scripts/build_ac_traceability.py`)"
-        assert bat._strip_date(text) == "> **Generated**: DATE (mechanically by `scripts/build_ac_traceability.py`)"
+        assert (
+            bat._strip_date(text)
+            == "> **Generated**: DATE (mechanically by `scripts/build_ac_traceability.py`)"
+        )
 
     def test_strip_date_different_dates_produce_same_output(self):
         old = "> **Generated**: 2024-01-01 (mechanically by `scripts/build_ac_traceability.py`)"
@@ -354,7 +362,9 @@ class TestRenderDocument:
         )
 
         assert "| **Mandatory ACs with real test reference** | 0 | 0.0% |" in rendered
-        assert "| **Mandatory ACs with only placeholder reference** | 1 | - |" in rendered
+        assert (
+            "| **Mandatory ACs with only placeholder reference** | 1 | - |" in rendered
+        )
         assert "| **Mandatory ACs with only stub reference** | 1 | - |" in rendered
         assert "🧪 placeholder-only" in rendered
         assert "🧱 stub-only" in rendered
@@ -407,7 +417,7 @@ class TestMain:
         feat = tmp_path / "ac_registry.yaml"
         feat.write_text(SAMPLE_REGISTRY)
         infra = tmp_path / "infra_registry.yaml"
-        infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
+        infra.write_text("version: '1.0'\ngroups: {}\n")
         test_dir = tmp_path / "tests"
         test_dir.mkdir()
         (test_dir / "test_x.py").write_text("# AC1.1.1 AC2.1.1\n")

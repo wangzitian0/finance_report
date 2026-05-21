@@ -18,44 +18,53 @@ class TestAnalyzeRepo:
         (docs / "ac_registry.yaml").write_text(
             """
 version: '1.0'
-total: 6
-acs:
-  - id: AC1.1.1
-    epic: 1
-    epic_name: phase0
-    description: backend real
-    mandatory: true
-  - id: AC1.1.2
-    epic: 1
-    epic_name: phase0
-    description: frontend real
-    mandatory: true
-  - id: AC2.2.1
-    epic: 2
-    epic_name: testing-strategy
-    description: e2e real
-    mandatory: true
-  - id: AC3.3.3
-    epic: 3
-    epic_name: placeholders
-    description: stub only
-    mandatory: true
-  - id: AC4.4.4
-    epic: 4
-    epic_name: untested
-    description: no real or stub reference
-    mandatory: true
-  - id: AC5.5.5
-    epic: 5
-    epic_name: frontend-placeholders
-    description: placeholder-only assertion
-    mandatory: true
+groups:
+  AC1:
+    AC1.1:
+      - id: AC1.1.1
+        epic: 1
+        epic_name: phase0
+        description: backend real
+        mandatory: true
+      - id: AC1.1.2
+        epic: 1
+        epic_name: phase0
+        description: frontend real
+        mandatory: true
+  AC2:
+    AC2.2:
+      - id: AC2.2.1
+        epic: 2
+        epic_name: testing-strategy
+        description: e2e real
+        mandatory: true
+  AC3:
+    AC3.3:
+      - id: AC3.3.3
+        epic: 3
+        epic_name: placeholders
+        description: stub only
+        mandatory: true
+  AC4:
+    AC4.4:
+      - id: AC4.4.4
+        epic: 4
+        epic_name: untested
+        description: no real or stub reference
+        mandatory: true
+  AC5:
+    AC5.5:
+      - id: AC5.5.5
+        epic: 5
+        epic_name: frontend-placeholders
+        description: placeholder-only assertion
+        mandatory: true
 """.strip()
             + "\n",
             encoding="utf-8",
         )
         (docs / "infra_registry.yaml").write_text(
-            "version: '1.0'\ntotal: 0\nacs: []\n",
+            "version: '1.0'\ngroups: {}\n",
             encoding="utf-8",
         )
 
@@ -99,7 +108,9 @@ acs:
             encoding="utf-8",
         )
 
-    def test_analyze_repo_classifies_real_stub_invalid_and_untested(self, tmp_path: Path) -> None:
+    def test_analyze_repo_classifies_real_stub_invalid_and_untested(
+        self, tmp_path: Path
+    ) -> None:
         """AC8.13.35: Coverage analysis separates real, placeholder, and stub refs."""
         self._write_registry(tmp_path)
         self._write_tests(tmp_path)
@@ -118,9 +129,15 @@ acs:
         assert result.untested_ids == ["AC3.3.3", "AC4.4.4", "AC5.5.5"]
 
         assert "AC9.9.9" in result.invalid_real_refs
-        assert "apps/backend/tests/test_backend_real.py" in result.invalid_real_refs["AC9.9.9"]
+        assert (
+            "apps/backend/tests/test_backend_real.py"
+            in result.invalid_real_refs["AC9.9.9"]
+        )
         assert "AC18.4.4" in result.invalid_real_refs
-        assert "apps/frontend/src/__tests__/dashboard.test.tsx" in result.invalid_real_refs["AC18.4.4"]
+        assert (
+            "apps/frontend/src/__tests__/dashboard.test.tsx"
+            in result.invalid_real_refs["AC18.4.4"]
+        )
 
         assert "AC8.12.7" in result.invalid_stub_refs
         assert (
@@ -170,16 +187,19 @@ acs:
         duplicate_registry.write_text(
             f"""
 version: '1.0'
-total: 2
-acs:
-  - id: AC1.1.1
-    epic: 99
-    epic_name: duplicate
-    description: should be ignored
-  - id: {extra_ac_id}
-    epic: 5
-    epic_name: extra
-    description: extra registry entry
+groups:
+  AC1:
+    AC1.1:
+      - id: AC1.1.1
+        epic: 99
+        epic_name: duplicate
+        description: should be ignored
+  AC5:
+    AC5.5:
+      - id: {extra_ac_id}
+        epic: 5
+        epic_name: extra
+        description: extra registry entry
 """.strip()
             + "\n",
             encoding="utf-8",
@@ -199,12 +219,14 @@ acs:
         external_file = tmp_path.parent / "external_ac_test.py"
         assert coverage._relative(external_file, tmp_path) == str(external_file)
 
-        references, source_real_refs, source_placeholder_refs, source_stub_refs = coverage.collect_references(
-            [
-                coverage.ScanFile(source="backend", path=tmp_path / "missing.py"),
-                coverage.ScanFile(source="backend", path=external_file),
-            ],
-            repo_root=tmp_path,
+        references, source_real_refs, source_placeholder_refs, source_stub_refs = (
+            coverage.collect_references(
+                [
+                    coverage.ScanFile(source="backend", path=tmp_path / "missing.py"),
+                    coverage.ScanFile(source="backend", path=external_file),
+                ],
+                repo_root=tmp_path,
+            )
         )
 
         assert references == {}
@@ -218,10 +240,12 @@ class TestMain:
         docs = tmp_path / "docs"
         docs.mkdir(parents=True, exist_ok=True)
         (docs / "ac_registry.yaml").write_text(
-            "version: '1.0'\ntotal: 1\nacs:\n  - id: AC1.1.1\n    epic: 1\n    epic_name: phase0\n    description: demo\n    mandatory: true\n",
+            "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n        epic: 1\n        epic_name: phase0\n        description: demo\n        mandatory: true\n",
             encoding="utf-8",
         )
-        (docs / "infra_registry.yaml").write_text("version: '1.0'\ntotal: 0\nacs: []\n", encoding="utf-8")
+        (docs / "infra_registry.yaml").write_text(
+            "version: '1.0'\ngroups: {}\n", encoding="utf-8"
+        )
         backend = tmp_path / "apps" / "backend" / "tests"
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
@@ -257,11 +281,11 @@ class TestMain:
         docs = tmp_path / "docs"
         docs.mkdir(parents=True, exist_ok=True)
         (docs / "ac_registry.yaml").write_text(
-            "version: '1.0'\ntotal: 1\nacs:\n  - id: AC1.1.1\n    epic: 1\n    epic_name: phase0\n    description: demo\n    mandatory: true\n",
+            "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n        epic: 1\n        epic_name: phase0\n        description: demo\n        mandatory: true\n",
             encoding="utf-8",
         )
         (docs / "infra_registry.yaml").write_text(
-            "version: '1.0'\ntotal: 0\nacs: []\n",
+            "version: '1.0'\ngroups: {}\n",
             encoding="utf-8",
         )
         backend = tmp_path / "apps" / "backend" / "tests"

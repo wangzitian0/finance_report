@@ -38,7 +38,7 @@ from typing import NamedTuple
 from ac_traceability_refs import AC_PATTERN, classify_reference_file
 
 try:
-    import yaml
+    from ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - import guard
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
@@ -58,7 +58,9 @@ DEFAULT_TEST_DIRS = (
     REPO_ROOT / "scripts" / "tests",
     REPO_ROOT / "tests" / "e2e",
 )
-DEFAULT_OUTPUT = REPO_ROOT / "docs" / "project" / "archive" / "AC-TEST-TRACEABILITY-AUDIT.md"
+DEFAULT_OUTPUT = (
+    REPO_ROOT / "docs" / "project" / "archive" / "AC-TEST-TRACEABILITY-AUDIT.md"
+)
 
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 
@@ -112,10 +114,8 @@ def _load_registry(path: Path) -> list[AC]:
     if not path.exists():
         print(f"ERROR: registry not found: {path}", file=sys.stderr)
         sys.exit(1)
-    with path.open(encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
     out: list[AC] = []
-    for entry in data.get("acs", []):
+    for entry in load_registry_entries(path):
         out.append(
             AC(
                 id=entry["id"],
@@ -279,7 +279,9 @@ def render_document(
         for ac in mandatory_acs
         if not references.get(ac.id) or not references[ac.id].all_files
     }
-    manual_count = sum(1 for ac in acs if _is_manual(ac) and ac.id not in deprecated_ids)
+    manual_count = sum(
+        1 for ac in acs if _is_manual(ac) and ac.id not in deprecated_ids
+    )
     test_files_referenced = sorted(
         {path for stats in references.values() for path in stats.all_files}
     )
@@ -293,8 +295,7 @@ def render_document(
     lines.append("# AC-to-Test Traceability Audit")
     lines.append("")
     lines.append(
-        f"> **Generated**: {today} (mechanically by "
-        "`scripts/build_ac_traceability.py`)"
+        f"> **Generated**: {today} (mechanically by `scripts/build_ac_traceability.py`)"
     )
     lines.append(
         "> **Purpose**: Complete mapping of every Acceptance Criterion "
@@ -329,9 +330,12 @@ def render_document(
     lines.append("|--------|-------|------------|")
     lines.append(f"| **Total EPICs** | {len(by_epic)} | 100% |")
     lines.append(f"| **Total ACs (registries)** | {total_acs} | 100% |")
-    lines.append(f"| **Mandatory ACs** | {len(mandatory_acs)} | "
-                 f"{len(mandatory_acs) / total_acs * 100:.1f}% |"
-                 if total_acs else "| **Mandatory ACs** | 0 | 0% |")
+    lines.append(
+        f"| **Mandatory ACs** | {len(mandatory_acs)} | "
+        f"{len(mandatory_acs) / total_acs * 100:.1f}% |"
+        if total_acs
+        else "| **Mandatory ACs** | 0 | 0% |"
+    )
     lines.append(
         f"| **Deprecated ACs** | {deprecated_count} | "
         f"{(deprecated_count / total_acs * 100.0) if total_acs else 0.0:.1f}% |"
@@ -350,9 +354,7 @@ def render_document(
     lines.append(
         f"| **Mandatory ACs without any test reference** | {len(missing_ids)} | - |"
     )
-    lines.append(
-        f"| **Test files referenced** | {len(test_files_referenced)} | - |"
-    )
+    lines.append(f"| **Test files referenced** | {len(test_files_referenced)} | - |")
     manual_pct = (manual_count / total_acs * 100.0) if total_acs else 0.0
     lines.append(
         f"| **ACs flagged as manual verification (heuristic)** | "
@@ -404,13 +406,15 @@ def render_document(
 
         lines.append(f"## 📋 EPIC-{epic_num:03d}: {epic_names[epic_num]}")
         lines.append("")
-        lines.append(f"<a id=\"{slug}\"></a>")
+        lines.append(f'<a id="{slug}"></a>')
         lines.append("")
         lines.append(f"- **Total ACs**: {len(epic_acs)}")
         if dep_in_epic:
             lines.append(f"- **Deprecated ACs**: {dep_in_epic}")
         lines.append(f"- **Mandatory ACs**: {len(mand)}")
-        lines.append(f"- **Mandatory ACs with real test reference**: {real_cov} ({pct:.1f}%)")
+        lines.append(
+            f"- **Mandatory ACs with real test reference**: {real_cov} ({pct:.1f}%)"
+        )
         lines.append(
             f"- **Mandatory ACs with only placeholder reference**: "
             f"{sum(1 for ac in mand if ac.id in placeholder_only_ids)}"
@@ -480,7 +484,9 @@ def render_document(
     lines.append("python scripts/build_ac_traceability.py --check")
     lines.append("")
     lines.append("# CI artifact preview")
-    lines.append("python scripts/build_ac_traceability.py --output /tmp/AC-TEST-TRACEABILITY-AUDIT.md")
+    lines.append(
+        "python scripts/build_ac_traceability.py --output /tmp/AC-TEST-TRACEABILITY-AUDIT.md"
+    )
     lines.append("```")
     lines.append("")
     lines.append(
@@ -545,8 +551,7 @@ def parse_args() -> argparse.Namespace:
 
 def _strip_date(text: str) -> str:
     return "\n".join(
-        _DATE_LINE_RE.sub("> **Generated**: DATE", line)
-        for line in text.splitlines()
+        _DATE_LINE_RE.sub("> **Generated**: DATE", line) for line in text.splitlines()
     )
 
 

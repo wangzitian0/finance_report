@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 try:
-    import yaml
+    from ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - environment guard
     print(
         "ERROR: PyYAML not installed. Run: pip install pyyaml",
@@ -72,9 +72,7 @@ TEST_ROOTS = [
     REPO_ROOT / "scripts" / "tests",
 ]
 
-CHECK6_TEST_ROOTS = [
-    r for r in TEST_ROOTS if r != REPO_ROOT / "scripts" / "tests"
-]
+CHECK6_TEST_ROOTS = [r for r in TEST_ROOTS if r != REPO_ROOT / "scripts" / "tests"]
 
 # Allow-list of AC IDs that may appear in test fixtures without a
 # matching registry entry. Keep this list tight; every entry should be
@@ -139,6 +137,7 @@ def _line_is_ac_annotation(line: str) -> bool:
         return True
     return bool(REMOVED_ANNOTATION_RE.search(line))
 
+
 # EPIC files follow the ``EPIC-NNN.descriptive-name.md`` convention.
 # The pattern matches any filename starting with ``EPIC-`` followed by exactly
 # three digits (e.g. ``EPIC-016.two-stage-review-ui.md``).
@@ -170,9 +169,7 @@ class Violation(NamedTuple):
 def load_registry_acs(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    with open(path, encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
-    return list(data.get("acs", []))
+    return load_registry_entries(path)
 
 
 def is_deprecated(ac: dict) -> bool:
@@ -287,7 +284,7 @@ def check_epic_anchors(
                     check="check1_epic_anchor",
                     message=(
                         f"{path.name}: Vision Anchor slug `{slug}` does not "
-                        f"resolve to any <a id=\"{slug}\"></a> in vision.md"
+                        f'resolve to any <a id="{slug}"></a> in vision.md'
                     ),
                 )
             )
@@ -447,9 +444,7 @@ def check_test_id_epic_alignment(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description=(
-            "Lint vision <-> EPIC <-> AC registry <-> test consistency."
-        )
+        description=("Lint vision <-> EPIC <-> AC registry <-> test consistency.")
     )
     parser.add_argument(
         "--verbose",

@@ -11,7 +11,7 @@ from typing import NamedTuple
 from ac_traceability_refs import AC_PATTERN, classify_reference_file
 
 try:
-    import yaml
+    from ac_registry_format import load_registry_entries
 except ImportError:
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
@@ -44,6 +44,7 @@ class ACReferenceStats:
     def all_files(self) -> set[str]:
         return self.real_files | self.placeholder_files | self.stub_files
 
+
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
@@ -55,9 +56,6 @@ def load_registry(registry_path: Path) -> list[AC]:
         print("  Run: python scripts/generate_ac_registry.py", file=sys.stderr)
         sys.exit(1)
 
-    with open(registry_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-
     return [
         AC(
             id=entry["id"],
@@ -66,7 +64,7 @@ def load_registry(registry_path: Path) -> list[AC]:
             description=entry.get("description", ""),
             mandatory=entry.get("mandatory", True),
         )
-        for entry in data.get("acs", [])
+        for entry in load_registry_entries(registry_path)
     ]
 
 
@@ -222,7 +220,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--test-dirs",
         nargs="+",
-        default=["apps/backend/tests", "apps/frontend/src", "scripts/tests", "tests/e2e"],
+        default=[
+            "apps/backend/tests",
+            "apps/frontend/src",
+            "scripts/tests",
+            "tests/e2e",
+        ],
     )
     parser.add_argument("--report-only", action="store_true")
     parser.add_argument("--verbose", action="store_true")
