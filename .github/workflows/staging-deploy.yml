@@ -87,33 +87,55 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Resolve Backend Image
+        id: backend_image
+        run: |
+          bash scripts/check_ghcr_image_tag.sh \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
+
       - name: Build and push Backend
+        if: steps.backend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/backend
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 
+      - name: Resolve Frontend Image
+        id: frontend_image
+        run: |
+          bash scripts/check_ghcr_image_tag.sh \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
+
       - name: Build and push Frontend
+        if: steps.frontend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/frontend
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
             NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
+
+      - name: Promote Backend Image to Staging Tag
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
+
+      - name: Promote Frontend Image to Staging Tag
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Check Deployment Dependencies
         env:
