@@ -137,7 +137,9 @@ describe("HoldingDetailPage", () => {
 
     await waitFor(() => expect(screen.getByText("Failed to load holding")).toBeInTheDocument())
     expect(screen.getByText("server error")).toBeInTheDocument()
-    expect(screen.getByText("Retry")).toBeInTheDocument()
+    const callCountBeforeRetry = mockedApiFetch.mock.calls.length
+    fireEvent.click(screen.getByText("Retry"))
+    await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
   it("renders not-found state when no holdings match ticker", async () => {
@@ -160,7 +162,7 @@ describe("HoldingDetailPage", () => {
   })
 
   it("renders KPI cards and active/disposed lots in the overview tab", async () => {
-    mockHoldingDetailApi({ holdings: [mockActiveHolding, mockDisposedHolding] })
+    mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, quantity: "10.500000" }, mockDisposedHolding] })
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
@@ -170,6 +172,7 @@ describe("HoldingDetailPage", () => {
     expect(screen.getByText("Active Lots")).toBeInTheDocument()
     expect(screen.getByText("Disposed Lots")).toBeInTheDocument()
     expect(screen.getByText("FIFO method")).toBeInTheDocument()
+    expect(screen.getAllByText("10.50").length).toBeGreaterThanOrEqual(1)
   })
 
   it("AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels", async () => {

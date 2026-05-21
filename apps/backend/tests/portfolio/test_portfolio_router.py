@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
@@ -11,6 +12,8 @@ from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.routers import portfolio as portfolio_router
+from src.services.portfolio import AssetNotFoundError
 
 
 @pytest.fixture
@@ -199,6 +202,37 @@ async def test_portfolio_summary_returns_realized_and_dividend_ytd(
     data = response.json()
     assert data["realized_pnl_ytd"] == "149.00"
     assert data["dividend_income_ytd"] == "42.50"
+
+
+@pytest.mark.asyncio
+async def test_portfolio_summary_returns_zeroes_when_service_has_no_holdings(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC17.7.5: Empty portfolio summary returns a zero dashboard contract."""
+    monkeypatch.setattr(
+        portfolio_router._portfolio_service,
+        "get_portfolio_summary",
+        AsyncMock(side_effect=AssetNotFoundError("no holdings")),
+    )
+
+    response = await client.get("/portfolio/summary?as_of_date=2026-05-20")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_market_value"] == "0.00"
+    assert data["realized_pnl_ytd"] == "0.00"
+    assert data["dividend_income_ytd"] == "0.00"
+    assert data["holdings_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_update_holding_cost_basis_method_returns_404_for_missing_holding(client: AsyncClient):
+    """AC17.7.3: Missing holding cost-basis updates return a stable 404."""
+    response = await client.patch("/portfolio/MISSING", json={"cost_basis_method": "FIFO"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Holding not found"
 
 
 @pytest.mark.asyncio

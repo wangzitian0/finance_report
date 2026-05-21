@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-20 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-21 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it. This is not behavioral coverage; it separates real test candidates from `_ac_stubs` and trivial placeholder assertions so product-level E2E evidence remains the source of behavioral proof.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`, `tests/e2e`.
 
@@ -13,14 +13,14 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 973 | 100% |
-| **Mandatory ACs** | 813 | 83.6% |
+| **Total ACs (registries)** | 976 | 100% |
+| **Mandatory ACs** | 816 | 83.6% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with real test reference** | 601 | 73.9% |
+| **Mandatory ACs with real test reference** | 604 | 74.0% |
 | **Mandatory ACs with only placeholder reference** | 0 | - |
 | **Mandatory ACs with only stub reference** | 212 | - |
 | **Mandatory ACs without any test reference** | 0 | - |
-| **Test files referenced** | 203 | - |
+| **Test files referenced** | 204 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -42,7 +42,7 @@
 | [EPIC-013](#epic-013-statement-parsing-v2) | statement-parsing-v2 | 60 | 0 | 58 | 52 | 0 | 6 | 0 | 89.7% |
 | [EPIC-014](#epic-014-ttd-transformation) | ttd-transformation | 6 | 0 | 6 | 0 | 0 | 6 | 0 | 0.0% |
 | [EPIC-015](#epic-015-processing-account) | processing-account | 31 | 0 | 31 | 31 | 0 | 0 | 0 | 100.0% |
-| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 214 | 0 | 190 | 135 | 0 | 55 | 0 | 71.1% |
+| [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 217 | 0 | 193 | 138 | 0 | 55 | 0 | 71.5% |
 | [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 82 | 0 | 39 | 39 | 0 | 0 | 0 | 100.0% |
 | [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 13 | 0 | 10 | 0 | 56.5% |
 
@@ -496,7 +496,7 @@
 | AC8.3.3 | yes | Post Draft Entry | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
 | AC8.3.4 | yes | Unbalanced Entry Rejected | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
 | AC8.3.5 | yes | Journal Entry CRUD | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
-| AC8.4.1 | yes | Statement upload (CSV) | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
+| AC8.4.1 | yes | Statement upload (CSV) | real: `apps/backend/tests/e2e/test_core_journeys.py`<br>real: `apps/frontend/src/__tests__/StatementUploader.test.tsx` | ✅ real |
 | AC8.4.2 | yes | Statement list and get | real: `apps/backend/tests/e2e/test_core_journeys.py`<br>real: `tests/e2e/test_statement_upload_e2e.py` | ✅ real |
 | AC8.4.3 | yes | Statement full flow | real: `apps/backend/tests/e2e/test_core_journeys.py`<br>real: `tests/e2e/test_statement_upload_e2e.py` | ✅ real |
 | AC8.5.1 | yes | Reconciliation engine runs | real: `apps/backend/tests/e2e/test_core_journeys.py` | ✅ real |
@@ -934,7 +934,7 @@
 | AC15.6.7 | yes | Idempotent Transfer Detection | real: `apps/backend/tests/reconciliation/test_transfer_idempotency.py` | ✅ real |
 | AC15.7.1 | yes | API endpoint GET /api/accounts/processing/summary returns {pending_count, pending_total, currency, oldest_pending_date} | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ real |
 | AC15.7.2 | yes | Dashboard "Processing / In-Transit" card renders the four fields with currency code | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ real |
-| AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>real: `scripts/tests/test_processing_account_service_unit.py` | ✅ real |
+| AC15.7.3 | yes | Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}` | real: `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`<br>real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>real: `scripts/tests/test_processing_account_service_unit.py` | ✅ real |
 | AC15.7.4 | yes | Pending entries older than 7 days render a warning badge on the listing row | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx`<br>real: `scripts/tests/test_processing_account_service_unit.py` | ✅ real |
 | AC15.7.5 | yes | Frontend test mounts ProcessingSummaryCard and asserts pending_count + pending_total labels render | real: `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | ✅ real |
 | AC15.7.6 | yes | Sidebar navigation exposes a Processing entry between Reconciliation and AI Advisor | real: `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | ✅ real |
@@ -947,9 +947,9 @@
 
 <a id="epic-016-two-stage-review-ui"></a>
 
-- **Total ACs**: 214
-- **Mandatory ACs**: 190
-- **Mandatory ACs with real test reference**: 135 (71.1%)
+- **Total ACs**: 217
+- **Mandatory ACs**: 193
+- **Mandatory ACs with real test reference**: 138 (71.5%)
 - **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 55
 - **Mandatory ACs without any test reference**: 0
@@ -1063,6 +1063,9 @@
 | AC16.12.14 | no |  | real: `apps/frontend/src/__tests__/loginPage.test.tsx` | ✅ real (optional) |
 | AC16.12.15 | no |  | real: `apps/frontend/src/__tests__/loginPage.test.tsx` | ✅ real (optional) |
 | AC16.12.16 | no |  | real: `apps/frontend/src/__tests__/loginPage.test.tsx` | ✅ real (optional) |
+| AC16.12.17 | yes | Dashboard page renders first-time onboarding when accounts, statements, or posted review output are missing | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx` | ✅ real |
+| AC16.12.18 | yes | Dashboard onboarding links users to Accounts, Statements upload, and Review in one click | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx` | ✅ real |
+| AC16.12.19 | yes | Dashboard hides onboarding once an approved statement and posted journal entry exist | real: `apps/frontend/src/__tests__/dashboardPage.test.tsx` | ✅ real |
 | AC16.13.1 | yes | test_lifecycle — sanitize_namespace normalizes branch/workspace names | real: `scripts/tests/test_generate_ac_registry.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | ✅ real |
 | AC16.13.2 | yes | test_lifecycle — get_namespace honors BRANCH_NAME and optional WORKSPACE_ID | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |
 | AC16.13.3 | yes | test_lifecycle — get_namespace falls back to git branch plus path hash when env vars absent | stub: `apps/backend/tests/_ac_stubs/test_epic_16_stubs.py` | 🧱 stub-only |

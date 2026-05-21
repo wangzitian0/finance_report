@@ -49,6 +49,7 @@ const baseIncome = {
 
 function mockDashboardApi(overrides: Record<string, unknown> = {}) {
   const mockedApiFetch = vi.mocked(apiFetch)
+  const hasOverride = (key: string) => Object.prototype.hasOwnProperty.call(overrides, key)
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/reports/balance-sheet")) return Promise.resolve(overrides.balance ?? baseBalance)
     if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(overrides.income ?? baseIncome)
@@ -66,27 +67,31 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
     }
     if (path.startsWith("/api/assets/restricted")) {
       return Promise.resolve(
-        overrides.restricted ?? [
-          {
-            ticker: "SHOP-RSU",
-            quantity: "1.000000",
-            vesting_schedule: "25% annual vesting",
-            unlock_date: "2027-01-01",
-            fair_value: 12500,
-            currency: "USD",
-          },
-        ],
+        hasOverride("restricted")
+          ? overrides.restricted
+          : [
+              {
+                ticker: "SHOP-RSU",
+                quantity: "1.000000",
+                vesting_schedule: "25% annual vesting",
+                unlock_date: "2027-01-01",
+                fair_value: 12500,
+                currency: "USD",
+              },
+            ],
       )
     }
     if (path.startsWith("/api/assets/valuation-components")) {
       const includeRestricted = path.includes("include_restricted=true")
       return Promise.resolve(
-        overrides.valuation ?? {
-          items: [],
-          total_assets: includeRestricted ? 12500 : 0,
-          total_liabilities: 0,
-          net_worth_delta: includeRestricted ? 12500 : 0,
-        },
+        hasOverride("valuation")
+          ? overrides.valuation
+          : {
+              items: [],
+              total_assets: includeRestricted ? 12500 : 0,
+              total_liabilities: 0,
+              net_worth_delta: includeRestricted ? 12500 : 0,
+            },
       )
     }
     if (path.startsWith("/api/reconciliation/stats")) {
@@ -201,6 +206,16 @@ describe("DashboardPage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/assets/valuation-components?include_restricted=true"),
     )
+  })
+
+  it("uses empty fallbacks when optional valuation APIs return null", async () => {
+    mockDashboardApi({ restricted: null, valuation: null })
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
+    expect(screen.getByText("No restricted holdings.")).toBeInTheDocument()
+    expect(screen.getAllByText("$4,000").length).toBeGreaterThanOrEqual(1)
   })
 
   it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
