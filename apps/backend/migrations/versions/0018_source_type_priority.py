@@ -15,14 +15,18 @@ depends_on = None
 
 def upgrade() -> None:
     with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE journal_source_type_enum ADD VALUE IF NOT EXISTS 'bank_statement'")
         op.execute("ALTER TYPE journal_source_type_enum ADD VALUE IF NOT EXISTS 'user_confirmed'")
         op.execute("ALTER TYPE journal_source_type_enum ADD VALUE IF NOT EXISTS 'auto_matched'")
         op.execute("ALTER TYPE journal_source_type_enum ADD VALUE IF NOT EXISTS 'auto_parsed'")
 
-    op.execute("UPDATE journal_entries SET source_type = 'auto_parsed' WHERE source_type = 'bank_statement'")
+    op.execute("UPDATE journal_entries SET source_type = 'auto_parsed' WHERE source_type::text = 'bank_statement'")
 
 
 def downgrade() -> None:
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE journal_source_type_enum ADD VALUE IF NOT EXISTS 'bank_statement'")
+
     op.execute(
         "UPDATE journal_entries SET source_type = 'bank_statement' "
         "WHERE source_type IN ('user_confirmed', 'auto_matched', 'auto_parsed')"

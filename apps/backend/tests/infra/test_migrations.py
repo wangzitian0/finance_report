@@ -43,3 +43,13 @@ def test_single_head(alembic_script):
     """
     heads = alembic_script.get_heads()
     assert len(heads) == 1, f"Migration graph has multiple heads: {heads}. History must be linear."
+
+
+def test_AC13_10_4_source_type_migration_handles_missing_legacy_enum_label():
+    """AC13.10.4: legacy source_type cleanup must tolerate production enum drift."""
+    migration = SCRIPT_LOCATION / "versions" / "0018_source_type_priority.py"
+    source = migration.read_text()
+
+    assert "ADD VALUE IF NOT EXISTS 'bank_statement'" in source
+    assert "source_type::text = 'bank_statement'" in source
+    assert "WHERE source_type = 'bank_statement'" not in source
