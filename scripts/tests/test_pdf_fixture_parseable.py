@@ -11,6 +11,7 @@ DBS_DATE_PATTERN = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 CMB_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MARI_DATE_PATTERN = re.compile(r"^\d{2}\s[A-Z]{3}$")
 FUTU_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+PINGAN_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _parse_decimal(raw: str) -> Decimal:
@@ -99,6 +100,17 @@ def _extract_futu_rows(tables: list[list[list[str | None]]]) -> list[list[str]]:
     return rows
 
 
+def _extract_brokerage_rows(tables: list[list[list[str | None]]]) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for table in tables:
+        for row in table:
+            if not row or len(row) < 5:
+                continue
+            if row[0] and FUTU_DATE_PATTERN.match(row[0].strip()):
+                rows.append([cell.strip() if cell else "" for cell in row[:5]])
+    return rows
+
+
 def _extract_mari_summary_balances(
     text: str,
     tables: list[list[list[str | None]]],
@@ -120,7 +132,9 @@ def _extract_mari_summary_balances(
         matches = sgd_pattern.findall(line)
         if len(matches) >= 4:
             # opening=matches[0], outgoing=matches[1], incoming=matches[2], closing=matches[3]
-            return Decimal(matches[0].replace(",", "")), Decimal(matches[3].replace(",", ""))
+            return Decimal(matches[0].replace(",", "")), Decimal(
+                matches[3].replace(",", "")
+            )
     raise AssertionError(
         "Mari account summary table with opening/ending balance not found"
     )
@@ -151,6 +165,54 @@ def test_ac8_13_10_futu_generated_pdf_parseable(tmp_path: Path) -> None:
     assert rows[0][2] == "Stock and options valuation"
     assert _parse_decimal(rows[0][3]) == Decimal("323730.00")
     assert all(FUTU_DATE_PATTERN.match(row[0]) for row in rows)
+
+
+def test_ac8_13_10_moomoo_generated_pdf_parseable(tmp_path: Path) -> None:
+    moomoo_generator = import_module("generators.moomoo_generator").MoomooGenerator
+    output_path = tmp_path / "moomoo" / "test_moomoo.pdf"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    generator = moomoo_generator(
+        Path(__file__).parent.parent
+        / "pdf_fixtures"
+        / "templates"
+        / "moomoo_template.yaml"
+    )
+    generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
+
+    _assert_valid_pdf(output_path)
+    text, tables = _read_pdf_text_and_tables(output_path)
+    rows = _extract_brokerage_rows(tables)
+
+    assert "Moomoo SG - Monthly Statement" in text
+    assert "Fullerton SGD Money Market Fund" in text
+    assert len(rows) == 10
+    assert rows[0][1] == "SUBSCRIPTION"
+    assert rows[0][4] == "SGD"
+
+
+def test_ac9_3_6_pingan_generated_pdf_dates_and_balances(tmp_path: Path) -> None:
+    pingan_generator = import_module("generators.pingan_generator").PinganGenerator
+    output_path = tmp_path / "pingan" / "test_pingan.pdf"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    generator = pingan_generator(
+        Path(__file__).parent.parent
+        / "pdf_fixtures"
+        / "templates"
+        / "pingan_template.yaml"
+    )
+    generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
+
+    _assert_valid_pdf(output_path)
+    _text, tables = _read_pdf_text_and_tables(output_path)
+    rows = _extract_brokerage_rows(tables)
+
+    assert len(rows) == 15
+    assert all(PINGAN_DATE_PATTERN.match(row[0]) for row in rows)
+    for row in rows:
+        _parse_decimal(row[2])
+        _parse_decimal(row[3])
 
 
 def test_ac8_13_10_futu_fake_data_count_boundaries() -> None:
@@ -393,7 +455,9 @@ def test_ac9_3_6_date_formats_correct_per_source(tmp_path: Path) -> None:
     assert all(CMB_DATE_PATTERN.match(row[0]) for row in cmb_rows)
     assert all(MARI_DATE_PATTERN.match(row[0]) for row in mari_rows)
 
+
 # -- AC9.3.7: TemplateExtractor unit tests ------------------------------------
+
 
 def _get_template_extractor():
     cls = import_module("analyzers.template_extractor").TemplateExtractor

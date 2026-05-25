@@ -18,6 +18,7 @@ from src.models import (
     BankStatementTransactionStatus,
     Direction,
     JournalEntry,
+    JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
     ReconciliationMatch,
@@ -26,7 +27,10 @@ from src.models import (
 )
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
+    MatchCandidate,
     ReconciliationConfig,
+    _candidate_is_better,
+    _find_normal_candidates,
     calculate_match_score,
     entry_total_amount,
     execute_matching,
@@ -239,6 +243,84 @@ def test_score_business_logic_combinations():
     # Unknown direction
     txn_unknown = BankStatementTransaction(direction="???")
     assert score_business_logic(txn_unknown, entry_income) == 50.0
+
+
+def test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust():
+    """AC4.6.3: Manual-sourced entries win deterministic same-score conflicts."""
+    manual_id = uuid4()
+    parsed_id = uuid4()
+    manual_entry = JournalEntry(
+        id=manual_id,
+        source_type=JournalEntrySourceType.MANUAL,
+    )
+    parsed_entry = JournalEntry(
+        id=parsed_id,
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+    )
+    entries_by_id = {str(manual_id): manual_entry, str(parsed_id): parsed_entry}
+
+    manual_candidate = MatchCandidate(
+        journal_entry_ids=[str(manual_id)],
+        score=88,
+        breakdown={},
+    )
+    parsed_candidate = MatchCandidate(
+        journal_entry_ids=[str(parsed_id)],
+        score=88,
+        breakdown={},
+    )
+
+    assert _candidate_is_better(manual_candidate, parsed_candidate, entries_by_id)
+    assert manual_candidate.breakdown["source_type_winner_rank"] > manual_candidate.breakdown["source_type_loser_rank"]
+    assert not _candidate_is_better(parsed_candidate, manual_candidate, entries_by_id)
+    assert manual_candidate.breakdown["source_type_winner_rank"] > manual_candidate.breakdown["source_type_loser_rank"]
+
+
+def test_AC4_2_3_normal_candidates_cover_multi_entry_boundaries():
+    """AC4.2.3: Normal matching accepts balanced split entries and skips invalid candidates."""
+    base_date = date(2026, 1, 15)
+    txn = BankStatementTransaction(
+        id=uuid4(),
+        txn_date=base_date,
+        description="Vendor ABC",
+        amount=Decimal("100.00"),
+        direction="OUT",
+    )
+
+    def entry(amount: str, memo: str, *, balanced: bool = True) -> JournalEntry:
+        entry_id = uuid4()
+        debit = Decimal(amount)
+        credit = debit if balanced else debit - Decimal("1.00")
+        return JournalEntry(
+            id=entry_id,
+            entry_date=base_date,
+            memo=memo,
+            source_type=JournalEntrySourceType.MANUAL,
+            lines=[
+                JournalLine(direction=Direction.DEBIT, amount=debit, account=Account(type=AccountType.EXPENSE)),
+                JournalLine(direction=Direction.CREDIT, amount=credit, account=Account(type=AccountType.ASSET)),
+            ],
+        )
+
+    candidates = [
+        entry("40.00", "Vendor ABC part 1"),
+        entry("60.00", "Vendor ABC part 2"),
+        entry("10.00", "Unbalanced ignored", balanced=False),
+        entry("300.00", "Too large ignored"),
+    ]
+
+    results = _find_normal_candidates(
+        [txn],
+        candidates,
+        pattern_scores={"vendor": 90.0},
+        config=DEFAULT_CONFIG,
+    )
+
+    assert len(results) == 1
+    matched_txn, candidate = results[0]
+    assert matched_txn is txn
+    assert len(candidate.journal_entry_ids) == 2
+    assert candidate.breakdown["multi_entry"] == 1
 
 
 def test_extract_merchant_tokens():
