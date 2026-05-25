@@ -8,22 +8,24 @@ reports for current metrics.
 | Report | Purpose |
 |---|---|
 | [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Current AC-to-test coverage, stub-only ACs, untested ACs, invalid AC references |
+| [../analysis/ac-epic-mismatch-report.md](../analysis/ac-epic-mismatch-report.md) | Current AC-to-EPIC mismatch triage, separated into actionable and fixture-only refs |
 | [../analysis/traceability-exceptions.md](../analysis/traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
 Current generated AC snapshot:
 
-- 982 registered ACs
+- 983 registered ACs
 - 744 ACs with real test-candidate references
-- 238 registered ACs without real test reference
+- 239 registered ACs without real test reference
 - 215 stub-only placeholders
 - 0 invalid AC refs in real tests
+- 0 actionable AC-to-EPIC mismatches
 
 Placeholder assertion detection is enforced by the generated report; remaining
 proof-quality hardening is tracked in
 [#452](https://github.com/wangzitian0/finance_report/issues/452).
 
-AC-to-EPIC mismatch cleanup is tracked in
-[#456](https://github.com/wangzitian0/finance_report/issues/456).
+Fixture-only fake AC IDs in script tests are classified separately in the
+generated AC-to-EPIC mismatch report.
 
 ## Historical Audits
 

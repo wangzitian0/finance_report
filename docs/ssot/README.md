@@ -74,8 +74,10 @@ contracts is tracked in
   [#454](https://github.com/wangzitian0/finance_report/issues/454).
 - README/project metrics should be generated or validated. See
   [#455](https://github.com/wangzitian0/finance_report/issues/455).
-- AC-to-EPIC mismatches and invalid real-test AC refs should be cleaned up. See
-  [#456](https://github.com/wangzitian0/finance_report/issues/456).
+- AC-to-EPIC mismatch triage is generated in
+  [../analysis/ac-epic-mismatch-report.md](../analysis/ac-epic-mismatch-report.md);
+  current actionable mismatches are zero, with fixture-only fake IDs classified
+  separately.
 
 ## Related
 

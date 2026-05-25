@@ -83,8 +83,11 @@ The current hardened coverage work is tracked in
 
 Manual verification cleanup is tracked in
 [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
-Invalid AC references and AC-to-EPIC mismatch cleanup are tracked in
-[issue #456](https://github.com/wangzitian0/finance_report/issues/456).
+Invalid AC references are reported by
+[../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md).
+AC-to-EPIC mismatch triage is reported by
+[../analysis/ac-epic-mismatch-report.md](../analysis/ac-epic-mismatch-report.md),
+which separates actionable refs from fixture-only fake IDs.
 
 Current coverage enforcement:
 

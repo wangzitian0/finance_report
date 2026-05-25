@@ -1,6 +1,6 @@
 # AC-to-Test Traceability Audit
 
-> **Generated**: 2026-05-21 (mechanically by `scripts/build_ac_traceability.py`)
+> **Generated**: 2026-05-25 (mechanically by `scripts/build_ac_traceability.py`)
 > **Purpose**: Complete mapping of every Acceptance Criterion (`ACx.y.z`) declared in `docs/ac_registry.yaml` + `docs/infra_registry.yaml` to the test file(s) that reference it. This is not behavioral coverage; it separates real test candidates from `_ac_stubs` and trivial placeholder assertions so product-level E2E evidence remains the source of behavioral proof.
 > **Scope**: All EPICs in `docs/project/`. Test scan: `apps/backend/tests`, `apps/frontend/src`, `scripts/tests`, `tests/e2e`.
 
@@ -13,14 +13,14 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 976 | 100% |
-| **Mandatory ACs** | 816 | 83.6% |
+| **Total ACs (registries)** | 983 | 100% |
+| **Mandatory ACs** | 823 | 83.7% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with real test reference** | 610 | 74.8% |
+| **Mandatory ACs with real test reference** | 618 | 75.1% |
 | **Mandatory ACs with only placeholder reference** | 0 | - |
-| **Mandatory ACs with only stub reference** | 206 | - |
+| **Mandatory ACs with only stub reference** | 205 | - |
 | **Mandatory ACs without any test reference** | 0 | - |
-| **Test files referenced** | 206 | - |
+| **Test files referenced** | 208 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -29,12 +29,12 @@
 |------|------|-----------|------------|-----------|----------|------------------|-----------|---------|---------------|
 | [EPIC-001](#epic-001-phase0-setup) | phase0-setup | 29 | 0 | 27 | 18 | 0 | 9 | 0 | 66.7% |
 | [EPIC-002](#epic-002-double-entry-core) | double-entry-core | 59 | 0 | 44 | 37 | 0 | 7 | 0 | 84.1% |
-| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 43 | 0 | 23 | 18 | 0 | 5 | 0 | 78.3% |
+| [EPIC-003](#epic-003-statement-parsing) | statement-parsing | 47 | 0 | 27 | 22 | 0 | 5 | 0 | 81.5% |
 | [EPIC-004](#epic-004-reconciliation-engine) | reconciliation-engine | 39 | 0 | 18 | 14 | 0 | 4 | 0 | 77.8% |
-| [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 20 | 0 | 5 | 0 | 80.0% |
+| [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 21 | 0 | 4 | 0 | 84.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 44 | 0 | 11 | 0 | 80.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 7 | 0 | 32 | 0 | 17.9% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 91 | 0 | 85 | 85 | 0 | 0 | 0 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 93 | 0 | 87 | 87 | 0 | 0 | 0 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 1 | 0 | 35 | 0 | 2.8% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 1 | 0 | 20 | 0 | 4.8% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 0 | 0 | 0 | 100.0% |
@@ -44,7 +44,7 @@
 | [EPIC-015](#epic-015-processing-account) | processing-account | 31 | 0 | 31 | 31 | 0 | 0 | 0 | 100.0% |
 | [EPIC-016](#epic-016-two-stage-review-ui) | two-stage-review-ui | 217 | 0 | 193 | 138 | 0 | 55 | 0 | 71.5% |
 | [EPIC-017](#epic-017-portfolio-management) | portfolio-management | 82 | 0 | 39 | 39 | 0 | 0 | 0 | 100.0% |
-| [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 23 | 0 | 23 | 13 | 0 | 10 | 0 | 56.5% |
+| [EPIC-018](#epic-018-ai-driven-pipeline) | ai-driven-pipeline | 24 | 0 | 24 | 14 | 0 | 10 | 0 | 58.3% |
 
 ---
 
@@ -172,9 +172,9 @@
 
 <a id="epic-003-statement-parsing"></a>
 
-- **Total ACs**: 43
-- **Mandatory ACs**: 23
-- **Mandatory ACs with real test reference**: 18 (78.3%)
+- **Total ACs**: 47
+- **Mandatory ACs**: 27
+- **Mandatory ACs with real test reference**: 22 (81.5%)
 - **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 5
 - **Mandatory ACs without any test reference**: 0
@@ -224,6 +224,10 @@
 | AC3.6.2 | yes | No Silent Fallback Posting | real: `apps/backend/tests/api/test_statements_router.py`<br>real: `apps/backend/tests/reconciliation/test_review_queue.py` | ✅ real |
 | AC3.6.3 | yes | Ambiguous Mapping Blocked | real: `apps/backend/tests/api/test_statements_router.py` | ✅ real |
 | AC3.6.4 | yes | Explicit First-Upload Account Creation | real: `apps/backend/tests/api/test_statements_router.py` | ✅ real |
+| AC3.7.1 | yes | Latest Confirmed Source | real: `apps/backend/tests/accounting/test_account_statement_coverage.py` | ✅ real |
+| AC3.7.2 | yes | Adjacent Opening Continuity | real: `apps/backend/tests/accounting/test_account_statement_coverage.py` | ✅ real |
+| AC3.7.3 | yes | Missing/Overlapping/Duplicate Periods | real: `apps/backend/tests/accounting/test_account_statement_coverage.py` | ✅ real |
+| AC3.7.4 | yes | Broker Daily Snapshot Override | real: `apps/backend/tests/accounting/test_account_statement_coverage.py` | ✅ real |
 
 ---
 
@@ -288,9 +292,9 @@
 
 - **Total ACs**: 36
 - **Mandatory ACs**: 25
-- **Mandatory ACs with real test reference**: 20 (80.0%)
+- **Mandatory ACs with real test reference**: 21 (84.0%)
 - **Mandatory ACs with only placeholder reference**: 0
-- **Mandatory ACs with only stub reference**: 5
+- **Mandatory ACs with only stub reference**: 4
 - **Mandatory ACs without any test reference**: 0
 
 | AC ID | Mandatory | Description | Test References | Status |
@@ -317,7 +321,7 @@
 | AC5.6.1 | yes | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | 🧱 stub-only |
 | AC5.6.2 | yes | Annualized return (TWR) computed correctly | stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | 🧱 stub-only |
 | AC5.6.3 | yes | Dividend yield = annual dividends / current value | stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | 🧱 stub-only |
-| AC5.6.4 | yes | Annualized income in income statement KPI block | stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | 🧱 stub-only |
+| AC5.6.4 | yes | Annualized income KPI is surfaced through the dashboard/reporting path and delegates calculation ownership to AC11.8.1 | real: `apps/backend/tests/reporting/test_income_annualized_router.py`<br>real: `apps/frontend/src/__tests__/dashboardPage.test.tsx`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ real |
 | AC5.6.5 | yes | Unrealized P&L reflected in balance sheet equity | real: `apps/backend/tests/reporting/test_reporting.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | ✅ real |
 | AC5.6.6 | yes | MWR (money-weighted return) matches XIRR for single cashflow | stub: `apps/backend/tests/_ac_stubs/test_epic_05_stubs.py` | 🧱 stub-only |
 | AC5.6.7 | no |  | real: `apps/backend/tests/reporting/test_reporting_extreme_fallbacks.py`<br>real: `apps/backend/tests/reporting/test_reporting_fx_revaluation_integration.py` | ✅ real (optional) |
@@ -472,9 +476,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 91
-- **Mandatory ACs**: 85
-- **Mandatory ACs with real test reference**: 85 (100.0%)
+- **Total ACs**: 93
+- **Mandatory ACs**: 87
+- **Mandatory ACs with real test reference**: 87 (100.0%)
 - **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 0
 - **Mandatory ACs without any test reference**: 0
@@ -537,6 +541,7 @@
 | AC8.12.3 | no |  | real: `apps/backend/tests/reporting/test_fx_revaluation.py` | ✅ real (optional) |
 | AC8.12.4 | no |  | real: `apps/backend/tests/extraction/test_extraction_error_paths.py` | ✅ real (optional) |
 | AC8.12.5 | no |  | real: `apps/backend/tests/extraction/test_extraction_error_paths.py` | ✅ real (optional) |
+| AC8.12.6 | yes | OCR/vision provider fallback, timeout, and empty-response errors are deterministic | real: `apps/backend/tests/extraction/test_extraction_error_paths.py` | ✅ real |
 | AC8.13.1 | yes | DBS PDF upload → appears in list | real: `tests/e2e/test_statement_full_journey.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_08_stubs.py` | ✅ real |
 | AC8.13.2 | yes | Polling → parsed status visible | real: `tests/e2e/test_statement_full_journey.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_08_stubs.py` | ✅ real |
 | AC8.13.3 | yes | Detail page shows transactions | real: `tests/e2e/test_statement_full_journey.py`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_08_stubs.py` | ✅ real |
@@ -571,7 +576,8 @@
 | AC8.13.32 | yes | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture. | real: `scripts/tests/test_post_merge_e2e_gates.py`<br>real: `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | ✅ real |
 | AC8.13.33 | yes | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates. | real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
 | AC8.13.34 | yes | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary. | real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
-| AC8.13.35 | yes | AC traceability reporting distinguishes real test references from _ac_stubs and trivial placeholder assertions. | real: `scripts/tests/test_ci_metrics_contract.py`<br>placeholder: `scripts/tests/test_analyze_test_ac_coverage.py`<br>placeholder: `scripts/tests/test_build_ac_traceability.py`<br>placeholder: `scripts/tests/test_check_ac_traceability.py` | ✅ real |
+| AC8.13.35 | yes | AC traceability reporting distinguishes real test references from _ac_stubs and trivial placeholder assertions. | real: `scripts/tests/test_audit_ac_epic_mismatches.py`<br>real: `scripts/tests/test_ci_metrics_contract.py`<br>placeholder: `scripts/tests/test_analyze_test_ac_coverage.py`<br>placeholder: `scripts/tests/test_build_ac_traceability.py`<br>placeholder: `scripts/tests/test_check_ac_traceability.py` | ✅ real |
+| AC8.13.36 | yes | Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success. | real: `scripts/tests/test_check_ghcr_image_tag.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
 
 ---
 
@@ -1278,9 +1284,9 @@
 
 <a id="epic-018-ai-driven-pipeline"></a>
 
-- **Total ACs**: 23
-- **Mandatory ACs**: 23
-- **Mandatory ACs with real test reference**: 13 (56.5%)
+- **Total ACs**: 24
+- **Mandatory ACs**: 24
+- **Mandatory ACs with real test reference**: 14 (58.3%)
 - **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 10
 - **Mandatory ACs without any test reference**: 0
@@ -1303,6 +1309,7 @@
 | AC18.4.1 | yes | Reports read Layer 3 TransactionClassification for category breakdowns | stub: `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` | 🧱 stub-only |
 | AC18.4.2 | yes | ReportSnapshot (Layer 4) generated and queryable via API | stub: `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` | 🧱 stub-only |
 | AC18.4.3 | yes | AI CSV parsing handles unknown institutions as fallback | real: `apps/backend/tests/extraction/test_ai_csv_parsing.py` | ✅ real |
+| AC18.4.4 | yes | 4 | real: `apps/backend/tests/reporting/test_reporting_net_worth_components.py`<br>placeholder: `scripts/tests/test_analyze_test_ac_coverage.py` | ✅ real |
 | AC18.5.1 | yes | <ConfidenceBadge /> component renders TRUSTED / HIGH / MEDIUM / LOW pill with consistent color tokens (green / blue / am | real: `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` | ✅ real |
 | AC18.5.2 | yes | ConfidenceBadge mounted on every transaction row in Stage 1 review, Stage 2 listing, and processing-account listing; rea | real: `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` | ✅ real |
 | AC18.5.3 | yes | AI Suggestion Review Queue page /review/ai-suggestions lists pending AI classifications and AI reconciliation matches in | real: `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`<br>placeholder: `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.ts`<br>stub: `apps/backend/tests/_ac_stubs/test_epic_18_stubs.py` | ✅ real |

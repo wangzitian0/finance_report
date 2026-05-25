@@ -56,9 +56,9 @@ Current generated numbers:
 
 | Metric | Current |
 |---|---:|
-| Registered ACs | 982 |
-| ACs with real test-candidate references | 744 / 982 (75.8%) |
-| Registered ACs without real test reference | 238 |
+| Registered ACs | 983 |
+| ACs with real test-candidate references | 744 / 983 (75.7%) |
+| Registered ACs without real test reference | 239 |
 | Stub-only AC placeholders | 215 |
 | Invalid AC refs in real tests | 0 |
 | Unified coverage floor | 94.38% |
@@ -84,7 +84,7 @@ refreshing the report.
 | [EPIC-005](docs/project/EPIC-005.reporting-visualization.md) | Reports & visualization | Complete, with investment metric gaps | 32 / 36 (88.9%) |
 | [EPIC-006](docs/project/EPIC-006.ai-advisor.md) | AI advisor | Complete | 52 / 63 (82.5%) |
 | [EPIC-007](docs/project/EPIC-007.deployment.md) | Deployment | Complete, manual-gate heavy | 6 / 39 (15.4%) |
-| [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates | Core complete | 71 / 92 (77.2%) |
+| [EPIC-008](docs/project/EPIC-008.testing-strategy.md) | Testing strategy & E2E gates | Core complete | 71 / 93 (76.3%) |
 | [EPIC-009](docs/project/EPIC-009.pdf-fixture-generation.md) | PDF fixture generation | Complete, manual-gate heavy | 0 / 37 (0.0%) |
 | [EPIC-010](docs/project/EPIC-010.signoz-logging.md) | SigNoz logging | Complete, manual-gate heavy | 0 / 21 (0.0%) |
 | [EPIC-011](docs/project/EPIC-011.asset-lifecycle.md) | Asset lifecycle | In progress (P0 complete) | 38 / 38 (100.0%) |
@@ -104,8 +104,9 @@ Known proof-quality caveats:
   [issue #452](https://github.com/wangzitian0/finance_report/issues/452).
 - Manual-verification ACs need automation or an explicit manual-gate category.
   See [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
-- Invalid AC references are currently zero; AC-to-EPIC mismatch cleanup remains
-  tracked in [issue #456](https://github.com/wangzitian0/finance_report/issues/456).
+- Invalid AC references are currently zero; the AC-to-EPIC mismatch audit
+  reports zero actionable mismatches and tracks fixture-only fake IDs separately
+  in [docs/analysis/ac-epic-mismatch-report.md](docs/analysis/ac-epic-mismatch-report.md).
 - README EPIC metrics should eventually be generated or validated by CI. See
   [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
 
@@ -133,8 +134,8 @@ Recently resolved blockers:
 - [#455](https://github.com/wangzitian0/finance_report/issues/455):
   Generate README EPIC status and completion metrics from registries and test
   reports.
-- [#456](https://github.com/wangzitian0/finance_report/issues/456):
-  Fix AC-to-EPIC mismatch and invalid test references.
+- AC-to-EPIC mismatch and invalid test references:
+  [docs/analysis/ac-epic-mismatch-report.md](docs/analysis/ac-epic-mismatch-report.md).
 
 ## Quick Start
 
