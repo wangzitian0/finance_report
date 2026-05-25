@@ -81,6 +81,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
     assert "--splits 6" in workflow
     assert "--failure-confirmation-seconds" in workflow
+    assert "--reject-success-description-regex" in workflow
     assert "scripts/check_ac_traceability.py" in workflow
     assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"
@@ -88,6 +89,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
+    assert "success without a valid base comparison" in ci_cd
     assert "not behavioral coverage" in traceability
     assert "placeholder assertions" in traceability
 
@@ -166,8 +168,10 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("scripts/calculate_unified_coverage.py" in error for error in errors)
     assert any("scripts/check_ac_traceability.py" in error for error in errors)
     assert any("scripts/build_ac_traceability.py --output" in error for error in errors)
+    assert any("--reject-success-description-regex" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
+    assert any("success without a valid base comparison" in error for error in errors)
     assert any("New `apps/*/src`" in error for error in errors)
     assert any("not behavioral coverage" in error for error in errors)
 

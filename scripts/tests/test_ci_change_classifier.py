@@ -136,6 +136,24 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
     assert "- `scripts/ci_change_classifier.py`" in summary_text
 
 
+def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
+    """AC8.13.20: PR preview-triggering files are visible in the summary."""
+    result = classify_changed_paths(
+        [
+            "apps/frontend/src/app/page.tsx",
+            "tests/e2e/test_core_journeys.py",
+        ]
+    )
+    summary = tmp_path / "github-summary.md"
+
+    classifier.write_github_summary(result, summary)
+
+    summary_text = summary.read_text(encoding="utf-8")
+    assert "PR preview-triggering files:" in summary_text
+    assert "- `apps/frontend/src/app/page.tsx`" in summary_text
+    assert "- `tests/e2e/test_core_journeys.py`" in summary_text
+
+
 def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
     tmp_path: Path,
     monkeypatch,
