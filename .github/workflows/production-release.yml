@@ -24,7 +24,7 @@ env:
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   PRODUCTION_COMPOSE_ID: lNn9gVS1Zyw79Jzw5dlbu
   PYTHON_VERSION: "3.12.12"
-  UV_VERSION: "0.5.14"
+  UV_VERSION: "0.9.18"
 
 jobs:
   build:

@@ -9,7 +9,7 @@
 - **Node.js**: `20.19.0`
 - **npm**: Used for frontend dependencies via `npm ci`
 - **Python**: `3.12.12` (managed by uv)
-- **uv**: `0.5.14`
+- **uv**: `0.9.18`
 
 | File | Purpose |
 |------|---------|
@@ -33,7 +33,7 @@ development, GitHub Actions, and Docker/Compose:
 |-----------------|---------|
 | Python | `3.12.12` |
 | Node.js | `20.19.0` |
-| uv | `0.5.14` |
+| uv | `0.9.18` |
 | Backend base image | `python:3.12.12-slim` |
 | Frontend base image | `node:20.19.0-alpine` |
 | Postgres test image | `postgres:15.14-alpine` |

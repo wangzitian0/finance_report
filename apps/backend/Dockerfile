@@ -1,5 +1,5 @@
 ARG PYTHON_IMAGE=python:3.12.12-slim
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.5.14
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.9.18
 
 # Build stage
 FROM ${PYTHON_IMAGE} AS builder

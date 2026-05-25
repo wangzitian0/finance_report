@@ -28,7 +28,7 @@ env:
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
   PYTHON_VERSION: "3.12.12"
-  UV_VERSION: "0.5.14"
+  UV_VERSION: "0.9.18"
 
 jobs:
   build-and-deploy:
