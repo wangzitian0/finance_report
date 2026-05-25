@@ -81,6 +81,8 @@ generated.
 | Generated report reference without test behavior | No | Traceability only |
 | `_ac_stubs` reference | No | Fails mandatory AC gate |
 | `expect(true).toBe(true)` or pure `pass` | No | Placeholder debt |
+| `scripts/tests` registered AC reference | Yes | Tooling/CI behavior proof; synthetic fixture IDs are excluded from invalid-ref counts |
+| Strikethrough deprecated AC | Not required | Excluded from active coverage and untested counts |
 | Manual verification | Not automated proof | Convert or mark as explicit manual gate |
 
 Manual verification cleanup is tracked in

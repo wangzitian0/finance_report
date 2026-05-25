@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Analyze AC-to-test coverage across backend, frontend, and E2E suites.
+"""Analyze AC-to-test coverage across backend, frontend, scripts, and E2E suites.
 
 This analyzer scans AC references (``ACx.y.z``) in:
 - ``apps/backend/tests/**/*.py``
 - ``apps/frontend/src/**/*.test.ts(x)``
+- ``scripts/tests/**/*.py``
 - ``tests/e2e/**/*.py``
 - ``repo/e2e_regressions/**/*.py`` (when present)
 
@@ -12,6 +13,7 @@ Coverage accounting follows EPIC-008 rules:
   as passing-test candidates.
 - ``_ac_stubs``, trivial assertions, pure ``pass``, and pure skipped tests are
   excluded from covered counts.
+- Deprecated strikethrough ACs are excluded from coverage/untested counts.
 - Invalid/unregistered AC references are reported with file paths.
 - Registered ACs missing real references are reported as untested.
 """
@@ -42,6 +44,7 @@ SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
         REPO_ROOT / "apps" / "frontend" / "src",
         ("**/*.test.ts", "**/*.test.tsx"),
     ),
+    ("scripts_tests", REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
     ("e2e", REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
     ("repo_e2e", REPO_ROOT / "repo" / "e2e_regressions", ("**/*.py",)),
 )
@@ -53,6 +56,7 @@ class ACRecord:
     epic: int
     epic_name: str
     description: str
+    deprecated: bool = False
 
 
 @dataclass
@@ -86,6 +90,7 @@ class AnalysisResult:
     invalid_real_refs: dict[str, list[str]]
     invalid_placeholder_refs: dict[str, list[str]]
     invalid_stub_refs: dict[str, list[str]]
+    deprecated_ids: set[str]
 
 
 @dataclass
@@ -97,6 +102,7 @@ class EpicStats:
     placeholder_only: int = 0
     stub_only: int = 0
     untested: int = 0
+    deprecated: int = 0
 
 
 def _ac_sort_key(ac_id: str) -> tuple[int, ...]:
@@ -111,6 +117,24 @@ def _relative(path: Path, root: Path) -> str:
         return str(path)
 
 
+def _is_deprecated_description(description: str) -> bool:
+    stripped = description.strip()
+    return stripped.startswith("~~") and stripped.endswith("~~") and len(stripped) > 4
+
+
+def _is_ignored_script_fixture_invalid_ref(rel_path: str) -> bool:
+    path = Path(rel_path)
+    return (
+        len(path.parts) >= 2 and path.parts[0] == "scripts" and path.parts[1] == "tests"
+    )
+
+
+def _invalid_files(paths: set[str]) -> list[str]:
+    return sorted(
+        path for path in paths if not _is_ignored_script_fixture_invalid_ref(path)
+    )
+
+
 def load_registry(
     registry_paths: tuple[Path, ...] = DEFAULT_REGISTRY_PATHS,
 ) -> dict[str, ACRecord]:
@@ -123,12 +147,14 @@ def load_registry(
             ac_id = str(ac["id"])
             if ac_id in registry:
                 continue
+            description = str(ac.get("description", "")).strip()
             registry[ac_id] = ACRecord(
                 id=ac_id,
                 epic=int(ac["epic"]),
                 epic_name=str(ac.get("epic_name", "")).strip()
                 or f"EPIC-{int(ac['epic']):03d}",
-                description=str(ac.get("description", "")).strip(),
+                description=description,
+                deprecated=_is_deprecated_description(description),
             )
     return registry
 
@@ -209,16 +235,18 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
     references, source_real_refs, source_placeholder_refs, source_stub_refs = (
         collect_references(scan_files, repo_root)
     )
+    active_registry_ids = {ac_id for ac_id, ac in registry.items() if not ac.deprecated}
+    deprecated_ids = {ac_id for ac_id, ac in registry.items() if ac.deprecated}
 
     covered_ids = {
         ac_id
         for ac_id, ref_stats in references.items()
-        if ac_id in registry and ref_stats.real_files
+        if ac_id in active_registry_ids and ref_stats.real_files
     }
     stub_only_ids = {
         ac_id
         for ac_id, ref_stats in references.items()
-        if ac_id in registry
+        if ac_id in active_registry_ids
         and not ref_stats.real_files
         and not ref_stats.placeholder_files
         and ref_stats.stub_files
@@ -226,30 +254,31 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
     placeholder_only_ids = {
         ac_id
         for ac_id, ref_stats in references.items()
-        if ac_id in registry
+        if ac_id in active_registry_ids
         and not ref_stats.real_files
         and ref_stats.placeholder_files
     }
 
     untested_ids = sorted(
-        (ac_id for ac_id in registry if ac_id not in covered_ids),
+        (ac_id for ac_id in active_registry_ids if ac_id not in covered_ids),
         key=_ac_sort_key,
     )
 
     invalid_real_refs = {
-        ac_id: sorted(ref_stats.real_files)
+        ac_id: files
         for ac_id, ref_stats in references.items()
-        if ac_id not in registry and ref_stats.real_files
+        if ac_id not in registry and (files := _invalid_files(ref_stats.real_files))
     }
     invalid_stub_refs = {
-        ac_id: sorted(ref_stats.stub_files)
+        ac_id: files
         for ac_id, ref_stats in references.items()
-        if ac_id not in registry and ref_stats.stub_files
+        if ac_id not in registry and (files := _invalid_files(ref_stats.stub_files))
     }
     invalid_placeholder_refs = {
-        ac_id: sorted(ref_stats.placeholder_files)
+        ac_id: files
         for ac_id, ref_stats in references.items()
-        if ac_id not in registry and ref_stats.placeholder_files
+        if ac_id not in registry
+        and (files := _invalid_files(ref_stats.placeholder_files))
     }
 
     source_real_ref_counts = {
@@ -285,6 +314,7 @@ def analyze_repo(repo_root: Path = REPO_ROOT) -> AnalysisResult:
         invalid_stub_refs=dict(
             sorted(invalid_stub_refs.items(), key=lambda item: _ac_sort_key(item[0]))
         ),
+        deprecated_ids=deprecated_ids,
     )
 
 
@@ -295,7 +325,9 @@ def _epic_stats(result: AnalysisResult) -> list[EpicStats]:
             ac.epic, EpicStats(epic=ac.epic, epic_name=ac.epic_name)
         )
         stats.registered += 1
-        if ac.id in result.covered_ids:
+        if ac.id in result.deprecated_ids:
+            stats.deprecated += 1
+        elif ac.id in result.covered_ids:
             stats.covered += 1
         elif ac.id in result.placeholder_only_ids:
             stats.placeholder_only += 1
@@ -323,6 +355,7 @@ def _render_file_list(paths: list[str]) -> str:
 
 def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     total_registered = len(result.registry)
+    active_registered = total_registered - len(result.deprecated_ids)
     covered_count = len(result.covered_ids)
     placeholder_only_count = len(result.placeholder_only_ids)
     stub_only_count = len(result.stub_only_ids)
@@ -332,7 +365,7 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     invalid_stub_count = len(result.invalid_stub_refs)
 
     coverage_pct = (
-        (covered_count / total_registered * 100.0) if total_registered else 100.0
+        (covered_count / active_registered * 100.0) if active_registered else 100.0
     )
 
     lines: list[str] = []
@@ -357,7 +390,13 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
         "- `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered."
     )
     lines.append(
-        "- Invalid AC references are AC IDs found in tests but missing from registries."
+        "- Strikethrough deprecated ACs are excluded from active coverage and untested counts."
+    )
+    lines.append(
+        "- Synthetic AC IDs inside `scripts/tests` fixtures are excluded from invalid-ref counts; fixture-only mismatches are audited separately."
+    )
+    lines.append(
+        "- Invalid AC references are other AC IDs found in tests but missing from registries."
     )
     lines.append(
         "- Untested AC = registered AC without any real passing-test candidate reference."
@@ -368,12 +407,16 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("| Metric | Count |")
     lines.append("|---|---:|")
     lines.append(f"| Registered ACs | {total_registered} |")
+    lines.append(f"| Active ACs | {active_registered} |")
+    lines.append(
+        f"| Deprecated ACs excluded from coverage gate | {len(result.deprecated_ids)} |"
+    )
     lines.append(
         f"| Covered by real test candidates | {covered_count} ({coverage_pct:.1f}%) |"
     )
     lines.append(f"| Placeholder-only assertions | {placeholder_only_count} |")
     lines.append(f"| Stub-only placeholders (`_ac_stubs`) | {stub_only_count} |")
-    lines.append(f"| Registered but untested | {untested_count} |")
+    lines.append(f"| Active registered but untested | {untested_count} |")
     lines.append(f"| Invalid AC refs in real tests | {invalid_real_count} |")
     lines.append(f"| Invalid AC refs in placeholders | {invalid_placeholder_count} |")
     lines.append(f"| Invalid AC refs in stubs | {invalid_stub_count} |")
@@ -397,16 +440,19 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("## Coverage by EPIC")
     lines.append("")
     lines.append(
-        "| EPIC | Name | Registered | Covered | Placeholder-only | Stub-only | Untested | Coverage |"
+        "| EPIC | Name | Registered | Deprecated | Covered | Placeholder-only | Stub-only | Untested | Coverage |"
     )
-    lines.append("|---|---|---:|---:|---:|---:|---:|---:|")
+    lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|")
     for epic in _epic_stats(result):
+        active_epic_registered = epic.registered - epic.deprecated
         epic_coverage_pct = (
-            epic.covered / epic.registered * 100.0 if epic.registered else 100.0
+            epic.covered / active_epic_registered * 100.0
+            if active_epic_registered
+            else 100.0
         )
         lines.append(
             f"| EPIC-{epic.epic:03d} | {epic.epic_name} | {epic.registered} | "
-            f"{epic.covered} | {epic.placeholder_only} | {epic.stub_only} | "
+            f"{epic.deprecated} | {epic.covered} | {epic.placeholder_only} | {epic.stub_only} | "
             f"{epic.untested} | {epic_coverage_pct:.1f}% |"
         )
     lines.append("")
@@ -464,7 +510,7 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
         lines.append("No placeholder-only AC assertions found.")
     lines.append("")
 
-    lines.append("## Registered ACs with no real test reference")
+    lines.append("## Active registered ACs with no real test reference")
     lines.append("")
     grouped_untested = _group_untested_by_epic(result)
     if grouped_untested:
@@ -477,7 +523,7 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
             lines.append(", ".join(f"`{ac_id}`" for ac_id in ac_ids))
             lines.append("")
     else:
-        lines.append("All registered ACs have at least one real test reference.")
+        lines.append("All active registered ACs have at least one real test reference.")
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -521,7 +567,8 @@ def main() -> int:
     print(f"Wrote AC coverage report: {output_path}")
     print(
         "Summary: "
-        f"registered={len(result.registry)}, covered={len(result.covered_ids)}, "
+        f"registered={len(result.registry)}, active={len(result.registry) - len(result.deprecated_ids)}, "
+        f"covered={len(result.covered_ids)}, "
         f"placeholder_only={len(result.placeholder_only_ids)}, "
         f"stub_only={len(result.stub_only_ids)}, untested={len(result.untested_ids)}, "
         f"invalid_real={len(result.invalid_real_refs)}"
