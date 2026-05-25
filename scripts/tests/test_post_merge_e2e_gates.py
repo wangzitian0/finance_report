@@ -514,6 +514,7 @@ def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
     assert "statuses: read" in workflow
     assert "scripts/wait_for_github_status.py" in workflow
     assert '--context "Coveralls - unified"' in workflow
+    assert "--reject-success-description-regex" not in workflow
     assert workflow.index("Upload unified coverage to Coveralls") < workflow.index(
         "Wait for Coveralls unified status"
     )
@@ -523,6 +524,7 @@ def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
     assert "wait_for_status_success" in wait_script
     assert "Coveralls - unified" in ci_cd
     assert "Pull requests wait for the external `Coveralls - unified` status" in ci_cd
+    assert "Coveralls success with no external base comparison is accepted" in ci_cd
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:

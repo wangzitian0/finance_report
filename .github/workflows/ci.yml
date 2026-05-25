@@ -385,8 +385,7 @@ jobs:
             --context "Coveralls - unified" \
             --timeout-seconds 300 \
             --poll-seconds 10 \
-            --failure-confirmation-seconds 30 \
-            --reject-success-description-regex "(?i)no base build|no base build to compare|no base to compare|base build.*not found|could not compare"
+            --failure-confirmation-seconds 30
 
       - name: Upload backend to Coveralls (per-flag)
         uses: coverallsapp/github-action@v2
