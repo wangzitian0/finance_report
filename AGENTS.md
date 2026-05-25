@@ -72,7 +72,8 @@ Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [docs/s
 Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-policy.md)**
 
 - ❌ No direct commits to `main`
-- ❌ No new branches while a PR is open
+- ✅ User-approved parallel PR branches are allowed
+- ❌ Agents never merge PRs
 - ✅ Install pre-commit hooks: `make install`
 - ✅ Run `moon run :lint && moon run :test` before pushing
 

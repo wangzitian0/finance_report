@@ -26,7 +26,7 @@ def _parsed_statement(user_id, file_hash: str) -> BankStatement:
         original_filename="moomoo-positions.pdf",
         institution="Moomoo",
         account_last4="1234",
-        currency="USD",
+        currency="SGD",
         period_start=date(2026, 5, 1),
         period_end=date(2026, 5, 18),
         opening_balance=Decimal("0.00"),
@@ -42,14 +42,14 @@ def _brokerage_payload() -> dict:
         "institution": "Moomoo",
         "period_start": "2026-05-01",
         "period_end": "2026-05-18",
-        "statement": {"period_end": "2026-05-18", "currency": "USD"},
+        "statement": {"period_end": "2026-05-18", "currency": "SGD"},
         "positions": [
             {
                 "symbol": "AAPL",
                 "snapshot_date": date(2026, 5, 18),
                 "quantity": "10",
                 "market_value": "1900.25",
-                "currency": "USD",
+                "currency": "SGD",
                 "asset_type": "stock",
                 "sector": "Technology",
                 "geography": "US",
@@ -336,8 +336,8 @@ async def test_import_brokerage_payload_if_present_records_zero_position_payload
 
 
 @pytest.mark.asyncio
-async def test_parse_statement_background_imports_brokerage_positions(db, test_user, monkeypatch):
-    """AC17.4.7: Parsed brokerage uploads import positions without a manual API call."""
+async def test_parse_statement_background_imports_brokerage_positions(client, db, test_user, monkeypatch):
+    """AC17.4.7/AC17.5.4/AC8.13.10: Background brokerage import reaches reports."""
     statement_id = uuid4()
     user_id = test_user.id
     file_hash = "brokerage-success-hash"
@@ -392,6 +392,8 @@ async def test_parse_statement_background_imports_brokerage_positions(db, test_u
 
     assert refreshed is not None
     assert refreshed.status == BankStatementStatus.PARSED
+    assert refreshed.confidence_score == 90
+    assert refreshed.balance_validated is True
     assert refreshed.validation_error is None
     assert len(atomic_rows) == 1
     assert atomic_rows[0].asset_identifier == "AAPL"
@@ -399,6 +401,33 @@ async def test_parse_statement_background_imports_brokerage_positions(db, test_u
     assert len(managed_rows) == 1
     assert managed_rows[0].asset_identifier == "AAPL"
     assert managed_rows[0].quantity == Decimal("10")
+
+    holdings_response = await client.get(
+        "/portfolio/holdings",
+        params={"as_of_date": "2026-05-18"},
+    )
+    assert holdings_response.status_code == 200
+    holdings = holdings_response.json()
+    assert len(holdings) == 1
+    assert holdings[0]["asset_identifier"] == "AAPL"
+    assert holdings[0]["account_name"] == "Moomoo"
+    assert Decimal(str(holdings[0]["quantity"])) == Decimal("10.00000000")
+    assert Decimal(str(holdings[0]["market_value"])) == Decimal("1900.25")
+    assert holdings[0]["currency"] == "SGD"
+
+    balance_response = await client.get(
+        "/reports/balance-sheet",
+        params={"as_of_date": "2026-05-18", "currency": "SGD"},
+    )
+    assert balance_response.status_code == 200
+    balance_sheet = balance_response.json()
+    assert Decimal(str(balance_sheet["net_worth_adjustment_gain_loss"])) == Decimal("1900.25")
+    assert Decimal(str(balance_sheet["equation_delta"])) == Decimal("0.00")
+    assert balance_sheet["is_balanced"] is True
+    assert any(
+        line["name"] == "Moomoo market valuation adjustment" and Decimal(str(line["amount"])) == Decimal("1900.25")
+        for line in balance_sheet["assets"]
+    )
 
 
 @pytest.mark.asyncio
