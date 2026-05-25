@@ -9,12 +9,13 @@
 ## 🌿 Branch Management Rules (CRITICAL)
 
 1. **NO commits to `main`**: All changes must go through branches and PRs.
-2. **NO new branches while a PR is open**: Complete the current PR before starting new work.
+2. **User-approved parallel PRs are allowed**: Agents may create a new branch while another PR is open when the user explicitly asks for a separate PR.
 3. **Explicit permission required**: Only create a new branch when:
    - Current PR is merged, OR
-   - User explicitly requests new work, OR
+   - User explicitly requests a new branch or PR, OR
    - Previous task is explicitly completed.
-4. **One branch at a time**: Focus on completing the current PR before starting new work.
+4. **No agent merge authority**: Agents may open PRs and monitor CI, but only the user may merge them.
+5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 
 ---
 
