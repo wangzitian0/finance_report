@@ -163,6 +163,15 @@ concepts:
       - AGENTS.md
       - docs/contributing/branch-policy.md
 
+  runtime_toolchain:
+    owner: docs/ssot/development.md#toolchain-contract
+    description: Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.
+    cross_refs:
+      - toolchain.toml
+      - scripts/check_toolchain_contract.py
+      - .github/workflows/ci.yml
+      - docker-compose.yml
+
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation
     description: Namespace-based test DB and S3 bucket isolation for parallel runs.

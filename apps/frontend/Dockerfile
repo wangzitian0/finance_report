@@ -1,5 +1,7 @@
+ARG NODE_IMAGE=node:20.19.0-alpine
+
 # Build stage
-FROM node:20-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -24,7 +26,7 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 RUN npm run build
 
 # Runtime stage
-FROM node:20-alpine
+FROM ${NODE_IMAGE}
 
 WORKDIR /app
 

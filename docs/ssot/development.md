@@ -6,12 +6,15 @@
 ## Source Files
 
 ### Prerequisites
-- **Node.js**: v20+ (Managed by system, not moon)
-- **pnpm/npm**: Required for frontend dependencies
-- **Python**: v3.12+ (Managed by uv)
+- **Node.js**: `20.19.0`
+- **npm**: Used for frontend dependencies via `npm ci`
+- **Python**: `3.12.12` (managed by uv)
+- **uv**: `0.9.18`
 
 | File | Purpose |
 |------|---------|
+| `toolchain.toml` | Runtime and container image version SSOT |
+| `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI |
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
 | `scripts/test_lifecycle.py` | Database lifecycle (Python Context Manager) |
@@ -20,6 +23,33 @@
 | `.github/workflows/ci.yml` | GitHub Actions CI |
 | `.github/workflows/staging-deploy.yml` | Staging Build & Deploy |
 | `.github/workflows/production-release.yml` | Production Release |
+
+### Toolchain Contract
+
+`toolchain.toml` is the authoritative runtime and base-image contract for local
+development, GitHub Actions, and Docker/Compose:
+
+| Runtime / Image | Version |
+|-----------------|---------|
+| Python | `3.12.12` |
+| Node.js | `20.19.0` |
+| uv | `0.9.18` |
+| Backend base image | `python:3.12.12-slim` |
+| Frontend base image | `node:20.19.0-alpine` |
+| Postgres test image | `postgres:15.14-alpine` |
+| MinIO image | `minio/minio:RELEASE.2025-09-07T16-13-09Z` |
+| MinIO client image | `minio/mc:RELEASE.2025-08-13T08-35-41Z` |
+
+Local tool-manager files mirror the same versions for compatibility:
+`.python-version`, `.node-version`, `.nvmrc`, and `.tool-versions`.
+The frontend sets `engine-strict=true` in `.npmrc` and declares
+`engines.node=20.19.0`, so running npm under another Node major/minor fails
+early instead of producing a different dependency tree.
+
+CI runs `python scripts/check_toolchain_contract.py` in the lint job. The check
+fails when workflow runtime declarations, local tool files, Docker base images,
+Compose service images, or frontend engine constraints drift from
+`toolchain.toml`.
 
 ---
 
@@ -47,6 +77,7 @@ uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 # Code Quality
 moon run :lint              # Lint all
 moon run :lint -- --fix     # Format Python (auto-fix)
+python scripts/check_toolchain_contract.py  # Runtime/toolchain drift check
 
 # Build
 moon run :build             # Build all

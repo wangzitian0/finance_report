@@ -27,6 +27,8 @@ env:
   STAGING_E2E_PRIMARY_MODEL: glm-5.1
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
+  PYTHON_VERSION: "3.12.12"
+  UV_VERSION: "0.9.18"
 
 jobs:
   build-and-deploy:
@@ -73,9 +75,13 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
-        run: uv python install 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Log in to Container registry
         uses: docker/login-action@v3

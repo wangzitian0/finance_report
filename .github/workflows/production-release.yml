@@ -23,6 +23,8 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   PRODUCTION_COMPOSE_ID: lNn9gVS1Zyw79Jzw5dlbu
+  PYTHON_VERSION: "3.12.12"
+  UV_VERSION: "0.9.18"
 
 jobs:
   build:
@@ -45,9 +47,13 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
-        run: uv python install 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Verify Codebase
         env:

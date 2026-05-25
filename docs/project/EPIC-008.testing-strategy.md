@@ -71,6 +71,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
 - **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
 - **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
+- **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -379,6 +380,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `scripts/tests/` | P1 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `scripts/tests/test_check_ac_traceability.py` | P0 |
 | AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `scripts/tests/test_cleanup_pr_preview_resources.py` | P0 |
+| AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `scripts/tests/test_toolchain_contract.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
