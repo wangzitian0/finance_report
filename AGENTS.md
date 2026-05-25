@@ -57,6 +57,7 @@ The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)*
 
 **EPIC → ACx.y.z → Test → Code → Doc**
 
+0. Frame the work with a **MECE** breakdown: mutually exclusive task slices, collectively exhaustive coverage of the stated goal, explicit dependencies, and explicit out-of-scope items.
 1. Anchor to an EPIC in `docs/project/`
 2. Register ACs in `docs/ac_registry.yaml` (feature) or `docs/infra_registry.yaml` (infra)
 3. Write **failing** tests referencing AC IDs (🔴 red)

@@ -39,6 +39,11 @@ Use this cascade **before processing any task**:
 ### 2. Tasks (Multi-Dimensional Breakdown)
 - Break down based on Situation
 - Assign to layers: **Backend** (`apps/backend/`) / **Frontend** (`apps/frontend/`) / **Infra** (`repo/` submodule)
+- Apply **MECE task framing** before implementation:
+  - **Mutually exclusive**: each task slice has one owner and does not overlap with another slice's code, AC, or proof responsibility.
+  - **Collectively exhaustive**: the task set covers every stated user outcome, acceptance criterion, and vision-critical proof path.
+  - **Dependencies explicit**: blockers, prerequisites, parallelizable work, and follow-up work are named before execution.
+  - **Out of scope explicit**: adjacent issues, hygiene work, and deferred risks are parked deliberately rather than mixed into the main task.
 
 ### 3. Actions (Execution Steps)
 - Define specific action sequence for each task
@@ -51,6 +56,7 @@ Use this cascade **before processing any task**:
 ### 4. Result (Verification)
 - **Self-Check**: Compare against project goals in [vision.md](../../vision.md)
 - **Engineering Audit**:
+  - [ ] **MECE Task Frame**: Are task slices non-overlapping, complete for the stated goal, and clear about dependencies and out-of-scope work?
   - [ ] **Submodule Sync**: Did I update `infra2` for config changes?
   - [ ] **Enum Naming**: Are all `sa.Enum` fields explicitly named?
   - [ ] **Next.js Bake**: Are `NEXT_PUBLIC_` variables added to `Dockerfile` `ARG`?
