@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -34,7 +35,9 @@ def _run_gh_status(repo: str, sha: str) -> list[GitHubCommitStatus]:
     payload = json.loads(result.stdout or "{}")
     statuses = payload.get("statuses", [])
     if not isinstance(statuses, list):
-        raise RuntimeError("GitHub commit status response did not contain a status list")
+        raise RuntimeError(
+            "GitHub commit status response did not contain a status list"
+        )
 
     parsed: list[GitHubCommitStatus] = []
     for status in statuses:
@@ -61,6 +64,17 @@ def _latest_status_for_context(
     return None
 
 
+def _matches_rejected_success_description(
+    status: GitHubCommitStatus,
+    patterns: tuple[str, ...],
+) -> str | None:
+    description = status.description or ""
+    for pattern in patterns:
+        if re.search(pattern, description):
+            return pattern
+    return None
+
+
 def wait_for_status_success(
     *,
     repo: str,
@@ -69,6 +83,7 @@ def wait_for_status_success(
     timeout_seconds: int = 300,
     poll_seconds: int = 10,
     failure_confirmation_seconds: int = 0,
+    reject_success_description_patterns: tuple[str, ...] = (),
     monotonic=time.monotonic,
     sleep=time.sleep,
 ) -> GitHubCommitStatus:
@@ -88,6 +103,16 @@ def wait_for_status_success(
                 f"url={status.target_url}"
             )
             if status.state == "success":
+                rejected_pattern = _matches_rejected_success_description(
+                    status,
+                    reject_success_description_patterns,
+                )
+                if rejected_pattern:
+                    raise RuntimeError(
+                        f"{context} success for {sha} was rejected by "
+                        f"description pattern {rejected_pattern!r}: "
+                        f"{status.description or ''} {status.target_url or ''}"
+                    )
                 return status
             if status.state in {"failure", "error"}:
                 if failure_confirmation_seconds > 0 and not terminal_failure_seen:
@@ -126,6 +151,15 @@ def main() -> None:
         default=0,
         help="Re-poll after a failure/error status before failing.",
     )
+    parser.add_argument(
+        "--reject-success-description-regex",
+        action="append",
+        default=[],
+        help=(
+            "Reject a success status whose description matches this regex. "
+            "May be specified multiple times."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -136,6 +170,9 @@ def main() -> None:
             timeout_seconds=args.timeout_seconds,
             poll_seconds=args.poll_seconds,
             failure_confirmation_seconds=args.failure_confirmation_seconds,
+            reject_success_description_patterns=tuple(
+                args.reject_success_description_regex
+            ),
         )
     except (RuntimeError, TimeoutError) as exc:
         print(f"::error title=GitHub status wait failed::{exc}", file=sys.stderr)

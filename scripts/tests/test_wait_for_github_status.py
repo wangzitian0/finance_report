@@ -76,6 +76,36 @@ def test_AC8_13_27_wait_returns_when_coveralls_unified_succeeds(
     assert clock.sleeps == []
 
 
+def test_AC8_13_27_wait_rejects_success_without_base_comparison(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.27: Coveralls success without a base comparison fails closed."""
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return completed_process(
+            [
+                {
+                    "context": "Coveralls - unified",
+                    "state": "success",
+                    "description": "Coverage at 92.915% (no base build to compare)",
+                    "target_url": "https://coveralls.io/jobs/8",
+                }
+            ]
+        )
+
+    monkeypatch.setattr(wait_status.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="was rejected"):
+        wait_status.wait_for_status_success(
+            repo="owner/repo",
+            sha="abc123",
+            context="Coveralls - unified",
+            timeout_seconds=60,
+            poll_seconds=5,
+            reject_success_description_patterns=(r"(?i)no base build",),
+        )
+
+
 def test_AC8_13_27_wait_fails_closed_on_coveralls_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -202,6 +232,90 @@ def test_AC8_13_27_wait_allows_transient_coveralls_failure_to_recover(
 
     assert status.state == "success"
     assert clock.sleeps == [15]
+
+
+def test_AC8_13_27_cli_passes_success_rejection_patterns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.27: CLI exposes success-description rejection patterns to CI."""
+    calls: list[dict[str, object]] = []
+
+    def fake_wait(**kwargs: object) -> wait_status.GitHubCommitStatus:
+        calls.append(kwargs)
+        return wait_status.GitHubCommitStatus(
+            context="Coveralls - unified",
+            state="success",
+            description="Coverage remained the same",
+            target_url="https://coveralls.io/jobs/9",
+        )
+
+    monkeypatch.setattr(wait_status, "wait_for_status_success", fake_wait)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "wait_for_github_status.py",
+            "--repo",
+            "owner/repo",
+            "--sha",
+            "abc123",
+            "--context",
+            "Coveralls - unified",
+            "--timeout-seconds",
+            "11",
+            "--poll-seconds",
+            "3",
+            "--failure-confirmation-seconds",
+            "7",
+            "--reject-success-description-regex",
+            "(?i)no base build",
+        ],
+    )
+
+    wait_status.main()
+
+    assert calls == [
+        {
+            "repo": "owner/repo",
+            "sha": "abc123",
+            "context": "Coveralls - unified",
+            "timeout_seconds": 11,
+            "poll_seconds": 3,
+            "failure_confirmation_seconds": 7,
+            "reject_success_description_patterns": ("(?i)no base build",),
+        }
+    ]
+
+
+def test_AC8_13_27_cli_exits_one_when_status_wait_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.27: CLI failures are emitted as GitHub annotations."""
+
+    def fake_wait(**_: object) -> wait_status.GitHubCommitStatus:
+        raise RuntimeError("coverage comparison missing")
+
+    monkeypatch.setattr(wait_status, "wait_for_status_success", fake_wait)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "wait_for_github_status.py",
+            "--repo",
+            "owner/repo",
+            "--sha",
+            "abc123",
+            "--context",
+            "Coveralls - unified",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        wait_status.main()
+
+    assert exc.value.code == 1
+    assert "coverage comparison missing" in capsys.readouterr().err
 
 
 def test_AC8_13_27_wait_reconfirms_failure_after_nonterminal_status(
