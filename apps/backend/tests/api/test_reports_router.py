@@ -1,4 +1,4 @@
-"""AC5.1-AC5.5: Financial reports API router tests.
+"""AC5.1-AC5.5 AC18.4.2: Financial reports API router tests.
 
 Tests all endpoints in src/routers/reports.py covering:
 - AC5.1: Balance sheet endpoint (GET /reports/balance-sheet)

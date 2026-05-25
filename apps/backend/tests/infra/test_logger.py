@@ -18,7 +18,7 @@ def test_build_otlp_logs_endpoint_adds_suffix() -> None:
 
 
 def test_build_otlp_logs_endpoint_preserves_logs_path() -> None:
-    """AC12.1.2: OTEL logs endpoint preserves logs path."""
+    """AC10.2.2 AC12.1.2: OTEL logs endpoint preserves logs path."""
     assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
 
 
@@ -30,14 +30,14 @@ def test_select_renderer_uses_console_in_debug(monkeypatch) -> None:
 
 
 def test_select_renderer_uses_json_in_production(monkeypatch) -> None:
-    """AC12.2.2: Production mode uses JSONRenderer."""
+    """AC10.1.3 AC12.2.2: Production mode uses JSONRenderer and stdout fallback."""
     monkeypatch.setattr(logger_module.settings, "debug", False)
     renderer = logger_module._select_renderer()
     assert isinstance(renderer, JSONRenderer)
 
 
 def test_configure_otel_logging_missing_dependency_warns(monkeypatch, caplog) -> None:
-    """AC12.3.1: OTEL not available logs warning."""
+    """AC10.4.1 AC12.3.1: OTEL not available logs warning."""
     monkeypatch.setattr(
         logger_module.settings,
         "otel_exporter_otlp_endpoint",
@@ -59,7 +59,7 @@ def test_configure_otel_logging_missing_dependency_warns(monkeypatch, caplog) ->
 
 
 def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
-    """AC12.4.1: OTEL logging configuration with fake exporter."""
+    """AC10.1.2 AC10.4.2 AC12.4.1: OTEL logging configuration with fake exporter."""
     calls: list[object] = []
 
     class DummyProvider:

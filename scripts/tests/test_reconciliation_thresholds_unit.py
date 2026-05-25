@@ -1,4 +1,7 @@
-"""Focused unit tests for reconciliation threshold and rerun behavior."""
+"""Focused unit tests for reconciliation threshold and rerun behavior.
+
+AC4.6.1 AC4.6.2: Score thresholds and amount boundaries are enforced.
+"""
 
 from __future__ import annotations
 

@@ -22,7 +22,7 @@ def test_epic_001_moon_workspace_configs_exist() -> None:
 
 
 def test_epic_001_backend_skeleton_exists() -> None:
-    """AC1.2.1: Backend skeleton files must exist."""
+    """AC1.2.1 AC1.2.4 AC1.2.5: Backend skeleton, health, and logging files must exist."""
     required_files = [
         REPO_ROOT / "apps/backend/src/main.py",
         REPO_ROOT / "apps/backend/src/database.py",
@@ -34,7 +34,7 @@ def test_epic_001_backend_skeleton_exists() -> None:
 
 
 def test_epic_001_frontend_skeleton_exists() -> None:
-    """AC1.3.1: Frontend skeleton files must exist."""
+    """AC1.3.1 AC1.3.2 AC1.3.3: Frontend skeleton, Tailwind, and ping-pong page must exist."""
     required_files = [
         REPO_ROOT / "apps/frontend/src/app/layout.tsx",
         REPO_ROOT / "apps/frontend/src/app/page.tsx",
@@ -55,7 +55,7 @@ def test_epic_001_frontend_uses_react_query() -> None:
 
 
 def test_epic_001_docker_compose_contract() -> None:
-    """AC1.4.2: Docker compose must define required infra services."""
+    """AC1.4.2 AC1.4.3 AC1.4.4: Docker compose must define required infra services."""
     compose_path = REPO_ROOT / "docker-compose.yml"
     compose_data = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
     assert isinstance(compose_data, dict), "docker-compose.yml must parse into a mapping"
@@ -79,7 +79,7 @@ def test_epic_001_pre_commit_config_exists() -> None:
 
 @pytest.mark.integration
 def test_epic_001_frontend_moon_tasks_configured() -> None:
-    """AC1.5.2: Frontend moon tasks must include dev and build."""
+    """AC1.5.2 AC1.5.3 AC1.5.4 AC1.5.5: Moon project and app endpoints are configured."""
     moon_bin = shutil.which("moon")
     if not moon_bin:
         pytest.skip("moon CLI not installed")

@@ -203,7 +203,7 @@ class TestPromptGeneration:
     """Tests for prompt generation functions."""
 
     def test_get_parsing_prompt_default(self):
-        """AC13.4.1: Test default parsing prompt."""
+        """AC13.4.1 AC18.1.1: Test default parsing prompt."""
         from src.prompts import get_parsing_prompt
 
         prompt = get_parsing_prompt()

@@ -1,3 +1,5 @@
+"""Stage 1 statement validation transition tests."""
+
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
@@ -67,7 +69,7 @@ class TestValidateBalanceChain:
         assert result["calculated_closing"] == "1100.00"
 
     async def test_within_tolerance(self, db, user_id):
-        """AC1.1.2 Verify balance match within the defined 0.001 tolerance."""
+        """AC1.1.2 AC16.22.5: Verify balance match within the defined 0.001 tolerance."""
         stmt = BankStatement(
             id=uuid4(),
             user_id=user_id,
@@ -187,7 +189,7 @@ class TestApproveStatement:
         assert stmt.balance_validation_result["closing_match"] is True
 
     async def test_approve_with_invalid_balance_raises(self, db, user_id):
-        """AC1.2.2 Reject approval attempt when balance chain is invalid."""
+        """AC1.2.2 AC16.22.1: Reject approval attempt when balance chain is invalid."""
         stmt = BankStatement(
             id=uuid4(),
             user_id=user_id,
@@ -408,7 +410,7 @@ class TestValidateBalanceChainEdgeCases:
         assert result["closing_match"] is True
 
     async def test_get_statement_for_update_wrong_user_raises(self, db, user_id, statement_with_transactions):
-        """AC16.3.6 _get_statement_for_update raises ValueError when called with wrong user_id."""
+        """AC16.3.6 AC16.22.6: pending_review mutations enforce user_id ownership."""
         wrong_user_id = uuid4()
         with pytest.raises(ValueError, match="Statement not found or access denied"):
             await approve_statement(db, statement_with_transactions.id, wrong_user_id)

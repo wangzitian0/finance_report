@@ -462,6 +462,39 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     assert rejected.status == BankStatementStatus.REJECTED
 
 
+async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, test_user):
+    """AC16.22.2: Stage 1 reject queues a re-parse for the rejected statement."""
+    statement = build_statement(test_user.id, "hash_stage1_reject_reparse", 70)
+    statement.file_path = "statements/reject-reparse.pdf"
+    statement.status = BankStatementStatus.PARSED
+    db.add(statement)
+    await db.commit()
+    await db.refresh(statement)
+
+    queued: dict[str, object] = {}
+
+    async def fake_parse_statement_background(**kwargs):
+        queued.update(kwargs)
+
+    monkeypatch.setattr(statements_router, "parse_statement_background", fake_parse_statement_background)
+
+    response = await statements_router.reject_statement_stage1(
+        statement_id=statement.id,
+        decision=StatementDecisionRequest(notes="Needs re-parse"),
+        db=db,
+        user_id=test_user.id,
+    )
+    await wait_for_background_tasks()
+
+    assert response.status == BankStatementStatus.REJECTED
+    assert response.validation_error == "Needs re-parse"
+    assert queued["statement_id"] == statement.id
+    assert queued["filename"] == statement.original_filename
+    assert queued["user_id"] == test_user.id
+    assert queued["storage_key"] == statement.file_path
+    assert queued["content"] == b"dummy content"
+
+
 async def test_get_statement_not_found(db, test_user):
     """AC3.5.11: Missing statement returns 404."""
     with pytest.raises(HTTPException) as exc:
@@ -1775,7 +1808,7 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(db,
     validation.assert_not_awaited()
 
 
-async def test_reject_statement_stage1_success(db, test_user):
+async def test_reject_statement_stage1_success(db, test_user, monkeypatch):
     """Given a parsed statement,
     When reject_statement_stage1 is called,
     Then it rejects the statement (lines 782-792).
@@ -1785,6 +1818,8 @@ async def test_reject_statement_stage1_success(db, test_user):
     db.add(statement)
     await db.commit()
     statement_id = statement.id
+    queue_reparse = AsyncMock()
+    monkeypatch.setattr(statements_router, "_queue_statement_reparse", queue_reparse)
 
     result = await statements_router.reject_statement_stage1(
         statement_id=statement_id,
@@ -1794,6 +1829,7 @@ async def test_reject_statement_stage1_success(db, test_user):
     )
 
     assert result.status == BankStatementStatus.REJECTED
+    queue_reparse.assert_awaited_once()
 
 
 async def test_reject_statement_stage1_not_found(db, test_user):
@@ -2140,7 +2176,7 @@ async def test_list_consistency_checks_with_filters(db, test_user):
 
 
 async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user):
-    """Given unresolved consistency checks,
+    """AC16.22.3: Given unresolved consistency checks,
     When batch_approve_matches is called,
     Then it returns error (lines 960-965).
     """
@@ -2279,7 +2315,7 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
 
 
 async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
-    """AC16.24.4: Batch approval creates the missing journal entry and is idempotent."""
+    """AC16.22.4 AC16.24.4: Accepted Stage 2 match creates the missing journal entry once."""
     account = await create_statement_account(db, test_user.id, "DBS Batch Missing")
     statement = build_statement(test_user.id, "hash_batch_create_once", 90)
     statement.status = BankStatementStatus.APPROVED

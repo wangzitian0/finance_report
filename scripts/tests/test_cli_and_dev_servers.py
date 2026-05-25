@@ -1,7 +1,10 @@
+"""AC16.11.16 AC16.11.17 AC16.11.18 AC16.11.19 AC16.11.20 AC16.11.28
+AC16.11.29: CLI and dev server route coverage.
+"""
+
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -347,7 +350,7 @@ class TestCmdDev:
 
     def test_dev_no_flags_prints_instructions(self, monkeypatch, capsys):
         """Given no flags, should start infra and print instructions."""
-        calls = _mock_run(monkeypatch)
+        _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
         cli.cmd_dev(
             SimpleNamespace(

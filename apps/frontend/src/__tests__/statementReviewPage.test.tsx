@@ -57,7 +57,7 @@ const baseStatement = {
     transfer_pair_candidates: [],
 };
 
-describe("Statement review page", () => {
+describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });

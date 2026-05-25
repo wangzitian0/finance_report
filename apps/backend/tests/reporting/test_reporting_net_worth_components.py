@@ -1,4 +1,7 @@
-"""Issue #387: Balance sheet includes portfolio and manual valuation components."""
+"""Issue #387: Balance sheet includes portfolio and manual valuation components.
+
+AC18.4.1: Reports read Layer 3 TransactionClassification category breakdowns.
+"""
 
 from datetime import date
 from decimal import Decimal

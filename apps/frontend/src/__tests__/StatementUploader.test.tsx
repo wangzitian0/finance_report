@@ -37,7 +37,7 @@ const baseModels = [
   },
 ];
 
-describe("StatementUploader model selection", () => {
+describe("AC3.5.3 StatementUploader model selection", () => {
   beforeEach(() => {
     vi.mocked(fetchAiModels).mockReset();
     vi.mocked(apiUpload).mockReset();

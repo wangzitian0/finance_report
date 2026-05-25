@@ -281,12 +281,20 @@ def main() -> int:
     result = check_traceability(acs, references)
     print_report(result, acs, references, verbose=args.verbose)
 
-    if (result.missing or result.placeholder_only) and not args.report_only:
+    if (result.missing or result.placeholder_only or result.stub_only) and not args.report_only:
         if result.placeholder_only:
             print(
                 "TRACEABILITY GATE FAILED: "
                 f"{len(result.placeholder_only)} mandatory AC(s) are covered only by placeholder assertions.\n"
                 "  Replace expect(true).toBe(true), pure pass, or skipped placeholder tests with behavioral checks.",
+                file=sys.stderr,
+            )
+            return 1
+        if result.stub_only:
+            print(
+                "TRACEABILITY GATE FAILED: "
+                f"{len(result.stub_only)} mandatory AC(s) are covered only by _ac_stubs.\n"
+                "  Replace generated AC stubs with behavioral tests that exercise production paths.",
                 file=sys.stderr,
             )
             return 1
@@ -297,10 +305,10 @@ def main() -> int:
         )
         return 1
 
-    if not result.missing and not result.placeholder_only:
+    if not result.missing and not result.placeholder_only and not result.stub_only:
         print(
             "TRACEABILITY GATE PASSED: all mandatory ACs have at least one "
-            "non-placeholder AC reference. Stub-only debt remains reported separately."
+            "real, non-placeholder AC reference."
         )
 
     return 0

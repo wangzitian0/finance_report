@@ -47,7 +47,7 @@ const duplicateCheck = {
     updated_at: "2024-01-01T00:00:00Z",
 };
 
-describe("ReviewQueuePage interactive flows", () => {
+describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -119,7 +119,7 @@ describe("ReviewQueuePage interactive flows", () => {
         expect(screen.getByText("No pending matches")).toBeInTheDocument();
     });
 
-    it("AC16.17.2 disables batch approval while unresolved checks remain", async () => {
+    it("AC16.2.3/AC16.17.2 disables batch approval while unresolved checks remain", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/stage2/queue") {
                 return Promise.resolve({
@@ -144,7 +144,7 @@ describe("ReviewQueuePage interactive flows", () => {
         expect(approveButton).toBeDisabled();
     });
 
-    it("AC16.17.3 approves selected matches through the batch approval API", async () => {
+    it("AC16.2.4/AC16.17.3 approves selected matches through the batch approval API", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/stage2/queue") {
                 return Promise.resolve(queueData);

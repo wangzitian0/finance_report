@@ -66,7 +66,7 @@ describe('apiFetch', () => {
     expect(fetchMock).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
   });
 
-  it('should redirect to /login on 401 unauthorized error', async () => {
+  it('AC16.10.5 should redirect to /login on 401 unauthorized error', async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,

@@ -80,6 +80,17 @@ describe('apiFetch', () => {
     await expect(apiFetch('/api/test')).rejects.toThrow('Internal Server Error');
   });
 
+  it('AC16.10.5 redirects to /login on 401 unauthorized response', async () => {
+    const fetchMock = makeFetchMock(401, { detail: 'Not authenticated' });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { href: '' } });
+
+    const { apiFetch, resetRedirectGuard } = await import('../lib/api');
+    resetRedirectGuard();
+    await expect(apiFetch('/api/statements')).rejects.toThrow('Authentication required');
+    expect(window.location.href).toBe('/login');
+  });
+
   it('AC16.10.13 normalizes path without leading slash', async () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
@@ -290,4 +301,3 @@ describe('apiUpload', () => {
     await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Server Crash');
   });
 });
-

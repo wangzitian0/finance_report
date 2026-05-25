@@ -1,4 +1,7 @@
-"""EPIC-018 Phase 3: Tests for AI-assisted reconciliation scoring."""
+"""EPIC-018 Phase 3: Tests for AI-assisted reconciliation scoring.
+
+AC18.3.2 AC18.3.3: Hybrid and feature-flagged AI scoring behavior.
+"""
 
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch

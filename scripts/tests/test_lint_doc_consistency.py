@@ -133,6 +133,9 @@ class TestIsDeprecated:
     def test_deprecated_flag_true(self):
         assert ldc.is_deprecated({"deprecated": True})
 
+    def test_full_strikethrough_description(self):
+        assert ldc.is_deprecated({"description": "~~removed behavior~~"})
+
     def test_not_deprecated(self):
         assert not ldc.is_deprecated({"status": "active"})
 
@@ -415,6 +418,11 @@ class TestCheckRegistryToEpic:
         violations = ldc.check_registry_to_epic(acs, {})
         assert violations == []
 
+    def test_strikethrough_deprecated_skipped(self):
+        acs = [{"id": "AC1.1.1", "description": "~~removed behavior~~"}]
+        violations = ldc.check_registry_to_epic(acs, {})
+        assert violations == []
+
     def test_stub_skipped(self):
         acs = [{"id": "AC1.1.1", "status": "stub"}]
         violations = ldc.check_registry_to_epic(acs, {})
@@ -469,6 +477,11 @@ class TestCheckRegistryToTests:
 
     def test_deprecated_skipped(self):
         acs = [{"id": "AC1.1.1", "status": "deprecated", "mandatory": True}]
+        violations = ldc.check_registry_to_tests(acs, {})
+        assert violations == []
+
+    def test_strikethrough_deprecated_skipped(self):
+        acs = [{"id": "AC1.1.1", "description": "~~removed behavior~~", "mandatory": True}]
         violations = ldc.check_registry_to_tests(acs, {})
         assert violations == []
 

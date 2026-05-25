@@ -1914,6 +1914,11 @@ groups:
         epic_name: testing-strategy
         description: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
         mandatory: true
+      - id: AC8.13.37
+        epic: 8
+        epic_name: testing-strategy
+        description: AC traceability fails mandatory ACs that are covered only by _ac_stubs.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

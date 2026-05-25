@@ -77,7 +77,7 @@ The current hardened coverage work is tracked in
 | Behavioral unit/integration/E2E test with assertions | Yes | Preferred |
 | Contract test that validates schema or workflow behavior | Yes | Good for API/state contracts |
 | Generated report reference without test behavior | No | Traceability only |
-| `_ac_stubs` reference | No | Placeholder debt |
+| `_ac_stubs` reference | No | Fails mandatory AC gate |
 | `expect(true).toBe(true)` or pure `pass` | No | Placeholder debt |
 | Manual verification | Not automated proof | Convert or mark as explicit manual gate |
 

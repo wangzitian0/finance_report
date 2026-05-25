@@ -1,4 +1,4 @@
-"""AC2.3 - AC2.5: Integration tests for accounting service with database.
+"""AC2.2.6 AC2.3.1 AC2.4.3 AC2.5.3: Integration tests for accounting service with database.
 
 These tests cover:
  AC2.3.x: Journal entry posting and voiding

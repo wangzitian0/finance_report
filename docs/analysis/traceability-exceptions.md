@@ -15,7 +15,6 @@ These files are test infrastructure, not behavior proof.
 
 | Path | Classification |
 |---|---|
-| `apps/backend/tests/_ac_stubs/__init__.py` | Package marker |
 | `apps/backend/tests/accounting/__init__.py` | Package marker |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |

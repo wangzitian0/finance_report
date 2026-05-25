@@ -342,7 +342,7 @@ class TestRenderDocument:
         assert "✅ real (optional)" in rendered
 
     def test_placeholder_and_stub_statuses_are_not_real_coverage(self, tmp_path):
-        """AC8.13.35: Audit output reports fake references without counting coverage."""
+        """AC8.13.35 AC8.13.37: Audit output reports fake references without counting coverage."""
         acs = [
             bat.AC("AC1.1.1", 1, "x", "placeholder AC", True),
             bat.AC("AC1.1.2", 1, "x", "stub AC", True),
