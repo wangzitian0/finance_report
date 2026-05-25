@@ -9,9 +9,9 @@ The project hierarchy is:
 README.md -> docs/project/EPIC-*.md -> docs/*_registry.yaml -> tests
 ```
 
-Use the root [README](../../README.md) for current project status, EPIC proof
-summary, coverage baseline, and active blockers. This file is only the detailed
-EPIC directory index.
+Use the root [README](../../README.md) for stable project entry points and links
+to generated proof reports. GitHub issue state, generated coverage numbers, and
+other live values should not be duplicated by hand in this directory index.
 
 ## Source Rules
 

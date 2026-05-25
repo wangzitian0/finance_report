@@ -93,15 +93,14 @@ Full guide: **[docs/agents/orchestration.md](docs/agents/orchestration.md)**
 | `multimodal-looker` | MEDIUM | Image/PDF |
 | `oracle` | EXPENSIVE | Architecture decisions |
 
-Skills: [.opencode/skills/](.opencode/skills/) · Config: [.opencode/oh-my-opencode.json](.opencode/oh-my-opencode.json)
+Skills: [.opencode/skills/](.opencode/skills/) · Config: [.opencode/oh-my-openagent.json](.opencode/oh-my-openagent.json)
 
 ---
 
-## 📅 Current Phase
+## 📅 Project Phase
 
-**Phase 3–5** (Two-Stage Review · Reporting & AI · Portfolio Management)
-
-Details: [docs/project/README.md](docs/project/README.md)
+Use [docs/project/README.md](docs/project/README.md) for current project
+tracking. Do not duplicate phase status in this quick-reference file.
 
 ---
 

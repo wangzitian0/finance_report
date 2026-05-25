@@ -3,8 +3,9 @@
 > **SSOT Key**: `tdd-transformation`
 
 This document defines the workflow that connects project scope to executable
-proof. Current status metrics live in the root `README.md` and generated
-reports; this document owns the process.
+proof. Current status metrics are owned by generated reports or code-owned
+checks; the root `README.md` links to those sources instead of duplicating their
+mutable values. This document owns the process.
 
 ## Canonical Hierarchy
 

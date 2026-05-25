@@ -6,7 +6,7 @@ This directory contains the OpenCode/Oh-My-OpenCode configuration for the `finan
 
 ```
 .opencode/
-├── oh-my-opencode.json    # Agent configurations (models, skills, prompts)
+├── oh-my-openagent.json   # Agent configurations (models, skills, prompts)
 ├── skills/                # Skills organized by category
 │   ├── domain/            # Project-specific (from SSOT)
 │   │   ├── accounting/    # Double-entry bookkeeping
@@ -103,7 +103,7 @@ const result = await task({
   prompt: "Implement reconciliation feature"
 })
 
-// Skills are configured in oh-my-opencode.json
+// Skills are configured in oh-my-openagent.json
 // Sisyphus maintains context across backend → frontend → tests
 
 Cost: 1 API call
@@ -242,7 +242,7 @@ Curated best practices and patterns applicable across projects.
 
 ### Skills (Auto-loaded)
 
-Skills are automatically loaded by agents based on `oh-my-opencode.json` configuration:
+Skills are automatically loaded by agents based on `oh-my-openagent.json` configuration:
 
 ```jsonc
 {
@@ -351,7 +351,7 @@ Add a new agent ONLY when:
 
 - [AGENTS.md](../AGENTS.md) - Complete behavioral guidelines and agent roles
 - [docs/ssot/](../docs/ssot/) - Single Source of Truth for domain rules
-- [target.md](../target.md) - Project goals and decision criteria
+- [docs/target.md](../docs/target.md) - Project goals and decision criteria
 
 ---
 

@@ -67,8 +67,11 @@ Use this cascade **before processing any task**:
 
 ## Development Work Order (TDD-First)
 
-**Mandatory sequence: EPIC → ACx.y.z → Test → Code → Doc**
+**Mandatory sequence: MECE → EPIC → ACx.y.z → Test → Code → Doc**
 
+0. **MECE**: Split the work into non-overlapping slices that collectively
+   cover the stated goal; name dependencies and out-of-scope work before
+   implementation.
 1. **EPIC**: Anchor task to a project EPIC in `docs/project/`
 2. **ACx.y.z**: Register acceptance criteria before writing code:
    - Feature ACs → `docs/ac_registry.yaml`
