@@ -234,3 +234,81 @@ mask_secrets() {
     esac
   done <<< "$env_content"
 }
+
+# Verify a Dokploy-provided VAULT_APP_TOKEN before triggering deployment.
+# This catches expired tokens before compose redeploy turns into a route-level 404.
+verify_vault_app_token() {
+  local env_content="$1"
+  local context="${2:-Vault token preflight}"
+  local min_ttl_seconds="${3:-86400}"
+  local token=""
+  local vault_addr=""
+  local lookup_file
+  local error_file
+  local http_code
+  local ttl
+  local renewable
+
+  while IFS= read -r line; do
+    case "$line" in
+      VAULT_APP_TOKEN=*) token="${line#VAULT_APP_TOKEN=}" ;;
+      VAULT_ADDR=*) vault_addr="${line#VAULT_ADDR=}" ;;
+    esac
+  done <<< "$env_content"
+
+  if [[ -z "$token" ]]; then
+    echo "ERROR: $context failed: VAULT_APP_TOKEN is missing" >&2
+    return 1
+  fi
+
+  if [[ -z "$vault_addr" ]]; then
+    vault_addr="https://vault.zitian.party"
+  fi
+
+  lookup_file=$(mktemp)
+  error_file=$(mktemp)
+
+  http_code=$(curl -sS \
+    -o "$lookup_file" \
+    -w "%{http_code}" \
+    -H "X-Vault-Token: $token" \
+    "$vault_addr/v1/auth/token/lookup-self" \
+    2>"$error_file" || echo "000")
+
+  if [[ "$http_code" == "000" ]]; then
+    echo "ERROR: $context failed: cannot connect to Vault at $vault_addr" >&2
+    cat "$error_file" >&2
+    rm -f "$lookup_file" "$error_file"
+    return 1
+  fi
+
+  if ! check_http_code "$http_code" "200" "$context" 2>/dev/null; then
+    echo "ERROR: $context failed: VAULT_APP_TOKEN is invalid or expired (HTTP $http_code)" >&2
+    rm -f "$lookup_file" "$error_file"
+    return 1
+  fi
+
+  ttl=$(safe_jq '.data.ttl // 0' "$(cat "$lookup_file")" "$context ttl") || {
+    rm -f "$lookup_file" "$error_file"
+    return 1
+  }
+  renewable=$(safe_jq '.data.renewable // false' "$(cat "$lookup_file")" "$context renewable") || {
+    rm -f "$lookup_file" "$error_file"
+    return 1
+  }
+
+  rm -f "$lookup_file" "$error_file"
+
+  if [[ "$renewable" != "true" ]]; then
+    echo "ERROR: $context failed: VAULT_APP_TOKEN is not renewable" >&2
+    return 1
+  fi
+
+  if ! [[ "$ttl" =~ ^[0-9]+$ ]] || (( ttl < min_ttl_seconds )); then
+    echo "ERROR: $context failed: VAULT_APP_TOKEN ttl ${ttl}s is below required ${min_ttl_seconds}s" >&2
+    return 1
+  fi
+
+  echo "Vault token preflight passed: ttl=${ttl}s renewable=$renewable"
+  return 0
+}
