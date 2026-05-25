@@ -248,6 +248,19 @@ When a PR is closed, GitHub Actions automatically cleans:
 - ✅ Docker volumes (`postgres_data`, `redis_data`, `minio_data`)
 - ✅ GHCR container images (`backend:pr-{number}`, `frontend:pr-{number}`)
 
+The scheduled `PR Preview Cleanup` workflow is the fallback cleanup path for
+missed PR close events or failed Dokploy/SSH cleanup. Every six hours it:
+- Lists live VPS preview containers matching `finance-report-*-pr-{number}`.
+- Compares them with currently open GitHub PRs.
+- Removes only closed/missing PR preview containers and their compose-scoped volumes.
+- Runs bounded Docker build-cache and unused-image pruning with age filters.
+
+Manual dry run:
+
+```bash
+gh workflow run pr-preview-cleanup.yml -f dry_run=true
+```
+
 ---
 
 ## Related Documents

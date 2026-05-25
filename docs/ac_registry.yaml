@@ -1919,6 +1919,11 @@ groups:
         epic_name: testing-strategy
         description: AC traceability fails mandatory ACs that are covered only by _ac_stubs.
         mandatory: true
+      - id: AC8.13.38
+        epic: 8
+        epic_name: testing-strategy
+        description: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
