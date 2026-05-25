@@ -83,6 +83,33 @@ def _track_task(task: asyncio.Task[None]) -> None:
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
 
 
+async def _queue_statement_reparse(
+    db: DbSession,
+    statement: BankStatement,
+    user_id: UUID,
+    *,
+    model: str | None = None,
+) -> None:
+    storage = StorageService()
+    content = await run_in_threadpool(storage.get_object, statement.file_path)
+    task = asyncio.create_task(
+        parse_statement_background(
+            statement_id=statement.id,
+            filename=statement.original_filename,
+            institution=statement.institution,
+            user_id=user_id,
+            account_id=statement.account_id,
+            file_hash=statement.file_hash,
+            storage_key=statement.file_path,
+            content=content,
+            model=None if model == settings.ocr_model else model,
+            session_maker=create_session_maker_from_db(db),
+            request_id=structlog.contextvars.get_contextvars().get("request_id"),
+        )
+    )
+    _track_task(task)
+
+
 async def _auto_create_posted_entries_for_statement(
     db: DbSession,
     statement: BankStatement,
@@ -418,33 +445,10 @@ async def retry_statement_parsing(
     await db.commit()
     await db.refresh(statement)
 
-    # Need file content for some vision models if URL fails or for consistency
-    # But retry currently doesn't have the original 'content' bytes in memory.
-    # It must fetch from storage or use URL.
-    # The _parse_statement_background requires 'content: bytes'.
-    # We'll fetch it from storage now.
     try:
-        storage = StorageService()
-        content = await run_in_threadpool(storage.get_object, statement.file_path)
+        await _queue_statement_reparse(db, statement, user_id, model=selected_model)
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
-
-    task = asyncio.create_task(
-        parse_statement_background(
-            statement_id=statement.id,
-            filename=statement.original_filename,
-            institution=statement.institution,
-            user_id=user_id,
-            account_id=statement.account_id,
-            file_hash=statement.file_hash,
-            storage_key=statement.file_path,
-            content=content,
-            model=None if selected_model == settings.ocr_model else selected_model,
-            session_maker=create_session_maker_from_db(db),
-            request_id=structlog.contextvars.get_contextvars().get("request_id"),
-        )
-    )
-    _track_task(task)
 
     # Re-fetch statement with transactions to avoid MissingGreenlet error during Pydantic validation
     result = await db.execute(
@@ -829,10 +833,14 @@ async def reject_statement_stage1(
 ) -> BankStatementResponse:
     """Stage 1: Reject statement."""
     try:
-        await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
+        statement = await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
         await db.commit()
+        await db.refresh(statement)
+        await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except StorageError as exc:
+        raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 
     result = await db.execute(
         select(BankStatement)

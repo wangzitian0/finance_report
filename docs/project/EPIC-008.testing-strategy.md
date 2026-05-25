@@ -69,6 +69,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.34**: CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary.
 - **AC8.13.35**: AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions.
 - **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
+- **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -375,6 +376,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.32 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.33 | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates | `test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `scripts/tests/` | P1 |
+| AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `scripts/tests/test_check_ac_traceability.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 70
@@ -392,10 +394,10 @@ These scenarios represent the "Vertical Slices" of user value.
   - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
   - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
   - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 24/24 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating, CI metrics contract, deterministic upload-to-dashboard vision hard gate, E2E setup caching, and workflow timing summaries)
+  - AC8.13: 25/25 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating, CI metrics contract, deterministic upload-to-dashboard vision hard gate, E2E setup caching, workflow timing summaries, and stub-only traceability failure)
 - Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 3 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`), plus browser-backed Playwright suites used when `APP_URL` or `FRONTEND_URL` is available
 - **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 53/57 Tier 1/CI assertion ACs (93.0%) + AC8.13 24/24 Tier 3/deploy-gate/CI guardrail ACs.
+- **Current state**: 54/58 Tier 1/CI assertion ACs (93.1%) + AC8.13 25/25 Tier 3/deploy-gate/CI guardrail ACs.
 
 ---
 

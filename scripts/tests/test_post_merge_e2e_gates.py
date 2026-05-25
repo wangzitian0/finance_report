@@ -7,6 +7,24 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
+    """AC8.13.1 AC8.13.2 AC8.13.3 AC8.13.4 AC8.13.5: Full DBS journey is wired."""
+    journey = read("tests/e2e/test_statement_full_journey.py")
+    test_body = journey.split("async def test_dbs_statement_full_journey", 1)[1]
+
+    assert "DBS PDF upload" in journey
+    assert "# === AC8.13.1: Upload PDF ===" in test_body
+    assert "Upload & Parse Statement" in test_body
+    assert "# === AC8.13.2: Poll until" in test_body
+    assert '"parsed"' in test_body
+    assert "# === AC8.13.3: Detail page shows transactions ===" in test_body
+    assert "Transactions" in test_body
+    assert "# === AC8.13.4: Start Review" in test_body
+    assert "approved" in test_body
+    assert "# === AC8.13.5: Balance sheet report loads ===" in test_body
+    assert "/reports/balance-sheet" in test_body
+
+
 def test_AC8_13_6_critical_e2e_skips_become_failures() -> None:
     """AC8.13.6: Critical staging E2E skips fail the deploy gate."""
     conftest = read("tests/e2e/conftest.py")

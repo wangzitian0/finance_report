@@ -1,6 +1,7 @@
 """Tests for portfolio performance service (XIRR, TWR, MWR).
 
 AC17.3 block: Performance metrics — XIRR, TWR, MWR calculations.
+AC5.6.1 AC5.6.2 AC5.6.3 AC5.6.6: Portfolio return and yield metric calculations.
 """
 
 from datetime import date, timedelta

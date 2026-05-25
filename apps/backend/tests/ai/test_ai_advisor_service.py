@@ -1,4 +1,8 @@
-"""Tests for AI advisor service utilities."""
+"""Tests for AI advisor service utilities.
+
+AC6.1.2 AC6.1.3 AC6.1.4
+AC6.12.1 AC6.12.2 AC6.12.3 AC6.12.4 AC6.12.5 AC6.12.6
+"""
 
 from __future__ import annotations
 

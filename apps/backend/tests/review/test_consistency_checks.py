@@ -43,7 +43,7 @@ async def approved_statement(db, user_id):
 
 class TestDetectDuplicates:
     async def test_detect_duplicates(self, db, user_id, approved_statement):
-        """AC2.1.1 Detect duplicate transactions within a single approved statement."""
+        """AC2.1.1 AC16.2.1 Detect duplicate transactions within a single approved statement."""
         txn1 = BankStatementTransaction(
             id=uuid4(),
             statement_id=approved_statement.id,
@@ -73,7 +73,7 @@ class TestDetectDuplicates:
 
 class TestDetectTransferPairs:
     async def test_detect_transfer_pairs(self, db, user_id):
-        """AC2.2.1 Detect matching transfer pairs (OUT/IN) across different accounts."""
+        """AC2.2.1 AC16.2.2 Detect matching transfer pairs (OUT/IN) across different accounts."""
         # Create two accounts
         stmt1 = BankStatement(
             id=uuid4(),

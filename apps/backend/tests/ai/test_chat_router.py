@@ -10,7 +10,7 @@ from src.services.ai_advisor import AIAdvisorError
 
 @pytest.mark.asyncio
 async def test_chat_suggestions_en() -> None:
-    """AC6.5.1: Chat suggestions endpoint returns English suggestions."""
+    """AC6.2.4 AC6.5.1: Chat suggestions endpoint returns English suggestions."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language="en")
@@ -20,7 +20,7 @@ async def test_chat_suggestions_en() -> None:
 
 @pytest.mark.asyncio
 async def test_chat_suggestions_zh() -> None:
-    """AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
+    """AC6.2.3 AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
     from src.routers.chat import suggestions
 
     response = await suggestions(language="zh")

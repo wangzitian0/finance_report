@@ -1,4 +1,7 @@
-"""Tests for Classification Service."""
+"""Tests for Classification Service.
+
+AC18.1.3 AC18.1.4: ML model classification threshold and rule priority coverage.
+"""
 
 from datetime import date
 from decimal import Decimal

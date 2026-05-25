@@ -1,3 +1,8 @@
+"""AC16.11.2 AC16.11.3 AC16.11.4 AC16.11.5 AC16.11.6 AC16.11.7
+AC16.11.21 AC16.11.22 AC16.11.23 AC16.11.24 AC16.11.25 AC16.11.26 AC16.11.27:
+debug.py environment, validation, and log-routing coverage.
+"""
+
 import sys
 from pathlib import Path
 from types import SimpleNamespace

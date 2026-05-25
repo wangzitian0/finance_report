@@ -1,3 +1,5 @@
+"""AC18.1.1: Generated extraction fixtures include AI category suggestions."""
+
 from __future__ import annotations
 
 import fcntl

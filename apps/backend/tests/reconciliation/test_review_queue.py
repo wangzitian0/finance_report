@@ -1,4 +1,4 @@
-"""AC4.3.1: Review Queue Tests
+"""AC4.3.1 AC4.6.4 AC18.1.5 AC18.1.6: Review Queue Tests
 
 These tests validate review queue operations including getting pending
 items, accepting/rejecting matches, batch operations, and creating journal entries

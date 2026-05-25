@@ -15,7 +15,7 @@ async def mock_stream_generator(content: str):
 
 
 class TestExtractionServiceFlow:
-    """AC3.5.1 - AC3.5.4: Extraction Flow Tests
+    """AC3.5.1 AC3.5.2 AC3.5.3 AC3.5.4 AC18.1.1 AC18.1.2: Extraction Flow Tests
 
     These tests validate the complete extraction service flow including document parsing,
     AI institution auto-detection, transaction extraction, error handling, and

@@ -27,7 +27,7 @@ describe("auth utilities", () => {
     });
 
     describe("getUserId", () => {
-        it("AC16.5.2 returns null when key is not set", () => {
+        it("AC16.5.1/AC16.5.2 returns null when key is not set", () => {
             expect(getUserId()).toBeNull();
         });
 

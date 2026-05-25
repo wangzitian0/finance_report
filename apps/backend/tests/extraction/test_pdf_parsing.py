@@ -1,6 +1,10 @@
 """Critical and High priority tests for EPIC-003.
 
 These tests cover the Critical and High priority gaps identified in the test audit:
+- AC3.2.1: Balance Validation (Pass)
+- AC3.2.2: Balance Validation (Fail)
+- AC3.3.1: High Confidence (Auto-Accept)
+- AC3.3.2: Medium Confidence (Review)
 - #3 Real PDF parsing tests (using existing fixtures as ground truth)
 - #4 Invalid parse result not persisted
 - #10 File size limit test (10MB)

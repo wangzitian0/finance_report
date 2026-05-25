@@ -424,6 +424,30 @@ class TestMain:
         )
         assert cat.main() == 1
 
+    def test_returns_one_with_stub_only(self, tmp_path, monkeypatch):
+        """AC8.13.37: Stub-only mandatory ACs fail the default gate."""
+        reg = tmp_path / "registry.yaml"
+        reg.write_text(SAMPLE_REGISTRY_YAML)
+        test_dir = tmp_path / "tests"
+        stub_dir = test_dir / "_ac_stubs"
+        stub_dir.mkdir(parents=True)
+        (stub_dir / "test_stub.py").write_text("# AC1.1.1\n# AC1.1.2\n")
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ngroups: {}\n")
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "check_ac_traceability.py",
+                "--registry",
+                str(reg),
+                "--infra-registry",
+                str(empty_infra),
+                "--test-dirs",
+                str(test_dir),
+            ],
+        )
+        assert cat.main() == 1
+
     def test_report_only_returns_zero_even_with_missing(self, tmp_path, monkeypatch):
         reg, test_dir = self._setup(
             tmp_path,

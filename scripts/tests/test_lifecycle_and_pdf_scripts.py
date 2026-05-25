@@ -1,3 +1,7 @@
+"""AC16.13.2 AC16.13.3 AC16.13.4 AC16.13.5 AC16.13.6 AC16.13.7
+AC16.13.8 AC16.13.9 AC16.13.10 AC16.13.11 AC16.13.12: lifecycle and PDF script coverage.
+"""
+
 import hashlib
 import json
 import importlib
