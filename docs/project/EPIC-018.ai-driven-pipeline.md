@@ -285,7 +285,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 ---
 
-*Last updated: March 2026*
+*Historical planning snapshot captured: March 2026*
 
 ---
 

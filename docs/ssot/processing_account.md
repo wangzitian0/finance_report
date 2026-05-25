@@ -484,4 +484,4 @@ Entry 2 (Fee):
 
 ---
 
-*Last updated: February 23, 2026*
+*Historical FAQ snapshot captured: February 23, 2026*

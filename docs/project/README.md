@@ -9,9 +9,9 @@ The project hierarchy is:
 README.md -> docs/project/EPIC-*.md -> docs/*_registry.yaml -> tests
 ```
 
-Use the root [README](../../README.md) for current project status, EPIC proof
-summary, coverage baseline, and active blockers. This file is only the detailed
-EPIC directory index.
+Use the root [README](../../README.md) for stable project entry points and links
+to generated proof reports. GitHub issue state, generated coverage numbers, and
+other live values should not be duplicated by hand in this directory index.
 
 ## Source Rules
 
@@ -26,6 +26,19 @@ EPIC directory index.
 - Coverage policy is owned by `scripts/coverage_policy.py`.
 - Project status metrics should be generated or validated, not hand-maintained.
   See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
+
+## Do Not Hand-Maintain
+
+Long-lived project documents should not duplicate mutable facts. Link to the
+owning source instead of copying:
+
+- GitHub issue or PR open/closed/merged state.
+- CI, deployment, or Coveralls pass/fail status.
+- AC totals, coverage percentages, test counts, or stub counts.
+- Dependency, runtime, model, or image versions already owned by lockfiles,
+  config, Dockerfiles, or CI.
+- Test function inventories unless the matrix is parseable and mechanically
+  validated.
 
 ## EPIC Documents
 

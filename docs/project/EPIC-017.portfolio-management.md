@@ -1,10 +1,11 @@
 # EPIC-017: Investment Portfolio Management (100% Self-Developed)
 
-> **Status**: 🟡 Planned  
-> **Vision Anchor**: `decision-1-portfolio-self-developed`  
-> **Phase**: 5 (Asset Tracking)  
-> **Duration**: 6-8 weeks  
-> **Priority**: P1 (High Priority - Post Two-Stage Review)  
+> **Status ownership**: Scope owner only; live delivery status is tracked by
+> GitHub issues, AC registries, and executable tests.
+> **Vision Anchor**: `decision-1-portfolio-self-developed`
+> **Phase**: 5 (Asset Tracking)
+> **Planning estimate**: 6-8 weeks
+> **Priority**: P1 (High Priority - Post Two-Stage Review)
 > **Dependencies**: EPIC-002 (Double-Entry Core), EPIC-003 (Statement Parsing), EPIC-011 (Asset Lifecycle P0)
 
 ---
@@ -42,7 +43,23 @@ Build a **100% self-developed** investment portfolio management system with comp
 
 ---
 
-## ✅ Task Checklist
+## Live Status Ownership
+
+This EPIC defines scope and acceptance criteria. Do not use unchecked boxes,
+historical audit tables, or planning estimates in this file as current delivery
+status. For current proof and delivery state, use:
+
+- Generated AC registry: `docs/ac_registry.yaml`
+- AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
+- Live local proof command: `python scripts/analyze_test_ac_coverage.py --stdout`
+- North-star tracker: [#444](https://github.com/wangzitian0/finance_report/issues/444)
+- Brokerage proof work: [#477](https://github.com/wangzitian0/finance_report/issues/477), [#478](https://github.com/wangzitian0/finance_report/issues/478), [#479](https://github.com/wangzitian0/finance_report/issues/479)
+
+## ✅ Scope Checklist
+
+The checklist below is retained as scope inventory, not as live completion
+status. Current implementation proof must come from AC IDs, tests, and tracker
+issues.
 
 ### Phase 1: Data Model & Holdings Tracking — 2 weeks
 
@@ -469,22 +486,25 @@ the compact entry-point version of this matrix.
 
 ---
 
-## 📅 Timeline
+## 📅 Roadmap Snapshot
 
-| Phase | Content | Duration | Status |
-|------|------|----------|--------|
-| **Phase 1** | Data Model & Holdings Tracking | 2 weeks | ⏳ Planned |
-| Week 1 | Extend models, create portfolio service | | |
-| Week 2 | Performance metrics, allocation service, API endpoints | | |
-| **Phase 2** | Brokerage Statement Parsing | 2 weeks | ⏳ Planned |
-| Week 3 | Extend extraction service (Moomoo, Futu, IB parsers) | | |
-| Week 4 | Processing account integration, tests | | |
-| **Phase 3** | Frontend Dashboard & Manual Price UI | 2-3 weeks | ⏳ Planned |
-| Week 5 | Portfolio dashboard, holdings table | | |
-| Week 6 | Allocation charts, dividend timeline | | |
-| Week 7 | Manual price update page, holding detail page | | |
-| **Phase 4** | Integration & Performance Optimization | 1-2 weeks | ⏳ Planned |
-| Week 8 | Batch optimization, caching, migration | | |
+This is the original planning sequence. It is not a live schedule or current
+delivery status table.
+
+| Phase | Content | Planning Estimate |
+|------|------|----------|
+| **Phase 1** | Data Model & Holdings Tracking | 2 weeks |
+| Week 1 | Extend models, create portfolio service | |
+| Week 2 | Performance metrics, allocation service, API endpoints | |
+| **Phase 2** | Brokerage Statement Parsing | 2 weeks |
+| Week 3 | Extend extraction service (Moomoo, Futu, IB parsers) | |
+| Week 4 | Processing account integration, tests | |
+| **Phase 3** | Frontend Dashboard & Manual Price UI | 2-3 weeks |
+| Week 5 | Portfolio dashboard, holdings table | |
+| Week 6 | Allocation charts, dividend timeline | |
+| Week 7 | Manual price update page, holding detail page | |
+| **Phase 4** | Integration & Performance Optimization | 1-2 weeks |
+| Week 8 | Batch optimization, caching, migration | |
 
 **Total Estimate**: 6-8 weeks (depends on clarification response time)
 
@@ -509,18 +529,22 @@ the compact entry-point version of this matrix.
 
 ---
 
-*Last updated: February 2026*
+*Planning snapshot captured: February 2026*
 
 
 ---
 
-## 🔍 FE/UI Audit (April 2026)
+## 🔍 Historical FE/UI Audit Snapshot (April 2026)
 
 > Audit Date: 2026-04-06 | Auditor: AI Agent (Sisyphus) | Scope: Frontend completeness, UX quality, accessibility
+>
+> Snapshot note: this audit records findings from April 2026. Treat file and
+> implementation inventories as historical context unless re-validated against
+> the current tree and generated proof reports.
 
 ### Executive Summary
 
-**Backend**: ✅ **FULLY IMPLEMENTED** (1,226 lines across 3 services + 234 lines router + 104 lines schemas)
+**Backend at audit time**: ✅ **FULLY IMPLEMENTED** (1,226 lines across 3 services + 234 lines router + 104 lines schemas)
 - `portfolio.py` (628 lines) — Holdings CRUD, P&L calculations, price updates
 - `performance.py` (413 lines) — XIRR, TWR, MWR calculations
 - `allocation.py` (183 lines) — Sector/geography/asset class allocation
@@ -528,7 +552,7 @@ the compact entry-point version of this matrix.
 - `portfolio schemas` (104 lines) — Pydantic request/response models
 - **Test coverage**: 1,780 lines, 64 test functions across 4 test files
 
-**Frontend**: ❌ **NOT IMPLEMENTED** — The entire portfolio frontend is missing. Only `/assets` page from EPIC-011 exists, which is a basic position tracker and does NOT fulfill EPIC-017 requirements.
+**Frontend at audit time**: ❌ **NOT IMPLEMENTED** — The portfolio frontend was missing in the audited tree. Only `/assets` page from EPIC-011 existed, which was a basic position tracker and did not fulfill EPIC-017 requirements.
 
 ### Inventory: What Exists
 
@@ -547,8 +571,8 @@ the compact entry-point version of this matrix.
 
 | # | Gap | EPIC Requirement | Status |
 |---|-----|-----------------|--------|
-| G1 | **No `/portfolio` route** | EPIC Phase 3 specifies `/portfolio` dashboard page, `/portfolio/[ticker]` detail page, `/portfolio/prices` price update page | `apps/frontend/src/app/(main)/portfolio/` directory **does not exist**. Zero files. |
-| G2 | **No portfolio components** | EPIC specifies `HoldingsTable.tsx`, `PerformanceCard.tsx`, `AllocationChart.tsx`, `DividendTimeline.tsx`, `PriceUpdateForm.tsx`, `TransactionHistory.tsx` | `apps/frontend/src/components/portfolio/` directory **does not exist**. Zero files. |
+| G1 | **No `/portfolio` route at audit time** | EPIC Phase 3 specifies `/portfolio` dashboard page, `/portfolio/[ticker]` detail page, `/portfolio/prices` price update page | `apps/frontend/src/app/(main)/portfolio/` directory did not exist in the audited tree. |
+| G2 | **No portfolio components at audit time** | EPIC specifies `HoldingsTable.tsx`, `PerformanceCard.tsx`, `AllocationChart.tsx`, `DividendTimeline.tsx`, `PriceUpdateForm.tsx`, `TransactionHistory.tsx` | `apps/frontend/src/components/portfolio/` directory did not exist in the audited tree. |
 | G3 | **No portfolio API client functions** | Backend exposes `/api/portfolio/holdings`, `/api/portfolio/performance`, `/api/portfolio/allocation`, `/api/portfolio/prices` | `lib/api.ts` has zero portfolio-specific functions. `lib/types.ts` has only `ManagedPosition` from EPIC-011, no portfolio response types. |
 | G4 | **No performance metrics display** | XIRR, TWR (Time-Weighted Return), MWR (Money-Weighted Return) — core portfolio feature | No UI anywhere shows these calculations. Backend computes them; frontend does not consume them. |
 | G5 | **No market value or P&L display** | Current holdings should show: Market Value, Unrealized P&L, Realized P&L | `/assets` page shows only Cost Basis (book value). No market value column, no P&L. |
@@ -596,7 +620,7 @@ The project has chart infrastructure and design patterns ready for portfolio fea
 
 ### Implementation Estimate
 
-Given that the backend is 100% complete and chart infrastructure exists, the frontend build-out is estimated at:
+At audit time, the backend appeared complete and chart infrastructure existed, so the frontend build-out was estimated at:
 
 | Phase | Deliverable | Effort |
 |-------|------------|--------|

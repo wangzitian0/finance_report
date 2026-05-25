@@ -2,7 +2,8 @@
 
 > **SSOT Key**: `coverage`
 > **Version**: 2.0.0
-> **Last Updated**: 2026-03-02
+> **Version scope**: Coverage policy semantics only; live baseline values are
+> owned by `unified-coverage.json` and CI artifacts.
 
 This document defines the **Unified Test Coverage System** for the Finance Report project.
 
@@ -24,14 +25,10 @@ unified_coverage = total_covered_lines / total_executable_lines
 
 **CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum threshold enforced.
 
-**Current state** (AC8.13.15 measured baseline reset; committed floor is 0.05% lower to avoid runner noise):
-
-| Component | Covered | Executable | Coverage |
-|-----------|---------|------------|----------|
-| Backend   | 8,416   | 8,506      | 98.94%   |
-| Frontend  | 2,151   | 2,338      | 92.00%   |
-| Scripts   | 3,549   | 4,104      | 86.48%   |
-| **Unified** | **14,116** | **14,948** | **94.43%** |
+**Baseline ownership**: Component line counts, coverage percentages, and
+committed no-regression floors are generated facts. Read
+`unified-coverage.json`, CI artifacts, or Coveralls for current values; do not
+copy those numbers into prose docs.
 
 ---
 
@@ -541,6 +538,6 @@ When reviewing coverage gaps:
 
 ---
 
-> **Last Updated**: 2026-02-23
 > **Owner**: Development Team
-> **Review Cycle**: Monthly
+> **Review cycle owner**: Track review cadence outside this prose file; this
+> document owns policy semantics, not live review status.

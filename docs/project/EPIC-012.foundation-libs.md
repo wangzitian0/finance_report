@@ -381,5 +381,4 @@ Useful foundation-library gaps from `docs/project/archive/EPIC-ENCODING-SUMMARY.
 
 ---
 
-*Created: January 2026*  
-*Last Updated: January 2026*
+*Planning snapshot captured: January 2026*

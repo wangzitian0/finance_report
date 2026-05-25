@@ -3,8 +3,9 @@
 > **SSOT Key**: `tdd-transformation`
 
 This document defines the workflow that connects project scope to executable
-proof. Current status metrics live in the root `README.md` and generated
-reports; this document owns the process.
+proof. Current status metrics are owned by generated reports or code-owned
+checks; the root `README.md` links to those sources instead of duplicating their
+mutable values. This document owns the process.
 
 ## Canonical Hierarchy
 
@@ -150,6 +151,11 @@ Tracked by
 README project metrics should be generated or validated from registries and
 test reports. Tracked by
 [#455](https://github.com/wangzitian0/finance_report/issues/455).
+
+Do not hand-write mutable status snapshots in prose documentation. AC counts,
+coverage percentages, issue state, PR state, CI status, dependency versions,
+and test inventories belong to generated reports, GitHub, lockfiles, CI, or
+mechanically validated matrices.
 
 ## Related
 

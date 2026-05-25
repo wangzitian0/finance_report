@@ -1,16 +1,17 @@
 # EPIC-014: Test-Driven Documentation (TTD) Transformation
 
-> **Status**: 🟡 In Progress (P0 ✅, Phase 3-5 Planned)
+> **Status ownership**: Scope owner only; live delivery status is tracked by
+> GitHub issues, AC registries, generated reports, and executable checks.
 > **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Phase**: Tooling Enhancement (Phase 3-5)
 > **Duration**: 3-4 weeks
 > **Owner**: Development Team
 >
-> **2026-05-20 alignment note**: Current project status and proof metrics live
-> in the root [README](../../README.md) and generated
-> [AC coverage report](../analysis/test-ac-coverage-report.md). This EPIC owns
-> the TTD transformation scope; code/test migration follow-ups are tracked by
-> issues #453, #454, #455, and #456.
+> **2026-05-25 alignment note**: Current proof metrics are owned by generated
+> reports and executable checks; the root [README](../../README.md) links to
+> those sources instead of duplicating mutable values. This EPIC owns the TTD
+> transformation scope; code/test migration follow-ups are tracked by issues
+> #452, #453, #454, #455, and #456.
 
 ## 📌 Executive Summary
 
@@ -50,7 +51,11 @@ Transform the project's documentation approach from **prescriptive** (MUST/REQUI
 
 ---
 
-## 📊 Current State Analysis
+## 📊 Historical State Analysis Snapshot
+
+The tables in this section are retained as transformation context. They are not
+the live source for current tool coverage, CI behavior, or documentation
+status.
 
 ### Existing Constraint Enforcement
 
@@ -119,7 +124,7 @@ All existing runtime constraints are **legitimate business logic** (e.g., journa
 
 ---
 
-### Phase 2: Tooling Gap Analysis (CURRENT PHASE)
+### Phase 2: Tooling Gap Analysis (Historical Snapshot)
 
 **Goal**: Identify SOPs that lack automation and create tooling plan.
 
@@ -448,11 +453,14 @@ Before marking a doc as "Complete", verify:
 
 ---
 
-## 📊 Success Metrics
+## 📊 Success Metrics Snapshot
+
+The values below are historical progress markers for this EPIC. Current metrics
+should be regenerated from scripts or read from CI artifacts.
 
 ### Quantitative
 
-| Metric | Current | Target | Status |
+| Metric | Snapshot | Target | Status |
 |--------|----------|--------|--------|
 | **MUST/REQUIRE instances in docs** | 0 | 0 | ✅ Done |
 | **SOPs with automated tools** | 10/10 (100%) | 10/10 (100%) | ✅ Done |
@@ -496,7 +504,9 @@ Before marking a doc as "Complete", verify:
 
 ---
 
-## 📅 Timeline
+## 📅 Historical Planning Timeline
+
+This table is a planning snapshot, not a live delivery schedule.
 
 | Phase | Duration | Target Completion | Status |
 |-------|----------|------------------|--------|
@@ -1003,7 +1013,7 @@ apps/backend/tests/
 
 ---
 
-*Last updated: February 9, 2026*
+*Historical audit snapshot captured: February 9, 2026*
 
 
 ---

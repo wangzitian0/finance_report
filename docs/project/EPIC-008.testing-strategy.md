@@ -378,30 +378,21 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `scripts/tests/` | P1 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `scripts/tests/test_check_ac_traceability.py` | P0 |
 
-**Traceability Result**:
-- Total AC IDs: 70
-- Requirements converted to AC IDs: 100% (EPIC-008 scenario checklist + CI/CD integration)
-- **ACs with passing Tier 1 tests: 53/70 (75.7%); additional deploy-gate coverage is provided by AC8.13 Tier 3 E2E/CI guardrails**
-- ACs covered by AC group:
-  - AC8.1: 4/4 (100% — health check, backend reachable, frontend proxy, DB connectivity)
-  - AC8.2: 5/5 (100% — register, create cash, create bank, update, delete)
-  - AC8.3: 5/5 (100% — expense, void, post, unbalanced, CRUD)
-  - AC8.4: 3/3 (100% — CSV upload, list/get, full flow via Tier 1)
-  - AC8.5: 3/3 (100% — engine runs, stats, match acceptance)
-  - AC8.6: 4/4 (100% — BS, P&L, cash flow, navigation via all-endpoints test)
-  - AC8.7: 3/3 (100% — auth failures, unauthorized, session)
-  - AC8.8: 5/5 (100% — health, accounts, journal, reports, recon)
-  - AC8.9: 4/4 (100% — CI/CD integration verified via file-system assertion tests)
-  - AC8.10: 9/9 (100% — all must-have scenarios with dedicated traceability tests)
-  - AC8.11: 5/5 (100% — income, credit card spend/repayment, internal transfer, split transaction)
-  - AC8.13: 25/25 (Tier 3 E2E + CI guardrails — DBS PDF upload, parse polling, transaction detail, approve, balance sheet report, multi-brokerage portfolio value, hard-gate skip enforcement, production-safe smoke, staging route diagnostics, AI/OCR failure context, staging fast-fail guardrails, separate staging AI/OCR gate, unified coverage policy, CI change classification, external Coveralls status gating, CI metrics contract, deterministic upload-to-dashboard vision hard gate, E2E setup caching, workflow timing summaries, and stub-only traceability failure)
-- Test files: 1 fully implemented (`tests/e2e/test_core_journeys.py` — 46 tests), 1 existing (`tests/e2e/test_statement_upload_e2e.py`), 3 Tier 3 hard gates (`tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`), plus browser-backed Playwright suites used when `APP_URL` or `FRONTEND_URL` is available
-- **Previous state**: 44.9% with 22 Tier 1 tests
-- **Current state**: 54/58 Tier 1/CI assertion ACs (93.1%) + AC8.13 25/25 Tier 3/deploy-gate/CI guardrail ACs.
+**Traceability Ownership**:
+- This table owns the intended AC-to-proof mapping for EPIC-008.
+- Current AC counts, covered/untested totals, and placeholder/stub exclusions are
+  owned by [the generated coverage report](../analysis/test-ac-coverage-report.md)
+  and `python scripts/analyze_test_ac_coverage.py --stdout`.
+- Mandatory AC gate behavior is owned by `python scripts/check_ac_traceability.py`.
+- Do not copy generated AC totals or per-group percentages into this EPIC.
 
 ---
 
-## 5. Implementation Status (as of 2026-02-23)
+## 5. Historical Implementation Snapshot
+
+This section records the implementation shape captured during the 2026-02-23
+testing-strategy audit. It is not the live source for current test counts or
+coverage status; use the generated coverage report and CI artifacts for that.
 
 ### 5.1 Implemented Test Files
 
