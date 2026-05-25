@@ -179,6 +179,29 @@ class TestWalkTests:
         assert not any(f.name == "models.py" for f in files)
 
 
+class TestFixtureClassification:
+    def test_scripts_tests_file_is_fixture_file(self, tmp_path):
+        scripts_tests = tmp_path / "scripts" / "tests"
+        scripts_tests.mkdir(parents=True)
+        fixture = scripts_tests / "test_fake_ac_fixture.py"
+        fixture.write_text("# AC99.1.1\n")
+        with mock.patch.object(aam, "ROOT", tmp_path):
+            assert aam.is_fixture_test_file(fixture)
+
+    def test_product_test_file_is_not_fixture_file(self, tmp_path):
+        product_tests = tmp_path / "apps" / "backend" / "tests"
+        product_tests.mkdir(parents=True)
+        test_file = product_tests / "test_real_behavior.py"
+        test_file.write_text("# AC1.1.1\n")
+        with mock.patch.object(aam, "ROOT", tmp_path):
+            assert not aam.is_fixture_test_file(test_file)
+
+    def test_path_outside_root_is_not_fixture_file(self, tmp_path):
+        outside = tmp_path.parent / "test_outside.py"
+        with mock.patch.object(aam, "ROOT", tmp_path):
+            assert not aam.is_fixture_test_file(outside)
+
+
 class TestMain:
     def _setup(self, tmp_path):
         docs = tmp_path / "docs"
@@ -195,7 +218,8 @@ class TestMain:
         with mock.patch.object(aam, "ROOT", tmp_path):
             aam.main()
         out = capsys.readouterr().out
-        assert "Mismatched refs: **0**" in out
+        assert "Actionable mismatched refs: **0**" in out
+        assert "Fixture-only mismatched refs: **0**" in out
 
     def test_bad_ref_detected(self, tmp_path, capsys):
         tests = self._setup(tmp_path)
@@ -203,9 +227,12 @@ class TestMain:
         with mock.patch.object(aam, "ROOT", tmp_path):
             aam.main()
         out = capsys.readouterr().out
-        assert "Mismatched refs: **1**" in out
+        assert "Actionable mismatched refs: **1**" in out
+        assert "Fixture-only mismatched refs: **0**" in out
+        assert "## Actionable Mismatches" in out
 
     def test_fixture_exclude_label_for_scripts_tests(self, tmp_path, capsys):
+        """AC8.13.35: Synthetic script-test fixture IDs are not actionable mismatches."""
         self._setup(tmp_path)
         scripts_tests = tmp_path / "scripts" / "tests"
         scripts_tests.mkdir(parents=True)
@@ -213,6 +240,8 @@ class TestMain:
         with mock.patch.object(aam, "ROOT", tmp_path):
             aam.main()
         out = capsys.readouterr().out
+        assert "Actionable mismatched refs: **0**" in out
+        assert "Fixture-only mismatched refs: **1**" in out
         assert "FIXTURE-EXCLUDE" in out
 
     def test_relocate_suggestion_when_alt_epic_matches(self, tmp_path, capsys):
@@ -237,6 +266,15 @@ class TestMain:
             aam.main()
         out = capsys.readouterr().out
         assert "RELOCATE-FILE" in out or "EXTEND-REGISTRY" in out or "MIXED" in out
+
+    def test_mixed_actionable_suggestion_for_multiple_ref_epics(self, tmp_path, capsys):
+        tests = self._setup(tmp_path)
+        (tests / "test_x.py").write_text("# AC8.9.9 AC9.9.9\n")
+        with mock.patch.object(aam, "ROOT", tmp_path):
+            aam.main()
+        out = capsys.readouterr().out
+        assert "Actionable mismatched refs: **2**" in out
+        assert "MIXED - per-ref decision" in out
 
     def test_total_refs_counted(self, tmp_path, capsys):
         tests = self._setup(tmp_path)
