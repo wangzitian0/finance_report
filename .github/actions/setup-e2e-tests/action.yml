@@ -12,8 +12,9 @@ runs:
         cache-dependency-glob: "tests/e2e/requirements.txt"
 
     - name: Set up Python
-      run: uv python install "$(cat .python-version)"
-      shell: bash
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: .python-version
 
     - name: Cache E2E virtualenv
       uses: actions/cache@v4

@@ -51,7 +51,9 @@ jobs:
           version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
-        run: uv python install "$PYTHON_VERSION"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Verify Codebase
         env:

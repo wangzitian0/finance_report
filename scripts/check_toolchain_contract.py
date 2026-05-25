@@ -33,14 +33,23 @@ def check_tool_files(repo_root: Path, toolchain: dict, errors: list[str]) -> Non
     python_version = toolchain["runtime"]["python"]
     node_version = toolchain["runtime"]["node"]
 
-    expect_equal(errors, ".python-version", read_text(repo_root, ".python-version"), python_version)
-    expect_equal(errors, ".node-version", read_text(repo_root, ".node-version"), node_version)
+    expect_equal(
+        errors,
+        ".python-version",
+        read_text(repo_root, ".python-version"),
+        python_version,
+    )
+    expect_equal(
+        errors, ".node-version", read_text(repo_root, ".node-version"), node_version
+    )
     expect_equal(errors, ".nvmrc", read_text(repo_root, ".nvmrc"), node_version)
 
     tool_versions = read_text(repo_root, ".tool-versions")
     expect_contains(errors, ".tool-versions", tool_versions, f"python {python_version}")
     expect_contains(errors, ".tool-versions", tool_versions, f"nodejs {node_version}")
-    expect_contains(errors, ".tool-versions", tool_versions, f"uv {toolchain['runtime']['uv']}")
+    expect_contains(
+        errors, ".tool-versions", tool_versions, f"uv {toolchain['runtime']['uv']}"
+    )
 
     npmrc = read_text(repo_root, ".npmrc")
     expect_contains(errors, ".npmrc", npmrc, "engine-strict=true")
@@ -72,20 +81,19 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
             "python-version: ${{ env.PYTHON_VERSION }}",
             "node-version: ${{ env.NODE_VERSION }}",
             "version: ${{ env.UV_VERSION }}",
-            'uv python install "$PYTHON_VERSION"',
             "python scripts/check_toolchain_contract.py",
         ),
         ".github/workflows/staging-deploy.yml": (
             f'PYTHON_VERSION: "{python_version}"',
             f'UV_VERSION: "{uv_version}"',
+            "python-version: ${{ env.PYTHON_VERSION }}",
             "version: ${{ env.UV_VERSION }}",
-            'uv python install "$PYTHON_VERSION"',
         ),
         ".github/workflows/production-release.yml": (
             f'PYTHON_VERSION: "{python_version}"',
             f'UV_VERSION: "{uv_version}"',
+            "python-version: ${{ env.PYTHON_VERSION }}",
             "version: ${{ env.UV_VERSION }}",
-            'uv python install "$PYTHON_VERSION"',
         ),
         ".github/workflows/docs.yml": (
             f'PYTHON_VERSION: "{python_version}"',
@@ -93,7 +101,7 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         ),
         ".github/actions/setup-e2e-tests/action.yml": (
             f'version: "{uv_version}"',
-            'uv python install "$(cat .python-version)"',
+            "python-version-file: .python-version",
         ),
     }
     for path, needles in workflow_expectations.items():
@@ -157,7 +165,9 @@ def run_contract(repo_root: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--repo-root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
     args = parser.parse_args()
     return run_contract(args.repo_root)
 

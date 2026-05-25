@@ -74,7 +74,9 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - name: Set up Python
-        run: uv python install "$PYTHON_VERSION"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Cache Python venv
         uses: actions/cache@v4
         with:
@@ -140,7 +142,9 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install "$PYTHON_VERSION"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache Python venv
         uses: actions/cache@v4
@@ -317,7 +321,9 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install "$PYTHON_VERSION"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Download backend coverage
         uses: actions/download-artifact@v4
@@ -421,6 +427,11 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: AC Traceability Check
         run: |
