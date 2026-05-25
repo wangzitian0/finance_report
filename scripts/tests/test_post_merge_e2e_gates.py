@@ -84,9 +84,12 @@ def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     assert "VAULT_APP_TOKEN is invalid or expired" in common
     assert "VAULT_APP_TOKEN is not renewable" in common
     assert "ttl ${ttl}s is below required" in common
-    assert 'verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800' in deploy_script
+    assert (
+        'verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800'
+        in deploy_script
+    )
     assert deploy_script.index("verify_vault_app_token") < deploy_script.index(
-        "dokploy_api_call \"POST\" \"compose.update\""
+        'dokploy_api_call "POST" "compose.update"'
     )
 
 

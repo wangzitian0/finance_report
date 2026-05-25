@@ -171,7 +171,10 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("--failure-confirmation-seconds" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
-    assert any("Coveralls success with no external base comparison" in error for error in errors)
+    assert any(
+        "Coveralls success with no external base comparison" in error
+        for error in errors
+    )
     assert any("New `apps/*/src`" in error for error in errors)
     assert any("not behavioral coverage" in error for error in errors)
 
