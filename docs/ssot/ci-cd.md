@@ -153,7 +153,9 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, PR preview, and production smoke runs do not repeatedly download identical E2E dependencies.
-- Staging deploy waits for the same commit's `CI` push workflow to complete successfully before building images, pushing `staging` tags, or changing the Dokploy staging environment. If matching CI fails, is cancelled, or times out, staging is not overwritten.
+- Main push CI builds SHA-tagged staging images in parallel with tests when heavy CI is required. These images are immutable commit artifacts and do not move the live `staging` tag.
+- Staging deploy waits for the same commit's `CI` push workflow to complete successfully before promoting images, pushing `staging` tags, or changing the Dokploy staging environment. If matching CI fails, is cancelled, or times out, staging is not overwritten.
+- After same-SHA CI passes, post-merge staging first looks up the backend and frontend SHA-tagged staging images from GHCR. If a SHA image is missing, the workflow falls back to building only the missing image. Once both SHA images are present, staging retags those immutable images as `staging` before deploy. This keeps deploy detection strict while moving normal image build time out of the serialized post-merge lane.
 - Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
 - Automatic provider-backed AI/OCR validation runs as a downstream job in the same serialized post-merge workflow unit. This keeps staging stable for the SHA under validation: a newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running.
 - Staging deploys use a workflow-level `staging-post-merge-${{ github.ref }}` concurrency group with `cancel-in-progress: false`, so GitHub Actions does not cancel a running post-merge lane when a newer `main` commit is pushed. Because GitHub concurrency allows at most one running and one pending run per group, the latest pending post-merge run is retained and older pending runs may be replaced. This is latest-pending serial validation, not strict FIFO for every SHA.
@@ -221,6 +223,11 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Build and deploy job execution: **~5m 19s**.
 - Automatic AI/OCR gate execution: **~4m 38s**.
 - AI/OCR `Setup E2E Tests`: **~2m 54s** before E2E virtualenv and Playwright browser caching.
+
+**Post-merge staging image promotion (2026-05-21 target):**
+- Main push CI owns SHA-tagged staging image creation for heavy runtime changes.
+- The serialized staging lane promotes existing SHA images to the moving `staging` tag after same-SHA CI success, avoiding redundant Docker builds in the normal path.
+- Missing SHA images trigger a per-service fallback build, preserving deployability for manual reruns and unusual cache/package states.
 
 **Backend Test Parallelization:**
 

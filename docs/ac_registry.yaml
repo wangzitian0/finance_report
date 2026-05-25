@@ -1903,6 +1903,11 @@ groups:
         epic_name: testing-strategy
         description: AC traceability reporting distinguishes real test references from _ac_stubs and trivial placeholder assertions.
         mandatory: true
+      - id: AC8.13.36
+        epic: 8
+        epic_name: testing-strategy
+        description: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

@@ -163,7 +163,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, backend, frontend, lint, unified-coverage, ac-traceability]"
+        "needs: [changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]"
         in workflow
     )
     assert (
@@ -319,6 +319,47 @@ def test_AC8_13_22_staging_deploy_waits_for_matching_ci_before_building() -> Non
     assert workflow.index("Wait for matching CI success") < workflow.index(
         "Deploy to Staging"
     )
+
+
+def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
+    """AC8.13.36: Main CI builds SHA images and staging reuses them after CI passes."""
+    ci_workflow = read(".github/workflows/ci.yml")
+    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    check_script = read("scripts/check_ghcr_image_tag.sh")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "container-images:" in ci_workflow
+    assert "name: Build Staging Images" in ci_workflow
+    assert "github.event_name == 'push'" in ci_workflow
+    assert "github.ref == 'refs/heads/main'" in ci_workflow
+    assert "packages: write" in ci_workflow
+    assert "Build and push Backend SHA image" in ci_workflow
+    assert "Build and push Frontend SHA image" in ci_workflow
+    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}" in ci_workflow
+    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}" in ci_workflow
+    assert "backend:staging" not in ci_workflow
+    assert "frontend:staging" not in ci_workflow
+
+    assert "Resolve Backend Image" in deploy_workflow
+    assert "Resolve Frontend Image" in deploy_workflow
+    assert "scripts/check_ghcr_image_tag.sh" in deploy_workflow
+    assert "steps.backend_image.outputs.build_required == 'true'" in deploy_workflow
+    assert "steps.frontend_image.outputs.build_required == 'true'" in deploy_workflow
+    assert "Promote Backend Image to Staging Tag" in deploy_workflow
+    assert "Promote Frontend Image to Staging Tag" in deploy_workflow
+    assert deploy_workflow.index("Wait for matching CI success") < deploy_workflow.index("Resolve Backend Image")
+    assert deploy_workflow.index("Resolve Backend Image") < deploy_workflow.index("Build and push Backend")
+    assert deploy_workflow.index("Resolve Frontend Image") < deploy_workflow.index("Build and push Frontend")
+    assert deploy_workflow.index("Build and push Frontend") < deploy_workflow.index("Promote Backend Image to Staging Tag")
+    assert deploy_workflow.index("Promote Backend Image to Staging Tag") < deploy_workflow.index("Deploy to Staging")
+
+    assert "docker buildx imagetools inspect" in check_script
+    assert "docker buildx imagetools create" not in check_script
+    assert 'write_output "build_required" "false"' in check_script
+    assert 'write_output "build_required" "true"' in check_script
+    assert "SHA-tagged staging images" in ci_cd
+    assert "retags those immutable images as `staging`" in ci_cd
+    assert "falls back to building only the missing image" in ci_cd
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:

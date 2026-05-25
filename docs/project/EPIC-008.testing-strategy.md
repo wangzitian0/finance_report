@@ -68,6 +68,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.33**: Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates.
 - **AC8.13.34**: CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary.
 - **AC8.13.35**: AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions.
+- **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
