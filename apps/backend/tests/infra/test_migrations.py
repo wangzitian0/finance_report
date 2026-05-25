@@ -4,6 +4,9 @@ import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+import src.models  # noqa: F401
+from src.database import Base
+
 # Paths relative to this test file: apps/backend/tests/infra/test_migrations.py
 BACKEND_DIR = Path(__file__).parent.parent.parent
 ALEMBIC_INI_PATH = BACKEND_DIR / "alembic.ini"
@@ -43,6 +46,25 @@ def test_single_head(alembic_script):
     """
     heads = alembic_script.get_heads()
     assert len(heads) == 1, f"Migration graph has multiple heads: {heads}. History must be linear."
+
+
+def test_sqlalchemy_metadata_and_alembic_graph_are_valid(alembic_script):
+    """AC1.2.3: SQLAlchemy models are registered and Alembic has a valid linear graph."""
+    expected_tables = {
+        "accounts",
+        "bank_statements",
+        "journal_entries",
+        "journal_lines",
+        "reconciliation_matches",
+        "users",
+    }
+
+    assert expected_tables <= set(Base.metadata.tables)
+
+    revisions = list(alembic_script.walk_revisions("base", "head"))
+    assert revisions
+    assert len(alembic_script.get_heads()) == 1
+    assert any(revision.down_revision is None for revision in revisions)
 
 
 def test_AC13_10_4_source_type_migration_handles_missing_legacy_enum_label():

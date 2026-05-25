@@ -186,6 +186,79 @@ async def test_execute_matching_no_candidates(db: AsyncSession):
     assert txn.status == BankTransactionStatus.UNMATCHED
 
 
+async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
+    """AC4.6.2: Matching transfer OUT/IN within 3 days uses Processing entries only."""
+    user_id = uuid4()
+    user = User(id=user_id, email=f"transfer-{uuid4()}@example.com", hashed_password="hashed")
+    checking = Account(
+        user_id=user_id,
+        name="Bank - Checking",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    savings = Account(
+        user_id=user_id,
+        name="Bank - Savings",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add_all([user, checking, savings])
+    await db.flush()
+
+    out_statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 10))
+    out_statement.account_id = checking.id
+    in_statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 12))
+    in_statement.account_id = savings.id
+    db.add_all([out_statement, in_statement])
+    await db.flush()
+
+    out_txn = AccountEvent(
+        statement_id=out_statement.id,
+        txn_date=date(2024, 3, 10),
+        description="FAST transfer to savings",
+        amount=Decimal("500.00"),
+        direction="OUT",
+        status=BankTransactionStatus.PENDING,
+        confidence=ConfidenceLevel.HIGH,
+    )
+    in_txn = AccountEvent(
+        statement_id=in_statement.id,
+        txn_date=date(2024, 3, 12),
+        description="FAST transfer from checking",
+        amount=Decimal("500.00"),
+        direction="IN",
+        status=BankTransactionStatus.PENDING,
+        confidence=ConfidenceLevel.HIGH,
+    )
+    db.add_all([out_txn, in_txn])
+    await db.commit()
+
+    matches = await execute_matching(db, user_id=user_id)
+
+    assert len(matches) == 2
+    assert {match.status for match in matches} == {ReconciliationStatus.AUTO_ACCEPTED}
+    breakdowns = sorted((match.score_breakdown for match in matches), key=lambda item: sorted(item))
+    assert breakdowns == [
+        {"transfer_in": 100.0},
+        {"transfer_out": 100.0},
+    ]
+
+    await db.refresh(out_txn)
+    await db.refresh(in_txn)
+    assert out_txn.status == BankTransactionStatus.MATCHED
+    assert in_txn.status == BankTransactionStatus.MATCHED
+
+    transfer_entries_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
+        .options(selectinload(JournalEntry.lines))
+    )
+    transfer_entries = transfer_entries_result.scalars().unique().all()
+    assert len(transfer_entries) == 2
+    assert {entry.status for entry in transfer_entries} == {JournalEntryStatus.RECONCILED}
+
+
 async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -> None:
     """Pending review and unmatched cases are handled correctly."""
     user_id = uuid4()
