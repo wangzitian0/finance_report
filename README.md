@@ -69,6 +69,24 @@ trivial placeholder assertions from covered counts. Remaining proof-quality
 hardening is tracked in
 [issue #452](https://github.com/wangzitian0/finance_report/issues/452).
 
+## Core Proof Paths
+
+The brokerage PDF to asset-report path is the current north-star proof slice for
+upload-to-report correctness.
+
+| Product path step | EPIC owner | AC owner | Executable proof | CI tier |
+|---|---|---|---|---|
+| Upload Moomoo/Futu brokerage PDF through `/api/statements/upload` | [EPIC-008](docs/project/EPIC-008.testing-strategy.md) / [EPIC-013](docs/project/EPIC-013.statement-parsing-v2.md) | AC8.13.10 | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | Post-merge staging AI/OCR gate |
+| Background parse detects brokerage payload and imports positions | [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | AC17.4.7 / AC17.5.4 / AC8.13.10 | `test_parse_statement_background_imports_brokerage_positions` | Backend shard |
+| Statement-scoped import creates holdings | [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | AC17.4.6 / AC8.13.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | Backend shard |
+| Imported holdings affect balance sheet value | [EPIC-005](docs/project/EPIC-005.reporting-visualization.md) / [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | AC17.5.4 / AC8.13.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | Backend shard |
+| User completes import and reaches portfolio value | [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | AC17.8.1 / AC17.8.2 / AC17.8.4 | `AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation` | Frontend test |
+
+Detailed EPIC/AC/test ownership for this path lives in
+[EPIC-017](docs/project/EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix);
+the provider-backed gate is owned by
+[EPIC-008](docs/project/EPIC-008.testing-strategy.md#tier-3-e2e-implementation).
+
 ## EPIC Map
 
 Completion below separates project status from proof status. "AC proof" is from

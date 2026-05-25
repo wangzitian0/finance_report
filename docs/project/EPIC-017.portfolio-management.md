@@ -307,6 +307,27 @@ Build a **100% self-developed** investment portfolio management system with comp
 | AC17.9.2 | Portfolio holdings API returns date-bounded snapshot quantities for explicit `as_of_date` requests | `test_get_holdings_explicit_date_uses_historical_snapshot_quantity` | `portfolio/test_portfolio_router.py` | P0 |
 | AC17.9.3 | Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings` | `AC17.9.3 passes selected as-of date to holdings API` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
 
+### Brokerage PDF to Asset Report Proof Matrix
+
+This is the detailed EPIC-017 counterpart to the README core proof path. It
+keeps the product path, EPIC ownership, AC ownership, executable proof, and CI
+tier in one place for the Moomoo/Futu brokerage PDF to asset report journey.
+EPIC-008 remains the owner of the provider-backed staging AI/OCR gate.
+
+| Product path step | EPIC owner | AC owner | Executable proof | File | CI tier |
+|---|---|---|---|---|---|
+| Upload Moomoo/Futu brokerage PDF through `/api/statements/upload` | EPIC-008 / EPIC-013 | AC8.13.10 | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Post-merge staging AI/OCR gate |
+| Background parse detects brokerage payload and imports positions without a manual API call | EPIC-017 | AC17.4.7 / AC17.5.4 / AC8.13.10 | `test_parse_statement_background_imports_brokerage_positions` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
+| Brokerage-style OCR balance mismatches remain parsed and visible instead of stalling | EPIC-008 / EPIC-017 | AC8.13.10 | `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | Backend shard |
+| Statement-scoped import creates holdings | EPIC-017 | AC17.4.6 / AC8.13.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
+| Imported holdings affect balance sheet value | EPIC-005 / EPIC-017 | AC17.5.4 / AC8.13.10 | `test_statement_import_flows_to_holdings_and_balance_sheet` | `apps/backend/tests/portfolio/test_brokerage_position_parsing.py` | Backend shard |
+| User completes import and navigates to portfolio value | EPIC-017 | AC17.8.1 / AC17.8.2 / AC17.8.4 | `AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation` | `apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx` | Frontend test |
+
+Provider-backed gate details live in
+[EPIC-008](EPIC-008.testing-strategy.md#tier-3-e2e-implementation) and
+[CI/CD SSOT](../ssot/ci-cd.md#post-merge-staging-aiocr-gate). The README keeps
+the compact entry-point version of this matrix.
+
 **Traceability Result**:
 - Total AC IDs: 27
 - Requirements converted to AC IDs: 100% (EPIC-017 Must Have checklist)
@@ -386,8 +407,8 @@ Build a **100% self-developed** investment portfolio management system with comp
   - `PriceUpdateForm.tsx`
 
 ### Documentation
-- [ ] Update `docs/ssot/extraction.md` — Add brokerage statement parsing section
-- [ ] Update `README.md` — Add portfolio management feature description
+- [x] `docs/ssot/extraction.md` — Statement parsing SSOT covers brokerage upload/parse/import routing
+- [x] `README.md` — Core proof path matrix links brokerage PDF upload to asset report AC/test/CI proof
 
 ---
 
