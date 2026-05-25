@@ -58,4 +58,4 @@ jobs:
             --ssh-key ~/.ssh/vps_key \
             --builder-prune-until 24h \
             --image-prune-until 168h \
-            $DRY_RUN
+            ${DRY_RUN:+"$DRY_RUN"}
