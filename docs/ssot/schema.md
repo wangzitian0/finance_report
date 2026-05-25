@@ -108,7 +108,7 @@ erDiagram
         uuid user_id FK
         date entry_date
         string memo
-        enum source_type "manual|bank_statement|system"
+        enum source_type "manual|user_confirmed|auto_matched|auto_parsed|bank_statement|system|fx_revaluation"
         uuid source_id
         enum status "draft|posted|reconciled|void"
         text void_reason
@@ -247,7 +247,7 @@ Journal entry header table.
 | user_id | UUID | FK -> Users, NOT NULL | Owner user |
 | entry_date | DATE | NOT NULL | Entry date |
 | memo | VARCHAR(500) | NOT NULL | Description |
-| source_type | ENUM | NOT NULL | manual/bank_statement/system |
+| source_type | ENUM | NOT NULL | manual/user_confirmed/auto_matched/auto_parsed/bank_statement/system/fx_revaluation; `bank_statement` is legacy-normalized to `auto_parsed` |
 | source_id | UUID | | Related source record |
 | status | ENUM | NOT NULL | draft/posted/reconciled/void |
 | void_reason | TEXT | | Void reason |

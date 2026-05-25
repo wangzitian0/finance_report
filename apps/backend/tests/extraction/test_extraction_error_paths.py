@@ -191,7 +191,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 
 @pytest.mark.asyncio
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
-    """AC8.12.7: Shared OCR/vision model uses one vision call and skips layout parsing."""
+    """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "glm-4.6v"
@@ -217,7 +217,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
 
 
 def test_ocr_model_selection_helpers_deduplicate_vision_models():
-    """AC8.12.7: OCR/vision helper rules avoid duplicate provider calls."""
+    """AC8.12.6: OCR/vision helper rules avoid duplicate provider calls."""
     service = ExtractionService()
 
     service.ocr_model = "glm-4.6v"
@@ -237,7 +237,7 @@ def test_ocr_model_selection_helpers_deduplicate_vision_models():
 
 
 def test_render_pdf_pages_rejects_empty_content():
-    """AC8.12.7: PDF vision rendering fails fast when no bytes are available."""
+    """AC8.12.6: PDF vision rendering fails fast when no bytes are available."""
     service = ExtractionService()
 
     with pytest.raises(ExtractionError, match="requires file content"):
@@ -245,7 +245,7 @@ def test_render_pdf_pages_rejects_empty_content():
 
 
 def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
-    """AC8.12.7: Z.AI PDF vision payloads require rendered content or an external URL."""
+    """AC8.12.6: Z.AI PDF vision payloads require rendered content or an external URL."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_provider", "zai")
@@ -262,7 +262,7 @@ def test_build_vision_media_payloads_rejects_non_url_pdf_input(monkeypatch):
 
 
 def test_build_vision_media_payloads_reraises_render_error_without_external_url(monkeypatch):
-    """AC8.12.7: Render failures without a safe external URL do not silently continue."""
+    """AC8.12.6: Render failures without a safe external URL do not silently continue."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_provider", "zai")
@@ -284,7 +284,7 @@ def test_build_vision_media_payloads_reraises_render_error_without_external_url(
 
 @pytest.mark.asyncio
 async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
-    """AC8.12.7: Dedicated OCR layout HTTP failures include status and body."""
+    """AC8.12.6: Dedicated OCR layout HTTP failures include status and body."""
     service = ExtractionService()
     service.api_key = "test-key"
 
@@ -318,7 +318,7 @@ async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_extract_json_with_models_handles_httpx_timeout():
-    """AC8.12.7: Native httpx timeouts are summarized like provider timeouts."""
+    """AC8.12.6: Native httpx timeouts are summarized like provider timeouts."""
     import httpx
 
     service = ExtractionService()
@@ -339,7 +339,7 @@ async def test_extract_json_with_models_handles_httpx_timeout():
 
 @pytest.mark.asyncio
 async def test_ai_parse_csv_empty_mapping_response():
-    """AC8.12.7: AI CSV mapping rejects empty model responses."""
+    """AC8.12.6: AI CSV mapping rejects empty model responses."""
     service = ExtractionService()
     service.api_key = "test-key"
 
@@ -360,7 +360,7 @@ async def test_ai_parse_csv_empty_mapping_response():
 
 @pytest.mark.asyncio
 async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision():
-    """AC8.12.7: Dedicated OCR failure falls back to ordered vision extraction models."""
+    """AC8.12.6: Dedicated OCR failure falls back to ordered vision extraction models."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "layout-ocr-model"

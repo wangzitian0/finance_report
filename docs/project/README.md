@@ -57,6 +57,7 @@ EPIC directory index.
 | [AUDITS.md](./AUDITS.md) | Audit index |
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | Historical vision -> EPIC -> AC consistency audit |
 | [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Current generated AC-to-test coverage report |
+| [../analysis/traceability-exceptions.md](../analysis/traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
 ## Active Non-EPIC Documentation Ownership
 

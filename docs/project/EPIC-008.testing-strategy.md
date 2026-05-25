@@ -331,6 +331,12 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.11.4 | Internal Transfer | `test_internal_transfer()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.11.5 | Split Transaction | `test_split_transaction()` | `e2e/test_core_journeys.py` | P0 |
 
+### AC8.12: Provider Error-Path Unit Gates
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC8.12.6 | OCR/vision provider fallback, timeout, and empty-response errors are deterministic | `test_extract_financial_data_shared_ocr_vision_skips_layout_parser`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision` | `apps/backend/tests/extraction/test_extraction_error_paths.py` | P1 |
+
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 
 | ID | Test Case | Test Function | File | Priority |

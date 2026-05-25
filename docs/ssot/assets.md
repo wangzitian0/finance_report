@@ -68,7 +68,7 @@ Structured brokerage transactions are posted through `InvestmentAccountingServic
 2. **Sell**: consume open lots by the explicit `CostBasisMethod` (`FIFO`, `LIFO`, or `AvgCost`), debit brokerage cash, credit the investment asset account at consumed cost basis, record realized gain/loss to the realized P&L income account, and update `ManagedPosition.realized_pnl`.
 3. **Dividend**: debit brokerage cash, credit dividend income, persist `DividendIncome`, and link the event to the position through `InvestmentTransaction`.
 
-Until #395 expands source-type trust semantics, investment-accounting journal entries use `source_type=system` and preserve any upstream parser/source identifier in `source_id`.
+Investment-accounting journal entries use `source_type=system` for deterministic postings and preserve any upstream parser/source identifier in `source_id`. User-entered, parsed, matched, and confirmed statement entries follow the trust hierarchy in [source-type-priority.md](./source-type-priority.md).
 
 ---
 
