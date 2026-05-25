@@ -13,14 +13,14 @@
 | Metric | Count | Percentage |
 |--------|-------|------------|
 | **Total EPICs** | 18 | 100% |
-| **Total ACs (registries)** | 984 | 100% |
-| **Mandatory ACs** | 824 | 83.7% |
+| **Total ACs (registries)** | 985 | 100% |
+| **Mandatory ACs** | 825 | 83.8% |
 | **Deprecated ACs** | 3 | 0.3% |
-| **Mandatory ACs with real test reference** | 824 | 100.0% |
+| **Mandatory ACs with real test reference** | 825 | 100.0% |
 | **Mandatory ACs with only placeholder reference** | 0 | - |
 | **Mandatory ACs with only stub reference** | 0 | - |
 | **Mandatory ACs without any test reference** | 0 | - |
-| **Test files referenced** | 202 | - |
+| **Test files referenced** | 205 | - |
 | **ACs flagged as manual verification (heuristic)** | 0 | 0.0% |
 
 ### Coverage by EPIC
@@ -34,7 +34,7 @@
 | [EPIC-005](#epic-005-reporting-visualization) | reporting-visualization | 36 | 0 | 25 | 25 | 0 | 0 | 0 | 100.0% |
 | [EPIC-006](#epic-006-ai-advisor) | ai-advisor | 63 | 0 | 55 | 55 | 0 | 0 | 0 | 100.0% |
 | [EPIC-007](#epic-007-deployment) | deployment | 39 | 0 | 39 | 39 | 0 | 0 | 0 | 100.0% |
-| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 94 | 0 | 88 | 88 | 0 | 0 | 0 | 100.0% |
+| [EPIC-008](#epic-008-testing-strategy) | testing-strategy | 95 | 0 | 89 | 89 | 0 | 0 | 0 | 100.0% |
 | [EPIC-009](#epic-009-pdf-fixture-generation) | pdf-fixture-generation | 37 | 0 | 36 | 36 | 0 | 0 | 0 | 100.0% |
 | [EPIC-010](#epic-010-signoz-logging) | signoz-logging | 21 | 0 | 21 | 21 | 0 | 0 | 0 | 100.0% |
 | [EPIC-011](#epic-011-asset-lifecycle) | asset-lifecycle | 38 | 0 | 38 | 38 | 0 | 0 | 0 | 100.0% |
@@ -250,7 +250,7 @@
 | AC4.1.4 | yes | Description Similarity | real: `apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_scoring.py` | ✅ real |
 | AC4.2.1 | yes | Many-to-One (Batch Payment) | real: `apps/backend/tests/api/test_reconciliation_router.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ real |
 | AC4.2.2 | yes | Many-to-One Bonus | real: `apps/backend/tests/api/test_reconciliation_router.py` | ✅ real |
-| AC4.2.3 | yes | One-to-Many (Split) | real: `apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ real |
+| AC4.2.3 | yes | One-to-Many (Split) | real: `apps/backend/tests/reconciliation/test_reconciliation_engine.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py` | ✅ real |
 | AC4.3.1 | yes | Auto-Accept Logic | real: `apps/backend/tests/api/test_reconciliation_router.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_dual_read.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_engine.py`<br>real: `apps/backend/tests/reconciliation/test_review_queue.py`<br>real: `scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ real |
 | AC4.3.2 | yes | Review Queue Logic | real: `apps/backend/tests/api/test_reconciliation_router.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_engine.py`<br>real: `scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ real |
 | AC4.3.3 | yes | Batch Accept | real: `apps/backend/tests/api/test_reconciliation_router.py`<br>real: `apps/backend/tests/reconciliation/test_reconciliation_router_additional.py` | ✅ real |
@@ -272,7 +272,7 @@
 | AC4.5.2 | no |  | real: `apps/backend/tests/api/test_reconciliation_router.py` | ✅ real (optional) |
 | AC4.6.1 | yes | 0.1 USD boundary: amount delta = 0.10 USD passes, 0.11 USD fails | real: `scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ real |
 | AC4.6.2 | yes | Transfer detection: matching OUT/IN within ±3 days not mis-reconciled | real: `scripts/tests/test_reconciliation_thresholds_unit.py` | ✅ real |
-| AC4.6.3 | yes | source_type=manual wins over auto_matched in conflict | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
+| AC4.6.3 | yes | source_type=manual wins over auto_matched in conflict | real: `apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py`<br>real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC4.6.4 | yes | Stage 2 batch approve blocked when duplicate flags unresolved | real: `apps/backend/tests/reconciliation/test_review_queue.py`<br>real: `apps/frontend/src/__tests__/reviewQueuePage.test.tsx` | ✅ real |
 | AC4.6.5 | yes | Reconciliation score considers source_type weight (manual > auto) | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC4.6.6 | no |  | real: `apps/backend/tests/reconciliation/test_reconciliation_engine.py` | ✅ real (optional) |
@@ -476,9 +476,9 @@
 
 <a id="epic-008-testing-strategy"></a>
 
-- **Total ACs**: 94
-- **Mandatory ACs**: 88
-- **Mandatory ACs with real test reference**: 88 (100.0%)
+- **Total ACs**: 95
+- **Mandatory ACs**: 89
+- **Mandatory ACs with real test reference**: 89 (100.0%)
 - **Mandatory ACs with only placeholder reference**: 0
 - **Mandatory ACs with only stub reference**: 0
 - **Mandatory ACs without any test reference**: 0
@@ -579,6 +579,7 @@
 | AC8.13.35 | yes | AC traceability reporting distinguishes real test references from _ac_stubs and trivial placeholder assertions. | real: `scripts/tests/test_audit_ac_epic_mismatches.py`<br>real: `scripts/tests/test_ci_metrics_contract.py`<br>placeholder: `scripts/tests/test_analyze_test_ac_coverage.py`<br>placeholder: `scripts/tests/test_build_ac_traceability.py`<br>placeholder: `scripts/tests/test_check_ac_traceability.py` | ✅ real |
 | AC8.13.36 | yes | Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success. | real: `scripts/tests/test_check_ghcr_image_tag.py`<br>real: `scripts/tests/test_post_merge_e2e_gates.py` | ✅ real |
 | AC8.13.37 | yes | AC traceability fails mandatory ACs that are covered only by _ac_stubs. | real: `scripts/tests/test_issue_459_traceability_gate.py`<br>placeholder: `scripts/tests/test_build_ac_traceability.py`<br>placeholder: `scripts/tests/test_check_ac_traceability.py` | ✅ real |
+| AC8.13.38 | yes | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews. | real: `scripts/tests/test_cleanup_pr_preview_resources.py` | ✅ real |
 
 ---
 
@@ -595,9 +596,9 @@
 
 | AC ID | Mandatory | Description | Test References | Status |
 |-------|-----------|-------------|-----------------|--------|
-| AC9.1.1 | yes | PDF analyzer exists | real: `scripts/tests/test_generate_ac_registry.py` | ✅ real |
+| AC9.1.1 | yes | PDF analyzer exists | real: `scripts/tests/test_generate_ac_registry.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
 | AC9.1.2 | yes | Template extractor exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
-| AC9.1.3 | yes | CLI tool exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
+| AC9.1.3 | yes | CLI tool exists | real: `scripts/tests/test_issue_459_infra_contracts.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
 | AC9.1.4 | yes | DBS template exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.1.5 | yes | CMB template exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.1.6 | yes | Mari Bank template exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
@@ -605,10 +606,10 @@
 | AC9.2.2 | yes | DBS generator exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.2.3 | yes | CMB generator exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.2.4 | yes | Mari Bank generator exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
-| AC9.2.5 | yes | Font utilities exist | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
-| AC9.2.6 | yes | Fake data generator exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
+| AC9.2.5 | yes | Font utilities exist | real: `scripts/tests/test_issue_459_infra_contracts.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
+| AC9.2.6 | yes | Fake data generator exists | real: `scripts/tests/test_issue_459_infra_contracts.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
 | AC9.2.7 | yes | Main script exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
-| AC9.3.1 | yes | Format validator exists | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
+| AC9.3.1 | yes | Format validator exists | real: `scripts/tests/test_issue_459_infra_contracts.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
 | AC9.3.2 | yes | Generated DBS PDF parseable | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.3.3 | yes | Generated CMB PDF parseable | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.3.4 | yes | Generated Mari PDF parseable | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
@@ -629,8 +630,8 @@
 | AC9.6.3 | yes | CMB generator supports Chinese fonts | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.6.4 | yes | Mari generator generates interest section | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 | AC9.6.5 | yes | Generators use fictional data | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
-| AC9.7.1 | yes | Main script supports --source parameter | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
-| AC9.7.2 | yes | Main script supports --output parameter | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
+| AC9.7.1 | yes | Main script supports --source parameter | real: `scripts/tests/test_issue_459_infra_contracts.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
+| AC9.7.2 | yes | Main script supports --output parameter | real: `scripts/tests/test_issue_459_infra_contracts.py`<br>real: `scripts/tests/test_pdf_fixture_tooling_coverage.py` | ✅ real |
 | AC9.7.3 | yes | Analyzer CLI supports input/output | real: `scripts/tests/test_issue_459_infra_contracts.py` | ✅ real |
 
 ---
@@ -873,7 +874,7 @@
 | AC13.10.1 | yes | Source type stamped on manual entry creation | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC13.10.2 | yes | Auto-match sets source_type=auto_matched | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC13.10.3 | yes | Stage-1 approve promotes to user_confirmed | real: `apps/backend/tests/extraction/test_source_type_promotion.py` | ✅ real |
-| AC13.10.4 | yes | Manual entry wins over auto_parsed in conflict | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
+| AC13.10.4 | yes | Manual entry wins over auto_parsed in conflict | real: `apps/backend/tests/infra/test_migrations.py`<br>real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC13.10.5 | yes | source_type cannot be downgraded | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC13.10.6 | yes | All four source_type values accepted by API | real: `apps/backend/tests/reconciliation/test_source_type.py` | ✅ real |
 | AC13.11.1 | no |  | real: `apps/backend/tests/extraction/test_extraction_error_paths.py` | ✅ real (optional) |
@@ -1076,7 +1077,7 @@
 | AC16.13.1 | yes | test_lifecycle — sanitize_namespace normalizes branch/workspace names | real: `scripts/tests/test_generate_ac_registry.py` | ✅ real |
 | AC16.13.2 | yes | test_lifecycle — get_namespace honors BRANCH_NAME and optional WORKSPACE_ID | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
 | AC16.13.3 | yes | test_lifecycle — get_namespace falls back to git branch plus path hash when env vars absent | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
-| AC16.13.4 | yes | test_lifecycle — get_test_db_name and get_s3_bucket format names deterministically | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
+| AC16.13.4 | yes | test_lifecycle — get_test_db_name and get_s3_bucket format bounded names deterministically | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
 | AC16.13.5 | yes | test_lifecycle — load_active_namespaces returns [] on missing or corrupted tracker file | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
 | AC16.13.6 | yes | test_lifecycle — register_namespace and unregister_namespace update active namespace tracker | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |
 | AC16.13.7 | yes | test_lifecycle — get_container_runtime detects podman/docker and returns None when absent | real: `scripts/tests/test_lifecycle_and_pdf_scripts.py` | ✅ real |

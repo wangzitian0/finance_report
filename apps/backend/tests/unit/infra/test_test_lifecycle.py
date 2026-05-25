@@ -28,6 +28,18 @@ def test_sanitize_namespace():
         test_lifecycle._sanitize_namespace("")
 
 
+def test_long_namespace_resource_names_are_bounded():
+    """AC8.1.1: Long branch namespaces remain valid for Postgres and S3."""
+    namespace = "codex_issue_490_testing_strategy_ac_coverage_0bb5607e"
+
+    db_name = test_lifecycle.get_test_db_name(namespace)
+    bucket = test_lifecycle.get_s3_bucket(namespace)
+
+    assert len(db_name) <= 63
+    assert len(bucket) <= 63
+    assert "_" not in bucket
+
+
 @patch("test_lifecycle.subprocess.run")
 def test_is_db_ready(mock_run):
     """AC8.2.1: Verify is_db_ready correctly checks container status."""

@@ -59,6 +59,20 @@ groups:
         epic_name: frontend-placeholders
         description: placeholder-only assertion
         mandatory: true
+  AC6:
+    AC6.6:
+      - id: AC6.6.6
+        epic: 6
+        epic_name: script-tests
+        description: script test real
+        mandatory: true
+  AC7:
+    AC7.7:
+      - id: AC7.7.7
+        epic: 7
+        epic_name: deprecated
+        description: "~~removed behavior~~"
+        mandatory: true
 """.strip()
             + "\n",
             encoding="utf-8",
@@ -73,12 +87,14 @@ groups:
         frontend = repo_root / "apps" / "frontend" / "src" / "__tests__"
         e2e = repo_root / "tests" / "e2e"
         repo_e2e = repo_root / "repo" / "e2e_regressions"
+        scripts_tests = repo_root / "scripts" / "tests"
         stubs = backend / "_ac_stubs"
 
         backend.mkdir(parents=True, exist_ok=True)
         frontend.mkdir(parents=True, exist_ok=True)
         e2e.mkdir(parents=True, exist_ok=True)
         repo_e2e.mkdir(parents=True, exist_ok=True)
+        scripts_tests.mkdir(parents=True, exist_ok=True)
         stubs.mkdir(parents=True, exist_ok=True)
 
         (backend / "test_backend_real.py").write_text(
@@ -103,6 +119,14 @@ groups:
             "# AC2.2.1\n",
             encoding="utf-8",
         )
+        (scripts_tests / "test_tooling_contract.py").write_text(
+            "# AC6.6.6\n# AC77.7.7\n",
+            encoding="utf-8",
+        )
+        (scripts_tests / "test_generate_ac_registry.py").write_text(
+            "# AC99.1.1\n",
+            encoding="utf-8",
+        )
         (stubs / "test_placeholder.py").write_text(
             "import pytest\n# AC99.3.3\n# AC8.12.7\ndef test_stub():\n    pytest.skip('placeholder')\n",
             encoding="utf-8",
@@ -120,10 +144,12 @@ groups:
         assert result.source_file_counts["backend"] == 2
         assert result.source_file_counts["frontend"] == 2
         assert result.source_placeholder_ref_counts["frontend"] == 2
+        assert result.source_file_counts["scripts_tests"] == 2
         assert result.source_file_counts["e2e"] == 1
         assert result.source_file_counts["repo_e2e"] == 1
 
-        assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1"}
+        assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1", "AC6.6.6"}
+        assert result.deprecated_ids == {"AC7.7.7"}
         assert result.placeholder_only_ids == {"AC5.5.5"}
         assert result.stub_only_ids == {"AC99.3.3"}
         assert result.untested_ids == ["AC4.4.4", "AC5.5.5", "AC99.3.3"]
@@ -138,6 +164,8 @@ groups:
             "apps/frontend/src/__tests__/dashboard.test.tsx"
             in result.invalid_real_refs["AC18.4.4"]
         )
+        assert "AC77.7.7" not in result.invalid_real_refs
+        assert "AC99.1.1" not in result.invalid_real_refs
 
         assert "AC8.12.7" in result.invalid_stub_refs
         assert (
@@ -163,13 +191,17 @@ groups:
 
         assert "Coverage accounting (EPIC-008 aligned)" in report
         assert "Scan scope summary" in report
+        assert "scripts_tests" in report
+        assert "Deprecated ACs excluded from coverage gate" in report
         assert "Invalid AC references (unregistered)" in report
         assert "`AC18.4.4`" in report
         assert "`AC9.9.9`" in report
+        assert "`AC77.7.7`" not in report
+        assert "`AC99.1.1`" not in report
         assert "Placeholder-only AC assertions" in report
         assert "`AC19.1.1`" in report
         assert "Stub-only AC placeholders (`_ac_stubs`)" in report
-        assert "Registered ACs with no real test reference" in report
+        assert "Active registered ACs with no real test reference" in report
         assert "EPIC-003 (placeholders) — 1 untested" in report
         assert "EPIC-004 (untested) — 1 untested" in report
         assert "EPIC-005 (frontend-placeholders) — 1 untested" in report

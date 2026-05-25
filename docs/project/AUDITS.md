@@ -14,8 +14,10 @@ reports for current metrics.
 Current generated AC snapshot:
 
 - 984 registered ACs
-- 816 ACs with real test-candidate references
-- 168 registered ACs without real test reference
+- 981 active ACs
+- 3 deprecated ACs excluded from the coverage gate
+- 981 active ACs with real test-candidate references
+- 0 active registered ACs without real test reference
 - 0 stub-only placeholders
 - 0 invalid AC refs in real tests
 - 0 actionable AC-to-EPIC mismatches

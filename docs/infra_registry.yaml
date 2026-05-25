@@ -1064,7 +1064,7 @@ groups:
       - id: AC16.13.4
         epic: 16
         epic_name: two-stage-review-ui
-        description: "test_lifecycle \u2014 get_test_db_name and get_s3_bucket format names deterministically"
+        description: "test_lifecycle \u2014 get_test_db_name and get_s3_bucket format bounded names deterministically"
         mandatory: true
       - id: AC16.13.5
         epic: 16

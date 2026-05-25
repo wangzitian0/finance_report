@@ -65,6 +65,16 @@ def test_AC16_13_4_name_helpers():
     assert tl.get_test_db_name("abc") == "finance_report_test_abc"
     assert tl.get_s3_bucket("feature_a") == "statements-feature-a"
 
+    long_namespace = "codex_issue_490_testing_strategy_ac_coverage_0bb5607e"
+    db_name = tl.get_test_db_name(long_namespace)
+    bucket = tl.get_s3_bucket(long_namespace)
+
+    assert len(db_name) <= 63
+    assert db_name.startswith("finance_report_test_")
+    assert len(bucket) <= 63
+    assert bucket.startswith("statements-")
+    assert "_" not in bucket
+
 
 def test_AC16_13_5_load_active_namespaces_missing_and_corrupt(monkeypatch, tmp_path):
     tracker = tmp_path / "active_namespaces.json"

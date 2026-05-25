@@ -262,4 +262,66 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     await userEvent.click(uploadButton);
     await screen.findByText("Server Error");
   });
+
+  it("AC8.4.1 rejects unsupported and oversized statement files before upload", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+
+    render(<StatementUploader />);
+
+    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["data"], "statement.exe", { type: "application/octet-stream" })] },
+    });
+    expect(await screen.findByText("Invalid file type: .exe. Allowed: PDF, CSV, PNG, JPG")).toBeInTheDocument();
+
+    const hugeFile = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "statement.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput, { target: { files: [hugeFile] } });
+    expect(await screen.findByText("File exceeds 10MB limit")).toBeInTheDocument();
+    expect(apiUpload).not.toHaveBeenCalled();
+  });
+
+  it("AC8.4.1 requires a file and calls completion callback after successful upload", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+    vi.mocked(apiUpload).mockResolvedValue({});
+    const onUploadComplete = vi.fn();
+
+    render(<StatementUploader onUploadComplete={onUploadComplete} />);
+
+    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    await userEvent.click(uploadButton);
+    expect(await screen.findByText("Please select a file")).toBeInTheDocument();
+
+    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
+    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    await userEvent.upload(fileInput, file);
+    await userEvent.click(uploadButton);
+
+    await waitFor(() => expect(apiUpload).toHaveBeenCalledWith("/api/statements/upload", expect.any(FormData)));
+    expect(onUploadComplete).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/drop files here or click to upload/i)).toBeInTheDocument();
+  });
+
+  it("AC8.4.1 accepts dropped statement files", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+
+    render(<StatementUploader />);
+
+    const dropZone = screen.getByText(/drop files here or click to upload/i).closest(".card")!;
+    const file = new File(["data"], "statement.png", { type: "image/png" });
+    fireEvent.drop(dropZone, { dataTransfer: { files: [file] } });
+
+    expect(await screen.findByText("statement.png")).toBeInTheDocument();
+  });
 });

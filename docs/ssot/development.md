@@ -102,6 +102,8 @@ Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/
 - Worker Databases: `finance_report_test_{namespace}_gw0`, `gw1`, etc. (pytest-xdist)
 - S3 Buckets: `statements-{namespace}`
 
+Long branch/workspace namespaces are shortened deterministically with an 8-character hash suffix before resource creation. This keeps PostgreSQL identifiers and S3-compatible bucket names within their 63-character limits while preserving stable local/CI isolation.
+
 **Usage**:
 ```bash
 BRANCH_NAME=feature-auth moon run :test                    # Explicit namespace
@@ -124,7 +126,7 @@ moon run :test                                             # Auto-detect from gi
 | Function | Input | Output | Purpose |
 |----------|-------|--------|---------|
 | `get_test_db_name(namespace)` | `"feature_auth"` | `"finance_report_test_feature_auth"` | Test database |
-| `get_s3_bucket(namespace)` | `"feature_auth"` | `"statements-feature_auth"` | S3 bucket |
+| `get_s3_bucket(namespace)` | `"feature_auth"` | `"statements-feature-auth"` | S3 bucket |
 | `get_env_suffix(namespace)` | `"feature_auth"` | `"-feature_auth"` | Compose suffix |
 | `sanitize_namespace(name)` | `"feature/auth-v2"` | `"feature_auth_v2"` | Safe identifier |
 
