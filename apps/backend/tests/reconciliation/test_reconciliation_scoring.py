@@ -235,6 +235,14 @@ def test_score_amount_branches() -> None:
     assert score_amount(Decimal("100.00"), Decimal("160.00"), config) == 40.0
 
 
+def test_amount_tolerance_0_10_boundary() -> None:
+    """AC4.6.1: Absolute amount delta of 0.10 passes, but 0.11 fails."""
+    config = DEFAULT_CONFIG
+
+    assert score_amount(Decimal("10.00"), Decimal("10.10"), config) == 90.0
+    assert score_amount(Decimal("10.00"), Decimal("10.11"), config) < 90.0
+
+
 def test_score_date_branches() -> None:
     """[AC4.1.2] Test score_date logic."""
     config = DEFAULT_CONFIG
