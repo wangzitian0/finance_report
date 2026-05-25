@@ -1,10 +1,11 @@
 # EPIC-016: Two-Stage Review & Data Validation UI
 
-> **Status**: 🟡 Planned  
-> **Vision Anchor**: `decision-4-two-stage-review`  
-> **Phase**: 3 (Reconciliation Enhancement)  
-> **Duration**: 4-6 weeks  
-> **Priority**: P0 (Critical - Foundation for User Adoption)  
+> **Status ownership**: Scope owner only; live delivery status is tracked by
+> GitHub issues, AC registries, and executable tests.
+> **Vision Anchor**: `decision-4-two-stage-review`
+> **Phase**: 3 (Reconciliation Enhancement)
+> **Planning estimate**: 4-6 weeks
+> **Priority**: P0 (Critical - Foundation for User Adoption)
 > **Dependencies**: EPIC-003 (Statement Parsing), EPIC-004 (Reconciliation Engine)
 
 ---
@@ -46,7 +47,17 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ---
 
-## ✅ Task Checklist
+## Live Status Ownership
+
+This EPIC defines the two-stage review scope and ACs. Do not use unchecked
+boxes, historical audit tables, or planning estimates in this file as current
+delivery status. For current proof, use generated registries, tests, and GitHub
+issue state.
+
+## ✅ Scope Checklist
+
+The checklist below is retained as scope inventory, not as live completion
+status. Current implementation proof must come from AC IDs and tests.
 
 ### Phase 1: Stage 1 (Record-Level Review) — 2-3 weeks
 
@@ -309,18 +320,21 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ---
 
-## 📅 Timeline
+## 📅 Roadmap Snapshot
 
-| Phase | Content | Duration | Status |
-|------|------|----------|--------|
-| **Phase 1** | Stage 1 (Record-Level Review) | 2-3 weeks | ⏳ Planned |
-| Week 1 | Data model + Backend validation service | | |
-| Week 2 | API endpoints + Frontend split-view UI | | |
-| Week 3 | Testing + Balance chain validation | | |
-| **Phase 2** | Stage 2 (Run-Level Review + Consistency Checks) | 2-3 weeks | ⏳ Planned |
-| Week 4 | Consistency check service (dedup, transfer, anomaly) | | |
-| Week 5 | Review queue UI + Batch operations | | |
-| Week 6 | Testing + Conflict resolution | | |
+This is the original planning sequence. It is not a live schedule or current
+delivery status table.
+
+| Phase | Content | Planning Estimate |
+|------|------|----------|
+| **Phase 1** | Stage 1 (Record-Level Review) | 2-3 weeks |
+| Week 1 | Data model + Backend validation service | |
+| Week 2 | API endpoints + Frontend split-view UI | |
+| Week 3 | Testing + Balance chain validation | |
+| **Phase 2** | Stage 2 (Run-Level Review + Consistency Checks) | 2-3 weeks |
+| Week 4 | Consistency check service (dedup, transfer, anomaly) | |
+| Week 5 | Review queue UI + Batch operations | |
+| Week 6 | Testing + Conflict resolution | |
 
 **Total Estimate**: 4-6 weeks (depends on clarification response time)
 
@@ -346,7 +360,7 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ---
 
-*Last updated: March 2026*
+*Planning snapshot captured: March 2026*
 
 ---
 
@@ -639,9 +653,13 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ---
 
-## 🔍 FE/UI Audit (April 2026)
+## 🔍 Historical FE/UI Audit Snapshot (April 2026)
 
 > Audit Date: 2026-04-06 | Auditor: AI Agent (Sisyphus) | Scope: Frontend completeness, UX quality, accessibility
+>
+> Snapshot note: this audit records findings from April 2026. Treat file and
+> implementation inventories as historical context unless re-validated against
+> the current tree and generated proof reports.
 
 ### Executive Summary
 
@@ -668,7 +686,7 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 | # | Gap | EPIC Requirement | Impact |
 |---|-----|-----------------|--------|
-| G1 | **No component decomposition** | EPIC specifies `components/review/PdfViewer.tsx`, `TransactionList.tsx`, `BalanceIndicator.tsx`, `ConsistencyCheckCard.tsx`, `BatchActions.tsx` | `components/review/` directory **does not exist**. All logic is monolithic in page.tsx files (351 + 495 lines). Makes testing, reuse, and maintenance difficult. |
+| G1 | **No component decomposition at audit time** | EPIC specifies `components/review/PdfViewer.tsx`, `TransactionList.tsx`, `BalanceIndicator.tsx`, `ConsistencyCheckCard.tsx`, `BatchActions.tsx` | `components/review/` directory did not exist in the audited tree. All logic was monolithic in page.tsx files (351 + 495 lines). |
 | G2 | **No inline transaction editing** | EPIC requires "Editable rows" in Stage 1 review — user corrects OCR mistakes before approving | Zero implementation. grep for `inline.?edit|editable|contentEditable` → 0 matches. Without this, users cannot fix parsing errors, defeating the purpose of human review. |
 | G3 | **No conflict resolution UI** | Stage 2 requires "choose canonical transaction" for duplicates and "link transfer pair" for transfers | No UI for resolving duplicate transactions or linking transfer pairs. Backend `consistency_checks.py` detects these, but frontend has no resolution workflow. |
 
@@ -1441,5 +1459,4 @@ apps/frontend/src/
 
 ---
 
-*Document created: 2026-02-25*
-*Last updated: 2026-02-25*
+*Planning snapshot captured: 2026-02-25*

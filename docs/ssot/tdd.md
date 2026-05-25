@@ -152,6 +152,11 @@ README project metrics should be generated or validated from registries and
 test reports. Tracked by
 [#455](https://github.com/wangzitian0/finance_report/issues/455).
 
+Do not hand-write mutable status snapshots in prose documentation. AC counts,
+coverage percentages, issue state, PR state, CI status, dependency versions,
+and test inventories belong to generated reports, GitHub, lockfiles, CI, or
+mechanically validated matrices.
+
 ## Related
 
 - [Root README](../../README.md)

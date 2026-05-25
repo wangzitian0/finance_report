@@ -2034,7 +2034,7 @@ The following items were identified during the vision.md recovery audit as featu
 
 ---
 
-**Last Updated**: 2026-04-28
+**Historical audit snapshot captured**: 2026-04-28
 
 ---
 

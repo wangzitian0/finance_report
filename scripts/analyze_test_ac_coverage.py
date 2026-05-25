@@ -341,6 +341,9 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append(
         f"> Generated: {generated_at.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')} by `scripts/analyze_test_ac_coverage.py`"
     )
+    lines.append(
+        "> Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs."
+    )
     lines.append("")
     lines.append("## Coverage accounting (EPIC-008 aligned)")
     lines.append("")

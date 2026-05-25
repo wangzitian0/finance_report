@@ -2,8 +2,10 @@
 
 Finance Report provides financial reports and dashboards to help you understand your financial position.
 
-Current project status and proof for reports live in the root
-[README](../../README.md) and [EPIC-005](../project/EPIC-005.reporting-visualization.md).
+Stable report scope is described by
+[EPIC-005](../project/EPIC-005.reporting-visualization.md). Current proof
+metrics live in generated reports such as
+[the AC coverage report](../analysis/test-ac-coverage-report.md).
 
 ## Available Reports
 
