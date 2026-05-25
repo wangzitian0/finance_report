@@ -1,0 +1,61 @@
+name: PR Preview Cleanup
+
+on:
+  schedule:
+    - cron: "37 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Show cleanup actions without deleting resources"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+concurrency:
+  group: pr-preview-cleanup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cleanup:
+    name: Cleanup stale PR previews
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        id: ssh
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: cloud.zitian.party
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "::warning::VPS_SSH_KEY is not configured; skipping stale preview cleanup"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Remove stale preview resources
+        if: steps.ssh.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '--dry-run' || '' }}
+        run: |
+          python scripts/cleanup_pr_preview_resources.py \
+            --host cloud.zitian.party \
+            --ssh-key ~/.ssh/vps_key \
+            --builder-prune-until 24h \
+            --image-prune-until 168h \
+            $DRY_RUN
