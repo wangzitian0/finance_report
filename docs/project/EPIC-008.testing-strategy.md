@@ -502,6 +502,7 @@ These scenarios represent the "Vertical Slices" of user value.
 3. **Multi-Brokerage Upload to Portfolio Value (Tier 3)** (`test_brokerage_upload_to_portfolio_value.py`):
    - **Status**: Implemented hard gate for Issue #404
    - **Coverage**: AC8.13.10 (Moomoo + Futu PDF upload, real OCR parse polling, parsed-statement position import, holdings visibility, balance-sheet asset value), AC8.13.18, AC8.13.19
+   - **Path matrix**: The README `Core Proof Paths` section and the [EPIC-017 brokerage PDF to asset report proof matrix](EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) map this provider-backed gate to the backend and frontend proof rows.
    - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures. Portfolio value coverage is checked against balance-sheet market valuation adjustment lines, not whole `total_assets`, so unrelated cash or bank lines cannot mask or falsely fail the imported portfolio valuation check. Failures include imported position count, holdings total market value, valuation adjustment total, non-portfolio asset total, total assets, net worth adjustment, and relevant asset lines.
    - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS full journey.
 
