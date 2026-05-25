@@ -1,10 +1,12 @@
 ARG PYTHON_IMAGE=python:3.12.12-slim
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.9.18
 
+FROM ${UV_IMAGE} AS uv-source
+
 # Build stage
 FROM ${PYTHON_IMAGE} AS builder
 WORKDIR /app
-COPY --from=${UV_IMAGE} /uv /usr/local/bin/uv
+COPY --from=uv-source /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen --no-dev --no-install-project
 

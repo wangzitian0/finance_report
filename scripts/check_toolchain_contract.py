@@ -117,8 +117,9 @@ def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -
     for needle in (
         f"ARG PYTHON_IMAGE={images['backend_python']}",
         f"ARG UV_IMAGE={images['backend_uv']}",
+        "FROM ${UV_IMAGE} AS uv-source",
         "FROM ${PYTHON_IMAGE} AS builder",
-        "COPY --from=${UV_IMAGE} /uv /usr/local/bin/uv",
+        "COPY --from=uv-source /uv /usr/local/bin/uv",
         "FROM ${PYTHON_IMAGE}",
     ):
         expect_contains(errors, "apps/backend/Dockerfile", backend, needle)
