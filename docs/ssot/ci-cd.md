@@ -37,8 +37,9 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `scripts/check_ac_traceability.py` as the fail-closed gate, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. The audit distinguishes real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. CI does not fail solely because the checked-in archive copy is stale.
 5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, and `main` pushes use the same gate before post-merge staging, so asynchronous Coveralls upload failures are blocked before merge and before staging. A terminal external failure is re-polled once before CI fails. The local unified coverage calculation remains the authoritative no-regression gate; a Coveralls success with no external base comparison is accepted because `scripts/calculate_unified_coverage.py` already compared against `unified-coverage.json` before upload.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
-7. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
-8. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+7. **Toolchain Contract**: `scripts/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
+8. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
+9. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ### PR vs Main CI Responsibilities
 
@@ -144,6 +145,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
 - CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports a confirmed `failure`/`error`, or never appears before timeout.
+- CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 - The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 

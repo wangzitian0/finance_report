@@ -7,11 +7,12 @@ runs:
     - name: Install uv
       uses: astral-sh/setup-uv@v5
       with:
+        version: "0.5.14"
         enable-cache: true
         cache-dependency-glob: "tests/e2e/requirements.txt"
 
     - name: Set up Python
-      run: uv python install 3.12
+      run: uv python install "$(cat .python-version)"
       shell: bash
 
     - name: Cache E2E virtualenv

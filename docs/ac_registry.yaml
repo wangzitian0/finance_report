@@ -1924,6 +1924,11 @@ groups:
         epic_name: testing-strategy
         description: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
         mandatory: true
+      - id: AC8.13.39
+        epic: 8
+        epic_name: testing-strategy
+        description: Runtime and container versions stay aligned across local, CI, and Docker environments.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
