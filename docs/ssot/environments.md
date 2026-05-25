@@ -36,7 +36,7 @@
 **Local CI** — Reuses Local Dev containers, creates **temporary test databases**:
 - Uses same `docker-compose.yml` (Profile: `infra`)
 - **Ephemeral data**: Test DB reset before each run, worker DBs auto-cleaned
-- Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.)
+- Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.); long namespaces are hash-shortened to keep DB names and `statements-{namespace}` buckets within 63-character backend limits.
 - Command: `moon run :lint && moon run :test` (**matches GitHub CI exactly**)
 
 ### GitHub Environments

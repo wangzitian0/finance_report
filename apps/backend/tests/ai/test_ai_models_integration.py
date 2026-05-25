@@ -4,6 +4,8 @@ These tests validate the configured provider model catalog. The default catalog
 is local/configured so CI does not depend on remote model-list availability.
 """
 
+import re
+
 import pytest
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -57,8 +59,7 @@ class TestModelCatalogIntegration:
         assert len(settings.fallback_models) > 0, "FALLBACK_MODELS list is empty"
 
         for model_id in settings.fallback_models:
-            assert model_id.startswith("glm-"), f"Invalid fallback model format: {model_id}"
-            assert len(model_id) > 5, f"Fallback model ID too short: {model_id}"
+            assert re.fullmatch(r"glm-[\d.a-z-]+", model_id), f"Invalid fallback model format: {model_id}"
 
     async def test_glm_models_available(self):
         """AC6.11.1: At least one GLM model available in catalog."""

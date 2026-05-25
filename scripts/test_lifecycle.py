@@ -33,6 +33,10 @@ BACKEND_DIR = REPO_ROOT / "apps" / "backend"
 DB_CONTAINER_PREFIX = "finance-report-db"
 CACHE_DIR = Path.home() / ".cache" / "finance_report"
 ACTIVE_NAMESPACES_FILE = CACHE_DIR / "active_namespaces.json"
+MAX_POSTGRES_IDENTIFIER_LENGTH = 63
+TEST_DB_PREFIX = "finance_report_test_"
+MAX_NAMESPACE_LENGTH = MAX_POSTGRES_IDENTIFIER_LENGTH - len(TEST_DB_PREFIX)
+MAX_S3_BUCKET_LENGTH = 63
 
 # ANSI Colors
 GREEN = "\033[92m"
@@ -42,6 +46,7 @@ RESET = "\033[0m"
 
 
 # === Isolation Utilities (inlined from isolation_utils.py) ===
+
 
 def get_namespace() -> str:
     """Generate unique namespace for test isolation based on branch/repo."""
@@ -55,19 +60,25 @@ def get_namespace() -> str:
                 namespace = f"{namespace}_{_sanitize_namespace(workspace)}"
             except ValueError:
                 pass  # Invalid workspace ID, use branch-only namespace
-        return namespace
+        return _shorten_identifier(namespace, MAX_NAMESPACE_LENGTH, separator="_")
 
     # Git auto-detection with path hash
     try:
         result = subprocess.run(
             ["git", "branch", "--show-current"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         git_branch = result.stdout.strip()
         if git_branch:
             namespace = _sanitize_namespace(git_branch)
-            path_hash = hashlib.sha256(str(Path.cwd().absolute()).encode()).hexdigest()[:8]
-            return f"{namespace}_{path_hash}"
+            path_hash = hashlib.sha256(str(Path.cwd().absolute()).encode()).hexdigest()[
+                :8
+            ]
+            return _shorten_identifier(
+                f"{namespace}_{path_hash}", MAX_NAMESPACE_LENGTH, separator="_"
+            )
     except Exception:
         pass  # Git command failed or not a git repo, fall through to default
 
@@ -90,17 +101,44 @@ def _sanitize_namespace(name: str) -> str:
     return safe
 
 
+def _shorten_identifier(value: str, max_length: int, separator: str = "_") -> str:
+    """Shorten a stable identifier and preserve uniqueness with a hash suffix."""
+    if len(value) <= max_length:
+        return value
+
+    digest = hashlib.sha256(value.encode()).hexdigest()[:8]
+    prefix_length = max_length - len(separator) - len(digest)
+    if prefix_length < 1:
+        raise ValueError(f"Identifier max_length too short: {max_length}")
+
+    prefix = value[:prefix_length].rstrip("_-")
+    return f"{prefix}{separator}{digest}"
+
+
 def get_test_db_name(namespace: str) -> str:
     """Generate test database name from namespace."""
-    return f"finance_report_test_{namespace}"
+    safe_namespace = _shorten_identifier(namespace, MAX_NAMESPACE_LENGTH, separator="_")
+    return f"{TEST_DB_PREFIX}{safe_namespace}"
 
 
 def get_s3_bucket(namespace: str, base_bucket: str = "statements") -> str:
     """Generate S3 bucket name from namespace."""
-    return f"{base_bucket}-{namespace.replace('_', '-')}"
+    safe_namespace = namespace.replace("_", "-")
+    bucket = f"{base_bucket}-{safe_namespace}"
+    if len(bucket) <= MAX_S3_BUCKET_LENGTH:
+        return bucket
+
+    digest = hashlib.sha256(bucket.encode()).hexdigest()[:8]
+    prefix_length = MAX_S3_BUCKET_LENGTH - len(base_bucket) - 2 - len(digest)
+    if prefix_length < 1:
+        raise ValueError(f"Base bucket name too long: {base_bucket}")
+
+    prefix = safe_namespace[:prefix_length].rstrip("-")
+    return f"{base_bucket}-{prefix}-{digest}"
 
 
 # === Logging ===
+
 
 def log(msg, color=RESET):
     print(f"{color}{msg}{RESET}")
@@ -181,6 +219,7 @@ def cleanup_orphan_databases(runtime, container_name):
         # Keep databases that belong to current or active namespaces
         # Database naming: finance_report_test_{namespace} or finance_report_test_{namespace}_gwX
         import re
+
         db_pattern = re.compile(r"^finance_report_test_([^_]+(?:_[^_]+)*?)(?:_gw\d+)?$")
 
         orphan_dbs = []
@@ -189,7 +228,10 @@ def cleanup_orphan_databases(runtime, container_name):
             if match:
                 db_namespace = match.group(1)
                 # Keep if it's the current namespace or in active list
-                if db_namespace != current_namespace and db_namespace not in active_namespaces:
+                if (
+                    db_namespace != current_namespace
+                    and db_namespace not in active_namespaces
+                ):
                     orphan_dbs.append(db)
             elif db == "finance_report_test":
                 # Legacy database without namespace, safe to drop
@@ -211,7 +253,7 @@ def cleanup_orphan_databases(runtime, container_name):
                     "-U",
                     "postgres",
                     "-c",
-                    f"DROP DATABASE IF EXISTS \"{db_name}\";",
+                    f'DROP DATABASE IF EXISTS "{db_name}";',
                 ],
                 capture_output=True,
             )
@@ -221,8 +263,13 @@ def cleanup_orphan_databases(runtime, container_name):
         # Also clear stale namespaces from the file
         stale_namespaces = [ns for ns in active_namespaces if ns != current_namespace]
         if stale_namespaces:
-            save_active_namespaces([current_namespace] if current_namespace in active_namespaces else [])
-            log(f"   Cleared {len(stale_namespaces)} stale namespace(s) from tracking.", YELLOW)
+            save_active_namespaces(
+                [current_namespace] if current_namespace in active_namespaces else []
+            )
+            log(
+                f"   Cleared {len(stale_namespaces)} stale namespace(s) from tracking.",
+                YELLOW,
+            )
 
     except subprocess.CalledProcessError as e:
         log(f"   Warning: Failed to check orphaned databases: {e}", YELLOW)
@@ -348,18 +395,23 @@ def test_database(ephemeral=False):
     # This ensures container_name: finance-report-db${ENV_SUFFIX} is unique
     env_suffix = f"-{namespace}"
     project_name = f"finance-report-{namespace}"
-    
+
     # Inject ENV_SUFFIX into environment for subprocess
     env = os.environ.copy()
     env["ENV_SUFFIX"] = env_suffix
-    
+
     compose_cmd = [runtime, "compose", "-p", project_name, "-f", str(COMPOSE_FILE)]
 
-    log(f"🐘 Ensuring infrastructure is up (Project: {project_name}, Suffix: {env_suffix})...", YELLOW)
+    log(
+        f"🐘 Ensuring infrastructure is up (Project: {project_name}, Suffix: {env_suffix})...",
+        YELLOW,
+    )
     try:
         # Start infrastructure services if not running
         # Use --profile infra to only start infra services if needed
-        subprocess.run([*compose_cmd, "--profile", "infra", "up", "-d"], env=env, check=True)
+        subprocess.run(
+            [*compose_cmd, "--profile", "infra", "up", "-d"], env=env, check=True
+        )
 
         # Wait for postgres to be ready
         container_name = f"finance-report-db{env_suffix}"
@@ -413,13 +465,16 @@ def test_database(ephemeral=False):
             "-U",
             "postgres",
             "-c",
-            f"DROP DATABASE IF EXISTS \"{test_db_name}\" WITH (FORCE);",
+            f'DROP DATABASE IF EXISTS "{test_db_name}" WITH (FORCE);',
         ],
         capture_output=True,
         text=True,
     )
     if drop_res.returncode != 0:
-        log(f"   Warning: DROP DATABASE failed (might be expected if DB doesn't exist): {drop_res.stderr.strip()}", YELLOW)
+        log(
+            f"   Warning: DROP DATABASE failed (might be expected if DB doesn't exist): {drop_res.stderr.strip()}",
+            YELLOW,
+        )
 
     subprocess.run(
         [
@@ -430,7 +485,7 @@ def test_database(ephemeral=False):
             "-U",
             "postgres",
             "-c",
-            f"CREATE DATABASE \"{test_db_name}\";",
+            f'CREATE DATABASE "{test_db_name}";',
         ],
         check=True,
         capture_output=True,
@@ -485,7 +540,7 @@ def test_database(ephemeral=False):
                     "-U",
                     "postgres",
                     "-c",
-                    f"DROP DATABASE IF EXISTS \"{test_db_name}\";",
+                    f'DROP DATABASE IF EXISTS "{test_db_name}";',
                 ],
                 capture_output=True,
                 check=True,
@@ -496,20 +551,28 @@ def test_database(ephemeral=False):
 
         # Stop and remove infrastructure if ephemeral mode is on
         if ephemeral:
-            log(f"🌬️  Ephemeral mode: Tearing down infrastructure ({project_name})...", YELLOW)
+            log(
+                f"🌬️  Ephemeral mode: Tearing down infrastructure ({project_name})...",
+                YELLOW,
+            )
             try:
                 subprocess.run([*compose_cmd, "down", "-v"], env=env, check=True)
                 log(f"   ✅ Resources released for {project_name}.", GREEN)
-                
+
                 # Explicit pod cleanup if using podman
                 if runtime == "podman":
                     pod_name = f"pod_{project_name}"
                     log(f"📦 Checking for lingering pod: {pod_name}...", YELLOW)
-                    subprocess.run(["podman", "pod", "rm", "-f", pod_name], capture_output=True)
+                    subprocess.run(
+                        ["podman", "pod", "rm", "-f", pod_name], capture_output=True
+                    )
             except subprocess.CalledProcessError as e:
                 log(f"   Warning: Failed to teardown infrastructure: {e}", YELLOW)
         else:
-            log(f"📌 Persistent mode: Keeping infrastructure running ({project_name}).", YELLOW)
+            log(
+                f"📌 Persistent mode: Keeping infrastructure running ({project_name}).",
+                YELLOW,
+            )
 
         # Unregister namespace after successful cleanup
         unregister_namespace(namespace)
@@ -518,10 +581,22 @@ def test_database(ephemeral=False):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Run backend tests with DB lifecycle management")
-    parser.add_argument("--fast", action="store_true", help="Fast mode: no coverage, -n 4")
-    parser.add_argument("--smart", action="store_true", help="Smart mode: coverage on changed files only")
-    parser.add_argument("--ephemeral", action="store_true", help="Ephemeral mode: destroy all infrastructure after run")
+    parser = argparse.ArgumentParser(
+        description="Run backend tests with DB lifecycle management"
+    )
+    parser.add_argument(
+        "--fast", action="store_true", help="Fast mode: no coverage, -n 4"
+    )
+    parser.add_argument(
+        "--smart",
+        action="store_true",
+        help="Smart mode: coverage on changed files only",
+    )
+    parser.add_argument(
+        "--ephemeral",
+        action="store_true",
+        help="Ephemeral mode: destroy all infrastructure after run",
+    )
     # Use parse_known_args for transparent pytest flag pass-through (-k, -m, etc.)
     args, extra_pytest_args = parser.parse_known_args()
 
@@ -539,9 +614,12 @@ def main():
     if args.fast:
         log("🚀 Fast Mode: No coverage, -n 4", GREEN)
         pytest_args = [
-            "-n", "4",
-            "-m", "not slow and not e2e",
-            "--dist", "worksteal",
+            "-n",
+            "4",
+            "-m",
+            "not slow and not e2e",
+            "--dist",
+            "worksteal",
             "--tb=short",
             "--no-cov",  # Override pyproject.toml addopts
         ]
@@ -549,9 +627,12 @@ def main():
         log("🧪 Smart Mode: Coverage on changed files only", GREEN)
         changed_modules = _get_changed_files()
         pytest_args = [
-            "-n", "4",
-            "-m", "not slow and not e2e",
-            "--dist", "worksteal",
+            "-n",
+            "4",
+            "-m",
+            "not slow and not e2e",
+            "--dist",
+            "worksteal",
             "--no-cov",  # Override pyproject.toml addopts first
         ]
         if changed_modules:
@@ -562,19 +643,23 @@ def main():
                 log(f"   • ... and {len(changed_modules) - 5} more", YELLOW)
             for module in changed_modules:
                 pytest_args.append(f"--cov={module}")
-            pytest_args.extend([
-                "--cov-report=term-missing",
-                "--cov-branch",
-                "--cov-fail-under=99",
-            ])
+            pytest_args.extend(
+                [
+                    "--cov-report=term-missing",
+                    "--cov-branch",
+                    "--cov-fail-under=99",
+                ]
+            )
         else:
             log("   No changes detected, running full coverage", YELLOW)
-            pytest_args.extend([
-                "--cov=src",
-                "--cov-report=term-missing",
-                "--cov-branch",
-                "--cov-fail-under=94",
-            ])
+            pytest_args.extend(
+                [
+                    "--cov=src",
+                    "--cov-report=term-missing",
+                    "--cov-branch",
+                    "--cov-fail-under=94",
+                ]
+            )
     else:
         # Default mode: use pyproject.toml addopts (includes coverage)
         pass
