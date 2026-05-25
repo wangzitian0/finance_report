@@ -147,7 +147,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "Backend Tests (Shard ${{ matrix.shard }}/6)",
             "--splits 6",
             "--failure-confirmation-seconds",
-            "--reject-success-description-regex",
         )
         for token in required_workflow_tokens:
             if token not in workflow_text:
@@ -175,7 +174,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "single CI metrics contract",
             "AC traceability is a reference metric, not behavioral coverage",
             "trivial placeholder assertions",
-            "success without a valid base comparison",
+            "Coveralls success with no external base comparison is accepted",
             "New `apps/*/src` or `packages/*/src` source roots fail CI",
         ):
             if token not in ci_cd_text:

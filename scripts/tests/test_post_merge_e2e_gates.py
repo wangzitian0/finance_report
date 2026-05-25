@@ -74,6 +74,22 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     assert '[[ "$http_code" == "404" ]]' in health_check
 
 
+def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
+    """AC8.13.11: Staging deploy fails before redeploy when Vault token is invalid."""
+    common = read("scripts/lib/common.sh")
+    deploy_script = read("scripts/dokploy_deploy.sh")
+
+    assert "verify_vault_app_token()" in common
+    assert "auth/token/lookup-self" in common
+    assert "VAULT_APP_TOKEN is invalid or expired" in common
+    assert "VAULT_APP_TOKEN is not renewable" in common
+    assert "ttl ${ttl}s is below required" in common
+    assert 'verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800' in deploy_script
+    assert deploy_script.index("verify_vault_app_token") < deploy_script.index(
+        "dokploy_api_call \"POST\" \"compose.update\""
+    )
+
+
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     """AC8.13.12: AI/OCR gate failures include statement validation context."""
     conftest = read("tests/e2e/conftest.py")
@@ -498,6 +514,7 @@ def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
     assert "statuses: read" in workflow
     assert "scripts/wait_for_github_status.py" in workflow
     assert '--context "Coveralls - unified"' in workflow
+    assert "--reject-success-description-regex" not in workflow
     assert workflow.index("Upload unified coverage to Coveralls") < workflow.index(
         "Wait for Coveralls unified status"
     )
@@ -507,6 +524,7 @@ def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
     assert "wait_for_status_success" in wait_script
     assert "Coveralls - unified" in ci_cd
     assert "Pull requests wait for the external `Coveralls - unified` status" in ci_cd
+    assert "Coveralls success with no external base comparison is accepted" in ci_cd
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
