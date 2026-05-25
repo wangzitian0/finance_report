@@ -162,6 +162,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
+    pr_workflow = read(".github/workflows/pr-test.yml")
     classifier = read("scripts/ci_change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
@@ -177,8 +178,16 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "path.endswith" not in classifier
     assert "runtime-or-ci-paths-changed" in classifier
     assert "lightweight-docs-or-docs-workflow-only" in classifier
+    assert "pr-preview-paths-changed" in classifier
+    assert "no-pr-preview-paths-changed" in classifier
     assert "needs: [changes]" in workflow
     assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
+    assert (
+        "pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}"
+        in pr_workflow
+    )
+    assert "name: Classify PR preview relevance" in pr_workflow
+    assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
         "needs: [changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]"
@@ -195,6 +204,10 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "run: npm install" not in workflow
     assert "PR vs Main CI Responsibilities" in ci_cd
     assert "Lightweight changes do not repeat the heavy path" in ci_cd
+    assert (
+        "PR preview environments deploy only for app, compose, E2E, or preview-action changes"
+        in ci_cd
+    )
     assert "Frontend dependency installation uses `actions/setup-node@v4`" in ci_cd
     assert (
         "Markdown outside the documented lightweight trees is treated as heavy" in ci_cd
@@ -211,14 +224,22 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
         "uv run --with pyyaml python scripts/generate_ac_registry.py --check"
         in workflow
     )
+    assert "uv run --with pyyaml python scripts/check_ac_traceability.py" in workflow
     assert (
         "uv run --with pyyaml python scripts/build_ac_traceability.py --output"
         in workflow
     )
     assert workflow.index("scripts/generate_ac_registry.py --check") < workflow.index(
+        "scripts/check_ac_traceability.py"
+    )
+    assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"
     )
     assert "without rewriting historical registry descriptions" in ci_cd
+    assert (
+        "CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only"
+        in ci_cd
+    )
 
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
@@ -353,8 +374,14 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "packages: write" in ci_workflow
     assert "Build and push Backend SHA image" in ci_workflow
     assert "Build and push Frontend SHA image" in ci_workflow
-    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}" in ci_workflow
-    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}" in ci_workflow
+    assert (
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
+        in ci_workflow
+    )
+    assert (
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
+        in ci_workflow
+    )
     assert "backend:staging" not in ci_workflow
     assert "frontend:staging" not in ci_workflow
 
@@ -365,11 +392,21 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "steps.frontend_image.outputs.build_required == 'true'" in deploy_workflow
     assert "Promote Backend Image to Staging Tag" in deploy_workflow
     assert "Promote Frontend Image to Staging Tag" in deploy_workflow
-    assert deploy_workflow.index("Wait for matching CI success") < deploy_workflow.index("Resolve Backend Image")
-    assert deploy_workflow.index("Resolve Backend Image") < deploy_workflow.index("Build and push Backend")
-    assert deploy_workflow.index("Resolve Frontend Image") < deploy_workflow.index("Build and push Frontend")
-    assert deploy_workflow.index("Build and push Frontend") < deploy_workflow.index("Promote Backend Image to Staging Tag")
-    assert deploy_workflow.index("Promote Backend Image to Staging Tag") < deploy_workflow.index("Deploy to Staging")
+    assert deploy_workflow.index(
+        "Wait for matching CI success"
+    ) < deploy_workflow.index("Resolve Backend Image")
+    assert deploy_workflow.index("Resolve Backend Image") < deploy_workflow.index(
+        "Build and push Backend"
+    )
+    assert deploy_workflow.index("Resolve Frontend Image") < deploy_workflow.index(
+        "Build and push Frontend"
+    )
+    assert deploy_workflow.index("Build and push Frontend") < deploy_workflow.index(
+        "Promote Backend Image to Staging Tag"
+    )
+    assert deploy_workflow.index(
+        "Promote Backend Image to Staging Tag"
+    ) < deploy_workflow.index("Deploy to Staging")
 
     assert "docker buildx imagetools inspect" in check_script
     assert "docker buildx imagetools create" not in check_script

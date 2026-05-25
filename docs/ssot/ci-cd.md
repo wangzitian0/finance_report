@@ -34,7 +34,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
-4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. The audit distinguishes real test references from `_ac_stubs` and trivial placeholder assertions. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. CI does not fail solely because the checked-in archive copy is stale.
+4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `scripts/check_ac_traceability.py` as the fail-closed gate, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. The audit distinguishes real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. CI does not fail solely because the checked-in archive copy is stale.
 5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, and `main` pushes use the same gate before post-merge staging, so asynchronous Coveralls regressions are blocked before merge and before staging. A terminal external failure is re-polled once before CI fails; confirmed coverage decreases, errors, and missing statuses still fail closed.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
@@ -94,7 +94,7 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - AC traceability is a reference metric, not behavioral coverage
    - AC traceability fails missing, placeholder-only, and `_ac_stubs`-only mandatory AC references
    - Behavioral product coverage must be proven by Tier 1+ tests and explicit product E2E gates, not by an AC string appearing in a test file
-   - Hardening traceability so stubs and placeholder assertions cannot count as proof is tracked in [issue #452](https://github.com/wangzitian0/finance_report/issues/452)
+   - Stub and placeholder assertions cannot count as proof; the CI gate runs before the traceability audit artifact is generated
 
 5. **Environment Variables**:
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
@@ -134,6 +134,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 **CI Optimization** (`.github/workflows/ci.yml`):
 - Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
+- PR preview environments deploy only for app, compose, E2E, or preview-action changes. Traceability tooling, docs, and non-preview workflow changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
 - Backend shards and AC traceability run in parallel with lint once change classification has finished, so lint remains visible without delaying independent test work.
 - 6-way parallel test sharding via `pytest-split`

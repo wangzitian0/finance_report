@@ -90,8 +90,6 @@ sync with ACs and tests.
 
 ## Known Documentation Debt
 
-- Harden AC traceability semantics:
-  [#452](https://github.com/wangzitian0/finance_report/issues/452)
 - Move code-owned SSOT facts into common/generated contracts:
   [#453](https://github.com/wangzitian0/finance_report/issues/453)
 - Convert manual-verification ACs into automated tests or explicit manual gates:

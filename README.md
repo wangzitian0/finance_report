@@ -56,18 +56,18 @@ Current generated numbers:
 
 | Metric | Current |
 |---|---:|
-| Registered ACs | 983 |
-| ACs with real test-candidate references | 744 / 983 (75.7%) |
-| Registered ACs without real test reference | 239 |
-| Stub-only AC placeholders | 215 |
+| Registered ACs | 984 |
+| ACs with real test-candidate references | 816 / 984 (82.9%) |
+| Registered ACs without real test reference | 168 |
+| Stub-only AC placeholders | 0 |
 | Invalid AC refs in real tests | 0 |
 | Unified coverage floor | 94.38% |
 | Backend / Frontend / Scripts coverage floors | 98.89% / 91.95% / 86.43% |
 
-Important caveat: the current AC coverage analyzer excludes `_ac_stubs` and
-trivial placeholder assertions from covered counts. Remaining proof-quality
-hardening is tracked in
-[issue #452](https://github.com/wangzitian0/finance_report/issues/452).
+Important caveat: the current AC coverage analyzer excludes `_ac_stubs`,
+trivial placeholder assertions, pure `pass`, and pure skipped tests from
+covered counts. CI fails mandatory AC coverage that is missing,
+placeholder-only, or stub-only.
 
 ## Core Proof Paths
 
@@ -116,10 +116,8 @@ refreshing the report.
 
 Known proof-quality caveats:
 
-- Placeholder and stub references do not count as covered, but remaining stub
-  debt still leaves EPIC-007, EPIC-009, EPIC-010, EPIC-014, EPIC-016, and
-  EPIC-018 proof weaker than their project status. See
-  [issue #452](https://github.com/wangzitian0/finance_report/issues/452).
+- Placeholder and stub references do not count as covered; mandatory ACs fail
+  CI when they are missing, placeholder-only, or stub-only.
 - Manual-verification ACs need automation or an explicit manual-gate category.
   See [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
 - Invalid AC references are currently zero; the AC-to-EPIC mismatch audit
@@ -140,11 +138,11 @@ Recently resolved blockers:
 - Source-type trust hierarchy and no-downgrade promotion: `wangzitian0/finance_report#395`
 - Account-level statement coverage and balance continuity: `wangzitian0/finance_report#396`
 - Processing account sidebar/status: `wangzitian0/finance_report#367`
+- Hardened AC traceability against stub and placeholder tests:
+  `wangzitian0/finance_report#452`
 
 ## Documentation Debt Tracked As Issues
 
-- [#452](https://github.com/wangzitian0/finance_report/issues/452):
-  Harden AC traceability against stub and placeholder tests.
 - [#453](https://github.com/wangzitian0/finance_report/issues/453):
   Move code-owned SSOT facts into common packages or generated contracts.
 - [#454](https://github.com/wangzitian0/finance_report/issues/454):

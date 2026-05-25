@@ -8,8 +8,10 @@ This analyzer scans AC references (``ACx.y.z``) in:
 - ``repo/e2e_regressions/**/*.py`` (when present)
 
 Coverage accounting follows EPIC-008 rules:
-- Only references from real (non-``_ac_stubs``) tests count as passing-test candidates.
-- ``_ac_stubs`` references are tracked as placeholders and excluded from covered counts.
+- Only references from real (non-``_ac_stubs`` and non-placeholder) tests count
+  as passing-test candidates.
+- ``_ac_stubs``, trivial assertions, pure ``pass``, and pure skipped tests are
+  excluded from covered counts.
 - Invalid/unregistered AC references are reported with file paths.
 - Registered ACs missing real references are reported as untested.
 """
@@ -343,10 +345,10 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("## Coverage accounting (EPIC-008 aligned)")
     lines.append("")
     lines.append(
-        "- Covered AC = has at least one real test reference outside `_ac_stubs` and trivial placeholder assertions."
+        "- Covered AC = has at least one real test reference outside `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests."
     )
     lines.append(
-        "- `expect(true).toBe(true)` style references are tracked as placeholder-only and **do not** count as covered."
+        "- `expect(true).toBe(true)`, pure `pass`, and pure skipped references are tracked as placeholder-only and **do not** count as covered."
     )
     lines.append(
         "- `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered."

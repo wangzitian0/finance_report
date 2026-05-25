@@ -420,6 +420,7 @@ jobs:
       - name: AC Traceability Check
         run: |
           uv run --with pyyaml python scripts/generate_ac_registry.py --check
+          uv run --with pyyaml python scripts/check_ac_traceability.py
           uv run --with pyyaml python scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
 
       - name: Upload AC traceability audit

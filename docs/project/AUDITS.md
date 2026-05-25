@@ -20,9 +20,8 @@ Current generated AC snapshot:
 - 0 invalid AC refs in real tests
 - 0 actionable AC-to-EPIC mismatches
 
-Placeholder assertion detection is enforced by the generated report; remaining
-proof-quality hardening is tracked in
-[#452](https://github.com/wangzitian0/finance_report/issues/452).
+Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced
+by the AC traceability gate before the generated audit artifact is uploaded.
 
 Fixture-only fake AC IDs in script tests are classified separately in the
 generated AC-to-EPIC mismatch report.
@@ -49,8 +48,7 @@ The root `TESTING_GAP_ANALYSIS.md` report was retired during the 2026-05-20
 documentation cleanup. Its old hand-written testing narrative duplicated
 `docs/ssot/tdd.md`, `docs/ssot/coverage.md`, `docs/ssot/ci-cd.md`, and the
 generated AC coverage report. Current testing gaps are tracked by issues
-[#452](https://github.com/wangzitian0/finance_report/issues/452),
-[#454](https://github.com/wangzitian0/finance_report/issues/454), and
+[#454](https://github.com/wangzitian0/finance_report/issues/454) and
 [#456](https://github.com/wangzitian0/finance_report/issues/456).
 
 `docs/project/archive/**` was swept on 2026-05-20. Useful archive content is
@@ -67,7 +65,6 @@ now owned by active EPICs:
 
 Related cleanup issues:
 
-- [#452](https://github.com/wangzitian0/finance_report/issues/452)
 - [#453](https://github.com/wangzitian0/finance_report/issues/453)
 - [#454](https://github.com/wangzitian0/finance_report/issues/454)
 - [#455](https://github.com/wangzitian0/finance_report/issues/455)

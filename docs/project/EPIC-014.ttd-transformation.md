@@ -10,7 +10,7 @@
 > in the root [README](../../README.md) and generated
 > [AC coverage report](../analysis/test-ac-coverage-report.md). This EPIC owns
 > the TTD transformation scope; code/test migration follow-ups are tracked by
-> issues #452, #453, #454, #455, and #456.
+> issues #453, #454, #455, and #456.
 
 ## 📌 Executive Summary
 
@@ -365,8 +365,8 @@ owned by active EPICs:
   generated coverage policy/report.
 - EPIC-specific implementation and gap notes were folded into EPIC-002,
   EPIC-004, EPIC-011, EPIC-012, and EPIC-013.
-- Future documentation/code/test conversion work is tracked by issues #452,
-  #453, #454, #455, and #456 instead of prose-only TODOs.
+- Future documentation/code/test conversion work is tracked by issues #453,
+  #454, #455, and #456 instead of prose-only TODOs.
 
 ---
 

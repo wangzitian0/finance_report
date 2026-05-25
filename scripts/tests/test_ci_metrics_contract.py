@@ -56,9 +56,7 @@ def test_AC8_13_26_future_app_source_roots_must_be_in_coverage_policy(tmp_path):
 
     roots = discover_source_roots(tmp_path)
     assert "apps/new_service/src" in roots
-    assert find_uncovered_source_roots(tmp_path, components) == [
-        "apps/new_service/src"
-    ]
+    assert find_uncovered_source_roots(tmp_path, components) == ["apps/new_service/src"]
     assert run_contract(tmp_path, components=components) == 1
 
 
@@ -83,6 +81,10 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
     assert "--splits 6" in workflow
     assert "--failure-confirmation-seconds" in workflow
+    assert "scripts/check_ac_traceability.py" in workflow
+    assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
+        "scripts/build_ac_traceability.py --output"
+    )
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
@@ -162,6 +164,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     errors = _validate_repo_contract_files(tmp_path)
 
     assert any("scripts/calculate_unified_coverage.py" in error for error in errors)
+    assert any("scripts/check_ac_traceability.py" in error for error in errors)
     assert any("scripts/build_ac_traceability.py --output" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)

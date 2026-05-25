@@ -67,7 +67,10 @@ def policy_source_roots(
     repo_root: Path = ROOT_DIR,
     components: tuple[CoverageComponent, ...] = COMPONENTS,
 ) -> list[str]:
-    return sorted(_repo_rel(component.source_path(repo_root), repo_root) for component in components)
+    return sorted(
+        _repo_rel(component.source_path(repo_root), repo_root)
+        for component in components
+    )
 
 
 def find_uncovered_source_roots(
@@ -107,9 +110,13 @@ def _validate_policy_shape(
 
     for component, source_root in zip(components, source_roots, strict=True):
         if not component.source_path(repo_root).exists():
-            errors.append(f"coverage component source root does not exist: {source_root}")
+            errors.append(
+                f"coverage component source root does not exist: {source_root}"
+            )
         if not component.extensions:
-            errors.append(f"coverage component has no file extensions: {component.name}")
+            errors.append(
+                f"coverage component has no file extensions: {component.name}"
+            )
 
     missing_roots = find_uncovered_source_roots(repo_root, components)
     if missing_roots:
@@ -133,6 +140,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "scripts/check_ci_metrics_contract.py",
             "scripts/check_coverage_policy.py",
             "scripts/calculate_unified_coverage.py",
+            "scripts/check_ac_traceability.py",
             'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
             "scripts/wait_for_github_status.py",
             '--context "Coveralls - unified"',
@@ -150,6 +158,15 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             > workflow_text.index("scripts/check_coverage_policy.py")
         ):
             errors.append("CI metrics contract must run before coverage policy audit")
+        if (
+            "scripts/check_ac_traceability.py" in workflow_text
+            and "scripts/build_ac_traceability.py --output" in workflow_text
+            and workflow_text.index("scripts/check_ac_traceability.py")
+            > workflow_text.index("scripts/build_ac_traceability.py --output")
+        ):
+            errors.append(
+                "AC traceability gate must run before audit artifact generation"
+            )
 
     if ci_cd.exists():
         ci_cd_text = ci_cd.read_text(encoding="utf-8")
@@ -186,7 +203,9 @@ def run_contract(
 
     print("CI metrics contract")
     print(f"  discovered source roots: {', '.join(discover_source_roots(repo_root))}")
-    print(f"  policy source roots: {', '.join(policy_source_roots(repo_root, components))}")
+    print(
+        f"  policy source roots: {', '.join(policy_source_roots(repo_root, components))}"
+    )
 
     if errors:
         for error in errors:
