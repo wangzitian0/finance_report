@@ -559,9 +559,9 @@ active README -> EPIC -> AC registry -> tests -> CI artifact chain:
   reconciliation, FX revaluation, assets, review queue, processing account,
   accounting, and validation.
 - Skipped Tier 2/3 tests and placeholder assertions do not count as proof under
-  the current policy; hardening that rule is tracked by
-  [#452](https://github.com/wangzitian0/finance_report/issues/452) and
-  [#454](https://github.com/wangzitian0/finance_report/issues/454).
+  the current policy; the CI traceability gate fails missing, placeholder-only,
+  and stub-only mandatory AC references. Manual-verification treatment remains
+  tracked by [#454](https://github.com/wangzitian0/finance_report/issues/454).
 
 ## 📄 Owned Documentation Surfaces
 

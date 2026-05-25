@@ -174,6 +174,39 @@ class TestCollectReferencedAcs:
         assert str(f) in refs["AC1.1.1"].placeholder_files
         assert refs["AC1.1.1"].real_files == set()
 
+    def test_classifies_pure_pass_ac_file_as_placeholder(self, tmp_path):
+        """AC8.13.35: Pure pass tests are not real AC coverage."""
+        f = self._write_test(
+            tmp_path,
+            "test_gap.py",
+            'def test_gap():\n    """AC1.1.1: placeholder only"""\n    pass\n',
+        )
+        refs = cat.collect_referenced_acs([f])
+        assert str(f) in refs["AC1.1.1"].placeholder_files
+        assert refs["AC1.1.1"].real_files == set()
+
+    def test_classifies_pure_skip_ac_file_as_placeholder(self, tmp_path):
+        """AC8.13.35: Pure skipped tests are not real AC coverage."""
+        f = self._write_test(
+            tmp_path,
+            "test_gap.py",
+            'import pytest\n\ndef test_gap():\n    """AC1.1.1: placeholder only"""\n    pytest.skip("todo")\n',
+        )
+        refs = cat.collect_referenced_acs([f])
+        assert str(f) in refs["AC1.1.1"].placeholder_files
+        assert refs["AC1.1.1"].real_files == set()
+
+    def test_environment_skip_with_behavioral_assertion_stays_real(self, tmp_path):
+        """AC8.13.35: Environment-gated E2E tests can still count as real."""
+        f = self._write_test(
+            tmp_path,
+            "test_e2e.py",
+            'import pytest\n\ndef test_flow():\n    """AC1.1.1: configured flow"""\n    if False:\n        pytest.skip("not configured")\n    assert True\n',
+        )
+        refs = cat.collect_referenced_acs([f])
+        assert str(f) in refs["AC1.1.1"].real_files
+        assert refs["AC1.1.1"].placeholder_files == set()
+
     def test_classifies_ac_stub_directory(self, tmp_path):
         """AC8.13.35: AC stub files are tracked separately from real tests."""
         stub_dir = tmp_path / "_ac_stubs"

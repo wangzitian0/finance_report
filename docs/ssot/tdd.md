@@ -67,8 +67,9 @@ it("AC17.7.1 placeholder", () => {
 });
 ```
 
-The current hardened coverage work is tracked in
-[issue #452](https://github.com/wangzitian0/finance_report/issues/452).
+The CI AC traceability gate fails mandatory ACs that are missing,
+placeholder-only, or stub-only before the traceability audit artifact is
+generated.
 
 ## Proof Semantics
 

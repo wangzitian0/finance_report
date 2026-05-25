@@ -287,8 +287,6 @@ Prompt 模板:
 
 **后续 issue**:
 
-- [#452](https://github.com/wangzitian0/finance_report/issues/452) — 收紧
-  AC traceability，避免 stub 和 placeholder 测试被算作 proof。
 - [#453](https://github.com/wangzitian0/finance_report/issues/453) — 将
   code-owned SSOT 事实迁移到 common package 或 generated contract。
 - [#454](https://github.com/wangzitian0/finance_report/issues/454) — 将

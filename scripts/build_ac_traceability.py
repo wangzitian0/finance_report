@@ -302,8 +302,9 @@ def render_document(
         "(`ACx.y.z`) declared in `docs/ac_registry.yaml` + "
         "`docs/infra_registry.yaml` to the test file(s) that reference it. "
         "This is not behavioral coverage; it separates real test candidates "
-        "from `_ac_stubs` and trivial placeholder assertions so product-level "
-        "E2E evidence remains the source of behavioral proof."
+        "from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and "
+        "pure skipped tests so product-level E2E evidence remains the source "
+        "of behavioral proof."
     )
     lines.append(
         "> **Scope**: All EPICs in `docs/project/`. Test scan: "

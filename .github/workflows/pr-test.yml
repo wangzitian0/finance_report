@@ -44,7 +44,13 @@ jobs:
       pr_number: ${{ steps.info.outputs.pr_number }}
       action: ${{ steps.info.outputs.action }}
       internal_domain: ${{ steps.info.outputs.internal_domain }}
+      pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}
+      pr_preview_reason: ${{ steps.preview.outputs.pr_preview_reason }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Determine Params
         id: info
         run: |
@@ -68,9 +74,44 @@ jobs:
             fi
           } >> "$GITHUB_OUTPUT"
 
+      - name: Classify PR preview relevance
+        id: preview
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_preview_required=true" >> "$GITHUB_OUTPUT"
+            echo "pr_preview_reason=manual-dispatch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.event.action }}" = "closed" ]; then
+            echo "pr_preview_required=false" >> "$GITHUB_OUTPUT"
+            echo "pr_preview_reason=cleanup-only" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base_sha="${BASE_SHA:-}"
+          head_sha="${HEAD_SHA:-}"
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+          fi
+
+          if ! git diff --name-only "$base_sha" "$head_sha" > changed-files.txt; then
+            git diff --name-only HEAD^ HEAD > changed-files.txt
+          fi
+
+          python scripts/ci_change_classifier.py \
+            --changed-files changed-files.txt \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
   deploy:
     name: Deploy Test Environment
-    if: needs.setup.outputs.action == 'deploy'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: setup
     runs-on: ubuntu-latest
     permissions:

@@ -68,8 +68,6 @@ contracts is tracked in
 
 ## Known Gaps
 
-- AC traceability currently needs stricter behavioral semantics. See
-  [#452](https://github.com/wangzitian0/finance_report/issues/452).
 - Manual-verification ACs need automation or explicit manual-gate treatment. See
   [#454](https://github.com/wangzitian0/finance_report/issues/454).
 - README/project metrics should be generated or validated. See

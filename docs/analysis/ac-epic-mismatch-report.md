@@ -1,6 +1,6 @@
 # AC↔EPIC Mismatch Triage
 
-- Total ACx.y.z refs scanned: **1703**
+- Total ACx.y.z refs scanned: **1955**
 - Actionable mismatched refs: **0**
 - Fixture-only mismatched refs: **52**
 - Actionable files affected: **0**

@@ -290,8 +290,6 @@ Adjusted based on decision complexity:
 - Tests and generated reports are the proof layer.
 
 **Follow-up issues**:
-- [#452](https://github.com/wangzitian0/finance_report/issues/452) — Harden AC
-  traceability against stub and placeholder tests.
 - [#453](https://github.com/wangzitian0/finance_report/issues/453) — Move
   code-owned SSOT facts into common packages or generated contracts.
 - [#454](https://github.com/wangzitian0/finance_report/issues/454) — Convert

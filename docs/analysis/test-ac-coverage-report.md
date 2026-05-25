@@ -1,11 +1,11 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-25 06:46:26 UTC by `scripts/analyze_test_ac_coverage.py`
+> Generated: 2026-05-25 07:06:06 UTC by `scripts/analyze_test_ac_coverage.py`
 
 ## Coverage accounting (EPIC-008 aligned)
 
-- Covered AC = has at least one real test reference outside `_ac_stubs` and trivial placeholder assertions.
-- `expect(true).toBe(true)` style references are tracked as placeholder-only and **do not** count as covered.
+- Covered AC = has at least one real test reference outside `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests.
+- `expect(true).toBe(true)`, pure `pass`, and pure skipped references are tracked as placeholder-only and **do not** count as covered.
 - `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered.
 - Invalid AC references are AC IDs found in tests but missing from registries.
 - Untested AC = registered AC without any real passing-test candidate reference.
