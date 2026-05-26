@@ -14,7 +14,6 @@ concurrency:
 permissions:
   actions: read
   contents: read
-  statuses: write
 
 env:
   REGISTRY: ghcr.io
@@ -310,6 +309,9 @@ jobs:
     needs: [changes, backend, frontend]
     if: needs.changes.outputs.heavy_required == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - uses: actions/checkout@v4
         with:

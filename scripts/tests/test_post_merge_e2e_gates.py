@@ -390,7 +390,10 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "name: Build Staging Images" in ci_workflow
     assert "needs: [changes]" in ci_workflow
     assert "needs.changes.outputs.heavy_required == 'true'" in ci_workflow
-    assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in ci_workflow
+    assert (
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        in ci_workflow
+    )
     assert "packages: write" in ci_workflow
     assert "Build Backend SHA image" in ci_workflow
     assert "Build Frontend SHA image" in ci_workflow
@@ -550,11 +553,25 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
 
     assert "github.event_name == 'push'" not in unified_block
     assert "github.event_name == 'push'" not in frontend_block
-    assert "statuses: write" in workflow
+    global_permissions = workflow.split("env:", 1)[0]
+    unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+    assert "statuses: write" not in global_permissions
+    assert "statuses: write" in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" in workflow
     assert "scripts/mark_coveralls_reporting_status.py" in workflow
-    assert 'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")' in workflow
+    assert (
+        'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")'
+        in workflow
+    )
     assert "Coveralls - unified" in read("scripts/mark_coveralls_reporting_status.py")
+    assert "coverage/coveralls (push)" in read(
+        "scripts/mark_coveralls_reporting_status.py"
+    )
+    assert "coveralls_contexts_from_statuses" in read(
+        "scripts/mark_coveralls_reporting_status.py"
+    )
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
