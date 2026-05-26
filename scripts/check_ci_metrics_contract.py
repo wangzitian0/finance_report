@@ -142,11 +142,11 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "scripts/calculate_unified_coverage.py",
             "scripts/check_ac_traceability.py",
             'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
-            "scripts/wait_for_github_status.py",
-            '--context "Coveralls - unified"',
+            "Upload unified coverage to Coveralls",
+            "Upload backend to Coveralls (per-flag)",
+            "Upload frontend to Coveralls (per-flag)",
             "Backend Tests (Shard ${{ matrix.shard }}/6)",
             "--splits 6",
-            "--failure-confirmation-seconds",
         )
         for token in required_workflow_tokens:
             if token not in workflow_text:
@@ -174,7 +174,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "single CI metrics contract",
             "AC traceability is a reference metric, not behavioral coverage",
             "trivial placeholder assertions",
-            "Coveralls success with no external base comparison is accepted",
+            "Coveralls uploads are reporting-only and do not block CI pass/fail",
             "New `apps/*/src` or `packages/*/src` source roots fail CI",
         ):
             if token not in ci_cd_text:

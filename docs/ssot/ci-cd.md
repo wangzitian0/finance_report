@@ -35,7 +35,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `scripts/check_ac_traceability.py` as the fail-closed gate, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. The audit distinguishes real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. CI does not fail solely because the checked-in archive copy is stale.
-5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, and `main` pushes use the same gate before post-merge staging, so asynchronous Coveralls upload failures are blocked before merge and before staging. A terminal external failure is re-polled once before CI fails. The local unified coverage calculation remains the authoritative no-regression gate; a Coveralls success with no external base comparison is accepted because `scripts/calculate_unified_coverage.py` already compared against `unified-coverage.json` before upload.
+5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`scripts/check_ci_metrics_contract.py`, `scripts/check_coverage_policy.py`, `scripts/calculate_unified_coverage.py`); Coveralls upload remains enabled for dashboards and history but does not block merges or post-merge staging.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Toolchain Contract**: `scripts/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
 8. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
@@ -48,16 +48,12 @@ CI, dependency, or coverage-policy files change. This keeps branch protection
 strict before merge.
 
 Pushes to `main` still run heavy CI for runtime changes even though the merged PR
-already ran required checks. The retained post-merge run provides three signals
-that PR checks cannot fully replace: validation of the exact merge commit,
-Coveralls status from `main`, and a final gate before post-merge staging/AI
-workflows consume the new commit. The same `Coveralls - unified` status gate runs
-on PR and `main`, so the post-merge lane should not be the first place a
-confirmed external upload failure is observed. The gate re-checks a terminal
-external failure before failing to reduce unexpected failures from transient
-external status flips. Coverage regression detection is enforced locally against
-`unified-coverage.json`, so a successful Coveralls upload that lacks an external
-base build is not rejected by CI.
+already ran required checks. The retained post-merge run provides two signals
+that PR checks cannot fully replace: validation of the exact merge commit and a
+final local gate before post-merge staging/AI workflows consume the new commit.
+Coverage regression detection is enforced locally against
+`unified-coverage.json`; Coveralls remains reporting-only and does not decide CI
+pass/fail.
 
 Lightweight changes do not repeat the heavy path on either PRs or `main`.
 Lightweight means all changed files are limited to documentation, markdown,
@@ -160,10 +156,11 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coverage reports merged post-run
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
-- CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports a confirmed `failure`/`error`, or never appears before timeout.
+- CI keeps Coveralls uploads enabled after local coverage gates pass; external Coveralls status is informational and does not block `unified-coverage` job success.
 - CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 - The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
+- Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
 
 **Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
 - This file is a historical/manual snapshot, not the current CI source of truth.

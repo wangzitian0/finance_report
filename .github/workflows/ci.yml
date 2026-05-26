@@ -386,17 +386,6 @@ jobs:
           file: coverage/unified.lcov
           flag-name: unified
           base-path: .
-      - name: Wait for Coveralls unified status
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          uv run python scripts/wait_for_github_status.py \
-            --repo "${{ github.repository }}" \
-            --sha "${{ github.sha }}" \
-            --context "Coveralls - unified" \
-            --timeout-seconds 300 \
-            --poll-seconds 10 \
-            --failure-confirmation-seconds 30
 
       - name: Upload backend to Coveralls (per-flag)
         uses: coverallsapp/github-action@v2
