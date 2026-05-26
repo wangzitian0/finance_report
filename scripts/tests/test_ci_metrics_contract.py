@@ -83,6 +83,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Upload unified coverage to Coveralls" in workflow
     assert "Upload backend to Coveralls (per-flag)" in workflow
     assert "Upload frontend to Coveralls (per-flag)" in workflow
+    assert "Mark Coveralls statuses reporting-only" in workflow
+    assert "scripts/mark_coveralls_reporting_status.py" in workflow
+    assert "statuses: write" in workflow
     assert "scripts/check_ac_traceability.py" in workflow
     assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"

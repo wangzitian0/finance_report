@@ -1866,7 +1866,7 @@ groups:
       - id: AC8.13.27
         epic: 8
         epic_name: testing-strategy
-        description: Coveralls uploads remain reporting-only while local deterministic coverage gates decide CI pass/fail.
+        description: Coveralls uploads and asynchronous Coveralls commit statuses remain reporting-only while local deterministic coverage gates decide CI pass/fail.
         mandatory: true
       - id: AC8.13.28
         epic: 8

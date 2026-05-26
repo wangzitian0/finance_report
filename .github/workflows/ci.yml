@@ -14,7 +14,7 @@ concurrency:
 permissions:
   actions: read
   contents: read
-  statuses: read
+  statuses: write
 
 env:
   REGISTRY: ghcr.io
@@ -403,6 +403,14 @@ jobs:
           file: coverage/frontend.lcov
           flag-name: frontend
           base-path: apps/frontend
+      - name: Mark Coveralls statuses reporting-only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run python scripts/mark_coveralls_reporting_status.py \
+            --repo "${{ github.repository }}" \
+            --sha "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}" \
+            --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   ac-traceability:
     name: AC Traceability Check

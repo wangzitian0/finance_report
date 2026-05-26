@@ -537,7 +537,7 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
-    """AC8.13.27: PR CI uploads Coveralls data without external status blocking."""
+    """AC8.13.27: PR CI reports to Coveralls without external status blocking."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -550,9 +550,15 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
 
     assert "github.event_name == 'push'" not in unified_block
     assert "github.event_name == 'push'" not in frontend_block
+    assert "statuses: write" in workflow
+    assert "Mark Coveralls statuses reporting-only" in workflow
+    assert "scripts/mark_coveralls_reporting_status.py" in workflow
+    assert "Coveralls - unified" in read("scripts/mark_coveralls_reporting_status.py")
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "coverage/coveralls" in ci_cd
+    assert "Coveralls - unified" in ci_cd
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
