@@ -124,6 +124,81 @@ def test_AC8_13_21_wait_fails_closed_on_failed_ci(
         )
 
 
+def test_AC8_13_43_failed_ci_error_includes_failed_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.43: Staging gate errors identify failed CI jobs before deploy."""
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        if args[:3] == ["gh", "run", "list"]:
+            return completed_process(
+                [
+                    {
+                        "databaseId": 124,
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "url": "https://example.test/run/124",
+                    }
+                ]
+            )
+        if args[:3] == ["gh", "run", "view"]:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "jobs": [
+                            {
+                                "name": "Build Staging Images",
+                                "status": "completed",
+                                "conclusion": "failure",
+                                "url": "https://example.test/run/124/job/1",
+                            },
+                            {
+                                "name": "Calculate Unified Coverage",
+                                "status": "completed",
+                                "conclusion": "success",
+                                "url": "https://example.test/run/124/job/2",
+                            },
+                            {
+                                "name": "Downstream job",
+                                "status": "completed",
+                                "conclusion": "skipped",
+                                "url": "https://example.test/run/124/job/4",
+                            },
+                            {
+                                "name": "finish",
+                                "status": "completed",
+                                "conclusion": "failure",
+                                "url": "https://example.test/run/124/job/3",
+                            },
+                        ]
+                    }
+                ),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected gh command: {args}")
+
+    monkeypatch.setattr(wait_ci.subprocess, "run", fake_run)
+    clock = FakeClock()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        wait_ci.wait_for_matching_ci(
+            repo="owner/repo",
+            sha="def456",
+            timeout_seconds=60,
+            poll_seconds=5,
+            monotonic=clock.monotonic,
+            sleep=clock.sleep,
+        )
+
+    message = str(excinfo.value)
+    assert "matching CI run failed before staging validation" in message
+    assert "failed_jobs=Build Staging Images(failure), finish(failure)" in message
+    assert "Downstream job" not in message
+    assert "https://example.test/run/124" in message
+
+
 def test_AC8_13_22_wait_polls_until_run_appears(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

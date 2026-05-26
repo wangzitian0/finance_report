@@ -426,6 +426,21 @@ jobs:
               --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           done
 
+          echo "Final Coveralls reporting-only pass after all SHA contexts settle"
+          seen=""
+          for sha in "${shas[@]}"; do
+            case " $seen " in
+              *" $sha "*) continue ;;
+            esac
+            seen="$seen $sha"
+            uv run python scripts/mark_coveralls_reporting_status.py \
+              --repo "${{ github.repository }}" \
+              --sha "$sha" \
+              --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --timeout-seconds 0 \
+              --settle-seconds 0
+          done
+
   ac-traceability:
     name: AC Traceability Check
     runs-on: ubuntu-latest
@@ -465,6 +480,10 @@ jobs:
     needs: [changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      statuses: write
     steps:
     - uses: actions/checkout@v4
 
@@ -523,4 +542,27 @@ jobs:
         else
           echo "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
         fi
+
+    - name: Finalize Coveralls reporting-only statuses after aggregate checks
+      if: ${{ needs.changes.outputs.heavy_required == 'true' && needs.unified-coverage.result == 'success' }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        shas=("${{ github.sha }}")
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")
+        fi
+        seen=""
+        for sha in "${shas[@]}"; do
+          case " $seen " in
+            *" $sha "*) continue ;;
+          esac
+          seen="$seen $sha"
+          python scripts/mark_coveralls_reporting_status.py \
+            --repo "${{ github.repository }}" \
+            --sha "$sha" \
+            --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --timeout-seconds 30 \
+            --settle-seconds 30
+        done
         echo "✅ All checks passed!"

@@ -1947,6 +1947,11 @@ groups:
         epic_name: testing-strategy
         description: Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E.
         mandatory: true
+      - id: AC8.13.43
+        epic: 8
+        epic_name: testing-strategy
+        description: Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
