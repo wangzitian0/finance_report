@@ -1,4 +1,4 @@
-"""AC16.13.2 AC16.13.3 AC16.13.4 AC16.13.5 AC16.13.6 AC16.13.7
+"""AC16.13.1 AC16.13.2 AC16.13.3 AC16.13.4 AC16.13.5 AC16.13.6 AC16.13.7
 AC16.13.8 AC16.13.9 AC16.13.10 AC16.13.11 AC16.13.12: lifecycle and PDF script coverage.
 """
 
@@ -35,6 +35,7 @@ def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
 
 
 def test_AC16_13_1_sanitize_namespace_normalization():
+    """AC16.13.1: _sanitize_namespace normalizes branch/workspace names."""
     assert tl._sanitize_namespace("Feature/ABC-123") == "feature_abc_123"
     with pytest.raises(ValueError):
         tl._sanitize_namespace("___")

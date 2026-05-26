@@ -69,7 +69,7 @@ class TestValidateBalanceChain:
         assert result["calculated_closing"] == "1100.00"
 
     async def test_within_tolerance(self, db, user_id):
-        """AC1.1.2 AC16.22.5: Verify balance match within the defined 0.001 tolerance."""
+        """AC1.1.2 AC16.1.1 AC16.22.5: Verify 0.0009 USD delta passes 0.001 tolerance."""
         stmt = BankStatement(
             id=uuid4(),
             user_id=user_id,
@@ -92,7 +92,7 @@ class TestValidateBalanceChain:
             statement_id=stmt.id,
             txn_date=date(2024, 1, 15),
             description="Deposit",
-            amount=Decimal("100.0009"),
+            amount=Decimal("100.00"),
             direction="IN",
             status="pending",
             confidence="high",
@@ -102,10 +102,48 @@ class TestValidateBalanceChain:
 
         result = await validate_balance_chain(db, stmt.id)
         assert result["closing_match"] is True
+        assert Decimal(result["closing_delta"]) == Decimal("0.0009")
         assert Decimal(result["closing_delta"]) <= BALANCE_TOLERANCE
 
+    async def test_exact_tolerance_boundary_passes(self, db, user_id):
+        """AC16.1.1: Verify a 0.001 USD balance delta is still accepted."""
+        stmt = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            file_path="test.pdf",
+            file_hash="hash_boundary",
+            original_filename="test.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("1100.001"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add(stmt)
+        await db.flush()
+
+        db.add(
+            BankStatementTransaction(
+                id=uuid4(),
+                statement_id=stmt.id,
+                txn_date=date(2024, 1, 15),
+                description="Deposit",
+                amount=Decimal("100.00"),
+                direction="IN",
+                status="pending",
+                confidence="high",
+            )
+        )
+        await db.flush()
+
+        result = await validate_balance_chain(db, stmt.id)
+        assert result["closing_match"] is True
+        assert Decimal(result["closing_delta"]) == BALANCE_TOLERANCE
+
     async def test_exceeds_tolerance(self, db, user_id):
-        """AC1.1.3 Verify balance mismatch when delta exceeds the 0.001 tolerance."""
+        """AC1.1.3 AC16.1.1: Verify balance mismatch when delta exceeds 0.001 USD."""
         stmt = BankStatement(
             id=uuid4(),
             user_id=user_id,
