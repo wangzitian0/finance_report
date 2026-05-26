@@ -164,12 +164,7 @@ def test_epic_009_generator_templates_and_cli_options() -> None:
 
 
 def test_epic_010_observability_docs_and_templates() -> None:
-    """Observability SSOT, env docs, and app templates stay aligned.
-
-    AC10.5.1 AC10.5.2 AC10.5.3 AC10.5.4
-    AC10.6.1 AC10.6.2 AC10.6.3 AC10.6.4
-    AC10.7.1 AC10.7.2 AC10.7.3 AC10.7.4 AC10.7.5 AC10.7.6 AC10.7.7
-    """
+    """Observability SSOT, env docs, and app templates stay aligned."""
     observability = _read(REPO_ROOT / "docs" / "ssot" / "observability.md")
     ssot_index = _read(REPO_ROOT / "docs" / "ssot" / "README.md")
     env_example = _read(REPO_ROOT / ".env.example")

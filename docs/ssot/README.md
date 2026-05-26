@@ -37,6 +37,7 @@ contracts is tracked in
 | [environments.md](./environments.md) | `environments` | Environment taxonomy and isolation rationale |
 | [ci-cd.md](./ci-cd.md) | `ci-cd` | CI gate semantics and workflow references |
 | [deployment.md](./deployment.md) | `deployment` | Deployment model and release rationale |
+| [observability.md](./observability.md) | `observability` | Structured logging and SigNoz OTLP rationale |
 | [tdd.md](./tdd.md) | `tdd-transformation` | EPIC -> AC -> test workflow |
 | [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `scripts/coverage_policy.py` |
 | [auth.md](./auth.md) | `auth` | Auth architecture rationale and code references |

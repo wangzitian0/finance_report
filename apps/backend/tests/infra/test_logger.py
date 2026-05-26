@@ -59,7 +59,7 @@ def test_configure_otel_logging_missing_dependency_warns(monkeypatch, caplog) ->
 
 
 def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
-    """AC10.1.2 AC10.4.2 AC12.4.1: OTEL logging configuration with fake exporter."""
+    """AC10.1.2 AC10.4.2 AC10.7.2 AC12.4.1: OTEL logging uses an OTLP exporter."""
     calls: list[object] = []
 
     class DummyProvider:
