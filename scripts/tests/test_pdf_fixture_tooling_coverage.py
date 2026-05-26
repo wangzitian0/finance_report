@@ -1,4 +1,4 @@
-"""AC9.1.1 AC9.1.3 AC9.2.5 AC9.3.1 AC9.7.1 AC9.7.2: PDF fixture tooling behavior."""
+"""AC9.1.1 AC9.1.3 AC9.2.5 AC9.2.6 AC9.3.1 AC9.7.1 AC9.7.2 AC9.7.3: PDF fixture tooling behavior."""
 
 from __future__ import annotations
 
@@ -391,7 +391,7 @@ def test_AC9_1_3_analyzer_cli_writes_template_yaml(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC9.1.3: Analyzer CLI writes extracted source templates without payload data."""
+    """AC9.1.3 AC9.7.3: Analyzer CLI writes extracted source templates without payload data."""
     input_pdf = tmp_path / "input.pdf"
     output_yaml = tmp_path / "templates" / "dbs.yaml"
     input_pdf.write_bytes(b"%PDF fake")
@@ -436,7 +436,7 @@ def test_AC9_1_3_analyzer_cli_rejects_missing_input(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC9.1.3: Analyzer CLI fails before extraction when the local input PDF is missing."""
+    """AC9.1.3 AC9.7.3: Analyzer CLI fails before extraction when the local input PDF is missing."""
     monkeypatch.setattr(
         sys,
         "argv",
@@ -461,7 +461,7 @@ def test_AC9_1_3_analyzer_cli_reports_extraction_errors(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC9.1.3: Analyzer CLI exits non-zero when analysis fails."""
+    """AC9.1.3 AC9.7.3: Analyzer CLI exits non-zero when analysis fails."""
     input_pdf = tmp_path / "input.pdf"
     input_pdf.write_bytes(b"%PDF fake")
 
