@@ -106,14 +106,30 @@ def test_epic_007_secret_and_health_contracts_are_documented() -> None:
 
 def test_epic_009_pdf_fixture_tooling_contracts() -> None:
     """PDF fixture tooling modules, templates, and docs exist."""
-    _assert_python_defines_class(PDF_FIXTURES / "generators" / "base_generator.py", "BasePDFGenerator")
-    _assert_python_defines_class(PDF_FIXTURES / "generators" / "dbs_generator.py", "DBSGenerator")
-    _assert_python_defines_class(PDF_FIXTURES / "generators" / "cmb_generator.py", "CMBGenerator")
-    _assert_python_defines_class(PDF_FIXTURES / "generators" / "mari_generator.py", "MariGenerator")
-    _assert_python_defines_function(PDF_FIXTURES / "generators" / "font_utils.py", "register_chinese_fonts")
-    _assert_python_defines_function(PDF_FIXTURES / "data" / "fake_data.py", "generate_dbs_transactions")
-    _assert_python_defines_class(PDF_FIXTURES / "analyzers" / "template_extractor.py", "TemplateExtractor")
-    _assert_python_defines_class(PDF_FIXTURES / "validators" / "pdf_validator.py", "PDFValidator")
+    _assert_python_defines_class(
+        PDF_FIXTURES / "generators" / "base_generator.py", "BasePDFGenerator"
+    )
+    _assert_python_defines_class(
+        PDF_FIXTURES / "generators" / "dbs_generator.py", "DBSGenerator"
+    )
+    _assert_python_defines_class(
+        PDF_FIXTURES / "generators" / "cmb_generator.py", "CMBGenerator"
+    )
+    _assert_python_defines_class(
+        PDF_FIXTURES / "generators" / "mari_generator.py", "MariGenerator"
+    )
+    _assert_python_defines_function(
+        PDF_FIXTURES / "generators" / "font_utils.py", "register_chinese_fonts"
+    )
+    _assert_python_defines_function(
+        PDF_FIXTURES / "data" / "fake_data.py", "generate_dbs_transactions"
+    )
+    _assert_python_defines_class(
+        PDF_FIXTURES / "analyzers" / "template_extractor.py", "TemplateExtractor"
+    )
+    _assert_python_defines_class(
+        PDF_FIXTURES / "validators" / "pdf_validator.py", "PDFValidator"
+    )
 
     for template in ("dbs_template.yaml", "cmb_template.yaml", "mari_template.yaml"):
         data = _load_yaml(PDF_FIXTURES / "templates" / template)
@@ -138,9 +154,9 @@ def test_epic_009_generator_templates_and_cli_options() -> None:
     assert "Decimal" in generator_text
     assert "%y%m" in generator_text or "strftime" in generator_text
     assert "generate_" in fake_data_text and "transactions" in fake_data_text
-    assert '{source}_template.yaml' in generator_text
+    assert "{source}_template.yaml" in generator_text
     assert "register_chinese_fonts" in cmb_text
-    assert '{source}_template.yaml' in generator_text
+    assert "{source}_template.yaml" in generator_text
     assert "interest_details" in mari_template_text
     assert "--source" in generator_text
     assert "--output" in generator_text
@@ -179,17 +195,19 @@ def test_epic_010_observability_docs_and_templates() -> None:
 
 
 def test_epic_012_and_014_tooling_contracts() -> None:
-    """Moon, schema, and quality tooling contracts exist.
-
-    AC12.19.1 AC12.22.1 AC12.22.2
-    AC14.1.1 AC14.1.2 AC14.1.3 AC14.1.4 AC14.1.5 AC14.1.6
-    """
+    """Moon, schema, and quality tooling contracts exist."""
     assert (REPO_ROOT / "moon.yml").exists()
     assert (REPO_ROOT / ".moon" / "workspace.yml").exists()
 
-    statements_router = _read(REPO_ROOT / "apps" / "backend" / "src" / "routers" / "statements.py")
-    review_schemas = _read(REPO_ROOT / "apps" / "backend" / "src" / "schemas" / "review.py")
-    statement_parsing = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_parsing.py")
+    statements_router = _read(
+        REPO_ROOT / "apps" / "backend" / "src" / "routers" / "statements.py"
+    )
+    review_schemas = _read(
+        REPO_ROOT / "apps" / "backend" / "src" / "schemas" / "review.py"
+    )
+    statement_parsing = _read(
+        REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_parsing.py"
+    )
     pyproject = _read(REPO_ROOT / "apps" / "backend" / "pyproject.toml")
     precommit = _read(REPO_ROOT / ".pre-commit-config.yaml")
 
