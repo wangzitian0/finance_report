@@ -187,7 +187,7 @@ async def test_execute_matching_no_candidates(db: AsyncSession):
 
 
 async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
-    """AC4.6.2: Matching transfer OUT/IN within 3 days uses Processing entries only."""
+    """AC4.6.2: Matching transfer OUT/IN at the 3-day boundary uses Processing entries only."""
     user_id = uuid4()
     user = User(id=user_id, email=f"transfer-{uuid4()}@example.com", hashed_password="hashed")
     checking = Account(
@@ -207,7 +207,7 @@ async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
 
     out_statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 10))
     out_statement.account_id = checking.id
-    in_statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 12))
+    in_statement = _make_statement(owner_id=user_id, base_date=date(2024, 3, 13))
     in_statement.account_id = savings.id
     db.add_all([out_statement, in_statement])
     await db.flush()
@@ -223,7 +223,7 @@ async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
     )
     in_txn = AccountEvent(
         statement_id=in_statement.id,
-        txn_date=date(2024, 3, 12),
+        txn_date=date(2024, 3, 13),
         description="FAST transfer from checking",
         amount=Decimal("500.00"),
         direction="IN",
