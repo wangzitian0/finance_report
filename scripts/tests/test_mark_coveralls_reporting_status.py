@@ -27,7 +27,9 @@ class FakeClock:
         self.current += seconds
 
 
-def completed_process(payload: dict[str, object] | None = None) -> subprocess.CompletedProcess[str]:
+def completed_process(
+    payload: dict[str, object] | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(
         args=["gh"],
         returncode=0,
@@ -55,6 +57,12 @@ def test_AC8_13_27_failed_coveralls_statuses_are_replaced_after_observation(
                             "target_url": "https://coveralls.io/builds/1",
                         },
                         {
+                            "context": "coverage/coveralls (push)",
+                            "state": "failure",
+                            "description": "Coverage decreased (-0.09%)",
+                            "target_url": "https://coveralls.io/builds/2",
+                        },
+                        {
                             "context": "Coveralls - unified",
                             "state": "failure",
                             "description": "Coverage decreased (-0.08%)",
@@ -71,7 +79,7 @@ def test_AC8_13_27_failed_coveralls_statuses_are_replaced_after_observation(
                             "state": "success",
                             "description": "Coverage remained the same",
                             "target_url": "https://coveralls.io/jobs/3",
-                        }
+                        },
                     ]
                 }
             )
@@ -93,10 +101,12 @@ def test_AC8_13_27_failed_coveralls_statuses_are_replaced_after_observation(
 
     assert observed["coverage/coveralls"] is not None
     assert observed["coverage/coveralls"].state == "failure"
+    assert observed["coverage/coveralls (push)"] is not None
+    assert observed["coverage/coveralls (push)"].state == "failure"
     assert observed["Coveralls - unified"] is not None
     assert observed["Coveralls - unified"].state == "failure"
     post_calls = [call for call in calls if "--method" in call]
-    assert len(post_calls) == 4
+    assert len(post_calls) == 5
     assert post_calls[0] == [
         "gh",
         "api",
@@ -112,9 +122,10 @@ def test_AC8_13_27_failed_coveralls_statuses_are_replaced_after_observation(
         "-f",
         "target_url=https://github.com/owner/repo/actions/runs/9",
     ]
-    assert post_calls[1][8] == "context=Coveralls - unified"
-    assert post_calls[2][8] == "context=Coveralls - backend"
-    assert post_calls[3][8] == "context=Coveralls - frontend"
+    assert post_calls[1][8] == "context=coverage/coveralls (push)"
+    assert post_calls[2][8] == "context=Coveralls - unified"
+    assert post_calls[3][8] == "context=Coveralls - backend"
+    assert post_calls[4][8] == "context=Coveralls - frontend"
     assert clock.sleeps == []
 
 
@@ -146,6 +157,7 @@ def test_AC8_13_27_missing_coveralls_statuses_timeout_then_publish_success(
 
     assert observed == {
         "coverage/coveralls": None,
+        "coverage/coveralls (push)": None,
         "Coveralls - unified": None,
         "Coveralls - backend": None,
         "Coveralls - frontend": None,
@@ -153,7 +165,7 @@ def test_AC8_13_27_missing_coveralls_statuses_timeout_then_publish_success(
     assert [call[:3] for call in calls].count(
         ["gh", "api", "repos/owner/repo/commits/def456/status"]
     ) == 3
-    assert len([call for call in calls if "--method" in call]) == 4
+    assert len([call for call in calls if "--method" in call]) == 5
     assert clock.sleeps == [5, 5]
 
 
@@ -206,10 +218,16 @@ def test_AC8_13_27_late_coveralls_aggregate_failure_is_republished(
                 {
                     "statuses": [
                         {
-                            "context": "coverage/coveralls",
+                            "context": "coverage/coveralls (push)",
                             "state": "failure",
                             "description": "Coverage decreased later",
                             "target_url": "https://coveralls.io/builds/1",
+                        },
+                        {
+                            "context": "coverage/coveralls",
+                            "state": "success",
+                            "description": marker.DEFAULT_DESCRIPTION,
+                            "target_url": "https://github.com/owner/repo/actions/runs/9",
                         },
                         {
                             "context": "Coveralls - unified",
@@ -249,6 +267,6 @@ def test_AC8_13_27_late_coveralls_aggregate_failure_is_republished(
     )
 
     post_calls = [call for call in calls if "--method" in call]
-    assert len(post_calls) == 5
-    assert post_calls[-1][8] == "context=coverage/coveralls"
+    assert len(post_calls) == 6
+    assert post_calls[-1][8] == "context=coverage/coveralls (push)"
     assert clock.sleeps == [45]

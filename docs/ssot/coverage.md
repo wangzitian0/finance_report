@@ -63,7 +63,7 @@ The authoritative component/file policy lives in `scripts/coverage_policy.py`. C
 - **Config**: `apps/frontend/vitest.config.ts`
 - **Output**: `apps/frontend/coverage/lcov.info` (copied to `coverage/frontend.lcov` in CI)
 - **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); Coveralls uploads must use `base-path: apps/frontend`.
-- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. CI normalizes Coveralls status contexts, including `coverage/coveralls` and `Coveralls - unified`, to reporting-only success after local gates pass.
+- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. CI normalizes Coveralls status contexts, including `coverage/coveralls`, `coverage/coveralls (push)`, and `Coveralls - unified`, to reporting-only success after local gates pass.
 - **Key config**: `include: ['src/**/*.{ts,tsx}']` plus the shared policy audit ensures source files appear in LCOV consistently.
 - **Excluded**:
   - `**/tests/**`, `**/__tests__/**`

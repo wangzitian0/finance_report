@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 DEFAULT_CONTEXTS = (
     "coverage/coveralls",
+    "coverage/coveralls (push)",
     "Coveralls - unified",
     "Coveralls - backend",
     "Coveralls - frontend",
@@ -209,9 +210,7 @@ def mark_coveralls_reporting_only(
                 description=description,
                 target_url=target_url,
             )
-            print(
-                f"Re-published final reporting-only success for {context!r} on {sha}"
-            )
+            print(f"Re-published final reporting-only success for {context!r} on {sha}")
     return observed
 
 
