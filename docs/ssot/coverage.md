@@ -63,7 +63,7 @@ The authoritative component/file policy lives in `scripts/coverage_policy.py`. C
 - **Config**: `apps/frontend/vitest.config.ts`
 - **Output**: `apps/frontend/coverage/lcov.info` (copied to `coverage/frontend.lcov` in CI)
 - **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); Coveralls uploads must use `base-path: apps/frontend`.
-- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. CI normalizes Coveralls status contexts, including `coverage/coveralls` and `Coveralls - unified`, to reporting-only success on both the PR head SHA and the synthetic pull-request merge SHA after local gates pass.
+- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. CI normalizes known and discovered Coveralls status contexts, including `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, and future `coverage/coveralls ...` or `Coveralls...` contexts, to reporting-only success on every SHA GitHub may evaluate for mergeability, including the PR head SHA and synthetic pull-request merge SHA.
 - **Key config**: `include: ['src/**/*.{ts,tsx}']` plus the shared policy audit ensures source files appear in LCOV consistently.
 - **Excluded**:
   - `**/tests/**`, `**/__tests__/**`
@@ -121,7 +121,7 @@ jobs:
 The CI workflow uses baseline comparison to prevent coverage regressions. There is no fixed minimum threshold.
 
 - **Rationale**: No-regression is the primary gate; coverage must not drop from the committed baseline.
-- **External reporting**: Coveralls remains enabled for historical visibility, but local deterministic gates decide whether CI fails. `scripts/mark_coveralls_reporting_status.py` waits for Coveralls commit statuses, publishes reporting-only success statuses on every PR SHA GitHub may evaluate for mergeability, and rechecks after a settle period so late Coveralls aggregate writes cannot override the local gate result.
+- **External reporting**: Coveralls remains enabled for historical visibility, but local deterministic gates decide whether CI fails. `scripts/mark_coveralls_reporting_status.py` waits for Coveralls commit statuses, publishes reporting-only success statuses for known and discovered contexts on every PR SHA GitHub may evaluate for mergeability, rechecks after a settle period, republishes any late Coveralls failures, and fails closed if the final latest Coveralls statuses are not the local reporting-only success values.
 
 #### How It Works
 1. **Primary gate**: Baseline comparison (zero tolerance for drops)

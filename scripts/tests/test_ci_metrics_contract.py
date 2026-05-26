@@ -85,8 +85,16 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Upload frontend to Coveralls (per-flag)" in workflow
     assert "Mark Coveralls statuses reporting-only" in workflow
     assert "scripts/mark_coveralls_reporting_status.py" in workflow
-    assert 'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")' in workflow
-    assert "statuses: write" in workflow
+    assert (
+        'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")'
+        in workflow
+    )
+    global_permissions = workflow.split("env:", 1)[0]
+    unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+    assert "statuses: write" not in global_permissions
+    assert "statuses: write" in unified_coverage_block
     assert "scripts/check_ac_traceability.py" in workflow
     assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"

@@ -13,12 +13,14 @@ from dataclasses import dataclass
 
 DEFAULT_CONTEXTS = (
     "coverage/coveralls",
+    "coverage/coveralls (push)",
     "Coveralls - unified",
     "Coveralls - backend",
     "Coveralls - frontend",
 )
 DEFAULT_DESCRIPTION = "Coveralls reporting-only; local coverage gate passed."
 DEFAULT_SETTLE_SECONDS = 45
+TERMINAL_STATES = {"success", "failure", "error"}
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,32 @@ def latest_status_for_context(
     return None
 
 
+def is_coveralls_context(context: str) -> bool:
+    return (
+        context == "coverage/coveralls"
+        or context.startswith("coverage/coveralls ")
+        or context.startswith("Coveralls")
+    )
+
+
+def coveralls_contexts_from_statuses(
+    statuses: list[GitHubCommitStatus],
+) -> tuple[str, ...]:
+    contexts: list[str] = []
+    for status in statuses:
+        if is_coveralls_context(status.context) and status.context not in contexts:
+            contexts.append(status.context)
+    return tuple(contexts)
+
+
+def add_discovered_coveralls_contexts(
+    observed: dict[str, GitHubCommitStatus | None],
+    statuses: list[GitHubCommitStatus],
+) -> None:
+    for context in coveralls_contexts_from_statuses(statuses):
+        observed.setdefault(context, None)
+
+
 def wait_for_coveralls_observations(
     *,
     repo: str,
@@ -124,11 +152,12 @@ def wait_for_coveralls_observations(
 
     while True:
         statuses = fetch_commit_statuses(repo, sha)
-        for context in contexts:
+        add_discovered_coveralls_contexts(observed, statuses)
+        for context in tuple(observed):
             if observed[context] is not None:
                 continue
             status = latest_status_for_context(statuses, context)
-            if status is not None and status.state in {"success", "failure", "error"}:
+            if status is not None and status.state in TERMINAL_STATES:
                 observed[context] = status
                 print(
                     f"Observed {context!r}: state={status.state} "
@@ -177,6 +206,7 @@ def mark_coveralls_reporting_only(
         monotonic=monotonic,
         sleep=sleep,
     )
+    contexts = tuple(observed)
     for context in contexts:
         _run_gh_status_create(
             repo=repo,
@@ -190,6 +220,9 @@ def mark_coveralls_reporting_only(
         print(f"Settling for {settle_seconds}s before final Coveralls status check")
         sleep(settle_seconds)
         latest_statuses = fetch_commit_statuses(repo, sha)
+        for context in coveralls_contexts_from_statuses(latest_statuses):
+            if context not in contexts:
+                contexts = (*contexts, context)
         stale_contexts: list[str] = []
         for context in contexts:
             latest = latest_status_for_context(latest_statuses, context)
@@ -209,10 +242,43 @@ def mark_coveralls_reporting_only(
                 description=description,
                 target_url=target_url,
             )
-            print(
-                f"Re-published final reporting-only success for {context!r} on {sha}"
-            )
+            print(f"Re-published final reporting-only success for {context!r} on {sha}")
+        assert_coveralls_statuses_reporting_only(
+            repo=repo,
+            sha=sha,
+            target_url=target_url,
+            description=description,
+        )
     return observed
+
+
+def assert_coveralls_statuses_reporting_only(
+    *,
+    repo: str,
+    sha: str,
+    target_url: str,
+    description: str,
+) -> None:
+    latest_statuses = fetch_commit_statuses(repo, sha)
+    unexpected: list[str] = []
+    for context in coveralls_contexts_from_statuses(latest_statuses):
+        latest = latest_status_for_context(latest_statuses, context)
+        if latest is None:
+            continue
+        if (
+            latest.state != "success"
+            or latest.description != description
+            or latest.target_url != target_url
+        ):
+            unexpected.append(
+                f"{context} state={latest.state} "
+                f"description={latest.description!r} url={latest.target_url}"
+            )
+    if unexpected:
+        raise RuntimeError(
+            "Coveralls reporting-only normalization did not settle: "
+            + "; ".join(unexpected)
+        )
 
 
 def main() -> None:
