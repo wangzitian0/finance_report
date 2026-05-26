@@ -169,6 +169,70 @@ def test_AC8_13_27_missing_coveralls_statuses_timeout_then_publish_success(
     assert clock.sleeps == [5, 5]
 
 
+def test_AC8_13_27_optional_coveralls_push_context_does_not_delay_publish(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.27: Optional Coveralls contexts are normalized without blocking."""
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args[:3] == ["gh", "api", "repos/owner/repo/commits/abc123/status"]:
+            return completed_process(
+                {
+                    "statuses": [
+                        {
+                            "context": "coverage/coveralls",
+                            "state": "success",
+                            "description": "Coverage increased",
+                            "target_url": "https://coveralls.io/builds/1",
+                        },
+                        {
+                            "context": "Coveralls - unified",
+                            "state": "success",
+                            "description": "Coverage increased",
+                            "target_url": "https://coveralls.io/jobs/1",
+                        },
+                        {
+                            "context": "Coveralls - backend",
+                            "state": "success",
+                            "description": "Coverage remained the same",
+                            "target_url": "https://coveralls.io/jobs/2",
+                        },
+                        {
+                            "context": "Coveralls - frontend",
+                            "state": "success",
+                            "description": "Coverage remained the same",
+                            "target_url": "https://coveralls.io/jobs/3",
+                        },
+                    ]
+                }
+            )
+        return completed_process()
+
+    monkeypatch.setattr(marker.subprocess, "run", fake_run)
+    clock = FakeClock()
+
+    observed = marker.mark_coveralls_reporting_only(
+        repo="owner/repo",
+        sha="abc123",
+        target_url="https://github.com/owner/repo/actions/runs/9",
+        timeout_seconds=120,
+        poll_seconds=5,
+        settle_seconds=0,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    assert observed["coverage/coveralls"] is not None
+    assert observed["coverage/coveralls (push)"] is None
+    assert [call[:3] for call in calls].count(
+        ["gh", "api", "repos/owner/repo/commits/abc123/status"]
+    ) == 1
+    assert len([call for call in calls if "--method" in call]) == 5
+    assert clock.sleeps == []
+
+
 def test_AC8_13_27_invalid_status_payload_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
