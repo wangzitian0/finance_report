@@ -105,13 +105,7 @@ def test_epic_007_secret_and_health_contracts_are_documented() -> None:
 
 
 def test_epic_009_pdf_fixture_tooling_contracts() -> None:
-    """PDF fixture tooling modules, templates, and docs exist.
-
-    AC9.1.2 AC9.1.3 AC9.1.4 AC9.1.5 AC9.1.6
-    AC9.2.1 AC9.2.2 AC9.2.3 AC9.2.4 AC9.2.5 AC9.2.6 AC9.2.7
-    AC9.3.1 AC9.4.1 AC9.4.2 AC9.4.3 AC9.4.4
-    AC9.5.1 AC9.5.2 AC9.5.3 AC9.5.4 AC9.5.5
-    """
+    """PDF fixture tooling modules, templates, and docs exist."""
     _assert_python_defines_class(PDF_FIXTURES / "generators" / "base_generator.py", "BasePDFGenerator")
     _assert_python_defines_class(PDF_FIXTURES / "generators" / "dbs_generator.py", "DBSGenerator")
     _assert_python_defines_class(PDF_FIXTURES / "generators" / "cmb_generator.py", "CMBGenerator")
@@ -132,12 +126,7 @@ def test_epic_009_pdf_fixture_tooling_contracts() -> None:
 
 
 def test_epic_009_generator_templates_and_cli_options() -> None:
-    """PDF generators load templates and expose CLI options.
-
-    AC9.3.2 AC9.3.3 AC9.3.4 AC9.3.5 AC9.3.6
-    AC9.6.1 AC9.6.2 AC9.6.3 AC9.6.4 AC9.6.5
-    AC9.7.1 AC9.7.2 AC9.7.3
-    """
+    """PDF generators load templates and expose CLI options."""
     generator_text = _read(PDF_FIXTURES / "generate_pdf_fixtures.py")
     analyzer_text = _read(PDF_FIXTURES / "analyzers" / "analyze_pdf.py")
     cmb_text = _read(PDF_FIXTURES / "generators" / "cmb_generator.py")

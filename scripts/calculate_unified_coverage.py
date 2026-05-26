@@ -210,6 +210,29 @@ def calculate_unified_coverage(backend: dict, frontend: dict, scripts: dict) -> 
     }
 
 
+def _format_regression_error(
+    *,
+    baseline_path: Path,
+    regressions: list[tuple[str, float, float]],
+) -> str:
+    lines = [
+        "❌ Coverage regression detected by local deterministic gate.",
+        f"   Baseline: {baseline_path}",
+    ]
+    for name, current, baseline in regressions:
+        delta = round(current - baseline, 2)
+        if name == "unified":
+            source = "coverage/unified.lcov"
+        else:
+            source = get_component(name).ci_lcov_path
+        lines.append(
+            "   "
+            + f"- {name}: current={current:.2f}% baseline={baseline:.2f}% "
+            + f"delta={delta:.2f}% source={source}"
+        )
+    return "\n".join(lines)
+
+
 def main() -> None:
     """Main entry point."""
     print("=" * 60)
@@ -253,11 +276,12 @@ def main() -> None:
             baseline_breakdown = baseline.get("breakdown", {})
             baseline_unified = baseline.get("coverage_percent", 0)
             
-            # Unified coverage comparison (zero tolerance)
-            if round(unified["coverage_percent"], 2) < round(baseline_unified, 2):
-                print(f"❌ Unified coverage {unified['coverage_percent']:.2f}% is below baseline {baseline_unified:.2f}%", file=sys.stderr)
-                sys.exit(1)
-            
+            regressions: list[tuple[str, float, float]] = []
+            unified_current = round(unified["coverage_percent"], 2)
+            unified_floor = round(float(baseline_unified), 2)
+            if unified_current < unified_floor:
+                regressions.append(("unified", unified_current, unified_floor))
+
             # Component breakdown comparison (if available)
             components_to_check = []
             if "backend" in baseline_breakdown:
@@ -268,11 +292,20 @@ def main() -> None:
                 components_to_check.append(("scripts", scripts, baseline_breakdown["scripts"]))
             
             for component_name, current_data, baseline_data in components_to_check:
-                current_percent = current_data["coverage_percent"]
-                baseline_percent = baseline_data["coverage_percent"]
-                if round(current_percent, 2) < round(baseline_percent, 2):
-                    print(f"❌ {component_name} coverage {current_percent:.2f}% is below baseline {baseline_percent:.2f}%", file=sys.stderr)
-                    sys.exit(1)
+                current_percent = round(float(current_data["coverage_percent"]), 2)
+                baseline_percent = round(float(baseline_data["coverage_percent"]), 2)
+                if current_percent < baseline_percent:
+                    regressions.append((component_name, current_percent, baseline_percent))
+
+            if regressions:
+                print(
+                    _format_regression_error(
+                        baseline_path=baseline_path,
+                        regressions=regressions,
+                    ),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             
             print("✅ No regression: all coverage at or above baseline")
         else:

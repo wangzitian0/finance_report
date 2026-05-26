@@ -74,6 +74,24 @@ class MariGenerator(BasePDFGenerator):
             summary_table.setStyle(self._create_table_style(summary_config))
             elements.append(summary_table)
             elements.append(Spacer(1, 20))
+
+        interest_transactions = [
+            txn for txn in txns if "interest" in str(txn["description"]).lower()
+        ]
+        if interest_transactions and "interest_details" in self.template["tables"]:
+            elements.append(Paragraph("INTEREST DETAILS", styles["Heading2"]))
+            elements.append(Spacer(1, 10))
+            interest_config = self.template["tables"]["interest_details"]
+            interest_data = [["Date", "Interest"]]
+            for txn in interest_transactions:
+                interest_data.append([txn["date"], txn["incoming"]])
+            interest_table = Table(
+                interest_data,
+                colWidths=self._get_column_widths(interest_config),
+            )
+            interest_table.setStyle(self._create_table_style(interest_config))
+            elements.append(interest_table)
+            elements.append(Spacer(1, 20))
         
         # Transaction Details
         elements.append(Paragraph("TRANSACTION DETAILS", styles["Heading2"]))

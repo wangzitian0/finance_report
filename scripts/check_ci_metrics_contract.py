@@ -142,11 +142,19 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "scripts/calculate_unified_coverage.py",
             "scripts/check_ac_traceability.py",
             'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
-            "scripts/wait_for_github_status.py",
-            '--context "Coveralls - unified"',
+            "Upload unified coverage to Coveralls",
+            "Upload backend to Coveralls (per-flag)",
+            "Upload frontend to Coveralls (per-flag)",
+            "Mark Coveralls statuses reporting-only",
+            "scripts/mark_coveralls_reporting_status.py",
+            "statuses: write",
             "Backend Tests (Shard ${{ matrix.shard }}/6)",
             "--splits 6",
-            "--failure-confirmation-seconds",
+            "container-images:",
+            "Build Backend SHA image",
+            "Build Frontend SHA image",
+            "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
+            "Container image validation failed",
         )
         for token in required_workflow_tokens:
             if token not in workflow_text:
@@ -174,7 +182,9 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "single CI metrics contract",
             "AC traceability is a reference metric, not behavioral coverage",
             "trivial placeholder assertions",
-            "Coveralls success with no external base comparison is accepted",
+            "Coveralls uploads are reporting-only and do not block CI pass/fail",
+            "PR CI dry-runs staging image builds before merge",
+            "Main push CI is the only path that pushes SHA-tagged images",
             "New `apps/*/src` or `packages/*/src` source roots fail CI",
         ):
             if token not in ci_cd_text:

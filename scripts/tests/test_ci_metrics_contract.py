@@ -80,8 +80,12 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Backend Tests (Shard ${{ matrix.shard }}/6)" in workflow
     assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
     assert "--splits 6" in workflow
-    assert "--failure-confirmation-seconds" in workflow
-    assert "--reject-success-description-regex" not in workflow
+    assert "Upload unified coverage to Coveralls" in workflow
+    assert "Upload backend to Coveralls (per-flag)" in workflow
+    assert "Upload frontend to Coveralls (per-flag)" in workflow
+    assert "Mark Coveralls statuses reporting-only" in workflow
+    assert "scripts/mark_coveralls_reporting_status.py" in workflow
+    assert "statuses: write" in workflow
     assert "scripts/check_ac_traceability.py" in workflow
     assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"
@@ -89,7 +93,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
-    assert "Coveralls success with no external base comparison is accepted" in ci_cd
+    assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "not behavioral coverage" in traceability
     assert "placeholder assertions" in traceability
 
@@ -168,11 +172,11 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("scripts/calculate_unified_coverage.py" in error for error in errors)
     assert any("scripts/check_ac_traceability.py" in error for error in errors)
     assert any("scripts/build_ac_traceability.py --output" in error for error in errors)
-    assert any("--failure-confirmation-seconds" in error for error in errors)
+    assert any("Upload unified coverage to Coveralls" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
     assert any(
-        "Coveralls success with no external base comparison" in error
+        "Coveralls uploads are reporting-only and do not block CI pass/fail" in error
         for error in errors
     )
     assert any("New `apps/*/src`" in error for error in errors)

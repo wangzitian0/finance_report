@@ -31,7 +31,7 @@ groups:
         epic_name: testing-strategy
         description: core parsed proof
         mandatory: true
-      - id: AC8.13.40
+      - id: AC8.13.41
         epic: 8
         epic_name: testing-strategy
         description: critical proof matrix validates core paths
@@ -54,7 +54,7 @@ def _write_matrix(repo_root: Path, content: str) -> Path:
 
 
 def test_valid_behavioral_static_and_manual_entries_pass(tmp_path: Path) -> None:
-    """AC8.13.40: Critical proof matrix accepts explicit proof classes."""
+    """AC8.13.41: Critical proof matrix accepts explicit proof classes."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)
@@ -76,7 +76,7 @@ async def test_core_flow():
     (scripts_dir / "test_contract.py").write_text(
         """
 def test_contract_shape():
-    \"\"\"AC8.13.40: static checker contract.\"\"\"
+    \"\"\"AC8.13.41: static checker contract.\"\"\"
     assert True
 """.strip()
         + "\n",
@@ -99,7 +99,7 @@ proofs:
     ci_tier: pr_ci
     file: scripts/tests/test_contract.py
     test: test_contract_shape
-    ac_ids: [AC8.13.40]
+    ac_ids: [AC8.13.41]
   - id: manual-provider-gate
     scope: manual_gate
     ci_tier: manual
@@ -123,7 +123,7 @@ proofs:
 
 
 def test_file_level_ac_reference_does_not_satisfy_core_proof(tmp_path: Path) -> None:
-    """AC8.13.40: File/body-only AC strings are reference-only for core paths."""
+    """AC8.13.41: File/body-only AC strings are reference-only for core paths."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)
@@ -161,7 +161,7 @@ proofs:
 
 
 def test_broad_contract_file_cannot_satisfy_behavioral_proof(tmp_path: Path) -> None:
-    """AC8.13.40: Broad contract tests cannot close core behavioral proof."""
+    """AC8.13.41: Broad contract tests cannot close core behavioral proof."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "scripts" / "tests"
     test_dir.mkdir(parents=True)
@@ -195,7 +195,7 @@ proofs:
 
 
 def test_unknown_ac_missing_file_and_missing_marker_fail(tmp_path: Path) -> None:
-    """AC8.13.40: Matrix drift reports missing ACs, files, and markers."""
+    """AC8.13.41: Matrix drift reports missing ACs, files, and markers."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)
@@ -240,7 +240,7 @@ proofs:
 
 
 def test_typescript_anchor_and_missing_test_anchor_are_validated(tmp_path: Path) -> None:
-    """AC8.13.40: Frontend test titles can carry stable critical AC proof."""
+    """AC8.13.41: Frontend test titles can carry stable critical AC proof."""
     _write_registry(tmp_path)
     frontend_dir = tmp_path / "apps" / "frontend" / "src"
     frontend_dir.mkdir(parents=True)
@@ -249,7 +249,7 @@ def test_typescript_anchor_and_missing_test_anchor_are_validated(tmp_path: Path)
 import { test } from "vitest";
 
 test("AC8.13.1 upload journey renders", () => {
-  expect(true).toBe(true);
+  expect(new Set(["upload"]).has("upload")).toBe(true);
 });
 """.strip()
         + "\n",
@@ -283,7 +283,7 @@ proofs:
 
 
 def test_shape_errors_are_reported_before_file_validation(tmp_path: Path) -> None:
-    """AC8.13.40: Malformed proof rows fail with actionable messages."""
+    """AC8.13.41: Malformed proof rows fail with actionable messages."""
     _write_registry(tmp_path)
     matrix_path = _write_matrix(
         tmp_path,
@@ -316,7 +316,7 @@ proofs:
 
 
 def test_invalid_matrix_yaml_shapes_raise_value_error(tmp_path: Path) -> None:
-    """AC8.13.40: Matrix files must stay as explicit proof mappings."""
+    """AC8.13.41: Matrix files must stay as explicit proof mappings."""
     scalar_matrix = tmp_path / "scalar.yaml"
     scalar_matrix.write_text("- not-a-mapping\n", encoding="utf-8")
     with pytest.raises(ValueError, match="must contain a YAML mapping"):
@@ -335,7 +335,7 @@ proofs: []
 
 
 def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) -> None:
-    """AC8.13.40: Critical proof cannot be delegated to stubs or unknown anchors."""
+    """AC8.13.41: Critical proof cannot be delegated to stubs or unknown anchors."""
     _write_registry(tmp_path)
     stub_dir = tmp_path / "tests" / "e2e" / "_ac_stubs"
     stub_dir.mkdir(parents=True)
@@ -366,7 +366,7 @@ def test_main_writes_success_report_and_prints_failures(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.40: CLI behavior is covered for success and failure paths."""
+    """AC8.13.41: CLI behavior is covered for success and failure paths."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
     test_dir.mkdir(parents=True)

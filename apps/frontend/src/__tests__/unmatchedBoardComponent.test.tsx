@@ -111,7 +111,7 @@ describe("UnmatchedBoard", () => {
 
     render(<UnmatchedBoard />)
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
 
     await waitFor(() =>
@@ -158,10 +158,11 @@ describe("UnmatchedBoard", () => {
 
     render(<UnmatchedBoard />)
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
     expect(await screen.findByText("Created 1 journal entry from unmatched transactions.")).toBeInTheDocument()
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
     expect(await screen.findByText("bulk failed")).toBeInTheDocument()
     expect(screen.queryByText("Created 1 journal entry from unmatched transactions.")).not.toBeInTheDocument()

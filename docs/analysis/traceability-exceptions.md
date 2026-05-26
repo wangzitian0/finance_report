@@ -142,8 +142,8 @@ router, or generated-fixture flows.
 | `apps/frontend/src/components/review/BalanceIndicator.tsx` | Review UI subcomponent covered through review page/component suites |
 | `apps/frontend/src/components/review/ReviewActionBar.tsx` | Review UI subcomponent covered through review page/action suites |
 | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` | Review UI subcomponent covered through review queue and run review page suites |
-| `scripts/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure; current proof remains manual-gate debt |
-| `scripts/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure; current proof remains manual-gate debt |
+| `scripts/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `scripts/tests/test_pdf_fixture_epic009_behavior.py` |
+| `scripts/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `scripts/tests/test_pdf_fixture_tooling_coverage.py` |
 
 ## Rule
 
