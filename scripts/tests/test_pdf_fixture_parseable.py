@@ -192,6 +192,7 @@ def test_ac8_13_10_moomoo_generated_pdf_parseable(tmp_path: Path) -> None:
 
 
 def test_ac9_3_6_pingan_generated_pdf_dates_and_balances(tmp_path: Path) -> None:
+    """AC9.3.6: Pingan PDFs remain parseable with source-specific dates and balances."""
     pingan_generator = import_module("generators.pingan_generator").PinganGenerator
     output_path = tmp_path / "pingan" / "test_pingan.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,6 +242,7 @@ def test_ac8_13_10_futu_fake_data_count_boundaries() -> None:
 
 
 def test_ac9_3_2_dbs_generated_pdf_parseable(tmp_path: Path) -> None:
+    """AC9.3.2: DBS PDFs remain parseable with expected rows, dates, and amounts."""
     dbs_generator, _, _ = _get_generator_classes()
     output_path = tmp_path / "dbs" / "test_dbs.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -271,6 +273,7 @@ def test_ac9_3_2_dbs_generated_pdf_parseable(tmp_path: Path) -> None:
 
 
 def test_ac9_3_3_cmb_generated_pdf_parseable(tmp_path: Path) -> None:
+    """AC9.3.3: CMB PDFs remain parseable with expected rows, dates, and amounts."""
     _, cmb_generator, _ = _get_generator_classes()
     output_path = tmp_path / "cmb" / "test_cmb.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -299,6 +302,7 @@ def test_ac9_3_3_cmb_generated_pdf_parseable(tmp_path: Path) -> None:
 
 
 def test_ac9_3_4_mari_generated_pdf_parseable(tmp_path: Path) -> None:
+    """AC9.3.4: Mari PDFs remain parseable with expected rows, dates, and amounts."""
     _, _, mari_generator = _get_generator_classes()
     output_path = tmp_path / "mari" / "test_mari.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -329,6 +333,7 @@ def test_ac9_3_4_mari_generated_pdf_parseable(tmp_path: Path) -> None:
 
 
 def test_ac9_3_5_balance_calculations_correct(tmp_path: Path) -> None:
+    """AC9.3.5: Generated bank PDFs preserve opening plus activity equals closing."""
     dbs_generator, cmb_generator, mari_generator = _get_generator_classes()
     fixtures_root = tmp_path / "fixtures"
     fixtures_root.mkdir(parents=True, exist_ok=True)
@@ -408,6 +413,7 @@ def test_ac9_3_5_balance_calculations_correct(tmp_path: Path) -> None:
 
 
 def test_ac9_3_6_date_formats_correct_per_source(tmp_path: Path) -> None:
+    """AC9.3.6: Generated bank PDFs keep source-specific date formats."""
     dbs_generator, cmb_generator, mari_generator = _get_generator_classes()
     period_start = datetime(2025, 1, 1)
     period_end = datetime(2025, 1, 31)
