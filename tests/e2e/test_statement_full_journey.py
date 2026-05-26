@@ -104,7 +104,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
-    """AC8.13.1–AC8.13.5: DBS PDF → parse → approve → balance sheet."""
+    """AC8.13.1 AC8.13.2 AC8.13.3 AC8.13.4 AC8.13.5: DBS PDF to balance sheet."""
     page = authenticated_page
     pdf_path = _unique_pdf_copy(_get_dbs_pdf_path())
 

@@ -240,6 +240,15 @@ concepts:
       - AGENTS.md
       - docs/agents/orchestration.md
 
+  critical_proof_matrix:
+    owner: docs/ssot/critical-proof-matrix.yaml
+    description: Parseable guard for core product proof paths that must not be satisfied by broad AC references.
+    cross_refs:
+      - docs/ssot/tdd.md
+      - docs/ssot/ci-cd.md
+      - .github/workflows/ci.yml
+      - scripts/check_critical_proof_matrix.py
+
   # ── Agent governance ──────────────────────────────────────────────────
   security_red_lines:
     owner: docs/agents/red-lines.md
