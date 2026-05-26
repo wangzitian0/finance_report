@@ -294,6 +294,7 @@ jobs:
             pytest \
               tests/e2e/test_statement_full_journey.py \
               tests/e2e/test_brokerage_upload_to_portfolio_value.py \
+              tests/e2e/test_four_asset_net_worth_golden_path.py \
               tests/e2e/test_statement_upload_e2e.py \
               -v -m "llm"
 

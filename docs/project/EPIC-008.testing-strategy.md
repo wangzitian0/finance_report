@@ -74,6 +74,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
 - **AC8.13.40**: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images.
 - **AC8.13.41**: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings.
+- **AC8.13.42**: Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -386,6 +387,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `scripts/tests/test_toolchain_contract.py` | P0 |
 | AC8.13.40 | PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images | `test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.41 | Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings | `test_*critical_proof_matrix*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
+| AC8.13.42 | Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E | `test_four_asset_as_of_net_worth_golden_path`, `test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical` | `tests/e2e/test_four_asset_net_worth_golden_path.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -415,6 +417,7 @@ coverage status; use the generated coverage report and CI artifacts for that.
 | `tests/e2e/test_statement_full_journey.py` | Playwright | Tier 3 | 1 | Full journey: DBS PDF upload → parse polling → detail/transactions → approve → balance sheet (AC8.13.1–5) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | API E2E | Tier 3 | 1 | Issue #404 hard gate: Moomoo + Futu PDF upload → real OCR parsing → brokerage import → holdings + balance sheet value (AC8.13.10) |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Playwright/API | Tier 3 | 3 | Deterministic vision gate: fresh-user CSV upload → Stage 1 auto-post → reconciliation idempotency → Stage 2 cleared state → processing visibility → exact dashboard/report totals (AC8.13.28–32) |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Browser/API E2E | Tier 3 | 1 | Issue #444 hard gate: fresh-user bank CSV upload → Stage 1/Stage 2 posting → brokerage PDF import → property/mortgage/ESOP manual snapshots → exact as-of net worth and dashboard/report totals (AC8.13.42) |
 | `tests/e2e/test_production_readonly_smoke.py` | Playwright/API | Tier 3 | 3 | Production-safe read-only smoke: health, auth boundary, browser shell, optional credential-gated dashboard |
 | `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
 | `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |
@@ -511,7 +514,12 @@ coverage status; use the generated coverage report and CI artifacts for that.
    - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures. Portfolio value coverage is checked against balance-sheet market valuation adjustment lines, not whole `total_assets`, so unrelated cash or bank lines cannot mask or falsely fail the imported portfolio valuation check. Failures include imported position count, holdings total market value, valuation adjustment total, non-portfolio asset total, total assets, net worth adjustment, and relevant asset lines.
    - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS full journey.
 
-4. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
+4. **Four-Asset As-of Net Worth Golden Path (Tier 3)** (`test_four_asset_net_worth_golden_path.py`):
+   - **Status**: Implemented hard gate for Issue #444
+   - **Coverage**: AC8.13.42 proves one fresh-user path across bank cash, brokerage PDF positions, property value, mortgage liability, and ESOP restricted equity. The test completes explicit upload, Stage 1 approval/posting, Stage 2 reconciliation, brokerage import, manual valuation creation, exact Decimal-safe as-of balance-sheet totals, and dashboard/report total assertions.
+   - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS and brokerage PDF hard gates because it imports a real brokerage PDF through the configured OCR path.
+
+5. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
    - **Status**: Implemented for production release
    - **Coverage**: Health payload, anonymous auth boundary, browser shell/login route, optional credential-gated dashboard
    - **Allowed skip**: Authenticated dashboard check may skip only when `PROD_SMOKE_EMAIL` / `PROD_SMOKE_PASSWORD` are not configured; it must not mutate production data

@@ -52,7 +52,13 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
   const hasOverride = (key: string) => Object.prototype.hasOwnProperty.call(overrides, key)
   let trendCalls = 0
   mockedApiFetch.mockImplementation((path: string) => {
-    if (path.startsWith("/api/reports/balance-sheet")) return Promise.resolve(hasOverride("balance") ? overrides.balance : baseBalance)
+    if (path.startsWith("/api/reports/balance-sheet")) {
+      const includeRestricted = path.includes("include_restricted=true")
+      const defaultBalance = includeRestricted
+        ? { ...baseBalance, total_assets: 17500, total_equity: 16500 }
+        : baseBalance
+      return Promise.resolve(hasOverride("balance") ? overrides.balance : defaultBalance)
+    }
     if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(hasOverride("income") ? overrides.income : baseIncome)
     if (path.startsWith("/api/income/annualized")) {
       return Promise.resolve(
@@ -80,19 +86,6 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
                 currency: "USD",
               },
             ],
-      )
-    }
-    if (path.startsWith("/api/assets/valuation-components")) {
-      const includeRestricted = path.includes("include_restricted=true")
-      return Promise.resolve(
-        hasOverride("valuation")
-          ? overrides.valuation
-          : {
-              items: [],
-              total_assets: includeRestricted ? 12500 : 0,
-              total_liabilities: 0,
-              net_worth_delta: includeRestricted ? 12500 : 0,
-            },
       )
     }
     if (path.startsWith("/api/reconciliation/stats")) {
@@ -207,17 +200,19 @@ describe("DashboardPage", () => {
     render(<DashboardPage />)
 
     await waitFor(() => expect(screen.getByText("Include restricted holdings")).toBeInTheDocument())
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/assets/valuation-components?include_restricted=false")
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/balance-sheet?include_restricted=false")
+    expect(screen.getAllByText("$4,000").length).toBeGreaterThanOrEqual(1)
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/assets/valuation-components?include_restricted=true"),
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/balance-sheet?include_restricted=true"),
     )
+    await waitFor(() => expect(screen.getAllByText("$16,500").length).toBeGreaterThanOrEqual(1))
   })
 
-  it("uses empty fallbacks when optional valuation APIs return null", async () => {
-    mockDashboardApi({ restricted: null, valuation: null })
+  it("uses empty fallbacks when optional asset APIs return null", async () => {
+    mockDashboardApi({ restricted: null })
 
     render(<DashboardPage />)
 

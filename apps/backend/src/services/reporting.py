@@ -488,13 +488,14 @@ async def _build_manual_valuation_lines(
     *,
     as_of_date: date,
     target_currency: str,
+    include_restricted: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components."""
     components = await AssetService().get_latest_valuation_components(
         db,
         user_id,
         as_of_date=as_of_date,
-        include_restricted=True,
+        include_restricted=include_restricted,
     )
     asset_lines: list[dict[str, Any]] = []
     liability_lines: list[dict[str, Any]] = []
@@ -538,6 +539,7 @@ async def generate_balance_sheet(
     *,
     as_of_date: date,
     currency: str | None = None,
+    include_restricted: bool = True,
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date."""
     target_currency = _normalize_currency(currency)
@@ -576,6 +578,7 @@ async def generate_balance_sheet(
         user_id,
         as_of_date=as_of_date,
         target_currency=target_currency,
+        include_restricted=include_restricted,
     )
     assets.extend(portfolio_adjustments)
     assets.extend(valuation_assets)

@@ -53,3 +53,23 @@ proofs:
       - llm
     ac_ids:
       - AC8.13.10
+
+  - id: four-asset-as-of-net-worth
+    scope: behavioral
+    ci_tier: post_merge_environment
+    issue: "#444"
+    file: tests/e2e/test_four_asset_net_worth_golden_path.py
+    test: test_four_asset_as_of_net_worth_golden_path
+    required_markers:
+      - e2e
+      - tier3
+      - critical
+      - llm
+    ac_ids:
+      - AC8.13.42
+      - AC8.13.10
+      - AC5.7.3
+      - AC11.9.1
+      - AC11.9.2
+      - AC11.9.3
+      - AC17.5.4

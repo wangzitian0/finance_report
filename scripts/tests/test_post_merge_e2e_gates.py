@@ -99,6 +99,7 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     journey = read("tests/e2e/test_statement_full_journey.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
+    four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
 
     assert "format_ai_ocr_gate_failure" in conftest
     for token in (
@@ -112,6 +113,7 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     assert "statement=last_statement" in journey
     assert "statement=statement" in upload
     assert "statement=last_payload" in brokerage
+    assert "fail_or_skip_ai_ocr_gate(" in four_asset
 
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
@@ -152,6 +154,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert 'run_timed_phase "Staging AI/OCR Gate' in deploy_workflow
     assert "test_statement_full_journey.py" in deploy_workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in deploy_workflow
+    assert "test_four_asset_net_worth_golden_path.py" in deploy_workflow
     assert "test_statement_upload_e2e.py" in deploy_workflow
     assert '-v -m "llm"' in deploy_workflow
     assert (
@@ -172,6 +175,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "test_version_check.py" in ai_workflow
     assert "test_statement_full_journey.py" in ai_workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
+    assert "test_four_asset_net_worth_golden_path.py" in ai_workflow
     assert "test_statement_upload_e2e.py" in ai_workflow
     assert '-v -m "llm"' in ai_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
@@ -287,6 +291,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     pr_workflow = read(".github/workflows/pr-test.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
+    four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     deploy_script = read("scripts/dokploy_deploy.sh")
 
@@ -324,10 +329,12 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     assert "Wait for matching CI success" in workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in workflow
+    assert "test_four_asset_net_worth_golden_path.py" in workflow
     assert '-v -m "llm"' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
     assert "@pytest.mark.llm" in journey
     assert "@pytest.mark.llm" in brokerage
+    assert "@pytest.mark.llm" in four_asset
     assert upload.count("@pytest.mark.llm") >= 2
     assert 'echo "ZAI_API_KEY="' in pr_workflow
     assert 'echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"' in pr_workflow
@@ -668,6 +675,51 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
     ):
         assert token in gate
     assert "upload-to-dashboard vision hard gate" in ci_cd
+
+
+def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
+    """AC8.13.42: four-asset as-of net worth proof is wired into the post-merge hard gate."""
+    gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
+    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    matrix = read("docs/ssot/critical-proof-matrix.yaml")
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    for token in (
+        "@pytest.mark.e2e",
+        "@pytest.mark.tier3",
+        "@pytest.mark.critical",
+        "@pytest.mark.llm",
+        "authenticated_page_unique",
+        "/statements/upload",
+        "/review/approve",
+        "/reconciliation/run",
+        "/brokerage/import",
+        "/assets/valuation-snapshots",
+        "/assets/valuation-components",
+        "/reports/balance-sheet",
+        "/dashboard",
+        'BANK_CASH = Decimal("2500.00")',
+        'PROPERTY_VALUE = Decimal("1200000.00")',
+        'MORTGAGE_BALANCE = Decimal("650000.00")',
+        'ESOP_VALUE = Decimal("42000.00")',
+        "expected_net_worth",
+        "net_worth_adjustment_gain_loss",
+        "market valuation adjustment",
+    ):
+        assert token in gate
+
+    for workflow in (deploy_workflow, ai_workflow):
+        assert "test_four_asset_net_worth_golden_path.py" in workflow
+        assert '-v -m "llm"' in workflow
+
+    assert "four-asset-as-of-net-worth" in matrix
+    assert "test_four_asset_as_of_net_worth_golden_path" in matrix
+    assert "AC8.13.42" in matrix
+    assert "AC8.13.42" in epic
+    assert "test_four_asset_as_of_net_worth_golden_path" in epic
+    assert "four-asset gate" in ci_cd
 
 
 def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None:

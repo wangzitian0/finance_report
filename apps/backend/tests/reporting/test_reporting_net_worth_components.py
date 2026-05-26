@@ -477,6 +477,76 @@ async def test_manual_property_and_mortgage_valuations_change_net_worth(db: Asyn
 
 
 @pytest.mark.asyncio
+async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_assets(
+    db: AsyncSession,
+    test_user,
+):
+    """AC11.9.3: Balance sheet restricted toggle excludes restricted and illiquid asset snapshots."""
+    report_date = date(2025, 3, 31)
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        component_name="Singapore Condo",
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        value=Decimal("1200000.00"),
+        currency="SGD",
+        as_of_date=report_date,
+    )
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.ESOP,
+        component_name="Employer ESOP",
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        value=Decimal("42000.00"),
+        currency="SGD",
+        as_of_date=report_date,
+    )
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.TAX_REFUND,
+        component_name="IRAS refund",
+        liquidity_class=ManualValuationLiquidityClass.LIQUID,
+        value=Decimal("1200.00"),
+        currency="SGD",
+        as_of_date=report_date,
+    )
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
+        component_name="Singapore Condo Mortgage",
+        liquidity_class=ManualValuationLiquidityClass.LIABILITY,
+        value=Decimal("600000.00"),
+        currency="SGD",
+        as_of_date=report_date,
+    )
+    await db.commit()
+
+    liquid_report = await generate_balance_sheet(
+        db,
+        test_user.id,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=False,
+    )
+    full_report = await generate_balance_sheet(
+        db,
+        test_user.id,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=True,
+    )
+
+    assert liquid_report["total_assets"] == Decimal("1200.00")
+    assert liquid_report["total_liabilities"] == Decimal("600000.00")
+    assert full_report["total_assets"] == Decimal("1243200.00")
+    assert full_report["total_liabilities"] == Decimal("600000.00")
+
+
+@pytest.mark.asyncio
 async def test_manual_valuation_uses_as_of_historical_fx_rate(db: AsyncSession, test_user):
     """AC5.7.3: Non-base valuation snapshots use historical FX for the requested as-of date."""
     report_date = date(2025, 3, 31)
