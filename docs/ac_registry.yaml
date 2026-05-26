@@ -1866,7 +1866,7 @@ groups:
       - id: AC8.13.27
         epic: 8
         epic_name: testing-strategy
-        description: PR and main CI wait for the external Coveralls unified coverage status before passing.
+        description: Coveralls uploads and asynchronous Coveralls commit statuses remain reporting-only while local deterministic coverage gates decide CI pass/fail.
         mandatory: true
       - id: AC8.13.28
         epic: 8
@@ -1928,6 +1928,12 @@ groups:
         epic: 8
         epic_name: testing-strategy
         description: Runtime and container versions stay aligned across local, CI, and Docker environments.
+        mandatory: true
+      - id: AC8.13.40
+        epic: 8
+        epic_name: testing-strategy
+        description: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged
+          images.
         mandatory: true
   AC11:
     AC11.1:

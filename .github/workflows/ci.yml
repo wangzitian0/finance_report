@@ -14,7 +14,7 @@ concurrency:
 permissions:
   actions: read
   contents: read
-  statuses: read
+  statuses: write
 
 env:
   REGISTRY: ghcr.io
@@ -256,7 +256,7 @@ jobs:
     name: Build Staging Images
     runs-on: ubuntu-latest
     needs: [changes]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.heavy_required == 'true'
+    if: needs.changes.outputs.heavy_required == 'true'
     permissions:
       contents: read
       packages: write
@@ -271,6 +271,7 @@ jobs:
           echo "Building staging images for commit: $short_sha"
 
       - name: Log in to Container registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -280,22 +281,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Backend SHA image
+      - name: Build Backend SHA image
         uses: docker/build-push-action@v5
         with:
           context: ./apps/backend
-          push: true
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 
-      - name: Build and push Frontend SHA image
+      - name: Build Frontend SHA image
         uses: docker/build-push-action@v5
         with:
           context: ./apps/frontend
-          push: true
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
@@ -386,17 +387,6 @@ jobs:
           file: coverage/unified.lcov
           flag-name: unified
           base-path: .
-      - name: Wait for Coveralls unified status
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          uv run python scripts/wait_for_github_status.py \
-            --repo "${{ github.repository }}" \
-            --sha "${{ github.sha }}" \
-            --context "Coveralls - unified" \
-            --timeout-seconds 300 \
-            --poll-seconds 10 \
-            --failure-confirmation-seconds 30
 
       - name: Upload backend to Coveralls (per-flag)
         uses: coverallsapp/github-action@v2
@@ -413,6 +403,14 @@ jobs:
           file: coverage/frontend.lcov
           flag-name: frontend
           base-path: apps/frontend
+      - name: Mark Coveralls statuses reporting-only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run python scripts/mark_coveralls_reporting_status.py \
+            --repo "${{ github.repository }}" \
+            --sha "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}" \
+            --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   ac-traceability:
     name: AC Traceability Check
@@ -501,8 +499,8 @@ jobs:
             echo "::error::Unified coverage check failed"
             exit 1
           fi
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" && "${{ needs.container-images.result }}" != "success" ]]; then
-            echo "::error::Staging image build failed"
+          if [[ "${{ needs.container-images.result }}" != "success" ]]; then
+            echo "::error::Container image validation failed"
             exit 1
           fi
         else

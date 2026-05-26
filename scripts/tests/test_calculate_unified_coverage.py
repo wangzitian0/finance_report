@@ -494,6 +494,55 @@ class TestBaselineComparison:
         assert "82.0" in captured.err
         assert "83.15" in captured.err
 
+    def test_regression_output_lists_component_deltas_and_sources(
+        self, tmp_path, monkeypatch, capfd
+    ):
+        """Regression output includes deterministic component deltas and source paths."""
+        baseline_file = tmp_path / "baseline.json"
+        baseline_file.write_text(
+            json.dumps(
+                {
+                    "coverage_percent": 80.0,
+                    "breakdown": {
+                        "backend": {"coverage_percent": 80.0},
+                        "frontend": {"coverage_percent": 80.0},
+                        "scripts": {"coverage_percent": 80.0},
+                    },
+                }
+            )
+        )
+
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setattr(
+            cuc,
+            "get_backend_coverage",
+            lambda: {"total_lines": 100, "covered_lines": 70, "coverage_percent": 70.0},
+        )
+        monkeypatch.setattr(
+            cuc,
+            "get_frontend_coverage",
+            lambda: {"total_lines": 100, "covered_lines": 80, "coverage_percent": 80.0},
+        )
+        monkeypatch.setattr(
+            cuc,
+            "get_scripts_coverage",
+            lambda: {"total_lines": 100, "covered_lines": 75, "coverage_percent": 75.0},
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+
+        assert exc.value.code == 1
+        err = capfd.readouterr().err
+        assert "Coverage regression detected by local deterministic gate" in err
+        assert "baseline.json" in err
+        assert "backend: current=70.00% baseline=80.00% delta=-10.00%" in err
+        assert "scripts: current=75.00% baseline=80.00% delta=-5.00%" in err
+        assert "source=coverage/backend.lcov" in err
+        assert "source=coverage/scripts.lcov" in err
+
     def test_fails_when_backend_drops_despite_unified_ok(self, tmp_path, monkeypatch):
         """When backend drops significantly despite unified staying ok, expect exit 1."""
         # Setup baseline file

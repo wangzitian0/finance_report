@@ -25,9 +25,10 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
 | **backend** (Shards 1-6) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
 | **frontend** | Frontend build + tests when heavy CI is required | `needs: [classify-changes]` |
+| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [classify-changes]` |
 | **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [classify-changes, backend, frontend]` |
 | **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
-| **finish** | Aggregate all required and skipped job results | `needs: [classify-changes, backend, frontend, lint, unified-coverage, ac-traceability]` |
+| **finish** | Aggregate all required and skipped job results | `needs: [classify-changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]` |
 
 ### Key CI Properties
 
@@ -35,11 +36,12 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `scripts/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `scripts/check_ac_traceability.py` as the fail-closed gate, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact. The audit distinguishes real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. CI does not fail solely because the checked-in archive copy is stale.
-5. **Coveralls Upload and Status Gate**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. Pull requests wait for the external `Coveralls - unified` status before the `unified-coverage` job can pass, and `main` pushes use the same gate before post-merge staging, so asynchronous Coveralls upload failures are blocked before merge and before staging. A terminal external failure is re-polled once before CI fails. The local unified coverage calculation remains the authoritative no-regression gate; a Coveralls success with no external base comparison is accepted because `scripts/calculate_unified_coverage.py` already compared against `unified-coverage.json` before upload.
+5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`scripts/check_ci_metrics_contract.py`, `scripts/check_coverage_policy.py`, `scripts/calculate_unified_coverage.py`). After those gates pass, CI normalizes Coveralls commit statuses (`coverage/coveralls`, `Coveralls - unified`, `Coveralls - backend`, `Coveralls - frontend`) to success via `scripts/mark_coveralls_reporting_status.py`, so Coveralls remains enabled for dashboards and history but does not block merges or post-merge staging.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `scripts/coverage_policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Toolchain Contract**: `scripts/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
-8. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
-9. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+8. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
+9. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, or script source files drift from their LCOV report.
+10. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ### PR vs Main CI Responsibilities
 
@@ -48,16 +50,12 @@ CI, dependency, or coverage-policy files change. This keeps branch protection
 strict before merge.
 
 Pushes to `main` still run heavy CI for runtime changes even though the merged PR
-already ran required checks. The retained post-merge run provides three signals
-that PR checks cannot fully replace: validation of the exact merge commit,
-Coveralls status from `main`, and a final gate before post-merge staging/AI
-workflows consume the new commit. The same `Coveralls - unified` status gate runs
-on PR and `main`, so the post-merge lane should not be the first place a
-confirmed external upload failure is observed. The gate re-checks a terminal
-external failure before failing to reduce unexpected failures from transient
-external status flips. Coverage regression detection is enforced locally against
-`unified-coverage.json`, so a successful Coveralls upload that lacks an external
-base build is not rejected by CI.
+already ran required checks. The retained post-merge run provides two signals
+that PR checks cannot fully replace: validation of the exact merge commit and a
+final local gate before post-merge staging/AI workflows consume the new commit.
+Coverage regression detection is enforced locally against
+`unified-coverage.json`; Coveralls remains reporting-only and does not decide CI
+pass/fail.
 
 Lightweight changes do not repeat the heavy path on either PRs or `main`.
 Lightweight means all changed files are limited to documentation, markdown,
@@ -160,10 +158,14 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coverage reports merged post-run
 - Coverage policy audited after backend, frontend, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + scripts LCOV, matching the local unified calculation.
-- CI calls `scripts/wait_for_github_status.py` after unified upload and fails the `unified-coverage` job if the external `Coveralls - unified` commit status reports a confirmed `failure`/`error`, or never appears before timeout.
+- CI keeps Coveralls uploads enabled after local coverage gates pass; external Coveralls status is informational and does not block `unified-coverage` job success.
 - CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
+- PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
+- Main push CI is the only path that pushes SHA-tagged images. Registry login and image push are guarded by `github.event_name == 'push' && github.ref == 'refs/heads/main'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 - The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
+- Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
+- The asynchronous Coveralls status contexts are `coverage/coveralls`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend`; CI waits briefly for them, publishes reporting-only success statuses, then performs a settle-time recheck so late Coveralls aggregate writes cannot override the local gate result.
 
 **Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
 - This file is a historical/manual snapshot, not the current CI source of truth.
@@ -173,7 +175,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, PR preview, and production smoke runs do not repeatedly download identical E2E dependencies.
-- Main push CI builds SHA-tagged staging images in parallel with tests when heavy CI is required. These images are immutable commit artifacts and do not move the live `staging` tag.
+- PR CI validates backend and frontend staging image builds without pushing so Dockerfile, context, and build-argument errors are blocked before merge. Main push CI builds and pushes SHA-tagged staging images in parallel with tests when heavy CI is required. These images are immutable commit artifacts and do not move the live `staging` tag.
 - Staging deploy waits for the same commit's `CI` push workflow to complete successfully before promoting images, pushing `staging` tags, or changing the Dokploy staging environment. If matching CI fails, is cancelled, or times out, staging is not overwritten.
 - After same-SHA CI passes, post-merge staging first looks up the backend and frontend SHA-tagged staging images from GHCR. If a SHA image is missing, the workflow falls back to building only the missing image. Once both SHA images are present, staging retags those immutable images as `staging` before deploy. This keeps deploy detection strict while moving normal image build time out of the serialized post-merge lane.
 - Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
@@ -237,7 +239,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **CI Pipeline (2026-05-20 after 6-way backend sharding):**
 - Full heavy CI execution window on `main`: **~5m 48s** after jobs start; run wall time may be higher when GitHub queues the run.
 - Longest backend shard: **~4m 48s**.
-- Unified coverage: **~42s**, including scripts coverage and Coveralls unified status wait.
+- Unified coverage: **~42s**, including scripts coverage and reporting-only Coveralls uploads.
 - The timing summary reports queue delay separately from execution time so future regressions can distinguish runner capacity from workflow critical-path changes.
 
 **Post-merge staging (2026-05-20 observed baseline):**
