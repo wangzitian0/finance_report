@@ -168,7 +168,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 - Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
 - The asynchronous Coveralls status contexts include `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend`; CI also discovers future `coverage/coveralls ...` or `Coveralls...` contexts from the commit status API. CI waits briefly for known contexts, publishes reporting-only success statuses for known and discovered contexts on every SHA GitHub may evaluate for mergeability, performs a settle-time recheck, republishes any late failures, and fails closed if the final latest Coveralls statuses are not the local reporting-only success values.
-- The `unified-coverage` job performs a final zero-wait normalization pass across every related SHA, and the `finish` job performs a settled final normalization after aggregate checks pass so a late aggregate Coveralls write cannot leave the pull request unstable after the local deterministic gate passed.
+- After every related SHA has completed the normal Coveralls normalization flow, CI performs a final zero-wait normalization pass across those SHAs so a late aggregate Coveralls write for an earlier SHA cannot leave the pull request unstable after the local deterministic gate passed.
 
 **Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
 - This file is a historical/manual snapshot, not the current CI source of truth.

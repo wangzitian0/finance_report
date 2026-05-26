@@ -564,19 +564,13 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
     )[0]
-    finish_block = workflow.split("  finish:", 1)[1]
     assert "statuses: write" not in global_permissions
     assert "statuses: write" in unified_coverage_block
-    assert "statuses: write" in finish_block
     assert "Mark Coveralls statuses reporting-only" in workflow
     assert (
         "Final Coveralls reporting-only pass after all SHA contexts settle" in workflow
     )
-    assert (
-        "Finalize Coveralls reporting-only statuses after aggregate checks" in workflow
-    )
     assert "scripts/mark_coveralls_reporting_status.py" in workflow
-    assert "--settle-seconds 30" in workflow
     assert (
         'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")'
         in workflow
@@ -592,9 +586,6 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "--settle-seconds 0" in unified_coverage_block
     assert workflow.index("Mark Coveralls statuses reporting-only") < workflow.index(
         "Final Coveralls reporting-only pass after all SHA contexts settle"
-    )
-    assert workflow.index("- name: Check job status") < workflow.index(
-        "Finalize Coveralls reporting-only statuses after aggregate checks"
     )
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
