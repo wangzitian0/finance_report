@@ -648,6 +648,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
     timing_script = read("scripts/github_workflow_timing_summary.py")
+    diagnostics_script = read("scripts/github_workflow_diagnostics_summary.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Write CI timing summary" in ci_workflow
@@ -655,10 +656,22 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert '--title "CI Timing Summary"' in ci_workflow
     assert '--run-id "${{ github.run_id }}"' in ci_workflow
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
+    assert "Write CI failure diagnostics summary" in ci_workflow
+    assert "scripts/github_workflow_diagnostics_summary.py" in ci_workflow
+    assert "--mode ci" in ci_workflow
     assert "post-merge-summary:" in deploy_workflow
     assert "needs: [build-and-deploy, ai-ocr-gate]" in deploy_workflow
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow
+    assert "Write staging staleness diagnostics" in deploy_workflow
+    assert "--mode staging" in deploy_workflow
+    assert "--staging-health-url" in deploy_workflow
     assert "Queue delay" in timing_script
     assert "Longest completed job" in timing_script
+    assert "CI Failure Diagnostics" in diagnostics_script
+    assert "Staging Staleness Diagnostics" in diagnostics_script
+    assert "healthy-but-stale" in diagnostics_script
+    assert "issues/471" in diagnostics_script
     assert "GitHub Step Summary" in ci_cd
+    assert "separate local test/build failures" in ci_cd
+    assert "healthy-but-stale" in ci_cd

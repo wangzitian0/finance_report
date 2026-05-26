@@ -321,3 +321,17 @@ jobs:
             --run-id "${{ github.run_id }}" \
             --title "Post-merge Timing Summary" \
             --summary-path "$GITHUB_STEP_SUMMARY"
+
+      - name: Write staging staleness diagnostics
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/github_workflow_diagnostics_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --mode staging \
+            --main-branch main \
+            --staging-health-url "https://report-staging.zitian.party/api/health" \
+            --production-health-url "https://report.zitian.party/api/health" \
+            --summary-path "$GITHUB_STEP_SUMMARY"

@@ -148,6 +148,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 - The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
+- The `finish` job appends `scripts/github_workflow_diagnostics_summary.py` output to separate local test/build failures, image build/push failures, and external status-gate failures. Buildx/GHCR failures include a concise extracted root error and are classified as likely external infrastructure vs likely Dockerfile/application build failures.
+- When the external `Coveralls - unified` status is missing/delayed or reports failure, CI diagnostics mark it as an external status-gate blocker and link ownership to [issue #471](https://github.com/wangzitian0/finance_report/issues/471).
 
 **Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
 - This file is a historical/manual snapshot, not the current CI source of truth.
@@ -168,6 +170,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
 - The post-merge workflow appends a GitHub Step Summary after deploy health and AI/OCR finish, making queue time, serial execution time, and slow jobs visible without manually scraping logs.
+- The post-merge summary appends `scripts/github_workflow_diagnostics_summary.py` output with latest `main` SHA, staging `/api/health` deployed SHA, production `/api/health` SHA, and a `healthy-but-stale` verdict. It also reports when staging was blocked in `Wait for matching CI success`, so upstream CI/deploy-gate failures are not misreported as VPS/container outages.
 
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
 - Automatic `Staging AI/OCR Gate` execution lives in `.github/workflows/staging-deploy.yml` and starts only after deploy health succeeds in the same serialized post-merge workflow unit.
