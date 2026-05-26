@@ -65,6 +65,22 @@ issue templates, or `.github/workflows/docs.yml`. Other workflow changes are not
 skipped because they may affect CI, deploy, or release behavior and must exercise
 the full gate.
 
+### Proof Placement Policy
+
+The test system separates proof by where the failure can be acted on:
+
+| Proof type | Runs where | Purpose |
+|---|---|---|
+| Behavioral tests | PR CI before merge | Prove deterministic product behavior, accounting invariants, API contracts, frontend flows, and script/tool contracts before code enters `main`. |
+| Environment gates | Post-merge deploy workflows | Prove the exact merged SHA can run in staging/production-like environments with real routing, Vault/Dokploy/GHCR/SigNoz wiring, deployed images, and provider-backed OCR/LLM credentials. |
+| Reference traceability | PR and `main` CI | Prove every mandatory AC has a real non-placeholder test reference; this is not behavioral coverage by itself. |
+
+Behavioral tests should move left into PR CI whenever they can be deterministic
+without external singleton state or provider spend. Environment-dependent checks
+belong in post-merge staging/production workflows because they validate the
+deployed merge commit and shared infrastructure. A post-merge environment gate
+must not be the first proof for deterministic business behavior.
+
 ---
 
 ## No-Regression Coverage Gate

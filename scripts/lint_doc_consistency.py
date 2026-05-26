@@ -24,6 +24,11 @@ Hard-fail checks enforced in CI:
      are excluded from check #6 because they intentionally reference
      synthetic AC IDs (e.g. ``AC9.9.9``) that are not present in the
      registries.
+  7. docs/ssot/ci-cd.md MUST keep the proof placement policy that
+     distinguishes pre-merge behavioral tests from post-merge
+     environment gates.
+  8. Every test file without an ``ACx.y.z`` reference MUST be listed in
+     docs/analysis/traceability-exceptions.md.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -65,12 +70,24 @@ VISION_PATH = REPO_ROOT / "vision.md"
 EPIC_DIR = REPO_ROOT / "docs" / "project"
 AC_REGISTRY = REPO_ROOT / "docs" / "ac_registry.yaml"
 INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
+CI_CD_SSOT = REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
+TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
 
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src" / "__tests__",
     REPO_ROOT / "scripts" / "tests",
 ]
+
+NO_AC_SCAN_TARGETS: tuple[tuple[Path, tuple[str, ...]], ...] = (
+    (REPO_ROOT / "apps" / "backend" / "tests", ("**/*.py",)),
+    (
+        REPO_ROOT / "apps" / "frontend" / "src",
+        ("**/*.test.ts", "**/*.test.tsx"),
+    ),
+    (REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
+    (REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
+)
 
 CHECK6_TEST_ROOTS = [r for r in TEST_ROOTS if r != REPO_ROOT / "scripts" / "tests"]
 
@@ -160,6 +177,19 @@ HTML_ANCHOR_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+PROOF_PLACEMENT_REQUIRED_TOKENS = (
+    "### Proof Placement Policy",
+    "| Behavioral tests | PR CI before merge |",
+    "| Environment gates | Post-merge deploy workflows |",
+    "| Reference traceability | PR and `main` CI |",
+    "Behavioral tests should move left into PR CI",
+    "Environment-dependent checks",
+    "post-merge staging/production workflows",
+    "must not be the first proof for deterministic business behavior",
+)
+
+MARKDOWN_CODE_SPAN_PATTERN = re.compile(r"`([^`]+)`")
+
 
 class Violation(NamedTuple):
     check: str
@@ -247,6 +277,84 @@ def collect_ac_refs_in_tests(test_roots: list[Path]) -> dict[str, set[str]]:
                         str(fpath.relative_to(REPO_ROOT))
                     )
     return refs
+
+
+def _is_excluded_path(path: Path) -> bool:
+    return any(part in EXCLUDED_DIRS for part in path.parts)
+
+
+def discover_no_ac_test_files(
+    scan_targets: tuple[tuple[Path, tuple[str, ...]], ...] | None = None,
+) -> list[Path]:
+    """Return test/support files under test roots that contain no AC reference."""
+    if scan_targets is None:
+        scan_targets = (
+            (REPO_ROOT / "apps" / "backend" / "tests", ("**/*.py",)),
+            (
+                REPO_ROOT / "apps" / "frontend" / "src",
+                ("**/*.test.ts", "**/*.test.tsx"),
+            ),
+            (REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
+            (REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
+        )
+
+    candidates: set[Path] = set()
+    for base, patterns in scan_targets:
+        if not base.exists():
+            continue
+        for pattern in patterns:
+            candidates.update(path for path in base.glob(pattern) if path.is_file())
+
+    no_ac_files: list[Path] = []
+    for path in sorted(candidates):
+        if _is_excluded_path(path):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if not AC_PATTERN.search(text):
+            no_ac_files.append(path)
+    return no_ac_files
+
+
+def load_traceability_exception_paths(exception_path: Path) -> set[str]:
+    """Extract path-like Markdown code spans from traceability exceptions."""
+    if not exception_path.exists():
+        return set()
+    text = exception_path.read_text(encoding="utf-8")
+    return {
+        value
+        for value in MARKDOWN_CODE_SPAN_PATTERN.findall(text)
+        if "/" in value and not value.startswith("docs/*")
+    }
+
+
+def check_no_ac_test_exceptions(
+    no_ac_files: list[Path] | None = None,
+    exception_path: Path | None = None,
+) -> list[Violation]:
+    """Check #8: no-AC test files must be explicitly classified."""
+    if exception_path is None:
+        exception_path = REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
+    if no_ac_files is None:
+        no_ac_files = discover_no_ac_test_files()
+
+    exception_paths = load_traceability_exception_paths(exception_path)
+    violations: list[Violation] = []
+    for path in no_ac_files:
+        rel = _display_path(path)
+        if rel not in exception_paths:
+            violations.append(
+                Violation(
+                    check="check8_no_ac_test_exceptions",
+                    message=(
+                        f"{rel}: test/support file has no AC reference and is "
+                        "not classified in docs/analysis/traceability-exceptions.md"
+                    ),
+                )
+            )
+    return violations
 
 
 def check_epic_anchors(
@@ -449,6 +557,42 @@ def check_test_id_epic_alignment(
     return violations
 
 
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def check_proof_placement_policy(ci_cd_path: Path | None = None) -> list[Violation]:
+    """Check #7: CI/CD SSOT defines pre-merge vs post-merge proof placement."""
+    if ci_cd_path is None:
+        ci_cd_path = REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
+    try:
+        text = ci_cd_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [
+            Violation(
+                check="check7_proof_placement_policy",
+                message=f"{ci_cd_path}: cannot read file ({exc})",
+            )
+        ]
+
+    violations: list[Violation] = []
+    for token in PROOF_PLACEMENT_REQUIRED_TOKENS:
+        if token not in text:
+            violations.append(
+                Violation(
+                    check="check7_proof_placement_policy",
+                    message=(
+                        f"{_display_path(ci_cd_path)}: missing proof "
+                        f"placement token {token!r}"
+                    ),
+                )
+            )
+    return violations
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=("Lint vision <-> EPIC <-> AC registry <-> test consistency.")
@@ -496,6 +640,8 @@ def main() -> int:
     violations.extend(check_epic_to_registry(epic_refs, registry_ids))
     violations.extend(check_registry_to_tests(all_acs, test_refs))
     violations.extend(check_test_id_epic_alignment(all_acs, test_refs))
+    violations.extend(check_proof_placement_policy())
+    violations.extend(check_no_ac_test_exceptions())
 
     if args.verbose or violations:
         print("=" * 72)

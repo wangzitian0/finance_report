@@ -237,6 +237,94 @@ class TestLineIsAcAnnotation:
 
 
 # ---------------------------------------------------------------------------
+# check_proof_placement_policy
+# ---------------------------------------------------------------------------
+
+
+class TestProofPlacementPolicy:
+    def test_policy_passes_with_required_tokens(self, tmp_path):
+        doc = tmp_path / "ci-cd.md"
+        doc.write_text(
+            "\n".join(ldc.PROOF_PLACEMENT_REQUIRED_TOKENS),
+            encoding="utf-8",
+        )
+
+        assert ldc.check_proof_placement_policy(doc) == []
+
+    def test_policy_fails_when_behavioral_and_environment_split_is_missing(
+        self, tmp_path
+    ):
+        doc = tmp_path / "ci-cd.md"
+        doc.write_text("### CI\nNo proof placement policy here.\n", encoding="utf-8")
+
+        violations = ldc.check_proof_placement_policy(doc)
+
+        assert violations
+        assert {v.check for v in violations} == {"check7_proof_placement_policy"}
+        assert any("Proof Placement Policy" in v.message for v in violations)
+
+
+# ---------------------------------------------------------------------------
+# no-AC test exception allow-list
+# ---------------------------------------------------------------------------
+
+
+class TestNoAcTestExceptions:
+    def test_discover_no_ac_test_files_includes_support_files(self, tmp_path):
+        tests = tmp_path / "apps" / "backend" / "tests"
+        tests.mkdir(parents=True)
+        no_ac = tests / "conftest.py"
+        no_ac.write_text("import pytest\n")
+        with_ac = tests / "test_accounting.py"
+        with_ac.write_text('def test_x():\n    """AC1.1.1"""\n    assert True\n')
+
+        result = ldc.discover_no_ac_test_files(((tests, ("**/*.py",)),))
+
+        assert result == [no_ac]
+
+    def test_load_traceability_exception_paths_reads_markdown_code_spans(
+        self, tmp_path
+    ):
+        exceptions = tmp_path / "traceability-exceptions.md"
+        exceptions.write_text(
+            "| Path | Classification |\n"
+            "|---|---|\n"
+            "| `tests/conftest.py` | Shared fixtures |\n",
+            encoding="utf-8",
+        )
+
+        assert "tests/conftest.py" in ldc.load_traceability_exception_paths(exceptions)
+
+    def test_check_no_ac_test_exceptions_passes_when_listed(self, tmp_path):
+        test_file = tmp_path / "tests" / "conftest.py"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text("import pytest\n")
+        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions.parent.mkdir(parents=True)
+        exceptions.write_text("| `tests/conftest.py` | Shared fixtures |\n")
+
+        with mock.patch.object(ldc, "REPO_ROOT", tmp_path):
+            violations = ldc.check_no_ac_test_exceptions([test_file], exceptions)
+
+        assert violations == []
+
+    def test_check_no_ac_test_exceptions_fails_when_missing(self, tmp_path):
+        test_file = tmp_path / "tests" / "test_legacy.py"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text("def test_legacy():\n    assert True\n")
+        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions.parent.mkdir(parents=True)
+        exceptions.write_text("| `tests/other.py` | Other |\n")
+
+        with mock.patch.object(ldc, "REPO_ROOT", tmp_path):
+            violations = ldc.check_no_ac_test_exceptions([test_file], exceptions)
+
+        assert len(violations) == 1
+        assert violations[0].check == "check8_no_ac_test_exceptions"
+        assert "tests/test_legacy.py" in violations[0].message
+
+
+# ---------------------------------------------------------------------------
 # collect_ac_refs_in_epics
 # ---------------------------------------------------------------------------
 
@@ -583,6 +671,13 @@ class TestMain:
         )
         infra = tmp_path / "docs" / "infra_registry.yaml"
         infra.write_text("version: '1.0'\ngroups: {}\n")
+
+        ci_cd = tmp_path / "docs" / "ssot" / "ci-cd.md"
+        ci_cd.parent.mkdir(parents=True, exist_ok=True)
+        ci_cd.write_text(
+            "\n".join(ldc.PROOF_PLACEMENT_REQUIRED_TOKENS),
+            encoding="utf-8",
+        )
 
         # test file
         tests = tmp_path / "apps" / "backend" / "tests"

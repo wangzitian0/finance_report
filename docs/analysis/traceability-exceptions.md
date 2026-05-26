@@ -1,6 +1,7 @@
 # Traceability Exceptions
 
 > Generated from the issue #475 audit on 2026-05-21.
+> Updated for issue #511 on 2026-05-26.
 
 The project proof chain is `README.md -> docs/project/EPIC-*.md ->
 docs/*_registry.yaml -> tests`. Tests that assert product behavior should carry
@@ -15,17 +16,24 @@ These files are test infrastructure, not behavior proof.
 
 | Path | Classification |
 |---|---|
+| `apps/backend/tests/__init__.py` | Package marker |
 | `apps/backend/tests/accounting/__init__.py` | Package marker |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/auth/__init__.py` | Package marker |
+| `apps/backend/tests/conftest.py` | Shared backend pytest fixtures |
 | `apps/backend/tests/e2e/conftest.py` | Shared E2E fixtures |
 | `apps/backend/tests/extraction/__init__.py` | Package marker |
+| `apps/backend/tests/factories.py` | Shared backend test factories |
 | `apps/backend/tests/infra/__init__.py` | Package marker |
+| `apps/backend/tests/locustfile.py` | Load-test harness, not AC proof |
 | `apps/backend/tests/market_data/__init__.py` | Package marker |
 | `apps/backend/tests/portfolio/__init__.py` | Package marker |
 | `apps/backend/tests/reconciliation/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/__init__.py` | Package marker |
+| `scripts/tests/__init__.py` | Package marker |
+| `scripts/tests/conftest.py` | Shared scripts-test fixtures |
+| `tests/e2e/conftest.py` | Shared top-level E2E fixtures |
 | `apps/backend/tests/unit/conftest.py` | Shared unit fixtures |
 | `apps/frontend/src/__tests__/helpers/renderReviewComponent.tsx` | Shared frontend render helper |
 
@@ -75,6 +83,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `docs/ssot/schema.md` |
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `docs/ssot/source-type-priority.md` |
 | `apps/backend/tests/unit/utils/test_exceptions.py` | `docs/ssot/development.md` |
+| `apps/backend/tests/test_factories.py` | `apps/backend/tests/factories.py` |
 | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/ThemeToggle.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `docs/ssot/frontend-patterns.md` |
@@ -96,6 +105,29 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |
+| `apps/frontend/src/lib/currency.test.ts` | `docs/ssot/frontend-patterns.md` |
+| `scripts/tests/test_check_env_keys.py` | `docs/ssot/development.md` |
+| `scripts/tests/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
+| `scripts/tests/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
+| `scripts/tests/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
+| `scripts/tests/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
+| `scripts/tests/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
+| `scripts/tests/test_merge_lcov.py` | `docs/ssot/coverage.md` |
+| `scripts/tests/test_sanitize_fixtures.py` | `docs/agents/red-lines.md` |
+| `scripts/tests/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
+| `scripts/tests/test_validate_schemas.py` | `docs/ssot/schema.md` |
+
+### Needs AC Triage
+
+These files assert broad E2E behavior. They remain outside AC proof until EPICs
+assign current AC IDs or replace them with narrower AC-owned tests.
+
+| Path | Owner |
+|---|---|
+| `tests/e2e/test_auth_flows.py` | EPIC-008 |
+| `tests/e2e/test_core_journeys.py` | EPIC-008 |
+| `tests/e2e/test_e2e_flows.py` | EPIC-008 |
+| `tests/e2e/test_version_check.py` | EPIC-008 |
 
 ## Source Direct-Test Heuristic Exceptions
 
@@ -116,5 +148,6 @@ router, or generated-fixture flows.
 ## Rule
 
 New tests for user-visible behavior must include an AC reference. New helper,
-fixture, or pure contract tests without AC references must be added to this file
-in the same PR, with an SSOT owner.
+fixture, broad legacy E2E, or pure contract tests without AC references must be
+added to this file in the same PR, with an SSOT or EPIC owner. This allow-list
+is enforced by `scripts/lint_doc_consistency.py`.
