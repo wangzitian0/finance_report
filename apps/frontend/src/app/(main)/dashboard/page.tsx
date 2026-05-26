@@ -22,7 +22,6 @@ import {
   ReconciliationStatsResponse,
   RestrictedHolding,
   TrendResponse,
-  ValuationComponentsResponse,
   UnmatchedTransactionsResponse
 } from "@/lib/types";
 
@@ -47,7 +46,6 @@ export default function DashboardPage() {
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [annualizedIncome, setAnnualizedIncome] = useState<AnnualizedIncomeResponse | null>(null);
   const [restrictedHoldings, setRestrictedHoldings] = useState<RestrictedHolding[]>([]);
-  const [valuationComponents, setValuationComponents] = useState<ValuationComponentsResponse | null>(null);
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +63,6 @@ export default function DashboardPage() {
         incomeData,
         annualizedData,
         restrictedData,
-        valuationData,
         statsData,
         unmatchedData,
         journalData,
@@ -73,11 +70,10 @@ export default function DashboardPage() {
         statementData,
         postedJournalData,
       ] = await Promise.all([
-        apiFetch<BalanceSheetResponse>("/api/reports/balance-sheet"),
+        apiFetch<BalanceSheetResponse>(`/api/reports/balance-sheet?include_restricted=${includeRestricted ? "true" : "false"}`),
         apiFetch<IncomeStatementResponse>(`/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`),
         apiFetch<AnnualizedIncomeResponse>("/api/income/annualized"),
         apiFetch<RestrictedHolding[]>("/api/assets/restricted"),
-        apiFetch<ValuationComponentsResponse>(`/api/assets/valuation-components?include_restricted=${includeRestricted ? "true" : "false"}`),
         apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
         apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
@@ -89,7 +85,6 @@ export default function DashboardPage() {
       setIncomeStatement(incomeData || { start_date: "", end_date: "", currency: "SGD", income: [], expenses: [], total_income: 0, total_expenses: 0, net_income: 0, trends: [] });
       setAnnualizedIncome(annualizedData || { annualized_salary: 0, annualized_bonus: 0, annualized_dividend: 0, annualized_total: 0, currency: "SGD", as_of: "" });
       setRestrictedHoldings(restrictedData || []);
-      setValuationComponents(valuationData || { items: [], total_assets: 0, total_liabilities: 0, net_worth_delta: 0 });
       setStats(statsData || { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
       setUnmatched(unmatchedData || { items: [], total: 0 });
       setRecentEntries(journalData || { items: [], total: 0 });
@@ -132,9 +127,8 @@ export default function DashboardPage() {
   }, [fetchTrend, balanceSheet]);
 
   const netAssets = useMemo(() => {
-    const ledgerNetAssets = balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0;
-    return ledgerNetAssets + (valuationComponents ? toNumber(valuationComponents.net_worth_delta) : 0);
-  }, [balanceSheet, valuationComponents]);
+    return balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0;
+  }, [balanceSheet]);
   const trendPoints = useMemo(() => trend ? trend.points.map((p) => ({ label: formatMonthLabel(p.period_start), value: toNumber(p.amount) })) : [], [trend]);
   const incomeBars = useMemo(() => incomeStatement && incomeStatement.trends ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {

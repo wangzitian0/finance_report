@@ -196,7 +196,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in this provider-backed gate.
 - The automatic gate passes the deployed short SHA as `EXPECTED_SHA`, so version checks still validate the deployed commit before provider-backed parsing starts.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed provider gate.
-- The serialized GLM gate includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, and `tests/e2e/test_brokerage_upload_to_portfolio_value.py`. The brokerage test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, portfolio valuation, or reporting failed. The path-level proof matrix is maintained in [EPIC-017](../project/EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) with the compact entry-point version in the README.
+- The serialized GLM gate includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, and `tests/e2e/test_four_asset_net_worth_golden_path.py`. The brokerage test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. The four-asset gate uses an isolated user to combine deterministic bank statement posting, brokerage PDF import, property/mortgage/ESOP manual valuation snapshots, exact as-of net worth, and dashboard/report totals. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, manual valuation, reporting, or dashboard aggregation failed. The path-level proof matrix is maintained in [EPIC-017](../project/EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) with the compact entry-point version in the README; critical product proof anchors live in [critical-proof-matrix.yaml](critical-proof-matrix.yaml).
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
 - PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
@@ -296,7 +296,7 @@ deploy-blocking usability gates:
 |-------------|------|---------|-------------|
 | Staging | Shell smoke | `bash scripts/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
 | Staging | Non-LLM E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4` | Tests marked `critical` must fail instead of skip |
-| Staging | AI/OCR E2E | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_brokerage_upload_to_portfolio_value.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Serial provider-backed GLM gate; `rejected` fails deploy |
+| Staging | AI/OCR E2E | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_brokerage_upload_to_portfolio_value.py tests/e2e/test_four_asset_net_worth_golden_path.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Serial provider-backed GLM gate; `rejected` fails deploy |
 | Production | Shell smoke | `bash scripts/smoke_test.sh https://report.zitian.party production` | Read-only checks only |
 | Production | Prod-safe E2E | `pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"` | Authenticated dashboard check may skip only when read-only smoke credentials are absent |
 
@@ -326,6 +326,13 @@ negative cash or bank balances from other E2E journeys, can lower total assets
 without invalidating portfolio valuation coverage. Failure output includes the
 holdings total market value, valuation adjustment total, non-portfolio asset
 total, total assets, net worth adjustment, and relevant asset lines.
+
+`tests/e2e/test_four_asset_net_worth_golden_path.py::test_four_asset_as_of_net_worth_golden_path`
+is the north-star net-worth hard gate for Issue #444. It uses an isolated user
+to upload bank statement data, explicitly post and reconcile the statement,
+import a brokerage PDF, create property, mortgage, and ESOP valuation snapshots,
+then prove exact as-of assets, liabilities, net worth, and dashboard/report
+totals.
 
 PR preview E2E intentionally excludes the `llm` marker and does not inject the
 provider API key. This keeps provider spend and concurrency concentrated in the

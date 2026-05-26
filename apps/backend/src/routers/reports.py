@@ -77,6 +77,7 @@ class ReportType(str, Enum):
 async def balance_sheet(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=True),
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> BalanceSheetResponse:
@@ -87,6 +88,7 @@ async def balance_sheet(
             user_id,
             as_of_date=as_of_date or date.today(),
             currency=currency,
+            include_restricted=include_restricted,
         )
     except ReportError as exc:
         logger.warning(
