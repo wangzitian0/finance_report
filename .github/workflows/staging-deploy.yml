@@ -55,12 +55,50 @@ jobs:
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
 
+      - name: Probe current staging version
+        id: staging_before
+        continue-on-error: true
+        env:
+          STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
+        run: |
+          response="$(curl -fsS --max-time 15 "$STAGING_HEALTH_URL" || true)"
+          healthy=false
+          if [ -n "$response" ]; then
+            healthy=true
+          fi
+          staging_sha="$(
+            RESPONSE="$response" python - <<'PY'
+          import json
+          import os
+
+          payload = os.environ.get("RESPONSE", "")
+          try:
+              data = json.loads(payload) if payload else {}
+          except json.JSONDecodeError:
+              data = {}
+          print(data.get("git_sha") or data.get("version") or "unknown")
+          PY
+          )"
+          echo "healthy=$healthy" >> "$GITHUB_OUTPUT"
+          echo "staging_sha=$staging_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Current Staging Before Deploy"
+            echo ""
+            echo "- Health URL: $STAGING_HEALTH_URL"
+            echo "- Health probe succeeded: $healthy"
+            echo "- Current staging SHA: $staging_sha"
+            echo "- Target main SHA: ${{ steps.get_sha.outputs.short_sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Wait for matching CI success
+        id: wait_ci
         if: ${{ github.event_name == 'push' }}
+        continue-on-error: true
         timeout-minutes: 45
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set +e
           python scripts/wait_for_github_ci.py \
             --repo "${{ github.repository }}" \
             --sha "${{ github.sha }}" \
@@ -68,7 +106,42 @@ jobs:
             --branch main \
             --event push \
             --timeout-seconds 2700 \
-            --poll-seconds 10
+            --poll-seconds 10 2>&1 | tee "$RUNNER_TEMP/matching-ci.log"
+          status="${PIPESTATUS[0]}"
+          exit "$status"
+
+      - name: Diagnose matching CI failure before staging deploy
+        if: ${{ github.event_name == 'push' && steps.wait_ci.outcome == 'failure' }}
+        run: |
+          current_sha="${{ steps.staging_before.outputs.staging_sha }}"
+          target_sha="${{ steps.get_sha.outputs.short_sha }}"
+          healthy="${{ steps.staging_before.outputs.healthy }}"
+          current_short="${current_sha:0:7}"
+          stale_state="unknown"
+          if [ "$healthy" = "true" ] && [ "$current_short" != "$target_sha" ]; then
+            stale_state="healthy-but-stale"
+          elif [ "$healthy" = "true" ]; then
+            stale_state="healthy-at-target"
+          elif [ "$healthy" = "false" ]; then
+            stale_state="health-probe-failed"
+          fi
+          {
+            echo "## Staging Deploy Blocked Before VPS Changes"
+            echo ""
+            echo "- Failure class: same-SHA CI gate failed before staging deploy"
+            echo "- Target main SHA: $target_sha"
+            echo "- Current staging SHA: $current_sha"
+            echo "- Current staging health: $healthy"
+            echo "- Staging state: $stale_state"
+            echo "- Matching CI diagnostic:"
+            echo '```'
+            tail -n 30 "$RUNNER_TEMP/matching-ci.log" || true
+            echo '```'
+            echo ""
+            echo "The workflow stopped before image promotion, Dokploy, smoke tests, or AI/OCR validation. Do not classify this as a VPS/container failure unless the health probe above is also failing."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=Staging deploy blocked before VPS changes::Matching CI did not pass for $target_sha; staging remains $stale_state at $current_sha."
+          exit 1
 
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0

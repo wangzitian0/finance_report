@@ -567,6 +567,9 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "statuses: write" not in global_permissions
     assert "statuses: write" in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" in workflow
+    assert (
+        "Final Coveralls reporting-only pass after all SHA contexts settle" in workflow
+    )
     assert "scripts/mark_coveralls_reporting_status.py" in workflow
     assert (
         'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")'
@@ -579,11 +582,50 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "coveralls_contexts_from_statuses" in read(
         "scripts/mark_coveralls_reporting_status.py"
     )
+    assert "--timeout-seconds 0" in unified_coverage_block
+    assert "--settle-seconds 0" in unified_coverage_block
+    assert workflow.index("Mark Coveralls statuses reporting-only") < workflow.index(
+        "Final Coveralls reporting-only pass after all SHA contexts settle"
+    )
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "coverage/coveralls" in ci_cd
     assert "Coveralls - unified" in ci_cd
+
+
+def test_AC8_13_43_stale_staging_diagnostic_runs_before_deploy() -> None:
+    """AC8.13.43: Same-SHA CI gate failure reports healthy-but-stale staging."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    wait_script = read("scripts/wait_for_github_ci.py")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Probe current staging version" in workflow
+    assert "id: staging_before" in workflow
+    assert "https://report-staging.zitian.party/api/health" in workflow
+    assert "Current Staging Before Deploy" in workflow
+    assert "id: wait_ci" in workflow
+    wait_block = workflow.split("- name: Wait for matching CI success", 1)[1].split(
+        "- name: Diagnose matching CI failure before staging deploy", 1
+    )[0]
+    assert "continue-on-error: true" in wait_block
+    assert "Diagnose matching CI failure before staging deploy" in workflow
+    assert "Staging Deploy Blocked Before VPS Changes" in workflow
+    assert 'tail -n 30 "$RUNNER_TEMP/matching-ci.log" || true' in workflow
+    assert 'current_short="${current_sha:0:7}"' in workflow
+    assert "Matching CI diagnostic" in workflow
+    assert "healthy-but-stale" in workflow
+    assert "Do not classify this as a VPS/container failure" in workflow
+    assert workflow.index("Probe current staging version") < workflow.index(
+        "Wait for matching CI success"
+    )
+    assert workflow.index("Diagnose matching CI failure before staging deploy") < (
+        workflow.index("Install moon")
+    )
+    assert "failed_jobs=" in wait_script
+    assert "_run_gh_view_jobs" in wait_script
+    assert "healthy but stale" in ci_cd
+    assert "same-SHA CI gate" in ci_cd
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:

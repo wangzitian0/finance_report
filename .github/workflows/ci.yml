@@ -426,6 +426,21 @@ jobs:
               --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           done
 
+          echo "Final Coveralls reporting-only pass after all SHA contexts settle"
+          seen=""
+          for sha in "${shas[@]}"; do
+            case " $seen " in
+              *" $sha "*) continue ;;
+            esac
+            seen="$seen $sha"
+            uv run python scripts/mark_coveralls_reporting_status.py \
+              --repo "${{ github.repository }}" \
+              --sha "$sha" \
+              --target-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --timeout-seconds 0 \
+              --settle-seconds 0
+          done
+
   ac-traceability:
     name: AC Traceability Check
     runs-on: ubuntu-latest

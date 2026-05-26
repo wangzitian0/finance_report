@@ -20,6 +20,79 @@ class GitHubRun:
     url: str
 
 
+@dataclass(frozen=True)
+class GitHubJob:
+    name: str
+    status: str
+    conclusion: str
+    url: str
+
+
+FAILED_JOB_CONCLUSIONS = {
+    "failure",
+    "cancelled",
+    "timed_out",
+    "startup_failure",
+    "action_required",
+}
+
+
+def _run_gh_view_jobs(*, repo: str, run_id: int) -> list[GitHubJob]:
+    args = [
+        "gh",
+        "run",
+        "view",
+        str(run_id),
+        "--repo",
+        repo,
+        "--json",
+        "jobs",
+    ]
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        print(f"::warning::failed to query GitHub Actions jobs: {detail}")
+        return []
+
+    payload = json.loads(result.stdout or "{}")
+    if not isinstance(payload, dict):
+        return []
+    jobs = payload.get("jobs", [])
+    if not isinstance(jobs, list):
+        return []
+
+    parsed: list[GitHubJob] = []
+    for item in jobs:
+        if not isinstance(item, dict):
+            continue
+        parsed.append(
+            GitHubJob(
+                name=str(item.get("name") or ""),
+                status=str(item.get("status") or ""),
+                conclusion=str(item.get("conclusion") or ""),
+                url=str(item.get("url") or ""),
+            )
+        )
+    return parsed
+
+
+def _failed_job_summary(*, repo: str, run: GitHubRun) -> str:
+    if run.database_id is None:
+        return "failed_jobs=unavailable"
+
+    failed_jobs = [
+        job
+        for job in _run_gh_view_jobs(repo=repo, run_id=run.database_id)
+        if job.conclusion in FAILED_JOB_CONCLUSIONS
+    ]
+    if not failed_jobs:
+        return "failed_jobs=unavailable"
+
+    return "failed_jobs=" + ", ".join(
+        f"{job.name or 'unnamed'}({job.conclusion})" for job in failed_jobs
+    )
+
+
 def _run_gh_list(
     *,
     repo: str,
@@ -103,9 +176,11 @@ def wait_for_matching_ci(
         if run.status == "completed":
             if run.conclusion == "success":
                 return run
+            failed_jobs = _failed_job_summary(repo=repo, run=run)
             raise RuntimeError(
                 "matching CI run failed before staging validation: "
-                f"conclusion={run.conclusion or 'unknown'} url={run.url}"
+                f"conclusion={run.conclusion or 'unknown'} {failed_jobs} "
+                f"url={run.url}"
             )
         sleep(poll_seconds)
 

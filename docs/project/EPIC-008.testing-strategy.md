@@ -75,6 +75,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.40**: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images.
 - **AC8.13.41**: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings.
 - **AC8.13.42**: Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E.
+- **AC8.13.43**: Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -388,6 +389,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.40 | PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images | `test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.41 | Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings | `test_*critical_proof_matrix*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
 | AC8.13.42 | Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E | `test_four_asset_as_of_net_worth_golden_path`, `test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical` | `tests/e2e/test_four_asset_net_worth_golden_path.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.43 | Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment | `test_AC8_13_43_*` | `scripts/tests/` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
