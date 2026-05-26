@@ -234,6 +234,88 @@ end_of_record
         assert result["total_measured_lines"] == 30
 
 
+class TestLcovFileRecords:
+    """AC8.13.15: file-level reports reuse unified LCOV semantics."""
+
+    def _component(self, lcov_path: str) -> cuc.CoverageComponent:
+        return cuc.CoverageComponent(
+            name="frontend",
+            component_root="apps/frontend",
+            source_subdir="src",
+            extensions=(".ts", ".tsx"),
+            ci_lcov_path=lcov_path,
+            local_lcov_paths=(),
+            exclude_patterns=(),
+        )
+
+    def test_records_accumulate_duplicate_sources_and_normalize_paths(self, tmp_path):
+        coverage_dir = tmp_path / "coverage"
+        coverage_dir.mkdir()
+        lcov = coverage_dir / "frontend.lcov"
+        lcov.write_text(
+            "\n".join(
+                [
+                    "SF:apps/frontend/src/app/page.tsx",
+                    "LH:1",
+                    "LF:4",
+                    "end_of_record",
+                    "SF:src/app/page.tsx",
+                    "LH:2",
+                    "LF:4",
+                    "end_of_record",
+                ]
+            )
+        )
+        component = self._component("coverage/frontend.lcov")
+
+        records = cuc.parse_lcov_records(lcov, component, tmp_path)
+
+        assert records == [
+            {
+                "path": "src/app/page.tsx",
+                "covered_lines": 3,
+                "total_lines": 8,
+                "coverage_percent": 37.5,
+            }
+        ]
+
+    def test_collect_low_coverage_files_uses_repo_relative_paths(self, tmp_path):
+        coverage_dir = tmp_path / "coverage"
+        coverage_dir.mkdir()
+        (coverage_dir / "frontend.lcov").write_text(
+            "\n".join(
+                [
+                    "SF:src/low.tsx",
+                    "LH:1",
+                    "LF:4",
+                    "end_of_record",
+                    "SF:src/high.tsx",
+                    "LH:9",
+                    "LF:10",
+                    "end_of_record",
+                ]
+            )
+        )
+        component = self._component("coverage/frontend.lcov")
+
+        rows = cuc.collect_low_coverage_files(90, tmp_path, (component,))
+
+        assert rows == [
+            {
+                "component": "frontend",
+                "path": "apps/frontend/src/low.tsx",
+                "covered_lines": 1,
+                "total_lines": 4,
+                "coverage_percent": 25.0,
+            }
+        ]
+
+    def test_print_low_coverage_files_reports_empty_state(self, capfd):
+        cuc.print_low_coverage_files([], 90)
+
+        assert "No files below 90%" in capfd.readouterr().out
+
+
 # ---------------------------------------------------------------------------
 # calculate_unified_coverage
 # ---------------------------------------------------------------------------
@@ -403,6 +485,41 @@ class TestMain:
         assert "coverage_percent" in data
         assert "breakdown" in data
 
+    def test_main_lists_low_coverage_files(self, tmp_path, monkeypatch, capfd):
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(
+            cuc, "get_backend_coverage", lambda: self._fake_coverage(100, 90)
+        )
+        monkeypatch.setattr(
+            cuc, "get_frontend_coverage", lambda: self._fake_coverage(100, 90)
+        )
+        monkeypatch.setattr(
+            cuc, "get_scripts_coverage", lambda: self._fake_coverage(100, 90)
+        )
+        monkeypatch.setattr(
+            cuc,
+            "collect_low_coverage_files",
+            lambda threshold, repo_root: [
+                {
+                    "component": "frontend",
+                    "path": "apps/frontend/src/app/page.tsx",
+                    "covered_lines": 1,
+                    "total_lines": 4,
+                    "coverage_percent": 25.0,
+                }
+            ],
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--list-low-files", "--threshold", "90"])
+
+        assert exc.value.code == 0
+        out = capfd.readouterr().out
+        assert "LOW COVERAGE FILES (< 90%)" in out
+        assert "apps/frontend/src/app/page.tsx" in out
+
+
 # ---------------------------------------------------------------------------
 # Baseline comparison — compares current run against historical baseline
 # ---------------------------------------------------------------------------
@@ -420,10 +537,22 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
-                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
-                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4700,
+                    "coverage_percent": 94.0,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2494,
+                    "coverage_percent": 83.13,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1662,
+                    "coverage_percent": 83.10,
+                },
+            },
         }
         baseline_file.write_text(json.dumps(baseline_data))
 
@@ -436,16 +565,24 @@ class TestBaselineComparison:
         def mock_coverage(name):
             return baseline_data["breakdown"][name]
 
-        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
-        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
-        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+        monkeypatch.setattr(
+            cuc, "get_backend_coverage", lambda: mock_coverage("backend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_frontend_coverage", lambda: mock_coverage("frontend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_scripts_coverage", lambda: mock_coverage("scripts")
+        )
 
         # Should exit 0 (no regression)
         with pytest.raises(SystemExit) as exc:
             cuc.main()
         assert exc.value.code == 0
 
-    def test_fails_when_unified_drops_below_baseline(self, tmp_path, monkeypatch, capfd):
+    def test_fails_when_unified_drops_below_baseline(
+        self, tmp_path, monkeypatch, capfd
+    ):
         """When unified coverage drops below baseline, expect exit 1 with message."""
         # Setup baseline file
         baseline_file = tmp_path / "baseline.json"
@@ -454,10 +591,22 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
-                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
-                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4700,
+                    "coverage_percent": 94.0,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2494,
+                    "coverage_percent": 83.13,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1662,
+                    "coverage_percent": 83.10,
+                },
+            },
         }
         baseline_file.write_text(json.dumps(baseline_data))
 
@@ -472,18 +621,36 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8200,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0},
-                "frontend": {"total_lines": 3000, "covered_lines": 2400, "coverage_percent": 80.0},
-                "scripts": {"total_lines": 2000, "covered_lines": 1300, "coverage_percent": 65.0}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4500,
+                    "coverage_percent": 90.0,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2400,
+                    "coverage_percent": 80.0,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1300,
+                    "coverage_percent": 65.0,
+                },
+            },
         }
 
         def mock_coverage(name):
             return current_data["breakdown"][name]
 
-        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
-        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
-        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+        monkeypatch.setattr(
+            cuc, "get_backend_coverage", lambda: mock_coverage("backend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_frontend_coverage", lambda: mock_coverage("frontend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_scripts_coverage", lambda: mock_coverage("scripts")
+        )
 
         # Should exit 1 with message containing both values
         with pytest.raises(SystemExit) as exc:
@@ -552,10 +719,22 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4700, "coverage_percent": 94.0},
-                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
-                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4700,
+                    "coverage_percent": 94.0,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2494,
+                    "coverage_percent": 83.13,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1662,
+                    "coverage_percent": 83.10,
+                },
+            },
         }
         baseline_file.write_text(json.dumps(baseline_data))
 
@@ -565,13 +744,25 @@ class TestBaselineComparison:
 
         # Mock: backend drops 94.0% → 90.0%, unified stays 83.15%
         def mock_backend():
-            return {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0}
+            return {
+                "total_lines": 5000,
+                "covered_lines": 4500,
+                "coverage_percent": 90.0,
+            }
 
         def mock_frontend():
-            return {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13}
+            return {
+                "total_lines": 3000,
+                "covered_lines": 2494,
+                "coverage_percent": 83.13,
+            }
 
         def mock_scripts():
-            return {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            return {
+                "total_lines": 2000,
+                "covered_lines": 1662,
+                "coverage_percent": 83.10,
+            }
 
         monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
@@ -590,10 +781,22 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
-                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
-                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4159,
+                    "coverage_percent": 83.18,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2494,
+                    "coverage_percent": 83.13,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1662,
+                    "coverage_percent": 83.10,
+                },
+            },
         }
         baseline_file.write_text(json.dumps(baseline_data))
 
@@ -603,13 +806,25 @@ class TestBaselineComparison:
 
         # Frontend drops 61.77% → 60.0%
         def mock_backend():
-            return {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18}
+            return {
+                "total_lines": 5000,
+                "covered_lines": 4159,
+                "coverage_percent": 83.18,
+            }
 
         def mock_frontend():
-            return {"total_lines": 3000, "covered_lines": 1800, "coverage_percent": 60.0}
+            return {
+                "total_lines": 3000,
+                "covered_lines": 1800,
+                "coverage_percent": 60.0,
+            }
 
         def mock_scripts():
-            return {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
+            return {
+                "total_lines": 2000,
+                "covered_lines": 1662,
+                "coverage_percent": 83.10,
+            }
 
         monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
@@ -627,10 +842,22 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8315,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
-                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
-                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4159,
+                    "coverage_percent": 83.18,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2494,
+                    "coverage_percent": 83.13,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1662,
+                    "coverage_percent": 83.10,
+                },
+            },
         }
         baseline_file.write_text(json.dumps(baseline_data))
 
@@ -640,13 +867,25 @@ class TestBaselineComparison:
 
         # Scripts drops 68.02% → 65.0%
         def mock_backend():
-            return {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18}
+            return {
+                "total_lines": 5000,
+                "covered_lines": 4159,
+                "coverage_percent": 83.18,
+            }
 
         def mock_frontend():
-            return {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13}
+            return {
+                "total_lines": 3000,
+                "covered_lines": 2494,
+                "coverage_percent": 83.13,
+            }
 
         def mock_scripts():
-            return {"total_lines": 2000, "covered_lines": 1300, "coverage_percent": 65.0}
+            return {
+                "total_lines": 2000,
+                "covered_lines": 1300,
+                "coverage_percent": 65.0,
+            }
 
         monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
@@ -664,10 +903,22 @@ class TestBaselineComparison:
             "total_lines": 10000,
             "covered_lines": 8000,
             "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4000, "coverage_percent": 80.0},
-                "frontend": {"total_lines": 3000, "covered_lines": 2400, "coverage_percent": 80.0},
-                "scripts": {"total_lines": 2000, "covered_lines": 1600, "coverage_percent": 80.0}
-            }
+                "backend": {
+                    "total_lines": 5000,
+                    "covered_lines": 4000,
+                    "coverage_percent": 80.0,
+                },
+                "frontend": {
+                    "total_lines": 3000,
+                    "covered_lines": 2400,
+                    "coverage_percent": 80.0,
+                },
+                "scripts": {
+                    "total_lines": 2000,
+                    "covered_lines": 1600,
+                    "coverage_percent": 80.0,
+                },
+            },
         }
         baseline_file.write_text(json.dumps(baseline_data))
 
@@ -677,13 +928,25 @@ class TestBaselineComparison:
 
         # All components improve
         def mock_backend():
-            return {"total_lines": 5000, "covered_lines": 4500, "coverage_percent": 90.0}
+            return {
+                "total_lines": 5000,
+                "covered_lines": 4500,
+                "coverage_percent": 90.0,
+            }
 
         def mock_frontend():
-            return {"total_lines": 3000, "covered_lines": 2700, "coverage_percent": 90.0}
+            return {
+                "total_lines": 3000,
+                "covered_lines": 2700,
+                "coverage_percent": 90.0,
+            }
 
         def mock_scripts():
-            return {"total_lines": 2000, "covered_lines": 1800, "coverage_percent": 90.0}
+            return {
+                "total_lines": 2000,
+                "covered_lines": 1800,
+                "coverage_percent": 90.0,
+            }
 
         monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
@@ -705,9 +968,15 @@ class TestBaselineComparison:
         def mock_coverage(name):
             return {"total_lines": 1000, "covered_lines": 800, "coverage_percent": 80.0}
 
-        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
-        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
-        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+        monkeypatch.setattr(
+            cuc, "get_backend_coverage", lambda: mock_coverage("backend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_frontend_coverage", lambda: mock_coverage("frontend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_scripts_coverage", lambda: mock_coverage("scripts")
+        )
 
         # Should exit 0 (threshold check passes, baseline check is skipped)
         with pytest.raises(SystemExit) as exc:
@@ -720,29 +989,61 @@ class TestBaselineComparison:
         baseline_file1 = tmp_path / "baseline.json"
         baseline_file2 = tmp_path / "old-baseline.json"
 
-        baseline_file1.write_text(json.dumps({
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4159, "coverage_percent": 83.18},
-                "frontend": {"total_lines": 3000, "covered_lines": 2494, "coverage_percent": 83.13},
-                "scripts": {"total_lines": 2000, "covered_lines": 1662, "coverage_percent": 83.10}
-            }
-        }))
+        baseline_file1.write_text(
+            json.dumps(
+                {
+                    "coverage_percent": 83.15,
+                    "total_lines": 10000,
+                    "covered_lines": 8315,
+                    "breakdown": {
+                        "backend": {
+                            "total_lines": 5000,
+                            "covered_lines": 4159,
+                            "coverage_percent": 83.18,
+                        },
+                        "frontend": {
+                            "total_lines": 3000,
+                            "covered_lines": 2494,
+                            "coverage_percent": 83.13,
+                        },
+                        "scripts": {
+                            "total_lines": 2000,
+                            "covered_lines": 1662,
+                            "coverage_percent": 83.10,
+                        },
+                    },
+                }
+            )
+        )
 
         baseline_data1 = json.loads(baseline_file1.read_text())
 
-        baseline_file2.write_text(json.dumps({
-            "coverage_percent": 85.0,
-            "total_lines": 10000,
-            "covered_lines": 8500,
-            "breakdown": {
-                "backend": {"total_lines": 5000, "covered_lines": 4250, "coverage_percent": 85.0},
-                "frontend": {"total_lines": 3000, "covered_lines": 2550, "coverage_percent": 85.0},
-                "scripts": {"total_lines": 2000, "covered_lines": 1700, "coverage_percent": 85.0}
-            }
-        }))
+        baseline_file2.write_text(
+            json.dumps(
+                {
+                    "coverage_percent": 85.0,
+                    "total_lines": 10000,
+                    "covered_lines": 8500,
+                    "breakdown": {
+                        "backend": {
+                            "total_lines": 5000,
+                            "covered_lines": 4250,
+                            "coverage_percent": 85.0,
+                        },
+                        "frontend": {
+                            "total_lines": 3000,
+                            "covered_lines": 2550,
+                            "coverage_percent": 85.0,
+                        },
+                        "scripts": {
+                            "total_lines": 2000,
+                            "covered_lines": 1700,
+                            "coverage_percent": 85.0,
+                        },
+                    },
+                }
+            )
+        )
 
         baseline_data2 = json.loads(baseline_file2.read_text())
 
@@ -754,9 +1055,15 @@ class TestBaselineComparison:
         def mock_coverage(name):
             return baseline_data1["breakdown"][name]
 
-        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: mock_coverage("backend"))
-        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: mock_coverage("frontend"))
-        monkeypatch.setattr(cuc, "get_scripts_coverage", lambda: mock_coverage("scripts"))
+        monkeypatch.setattr(
+            cuc, "get_backend_coverage", lambda: mock_coverage("backend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_frontend_coverage", lambda: mock_coverage("frontend")
+        )
+        monkeypatch.setattr(
+            cuc, "get_scripts_coverage", lambda: mock_coverage("scripts")
+        )
 
         with pytest.raises(SystemExit) as exc:
             cuc.main()
@@ -920,6 +1227,7 @@ class TestMainBaselineExceptionPaths:
 
         # Patch json.load to raise a generic Exception
         import json as _json
+
         def raiser(f):
             raise RuntimeError("disk read error")
 

@@ -113,6 +113,20 @@ jobs:
 2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
 3. Aggregates backend + frontend + scripts covered/executable counts
 4. Reports unified percentage and exits 1 if coverage dropped below baseline
+5. Lists file-level low coverage from the same component LCOV files when run
+   with `--list-low-files`
+
+File-level coverage audits must use the same LCOV inputs as the unified gate,
+not `coverage.py report` text output or stale component-local artifacts:
+
+```bash
+python scripts/build_unified_lcov.py coverage/unified.lcov
+python scripts/calculate_unified_coverage.py --list-low-files --threshold 90
+```
+
+The `--threshold` flag applies only to the printed file-level low-coverage
+report. The CI pass/fail gate remains the no-regression comparison against
+`unified-coverage.json`.
 
 ---
 

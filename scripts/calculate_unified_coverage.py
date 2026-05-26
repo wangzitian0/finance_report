@@ -14,12 +14,13 @@ Output: unified-coverage.json with:
 - unified: {total_lines, covered_lines, coverage_percent}
 """
 
+import argparse
 import json
 import os
 import sys
 from pathlib import Path
 
-from coverage_policy import CoverageComponent, get_component
+from coverage_policy import COMPONENTS, CoverageComponent, get_component
 
 # Configuration
 ROOT_DIR = Path(__file__).parent.parent
@@ -82,27 +83,24 @@ def count_code_lines(directory: Path, extensions: list[str]) -> dict:
     total_lines = 0
     file_count = 0
     files_detail = []
-    
+
     for ext in extensions:
         for file_path in directory.rglob(f"*{ext}"):
             relative_path = str(file_path.relative_to(ROOT_DIR))
-            
+
             if is_test_file(relative_path):
                 continue
-            
+
             lines = count_lines(file_path)
             if lines > 0:
                 total_lines += lines
                 file_count += 1
-                files_detail.append({
-                    "path": relative_path,
-                    "lines": lines
-                })
-    
+                files_detail.append({"path": relative_path, "lines": lines})
+
     return {
         "total_lines": total_lines,
         "file_count": file_count,
-        "files": files_detail[:10]  # Only keep first 10 for summary
+        "files": files_detail[:10],  # Only keep first 10 for summary
     }
 
 
@@ -114,54 +112,93 @@ def count_policy_files(component: CoverageComponent) -> dict:
     }
 
 
-def parse_lcov_file(lcov_path: Path) -> dict:
-    """Parse lcov coverage file and extract covered line counts.
-    
-    LCOV format has per-file records with LH/LF summaries.
-    We must accumulate LH/LF from each file, not override.
-    """
+def _coverage_percent(covered_lines: int, total_lines: int) -> float:
+    return round(covered_lines / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0
+
+
+def parse_lcov_records(
+    lcov_path: Path,
+    component: CoverageComponent | None = None,
+    repo_root: Path = ROOT_DIR,
+) -> list[dict]:
+    """Parse LCOV and return per-source line coverage records."""
     if not lcov_path.exists():
-        return {"covered_lines": 0, "total_measured_lines": 0}
-    total_covered = 0
-    total_measured = 0
-    
-    # Parse file by file, accumulating LH/LF from each record
+        return []
+
+    records: dict[str, dict] = {}
+    current_source = ""
     current_file_covered = 0
     current_file_total = 0
     in_record = False
+
+    def flush_record() -> None:
+        nonlocal current_source, current_file_covered, current_file_total, in_record
+        if not in_record or not current_source:
+            return
+        source = (
+            component.normalize_lcov_source(current_source, repo_root)
+            if component is not None
+            else current_source.replace("\\", "/")
+        )
+        record = records.setdefault(
+            source,
+            {
+                "path": source,
+                "covered_lines": 0,
+                "total_lines": 0,
+            },
+        )
+        record["covered_lines"] += current_file_covered
+        record["total_lines"] += current_file_total
+        current_source = ""
+        current_file_covered = 0
+        current_file_total = 0
+        in_record = False
+
     with open(lcov_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line.startswith("SF:"):
-                # Start of new file record
+                flush_record()
                 in_record = True
+                current_source = line[3:]
                 current_file_covered = 0
                 current_file_total = 0
             elif line.startswith("LH:"):
-                # Lines hit in current file
                 try:
                     current_file_covered = int(line[3:])
                 except ValueError:
                     pass
             elif line.startswith("LF:"):
-                # Lines found in current file
                 try:
                     current_file_total = int(line[3:])
                 except ValueError:
                     pass
             elif line == "end_of_record":
-                # End of file record, accumulate to totals
-                if in_record:
-                    total_covered += current_file_covered
-                    total_measured += current_file_total
-                    in_record = False
-                    current_file_covered = 0
-                    current_file_total = 0
-    
-    # Handle last record if no end_of_record marker
-    if in_record and current_file_total > 0:
-        total_covered += current_file_covered
-        total_measured += current_file_total
+                flush_record()
+
+    flush_record()
+
+    return [
+        {
+            **record,
+            "coverage_percent": _coverage_percent(
+                record["covered_lines"], record["total_lines"]
+            ),
+        }
+        for record in records.values()
+    ]
+
+
+def parse_lcov_file(lcov_path: Path) -> dict:
+    """Parse lcov coverage file and extract covered line counts.
+
+    LCOV format has per-file records with LH/LF summaries.
+    We must accumulate LH/LF from each file, not override.
+    """
+    records = parse_lcov_records(lcov_path)
+    total_covered = sum(record["covered_lines"] for record in records)
+    total_measured = sum(record["total_lines"] for record in records)
     return {
         "covered_lines": total_covered,
         "total_measured_lines": total_measured,
@@ -176,7 +213,9 @@ def get_component_coverage(component: CoverageComponent) -> dict:
     return {
         "total_lines": total_lines,
         "covered_lines": coverage_data["covered_lines"],
-        "coverage_percent": round(coverage_data["covered_lines"] / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
+        "coverage_percent": _coverage_percent(
+            coverage_data["covered_lines"], total_lines
+        ),
         "file_count": policy_stats["file_count"],
     }
 
@@ -195,19 +234,78 @@ def get_scripts_coverage() -> dict:
 
 def calculate_unified_coverage(backend: dict, frontend: dict, scripts: dict) -> dict:
     """Calculate unified coverage across all components."""
-    total_lines = backend["total_lines"] + frontend["total_lines"] + scripts["total_lines"]
-    covered_lines = backend["covered_lines"] + frontend["covered_lines"] + scripts["covered_lines"]
-    
+    total_lines = (
+        backend["total_lines"] + frontend["total_lines"] + scripts["total_lines"]
+    )
+    covered_lines = (
+        backend["covered_lines"] + frontend["covered_lines"] + scripts["covered_lines"]
+    )
+
     return {
         "total_lines": total_lines,
         "covered_lines": covered_lines,
-        "coverage_percent": round(covered_lines / max(total_lines, 1) * 100, 2) if total_lines > 0 else 0,
+        "coverage_percent": _coverage_percent(covered_lines, total_lines),
         "breakdown": {
             "backend": backend,
             "frontend": frontend,
             "scripts": scripts,
         },
     }
+
+
+def _repo_relative_path(
+    component: CoverageComponent, component_relative_path: str
+) -> str:
+    if component.component_root:
+        return f"{component.component_root}/{component_relative_path}"
+    return component_relative_path
+
+
+def collect_low_coverage_files(
+    threshold: float,
+    repo_root: Path = ROOT_DIR,
+    components: tuple[CoverageComponent, ...] = COMPONENTS,
+) -> list[dict]:
+    """Return file-level LCOV records below threshold using the shared policy."""
+    rows = []
+    for component in components:
+        for record in parse_lcov_records(
+            component.lcov_path(repo_root), component, repo_root
+        ):
+            total_lines = record["total_lines"]
+            coverage_percent = record["coverage_percent"]
+            if total_lines > 0 and coverage_percent < threshold:
+                rows.append(
+                    {
+                        "component": component.name,
+                        "path": _repo_relative_path(component, record["path"]),
+                        "covered_lines": record["covered_lines"],
+                        "total_lines": total_lines,
+                        "coverage_percent": coverage_percent,
+                    }
+                )
+    return sorted(
+        rows, key=lambda row: (row["coverage_percent"], row["component"], row["path"])
+    )
+
+
+def print_low_coverage_files(rows: list[dict], threshold: float) -> None:
+    print("\n" + "=" * 60)
+    print(f"LOW COVERAGE FILES (< {threshold:g}%)")
+    print("=" * 60)
+    if not rows:
+        print(f"✅ No files below {threshold:g}%")
+        return
+    print(f"{'Component':<10} {'Coverage':>9} {'Lines':>11}  File")
+    print("-" * 60)
+    for row in rows:
+        lines = f"{row['covered_lines']}/{row['total_lines']}"
+        print(
+            f"{row['component']:<10} "
+            f"{row['coverage_percent']:>8.2f}% "
+            f"{lines:>11}  "
+            f"{row['path']}"
+        )
 
 
 def _format_regression_error(
@@ -233,49 +331,76 @@ def _format_regression_error(
     return "\n".join(lines)
 
 
-def main() -> None:
+def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Calculate unified LCOV coverage.")
+    parser.add_argument(
+        "--list-low-files",
+        action="store_true",
+        help="Print files below the file-level LCOV threshold.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=90.0,
+        help=(
+            "File-level threshold for --list-low-files only; "
+            "does not affect the coverage gate."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     """Main entry point."""
+    args = parse_args(argv)
+
     print("=" * 60)
     print("Unified Coverage Calculator")
     print("=" * 60)
-    
+
     # Get coverage for each component
     print("\n📊 Backend Coverage...")
     backend = get_backend_coverage()
     print(f"   Total lines: {backend['total_lines']:,}")
     print(f"   Covered lines: {backend['covered_lines']:,}")
     print(f"   Coverage: {backend['coverage_percent']}%")
-    
+
     print("\n📊 Frontend Coverage...")
     frontend = get_frontend_coverage()
     print(f"   Total lines: {frontend['total_lines']:,}")
     print(f"   Covered lines: {frontend['covered_lines']:,}")
     print(f"   Coverage: {frontend['coverage_percent']}%")
-    
+
     print("\n📊 Scripts Coverage...")
     scripts = get_scripts_coverage()
     print(f"   Total lines: {scripts['total_lines']:,}")
     print(f"   Covered lines: {scripts['covered_lines']:,}")
     print(f"   Coverage: {scripts['coverage_percent']}%")
-    
+
     # Calculate unified coverage
     unified = calculate_unified_coverage(backend, frontend, scripts)
-    
+
+    if args.list_low_files:
+        print_low_coverage_files(
+            collect_low_coverage_files(args.threshold, ROOT_DIR),
+            args.threshold,
+        )
+
     # Baseline comparison
     baseline_file = os.environ.get("BASELINE_FILE", "").strip()
     if not baseline_file:
         baseline_file = "unified-coverage.json"
     baseline_path = ROOT_DIR / baseline_file
-    
+
     try:
         if baseline_path.exists():
             with open(baseline_path, "r") as f:
                 baseline = json.load(f)
-            
+
             # Compare each component against baseline
             baseline_breakdown = baseline.get("breakdown", {})
             baseline_unified = baseline.get("coverage_percent", 0)
-            
+
             regressions: list[tuple[str, float, float]] = []
             unified_current = round(unified["coverage_percent"], 2)
             unified_floor = round(float(baseline_unified), 2)
@@ -285,17 +410,25 @@ def main() -> None:
             # Component breakdown comparison (if available)
             components_to_check = []
             if "backend" in baseline_breakdown:
-                components_to_check.append(("backend", backend, baseline_breakdown["backend"]))
+                components_to_check.append(
+                    ("backend", backend, baseline_breakdown["backend"])
+                )
             if "frontend" in baseline_breakdown:
-                components_to_check.append(("frontend", frontend, baseline_breakdown["frontend"]))
+                components_to_check.append(
+                    ("frontend", frontend, baseline_breakdown["frontend"])
+                )
             if "scripts" in baseline_breakdown:
-                components_to_check.append(("scripts", scripts, baseline_breakdown["scripts"]))
-            
+                components_to_check.append(
+                    ("scripts", scripts, baseline_breakdown["scripts"])
+                )
+
             for component_name, current_data, baseline_data in components_to_check:
                 current_percent = round(float(current_data["coverage_percent"]), 2)
                 baseline_percent = round(float(baseline_data["coverage_percent"]), 2)
                 if current_percent < baseline_percent:
-                    regressions.append((component_name, current_percent, baseline_percent))
+                    regressions.append(
+                        (component_name, current_percent, baseline_percent)
+                    )
 
             if regressions:
                 print(
@@ -306,12 +439,12 @@ def main() -> None:
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            
+
             print("✅ No regression: all coverage at or above baseline")
         else:
             print(f"⚠️  Baseline file not found: {baseline_path}", file=sys.stderr)
             print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
-            
+
     except FileNotFoundError:
         print(f"⚠️  Baseline file not found: {baseline_path}", file=sys.stderr)
         print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
@@ -321,7 +454,7 @@ def main() -> None:
     except Exception as e:
         print(f"⚠️  Error reading baseline file: {e}", file=sys.stderr)
         print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
-    
+
     print("\n" + "=" * 60)
     print("🎯 UNIFIED COVERAGE")
     print("=" * 60)
@@ -329,22 +462,26 @@ def main() -> None:
     print(f"   Covered lines: {unified['covered_lines']:,}")
     print(f"   Coverage: {unified['coverage_percent']}%")
     print("\n" + "-" * 60)
-    
+
     # Write output JSON
     output_path = ROOT_DIR / "unified-coverage.json"
     with open(output_path, "w") as f:
         json.dump(unified, f, indent=2)
     print(f"\n📄 Report saved to: {output_path}")
-    
+
     # Exit with appropriate code (safety net after baseline check)
     threshold = int(os.environ.get("COVERAGE_THRESHOLD", "0"))
     if unified["coverage_percent"] >= threshold:
-        print(f"✅ Coverage ({unified['coverage_percent']}%) meets threshold ({threshold}%)")
+        print(
+            f"✅ Coverage ({unified['coverage_percent']}%) meets threshold ({threshold}%)"
+        )
         sys.exit(0)
     else:
-        print(f"❌ Coverage ({unified['coverage_percent']}%) below threshold ({threshold}%)")
+        print(
+            f"❌ Coverage ({unified['coverage_percent']}%) below threshold ({threshold}%)"
+        )
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
