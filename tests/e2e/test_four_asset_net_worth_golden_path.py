@@ -53,6 +53,11 @@ def _dashboard_amount(amount: Decimal) -> str:
     return f"{int(rounded):,}"
 
 
+def _report_amount(amount: Decimal) -> str:
+    rounded = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return f"{rounded:,.2f}"
+
+
 def _write_bank_fixture(tmp_path: Path, report_date: date) -> Path:
     path = tmp_path / "four_asset_bank_statement.csv"
     path.write_text(
@@ -509,12 +514,12 @@ async def test_four_asset_as_of_net_worth_golden_path(
     await expect(
         page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")
     ).to_contain_text(
-        _dashboard_amount(expected_assets),
+        _report_amount(expected_assets),
         timeout=15_000,
     )
     await expect(
         page.locator(".card").filter(has_text="Liabilities").filter(has_text="Total:")
     ).to_contain_text(
-        _dashboard_amount(expected_liabilities),
+        _report_amount(expected_liabilities),
         timeout=15_000,
     )
