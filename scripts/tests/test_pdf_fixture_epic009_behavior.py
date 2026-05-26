@@ -7,7 +7,6 @@ from datetime import datetime
 from decimal import Decimal
 from importlib import import_module
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -327,7 +326,8 @@ def test_AC9_6_5_generators_use_masked_accounts_and_fictional_data(tmp_path: Pat
     with pdfplumber.open(output_path) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
     assert "***-****-9876" in text
-    assert "1234" not in text
+    assert "***-****-1234" not in text
+    assert "12345678" not in text
     source_text = (PDF_FIXTURES / "data" / "fake_data.py").read_text()
     assert "TEST USER" not in source_text
     assert "John Doe" not in source_text

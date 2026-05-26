@@ -18,6 +18,12 @@ DEFAULT_CONTEXTS = (
     "Coveralls - backend",
     "Coveralls - frontend",
 )
+DEFAULT_WAIT_CONTEXTS = (
+    "coverage/coveralls",
+    "Coveralls - unified",
+    "Coveralls - backend",
+    "Coveralls - frontend",
+)
 DEFAULT_DESCRIPTION = "Coveralls reporting-only; local coverage gate passed."
 DEFAULT_SETTLE_SECONDS = 45
 TERMINAL_STATES = {"success", "failure", "error"}
@@ -29,6 +35,10 @@ class GitHubCommitStatus:
     state: str
     description: str | None
     target_url: str | None
+
+
+def _log(message: str) -> None:
+    print(message, flush=True)
 
 
 def _run_gh_json(args: list[str]) -> dict[str, object]:
@@ -134,11 +144,28 @@ def add_discovered_coveralls_contexts(
         observed.setdefault(context, None)
 
 
+def observe_terminal_coveralls_statuses(
+    observed: dict[str, GitHubCommitStatus | None],
+    statuses: list[GitHubCommitStatus],
+) -> None:
+    add_discovered_coveralls_contexts(observed, statuses)
+    for context in tuple(observed):
+        if observed[context] is not None:
+            continue
+        status = latest_status_for_context(statuses, context)
+        if status is not None and status.state in TERMINAL_STATES:
+            observed[context] = status
+            _log(
+                f"Observed {context!r}: state={status.state} "
+                f"description={status.description!r} url={status.target_url}"
+            )
+
+
 def wait_for_coveralls_observations(
     *,
     repo: str,
     sha: str,
-    contexts: tuple[str, ...] = DEFAULT_CONTEXTS,
+    contexts: tuple[str, ...] = DEFAULT_WAIT_CONTEXTS,
     timeout_seconds: int = 120,
     poll_seconds: int = 5,
     monotonic=time.monotonic,
@@ -149,37 +176,30 @@ def wait_for_coveralls_observations(
     observed: dict[str, GitHubCommitStatus | None] = {
         context: None for context in contexts
     }
+    required_contexts = tuple(contexts)
 
     while True:
         statuses = fetch_commit_statuses(repo, sha)
-        add_discovered_coveralls_contexts(observed, statuses)
-        for context in tuple(observed):
-            if observed[context] is not None:
-                continue
-            status = latest_status_for_context(statuses, context)
-            if status is not None and status.state in TERMINAL_STATES:
-                observed[context] = status
-                print(
-                    f"Observed {context!r}: state={status.state} "
-                    f"description={status.description!r} url={status.target_url}"
-                )
+        observe_terminal_coveralls_statuses(observed, statuses)
 
-        if all(status is not None for status in observed.values()):
+        if all(observed[context] is not None for context in required_contexts):
             return observed
 
         if monotonic() >= deadline:
             missing = [
-                context for context, status in observed.items() if status is None
+                context for context in required_contexts if observed[context] is None
             ]
-            print(
+            _log(
                 f"Did not observe terminal Coveralls statuses on {sha}: "
                 f"{', '.join(missing)}; "
                 "publishing local reporting-only status."
             )
             return observed
 
-        missing = [context for context, status in observed.items() if status is None]
-        print(f"Waiting for Coveralls statuses on {sha}: {', '.join(missing)}")
+        missing = [
+            context for context in required_contexts if observed[context] is None
+        ]
+        _log(f"Waiting for Coveralls statuses on {sha}: {', '.join(missing)}")
         sleep(poll_seconds)
 
 
@@ -189,6 +209,7 @@ def mark_coveralls_reporting_only(
     sha: str,
     target_url: str,
     contexts: tuple[str, ...] = DEFAULT_CONTEXTS,
+    wait_contexts: tuple[str, ...] = DEFAULT_WAIT_CONTEXTS,
     description: str = DEFAULT_DESCRIPTION,
     timeout_seconds: int = 120,
     poll_seconds: int = 5,
@@ -200,14 +221,18 @@ def mark_coveralls_reporting_only(
     observed = wait_for_coveralls_observations(
         repo=repo,
         sha=sha,
-        contexts=contexts,
+        contexts=wait_contexts,
         timeout_seconds=timeout_seconds,
         poll_seconds=poll_seconds,
         monotonic=monotonic,
         sleep=sleep,
     )
-    contexts = tuple(observed)
-    for context in contexts:
+    publish_contexts = tuple(contexts) + tuple(
+        context for context in observed if context not in contexts
+    )
+    for context in publish_contexts:
+        observed.setdefault(context, None)
+    for context in publish_contexts:
         _run_gh_status_create(
             repo=repo,
             sha=sha,
@@ -215,16 +240,16 @@ def mark_coveralls_reporting_only(
             description=description,
             target_url=target_url,
         )
-        print(f"Published reporting-only success for {context!r} on {sha}")
+        _log(f"Published reporting-only success for {context!r} on {sha}")
     if settle_seconds > 0:
-        print(f"Settling for {settle_seconds}s before final Coveralls status check")
+        _log(f"Settling for {settle_seconds}s before final Coveralls status check")
         sleep(settle_seconds)
         latest_statuses = fetch_commit_statuses(repo, sha)
         for context in coveralls_contexts_from_statuses(latest_statuses):
-            if context not in contexts:
-                contexts = (*contexts, context)
+            if context not in publish_contexts:
+                publish_contexts = (*publish_contexts, context)
         stale_contexts: list[str] = []
-        for context in contexts:
+        for context in publish_contexts:
             latest = latest_status_for_context(latest_statuses, context)
             if (
                 latest is None
@@ -242,7 +267,7 @@ def mark_coveralls_reporting_only(
                 description=description,
                 target_url=target_url,
             )
-            print(f"Re-published final reporting-only success for {context!r} on {sha}")
+            _log(f"Re-published final reporting-only success for {context!r} on {sha}")
         assert_coveralls_statuses_reporting_only(
             repo=repo,
             sha=sha,
@@ -300,6 +325,16 @@ def main() -> None:
             "times. Defaults to all known Coveralls contexts."
         ),
     )
+    parser.add_argument(
+        "--wait-context",
+        action="append",
+        dest="wait_contexts",
+        help=(
+            "Coveralls status context to wait for before publishing reporting-only "
+            "success. Defaults to stable Coveralls contexts; optional contexts are "
+            "normalized without blocking when absent."
+        ),
+    )
     parser.add_argument("--description", default=DEFAULT_DESCRIPTION)
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--poll-seconds", type=int, default=5)
@@ -312,6 +347,7 @@ def main() -> None:
             sha=args.sha,
             target_url=args.target_url,
             contexts=tuple(args.contexts or DEFAULT_CONTEXTS),
+            wait_contexts=tuple(args.wait_contexts or DEFAULT_WAIT_CONTEXTS),
             description=args.description,
             timeout_seconds=args.timeout_seconds,
             poll_seconds=args.poll_seconds,
