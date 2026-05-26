@@ -72,6 +72,13 @@ The CI AC traceability gate fails mandatory ACs that are missing,
 placeholder-only, or stub-only before the traceability audit artifact is
 generated.
 
+Core product journeys have one extra guard:
+`docs/ssot/critical-proof-matrix.yaml`. That matrix is deliberately small. It
+only lists P0 proof paths where a broad AC string reference would create false
+confidence, and `scripts/check_critical_proof_matrix.py` verifies that each row
+points to an existing test anchor with the listed AC IDs in the test name or
+docstring. It is not a general-purpose semantic parser for all tests.
+
 ## Proof Semantics
 
 | Category | Counts as proof? | Notes |
@@ -84,6 +91,11 @@ generated.
 | `scripts/tests` registered AC reference | Yes | Tooling/CI behavior proof; synthetic fixture IDs are excluded from invalid-ref counts |
 | Strikethrough deprecated AC | Not required | Excluded from active coverage and untested counts |
 | Manual verification | Not automated proof | Convert or mark as explicit manual gate |
+
+For critical proof matrix rows, behavioral proof must be a product test anchor,
+not a broad contract bucket. Static/doc checks and manual gates may be listed in
+the matrix only when they are explicitly labeled as such; they do not satisfy a
+behavioral row.
 
 Manual verification cleanup is tracked in
 [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
@@ -109,6 +121,7 @@ Use these before claiming a documentation or implementation change is aligned:
 ```bash
 python scripts/generate_ac_registry.py --check
 python scripts/analyze_test_ac_coverage.py --stdout
+python scripts/check_critical_proof_matrix.py
 python scripts/check_manifest.py
 python scripts/check_ssot_ownership.py
 ```

@@ -437,13 +437,16 @@ jobs:
         run: |
           uv run --with pyyaml python scripts/generate_ac_registry.py --check
           uv run --with pyyaml python scripts/check_ac_traceability.py
+          uv run --with pyyaml python scripts/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
           uv run --with pyyaml python scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
 
       - name: Upload AC traceability audit
         uses: actions/upload-artifact@v4
         with:
           name: ac-test-traceability-audit
-          path: ${{ runner.temp }}/AC-TEST-TRACEABILITY-AUDIT.md
+          path: |
+            ${{ runner.temp }}/AC-TEST-TRACEABILITY-AUDIT.md
+            ${{ runner.temp }}/CRITICAL-PROOF-MATRIX.md
           retention-days: 14
 
   finish:

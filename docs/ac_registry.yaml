@@ -1929,6 +1929,12 @@ groups:
         epic_name: testing-strategy
         description: Runtime and container versions stay aligned across local, CI, and Docker environments.
         mandatory: true
+      - id: AC8.13.40
+        epic: 8
+        epic_name: testing-strategy
+        description: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only
+          AC strings.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

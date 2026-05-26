@@ -1,0 +1,55 @@
+version: "1.0"
+description: >
+  Critical product proof paths that must not be satisfied by broad AC string
+  references. This matrix protects only the small set of core user journeys;
+  full AC traceability remains a separate hygiene gate.
+
+proofs:
+  - id: dbs-pdf-full-journey
+    scope: behavioral
+    ci_tier: post_merge_environment
+    issue: "#443"
+    file: tests/e2e/test_statement_full_journey.py
+    test: test_dbs_statement_full_journey
+    required_markers:
+      - e2e
+      - tier3
+      - critical
+      - llm
+    ac_ids:
+      - AC8.13.1
+      - AC8.13.2
+      - AC8.13.3
+      - AC8.13.4
+      - AC8.13.5
+
+  - id: deterministic-upload-to-dashboard
+    scope: behavioral
+    ci_tier: post_merge_environment
+    issue: "#420"
+    file: tests/e2e/test_vision_upload_to_dashboard_hard_gate.py
+    test: test_statement_upload_to_dashboard_vision_hard_gate
+    required_markers:
+      - e2e
+      - tier3
+      - critical
+    ac_ids:
+      - AC8.13.28
+      - AC8.13.29
+      - AC8.13.30
+      - AC8.13.31
+      - AC8.13.32
+
+  - id: brokerage-pdf-to-portfolio-value
+    scope: behavioral
+    ci_tier: post_merge_environment
+    issue: "#404"
+    file: tests/e2e/test_brokerage_upload_to_portfolio_value.py
+    test: test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value
+    required_markers:
+      - e2e
+      - tier3
+      - critical
+      - llm
+    ac_ids:
+      - AC8.13.10

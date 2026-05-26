@@ -72,6 +72,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
 - **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
 - **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
+- **AC8.13.40**: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -381,6 +382,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `scripts/tests/test_check_ac_traceability.py` | P0 |
 | AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `scripts/tests/test_cleanup_pr_preview_resources.py` | P0 |
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `scripts/tests/test_toolchain_contract.py` | P0 |
+| AC8.13.40 | Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings | `test_*critical_proof_matrix*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -388,6 +390,9 @@ These scenarios represent the "Vertical Slices" of user value.
   owned by [the generated coverage report](../analysis/test-ac-coverage-report.md)
   and `python scripts/analyze_test_ac_coverage.py --stdout`.
 - Mandatory AC gate behavior is owned by `python scripts/check_ac_traceability.py`.
+- Critical product proof-path anchoring is owned by
+  `docs/ssot/critical-proof-matrix.yaml` and
+  `python scripts/check_critical_proof_matrix.py`.
 - Do not copy generated AC totals or per-group percentages into this EPIC.
 
 ---
