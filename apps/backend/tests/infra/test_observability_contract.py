@@ -1,0 +1,126 @@
+"""Focused observability contract tests for EPIC-010."""
+
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+
+from src import logger as logger_module
+from src.config import Settings
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+APP_IAC = REPO_ROOT / "repo" / "finance_report" / "finance_report" / "10.app"
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def test_otel_settings_are_explicit_and_environment_backed(monkeypatch) -> None:
+    """AC10.1.1 AC10.5.4: OTEL settings are owned by backend config."""
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
+
+    defaults = Settings(_env_file=None)
+    assert defaults.otel_exporter_otlp_endpoint is None
+    assert defaults.otel_service_name == "finance-report-backend"
+    assert defaults.otel_resource_attributes is None
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "finance-report-worker")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=staging")
+
+    settings = Settings(_env_file=None)
+    assert settings.otel_exporter_otlp_endpoint == "http://collector:4318"
+    assert settings.otel_service_name == "finance-report-worker"
+    assert settings.otel_resource_attributes == "deployment.environment=staging"
+
+
+def test_observability_ssot_and_env_docs_are_linked() -> None:
+    """AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5: Observability docs are anchored."""
+    observability = _read(REPO_ROOT / "docs" / "ssot" / "observability.md")
+    ssot_index = _read(REPO_ROOT / "docs" / "ssot" / "README.md")
+    env_example = _read(REPO_ROOT / ".env.example")
+
+    assert "SSOT Key" in observability
+    assert "observability" in observability
+    assert "[observability.md](./observability.md)" in ssot_index
+
+    for key in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_SERVICE_NAME",
+        "OTEL_RESOURCE_ATTRIBUTES",
+    ):
+        assert key in observability
+        assert key in env_example
+
+
+def test_vault_template_exposes_otel_keys_with_safe_quoting() -> None:
+    """AC10.6.1 AC10.6.4 AC10.7.6: Vault template renders OTEL keys safely."""
+    template = _read(APP_IAC / "secrets.ctmpl")
+
+    for key in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_SERVICE_NAME",
+        "OTEL_RESOURCE_ATTRIBUTES",
+    ):
+        line = next(line for line in template.splitlines() if line.startswith(f"{key}="))
+        assert f"with .Data.data.{key}" in line
+        assert 'printf "%q"' in line
+        assert " default " not in line
+
+
+def test_app_readme_and_compose_document_observability_rollout() -> None:
+    """AC10.6.2 AC10.6.3: App docs and compose expose OTEL rollout controls."""
+    readme = _read(APP_IAC / "README.md")
+    compose = _read(APP_IAC / "compose.yaml")
+
+    for key in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_SERVICE_NAME",
+        "OTEL_RESOURCE_ATTRIBUTES",
+    ):
+        assert f"| `{key}` |" in readme
+
+    assert "SigNoz OTLP HTTP endpoint" in readme
+    assert "IAC_CONFIG_HASH: ${IAC_CONFIG_HASH:-}" in compose
+    assert compose.count("IAC_CONFIG_HASH: ${IAC_CONFIG_HASH:-}") >= 2
+
+
+def test_backend_otel_absence_is_startup_safe(monkeypatch) -> None:
+    """AC10.7.1 AC10.7.4: Missing OTEL endpoint keeps startup path local."""
+    monkeypatch.setattr(logger_module.settings, "otel_exporter_otlp_endpoint", None)
+
+    logger_module._configure_otel_tracing()
+    logger_module._configure_otel_logging()
+
+
+def test_external_api_logging_omits_sensitive_arguments_by_default(caplog) -> None:
+    """AC10.7.3: External API logging omits credentials unless explicitly requested."""
+
+    @logger_module.log_external_api("signoz")
+    def call_signoz(password: str, *, token: str) -> str:
+        assert password
+        assert token
+        return "ok"
+
+    with caplog.at_level(logging.INFO):
+        assert call_signoz("super-secret-password", token="bearer-token") == "ok"
+
+    assert "External API call to signoz" in caplog.text
+    assert "super-secret-password" not in caplog.text
+    assert "bearer-token" not in caplog.text
+    assert "kwargs_keys" not in caplog.text
+
+
+def test_production_renderer_outputs_structured_json(monkeypatch) -> None:
+    """AC10.7.7: Non-debug renderer emits parseable structured JSON."""
+    monkeypatch.setattr(logger_module.settings, "debug", False)
+
+    renderer = logger_module._select_renderer()
+    rendered = renderer(None, "info", {"event": "startup", "service": "backend"})
+
+    payload = json.loads(rendered)
+    assert payload == {"event": "startup", "service": "backend"}

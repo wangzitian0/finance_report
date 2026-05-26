@@ -553,6 +553,7 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "statuses: write" in workflow
     assert "Mark Coveralls statuses reporting-only" in workflow
     assert "scripts/mark_coveralls_reporting_status.py" in workflow
+    assert 'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")' in workflow
     assert "Coveralls - unified" in read("scripts/mark_coveralls_reporting_status.py")
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
