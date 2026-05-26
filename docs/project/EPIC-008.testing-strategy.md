@@ -59,7 +59,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
 - **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
 - **AC8.13.26**: CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift.
-- **AC8.13.27**: PR and main CI wait for the external Coveralls unified coverage status before passing.
+- **AC8.13.27**: Coveralls uploads remain reporting-only while local deterministic coverage gates decide CI pass/fail.
 - **AC8.13.28**: Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E.
 - **AC8.13.29**: Stage 1 review auto-posts journal entries from the deterministic fixture.
 - **AC8.13.30**: Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state.
@@ -72,6 +72,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
 - **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
 - **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
+- **AC8.13.40**: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -370,7 +371,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `scripts/tests/` | P0 |
-| AC8.13.27 | PR and main CI wait for the external Coveralls unified coverage status before passing | `test_AC8_13_27_*` | `scripts/tests/` | P0 |
+| AC8.13.27 | Coveralls uploads remain reporting-only while local deterministic coverage gates decide CI pass/fail | `test_AC8_13_27_*` | `scripts/tests/` | P0 |
 | AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.29 | Stage 1 review auto-posts journal entries from the deterministic fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.30 | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
@@ -378,9 +379,11 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.32 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.33 | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates | `test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `scripts/tests/` | P1 |
+| AC8.13.36 | Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `scripts/tests/test_check_ac_traceability.py` | P0 |
 | AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `scripts/tests/test_cleanup_pr_preview_resources.py` | P0 |
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `scripts/tests/test_toolchain_contract.py` | P0 |
+| AC8.13.40 | PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images | `test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

@@ -388,11 +388,16 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
 
     assert "container-images:" in ci_workflow
     assert "name: Build Staging Images" in ci_workflow
-    assert "github.event_name == 'push'" in ci_workflow
-    assert "github.ref == 'refs/heads/main'" in ci_workflow
+    assert "needs: [changes]" in ci_workflow
+    assert "needs.changes.outputs.heavy_required == 'true'" in ci_workflow
+    assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in ci_workflow
     assert "packages: write" in ci_workflow
-    assert "Build and push Backend SHA image" in ci_workflow
-    assert "Build and push Frontend SHA image" in ci_workflow
+    assert "Build Backend SHA image" in ci_workflow
+    assert "Build Frontend SHA image" in ci_workflow
+    assert (
+        "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+        in ci_workflow
+    )
     assert (
         "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
         in ci_workflow
@@ -434,6 +439,38 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "SHA-tagged staging images" in ci_cd
     assert "retags those immutable images as `staging`" in ci_cd
     assert "falls back to building only the missing image" in ci_cd
+
+
+def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
+    """AC8.13.40: PR CI dry-runs staging image builds before merge."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    container_block = workflow.split("  container-images:", 1)[1].split(
+        "  unified-coverage:", 1
+    )[0]
+    finish_block = workflow.split("- name: Check job status", 1)[1]
+    login_block = container_block.split("- name: Log in to Container registry", 1)[
+        1
+    ].split("- name: Set up Docker Buildx", 1)[0]
+
+    assert "if: needs.changes.outputs.heavy_required == 'true'" in container_block
+    assert (
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        in login_block
+    )
+    assert container_block.count("uses: docker/build-push-action@v5") == 2
+    assert (
+        container_block.count(
+            "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+        )
+        == 2
+    )
+    assert "Build Backend SHA image" in container_block
+    assert "Build Frontend SHA image" in container_block
+    assert "Container image validation failed" in finish_block
+    assert "PR CI dry-runs staging image builds before merge" in ci_cd
+    assert "Main push CI is the only path that pushes SHA-tagged images" in ci_cd
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
@@ -499,7 +536,7 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
     assert "run in parallel with lint" in ci_cd
 
 
-def test_AC8_13_27_coveralls_unified_status_blocks_ci_before_merge() -> None:
+def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     """AC8.13.27: PR CI uploads Coveralls data without external status blocking."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")

@@ -147,6 +147,11 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "Upload frontend to Coveralls (per-flag)",
             "Backend Tests (Shard ${{ matrix.shard }}/6)",
             "--splits 6",
+            "container-images:",
+            "Build Backend SHA image",
+            "Build Frontend SHA image",
+            "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
+            "Container image validation failed",
         )
         for token in required_workflow_tokens:
             if token not in workflow_text:
@@ -175,6 +180,8 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "AC traceability is a reference metric, not behavioral coverage",
             "trivial placeholder assertions",
             "Coveralls uploads are reporting-only and do not block CI pass/fail",
+            "PR CI dry-runs staging image builds before merge",
+            "Main push CI is the only path that pushes SHA-tagged images",
             "New `apps/*/src` or `packages/*/src` source roots fail CI",
         ):
             if token not in ci_cd_text:
