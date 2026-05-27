@@ -134,7 +134,8 @@ labels are the source of truth for current tracker status.
 
 Host prerequisites:
 
-- Bash, Git, and curl
+- A POSIX shell: macOS Terminal, Linux, or WSL Ubuntu
+- Bash, Git, and curl in that same shell
 - Docker Desktop with WSL integration or Podman for backend/full tests, local
   infrastructure, and smoke tests
 
@@ -148,6 +149,15 @@ cd finance_report
 
 bash scripts/bootstrap.sh
 moon run :dev
+```
+
+Windows developers should run project commands inside WSL Ubuntu. Windows
+PowerShell, Git Bash, Scoop-installed Python/uv, and the Codex Windows runner do
+not share PATH entries or Python/Node packages with WSL. From PowerShell, enter
+the project through WSL explicitly:
+
+```powershell
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash scripts/bootstrap.sh"
 ```
 
 Open <http://localhost:3000>.

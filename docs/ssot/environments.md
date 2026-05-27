@@ -39,6 +39,28 @@
 - Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.); long namespaces are hash-shortened to keep DB names and `statements-{namespace}` buckets within 63-character backend limits.
 - Command: `moon run :lint && moon run :test` (**matches GitHub CI exactly**)
 
+### Host Shell Boundaries
+
+Local Dev and Local CI are POSIX-shell environments. On Windows, the supported
+host is WSL Ubuntu, not native Windows PowerShell. WSL tools such as
+`/usr/bin/podman`, `/usr/bin/op`, `/usr/local/bin/yq`, `/usr/bin/jq`,
+`/usr/bin/direnv`, and WSL `gh` do not appear in Windows PATH automatically.
+Windows tools installed with Scoop, including Python or `uv`, likewise do not
+appear inside WSL.
+
+The Codex Windows runner follows the Windows side of this split: it may see
+Scoop Python and a non-interactive PowerShell PATH while missing WSL-only `gh`,
+`podman`, `op`, or Python packages. Repo commands should enter WSL explicitly:
+
+```powershell
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "moon run :lint"
+```
+
+Non-interactive shells usually do not load the same profile files as an
+interactive terminal. Treat PATH, `NVM_DIR`, and tool locations as part of the
+environment contract; bootstrap and automation scripts must set them explicitly
+before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
+
 ### GitHub Environments
 
 **GitHub CI** — Temporary services, runs same commands as Local CI:

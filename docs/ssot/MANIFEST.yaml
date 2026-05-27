@@ -174,6 +174,14 @@ concepts:
       - .github/workflows/ci.yml
       - docker-compose.yml
 
+  local_host_shells:
+    owner: docs/ssot/development.md#local-host-shell-matrix
+    description: Supported local command shells and PATH/tool-install boundaries across WSL Ubuntu, macOS/Linux, Windows PowerShell, and Codex runner contexts.
+    cross_refs:
+      - README.md
+      - docs/ssot/environments.md#host-shell-boundaries
+      - scripts/bootstrap.sh
+
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation
     description: Namespace-based test DB and S3 bucket isolation for parallel runs.
