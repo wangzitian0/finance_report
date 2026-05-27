@@ -19,11 +19,19 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent.absolute()
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"
 FRONTEND_DIR = REPO_ROOT / "apps" / "frontend"
+
+
+def get_runtime_version(name: str) -> str:
+    """Read a runtime version from the repository toolchain contract."""
+    with (REPO_ROOT / "toolchain.toml").open("rb") as fh:
+        toolchain = tomllib.load(fh)
+    return str(toolchain["runtime"][name])
 
 
 def get_compose_cmd() -> list[str]:
@@ -52,30 +60,30 @@ def run(cmd: list[str], cwd: Path = REPO_ROOT, env: dict = None, check: bool = T
 def cmd_setup(args):
     """Install dependencies."""
     if args.backend or not args.frontend:
-        run(["uv", "sync"], cwd=BACKEND_DIR)
+        run(["uv", "sync", "--python", get_runtime_version("python")], cwd=BACKEND_DIR)
     if args.frontend or not args.backend:
-        run(["npm", "install"], cwd=FRONTEND_DIR)
+        run(["npm", "ci"], cwd=FRONTEND_DIR)
 
 
 def cmd_dev(args):
     """Start development environment."""
     compose_cmd = get_compose_cmd()
-    
+
     if args.infra or (not args.backend and not args.frontend):
         run([*compose_cmd, "--profile", "infra", "up", "-d"])
-    
+
     if args.migrate:
         run(["uv", "run", "alembic", "upgrade", "head"], cwd=BACKEND_DIR)
         return
-    
+
     if args.check:
         run(["uv", "run", "python", "-m", "src.boot", "--mode=full"], cwd=BACKEND_DIR)
         return
 
     if args.backend:
-        run(["python", "../../scripts/dev_backend.py"], cwd=BACKEND_DIR)
+        run([sys.executable, "../../scripts/dev_backend.py"], cwd=BACKEND_DIR)
     elif args.frontend:
-        run(["python", "../../scripts/dev_frontend.py"], cwd=FRONTEND_DIR)
+        run([sys.executable, "../../scripts/dev_frontend.py"], cwd=FRONTEND_DIR)
     elif not args.infra:
         print("\n🚀 Infrastructure started. Now run in separate terminals:")
         print("   moon run :dev -- --backend")
@@ -88,16 +96,32 @@ def cmd_test(args, extra_args: list[str]):
         run(["npm", "run", "test"] + extra_args, cwd=FRONTEND_DIR)
         return
     if args.e2e:
-        run(["uv", "run", "pytest", "-m", "e2e", "tests/e2e/"] + extra_args, cwd=BACKEND_DIR)
+        run(
+            ["uv", "run", "pytest", "-m", "e2e", "tests/e2e/"] + extra_args,
+            cwd=BACKEND_DIR,
+        )
         return
     if args.perf:
-        run([
-            "uv", "run", "locust", "-f", "tests/locustfile.py",
-            "--host=http://localhost:8000", "--users", "10",
-            "--spawn-rate", "2", "--run-time", "30s", "--headless"
-        ], cwd=BACKEND_DIR)
+        run(
+            [
+                "uv",
+                "run",
+                "locust",
+                "-f",
+                "tests/locustfile.py",
+                "--host=http://localhost:8000",
+                "--users",
+                "10",
+                "--spawn-rate",
+                "2",
+                "--run-time",
+                "30s",
+                "--headless",
+            ],
+            cwd=BACKEND_DIR,
+        )
         return
-    
+
     if extra_args and extra_args[0].startswith("tests/"):
         run(["uv", "run", "pytest"] + extra_args, cwd=BACKEND_DIR)
         return
@@ -109,7 +133,10 @@ def cmd_test(args, extra_args: list[str]):
     if args.ephemeral:
         lifecycle_args.append("--ephemeral")
     lifecycle_args.extend(extra_args)
-    run(["python", "../../scripts/test_lifecycle.py"] + lifecycle_args, cwd=BACKEND_DIR)
+    run(
+        [sys.executable, "../../scripts/test_lifecycle.py"] + lifecycle_args,
+        cwd=BACKEND_DIR,
+    )
 
 
 def cmd_lint(args):
@@ -120,8 +147,12 @@ def cmd_lint(args):
             run(["uv", "run", "ruff", "check", "src/", "--fix"], cwd=BACKEND_DIR)
         else:
             run(["uv", "run", "ruff", "check", "src/"], cwd=BACKEND_DIR)
-            run(["uv", "run", "ruff", "format", "src/", "--check"], cwd=BACKEND_DIR, check=False)
-    
+            run(
+                ["uv", "run", "ruff", "format", "src/", "--check"],
+                cwd=BACKEND_DIR,
+                check=False,
+            )
+
     if args.frontend or not args.backend:
         if args.fix:
             run(["npm", "run", "lint", "--", "--fix"], cwd=FRONTEND_DIR, check=False)
@@ -138,9 +169,9 @@ def cmd_build(args):
 def cmd_clean(args):
     """Clean up resources."""
     compose_cmd = get_compose_cmd()
-    
+
     if args.db:
-        run(["python", "scripts/cleanup_orphaned_dbs.py"])
+        run([sys.executable, "scripts/cleanup_orphaned_dbs.py"])
     elif args.containers:
         run([*compose_cmd, "--profile", "infra", "down"])
     else:
@@ -172,8 +203,14 @@ def main():
     # test - use parse_known_args for transparent pass-through
     p_test = subparsers.add_parser("test", help="Run tests")
     p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
-    p_test.add_argument("--smart", action="store_true", help="Coverage on changed files")
-    p_test.add_argument("--ephemeral", action="store_true", help="Ephemeral mode: destroy all infra after run")
+    p_test.add_argument(
+        "--smart", action="store_true", help="Coverage on changed files"
+    )
+    p_test.add_argument(
+        "--ephemeral",
+        action="store_true",
+        help="Ephemeral mode: destroy all infra after run",
+    )
     p_test.add_argument("--e2e", action="store_true", help="E2E tests (Playwright)")
     p_test.add_argument("--perf", action="store_true", help="Performance tests")
     p_test.add_argument("--frontend", action="store_true", help="Frontend tests")
@@ -192,8 +229,12 @@ def main():
     p_clean = subparsers.add_parser("clean", help="Clean up resources")
     p_clean.add_argument("--db", action="store_true", help="Clean test databases")
     p_clean.add_argument("--containers", action="store_true", help="Stop containers")
-    p_clean.add_argument("--force", action="store_true", help="Force clean processes/leaked containers")
-    p_clean.add_argument("--all", action="store_true", help="Deep clean (including volumes)")
+    p_clean.add_argument(
+        "--force", action="store_true", help="Force clean processes/leaked containers"
+    )
+    p_clean.add_argument(
+        "--all", action="store_true", help="Deep clean (including volumes)"
+    )
 
     # Use parse_known_args for test command to allow pass-through of pytest args
     args, extra = parser.parse_known_args()

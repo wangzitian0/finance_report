@@ -7,14 +7,19 @@
 
 ### Prerequisites
 - **Node.js**: `20.19.0`
-- **npm**: Used for frontend dependencies via `npm ci`
+- **npm**: `10.8.2` (bundled with Node.js `20.19.0`)
 - **Python**: `3.12.12` (managed by uv)
 - **uv**: `0.9.18`
+- **Host container runtime**: Docker Desktop with WSL integration or Podman
+  for backend/full tests, local infrastructure, and smoke tests
+- **Base shell tools**: Bash, Git, and curl
 
 | File | Purpose |
 |------|---------|
+| `scripts/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics |
 | `toolchain.toml` | Runtime and container image version SSOT |
 | `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI |
+| `.moon/toolchain.yml` | Moon's local Node/npm toolchain mirror |
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
 | `scripts/test_lifecycle.py` | Database lifecycle (Python Context Manager) |
@@ -33,6 +38,7 @@ development, GitHub Actions, and Docker/Compose:
 |-----------------|---------|
 | Python | `3.12.12` |
 | Node.js | `20.19.0` |
+| npm | `10.8.2` |
 | uv | `0.9.18` |
 | Backend base image | `python:3.12.12-slim` |
 | Frontend base image | `node:20.19.0-alpine` |
@@ -51,11 +57,45 @@ fails when workflow runtime declarations, local tool files, Docker base images,
 Compose service images, or frontend engine constraints drift from
 `toolchain.toml`.
 
+Local bootstrapping is owned by `scripts/bootstrap.sh`. It installs or verifies
+uv, Python, nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks,
+then reports whether Docker or Podman is available for workflows that need a
+host container runtime.
+
+### Local Host Shell Matrix
+
+The local toolchain belongs to the shell that runs it. PATH entries, Python
+packages, Node packages, and CLI installs are not shared across WSL, macOS/Linux
+shells, Windows PowerShell, Git Bash, Scoop, or the Codex Windows runner.
+
+| Host shell | Support | Command entry point | Tool install scope |
+|---|---|---|---|
+| WSL Ubuntu | Primary Windows path | `bash scripts/bootstrap.sh` inside WSL | `/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `$HOME/.nvm` in WSL |
+| macOS Terminal | Supported POSIX path | `bash scripts/bootstrap.sh` | Homebrew/system tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
+| Linux shell | Supported POSIX path | `bash scripts/bootstrap.sh` | Distro tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
+| Windows PowerShell | Not a direct project shell | Use `wsl.exe -d Ubuntu --cd ... --exec /bin/bash -lc "bash scripts/bootstrap.sh"` | Windows PATH and Scoop installs only; not visible to WSL |
+| Git Bash/MSYS/Cygwin | Not supported for repo bootstrap | Use WSL Ubuntu instead | Windows-mounted POSIX compatibility layer; not the repo target shell |
+| Codex Windows runner | Not the repo command runner | Delegate repo commands to WSL | Runner PATH may omit interactive profile entries and WSL-only tools |
+
+Non-interactive shells often skip interactive profile files such as `.zshrc` or
+`.bashrc`. Scripts that need tools must set PATH explicitly or run through
+`scripts/bootstrap.sh`; do not rely on an interactive terminal having loaded the
+right Python, Node, `gh`, `uv`, `op`, `jq`, `yq`, `direnv`, Docker, or Podman.
+
+From Windows PowerShell, run the bootstrap through WSL:
+
+```powershell
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash scripts/bootstrap.sh"
+```
+
 ---
 
 ## Moon Commands (Primary Interface)
 
 ```bash
+# First-time local setup
+bash scripts/bootstrap.sh
+
 # Development
 moon run :dev -- --backend        # Full Stack (App + DB + Redis + MinIO)
 moon run :dev -- --frontend       # Next.js on :3000

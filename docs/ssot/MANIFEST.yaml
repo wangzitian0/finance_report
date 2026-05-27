@@ -168,9 +168,19 @@ concepts:
     description: Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.
     cross_refs:
       - toolchain.toml
+      - scripts/bootstrap.sh
       - scripts/check_toolchain_contract.py
+      - .moon/toolchain.yml
       - .github/workflows/ci.yml
       - docker-compose.yml
+
+  local_host_shells:
+    owner: docs/ssot/development.md#local-host-shell-matrix
+    description: Supported local command shells and PATH/tool-install boundaries across WSL Ubuntu, macOS/Linux, Windows PowerShell, and Codex runner contexts.
+    cross_refs:
+      - README.md
+      - docs/ssot/environments.md#host-shell-boundaries
+      - scripts/bootstrap.sh
 
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation

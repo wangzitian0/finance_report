@@ -143,7 +143,7 @@ def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
         ["-k", "foo"],
     )
     cmd = calls[0][0]
-    assert cmd[0:2] == ["python", "../../scripts/test_lifecycle.py"]
+    assert cmd[0:2] == [sys.executable, "../../scripts/test_lifecycle.py"]
     assert "--fast" in cmd
     assert "--ephemeral" in cmd
     assert "-k" in cmd
@@ -162,7 +162,7 @@ def test_AC16_11_18_cmd_clean_routes(monkeypatch):
     cli.cmd_clean(SimpleNamespace(db=False, containers=True, force=False, all=False))
     cli.cmd_clean(SimpleNamespace(db=False, containers=False, force=True, all=False))
 
-    assert calls[0] == ["python", "scripts/cleanup_orphaned_dbs.py"]
+    assert calls[0] == [sys.executable, "scripts/cleanup_orphaned_dbs.py"]
     assert calls[1] == ["docker", "compose", "--profile", "infra", "down"]
     assert calls[2] == ["bash", "scripts/cleanup_dev_resources.sh", "--force"]
 
@@ -265,26 +265,26 @@ class TestCmdSetup:
     """Tests for cmd_setup dependency installation."""
 
     def test_setup_backend_only(self, monkeypatch):
-        """Given --backend flag, should only run uv sync."""
+        """AC8.13.44: Given --backend flag, setup should pin uv sync to the SSOT Python."""
         calls = _mock_run(monkeypatch)
         cli.cmd_setup(SimpleNamespace(backend=True, frontend=False))
         assert len(calls) == 1
-        assert calls[0]["cmd"] == ["uv", "sync"]
+        assert calls[0]["cmd"] == ["uv", "sync", "--python", "3.12.12"]
 
     def test_setup_frontend_only(self, monkeypatch):
-        """Given --frontend flag, should only run npm install."""
+        """AC8.13.44: Given --frontend flag, setup should only run deterministic npm ci."""
         calls = _mock_run(monkeypatch)
         cli.cmd_setup(SimpleNamespace(backend=False, frontend=True))
         assert len(calls) == 1
-        assert calls[0]["cmd"] == ["npm", "install"]
+        assert calls[0]["cmd"] == ["npm", "ci"]
 
     def test_setup_both(self, monkeypatch):
-        """Given no flags, should run both uv sync and npm install."""
+        """AC8.13.44: Given no flags, setup should run uv sync and deterministic npm ci."""
         calls = _mock_run(monkeypatch)
         cli.cmd_setup(SimpleNamespace(backend=False, frontend=False))
         assert len(calls) == 2
-        assert calls[0]["cmd"] == ["uv", "sync"]
-        assert calls[1]["cmd"] == ["npm", "install"]
+        assert calls[0]["cmd"] == ["uv", "sync", "--python", "3.12.12"]
+        assert calls[1]["cmd"] == ["npm", "ci"]
 
 
 class TestCmdDev:
@@ -491,7 +491,7 @@ class TestMainDispatch:
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
         cli.main()
-        assert calls[0]["cmd"] == ["python", "scripts/cleanup_orphaned_dbs.py"]
+        assert calls[0]["cmd"] == [sys.executable, "scripts/cleanup_orphaned_dbs.py"]
 
     def test_main_test_with_extra_args(self, monkeypatch):
         """Given 'test' with extra pytest args, should pass them through."""

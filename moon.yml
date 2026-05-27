@@ -5,22 +5,22 @@ layer: tool
 
 tasks:
   setup:
-    command: 'python scripts/cli.py setup'
+    command: 'python3 scripts/cli.py setup'
     deps: []
 
   dev:
-    command: 'python scripts/cli.py dev'
+    command: 'python3 scripts/cli.py dev'
     preset: 'server'
 
   test:
-    command: 'python scripts/cli.py test'
+    command: 'python3 scripts/cli.py test'
 
   lint:
-    command: 'python scripts/cli.py lint'
+    command: 'python3 scripts/cli.py lint'
 
   build:
-    command: 'python scripts/cli.py build'
+    command: 'python3 scripts/cli.py build'
 
   clean:
-    command: 'python scripts/cli.py clean'
+    command: 'python3 scripts/cli.py clean'
     preset: 'server'

@@ -58,7 +58,7 @@ def test_AC12_19_1_moon_workspace_loads_root_and_app_projects() -> None:
     assert set(root_project["tasks"]) == expected_tasks
     for task in expected_tasks:
         command = root_project["tasks"][task]["command"]
-        assert command.startswith("python scripts/cli.py ")
+        assert command.startswith("python3 scripts/cli.py ")
 
 
 def test_AC12_22_1_stage2_review_schemas_live_outside_statements_router() -> None:

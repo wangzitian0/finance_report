@@ -132,12 +132,32 @@ labels are the source of truth for current tracker status.
 
 ## Quick Start
 
+Host prerequisites:
+
+- A POSIX shell: macOS Terminal, Linux, or WSL Ubuntu
+- Bash, Git, and curl in that same shell
+- Docker Desktop with WSL integration or Podman for backend/full tests, local
+  infrastructure, and smoke tests
+
+The project bootstrap command installs or verifies the repo-pinned user-space
+toolchain: uv, Python, nvm/Node.js, Moon CLI, backend dependencies, frontend
+dependencies, and pre-commit hooks.
+
 ```bash
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-moon run :setup
+bash scripts/bootstrap.sh
 moon run :dev
+```
+
+Windows developers should run project commands inside WSL Ubuntu. Windows
+PowerShell, Git Bash, Scoop-installed Python/uv, and the Codex Windows runner do
+not share PATH entries or Python/Node packages with WSL. From PowerShell, enter
+the project through WSL explicitly:
+
+```powershell
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash scripts/bootstrap.sh"
 ```
 
 Open <http://localhost:3000>.
