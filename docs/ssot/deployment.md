@@ -57,10 +57,15 @@ Smoke:   ❌ Not run (unit tests only)
 ### staging-deploy.yml
 
 ```yaml
-Trigger: Push to main (apps/** changed)
-Flow:    Build (commit SHA) → Deploy → Health (6min) → E2E tests
+Trigger: Push to main or manual dispatch
+Flow:    Wait for same-SHA CI -> promote SHA images -> deploy -> smoke/non-LLM E2E -> AI/OCR gate
 URL:     https://report-staging.zitian.party
 ```
+
+Normal staging deploys reuse SHA-tagged backend and frontend images built by the
+matching `CI` push workflow. If a SHA image is missing, staging falls back to
+building only the missing image before promotion. Provider-backed AI/OCR tests
+run after deploy health in the same serialized post-merge workflow unit.
 
 ### production-release.yml
 

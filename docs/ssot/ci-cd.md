@@ -203,8 +203,13 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
 - PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
+- PR preview non-LLM E2E mirrors the staging non-LLM command shape: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, and `-n 4` parallelism. The provider-backed `llm` marker remains post-merge only.
 - PR preview cleanup has two paths: the PR `closed` event removes the Dokploy stack, volumes, and GHCR PR images; the scheduled `PR Preview Cleanup` fallback removes stale VPS preview containers/compose volumes for closed or missing PRs and prunes aged Docker build cache/images without touching open PR previews.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
+
+The remaining higher-risk CI and post-merge optimization candidates are tracked
+in the delivery-engine recommendation note instead of being mixed into routine
+SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECOMMENDATIONS.md).
 
 > **Local vs GitHub CI Parallelism**
 >

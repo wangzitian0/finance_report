@@ -65,7 +65,7 @@ jobs:
               echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})" >&2
               echo "pr_number=${{ github.event.pull_request.number }}"
               echo "compose_name=pr-${{ github.event.pull_request.number }}"
-              
+
               if [ "${{ github.event.action }}" == "closed" ]; then
                 echo "action=cleanup"
               else
@@ -138,15 +138,15 @@ jobs:
             "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
           curl_exit=$?
           set -e
-          
+
           if [ $curl_exit -ne 0 ]; then
             echo "::warning::Failed to fetch environment (curl exit $curl_exit). Assuming compose doesn't exist."
             echo "Response: $response"
             response='{"compose":[]}'
           fi
-          
+
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
-          
+
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
@@ -169,9 +169,9 @@ jobs:
             -d "{
               \"name\": \"${{ needs.setup.outputs.compose_name }}\",
               \"description\": \"PR #${{ needs.setup.outputs.pr_number }}: $PR_TITLE\",
-              \"environmentId\": \"${{ env.TEST_ENV_ID }}\" 
+              \"environmentId\": \"${{ env.TEST_ENV_ID }}\"
             }")
-          
+
           compose_id=$(echo "$response" | jq -r '.composeId')
           echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
           echo "Created compose: $compose_id"
@@ -213,14 +213,14 @@ jobs:
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
           PR_NUMBER="${{ needs.setup.outputs.pr_number }}"
           DOMAIN="${{ needs.setup.outputs.internal_domain }}"
-          
+
           # Calculate unique ports based on PR number to avoid conflicts
           # Range: 30000-34000 (Modulo 1000 to keep within range)
           PR_MOD=$((PR_NUMBER % 1000))
           DB_PORT=$((30000 + PR_MOD))
           MINIO_API_PORT=$((32000 + PR_MOD))
           MINIO_CONSOLE_PORT=$((33000 + PR_MOD))
-          
+
           # Construct environment variables in a temporary file to avoid indentation issues
           {
             echo "GIT_COMMIT_SHA=${{ github.sha }}"
@@ -234,12 +234,12 @@ jobs:
             echo "NEXT_PUBLIC_API_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
             echo "NEXT_PUBLIC_APP_URL=https://report-pr-$PR_NUMBER.$DOMAIN"
             echo "DEBUG=true"
-            
+
             # Host binding: 127.0.0.1 to avoid exposing to public internet
             echo "DB_PORTS=127.0.0.1:$DB_PORT:5432"
             echo "MINIO_API_PORTS=127.0.0.1:$MINIO_API_PORT:9000"
             echo "MINIO_CONSOLE_PORTS=127.0.0.1:$MINIO_CONSOLE_PORT:9001"
-            
+
             # PR preview CI must not call the real AI/OCR provider. The
             # provider-backed GLM gate is centralized in post-merge staging.
             echo "AI_PROVIDER=zai"
@@ -256,7 +256,7 @@ jobs:
             echo "AI_JSON_MAX_TOKENS=8192"
             echo "AI_JSON_DISABLE_THINKING=true"
             echo "COMPOSE_PROFILES=infra,app"
-            
+
             # CRITICAL: Use unique hostnames in Dokploy shared network
             # Container names with ENV_SUFFIX are used as hostnames
             echo "DB_HOST=finance-report-db-pr-$PR_NUMBER"
@@ -266,7 +266,7 @@ jobs:
             echo "MINIO_ROOT_PASSWORD=minio_local_secret"
             echo "S3_ACCESS_KEY=minio"
             echo "S3_SECRET_KEY=minio_local_secret"
-            
+
             # SigNoz Logging (EPIC-010)
             echo "OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318"
             echo "OTEL_SERVICE_NAME=finance-report-backend"
@@ -277,18 +277,18 @@ jobs:
             echo "API_RATE_LIMIT_REQUESTS=10000"
             echo "REGISTER_RATE_LIMIT_REQUESTS=10000"
           } > .env.dokploy
-          
+
           ENV_CONTENT=$(cat .env.dokploy)
-          
+
           # Send to Dokploy
           # Use --arg properly without extra escaping that breaks shell/jq boundary
           PAYLOAD=$(jq -n --arg id "$COMPOSE_ID" --arg env "$ENV_CONTENT" '{composeId: $id, env: $env}')
-          
+
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$PAYLOAD"
-          
+
           echo "Environment variables configured"
 
       - name: Deploy compose
@@ -299,31 +299,31 @@ jobs:
           COMPOSE_ID="${{ steps.compose.outputs.id }}"
           echo "compose_id=$COMPOSE_ID" >> "$GITHUB_OUTPUT"
           echo "Deploying compose: $COMPOSE_ID"
-          
+
           # Stop existing compose (best-effort, log but don't fail)
           echo "Stopping existing compose..."
           STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
-          
+
           STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
           if [[ "$STOP_HTTP" != "200" && "$STOP_HTTP" != "000" ]]; then
             echo "::warning::compose.stop returned HTTP $STOP_HTTP (may be expected if already stopped)"
           fi
-          
+
           sleep 5
           # Record exact time before triggering deploy (used by polling step)
           TRIGGER_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "trigger_time=$TRIGGER_TIME" >> "$GITHUB_OUTPUT"
           echo "Deploy trigger time: $TRIGGER_TIME"
-          
-          
+
+
           curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
-          
+
           echo "Deployment triggered, waiting 10s for status to update..."
           sleep 10
 
@@ -389,11 +389,11 @@ jobs:
 
           url = os.environ["APP_URL"] + "/api/health"
           print(f"Waiting for API readiness at {url}")
-          
+
           ctx = ssl.create_default_context()
           ctx.check_hostname = False
           ctx.verify_mode = ssl.CERT_NONE
-          
+
           max_attempts = 30
           for attempt in range(1, max_attempts + 1):
               delay = min(5 + (attempt // 5) * 5, 30)
@@ -405,10 +405,10 @@ jobs:
                       print(f"⚠️ Attempt {attempt}/{max_attempts}: status {response.getcode()}")
               except Exception as e:
                   print(f"❌ Attempt {attempt}/{max_attempts}: {type(e).__name__}: {e}")
-              
+
               print(f"   Retrying in {delay}s...")
               time.sleep(delay)
-          
+
           print("::error::API not ready after all attempts")
           sys.exit(1)
           EOF
@@ -431,15 +431,16 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
           TIMEOUT_MS: 60000
           E2E_API_TIMEOUT: 30
+          STRICT_E2E_GATES: true
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
-          
+
           echo "--- Phase 1: Smoke Check (Shell) ---"
           bash scripts/smoke_test.sh "$APP_URL" staging
-          
+
           echo "--- Phase 2: Core Flow Validation (Python, no real AI/OCR) ---"
-          pytest tests/e2e -v -m "(smoke or e2e) and not llm" --junit-xml=test-results.xml
-          
+          pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results.xml
+
           echo "✅ E2E Pipeline passed!"
 
       - name: Rollback on E2E Failure
@@ -449,13 +450,13 @@ jobs:
         run: |
           COMPOSE_ID="${{ steps.deploy.outputs.compose_id }}"
           echo "::warning::E2E tests failed. Stopping compose to prevent broken deployment..."
-          
+
           # Best-effort stop, log result but don't fail the job
           STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
-          
+
           STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
           if [[ "$STOP_HTTP" == "200" ]]; then
             echo "✅ Compose stopped successfully"
@@ -463,7 +464,7 @@ jobs:
             echo "::warning::compose.stop returned HTTP $STOP_HTTP"
             echo "Response: $(echo "$STOP_RESPONSE" | head -n -1)"
           fi
-          
+
           echo "Check logs for E2E failure details."
 
       - name: Comment on PR
@@ -477,31 +478,31 @@ jobs:
           script: |
             const url = `https://report-pr-${process.env.PR_NUMBER}.${process.env.INTERNAL_DOMAIN}`;
             const body = `## 🧪 Test Environment Deployed
-            
+
             | Service | URL |
             |---------|-----|
             | Frontend | [${url}](${url}) |
             | API Health | [${url}/api/health](${url}/api/health) |
-            
+
             **Details:**
             - Compose: \`${process.env.COMPOSE_NAME}\`
             - Branch: \`${process.env.BRANCH_NAME}\`
             - Commit: \`${{ github.sha }}\`
-            
+
             > ⏳ First deployment may take 3-5 minutes for build + SSL certificate.
-            
+
             _This environment will be automatically cleaned up when the PR is closed._`;
-            
+
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: Number(process.env.PR_NUMBER),
             });
-            
-            const botComment = comments.find(c => 
+
+            const botComment = comments.find(c =>
               c.user.type === 'Bot' && c.body.includes('🧪 Test Environment Deployed')
             );
-            
+
             if (botComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
@@ -531,44 +532,44 @@ jobs:
       - name: Find and remove compose
         run: |
           echo "Looking for compose: ${{ needs.setup.outputs.compose_name }}"
-          
+
           # Get environment to find compose
           set +e
           response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
           curl_exit=$?
           set -e
-          
+
           if [ $curl_exit -ne 0 ]; then
             echo "::warning::Failed to fetch environment (curl exit $curl_exit). Response: $response"
             response='{"compose":[]}'
           fi
-          
+
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
-          
+
           if [ -n "$compose_id" ] && [ "$compose_id" != "null" ]; then
             echo "Found compose: $compose_id"
-            
+
             # Stop compose (best-effort with logging)
             echo "Stopping compose..."
             STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
               -d "{\"composeId\": \"$compose_id\"}" 2>&1) || true
-            
+
             STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
             if [[ "$STOP_HTTP" != "200" ]]; then
               echo "::warning::compose.stop returned HTTP $STOP_HTTP (continuing with deletion)"
             fi
-            
+
             sleep 15
-            
+
             # Delete compose (removes containers but may leave volumes)
             curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.delete" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
               -d "{\"composeId\": \"$compose_id\"}"
-            
+
             echo "Compose deleted"
           else
             echo "Compose not found, nothing to cleanup"
@@ -580,42 +581,42 @@ jobs:
           VPS_HOST: cloud.zitian.party
         run: |
           echo "🧹 Cleaning Docker volumes for PR #$PR_NUMBER..."
-          
+
           # Use GitHub's built-in SSH key if available, or skip volume cleanup
           if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
             echo "::warning::VPS_SSH_KEY not configured. Skipping volume cleanup."
             echo "Volumes will be cleaned by scheduled system prune."
             exit 0
           fi
-          
+
           # Setup SSH key
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          
+
           # List and remove PR volumes
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=accept-new root@"$VPS_HOST" << 'EOF'
             PR_SUFFIX="-pr-${{ needs.setup.outputs.pr_number }}"
-            
+
             echo "Searching for volumes matching pattern: *${PR_SUFFIX}"
             VOLUMES=$(docker volume ls --format "{{.Name}}" | grep "${PR_SUFFIX}" || true)
-            
+
             if [ -z "$VOLUMES" ]; then
               echo "No volumes found for this PR"
             else
               echo "Found volumes:"
               echo "$VOLUMES"
-              
+
               echo "Removing volumes..."
               echo "$VOLUMES" | xargs -r docker volume rm 2>&1 || {
                 echo "::warning::Some volumes may still be in use or already deleted"
               }
-              
+
               echo "✅ Volume cleanup complete"
             fi
           EOF
-          
+
           # Cleanup SSH key
           rm -f ~/.ssh/vps_key
 
@@ -626,28 +627,28 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🗑️  Deleting PR images from GitHub Container Registry..."
-          
+
           for service in backend frontend; do
             IMAGE_NAME="finance_report-${service}"
             TAG="pr-${PR_NUMBER}"
-            
+
             echo "Searching for ${IMAGE_NAME}:${TAG}..."
-            
+
             # Get package version ID for this tag
             VERSION_ID=$(gh api \
               -H "Accept: application/vnd.github+json" \
               "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions" \
               --jq ".[] | select(.metadata.container.tags[] | contains(\"${TAG}\")) | .id" \
               2>/dev/null || echo "")
-            
+
             if [ -z "$VERSION_ID" ]; then
               echo "  Image ${IMAGE_NAME}:${TAG} not found (may be already deleted)"
               continue
             fi
-            
+
             echo "  Found version ID: $VERSION_ID"
             echo "  Deleting..."
-            
+
             gh api \
               --method DELETE \
               -H "Accept: application/vnd.github+json" \
@@ -655,10 +656,10 @@ jobs:
               2>&1 || {
                 echo "::warning::Failed to delete ${IMAGE_NAME}:${TAG} (may require org admin permissions)"
               }
-            
+
             echo "  ✅ Deleted ${IMAGE_NAME}:${TAG}"
           done
-          
+
           echo "GHCR cleanup complete"
 
       - name: Comment cleanup notice
@@ -668,15 +669,15 @@ jobs:
         with:
           script: |
             const body = `## 🧹 PR Resources Released
-            
+
             All temporary resources for this PR have been released:
-            
+
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
             - **Docker Volumes**: Cleaned (postgres_data, minio_data)
             - **GHCR Images**: Deleted (backend:pr-${{ needs.setup.outputs.pr_number }}, frontend:pr-${{ needs.setup.outputs.pr_number }})
-            
+
             _Cleanup completed successfully._`;
-            
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

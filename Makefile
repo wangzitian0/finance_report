@@ -59,7 +59,7 @@ check: lint env-check
 	@echo "✅ All checks passed"
 
 test:
-	moon run backend:test
+	moon run :test
 
 env-check:
 	python scripts/check_env_keys.py

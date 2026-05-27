@@ -628,6 +628,57 @@ def test_AC8_13_43_stale_staging_diagnostic_runs_before_deploy() -> None:
     assert "same-SHA CI gate" in ci_cd
 
 
+def test_AC8_13_45_make_test_routes_through_root_moon_test() -> None:
+    """AC8.13.45: make test uses the root Moon verification entry point."""
+    makefile = read("Makefile")
+    development = read("docs/ssot/development.md")
+    environments = read("docs/ssot/environments.md")
+
+    assert "\n\tmoon run :test\n" in makefile
+    assert "moon run backend:test" not in makefile
+    assert "same gate family as GitHub CI" in development
+    assert "same gate family as GitHub CI" in environments
+
+
+def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
+    """AC8.13.46: PR preview non-LLM E2E mirrors staging strictness and workers."""
+    preview = read(".github/workflows/pr-test.yml")
+    staging = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    preview_block = preview.split("- name: End-to-End Tests", 1)[1].split(
+        "- name: Rollback on E2E Failure", 1
+    )[0]
+    staging_block = staging.split("- name: End-to-End Tests", 1)[1].split(
+        "- name: Performance Benchmark", 1
+    )[0]
+
+    for block in (preview_block, staging_block):
+        assert "STRICT_E2E_GATES: true" in block
+        assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in block
+
+    assert "PR preview non-LLM E2E mirrors the staging non-LLM command shape" in ci_cd
+
+
+def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
+    """AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
+    recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
+    project_readme = read("docs/project/README.md")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    for token in (
+        "Coveralls reporting split",
+        "workflow_run staging trigger",
+        "parallel image build jobs",
+        "Current baseline",
+        "Out of scope for this PR",
+    ):
+        assert token in recommendation
+
+    assert "DELIVERY_ENGINE_RECOMMENDATIONS.md" in project_readme
+    assert "delivery-engine recommendation note" in ci_cd
+
+
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
     workflow = read(".github/workflows/staging-deploy.yml")

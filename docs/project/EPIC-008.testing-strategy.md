@@ -77,6 +77,9 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.42**: Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E.
 - **AC8.13.43**: Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment.
 - **AC8.13.44**: Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics.
+- **AC8.13.45**: Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command.
+- **AC8.13.46**: PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E.
+- **AC8.13.47**: Remaining delivery-engine optimizations are captured in a tracked project recommendation note.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -392,6 +395,9 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.42 | Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E | `test_four_asset_as_of_net_worth_golden_path`, `test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical` | `tests/e2e/test_four_asset_net_worth_golden_path.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.43 | Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment | `test_AC8_13_43_*` | `scripts/tests/` | P0 |
 | AC8.13.44 | Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics | `test_AC8_13_44_*` | `scripts/tests/test_bootstrap_local.py`, `scripts/tests/test_cli_and_dev_servers.py`, `scripts/tests/test_toolchain_contract.py` | P0 |
+| AC8.13.45 | Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command | `test_AC8_13_45_*` | `scripts/tests/test_cli_and_dev_servers.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.46 | PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E | `test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
+| AC8.13.47 | Remaining delivery-engine optimizations are captured in a tracked project recommendation note | `test_AC8_13_47_delivery_engine_recommendations_are_tracked` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

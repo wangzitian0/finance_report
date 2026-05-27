@@ -1958,6 +1958,22 @@ groups:
         description: Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime
           diagnostics
         mandatory: true
+      - id: AC8.13.45
+        epic: 8
+        epic_name: testing-strategy
+        description: Local verification entry points fail on the same backend format errors and route `make test` through
+          the root Moon test command.
+        mandatory: true
+      - id: AC8.13.46
+        epic: 8
+        epic_name: testing-strategy
+        description: PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E.
+        mandatory: true
+      - id: AC8.13.47
+        epic: 8
+        epic_name: testing-strategy
+        description: Remaining delivery-engine optimizations are captured in a tracked project recommendation note.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

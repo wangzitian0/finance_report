@@ -101,7 +101,7 @@ moon run :dev -- --backend        # Full Stack (App + DB + Redis + MinIO)
 moon run :dev -- --frontend       # Next.js on :3000
 
 # Local CI / Verification (Recommended)
-moon run :lint && moon run :test  # One-button check (matches GitHub CI exactly)
+moon run :lint && moon run :test  # One-button local gate (same gate family as GitHub CI)
 
 # Testing
 moon run :test                    # All tests (default, 90% backend coverage)
@@ -212,7 +212,8 @@ Integration points:
 
 > **See dedicated file** → **[docs/ssot/ci-cd.md](./ci-cd.md)**
 >
-> Covers: smart/fast/full test modes, 4-way CI sharding, no-regression coverage gate,
+> Covers: smart/fast/full test modes, 4-way local test parallelism,
+> GitHub CI sharding, no-regression coverage gate,
 > CI job structure, and performance metrics.
 
 ---
