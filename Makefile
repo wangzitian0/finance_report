@@ -22,14 +22,12 @@ help:
 	@echo "  make env-check    Validate env var consistency"
 	@echo "  make clean        Clean generated files"
 
-install: pre-commit
-	cd apps/backend && uv sync
-	cd apps/frontend && npm install
+install:
+	bash scripts/bootstrap.sh
 
 pre-commit:
-	pip install pre-commit
-	pre-commit install
-	@echo "✅ Pre-commit hooks installed"
+	uvx pre-commit install
+	@echo "Pre-commit hooks installed"
 
 dev:
 	@echo "Starting dev servers (use Ctrl+C to stop)..."

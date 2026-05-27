@@ -1952,6 +1952,12 @@ groups:
         epic_name: testing-strategy
         description: Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment.
         mandatory: true
+      - id: AC8.13.44
+        epic: 8
+        epic_name: testing-strategy
+        description: Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime
+          diagnostics
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

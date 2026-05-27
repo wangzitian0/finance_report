@@ -23,6 +23,7 @@ def _copy_contract_inputs(target_root: Path) -> None:
         ".nvmrc",
         ".tool-versions",
         ".npmrc",
+        ".moon/toolchain.yml",
         "apps/frontend/package.json",
         ".github/workflows/ci.yml",
         ".github/workflows/staging-deploy.yml",
@@ -85,13 +86,31 @@ def test_AC8_13_39_contract_fails_when_frontend_engine_drifts(tmp_path: Path) ->
     assert contract.run_contract(tmp_path) == 1
 
 
+def test_AC8_13_39_contract_fails_when_moon_toolchain_drifts(tmp_path: Path) -> None:
+    """AC8.13.39: Moon's local toolchain declaration cannot drift from toolchain.toml."""
+    _copy_contract_inputs(tmp_path)
+
+    moon_toolchain = tmp_path / ".moon/toolchain.yml"
+    moon_toolchain.write_text(
+        moon_toolchain.read_text(encoding="utf-8").replace(
+            "version: '20.19.0'",
+            "version: '25.9.0'",
+        ),
+        encoding="utf-8",
+    )
+
+    assert contract.run_contract(tmp_path) == 1
+
+
 def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
     """AC8.13.39: Missing runtime SSOT fails instead of silently passing."""
     with pytest.raises(FileNotFoundError):
         contract.load_toolchain(tmp_path)
 
 
-def test_AC8_13_39_cli_accepts_explicit_repo_root(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_AC8_13_39_cli_accepts_explicit_repo_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """AC8.13.39: The CLI validates an explicit checkout root."""
     monkeypatch.setattr(
         sys,

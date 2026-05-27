@@ -24,9 +24,9 @@
 Before your first commit, install pre-commit hooks to prevent CI failures:
 
 ```bash
-make install          # Install deps + pre-commit hooks
+make install          # Runs scripts/bootstrap.sh
 # OR manually:
-pip install pre-commit && pre-commit install
+uvx pre-commit install
 ```
 
 **What hooks do**:

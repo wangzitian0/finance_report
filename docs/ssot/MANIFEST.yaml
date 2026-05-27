@@ -168,7 +168,9 @@ concepts:
     description: Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.
     cross_refs:
       - toolchain.toml
+      - scripts/bootstrap.sh
       - scripts/check_toolchain_contract.py
+      - .moon/toolchain.yml
       - .github/workflows/ci.yml
       - docker-compose.yml
 

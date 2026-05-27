@@ -3,12 +3,12 @@ $schema: 'https://moonrepo.dev/schemas/toolchain.json'
 # Node.js toolchain configuration
 # Moved from workspace.yml per moon v0.20+ requirements
 node:
-  version: '20.10.0'  # Explicit version for reproducibility
+  version: '20.19.0'  # Mirrors toolchain.toml runtime.node
   packageManager: npm
   inferTasksFromScripts: false
 
   # npm settings
   npm:
-    version: '10.2.3'
+    version: '10.8.2'
 
 # Python is managed externally via uv, not through moon toolchain

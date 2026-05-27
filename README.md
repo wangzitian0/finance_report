@@ -132,11 +132,21 @@ labels are the source of truth for current tracker status.
 
 ## Quick Start
 
+Host prerequisites:
+
+- Bash, Git, and curl
+- Docker Desktop with WSL integration or Podman for backend/full tests, local
+  infrastructure, and smoke tests
+
+The project bootstrap command installs or verifies the repo-pinned user-space
+toolchain: uv, Python, nvm/Node.js, Moon CLI, backend dependencies, frontend
+dependencies, and pre-commit hooks.
+
 ```bash
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-moon run :setup
+bash scripts/bootstrap.sh
 moon run :dev
 ```
 

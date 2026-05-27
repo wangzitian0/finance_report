@@ -15,7 +15,7 @@ cd "$REPO_ROOT" || {
     exit 0
 }
 
-if [ ! -d "repo/.git" ]; then
+if [ ! -e "repo/.git" ]; then
     echo "❌ repo/ submodule is not initialized."
     echo ""
     echo "To initialize the submodule, run:"
@@ -36,6 +36,7 @@ git fetch origin main --quiet 2>/dev/null || {
 # Get commit SHAs
 CURRENT_SHA=$(git rev-parse HEAD)
 LATEST_SHA=$(git rev-parse origin/main)
+if [ "$CURRENT_SHA" != "$LATEST_SHA" ]; then
     echo "❌ repo/ submodule is behind infra2 main!"
     echo ""
     echo "Current: $CURRENT_SHA"

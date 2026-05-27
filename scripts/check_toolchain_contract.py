@@ -66,6 +66,19 @@ def check_frontend_package(repo_root: Path, toolchain: dict, errors: list[str]) 
         )
 
 
+def check_moon_toolchain(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
+    node_version = toolchain["runtime"]["node"]
+    npm_version = toolchain["runtime"]["npm"]
+    moon_toolchain = read_text(repo_root, ".moon/toolchain.yml")
+
+    for needle in (
+        "packageManager: npm",
+        f"version: '{node_version}'",
+        f"version: '{npm_version}'",
+    ):
+        expect_contains(errors, ".moon/toolchain.yml", moon_toolchain, needle)
+
+
 def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     python_version = toolchain["runtime"]["python"]
     node_version = toolchain["runtime"]["node"]
@@ -153,6 +166,7 @@ def run_contract(repo_root: Path) -> int:
     toolchain = load_toolchain(repo_root)
     check_tool_files(repo_root, toolchain, errors)
     check_frontend_package(repo_root, toolchain, errors)
+    check_moon_toolchain(repo_root, toolchain, errors)
     check_workflows(repo_root, toolchain, errors)
     check_container_files(repo_root, toolchain, errors)
 
