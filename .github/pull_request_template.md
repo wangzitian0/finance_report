@@ -42,9 +42,9 @@ Closes #<!-- issue number -->
 - [ ] `sa.Enum` instances all have explicit `name="..._enum"` parameter
 - [ ] `NEXT_PUBLIC_` variables added to `apps/frontend/Dockerfile` `ARG`/`ENV` (if applicable)
 - [ ] `repo/` submodule updated for production config changes (if applicable)
-- [ ] `scripts/check_env_keys.py` passes (if env vars changed)
-- [ ] `tools/ssot/check_manifest.py` passes (if SSOT files changed)
-- [ ] `tools/ssot/lint_doc_consistency.py` passes
+- [ ] `tools/check_env_keys.py` passes (if env vars changed)
+- [ ] `tools/check_manifest.py` passes (if SSOT files changed)
+- [ ] `tools/lint_doc_consistency.py` passes
 
 ---
 

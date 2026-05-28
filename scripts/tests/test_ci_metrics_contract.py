@@ -76,7 +76,7 @@ def test_AC8_13_53_root_common_source_root_must_be_in_coverage_policy(tmp_path):
 def test_AC8_13_55_root_tools_source_root_must_be_in_coverage_policy(tmp_path):
     """AC8.13.55: Root tools command modules cannot bypass coverage policy."""
     _write(tmp_path, "scripts/build.py")
-    _write(tmp_path, "tools/coverage/build.py")
+    _write(tmp_path, "tools/build.py")
 
     components = (_component("scripts", "", "scripts", ".py"),)
 
@@ -99,12 +99,12 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
         encoding="utf-8"
     )
 
-    assert "tools/ci/check_ci_metrics_contract.py" in workflow
-    assert "tools/ci/check_toolchain_contract.py" in workflow
-    assert "tools/ci/ci_change_classifier.py" in workflow
-    assert "tools/ci/github_workflow_timing_summary.py" in workflow
-    assert workflow.index("tools/ci/check_ci_metrics_contract.py") < workflow.index(
-        "tools/coverage/check_coverage_policy.py"
+    assert "tools/check_ci_metrics_contract.py" in workflow
+    assert "tools/check_toolchain_contract.py" in workflow
+    assert "tools/ci_change_classifier.py" in workflow
+    assert "tools/github_workflow_timing_summary.py" in workflow
+    assert workflow.index("tools/check_ci_metrics_contract.py") < workflow.index(
+        "tools/check_coverage_policy.py"
     )
     assert "Backend Tests (Shard ${{ matrix.shard }}/6)" in workflow
     assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
@@ -120,14 +120,14 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "statuses: write" not in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" not in workflow
     assert "scripts/mark_coveralls_reporting_status.py" not in workflow
-    assert "tools/ci/mark_coveralls_reporting_status.py" not in workflow
-    assert "tools/ssot/check_ac_traceability.py" in workflow
+    assert "tools/mark_coveralls_reporting_status.py" not in workflow
+    assert "tools/check_ac_traceability.py" in workflow
     assert "--cov=common" in workflow
     assert "--cov=tools" in workflow
     assert "coverage/common.lcov" in workflow
     assert "coverage/tools.lcov" in workflow
-    assert workflow.index("tools/ssot/check_ac_traceability.py") < workflow.index(
-        "tools/ssot/build_ac_traceability.py --output"
+    assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
+        "tools/build_ac_traceability.py --output"
     )
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
@@ -197,7 +197,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     _write(
         tmp_path,
         ".github/workflows/ci.yml",
-        "tools/coverage/check_coverage_policy.py\ntools/ci/check_ci_metrics_contract.py\n",
+        "tools/check_coverage_policy.py\ntools/check_ci_metrics_contract.py\n",
     )
     _write(
         tmp_path,
@@ -208,17 +208,13 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
 
     errors = _validate_repo_contract_files(tmp_path)
 
-    assert any(
-        "tools/coverage/calculate_unified_coverage.py" in error for error in errors
-    )
-    assert any("tools/ssot/check_ac_traceability.py" in error for error in errors)
+    assert any("tools/calculate_unified_coverage.py" in error for error in errors)
+    assert any("tools/check_ac_traceability.py" in error for error in errors)
     assert any("--cov=common" in error for error in errors)
     assert any("--cov=tools" in error for error in errors)
     assert any("coverage/common.lcov" in error for error in errors)
     assert any("coverage/tools.lcov" in error for error in errors)
-    assert any(
-        "tools/ssot/build_ac_traceability.py --output" in error for error in errors
-    )
+    assert any("tools/build_ac_traceability.py --output" in error for error in errors)
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)

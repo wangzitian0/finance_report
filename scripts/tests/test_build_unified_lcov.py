@@ -62,7 +62,7 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
         "SF:scripts/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
     )
     (coverage_dir / "tools.lcov").write_text(
-        "SF:tools/coverage/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+        "SF:tools/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
     )
     (coverage_dir / "common.lcov").write_text(
         "SF:common/test_isolation.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
@@ -80,7 +80,7 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
     assert "SF:apps/backend/src/api.py" in content
     assert "SF:apps/frontend/src/app/page.tsx" in content
     assert "SF:scripts/check.py" in content
-    assert "SF:tools/coverage/check.py" in content
+    assert "SF:tools/check.py" in content
     assert "SF:common/test_isolation.py" in content
 
 

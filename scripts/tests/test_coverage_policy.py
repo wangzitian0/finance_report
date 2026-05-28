@@ -182,10 +182,14 @@ def test_AC8_13_55_tools_policy_tracks_python_command_entrypoints(tmp_path):
         extensions=(".py",),
         ci_lcov_path="coverage/tools.lcov",
         local_lcov_paths=(),
-        exclude_patterns=("tools/**/__init__.py", "tools/tests/**"),
+        exclude_patterns=(
+            "tools/__init__.py",
+            "tools/**/__init__.py",
+            "tools/tests/**",
+        ),
     )
-    _write(tmp_path, "tools/coverage/calculate.py")
-    _write(tmp_path, "tools/coverage/__init__.py")
+    _write(tmp_path, "tools/calculate.py")
+    _write(tmp_path, "tools/__init__.py")
     _write(tmp_path, "tools/tests/test_calculate.py")
 
-    assert component.expected_sources(tmp_path) == {"tools/coverage/calculate.py"}
+    assert component.expected_sources(tmp_path) == {"tools/calculate.py"}

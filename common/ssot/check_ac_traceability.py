@@ -53,7 +53,7 @@ TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.ts
 def load_registry(registry_path: Path) -> list[AC]:
     if not registry_path.exists():
         print(f"ERROR: AC registry not found: {registry_path}", file=sys.stderr)
-        print("  Run: python tools/ssot/generate_ac_registry.py", file=sys.stderr)
+        print("  Run: python tools/generate_ac_registry.py", file=sys.stderr)
         sys.exit(1)
 
     return [

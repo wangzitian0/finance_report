@@ -1,4 +1,4 @@
-"""Tests for tools/ssot/check_ac_traceability.py.
+"""Tests for tools/check_ac_traceability.py.
 Covers AC traceability verification: every mandatory AC has at least one
 test reference, and the check correctly identifies covered vs missing ACs.
 """

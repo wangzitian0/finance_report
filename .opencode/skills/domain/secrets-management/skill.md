@@ -40,7 +40,7 @@ description: Environment variables, secrets management, multi-environment strate
 
 ```bash
 # CI runs this on every PR
-python scripts/check_env_keys.py --diff
+python tools/check_env_keys.py --diff
 
 # Checks:
 # 1. secrets.ctmpl variables ⊆ config.py fields
@@ -220,7 +220,7 @@ flowchart TD
     C --> E[Add to config.py with type]
     D --> E
     E --> F[Add to .env.example with comment]
-    F --> G[Run: python scripts/check_env_keys.py --diff]
+    F --> G[Run: python tools/check_env_keys.py --diff]
     G --> H{Pass?}
     H -->|No| I[Fix inconsistencies]
     I --> G
@@ -255,7 +255,7 @@ FEATURE_FLAG_X=false
 EOF
 
 # 4. Validate consistency
-python scripts/check_env_keys.py --diff
+python tools/check_env_keys.py --diff
 
 # 5. If all checks pass, commit
 git add apps/backend/src/config.py .env.example
@@ -376,7 +376,7 @@ moon run :dev -- --check -- --critical-only
 | `.env.example` | Variable documentation | Documentation SSOT |
 | `repo/finance_report/finance_report/10.app/secrets.ctmpl` | Vault template for app | Vault SSOT |
 | `repo/finance_report/finance_report/01.postgres/secrets.ctmpl` | Vault template for DB | Vault SSOT |
-| `scripts/check_env_keys.py` | Consistency validation script | CI gate |
+| `tools/check_env_keys.py` | Consistency validation script | CI gate |
 | `scripts/env_smoke_test.py` | Runtime environment testing | Validation |
 
 ---
@@ -451,7 +451,7 @@ curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/acco
 - name: Check env keys consistency
   run: |
     echo "🔍 Checking secrets.ctmpl ↔ config.py consistency..."
-    python scripts/check_env_keys.py --diff
+    python tools/check_env_keys.py --diff
 ```
 
 **Blocks merge if**:
@@ -503,7 +503,7 @@ curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/acco
 
 ```bash
 # 1. Consistency validation
-python scripts/check_env_keys.py --diff
+python tools/check_env_keys.py --diff
 # Expected: ✅ All checks passed
 
 # 2. Runtime validation

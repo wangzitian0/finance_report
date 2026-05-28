@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility wrapper for common.config.env_keys."""
+"""Command wrapper for AC coverage analysis."""
 
 from __future__ import annotations
 
@@ -10,9 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.config import env_keys as _impl  # noqa: E402
+from common.ssot.analyze_test_ac_coverage import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
-    _impl.main()
-
-sys.modules[__name__] = _impl
+    raise SystemExit(main())

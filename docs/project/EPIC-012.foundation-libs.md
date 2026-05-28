@@ -345,7 +345,7 @@ consolidated here. The removed inventory is retained in
   service code should use `flush()` while routers own `commit()`. See H2 and
   issue #182.
 - Environment variable lifecycle is guarded by config sync tests and
-  `scripts/check_env_keys.py`; archive prose about config drift is superseded by
+  `tools/check_env_keys.py`; archive prose about config drift is superseded by
   those checks and `docs/ssot/development.md`.
 - Frontend API base URL normalization, schema enum naming, Alembic filename
   guardrails, and Decimal safety are current guardrail topics owned by tests and

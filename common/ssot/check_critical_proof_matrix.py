@@ -3,7 +3,7 @@
 
 This is intentionally smaller than full AC traceability. It protects the core
 product journeys from being "covered" only by broad AC string references while
-leaving broad registry hygiene to tools/ssot/check_ac_traceability.py.
+leaving broad registry hygiene to tools/check_ac_traceability.py.
 """
 
 from __future__ import annotations
@@ -453,7 +453,7 @@ def _validate_readme_contract(
         errors.append("README.md missing `## Core Proof Paths` section")
     if "docs/ssot/critical-proof-matrix.yaml" not in text:
         errors.append("README.md missing critical proof matrix source link")
-    if "tools/ssot/check_critical_proof_matrix.py" not in text:
+    if "tools/check_critical_proof_matrix.py" not in text:
         errors.append("README.md missing critical proof matrix checker command")
 
     matrix_ids = [

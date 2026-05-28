@@ -53,7 +53,7 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed-files.txt
           fi
 
-          python tools/ci/ci_change_classifier.py \
+          python tools/ci_change_classifier.py \
             --changed-files changed-files.txt \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
@@ -66,7 +66,7 @@ jobs:
         with:
           submodules: recursive
       - name: Toolchain Contract Check
-        run: python tools/ci/check_toolchain_contract.py
+        run: python tools/check_toolchain_contract.py
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -92,13 +92,13 @@ jobs:
           uv run ruff format src/ --check
       - name: Doc Consistency Check
         run: |
-          uv run --with pyyaml python tools/ssot/lint_doc_consistency.py
+          uv run --with pyyaml python tools/lint_doc_consistency.py
       - name: SSOT Ownership Lint
         run: |
-          python tools/ssot/check_ssot_ownership.py --verbose
+          python tools/check_ssot_ownership.py --verbose
       - name: SSOT Manifest Check
         run: |
-          uv run --with pyyaml python tools/ssot/check_manifest.py
+          uv run --with pyyaml python tools/check_manifest.py
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
@@ -342,7 +342,7 @@ jobs:
         run: |
           mkdir -p coverage
           if ls coverage-backend/*.lcov 1> /dev/null 2>&1; then
-            uv run python tools/coverage/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
+            uv run python tools/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
           else
             echo "No backend coverage found"
           fi
@@ -366,14 +366,14 @@ jobs:
           COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
       - name: Check CI metrics contract
         run: |
-          uv run python tools/ci/check_ci_metrics_contract.py
+          uv run python tools/check_ci_metrics_contract.py
       - name: Audit coverage policy
         run: |
-          uv run python tools/coverage/check_coverage_policy.py
+          uv run python tools/check_coverage_policy.py
 
       - name: Calculate unified coverage
         run: |
-          uv run python tools/coverage/calculate_unified_coverage.py
+          uv run python tools/calculate_unified_coverage.py
 
 
       # Note: baseline auto-push removed — branch protection requires PRs.
@@ -382,7 +382,7 @@ jobs:
 
       - name: Merge all coverage into unified LCOV
         run: |
-          uv run python tools/coverage/build_unified_lcov.py coverage/unified.lcov
+          uv run python tools/build_unified_lcov.py coverage/unified.lcov
 
       - name: Upload unified coverage to Coveralls
         uses: coverallsapp/github-action@v2
@@ -429,10 +429,10 @@ jobs:
 
       - name: AC Traceability Check
         run: |
-          uv run --with pyyaml python tools/ssot/generate_ac_registry.py --check
-          uv run --with pyyaml python tools/ssot/check_ac_traceability.py
-          uv run --with pyyaml python tools/ssot/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
-          uv run --with pyyaml python tools/ssot/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
+          uv run --with pyyaml python tools/generate_ac_registry.py --check
+          uv run --with pyyaml python tools/check_ac_traceability.py
+          uv run --with pyyaml python tools/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
+          uv run --with pyyaml python tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
 
       - name: Upload AC traceability audit
         uses: actions/upload-artifact@v4
@@ -456,7 +456,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        python tools/ci/github_workflow_timing_summary.py \
+        python tools/github_workflow_timing_summary.py \
           --repo "${{ github.repository }}" \
           --run-id "${{ github.run_id }}" \
           --title "CI Timing Summary" \

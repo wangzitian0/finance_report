@@ -26,10 +26,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ac_registry_format import load_registry_entries
-from ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.ssot.ac_registry_format import load_registry_entries
+from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY_PATHS = (
     REPO_ROOT / "docs" / "ac_registry.yaml",
     REPO_ROOT / "docs" / "infra_registry.yaml",
@@ -370,7 +370,7 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("# AC Coverage Analysis Report")
     lines.append("")
     lines.append(
-        f"> Generated: {generated_at.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')} by `tools/ssot/analyze_test_ac_coverage.py`"
+        f"> Generated: {generated_at.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')} by `tools/analyze_test_ac_coverage.py`"
     )
     lines.append(
         "> Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs."

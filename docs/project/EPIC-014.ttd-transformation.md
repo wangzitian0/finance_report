@@ -75,7 +75,7 @@ status.
 | **Testing** | ✅ Automated | `moon run :test`, pytest-xdist | 100% |
 | **Debugging** | ✅ Automated | `scripts/debug.py` (env auto-detect) | 100% |
 | **Deployment** | ✅ Automated | `scripts/dokploy_deploy.sh`, `moon run :deploy` | 100% |
-| **Environment Consistency** | ✅ Automated | `scripts/check_env_keys.py`, `validate_schemas.py` | 100% |
+| **Environment Consistency** | ✅ Automated | `tools/check_env_keys.py`, `validate_schemas.py` | 100% |
 | **Container Management** | ✅ Automated | `cleanup_leaked_containers.py` | 100% |
 | **PDF Fixture Generation** | 🟡 Semi-automated | `scripts/pdf_fixtures/` (interactive) | 60% |
 | **Smoke Testing** | ✅ Automated | `scripts/smoke_test.sh` | 100% |
@@ -196,14 +196,14 @@ All existing runtime constraints are **legitimate business logic** (e.g., journa
   hooks:
     - id: validate-config-schemas
       name: Validate Pydantic schemas
-      entry: python scripts/validate_schemas.py
+      entry: python tools/validate_schemas.py
       language: python
       files: ^(apps/backend/src/config\.py|apps/backend/src/schemas/.*\.py)$
 ```
 
-#### 3.2 Script Enhancements
+#### 3.2 Tool Enhancements
 
-**New Script: `scripts/validate_schemas.py`**
+**New Tool: `tools/validate_schemas.py`**
 ```python
 #!/usr/bin/env python3
 """
@@ -426,7 +426,7 @@ Before marking a doc as "Complete", verify:
 
 ### Phase 2 Tasks ✅ (COMPLETE)
 - [x] Add mypy pre-commit hook
-- [x] Create `scripts/validate_schemas.py`
+- [x] Create `tools/validate_schemas.py`
 - [x] Add dependency security scan (safety/pip-audit)
 - [ ] Add hadolint for Dockerfile linting (P1)
 - [x] Integrate smoke_test.sh into pr-test.yml

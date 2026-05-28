@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Command wrapper for documentation consistency linting."""
+"""Command wrapper for LCOV shard merging."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.ssot.lint_doc_consistency import main  # noqa: E402
+from common.coverage.merge_lcov import main  # noqa: E402
+
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    main()

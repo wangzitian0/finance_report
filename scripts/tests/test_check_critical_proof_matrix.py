@@ -1,4 +1,4 @@
-"""Tests for tools/ssot/check_critical_proof_matrix.py."""
+"""Tests for tools/check_critical_proof_matrix.py."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matri
 ## Core Proof Paths
 
 Source: docs/ssot/critical-proof-matrix.yaml
-Checker: tools/ssot/check_critical_proof_matrix.py
+Checker: tools/check_critical_proof_matrix.py
 
 | Outcome ID | Purpose |
 |---|---|
@@ -499,7 +499,7 @@ def test_AC8_13_50_macro_outcome_contract_rejects_drift(
 ## Core Proof Paths
 
 Source: docs/ssot/critical-proof-matrix.yaml
-Checker: tools/ssot/check_critical_proof_matrix.py
+Checker: tools/check_critical_proof_matrix.py
 
 - asset-distribution-net-worth
 """.strip()

@@ -36,8 +36,8 @@ The script exits 0 on success and 1 on any violation.
 
 Run locally::
 
-    python tools/ssot/lint_doc_consistency.py
-    python tools/ssot/lint_doc_consistency.py --verbose
+    python tools/lint_doc_consistency.py
+    python tools/lint_doc_consistency.py --verbose
 
 The Vision Anchor line tolerates three markdown variants observed in
 the existing EPIC corpus:
@@ -57,7 +57,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 try:
-    from ac_registry_format import load_registry_entries
+    from common.ssot.ac_registry_format import load_registry_entries
 except ImportError:  # pragma: no cover - environment guard
     print(
         "ERROR: PyYAML not installed. Run: pip install pyyaml",
@@ -66,7 +66,7 @@ except ImportError:  # pragma: no cover - environment guard
     sys.exit(1)
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 VISION_PATH = REPO_ROOT / "vision.md"
 EPIC_DIR = REPO_ROOT / "docs" / "project"
@@ -127,7 +127,7 @@ TEST_FILE_SUFFIXES = (
     ".spec.tsx",
 )
 
-# Reused from tools/ssot/check_ac_traceability.py. Matches the canonical
+# Reused from tools/check_ac_traceability.py. Matches the canonical
 # AC ID form: ``ACx.y.z`` (epic.major.minor).
 AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
 
@@ -678,7 +678,7 @@ def main() -> int:
 
     if args.verbose or violations:
         print("=" * 72)
-        print("Doc consistency lint (tools/ssot/lint_doc_consistency.py)")
+        print("Doc consistency lint (tools/lint_doc_consistency.py)")
         print("=" * 72)
         print(f"  EPIC files scanned         : {len(epic_files)}")
         print(f"  vision.md HTML anchors     : {len(vision_anchors)}")

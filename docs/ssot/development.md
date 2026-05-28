@@ -52,7 +52,7 @@ The frontend sets `engine-strict=true` in `.npmrc` and declares
 `engines.node=20.19.0`, so running npm under another Node major/minor fails
 early instead of producing a different dependency tree.
 
-CI runs `python tools/ci/check_toolchain_contract.py` in the lint job. The check
+CI runs `python tools/check_toolchain_contract.py` in the lint job. The check
 fails when workflow runtime declarations, local tool files, Docker base images,
 Compose service images, or frontend engine constraints drift from
 `toolchain.toml`.
@@ -120,7 +120,7 @@ uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 # Code Quality
 moon run :lint              # Lint all
 moon run :lint -- --fix     # Format Python (auto-fix)
-python tools/ci/check_toolchain_contract.py  # Runtime/toolchain drift check
+python tools/check_toolchain_contract.py  # Runtime/toolchain drift check
 
 # Build
 moon run :build             # Build all
@@ -274,6 +274,14 @@ Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliatio
 | PR Test | `postgresql+asyncpg://...` | **Unique**: `finance-report-db-pr-XX` |
 | CI | Same as Local Test | `localhost:5433` (services) |
 | Staging/Prod | External PostgreSQL | Dokploy Managed |
+
+Environment/config validation is shared library logic under `common/config/`.
+`common/config/env_keys.py` owns the three-way key comparison across
+`secrets.ctmpl`, `apps/backend/src/config.py`, and `.env.example`;
+`tools/check_env_keys.py` is the command entry point. Pydantic config/schema
+validation is implemented in `common/config/schema_validation.py` and exposed
+through `tools/validate_schemas.py`. Any same-named files under `scripts/` are
+temporary compatibility wrappers while the scripts directory is being removed.
 
 ---
 

@@ -1,4 +1,4 @@
-"""Tests for tools/ssot/check_ssot_ownership.py"""
+"""Tests for tools/check_ssot_ownership.py"""
 
 from __future__ import annotations
 

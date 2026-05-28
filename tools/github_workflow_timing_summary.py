@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Command wrapper for AC traceability validation."""
+"""Command wrapper for GitHub workflow timing summaries."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.ssot.check_ac_traceability import main  # noqa: E402
+from common.ci.github_workflow_timing_summary import main  # noqa: E402
+
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -1,4 +1,4 @@
-"""Tests for scripts/validate_schemas.py"""
+"""Tests for common.config.schema_validation"""
 
 import pytest
 from pathlib import Path
@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from validate_schemas import (
+from common.config.schema_validation import (
     get_project_root,
     SchemaVisitor,
     parse_file_for_schemas,
@@ -423,6 +423,7 @@ class MyModel:
     def test_complex_subscript_target_skipped(self, tmp_path):
         """visit_AnnAssign with non-Name subscript value returns (line 56-57)."""
         import ast as stdlib_ast
+
         visitor = SchemaVisitor()
         visitor.current_class = "MyModel"
         # Manually create a node with Subscript target where value is not Name
@@ -446,6 +447,7 @@ class MyModel:
     def test_non_name_non_subscript_target_skipped(self, tmp_path):
         """visit_AnnAssign with target that's neither Name nor Subscript (line 58-59)."""
         import ast as stdlib_ast
+
         visitor = SchemaVisitor()
         visitor.current_class = "MyModel"
         node = stdlib_ast.AnnAssign(
@@ -464,6 +466,7 @@ class MyModel:
     def test_empty_field_name_guard(self, tmp_path):
         """visit_AnnAssign returns when field_name is empty (line 61-62)."""
         import ast as stdlib_ast
+
         visitor = SchemaVisitor()
         visitor.current_class = "MyModel"
         node = stdlib_ast.AnnAssign(
@@ -484,7 +487,9 @@ class MyModel:
 class TestPrintReportEdgeCases:
     def test_prints_file_path_and_class(self, capsys, tmp_path, monkeypatch):
         """print_report shows file path relative to root and class (lines 193-197)."""
-        monkeypatch.setattr("validate_schemas.get_project_root", lambda: tmp_path)
+        monkeypatch.setattr(
+            "common.config.schema_validation.get_project_root", lambda: tmp_path
+        )
         config_result = {
             "visitor": SchemaVisitor(),
             "issues": [
@@ -600,7 +605,7 @@ class TestGenerateFixSuggestionsEdgeCases:
 class TestMain:
     def test_main_exits_0_when_valid(self, monkeypatch, tmp_path):
         """main() exits 0 when no issues found (lines 247-269)."""
-        from validate_schemas import main
+        from common.config.schema_validation import main
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -618,7 +623,7 @@ class UserSchema:
 """)
 
         monkeypatch.setattr(
-            "validate_schemas.get_project_root", lambda: tmp_path
+            "common.config.schema_validation.get_project_root", lambda: tmp_path
         )
         monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
 
@@ -628,7 +633,7 @@ class UserSchema:
 
     def test_main_exits_1_when_issues(self, monkeypatch, tmp_path):
         """main() exits 1 when issues found."""
-        from validate_schemas import main
+        from common.config.schema_validation import main
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -640,7 +645,7 @@ class Settings:
         schemas_dir.mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(
-            "validate_schemas.get_project_root", lambda: tmp_path
+            "common.config.schema_validation.get_project_root", lambda: tmp_path
         )
         monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
 
@@ -650,7 +655,7 @@ class Settings:
 
     def test_main_with_fix_flag(self, monkeypatch, tmp_path):
         """main() with --fix flag generates suggestions (lines 266-267)."""
-        from validate_schemas import main
+        from common.config.schema_validation import main
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -662,7 +667,7 @@ class Settings:
         schemas_dir.mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(
-            "validate_schemas.get_project_root", lambda: tmp_path
+            "common.config.schema_validation.get_project_root", lambda: tmp_path
         )
         monkeypatch.setattr(sys, "argv", ["validate_schemas.py", "--fix"])
 

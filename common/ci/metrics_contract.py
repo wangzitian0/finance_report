@@ -139,18 +139,18 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
     if workflow.exists():
         workflow_text = workflow.read_text(encoding="utf-8")
         required_workflow_tokens = (
-            "tools/ci/check_ci_metrics_contract.py",
-            "tools/ci/check_toolchain_contract.py",
-            "tools/ci/ci_change_classifier.py",
-            "tools/ci/github_workflow_timing_summary.py",
-            "tools/coverage/check_coverage_policy.py",
-            "tools/coverage/calculate_unified_coverage.py",
-            "tools/ssot/lint_doc_consistency.py",
-            "tools/ssot/check_ssot_ownership.py",
-            "tools/ssot/check_manifest.py",
-            "tools/ssot/generate_ac_registry.py --check",
-            "tools/ssot/check_ac_traceability.py",
-            'tools/ssot/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
+            "tools/check_ci_metrics_contract.py",
+            "tools/check_toolchain_contract.py",
+            "tools/ci_change_classifier.py",
+            "tools/github_workflow_timing_summary.py",
+            "tools/check_coverage_policy.py",
+            "tools/calculate_unified_coverage.py",
+            "tools/lint_doc_consistency.py",
+            "tools/check_ssot_ownership.py",
+            "tools/check_manifest.py",
+            "tools/generate_ac_registry.py --check",
+            "tools/check_ac_traceability.py",
+            'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
             "--cov=common",
             "--cov=tools",
             "coverage/common.lcov",
@@ -170,17 +170,17 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             if token not in workflow_text:
                 errors.append(f"CI workflow is missing metrics token: {token}")
         if (
-            "tools/ci/check_ci_metrics_contract.py" in workflow_text
-            and "tools/coverage/check_coverage_policy.py" in workflow_text
-            and workflow_text.index("tools/ci/check_ci_metrics_contract.py")
-            > workflow_text.index("tools/coverage/check_coverage_policy.py")
+            "tools/check_ci_metrics_contract.py" in workflow_text
+            and "tools/check_coverage_policy.py" in workflow_text
+            and workflow_text.index("tools/check_ci_metrics_contract.py")
+            > workflow_text.index("tools/check_coverage_policy.py")
         ):
             errors.append("CI metrics contract must run before coverage policy audit")
         if (
-            "tools/ssot/check_ac_traceability.py" in workflow_text
-            and "tools/ssot/build_ac_traceability.py --output" in workflow_text
-            and workflow_text.index("tools/ssot/check_ac_traceability.py")
-            > workflow_text.index("tools/ssot/build_ac_traceability.py --output")
+            "tools/check_ac_traceability.py" in workflow_text
+            and "tools/build_ac_traceability.py --output" in workflow_text
+            and workflow_text.index("tools/check_ac_traceability.py")
+            > workflow_text.index("tools/build_ac_traceability.py --output")
         ):
             errors.append(
                 "AC traceability gate must run before audit artifact generation"

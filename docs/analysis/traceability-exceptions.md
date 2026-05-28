@@ -141,4 +141,4 @@ fixture, or pure contract tests without AC references must be added to this file
 in the same PR, with an SSOT or EPIC owner. Product E2E tests under
 `tests/e2e/test_*.py` or `apps/backend/tests/e2e/test_*.py` are not eligible
 for this allow-list; attach AC IDs or remove the obsolete test. This policy is
-enforced by `tools/ssot/lint_doc_consistency.py`.
+enforced by `tools/lint_doc_consistency.py`.

@@ -97,7 +97,7 @@ Full observability reference: [docs/ssot/observability.md](../ssot/observability
 1. Add to `secrets.ctmpl` (if required for production)
 2. Add to `config.py` (with type and default)
 3. Update `.env.example` (with classification comment)
-4. Run `python scripts/check_env_keys.py` to verify
+4. Run `python tools/check_env_keys.py` to verify
 
 **Variable classification**:
 - **Required** (`secrets.ctmpl`): `DATABASE_URL`, `S3_*`

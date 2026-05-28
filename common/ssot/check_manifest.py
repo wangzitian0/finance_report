@@ -11,10 +11,10 @@ The script exits 0 on success and 1 on any violation.
 
 Usage::
 
-    python tools/ssot/check_manifest.py
-    python tools/ssot/check_manifest.py --verbose
+    python tools/check_manifest.py
+    python tools/check_manifest.py --verbose
 
-Run in CI alongside ``tools/ssot/lint_doc_consistency.py``.
+Run in CI alongside ``tools/lint_doc_consistency.py``.
 """
 
 from __future__ import annotations
@@ -205,7 +205,7 @@ def main() -> int:
 
     if args.verbose or violations:
         print("=" * 72)
-        print("SSOT Manifest check (tools/ssot/check_manifest.py)")
+        print("SSOT Manifest check (tools/check_manifest.py)")
         print("=" * 72)
         print(f"  Concepts in manifest : {len(concepts)}")
         print()

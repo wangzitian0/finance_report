@@ -308,7 +308,7 @@ infra2/platform (repo submodule)
 |-----|------|------------|
 | **OTEL connectivity not verified at deploy** | Logs silently lost if collector unreachable | Manual SigNoz UI check post-deploy |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
-| **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `scripts/check_env_keys.py` + pre-commit |
+| **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
 | **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
 
 ### 10.4 Post-Deployment Verification

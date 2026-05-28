@@ -44,9 +44,9 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 | Tools | `tools` | `tools/...` relative to repo root | `coverage/tools.lcov` |
 | Scripts | `scripts` | `scripts/...` relative to repo root | `coverage/scripts.lcov` |
 
-`tools/coverage/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
+`tools/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
 
-`tools/coverage/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
+`tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
 
 ### Backend Coverage
 
@@ -121,15 +121,15 @@ jobs:
     needs: [backend, frontend]
     # Downloads all artifacts
     # Merges backend shards → coverage/backend.lcov
-    # Runs: python tools/coverage/calculate_unified_coverage.py
-    # Runs: python tools/coverage/check_coverage_policy.py
+    # Runs: python tools/calculate_unified_coverage.py
+    # Runs: python tools/check_coverage_policy.py
     # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
     # Builds repository-root-relative backend + frontend + common + tools + scripts LCOV for Coveralls
 ```
 
 ### Coverage Calculation
 
-`tools/coverage/calculate_unified_coverage.py`:
+`tools/calculate_unified_coverage.py`:
 
 1. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
 2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
@@ -142,8 +142,8 @@ File-level coverage audits must use the same LCOV inputs as the unified gate,
 not `coverage.py report` text output or stale component-local artifacts:
 
 ```bash
-python tools/coverage/build_unified_lcov.py coverage/unified.lcov
-python tools/coverage/calculate_unified_coverage.py --list-low-files --threshold 90
+python tools/build_unified_lcov.py coverage/unified.lcov
+python tools/calculate_unified_coverage.py --list-low-files --threshold 90
 ```
 
 The `--threshold` flag applies only to the printed file-level low-coverage
@@ -195,7 +195,7 @@ cd apps/frontend && npx vitest run --coverage
 
 # Calculate unified coverage locally
 cp apps/frontend/coverage/lcov.info coverage/frontend.lcov
-python tools/coverage/calculate_unified_coverage.py
+python tools/calculate_unified_coverage.py
 ```
 
 ### Coverage Thresholds
@@ -276,7 +276,7 @@ The unified calculator reads `coverage/frontend.lcov`. After running vitest, cop
 
 ```bash
 cp apps/frontend/coverage/lcov.info coverage/frontend.lcov
-python tools/coverage/calculate_unified_coverage.py
+python tools/calculate_unified_coverage.py
 ```
 
 ### Coverage policy audit fails after adding a module
@@ -288,7 +288,7 @@ The new source file must either appear in the matching LCOV report or be explici
 ```bash
 # Download and inspect artifacts
 gh run download <run-id>
-python tools/coverage/calculate_unified_coverage.py
+python tools/calculate_unified_coverage.py
 cat unified-coverage.json
 ```
 
@@ -407,20 +407,20 @@ exclude_lines = [
 
 ### Coverage Analyzer Script
 
-**Location**: `tools/coverage/coverage_analyzer.py`
+**Location**: `tools/coverage_analyzer.py`
 
 **Purpose**: Automated coverage gap analysis and recommendation generation.
 
 **Usage**:
 ```bash
 # Generate coverage report
-python tools/coverage/coverage_analyzer.py --format term
+python tools/coverage_analyzer.py --format term
 
 # Generate HTML report for detailed analysis
-python tools/coverage/coverage_analyzer.py --format html
+python tools/coverage_analyzer.py --format html
 
 # Generate recommendations
-python tools/coverage/coverage_analyzer.py --suggest
+python tools/coverage_analyzer.py --suggest
 ```
 
 **Features**:
@@ -499,7 +499,7 @@ When reviewing coverage gaps:
 
 ```markdown
 ## Coverage Assessment
- [ ] Unified coverage has no baseline regression (run `python tools/coverage/calculate_unified_coverage.py`)
+ [ ] Unified coverage has no baseline regression (run `python tools/calculate_unified_coverage.py`)
 - [ ] Branch coverage verified with `--cov-branch`
 - [ ] No `pragma: no cover` without justification
 - [ ] Missing lines are truly non-testable (not just untested)

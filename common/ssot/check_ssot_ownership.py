@@ -24,8 +24,8 @@ Exit code 0 on success, 1 on any violation.
 
 Run locally::
 
-    python tools/ssot/check_ssot_ownership.py
-    python tools/ssot/check_ssot_ownership.py --verbose
+    python tools/check_ssot_ownership.py
+    python tools/check_ssot_ownership.py --verbose
 """
 
 from __future__ import annotations
@@ -300,7 +300,7 @@ def check_rule_cross_references() -> list[Violation]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="SSOT ownership lint (tools/ssot/check_ssot_ownership.py)"
+        description="SSOT ownership lint (tools/check_ssot_ownership.py)"
     )
     parser.add_argument(
         "--verbose",
@@ -318,7 +318,7 @@ def main() -> int:
 
     if args.verbose or violations:
         print("=" * 72)
-        print("SSOT ownership lint (tools/ssot/check_ssot_ownership.py)")
+        print("SSOT ownership lint (tools/check_ssot_ownership.py)")
         print("=" * 72)
         print(f"  Translation pairs checked   : {len(TRANSLATION_PAIRS)}")
         print(f"  Retired archive root files  : {len(RETIRED_ARCHIVE_ROOT_FILES)}")

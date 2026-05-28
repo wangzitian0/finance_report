@@ -104,7 +104,7 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed-files.txt
           fi
 
-          python tools/ci/ci_change_classifier.py \
+          python tools/ci_change_classifier.py \
             --changed-files changed-files.txt \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"

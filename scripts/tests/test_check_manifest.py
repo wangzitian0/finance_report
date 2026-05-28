@@ -1,4 +1,4 @@
-"""Tests for tools/ssot/check_manifest.py.
+"""Tests for tools/check_manifest.py.
 
 Covers all four checks:
   0. Per-concept schema validation (concept value must be a mapping/dict)

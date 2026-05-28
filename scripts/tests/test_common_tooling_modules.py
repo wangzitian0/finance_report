@@ -82,20 +82,17 @@ def test_AC8_13_55_tools_coverage_component_is_a_governed_source_root():
     assert component.component_root == ""
     assert component.source_subdir == "tools"
     assert component.ci_lcov_path == "coverage/tools.lcov"
-    assert "tools/coverage/calculate_unified_coverage.py" in component.expected_sources(
-        ROOT
-    )
+    assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
 
 
 def test_AC8_13_55_coverage_tools_delegate_to_common_implementations():
     """AC8.13.55: Coverage commands live under tools and delegate to common."""
-    build_tool = importlib.import_module("tools.coverage.build_unified_lcov")
-    calc_tool = importlib.import_module("tools.coverage.calculate_unified_coverage")
-    analyzer_tool = importlib.import_module("tools.coverage.coverage_analyzer")
-    merge_tool = importlib.import_module("tools.coverage.merge_lcov")
-    policy_tool = importlib.import_module("tools.coverage.check_coverage_policy")
-    metrics_tool = importlib.import_module("tools.ci.check_ci_metrics_contract")
-    coveralls_tool = importlib.import_module("tools.ci.mark_coveralls_reporting_status")
+    build_tool = importlib.import_module("tools.build_unified_lcov")
+    calc_tool = importlib.import_module("tools.calculate_unified_coverage")
+    analyzer_tool = importlib.import_module("tools.coverage_analyzer")
+    merge_tool = importlib.import_module("tools.merge_lcov")
+    policy_tool = importlib.import_module("tools.check_coverage_policy")
+    metrics_tool = importlib.import_module("tools.check_ci_metrics_contract")
 
     assert (
         build_tool.main
@@ -115,10 +112,6 @@ def test_AC8_13_55_coverage_tools_delegate_to_common_implementations():
     assert (
         metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
     )
-    assert (
-        coveralls_tool.main
-        is importlib.import_module("common.ci.coveralls_status").main
-    )
 
 
 def test_AC8_13_55_legacy_coverage_scripts_delegate_to_common():
@@ -129,7 +122,6 @@ def test_AC8_13_55_legacy_coverage_scripts_delegate_to_common():
     legacy_policy = importlib.import_module("check_coverage_policy")
     legacy_merge = importlib.import_module("merge_lcov")
     legacy_metrics = importlib.import_module("check_ci_metrics_contract")
-    legacy_coveralls = importlib.import_module("mark_coveralls_reporting_status")
 
     assert (
         legacy_build.main
@@ -153,26 +145,22 @@ def test_AC8_13_55_legacy_coverage_scripts_delegate_to_common():
         legacy_metrics.main
         is importlib.import_module("common.ci.metrics_contract").main
     )
-    assert (
-        legacy_coveralls.main
-        is importlib.import_module("common.ci.coveralls_status").main
-    )
 
 
 def test_AC8_13_56_ssot_tools_delegate_to_common_implementations():
     """AC8.13.56: SSOT commands live under tools and delegate to common."""
     command_modules = {
-        "tools.ssot.analyze_test_ac_coverage": "common.ssot.analyze_test_ac_coverage",
-        "tools.ssot.audit_ac_epic_mismatches": "common.ssot.audit_ac_epic_mismatches",
-        "tools.ssot.build_ac_traceability": "common.ssot.build_ac_traceability",
-        "tools.ssot.check_ac_traceability": "common.ssot.check_ac_traceability",
-        "tools.ssot.check_critical_proof_matrix": (
+        "tools.analyze_test_ac_coverage": "common.ssot.analyze_test_ac_coverage",
+        "tools.audit_ac_epic_mismatches": "common.ssot.audit_ac_epic_mismatches",
+        "tools.build_ac_traceability": "common.ssot.build_ac_traceability",
+        "tools.check_ac_traceability": "common.ssot.check_ac_traceability",
+        "tools.check_critical_proof_matrix": (
             "common.ssot.check_critical_proof_matrix"
         ),
-        "tools.ssot.check_manifest": "common.ssot.check_manifest",
-        "tools.ssot.check_ssot_ownership": "common.ssot.check_ssot_ownership",
-        "tools.ssot.generate_ac_registry": "common.ssot.generate_ac_registry",
-        "tools.ssot.lint_doc_consistency": "common.ssot.lint_doc_consistency",
+        "tools.check_manifest": "common.ssot.check_manifest",
+        "tools.check_ssot_ownership": "common.ssot.check_ssot_ownership",
+        "tools.generate_ac_registry": "common.ssot.generate_ac_registry",
+        "tools.lint_doc_consistency": "common.ssot.lint_doc_consistency",
     }
 
     for tool_module, common_module in command_modules.items():
@@ -205,9 +193,9 @@ def test_AC8_13_56_legacy_ssot_scripts_delegate_to_common():
 def test_AC8_13_57_ci_tools_delegate_to_common_implementations():
     """AC8.13.57: CI commands live under tools and delegate to common."""
     command_modules = {
-        "tools.ci.check_toolchain_contract": "common.ci.check_toolchain_contract",
-        "tools.ci.ci_change_classifier": "common.ci.change_classifier",
-        "tools.ci.github_workflow_timing_summary": (
+        "tools.check_toolchain_contract": "common.ci.check_toolchain_contract",
+        "tools.ci_change_classifier": "common.ci.change_classifier",
+        "tools.github_workflow_timing_summary": (
             "common.ci.github_workflow_timing_summary"
         ),
     }
@@ -225,6 +213,33 @@ def test_AC8_13_57_legacy_ci_scripts_delegate_to_common():
         "check_toolchain_contract": "common.ci.check_toolchain_contract",
         "ci_change_classifier": "common.ci.change_classifier",
         "github_workflow_timing_summary": "common.ci.github_workflow_timing_summary",
+    }
+
+    for legacy_module, common_module in legacy_modules.items():
+        assert importlib.import_module(legacy_module) is importlib.import_module(
+            common_module
+        )
+
+
+def test_AC8_13_58_config_validation_tools_delegate_to_common_implementations():
+    """AC8.13.58: Config validation commands live under tools and delegate to common."""
+    command_modules = {
+        "tools.check_env_keys": "common.config.env_keys",
+        "tools.validate_schemas": "common.config.schema_validation",
+    }
+
+    for tool_module, common_module in command_modules.items():
+        assert (
+            importlib.import_module(tool_module).main
+            is importlib.import_module(common_module).main
+        )
+
+
+def test_AC8_13_58_legacy_config_validation_scripts_delegate_to_common():
+    """AC8.13.58: Legacy config validation scripts are wrappers during migration."""
+    legacy_modules = {
+        "check_env_keys": "common.config.env_keys",
+        "validate_schemas": "common.config.schema_validation",
     }
 
     for legacy_module, common_module in legacy_modules.items():

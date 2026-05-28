@@ -327,7 +327,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
 
     assert "name: Classify Changes" in workflow
     assert "heavy_required: ${{ steps.classify.outputs.heavy_required }}" in workflow
-    assert "tools/ci/ci_change_classifier.py" in workflow
+    assert "tools/ci_change_classifier.py" in workflow
     assert "--changed-files changed-files.txt" in workflow
     assert '"docs/"' in classifier
     assert '".github/ISSUE_TEMPLATE/"' in classifier
@@ -379,19 +379,18 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert (
-        "uv run --with pyyaml python tools/ssot/generate_ac_registry.py --check"
-        in workflow
+        "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
     )
-    assert "uv run --with pyyaml python tools/ssot/check_ac_traceability.py" in workflow
+    assert "uv run --with pyyaml python tools/check_ac_traceability.py" in workflow
     assert (
-        "uv run --with pyyaml python tools/ssot/build_ac_traceability.py --output"
+        "uv run --with pyyaml python tools/build_ac_traceability.py --output"
         in workflow
     )
-    assert workflow.index(
-        "tools/ssot/generate_ac_registry.py --check"
-    ) < workflow.index("tools/ssot/check_ac_traceability.py")
-    assert workflow.index("tools/ssot/check_ac_traceability.py") < workflow.index(
-        "tools/ssot/build_ac_traceability.py --output"
+    assert workflow.index("tools/generate_ac_registry.py --check") < workflow.index(
+        "tools/check_ac_traceability.py"
+    )
+    assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
+        "tools/build_ac_traceability.py --output"
     )
     assert "without rewriting historical registry descriptions" in ci_cd
     assert (
@@ -663,16 +662,15 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     project_readme = read("docs/project/README.md")
 
     assert (
-        "uv run --with pyyaml python tools/ssot/generate_ac_registry.py --check"
-        in workflow
+        "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
     )
     assert (
-        'tools/ssot/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"'
+        'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"'
         in workflow
     )
     assert "uses: actions/upload-artifact@v4" in workflow
     assert "name: ac-test-traceability-audit" in workflow
-    assert "tools/ssot/build_ac_traceability.py --check" not in workflow
+    assert "tools/build_ac_traceability.py --check" not in workflow
     assert "CI uploads the generated audit as an artifact" in audit_builder
     assert "uploaded as a CI artifact" in ci_cd
     assert "Do not commit generated audit snapshots in routine" in project_readme
@@ -717,7 +715,7 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "statuses: write" not in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" not in workflow
     assert "scripts/mark_coveralls_reporting_status.py" not in workflow
-    assert "tools/ci/mark_coveralls_reporting_status.py" not in workflow
+    assert "tools/mark_coveralls_reporting_status.py" not in workflow
     assert "publish_coveralls_reporting_statuses" not in workflow
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
@@ -988,7 +986,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Write CI timing summary" in ci_workflow
-    assert "tools/ci/github_workflow_timing_summary.py" in ci_workflow
+    assert "tools/github_workflow_timing_summary.py" in ci_workflow
     assert '--title "CI Timing Summary"' in ci_workflow
     assert '--run-id "${{ github.run_id }}"' in ci_workflow
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
