@@ -42,7 +42,9 @@ class CoverageComponent:
     def to_lcov_source(self, file_path: Path, repo_root: Path = ROOT_DIR) -> str:
         return file_path.relative_to(self.root_path(repo_root)).as_posix()
 
-    def normalize_lcov_source(self, source_file: str, repo_root: Path = ROOT_DIR) -> str:
+    def normalize_lcov_source(
+        self, source_file: str, repo_root: Path = ROOT_DIR
+    ) -> str:
         source = source_file.replace("\\", "/")
         root = self.root_path(repo_root)
         if Path(source).is_absolute():

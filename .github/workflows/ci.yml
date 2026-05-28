@@ -53,7 +53,7 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed-files.txt
           fi
 
-          python scripts/ci_change_classifier.py \
+          python tools/ci/ci_change_classifier.py \
             --changed-files changed-files.txt \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
@@ -66,7 +66,7 @@ jobs:
         with:
           submodules: recursive
       - name: Toolchain Contract Check
-        run: python scripts/check_toolchain_contract.py
+        run: python tools/ci/check_toolchain_contract.py
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -456,7 +456,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        python scripts/github_workflow_timing_summary.py \
+        python tools/ci/github_workflow_timing_summary.py \
           --repo "${{ github.repository }}" \
           --run-id "${{ github.run_id }}" \
           --title "CI Timing Summary" \

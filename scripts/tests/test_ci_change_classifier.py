@@ -1,10 +1,10 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import ci_change_classifier as classifier  # noqa: E402
-from ci_change_classifier import (
+from common.ci import change_classifier as classifier  # noqa: E402
+from common.ci.change_classifier import (
     classify_changed_paths,
     is_lightweight,
     is_pr_preview_relevant,
@@ -180,7 +180,7 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
 ) -> None:
     """AC8.13.20: Classifier writes GitHub outputs and actionable summaries."""
     result = classify_changed_paths(
-        ["docs/ssot/ci-cd.md", "scripts/ci_change_classifier.py"]
+        ["docs/ssot/ci-cd.md", "tools/ci/ci_change_classifier.py"]
     )
     output = tmp_path / "github-output.txt"
     summary = tmp_path / "github-summary.md"
@@ -201,7 +201,7 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
     assert "- Heavy CI required: `true`" in summary_text
     assert "- PR preview required: `false`" in summary_text
     assert "- Staging deploy required: `false`" in summary_text
-    assert "- `scripts/ci_change_classifier.py`" in summary_text
+    assert "- `tools/ci/ci_change_classifier.py`" in summary_text
 
 
 def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:

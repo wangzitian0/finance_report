@@ -1,4 +1,5 @@
 """Tests for tools/ssot/check_ssot_ownership.py"""
+
 from __future__ import annotations
 
 import runpy
@@ -72,7 +73,9 @@ class TestHasCrossReference:
 
 
 class TestCheckTranslationParity:
-    def test_passes_when_zh_le_en(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_passes_when_zh_le_en(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         en = tmp_path / "DECISIONS.md"
         zh = tmp_path / "DECISIONS_ZH.md"
         en.write_text("line1\nline2\nline3")
@@ -85,7 +88,9 @@ class TestCheckTranslationParity:
         violations = check_translation_parity()
         assert violations == []
 
-    def test_fails_when_zh_gt_en(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fails_when_zh_gt_en(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         en = tmp_path / "DECISIONS.md"
         zh = tmp_path / "DECISIONS_ZH.md"
         en.write_text("line1\nline2")
@@ -100,7 +105,9 @@ class TestCheckTranslationParity:
         assert len(violations) == 1
         assert "ZH translation must not exceed EN source" in violations[0].message
 
-    def test_skips_when_file_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_skips_when_file_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When one file in a pair doesn't exist the pair is silently skipped."""
         en = tmp_path / "DECISIONS.md"
         en.write_text("line1\nline2")
@@ -130,7 +137,9 @@ class TestCheckRetiredArchiveRoots:
         )
         assert check_retired_archive_roots() == []
 
-    def test_fails_when_file_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fails_when_file_present(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         bad = tmp_path / "AC-AUDIT-2026-02-25.md"
         bad.write_text("old content")
         monkeypatch.setattr("check_ssot_ownership.REPO_ROOT", tmp_path)
@@ -152,14 +161,18 @@ class TestCheckRetiredArchiveRoots:
 
 
 class TestCheckMustBeAbsent:
-    def test_passes_when_files_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_passes_when_files_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(
             "check_ssot_ownership.MUST_BE_ABSENT",
             [tmp_path / "deleted-file.md"],
         )
         assert check_must_be_absent() == []
 
-    def test_fails_when_file_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fails_when_file_present(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         present = tmp_path / "EPIC-016-IMPLEMENTATION-PLAN.md"
         present.write_text("leftover")
         monkeypatch.setattr("check_ssot_ownership.REPO_ROOT", tmp_path)
@@ -180,7 +193,9 @@ class TestCheckMustBeAbsent:
 
 
 class TestCheckRuleCrossReferences:
-    def test_passes_ssot_file_exempt(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_passes_ssot_file_exempt(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Files inside docs/ssot/ are never flagged."""
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)
@@ -191,7 +206,9 @@ class TestCheckRuleCrossReferences:
         violations = check_rule_cross_references()
         assert violations == []
 
-    def test_flags_doc_without_cross_ref(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_flags_doc_without_cross_ref(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Markdown docs outside ssot/ that mention a rule must have a cross-reference."""
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)
@@ -212,7 +229,9 @@ class TestCheckRuleCrossReferences:
             [
                 (
                     "Decimal monetary rule",
-                    _re.compile(r"NEVER.*float.*monetary|FLOAT.*monetary", _re.IGNORECASE),
+                    _re.compile(
+                        r"NEVER.*float.*monetary|FLOAT.*monetary", _re.IGNORECASE
+                    ),
                     "docs/ssot/accounting.md",
                     "#decimal-rule",
                 )
@@ -223,7 +242,9 @@ class TestCheckRuleCrossReferences:
         assert len(violations) == 1
         assert "accounting.md" in violations[0].message
 
-    def test_passes_doc_with_cross_ref(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_passes_doc_with_cross_ref(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Markdown docs with a cross-reference are not flagged."""
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)
@@ -246,7 +267,9 @@ class TestCheckRuleCrossReferences:
             [
                 (
                     "Decimal monetary rule",
-                    _re.compile(r"NEVER.*float.*monetary|FLOAT.*monetary", _re.IGNORECASE),
+                    _re.compile(
+                        r"NEVER.*float.*monetary|FLOAT.*monetary", _re.IGNORECASE
+                    ),
                     "docs/ssot/accounting.md",
                     "#decimal-rule",
                 )

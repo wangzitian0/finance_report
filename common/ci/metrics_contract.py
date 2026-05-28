@@ -140,6 +140,9 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         workflow_text = workflow.read_text(encoding="utf-8")
         required_workflow_tokens = (
             "tools/ci/check_ci_metrics_contract.py",
+            "tools/ci/check_toolchain_contract.py",
+            "tools/ci/ci_change_classifier.py",
+            "tools/ci/github_workflow_timing_summary.py",
             "tools/coverage/check_coverage_policy.py",
             "tools/coverage/calculate_unified_coverage.py",
             "tools/ssot/lint_doc_consistency.py",

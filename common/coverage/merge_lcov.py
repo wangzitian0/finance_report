@@ -10,6 +10,7 @@ This gives us the combined coverage across all test shards.
 import sys
 from pathlib import Path
 
+
 def parse_lcov_to_records(lcov_path: Path) -> dict:
     """Parse LCOV file into per-file records."""
     records = {}

@@ -7,9 +7,9 @@ Checks enforced in CI:
      ``DECISIONS.md`` pair in ``docs/project/``, the ZH file must not
      exceed the EN file in line count (ZH ≤ EN).
 
-  2. **Archived files absent from root**: Certain legacy files must NOT
-     exist in ``docs/project/`` root — they must have been moved to
-     ``docs/project/archive/``.
+  2. **Retired archive snapshots absent**: Certain legacy root files and the
+     retired ``docs/project/archive/`` snapshot directory must NOT exist in
+     the repository. Retention is handled by issue #548 plus git history.
 
   3. **Merged / renamed files absent**: Files that were consolidated
      into another document or renamed must not exist anymore.
@@ -52,11 +52,11 @@ TRANSLATION_PAIRS: list[tuple[Path, Path]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Check 2 — Archived files must NOT exist in docs/project/ root
+# Check 2 — Retired archive roots must NOT exist in docs/project/ root
 # ---------------------------------------------------------------------------
 
-# Files that must have been moved to docs/project/archive/.
-MUST_BE_ARCHIVED: list[Path] = [
+# Legacy root files that predate the active README -> EPIC -> AC -> test chain.
+RETIRED_ARCHIVE_ROOT_FILES: list[Path] = [
     REPO_ROOT / "docs" / "project" / "AC-AUDIT-2026-02-25.md",
     REPO_ROOT / "docs" / "project" / "AC-TEST-TRACEABILITY-AUDIT.md",
     REPO_ROOT / "docs" / "project" / "EPIC-ENCODING-SUMMARY.md",
@@ -69,6 +69,8 @@ MUST_BE_ARCHIVED: list[Path] = [
 
 # Files that were merged into another document or renamed; must be absent.
 MUST_BE_ABSENT: list[Path] = [
+    # Project archive snapshots were removed; retention index is GitHub issue #548.
+    REPO_ROOT / "docs" / "project" / "archive",
     # EPIC-016 implementation plan merged into EPIC-016.two-stage-review-ui.md
     REPO_ROOT / "docs" / "project" / "EPIC-016-IMPLEMENTATION-PLAN.md",
     # coverage-verification.md merged into docs/ssot/coverage.md
@@ -203,16 +205,16 @@ def check_translation_parity() -> list[Violation]:
     return violations
 
 
-def check_must_be_archived() -> list[Violation]:
+def check_retired_archive_roots() -> list[Violation]:
     violations: list[Violation] = []
-    for path in MUST_BE_ARCHIVED:
+    for path in RETIRED_ARCHIVE_ROOT_FILES:
         if path.exists():
             violations.append(
                 Violation(
-                    check="check2_must_be_archived",
+                    check="check2_retired_archive_roots",
                     message=(
-                        f"{path.relative_to(REPO_ROOT)} must be moved to "
-                        f"docs/project/archive/ (found in root)"
+                        f"{path.relative_to(REPO_ROOT)} is a retired archive snapshot; "
+                        "remove it from the active project tree."
                     ),
                 )
             )
@@ -310,7 +312,7 @@ def main() -> int:
 
     violations: list[Violation] = []
     violations.extend(check_translation_parity())
-    violations.extend(check_must_be_archived())
+    violations.extend(check_retired_archive_roots())
     violations.extend(check_must_be_absent())
     violations.extend(check_rule_cross_references())
 
@@ -319,8 +321,8 @@ def main() -> int:
         print("SSOT ownership lint (tools/ssot/check_ssot_ownership.py)")
         print("=" * 72)
         print(f"  Translation pairs checked   : {len(TRANSLATION_PAIRS)}")
-        print(f"  Must-be-archived files      : {len(MUST_BE_ARCHIVED)}")
-        print(f"  Must-be-absent files        : {len(MUST_BE_ABSENT)}")
+        print(f"  Retired archive root files  : {len(RETIRED_ARCHIVE_ROOT_FILES)}")
+        print(f"  Must-be-absent paths        : {len(MUST_BE_ABSENT)}")
         print(f"  Rule keyword checks         : {len(RULE_KEYWORDS)}")
         print()
 

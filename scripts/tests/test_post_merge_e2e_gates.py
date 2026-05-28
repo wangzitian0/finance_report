@@ -321,13 +321,13 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
     pr_workflow = read(".github/workflows/pr-test.yml")
-    classifier = read("scripts/ci_change_classifier.py")
+    classifier = read("common/ci/change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
 
     assert "name: Classify Changes" in workflow
     assert "heavy_required: ${{ steps.classify.outputs.heavy_required }}" in workflow
-    assert "scripts/ci_change_classifier.py" in workflow
+    assert "tools/ci/ci_change_classifier.py" in workflow
     assert "--changed-files changed-files.txt" in workflow
     assert '"docs/"' in classifier
     assert '".github/ISSUE_TEMPLATE/"' in classifier
@@ -984,11 +984,11 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     """AC8.13.34: CI and post-merge workflows report queue and critical-path timing."""
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    timing_script = read("scripts/github_workflow_timing_summary.py")
+    timing_script = read("common/ci/github_workflow_timing_summary.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Write CI timing summary" in ci_workflow
-    assert "scripts/github_workflow_timing_summary.py" in ci_workflow
+    assert "tools/ci/github_workflow_timing_summary.py" in ci_workflow
     assert '--title "CI Timing Summary"' in ci_workflow
     assert '--run-id "${{ github.run_id }}"' in ci_workflow
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow

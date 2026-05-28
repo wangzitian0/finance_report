@@ -150,7 +150,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - `scripts/test_lifecycle.py` — DB lifecycle and namespace isolation for backend tests
 
 **CI Optimization** (`.github/workflows/ci.yml`):
-- Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
+- Change classification is implemented in `tools/ci/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
 - PR preview environments deploy only for app, compose, E2E, or preview-action changes. Traceability tooling, docs, and non-preview workflow changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Automatic staging deploys are scoped to runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes. Documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
@@ -161,14 +161,14 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coverage policy audited after backend, frontend, common, tools, and scripts LCOV reports exist
 - Coveralls unified upload uses repository-root-relative backend + frontend + common + tools + scripts LCOV, matching the local unified calculation.
 - CI keeps Coveralls uploads enabled after local coverage gates pass; external Coveralls status is informational and does not block `unified-coverage` job success.
-- CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
+- CI calls `tools/ci/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
 - Main push CI is the only path that pushes SHA-tagged images. Registry login and image push are guarded by `github.event_name == 'push' && github.ref == 'refs/heads/main'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 - Production release tag builds set `CONTAINER_RUNTIME=docker` during `moon run :test`
   so the release verification path uses the GitHub-hosted Docker daemon instead
   of auto-selecting an unavailable Podman socket.
-- The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
+- The `finish` job appends a GitHub Step Summary from `tools/ci/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 - Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
 - The asynchronous Coveralls status contexts include `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend`. CI does not normalize or require those external contexts. The repository ruleset must require the `finish` check, which aggregates local deterministic gates, rather than Coveralls contexts.
 

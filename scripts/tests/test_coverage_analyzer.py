@@ -306,7 +306,9 @@ class TestAnalyzeModuleCoverage:
         result = analyze_module_coverage()
         assert isinstance(result, list)
         assert len(result) > 0
-        assert all(isinstance(name, str) and isinstance(pct, float) for name, pct in result)
+        assert all(
+            isinstance(name, str) and isinstance(pct, float) for name, pct in result
+        )
 
 
 class TestMain:
@@ -315,7 +317,9 @@ class TestMain:
         import sys
         from common.coverage.analyzer import main
 
-        fake = type("R", (), {"stdout": "clean output", "stderr": "", "returncode": 0})()
+        fake = type(
+            "R", (), {"stdout": "clean output", "stderr": "", "returncode": 0}
+        )()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)
         monkeypatch.setattr(sys, "argv", ["coverage_analyzer.py"])
         main()
@@ -343,7 +347,10 @@ class TestMain:
         from common.coverage.analyzer import main
 
         fake_output = "\n".join(
-            [f"src/s.py:{i}: except error raise async = default if else" for i in range(20)]
+            [
+                f"src/s.py:{i}: except error raise async = default if else"
+                for i in range(20)
+            ]
         )
         fake = type("R", (), {"stdout": fake_output, "stderr": "", "returncode": 0})()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)
@@ -373,7 +380,10 @@ class TestMain:
         from common.coverage.analyzer import main
 
         fake_output = "\n".join(
-            [f"src/s.py:{i}: missing except error raise async = default if else" for i in range(20)]
+            [
+                f"src/s.py:{i}: missing except error raise async = default if else"
+                for i in range(20)
+            ]
         )
         fake = type("R", (), {"stdout": fake_output, "stderr": "", "returncode": 0})()
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake)

@@ -2033,6 +2033,11 @@ groups:
         epic_name: testing-strategy
         description: SSOT and AC command entry points run from tools/ssot/ while shared implementations live under common/ssot/.
         mandatory: true
+      - id: AC8.13.58
+        epic: 8
+        epic_name: testing-strategy
+        description: CI and toolchain command entry points run from tools/ci/ while shared implementations live under common/ci/.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

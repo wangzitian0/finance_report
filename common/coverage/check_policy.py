@@ -15,7 +15,9 @@ from common.coverage.policy import (
 )
 
 
-def compare_component(component: CoverageComponent, repo_root: Path = ROOT_DIR) -> tuple[list[str], list[str]]:
+def compare_component(
+    component: CoverageComponent, repo_root: Path = ROOT_DIR
+) -> tuple[list[str], list[str]]:
     expected = component.expected_sources(repo_root)
     reported = parse_lcov_sources(component.lcov_path(repo_root), component, repo_root)
     missing = sorted(expected - reported)
@@ -23,7 +25,9 @@ def compare_component(component: CoverageComponent, repo_root: Path = ROOT_DIR) 
     return missing, unexpected
 
 
-def run_audit(repo_root: Path = ROOT_DIR, components: tuple[CoverageComponent, ...] = COMPONENTS) -> int:
+def run_audit(
+    repo_root: Path = ROOT_DIR, components: tuple[CoverageComponent, ...] = COMPONENTS
+) -> int:
     failed = False
 
     for component in components:
@@ -39,7 +43,9 @@ def run_audit(repo_root: Path = ROOT_DIR, components: tuple[CoverageComponent, .
 
         if missing:
             failed = True
-            print(f"::error title={component.name} coverage missing files::{len(missing)} source files are absent from LCOV")
+            print(
+                f"::error title={component.name} coverage missing files::{len(missing)} source files are absent from LCOV"
+            )
             for path in missing[:50]:
                 print(f"  missing: {path}")
             if len(missing) > 50:
@@ -64,7 +70,9 @@ def run_audit(repo_root: Path = ROOT_DIR, components: tuple[CoverageComponent, .
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Check source tree vs LCOV coverage policy.")
+    parser = argparse.ArgumentParser(
+        description="Check source tree vs LCOV coverage policy."
+    )
     parser.add_argument("--repo-root", type=Path, default=ROOT_DIR)
     args = parser.parse_args()
     sys.exit(run_audit(args.repo_root.resolve()))

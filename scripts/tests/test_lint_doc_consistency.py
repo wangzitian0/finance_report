@@ -600,7 +600,9 @@ class TestCheckRegistryToTests:
         assert violations == []
 
     def test_strikethrough_deprecated_skipped(self):
-        acs = [{"id": "AC1.1.1", "description": "~~removed behavior~~", "mandatory": True}]
+        acs = [
+            {"id": "AC1.1.1", "description": "~~removed behavior~~", "mandatory": True}
+        ]
         violations = ldc.check_registry_to_tests(acs, {})
         assert violations == []
 

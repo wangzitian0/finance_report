@@ -100,6 +100,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     )
 
     assert "tools/ci/check_ci_metrics_contract.py" in workflow
+    assert "tools/ci/check_toolchain_contract.py" in workflow
+    assert "tools/ci/ci_change_classifier.py" in workflow
+    assert "tools/ci/github_workflow_timing_summary.py" in workflow
     assert workflow.index("tools/ci/check_ci_metrics_contract.py") < workflow.index(
         "tools/coverage/check_coverage_policy.py"
     )

@@ -169,7 +169,8 @@ concepts:
     cross_refs:
       - toolchain.toml
       - scripts/bootstrap.sh
-      - scripts/check_toolchain_contract.py
+      - tools/ci/check_toolchain_contract.py
+      - common/ci/check_toolchain_contract.py
       - .moon/toolchain.yml
       - .github/workflows/ci.yml
       - docker-compose.yml

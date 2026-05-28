@@ -52,7 +52,7 @@ The frontend sets `engine-strict=true` in `.npmrc` and declares
 `engines.node=20.19.0`, so running npm under another Node major/minor fails
 early instead of producing a different dependency tree.
 
-CI runs `python scripts/check_toolchain_contract.py` in the lint job. The check
+CI runs `python tools/ci/check_toolchain_contract.py` in the lint job. The check
 fails when workflow runtime declarations, local tool files, Docker base images,
 Compose service images, or frontend engine constraints drift from
 `toolchain.toml`.
@@ -120,7 +120,7 @@ uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 # Code Quality
 moon run :lint              # Lint all
 moon run :lint -- --fix     # Format Python (auto-fix)
-python scripts/check_toolchain_contract.py  # Runtime/toolchain drift check
+python tools/ci/check_toolchain_contract.py  # Runtime/toolchain drift check
 
 # Build
 moon run :build             # Build all

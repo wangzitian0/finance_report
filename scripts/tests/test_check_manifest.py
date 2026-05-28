@@ -236,9 +236,7 @@ class TestCheckCrossrefFilesExist:
         assert violations == []
 
     def test_empty_crossrefs_passes(self) -> None:
-        concepts = _make_concepts(
-            foo={"owner": "docs/ssot/foo.md", "cross_refs": []}
-        )
+        concepts = _make_concepts(foo={"owner": "docs/ssot/foo.md", "cross_refs": []})
         violations = cm.check_crossref_files_exist(concepts)
         assert violations == []
 
@@ -314,7 +312,9 @@ class TestFilePart:
 
 
 class TestMain:
-    def test_manifest_not_found_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_manifest_not_found_exits_1(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         with (
             mock.patch("sys.argv", ["check_manifest.py"]),
             mock.patch.object(cm, "MANIFEST_PATH", tmp_path / "missing.yaml"),
@@ -323,7 +323,9 @@ class TestMain:
                 cm.main()
         assert exc_info.value.code == 1
 
-    def test_empty_concepts_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_empty_concepts_exits_1(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         manifest = tmp_path / "MANIFEST.yaml"
         manifest.write_text("concepts: {}\n")
         with (
@@ -360,7 +362,9 @@ class TestMain:
             result = cm.main()
         assert result == 0
 
-    def test_manifest_violation_exits_1(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_manifest_violation_exits_1(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         manifest = tmp_path / "MANIFEST.yaml"
         manifest.write_text(
             "concepts:\n"
@@ -383,13 +387,12 @@ class TestMain:
             result = cm.main()
         assert result == 0
 
-    def test_null_concept_value_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_null_concept_value_fails(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """A concept mapped to null must trigger check0_concept_schema."""
         manifest = tmp_path / "MANIFEST.yaml"
-        manifest.write_text(
-            "concepts:\n"
-            "  bad_concept:\n"
-        )
+        manifest.write_text("concepts:\n  bad_concept:\n")
         with (
             mock.patch("sys.argv", ["check_manifest.py"]),
             mock.patch.object(cm, "MANIFEST_PATH", manifest),
@@ -401,7 +404,9 @@ class TestMain:
         assert "check0_concept_schema" in captured.err
         assert "bad_concept" in captured.err
 
-    def test_string_crossrefs_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_string_crossrefs_fails(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """cross_refs as a scalar string must fail with a clear message."""
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)

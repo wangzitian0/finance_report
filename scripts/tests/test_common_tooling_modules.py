@@ -202,6 +202,37 @@ def test_AC8_13_56_legacy_ssot_scripts_delegate_to_common():
         )
 
 
+def test_AC8_13_57_ci_tools_delegate_to_common_implementations():
+    """AC8.13.57: CI commands live under tools and delegate to common."""
+    command_modules = {
+        "tools.ci.check_toolchain_contract": "common.ci.check_toolchain_contract",
+        "tools.ci.ci_change_classifier": "common.ci.change_classifier",
+        "tools.ci.github_workflow_timing_summary": (
+            "common.ci.github_workflow_timing_summary"
+        ),
+    }
+
+    for tool_module, common_module in command_modules.items():
+        assert (
+            importlib.import_module(tool_module).main
+            is importlib.import_module(common_module).main
+        )
+
+
+def test_AC8_13_57_legacy_ci_scripts_delegate_to_common():
+    """AC8.13.57: Legacy CI scripts are wrappers during migration."""
+    legacy_modules = {
+        "check_toolchain_contract": "common.ci.check_toolchain_contract",
+        "ci_change_classifier": "common.ci.change_classifier",
+        "github_workflow_timing_summary": "common.ci.github_workflow_timing_summary",
+    }
+
+    for legacy_module, common_module in legacy_modules.items():
+        assert importlib.import_module(legacy_module) is importlib.import_module(
+            common_module
+        )
+
+
 def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():
     """AC8.13.53: Test isolation naming is reusable outside scripts."""
     namespace = test_isolation.sanitize_namespace("Feature/Auth-v2")
