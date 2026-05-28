@@ -74,7 +74,7 @@ Triggers:
   - Tag push (v*.*.*): Build release images
   - Manual dispatch:   Deploy to production
 
-Build job:  Tag → Build backend + frontend → Push to GHCR
+Build job:  Tag → Install backend/frontend toolchains → Verify → Build backend + frontend → Push to GHCR
 Deploy job: Verify images → Deploy → Health (4min) → Smoke test
 
 URL: https://report.zitian.party
