@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from src.services import market_data
 
@@ -121,6 +122,25 @@ def test_yahoo_response_parsers_select_latest_valid_observation() -> None:
     assert market_data._parse_yahoo_stock_response({"chart": {"result": []}}, "AAPL", date(2026, 1, 5)) is None
 
 
+def test_stock_parsers_return_none_when_only_future_rows_exist() -> None:
+    """AC11.10.3: Future-dated provider rows are ignored as unavailable for the requested day."""
+    yahoo_payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "USD"},
+                    "timestamp": [_epoch(date(2026, 1, 6))],
+                    "indicators": {"quote": [{"close": [150.25]}]},
+                }
+            ]
+        }
+    }
+    stooq_payload = "Date,Close\n2026-01-06,150.25\n"
+
+    assert market_data._parse_yahoo_stock_response(yahoo_payload, "AAPL", date(2026, 1, 5)) is None
+    assert market_data._parse_stooq_stock_csv(stooq_payload, "AAPL", date(2026, 1, 5)) is None
+
+
 def test_stooq_csv_parsers_skip_invalid_rows_and_select_latest() -> None:
     """AC11.10.4: Stooq CSV parsers skip N/D and future rows."""
     payload = "\n".join(
@@ -145,6 +165,57 @@ def test_stooq_csv_parsers_skip_invalid_rows_and_select_latest() -> None:
 
     assert market_data._parse_stooq_fx_csv("Date,Close\n2026-01-01,N/D\n", "USD", "SGD", date(2026, 1, 5)) is None
     assert market_data._parse_stooq_stock_csv("Date,Close\n2026-01-01,N/D\n", "AAPL", date(2026, 1, 5)) is None
+
+
+@pytest.mark.asyncio
+async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.1: Concurrent stock price inserts are resolved idempotently."""
+
+    class FakeDb:
+        def add(self, _row: object) -> None:
+            return None
+
+        async def commit(self) -> None:
+            raise IntegrityError("insert", {}, Exception("duplicate"))
+
+        async def rollback(self) -> None:
+            return None
+
+    calls = 0
+
+    async def fake_load(
+        _db: object,
+        _symbol: str,
+        _requested_date: date,
+    ) -> market_data._StoredStockPrice | None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None
+        return market_data._StoredStockPrice(
+            price=Decimal("150.000000"),
+            currency="USD",
+            price_date=date(2026, 1, 5),
+            source="concurrent",
+        )
+
+    monkeypatch.setattr(market_data, "_load_stored_stock_price_on_date", fake_load)
+
+    price = await market_data._persist_stock_price(
+        FakeDb(),  # type: ignore[arg-type]
+        market_data.StockPriceObservation(
+            symbol="aapl",
+            price=Decimal("160.000000"),
+            currency="usd",
+            price_date=date(2026, 1, 5),
+            source="provider",
+        ),
+    )
+
+    assert price == Decimal("150.000000")
+    assert calls == 2
 
 
 @pytest.mark.asyncio
