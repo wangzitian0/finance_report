@@ -2,6 +2,7 @@
 
 > Generated from the issue #475 audit on 2026-05-21.
 > Updated for issue #511 on 2026-05-26.
+> Updated for E2E AC ownership cleanup on 2026-05-28.
 
 The project proof chain is `README.md -> docs/project/EPIC-*.md ->
 docs/*_registry.yaml -> tests`. Tests that assert product behavior should carry
@@ -117,18 +118,6 @@ explicit AC IDs for the behavior.
 | `scripts/tests/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
 | `scripts/tests/test_validate_schemas.py` | `docs/ssot/schema.md` |
 
-### Needs AC Triage
-
-These files assert broad E2E behavior. They remain outside AC proof until EPICs
-assign current AC IDs or replace them with narrower AC-owned tests.
-
-| Path | Owner |
-|---|---|
-| `tests/e2e/test_auth_flows.py` | EPIC-008 |
-| `tests/e2e/test_core_journeys.py` | EPIC-008 |
-| `tests/e2e/test_e2e_flows.py` | EPIC-008 |
-| `tests/e2e/test_version_check.py` | EPIC-008 |
-
 ## Source Direct-Test Heuristic Exceptions
 
 The following source files do not have direct filename-matched tests. They are
@@ -148,6 +137,8 @@ router, or generated-fixture flows.
 ## Rule
 
 New tests for user-visible behavior must include an AC reference. New helper,
-fixture, broad legacy E2E, or pure contract tests without AC references must be
-added to this file in the same PR, with an SSOT or EPIC owner. This allow-list
-is enforced by `scripts/lint_doc_consistency.py`.
+fixture, or pure contract tests without AC references must be added to this file
+in the same PR, with an SSOT or EPIC owner. Product E2E tests under
+`tests/e2e/test_*.py` or `apps/backend/tests/e2e/test_*.py` are not eligible
+for this allow-list; attach AC IDs or remove the obsolete test. This policy is
+enforced by `scripts/lint_doc_consistency.py`.

@@ -86,14 +86,12 @@ groups:
         backend = repo_root / "apps" / "backend" / "tests"
         frontend = repo_root / "apps" / "frontend" / "src" / "__tests__"
         e2e = repo_root / "tests" / "e2e"
-        repo_e2e = repo_root / "repo" / "e2e_regressions"
         scripts_tests = repo_root / "scripts" / "tests"
         stubs = backend / "_ac_stubs"
 
         backend.mkdir(parents=True, exist_ok=True)
         frontend.mkdir(parents=True, exist_ok=True)
         e2e.mkdir(parents=True, exist_ok=True)
-        repo_e2e.mkdir(parents=True, exist_ok=True)
         scripts_tests.mkdir(parents=True, exist_ok=True)
         stubs.mkdir(parents=True, exist_ok=True)
 
@@ -112,10 +110,6 @@ groups:
             encoding="utf-8",
         )
         (e2e / "test_core.py").write_text(
-            "# AC2.2.1\n",
-            encoding="utf-8",
-        )
-        (repo_e2e / "test_regression.py").write_text(
             "# AC2.2.1\n",
             encoding="utf-8",
         )
@@ -146,7 +140,6 @@ groups:
         assert result.source_placeholder_ref_counts["frontend"] == 2
         assert result.source_file_counts["scripts_tests"] == 2
         assert result.source_file_counts["e2e"] == 1
-        assert result.source_file_counts["repo_e2e"] == 1
 
         assert result.covered_ids == {"AC1.1.1", "AC1.1.2", "AC2.2.1", "AC6.6.6"}
         assert result.deprecated_ids == {"AC7.7.7"}

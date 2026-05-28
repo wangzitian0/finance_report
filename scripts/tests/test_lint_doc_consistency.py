@@ -323,6 +323,37 @@ class TestNoAcTestExceptions:
         assert violations[0].check == "check8_no_ac_test_exceptions"
         assert "tests/test_legacy.py" in violations[0].message
 
+    def test_e2e_product_test_exception_fails(self, tmp_path):
+        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions.parent.mkdir(parents=True)
+        exceptions.write_text(
+            "| `tests/e2e/test_legacy_flow.py` | EPIC-008 |\n"
+            "| `tests/e2e/conftest.py` | Shared fixtures |\n"
+            "| `apps/backend/tests/e2e/test_legacy_api.py` | EPIC-008 |\n",
+            encoding="utf-8",
+        )
+
+        violations = ldc.check_no_e2e_product_test_exceptions(exceptions)
+
+        assert [v.check for v in violations] == [
+            "check9_no_e2e_product_test_exceptions",
+            "check9_no_e2e_product_test_exceptions",
+        ]
+        messages = "\n".join(v.message for v in violations)
+        assert "tests/e2e/test_legacy_flow.py" in messages
+        assert "apps/backend/tests/e2e/test_legacy_api.py" in messages
+        assert all("conftest.py" not in v.message for v in violations)
+
+    def test_e2e_product_exception_policy_glob_is_not_a_file(self, tmp_path):
+        exceptions = tmp_path / "docs" / "analysis" / "traceability-exceptions.md"
+        exceptions.parent.mkdir(parents=True)
+        exceptions.write_text(
+            "Policy applies to `tests/e2e/test_*.py` files.\n",
+            encoding="utf-8",
+        )
+
+        assert ldc.check_no_e2e_product_test_exceptions(exceptions) == []
+
 
 # ---------------------------------------------------------------------------
 # collect_ac_refs_in_epics

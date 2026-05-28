@@ -1,6 +1,13 @@
 """
 Authentication Flow E2E Tests.
 
+EPIC/AC ownership:
+- AC8.10.8: user registration flow
+- AC8.10.9: authentication validation
+- AC16.12.5: login page submits login payload
+- AC16.12.6: login page toggles register mode and switches endpoint
+- AC1.7.1: register endpoint accepts valid user payload
+
 These tests verify the frontend-to-backend auth flows:
 - User registration
 - User login
@@ -30,6 +37,8 @@ def get_url(path: str) -> str:
 @pytest.mark.asyncio
 async def test_registration_api_path(page: Page):
     """
+    AC8.10.8 AC16.12.6 AC1.7.1
+
     Verify registration form submits to correct API path.
     
     This test will FAIL if NEXT_PUBLIC_API_URL has /api suffix,
@@ -81,6 +90,8 @@ async def test_registration_api_path(page: Page):
 @pytest.mark.asyncio
 async def test_login_api_path(page: Page):
     """
+    AC8.10.9 AC16.12.5
+
     Verify login form submits to correct API path.
     
     This test will FAIL if NEXT_PUBLIC_API_URL has /api suffix.
@@ -117,6 +128,8 @@ async def test_login_api_path(page: Page):
 @pytest.mark.asyncio
 async def test_full_registration_flow(page: Page):
     """
+    AC8.10.8 AC16.12.6 AC1.7.1
+
     Full E2E test: Register a new user and verify redirect to dashboard.
     
     This test creates real data and should only run on staging/dev.

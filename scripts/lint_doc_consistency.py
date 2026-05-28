@@ -15,8 +15,8 @@ Hard-fail checks enforced in CI:
   4. Every AC ID referenced in an EPIC file MUST exist in one of the
      two registries (no dangling AC IDs in EPIC docs).
   5. Every AC ID present in either registry MUST appear at least once
-     under apps/backend/tests/, apps/frontend/src/__tests__/, or
-     scripts/tests/, unless the AC is marked ``deprecated``
+     under apps/backend/tests/, apps/frontend/src/__tests__/,
+     scripts/tests/, or tests/e2e/, unless the AC is marked ``deprecated``
      (full traceability).
   6. Every ``ACx.y.z`` referenced from a test file MUST exist in one of
      the two registries AND its ``epic`` field MUST equal ``x`` (the
@@ -29,6 +29,8 @@ Hard-fail checks enforced in CI:
      environment gates.
   8. Every test file without an ``ACx.y.z`` reference MUST be listed in
      docs/analysis/traceability-exceptions.md.
+  9. Product E2E test files MUST NOT be listed as traceability exceptions;
+     attach AC IDs to the test or remove the obsolete file instead.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -77,6 +79,7 @@ TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src" / "__tests__",
     REPO_ROOT / "scripts" / "tests",
+    REPO_ROOT / "tests" / "e2e",
 ]
 
 NO_AC_SCAN_TARGETS: tuple[tuple[Path, tuple[str, ...]], ...] = (
@@ -90,6 +93,10 @@ NO_AC_SCAN_TARGETS: tuple[tuple[Path, tuple[str, ...]], ...] = (
 )
 
 CHECK6_TEST_ROOTS = [r for r in TEST_ROOTS if r != REPO_ROOT / "scripts" / "tests"]
+E2E_PRODUCT_TEST_EXCEPTION_PREFIXES = (
+    "tests/e2e/test_",
+    "apps/backend/tests/e2e/test_",
+)
 
 # Allow-list of AC IDs that may appear in test fixtures without a
 # matching registry entry. Keep this list tight; every entry should be
@@ -351,6 +358,31 @@ def check_no_ac_test_exceptions(
                     message=(
                         f"{rel}: test/support file has no AC reference and is "
                         "not classified in docs/analysis/traceability-exceptions.md"
+                    ),
+                )
+            )
+    return violations
+
+
+def check_no_e2e_product_test_exceptions(
+    exception_path: Path | None = None,
+) -> list[Violation]:
+    """Check #9: product E2E tests must be owned by AC IDs, not exceptions."""
+    if exception_path is None:
+        exception_path = REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
+
+    violations: list[Violation] = []
+    for rel in sorted(load_traceability_exception_paths(exception_path)):
+        if "*" in rel:
+            continue
+        if rel.endswith(".py") and rel.startswith(E2E_PRODUCT_TEST_EXCEPTION_PREFIXES):
+            violations.append(
+                Violation(
+                    check="check9_no_e2e_product_test_exceptions",
+                    message=(
+                        f"{rel}: product E2E tests cannot be classified as "
+                        "traceability exceptions; attach EPIC/AC IDs or remove "
+                        "the obsolete test"
                     ),
                 )
             )
@@ -642,6 +674,7 @@ def main() -> int:
     violations.extend(check_test_id_epic_alignment(all_acs, test_refs))
     violations.extend(check_proof_placement_policy())
     violations.extend(check_no_ac_test_exceptions())
+    violations.extend(check_no_e2e_product_test_exceptions())
 
     if args.verbose or violations:
         print("=" * 72)

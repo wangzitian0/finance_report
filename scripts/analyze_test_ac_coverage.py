@@ -6,7 +6,6 @@ This analyzer scans AC references (``ACx.y.z``) in:
 - ``apps/frontend/src/**/*.test.ts(x)``
 - ``scripts/tests/**/*.py``
 - ``tests/e2e/**/*.py``
-- ``repo/e2e_regressions/**/*.py`` (when present)
 
 Coverage accounting follows EPIC-008 rules:
 - Only references from real (non-``_ac_stubs`` and non-placeholder) tests count
@@ -46,7 +45,6 @@ SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
     ),
     ("scripts_tests", REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
     ("e2e", REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
-    ("repo_e2e", REPO_ROOT / "repo" / "e2e_regressions", ("**/*.py",)),
 )
 
 

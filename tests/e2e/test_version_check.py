@@ -1,6 +1,8 @@
 """
 Version verification test.
-Ensures the deployed application matches the source code version (Git SHA).
+
+AC8.13.36 AC8.13.39: Ensures the deployed application matches the source
+code version (Git SHA).
 """
 
 import pytest
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.smoke
 @pytest.mark.e2e
 async def test_deployed_version_matches_source(config: TestConfig):
-    """Verify that the deployed /health endpoint returns the expected Git SHA."""
+    """AC8.13.36 AC8.13.39: /health returns the expected Git SHA."""
     if not config.EXPECTED_SHA:
         logger.warning("Skipping version check: EXPECTED_SHA not set in environment")
         pytest.skip("EXPECTED_SHA not set")

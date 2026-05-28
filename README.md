@@ -43,7 +43,7 @@ from project intent to executable proof without reading archive fragments.
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
 | AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml` | Generated acceptance criteria inventory | `scripts/generate_ac_registry.py --check` |
 | SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `scripts/check_ssot_ownership.py` |
-| Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Checked-in AC-to-test snapshot and coverage baseline | `scripts/check_ac_traceability.py`, `scripts/coverage_policy.py` |
+| Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Checked-in AC-to-test snapshot and coverage baseline | `scripts/check_ac_traceability.py`, `common/coverage/policy.py` |
 
 Implementation facts should be code-owned where possible. Prose SSOT documents
 explain rationale and link to code, tests, generated registries, or issues
@@ -61,7 +61,7 @@ Use these sources instead:
 - Live local AC coverage: `python scripts/analyze_test_ac_coverage.py --stdout`
 - Traceability gate: `python scripts/check_ac_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
-- Coverage policy owner: `scripts/coverage_policy.py`
+- Coverage policy owner: `common/coverage/policy.py`
 
 Important caveat: the current AC coverage analyzer excludes `_ac_stubs`,
 trivial placeholder assertions, pure `pass`, and pure skipped tests from
