@@ -75,6 +75,70 @@ def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
     assert "common/test_isolation.py" in component.expected_sources(ROOT)
 
 
+def test_AC8_13_54_tools_coverage_component_is_a_governed_source_root():
+    """AC8.13.54: Tools entry points are measured separately from shared code."""
+    component = coverage_policy.get_component("tools")
+
+    assert component.component_root == ""
+    assert component.source_subdir == "tools"
+    assert component.ci_lcov_path == "coverage/tools.lcov"
+    assert "tools/coverage/calculate_unified_coverage.py" in component.expected_sources(
+        ROOT
+    )
+
+
+def test_AC8_13_54_coverage_tools_delegate_to_common_implementations():
+    """AC8.13.54: Coverage commands live under tools and delegate to common."""
+    build_tool = importlib.import_module("tools.coverage.build_unified_lcov")
+    calc_tool = importlib.import_module("tools.coverage.calculate_unified_coverage")
+    analyzer_tool = importlib.import_module("tools.coverage.coverage_analyzer")
+    merge_tool = importlib.import_module("tools.coverage.merge_lcov")
+    policy_tool = importlib.import_module("tools.coverage.check_coverage_policy")
+    metrics_tool = importlib.import_module("tools.ci.check_ci_metrics_contract")
+    coveralls_tool = importlib.import_module("tools.ci.mark_coveralls_reporting_status")
+
+    assert build_tool.main is importlib.import_module(
+        "common.coverage.build_unified_lcov"
+    ).main
+    assert calc_tool.main is importlib.import_module(
+        "common.coverage.calculate_unified_coverage"
+    ).main
+    assert analyzer_tool.main is importlib.import_module("common.coverage.analyzer").main
+    assert merge_tool.main is importlib.import_module("common.coverage.merge_lcov").main
+    assert policy_tool.main is importlib.import_module("common.coverage.check_policy").main
+    assert metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
+    assert coveralls_tool.main is importlib.import_module("common.ci.coveralls_status").main
+
+
+def test_AC8_13_54_legacy_coverage_scripts_delegate_to_common():
+    """AC8.13.54: Legacy coverage scripts are wrappers during migration."""
+    legacy_build = importlib.import_module("build_unified_lcov")
+    legacy_calc = importlib.import_module("calculate_unified_coverage")
+    legacy_analyzer = importlib.import_module("coverage_analyzer")
+    legacy_policy = importlib.import_module("check_coverage_policy")
+    legacy_merge = importlib.import_module("merge_lcov")
+    legacy_metrics = importlib.import_module("check_ci_metrics_contract")
+    legacy_coveralls = importlib.import_module("mark_coveralls_reporting_status")
+
+    assert legacy_build.main is importlib.import_module(
+        "common.coverage.build_unified_lcov"
+    ).main
+    assert legacy_calc.main is importlib.import_module(
+        "common.coverage.calculate_unified_coverage"
+    ).main
+    assert legacy_policy.main is importlib.import_module(
+        "common.coverage.check_policy"
+    ).main
+    assert legacy_analyzer.main is importlib.import_module("common.coverage.analyzer").main
+    assert legacy_merge.main is importlib.import_module("common.coverage.merge_lcov").main
+    assert legacy_metrics.main is importlib.import_module(
+        "common.ci.metrics_contract"
+    ).main
+    assert legacy_coveralls.main is importlib.import_module(
+        "common.ci.coveralls_status"
+    ).main
+
+
 def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():
     """AC8.13.53: Test isolation naming is reusable outside scripts."""
     namespace = test_isolation.sanitize_namespace("Feature/Auth-v2")

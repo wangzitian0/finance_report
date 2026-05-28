@@ -33,7 +33,7 @@ When a fact is already implemented, prefer this ownership model:
 | Constants, thresholds, enum values | Code/config/common package | Link to owner and explain rationale |
 | API request/response shape | Schemas/OpenAPI/generated client | Link to schemas and contract tests |
 | State machines | Code-owned transition model plus tests | Explain lifecycle and link to transition tests |
-| CI/coverage policy | common package, scripts, workflows | Link to common policy, script checks, and workflow checks |
+| CI/coverage policy | common package, tools, legacy scripts, workflows | Link to common policy, tool checks, and workflow checks |
 | Operational workflow | AC + test/script | Explain intent and link to executable proof |
 
 The migration of code-owned SSOT facts into common packages or generated

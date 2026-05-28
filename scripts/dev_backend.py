@@ -86,7 +86,7 @@ def check_database_ready() -> bool:
         print("  ✓ Migrations completed (Database is ready)")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Error connecting to database or running migrations.")
+        print("\n❌ Error connecting to database or running migrations.")
         print(
             f"   Stderr: {e.stderr.decode().strip() if e.stderr else 'Unknown error'}"
         )

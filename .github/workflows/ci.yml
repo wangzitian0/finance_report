@@ -342,7 +342,7 @@ jobs:
         run: |
           mkdir -p coverage
           if ls coverage-backend/*.lcov 1> /dev/null 2>&1; then
-            uv run python scripts/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
+            uv run python tools/coverage/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
           else
             echo "No backend coverage found"
           fi
@@ -353,25 +353,27 @@ jobs:
           fi
       - name: Run scripts tests with coverage
         run: |
-          printf '[run]\nomit =\n    scripts/tests/*\n    common/__init__.py\n    common/**/__init__.py\n' > /tmp/scripts-coveragerc
+          printf '[run]\nomit =\n    scripts/tests/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n' > /tmp/scripts-coveragerc
           uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest scripts/tests/ \
             --cov=scripts \
             --cov=common \
+            --cov=tools \
             --cov-config=/tmp/scripts-coveragerc \
             --cov-report= \
             -x -q
           COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/scripts.lcov --include='scripts/*'
           COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
+          COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
       - name: Check CI metrics contract
         run: |
-          uv run python scripts/check_ci_metrics_contract.py
+          uv run python tools/ci/check_ci_metrics_contract.py
       - name: Audit coverage policy
         run: |
-          uv run python scripts/check_coverage_policy.py
+          uv run python tools/coverage/check_coverage_policy.py
 
       - name: Calculate unified coverage
         run: |
-          uv run python scripts/calculate_unified_coverage.py
+          uv run python tools/coverage/calculate_unified_coverage.py
 
 
       # Note: baseline auto-push removed — branch protection requires PRs.
@@ -380,7 +382,7 @@ jobs:
 
       - name: Merge all coverage into unified LCOV
         run: |
-          uv run python scripts/build_unified_lcov.py coverage/unified.lcov
+          uv run python tools/coverage/build_unified_lcov.py coverage/unified.lcov
 
       - name: Upload unified coverage to Coveralls
         uses: coverallsapp/github-action@v2

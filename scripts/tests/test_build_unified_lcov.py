@@ -9,7 +9,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from build_unified_lcov import build_unified_lcov, repo_relative_source  # noqa: E402
+from common.coverage.build_unified_lcov import (  # noqa: E402
+    build_unified_lcov,
+    repo_relative_source,
+)
 from common.coverage.policy import CoverageComponent  # noqa: E402
 
 
@@ -40,10 +43,11 @@ def test_repo_relative_source_prefixes_component_root(tmp_path):
 
 
 def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
-    """AC8.13.15 AC8.13.53: Component reports share one repo-root path space."""
+    """AC8.13.15 AC8.13.53 AC8.13.54: Reports share one repo-root path space."""
     backend = _component("backend", "apps/backend", "src", "coverage/backend.lcov")
     frontend = _component("frontend", "apps/frontend", "src", "coverage/frontend.lcov")
     scripts = _component("scripts", "", "scripts", "coverage/scripts.lcov")
+    tools = _component("tools", "", "tools", "coverage/tools.lcov")
     common = _component("common", "", "common", "coverage/common.lcov")
 
     coverage_dir = tmp_path / "coverage"
@@ -57,6 +61,9 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
     (coverage_dir / "scripts.lcov").write_text(
         "SF:scripts/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
     )
+    (coverage_dir / "tools.lcov").write_text(
+        "SF:tools/coverage/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+    )
     (coverage_dir / "common.lcov").write_text(
         "SF:common/test_isolation.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
     )
@@ -64,12 +71,16 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
     output = coverage_dir / "unified.lcov"
 
     assert (
-        build_unified_lcov(output, tmp_path, (backend, frontend, scripts, common)) == 0
+        build_unified_lcov(
+            output, tmp_path, (backend, frontend, scripts, tools, common)
+        )
+        == 0
     )
     content = output.read_text()
     assert "SF:apps/backend/src/api.py" in content
     assert "SF:apps/frontend/src/app/page.tsx" in content
     assert "SF:scripts/check.py" in content
+    assert "SF:tools/coverage/check.py" in content
     assert "SF:common/test_isolation.py" in content
 
 

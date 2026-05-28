@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import check_coverage_policy as check_policy  # noqa: E402
-from check_coverage_policy import compare_component, main, run_audit  # noqa: E402
+from common.coverage import check_policy  # noqa: E402
+from common.coverage.check_policy import compare_component, main, run_audit  # noqa: E402
 from common.coverage.policy import CoverageComponent, parse_lcov_sources  # noqa: E402
 
 
@@ -171,3 +171,21 @@ def test_scripts_policy_does_not_expect_shell_files(tmp_path):
     _write(tmp_path, "scripts/tests/test_build.py")
 
     assert component.expected_sources(tmp_path) == {"scripts/build.py"}
+
+
+def test_AC8_13_54_tools_policy_tracks_python_command_entrypoints(tmp_path):
+    """AC8.13.54: Tools command modules are covered as their own source root."""
+    component = CoverageComponent(
+        name="tools",
+        component_root="",
+        source_subdir="tools",
+        extensions=(".py",),
+        ci_lcov_path="coverage/tools.lcov",
+        local_lcov_paths=(),
+        exclude_patterns=("tools/**/__init__.py", "tools/tests/**"),
+    )
+    _write(tmp_path, "tools/coverage/calculate.py")
+    _write(tmp_path, "tools/coverage/__init__.py")
+    _write(tmp_path, "tools/tests/test_calculate.py")
+
+    assert component.expected_sources(tmp_path) == {"tools/coverage/calculate.py"}

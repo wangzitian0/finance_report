@@ -130,6 +130,22 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
         ),
     ),
     CoverageComponent(
+        name="tools",
+        component_root="",
+        source_subdir="tools",
+        extensions=(".py",),
+        ci_lcov_path="coverage/tools.lcov",
+        local_lcov_paths=("coverage-tools.lcov",),
+        exclude_patterns=(
+            "tools/__init__.py",
+            "tools/**/__init__.py",
+            "tools/**/__pycache__/**",
+            "tools/tests/**",
+            "tools/**/test_*.py",
+            "tools/**/*_test.py",
+        ),
+    ),
+    CoverageComponent(
         name="common",
         component_root="",
         source_subdir="common",

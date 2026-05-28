@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import check_ci_metrics_contract as contract  # noqa: E402
-from check_ci_metrics_contract import (  # noqa: E402
+from common.ci import metrics_contract as contract  # noqa: E402
+from common.ci.metrics_contract import (  # noqa: E402
     _has_code_files,
     _validate_policy_shape,
     _validate_repo_contract_files,
@@ -73,6 +73,19 @@ def test_AC8_13_53_root_common_source_root_must_be_in_coverage_policy(tmp_path):
     assert run_contract(tmp_path, components=components) == 1
 
 
+def test_AC8_13_54_root_tools_source_root_must_be_in_coverage_policy(tmp_path):
+    """AC8.13.54: Root tools command modules cannot bypass coverage policy."""
+    _write(tmp_path, "scripts/build.py")
+    _write(tmp_path, "tools/coverage/build.py")
+
+    components = (_component("scripts", "", "scripts", ".py"),)
+
+    roots = discover_source_roots(tmp_path)
+    assert "tools" in roots
+    assert find_uncovered_source_roots(tmp_path, components) == ["tools"]
+    assert run_contract(tmp_path, components=components) == 1
+
+
 def test_AC8_13_26_current_source_roots_are_fully_governed_by_metrics_contract():
     """AC8.13.26: Current source roots, policy components, and workflow gates align."""
     assert run_contract(ROOT) == 0
@@ -86,9 +99,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
         encoding="utf-8"
     )
 
-    assert "scripts/check_ci_metrics_contract.py" in workflow
-    assert workflow.index("scripts/check_ci_metrics_contract.py") < workflow.index(
-        "scripts/check_coverage_policy.py"
+    assert "tools/ci/check_ci_metrics_contract.py" in workflow
+    assert workflow.index("tools/ci/check_ci_metrics_contract.py") < workflow.index(
+        "tools/coverage/check_coverage_policy.py"
     )
     assert "Backend Tests (Shard ${{ matrix.shard }}/6)" in workflow
     assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
@@ -102,10 +115,14 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     )[0]
     assert "statuses: write" not in global_permissions
     assert "statuses: write" not in unified_coverage_block
+    assert "Mark Coveralls statuses reporting-only" not in workflow
     assert "scripts/mark_coveralls_reporting_status.py" not in workflow
+    assert "tools/ci/mark_coveralls_reporting_status.py" not in workflow
     assert "scripts/check_ac_traceability.py" in workflow
     assert "--cov=common" in workflow
+    assert "--cov=tools" in workflow
     assert "coverage/common.lcov" in workflow
+    assert "coverage/tools.lcov" in workflow
     assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"
     )
@@ -177,7 +194,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     _write(
         tmp_path,
         ".github/workflows/ci.yml",
-        "scripts/check_coverage_policy.py\nscripts/check_ci_metrics_contract.py\n",
+        "tools/coverage/check_coverage_policy.py\ntools/ci/check_ci_metrics_contract.py\n",
     )
     _write(
         tmp_path,
@@ -188,11 +205,17 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
 
     errors = _validate_repo_contract_files(tmp_path)
 
-    assert any("scripts/calculate_unified_coverage.py" in error for error in errors)
+    assert any(
+        "tools/coverage/calculate_unified_coverage.py" in error for error in errors
+    )
     assert any("scripts/check_ac_traceability.py" in error for error in errors)
     assert any("--cov=common" in error for error in errors)
+    assert any("--cov=tools" in error for error in errors)
     assert any("coverage/common.lcov" in error for error in errors)
-    assert any("scripts/build_ac_traceability.py --output" in error for error in errors)
+    assert any("coverage/tools.lcov" in error for error in errors)
+    assert any(
+        "scripts/build_ac_traceability.py --output" in error for error in errors
+    )
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)

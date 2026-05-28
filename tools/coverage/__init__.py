@@ -1,0 +1,1 @@
+"""Coverage command entry points."""

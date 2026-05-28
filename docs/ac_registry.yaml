@@ -2023,6 +2023,11 @@ groups:
         description: Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule
           changes.
         mandatory: true
+      - id: AC8.13.56
+        epic: 8
+        epic_name: testing-strategy
+        description: Coverage and CI metric command entry points run from tools/ while shared implementations live under common/.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

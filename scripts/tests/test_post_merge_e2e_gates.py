@@ -717,6 +717,7 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "statuses: write" not in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" not in workflow
     assert "scripts/mark_coveralls_reporting_status.py" not in workflow
+    assert "tools/ci/mark_coveralls_reporting_status.py" not in workflow
     assert "publish_coveralls_reporting_statuses" not in workflow
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
@@ -769,6 +770,8 @@ def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
     workspace_inputs = moon["fileGroups"]["workspace"]
     assert "repo" not in workspace_inputs
     assert "**/*" not in workspace_inputs
+    assert "common/**/*" in workspace_inputs
+    assert "tools/**/*" in workspace_inputs
     assert "uncached wrappers with explicit workspace inputs" in read(
         "docs/ssot/development.md"
     )

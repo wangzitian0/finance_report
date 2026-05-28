@@ -36,11 +36,11 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: Docs-only AC/EPIC changes still run the proof gates: `scripts/generate_ac_registry.py --check`, `scripts/check_ac_traceability.py`, and `scripts/check_critical_proof_matrix.py`. Registry generation checks alignment without rewriting historical registry descriptions. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; trivial placeholder assertions do not count. The macro gate fails README/matrix/owner-EPIC drift and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies were retired to reduce merge conflicts.
-5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`scripts/check_ci_metrics_contract.py`, `scripts/check_coverage_policy.py`, `scripts/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging.
-6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
+5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`tools/ci/check_ci_metrics_contract.py`, `tools/coverage/check_coverage_policy.py`, `tools/coverage/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging.
+6. **Single CI Metrics Contract**: `tools/ci/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Toolchain Contract**: `scripts/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
 8. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
-9. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, common, or script source files drift from their LCOV report.
+9. **Coverage Policy Audit**: `tools/coverage/check_coverage_policy.py` fails CI if backend, frontend, common, tools, or script source files drift from their LCOV report.
 10. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ### PR vs Main CI Responsibilities
@@ -94,15 +94,15 @@ The CI workflow enforces a **no-regression policy** for test coverage.
 
 2. **Comparison Logic**:
    - Reads `unified-coverage.json` before calculating final coverage
-   - Compares current vs baseline for **all components**: unified, backend, frontend, scripts
+   - Compares current vs baseline for **all components**: unified, backend, frontend, common, tools, scripts
    - Uses `round(x, 2)` for floating-point comparison
    - **Zero tolerance**: `current < baseline` → CI fails immediately
    - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
 3. **Source-tree/LCOV Logic**:
    - `common/coverage/policy.py` defines the single component policy used by coverage calculation and audit checks
-   - `scripts/check_ci_metrics_contract.py` first discovers source roots and fails CI when a new `apps/*/src`, `packages/*/src`, or root shared source root is not represented in `common/coverage/policy.py`
-   - `scripts/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
-   - `scripts/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
+   - `tools/ci/check_ci_metrics_contract.py` first discovers source roots and fails CI when a new `apps/*/src`, `packages/*/src`, or root shared source root is not represented in `common/coverage/policy.py`
+   - `tools/coverage/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
+   - `tools/coverage/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
    - New source modules are automatically required to appear in LCOV unless explicitly excluded by policy
    - New `apps/*/src`, `packages/*/src`, or root shared source roots fail CI until they are added to the coverage policy and report pipeline
 
@@ -158,8 +158,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - 6-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 6 --group N`
 - Coverage reports merged post-run
-- Coverage policy audited after backend, frontend, common, and scripts LCOV reports exist
-- Coveralls unified upload uses repository-root-relative backend + frontend + common + scripts LCOV, matching the local unified calculation.
+- Coverage policy audited after backend, frontend, common, tools, and scripts LCOV reports exist
+- Coveralls unified upload uses repository-root-relative backend + frontend + common + tools + scripts LCOV, matching the local unified calculation.
 - CI keeps Coveralls uploads enabled after local coverage gates pass; external Coveralls status is informational and does not block `unified-coverage` job success.
 - CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.

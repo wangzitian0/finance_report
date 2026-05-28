@@ -237,7 +237,7 @@ concepts:
   # ── Coverage ──────────────────────────────────────────────────────────
   test_coverage:
     owner: docs/ssot/coverage.md
-    description: Unified coverage system (backend + frontend + common + scripts).
+    description: Unified coverage system (backend + frontend + common + tools + scripts).
     cross_refs:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
