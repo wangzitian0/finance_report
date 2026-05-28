@@ -1,17 +1,17 @@
 # AC↔EPIC Mismatch Triage
 
-- Total ACx.y.z refs scanned: **1955**
+- Total ACx.y.z refs scanned: **2159**
 - Actionable mismatched refs: **0**
-- Fixture-only mismatched refs: **52**
+- Fixture-only mismatched refs: **67**
 - Actionable files affected: **0**
-- Fixture-only files affected: **5**
+- Fixture-only files affected: **7**
 
 ## Fixture-Only Mismatches
 
-## `scripts/tests/test_analyze_test_ac_coverage.py` — 17 bad / 5 unique
+## `scripts/tests/test_analyze_test_ac_coverage.py` — 28 bad / 9 unique
 - **Suggest**: FIXTURE-EXCLUDE
-- Alt-epic matches: EPIC-16:13, EPIC-1:10, EPIC-2:10, EPIC-13:10, EPIC-17:10, EPIC-18:10, EPIC-7:10, EPIC-9:10, EPIC-3:8, EPIC-4:8, EPIC-5:8, EPIC-8:8, EPIC-11:8, EPIC-12:8, EPIC-6:6, EPIC-15:4, EPIC-10:4, EPIC-14:4
-- Bad IDs: AC4.4.4, AC8.12.7, AC9.9.9, AC19.1.1, AC99.3.3
+- Alt-epic matches: EPIC-2:18, EPIC-13:18, EPIC-16:16, EPIC-17:16, EPIC-15:15, EPIC-4:14, EPIC-5:14, EPIC-6:14, EPIC-1:13, EPIC-18:13, EPIC-7:13, EPIC-9:13, EPIC-10:12, EPIC-3:11, EPIC-8:11, EPIC-11:11, EPIC-12:11, EPIC-14:7
+- Bad IDs: AC4.4.4, AC6.6.6, AC7.7.7, AC8.12.7, AC9.9.9, AC19.1.1, AC77.7.7, AC99.1.1, AC99.3.3
 
 ## `scripts/tests/test_generate_ac_registry.py` — 12 bad / 6 unique
 - **Suggest**: FIXTURE-EXCLUDE
@@ -32,4 +32,12 @@
 - **Suggest**: FIXTURE-EXCLUDE
 - Alt-epic matches: EPIC-1:1, EPIC-2:1, EPIC-3:1, EPIC-4:1, EPIC-5:1, EPIC-6:1, EPIC-8:1, EPIC-11:1, EPIC-13:1, EPIC-15:1, EPIC-16:1, EPIC-17:1, EPIC-18:1, EPIC-7:1, EPIC-9:1, EPIC-10:1, EPIC-12:1, EPIC-14:1
 - Bad IDs: AC8.9.9, AC9.9.9, AC99.1.1
+
+## `scripts/tests/test_issue_493_foundation_ttd_behavior.py` — 2 bad / 1 unique
+- **Suggest**: FIXTURE-EXCLUDE
+- Bad IDs: AC1.99.1
+
+## `scripts/tests/test_check_critical_proof_matrix.py` — 2 bad / 1 unique
+- **Suggest**: FIXTURE-EXCLUDE
+- Bad IDs: AC8.13.99
 
