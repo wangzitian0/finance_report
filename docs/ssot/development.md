@@ -60,7 +60,10 @@ Compose service images, or frontend engine constraints drift from
 Local bootstrapping is owned by `scripts/bootstrap.sh`. It installs or verifies
 uv, Python, nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks,
 then reports whether Docker or Podman is available for workflows that need a
-host container runtime.
+host container runtime. Local commands prefer Podman when both runtimes are
+available, but `CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be
+set to force a specific runtime in CI or on hosts where only one daemon is
+usable.
 
 ### Local Host Shell Matrix
 
@@ -189,7 +192,7 @@ moon run :test                                             # Auto-detect from gi
 
 ### Key Features
 
-1. **Auto-detect runtime**: podman compose / docker compose
+1. **Auto-detect runtime**: `CONTAINER_RUNTIME` override, otherwise podman compose / docker compose
 2. **Lock file**: `~/.cache/finance_report/db.lock`
 3. **Auto-cleanup**: Last runner stops container; worker DBs cleaned post-run
 

@@ -277,6 +277,7 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     assert "Install frontend dependencies" in workflow
     assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
     assert "working-directory: apps/frontend" in workflow
+    assert "CONTAINER_RUNTIME: docker" in workflow
     assert workflow.index("Install frontend dependencies") < workflow.index(
         "moon run :lint"
     )

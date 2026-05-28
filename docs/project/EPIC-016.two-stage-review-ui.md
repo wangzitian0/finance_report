@@ -472,7 +472,7 @@ delivery status table.
 | AC16.11.13 | `cleanup_orphaned_dbs` — `cleanup_orphaned` returns success when no test databases found | ⏳ |
 | AC16.11.14 | `cleanup_orphaned_dbs` — `cleanup_orphaned` skips active namespace databases | ⏳ |
 | AC16.11.15 | `cleanup_orphaned_dbs` — `cleanup_orphaned` cleans all databases in `--all` mode | ⏳ |
-| AC16.11.16 | `cli` — `get_compose_cmd` prefers podman then docker and exits when unavailable | ⏳ |
+| AC16.11.16 | `cli` — `get_compose_cmd` honors `CONTAINER_RUNTIME`, otherwise prefers podman then docker and exits when unavailable | ⏳ |
 | AC16.11.17 | `cli` — `cmd_test` routes frontend/e2e/perf/tests and lifecycle modes correctly | ⏳ |
 | AC16.11.18 | `cli` — `cmd_clean` routes db/containers/default cleanup targets correctly | ⏳ |
 | AC16.11.19 | `dev_backend` — `check_database_ready` returns `false` on migration subprocess errors | ⏳ |
@@ -521,7 +521,7 @@ delivery status table.
 | AC16.13.4 | `test_lifecycle` — `get_test_db_name` and `get_s3_bucket` format names deterministically | ⏳ |
 | AC16.13.5 | `test_lifecycle` — `load_active_namespaces` returns `[]` on missing or corrupted tracker file | ⏳ |
 | AC16.13.6 | `test_lifecycle` — `register_namespace` and `unregister_namespace` update active namespace tracker | ⏳ |
-| AC16.13.7 | `test_lifecycle` — `get_container_runtime` detects podman/docker and returns `None` when absent | ⏳ |
+| AC16.13.7 | `test_lifecycle` — `get_container_runtime` honors `CONTAINER_RUNTIME`, otherwise detects podman/docker and returns `None` when absent | ⏳ |
 | AC16.13.8 | `test_lifecycle` — `is_db_ready` returns `false` on `pg_isready` subprocess failure | ⏳ |
 | AC16.13.9 | `test_lifecycle` — `cleanup_worker_databases` skips invalid namespace values | ⏳ |
 | AC16.13.10 | `test_lifecycle` — `cleanup_worker_databases` drops valid worker DB names and skips invalid names | ⏳ |

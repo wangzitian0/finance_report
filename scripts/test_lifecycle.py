@@ -277,6 +277,16 @@ def cleanup_orphan_databases(runtime, container_name):
 
 def get_container_runtime():
     """Detect podman or docker."""
+    requested = os.environ.get("CONTAINER_RUNTIME", "").strip().lower()
+    if requested:
+        if requested not in {"podman", "docker"}:
+            log("❌ CONTAINER_RUNTIME must be either 'podman' or 'docker'.", RED)
+            return None
+        if subprocess.run(["which", requested], capture_output=True).returncode == 0:
+            return requested
+        log(f"❌ CONTAINER_RUNTIME={requested} not found in PATH.", RED)
+        return None
+
     if subprocess.run(["which", "podman"], capture_output=True).returncode == 0:
         return "podman"
     if subprocess.run(["which", "docker"], capture_output=True).returncode == 0:
