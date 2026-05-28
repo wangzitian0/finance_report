@@ -114,6 +114,20 @@ def test_AC16_13_7_get_container_runtime(monkeypatch):
     assert tl.get_container_runtime() is None
 
 
+def test_AC16_13_7_get_container_runtime_honors_container_runtime_override(
+    monkeypatch,
+):
+    monkeypatch.setenv("CONTAINER_RUNTIME", "docker")
+
+    def both_found(cmd, capture_output=True):
+        if cmd in (["which", "docker"], ["which", "podman"]):
+            return SimpleNamespace(returncode=0)
+        return SimpleNamespace(returncode=1)
+
+    monkeypatch.setattr(tl.subprocess, "run", both_found)
+    assert tl.get_container_runtime() == "docker"
+
+
 def test_AC16_13_8_is_db_ready_handles_failure(monkeypatch):
     def raise_called(*args, **kwargs):
         raise tl.subprocess.CalledProcessError(1, "pg_isready")

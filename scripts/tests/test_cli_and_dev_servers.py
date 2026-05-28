@@ -33,6 +33,16 @@ def test_AC16_11_16_get_compose_cmd_falls_back_to_docker(monkeypatch):
     assert cli.get_compose_cmd() == ["docker", "compose"]
 
 
+def test_AC16_11_16_get_compose_cmd_honors_container_runtime_override(monkeypatch):
+    monkeypatch.setenv("CONTAINER_RUNTIME", "docker")
+    monkeypatch.setattr(
+        cli.shutil,
+        "which",
+        lambda name: f"/usr/bin/{name}" if name in {"docker", "podman"} else None,
+    )
+    assert cli.get_compose_cmd() == ["docker", "compose"]
+
+
 def test_AC16_11_16_get_compose_cmd_exits_when_none(monkeypatch):
     monkeypatch.setattr(cli.shutil, "which", lambda name: None)
     with pytest.raises(SystemExit) as exc:
