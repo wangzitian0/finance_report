@@ -53,8 +53,8 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.18**: Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets.
 - **AC8.13.19**: Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics.
 - **AC8.13.20**: CI change classification is covered by multi-commit and markdown edge-case regression tests.
-- **AC8.13.21**: Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running.
-- **AC8.13.22**: Staging deploy waits for the same SHA's CI success before building or deploying.
+- **AC8.13.21**: Provider-backed post-merge AI/OCR gate runs only after a successful main CI `workflow_run`.
+- **AC8.13.22**: Staging deploy starts from successful main CI `workflow_run` before building or deploying.
 - **AC8.13.23**: Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit.
 - **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
 - **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
@@ -68,14 +68,14 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.33**: Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates.
 - **AC8.13.34**: CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary.
 - **AC8.13.35**: AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions.
-- **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
+- **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success.
 - **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
 - **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
 - **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
 - **AC8.13.40**: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images.
 - **AC8.13.41**: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings.
 - **AC8.13.42**: Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E.
-- **AC8.13.43**: Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment.
+- **AC8.13.43**: Failed main CI workflow_run reports current staging state without deploying.
 - **AC8.13.44**: Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics.
 - **AC8.13.45**: Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command without hashing the infra submodule gitlink as a file input.
 - **AC8.13.46**: PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E.
@@ -83,6 +83,8 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.48**: Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%.
 - **AC8.13.49**: Staging AI/OCR gates publish audit input inventory and replay summary fields.
 - **AC8.13.50**: Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors.
+- **AC8.13.51**: Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling.
+- **AC8.13.52**: Production release dry-run validates release prerequisites and image builds without production mutation.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -375,8 +377,8 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 |
 | AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
 | AC8.13.20 | CI change classification is covered by multi-commit and markdown edge-case regression tests | `test_AC8_13_20_*` | `scripts/tests/test_ci_change_classifier.py` | P1 |
-| AC8.13.21 | Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running | `test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.22 | Staging deploy waits for the same SHA's CI success before building or deploying | `test_AC8_13_22_staging_deploy_waits_for_matching_ci_before_building` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.21 | Provider-backed post-merge AI/OCR gate runs only after a successful main CI `workflow_run` | `test_AC8_13_21_post_merge_ai_ocr_requires_successful_ci_workflow_run` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.22 | Staging deploy starts from successful main CI `workflow_run` before building or deploying | `test_AC8_13_22_staging_deploy_starts_from_successful_ci_before_building` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.23 | Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit | `test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
@@ -389,14 +391,14 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.32 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.33 | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates | `test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `scripts/tests/` | P1 |
-| AC8.13.36 | Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.36 | Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `scripts/tests/test_check_ac_traceability.py` | P0 |
 | AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `scripts/tests/test_cleanup_pr_preview_resources.py` | P0 |
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `scripts/tests/test_toolchain_contract.py` | P0 |
 | AC8.13.40 | PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images | `test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.41 | Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings | `test_*critical_proof_matrix*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
 | AC8.13.42 | Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E | `test_four_asset_as_of_net_worth_golden_path`, `test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical` | `tests/e2e/test_four_asset_net_worth_golden_path.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.43 | Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment | `test_AC8_13_43_*` | `scripts/tests/` | P0 |
+| AC8.13.43 | Failed main CI workflow_run reports current staging state without deploying | `test_AC8_13_43_failed_ci_workflow_run_reports_no_deploy_diagnostic` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.44 | Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics | `test_AC8_13_44_*` | `scripts/tests/test_bootstrap_local.py`, `scripts/tests/test_cli_and_dev_servers.py`, `scripts/tests/test_toolchain_contract.py` | P0 |
 | AC8.13.45 | Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command without hashing the infra submodule gitlink as a file input | `test_AC8_13_45_*` | `scripts/tests/test_cli_and_dev_servers.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.46 | PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E | `test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |

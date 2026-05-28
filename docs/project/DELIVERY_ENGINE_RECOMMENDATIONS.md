@@ -3,10 +3,9 @@
 > Owner: EPIC-008 testing strategy
 > See: docs/ssot/ci-cd.md
 
-This note captures the CI and post-merge optimization items intentionally left
-out of the narrow delivery-sync PR. The PR fixes local/CI drift and PR-preview
-gate parity; the items below change workflow topology or branch-protection
-behavior and should be handled as separate reviewed PRs.
+This note captures CI and post-merge optimization items that should stay
+separate from routine SSOT edits because they change workflow topology or
+branch-protection behavior.
 
 ## Current baseline
 
@@ -16,7 +15,7 @@ Observed on May 27, 2026:
 |---|---:|---|
 | Main CI heavy path | 8m 56s | Backend shard wall time plus unified coverage |
 | Unified coverage job | 3m 36s | Coveralls reporting-only status normalization |
-| Staging post-merge lane | 18m 04s | Waiting for same-SHA CI, then deploy and E2E |
+| Staging post-merge lane | 18m 04s | Same-SHA CI wait, then deploy and E2E |
 | Staging AI/OCR gate | 3m 53s | Provider-backed E2E execution |
 
 ## Recommended follow-ups
@@ -30,16 +29,6 @@ spent in `Mark Coveralls statuses reporting-only`, while preserving dashboards.
 
 Risk: branch protection and existing Coveralls status contexts must be audited
 before changing required checks.
-
-### workflow_run staging trigger
-
-Replace the staging workflow's in-job wait for same-SHA CI with a `workflow_run`
-trigger that starts staging only after the matching CI run succeeds. Keep manual
-dispatch as a recovery path and keep the healthy-but-stale diagnostic for failed
-or delayed CI.
-
-Risk: GitHub Actions event semantics need careful testing so staging still
-targets the exact merged SHA and does not deploy a stale or superseded commit.
 
 ### parallel image build jobs
 
@@ -55,5 +44,12 @@ main pushes.
 
 - Changing branch-protection required contexts.
 - Moving Coveralls status publication out of the current required job.
-- Replacing the staging push trigger with `workflow_run`.
 - Reworking Docker image build topology.
+
+## Implemented follow-ups
+
+### workflow_run staging trigger
+
+- `workflow_run` staging trigger: automatic staging now starts only after the
+  matching main CI workflow succeeds, checks out `workflow_run.head_sha`, and no
+  longer waits for CI inside the deploy job.

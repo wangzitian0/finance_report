@@ -57,15 +57,17 @@ Smoke:   ❌ Not run (unit tests only)
 ### staging-deploy.yml
 
 ```yaml
-Trigger: Push to main or manual dispatch
-Flow:    Wait for same-SHA CI -> promote SHA images -> deploy -> smoke/non-LLM E2E -> AI/OCR gate
+Trigger: Successful CI workflow_run on main or manual dispatch
+Flow:    promote SHA images -> deploy -> smoke/non-LLM E2E -> AI/OCR gate
 URL:     https://report-staging.zitian.party
 ```
 
 Normal staging deploys reuse SHA-tagged backend and frontend images built by the
-matching `CI` push workflow. If a SHA image is missing, staging falls back to
-building only the missing image before promotion. Provider-backed AI/OCR tests
-run after deploy health in the same serialized post-merge workflow unit.
+matching successful `CI` workflow. The deploy job checks out the CI
+`workflow_run.head_sha`, so it no longer spends staging runner time polling for
+CI completion. If a SHA image is missing, staging falls back to building only
+the missing image before promotion. Provider-backed AI/OCR tests run after
+deploy health in the same serialized post-merge workflow unit.
 
 ### production-release.yml
 
@@ -73,8 +75,10 @@ run after deploy health in the same serialized post-merge workflow unit.
 Triggers:
   - Tag push (v*.*.*): Build release images
   - Manual dispatch:   Deploy to production
+  - Manual dry-run:    Validate release prerequisites without deploy
 
 Build job:  Tag → Install backend/frontend toolchains → Verify with Docker test lifecycle → Build backend + frontend → Push to GHCR
+Dry-run:    Manual → Verify with Docker test lifecycle → Build production images with push=false → Skip Dokploy
 Deploy job: Verify images → Deploy → Health (4min) → Smoke test
 
 URL: https://report.zitian.party
@@ -93,6 +97,9 @@ git push origin v1.2.3
 
 # Deploy to production (manual)
 # → Actions → Production Release → Run workflow → Select v1.2.3
+
+# Dry-run production release proof (manual, no production mutation)
+# → Actions → Production Release → Run workflow → dry_run=true
 ```
 
 **Hotfix flow**:
