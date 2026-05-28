@@ -122,8 +122,71 @@ def _load_matrix(path: Path) -> dict[str, Any]:
     return data
 
 
-def _epic_exists(repo_root: Path, epic_id: str) -> bool:
-    return any((repo_root / "docs" / "project").glob(f"{epic_id}.*.md"))
+def _epic_path(repo_root: Path, epic_id: str) -> Path | None:
+    matches = sorted((repo_root / "docs" / "project").glob(f"{epic_id}.*.md"))
+    return matches[0] if matches else None
+
+
+def _markdown_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _normalize_outcome_cell(value: str) -> str:
+    return value.strip().strip("`").strip()
+
+
+def _readme_outcome_ids(text: str) -> tuple[list[str], list[str]]:
+    """Extract the README Core Proof Paths outcome table."""
+    lines = text.splitlines()
+    table_start: int | None = None
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.lower() for cell in _markdown_cells(line)]
+        if cells and cells[0] == "outcome id":
+            table_start = index + 1
+            break
+
+    if table_start is None:
+        return [], [
+            "README.md missing parseable macro outcome table with `Outcome ID` header"
+        ]
+
+    ids: list[str] = []
+    for line in lines[table_start:]:
+        if not line.lstrip().startswith("|"):
+            if ids:
+                break
+            continue
+        cells = _markdown_cells(line)
+        if not cells:
+            continue
+        first = _normalize_outcome_cell(cells[0])
+        if not first or set(first) <= {"-", ":"}:
+            continue
+        ids.append(first)
+
+    if not ids:
+        return ids, ["README.md macro outcome table has no outcome rows"]
+    return ids, []
+
+
+def _macro_ownership_section(text: str) -> str | None:
+    lines = text.splitlines()
+    start: int | None = None
+    for index, line in enumerate(lines):
+        if re.fullmatch(r"#{2,6}\s+Macro Proof Ownership\s*", line.strip()):
+            start = index + 1
+            break
+    if start is None:
+        return None
+
+    collected: list[str] = []
+    for line in lines[start:]:
+        if re.match(r"^#{2,6}\s+", line):
+            break
+        collected.append(line)
+    return "\n".join(collected)
 
 
 def _decorator_markers(node: ast.AST) -> set[str]:
@@ -232,15 +295,21 @@ def _validate_proof(
         )
     if not path.exists():
         errors.append(f"{proof_id}: file does not exist: {rel_file}")
-        return ProofResult(proof_id, scope, ci_tier, rel_file, test_name, ac_ids, "fail", errors)
+        return ProofResult(
+            proof_id, scope, ci_tier, rel_file, test_name, ac_ids, "fail", errors
+        )
 
     anchor = _find_anchor(path, test_name)
     if anchor is None:
         errors.append(f"{proof_id}: test anchor not found: {test_name}")
-        return ProofResult(proof_id, scope, ci_tier, rel_file, test_name, ac_ids, "fail", errors)
+        return ProofResult(
+            proof_id, scope, ci_tier, rel_file, test_name, ac_ids, "fail", errors
+        )
 
     stable_refs = set(AC_PATTERN.findall(anchor.stable_text))
-    file_refs = set(AC_PATTERN.findall(path.read_text(encoding="utf-8", errors="ignore")))
+    file_refs = set(
+        AC_PATTERN.findall(path.read_text(encoding="utf-8", errors="ignore"))
+    )
     missing_stable_refs = [ac_id for ac_id in ac_ids if ac_id not in stable_refs]
     for ac_id in missing_stable_refs:
         if ac_id in file_refs:
@@ -278,7 +347,9 @@ def validate_matrix(repo_root: Path, matrix_path: Path) -> list[ProofResult]:
         raise ValueError(f"{matrix_path} must define a non-empty proofs list")
     registry_ids = _load_registry_ids(repo_root)
     return [
-        _validate_proof(proof, repo_root=repo_root, registry_ids=registry_ids, index=index)
+        _validate_proof(
+            proof, repo_root=repo_root, registry_ids=registry_ids, index=index
+        )
         for index, proof in enumerate(proofs)
         if isinstance(proof, dict)
     ]
@@ -311,7 +382,9 @@ def _validate_outcome(
     required = {"id", "status", "owner_epics"}
     missing = sorted(required - set(outcome))
     if missing:
-        errors.append(f"{outcome_id}: missing required outcome keys: {', '.join(missing)}")
+        errors.append(
+            f"{outcome_id}: missing required outcome keys: {', '.join(missing)}"
+        )
 
     if status not in VALID_OUTCOME_STATUSES:
         errors.append(f"{outcome_id}: invalid status {status!r}")
@@ -323,8 +396,23 @@ def _validate_outcome(
     for epic_id in owner_epics:
         if not EPIC_RE.fullmatch(epic_id):
             errors.append(f"{outcome_id}: invalid owner EPIC id {epic_id!r}")
-        elif not _epic_exists(repo_root, epic_id):
+            continue
+
+        epic_path = _epic_path(repo_root, epic_id)
+        if epic_path is None:
             errors.append(f"{outcome_id}: owner EPIC does not exist: {epic_id}")
+            continue
+
+        epic_text = epic_path.read_text(encoding="utf-8", errors="ignore")
+        ownership_section = _macro_ownership_section(epic_text)
+        if ownership_section is None:
+            errors.append(
+                f"{outcome_id}: owner EPIC {epic_id} missing `## Macro Proof Ownership` section"
+            )
+        elif outcome_id not in ownership_section:
+            errors.append(
+                f"{outcome_id}: owner EPIC {epic_id} missing macro outcome declaration"
+            )
 
     if status == "covered" and not proof_ids:
         errors.append(f"{outcome_id}: covered outcome requires at least one proof_id")
@@ -353,7 +441,9 @@ def _validate_outcome(
     )
 
 
-def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) -> OutcomeResult:
+def _validate_readme_contract(
+    repo_root: Path, outcomes: list[OutcomeResult]
+) -> OutcomeResult:
     readme_path = repo_root / "README.md"
     errors: list[str] = []
     text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
@@ -365,6 +455,36 @@ def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) ->
         errors.append("README.md missing critical proof matrix source link")
     if "scripts/check_critical_proof_matrix.py" not in text:
         errors.append("README.md missing critical proof matrix checker command")
+
+    matrix_ids = [
+        outcome.outcome_id
+        for outcome in outcomes
+        if not outcome.outcome_id.startswith("__")
+    ]
+    readme_ids, table_errors = _readme_outcome_ids(text)
+    errors.extend(table_errors)
+
+    seen: set[str] = set()
+    duplicate_ids: set[str] = set()
+    for outcome_id in readme_ids:
+        if outcome_id in seen:
+            duplicate_ids.add(outcome_id)
+        seen.add(outcome_id)
+    if duplicate_ids:
+        errors.append(
+            f"README macro outcomes duplicate ids: {', '.join(sorted(duplicate_ids))}"
+        )
+
+    matrix_set = set(matrix_ids)
+    readme_set = set(readme_ids)
+    missing = sorted(matrix_set - readme_set)
+    unknown = sorted(readme_set - matrix_set)
+    if missing:
+        errors.append(f"README macro outcomes missing ids: {', '.join(missing)}")
+    if unknown:
+        errors.append(
+            f"README macro outcomes include unknown ids: {', '.join(unknown)}"
+        )
 
     for outcome in outcomes:
         if outcome.outcome_id.startswith("__"):
@@ -437,11 +557,17 @@ def validate_outcomes(
     unknown = sorted(seen - REQUIRED_OUTCOME_IDS)
     global_errors: list[str] = []
     if duplicates:
-        global_errors.append(f"macro outcomes duplicate ids: {', '.join(sorted(duplicates))}")
+        global_errors.append(
+            f"macro outcomes duplicate ids: {', '.join(sorted(duplicates))}"
+        )
     if missing:
-        global_errors.append(f"macro outcomes missing required ids: {', '.join(missing)}")
+        global_errors.append(
+            f"macro outcomes missing required ids: {', '.join(missing)}"
+        )
     if unknown:
-        global_errors.append(f"macro outcomes include unknown ids: {', '.join(unknown)}")
+        global_errors.append(
+            f"macro outcomes include unknown ids: {', '.join(unknown)}"
+        )
     if global_errors:
         outcomes.append(
             OutcomeResult(
@@ -531,9 +657,7 @@ def render_report(
             )
 
     errors = [
-        error
-        for result in [*results, *(outcomes or [])]
-        for error in result.errors
+        error for result in [*results, *(outcomes or [])] for error in result.errors
     ]
     lines.extend(["", "## Errors", ""])
     if errors:
@@ -560,7 +684,9 @@ def main() -> int:
 
     output_path = args.output
     if output_path is not None:
-        output_path = output_path if output_path.is_absolute() else repo_root / output_path
+        output_path = (
+            output_path if output_path.is_absolute() else repo_root / output_path
+        )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(report, encoding="utf-8")
         print(f"Wrote critical proof matrix report: {output_path}")

@@ -73,13 +73,11 @@ placeholder-only, or stub-only before the traceability audit artifact is
 generated.
 
 Core product journeys have one extra guard:
-`docs/ssot/critical-proof-matrix.yaml`. That matrix is deliberately small. It
-owns the macro README -> EPIC -> E2E contract for the closed set of core
-vision outcomes and lists P0 proof paths where a broad AC string reference
-would create false confidence. `scripts/check_critical_proof_matrix.py`
-verifies that each covered macro outcome points to owner EPICs and explicit E2E
-proof anchors with the listed AC IDs in the test name or docstring. It is not a
-general-purpose semantic parser for all tests.
+`docs/ssot/critical-proof-matrix.yaml`. It owns the macro README -> EPIC -> E2E
+contract for the closed set of core vision outcomes. The checker keeps the
+README outcome table, matrix rows, owner EPIC reverse declarations, and explicit
+E2E proof anchors in sync. It is not a general-purpose semantic parser for all
+tests.
 
 ## Proof Semantics
 
@@ -102,8 +100,8 @@ behavioral row.
 Macro and micro proof are intentionally separate:
 
 - **Macro**: README -> EPIC -> E2E, owned by
-  `docs/ssot/critical-proof-matrix.yaml`. Covered outcomes require explicit E2E
-  proof IDs; partial or gap outcomes require a GitHub issue.
+  `docs/ssot/critical-proof-matrix.yaml` and enforced bidirectionally by
+  `scripts/check_critical_proof_matrix.py`.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
 

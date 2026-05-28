@@ -21,6 +21,15 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 ---
 
+## Macro Proof Ownership
+
+- `asset-distribution-net-worth`
+- `monthly-income-spending`
+- `investment-performance`
+- `annualized-income-long-term`
+
+---
+
 ## 👥 Multi-Role Review
 
 | Role | Focus | Review Opinion |

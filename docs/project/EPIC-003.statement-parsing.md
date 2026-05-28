@@ -14,6 +14,12 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 ---
 
+## Macro Proof Ownership
+
+- `source-ledger-report-traceability`
+
+---
+
 ## 👥 Multi-Role Review
 
 | Role | Focus | Review Opinion |

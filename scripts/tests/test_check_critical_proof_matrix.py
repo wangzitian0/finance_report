@@ -18,7 +18,20 @@ def _write_registry(repo_root: Path) -> None:
     project = docs / "project"
     project.mkdir(parents=True, exist_ok=True)
     (project / "EPIC-008.testing-strategy.md").write_text(
-        "# EPIC-008: Testing Strategy\n",
+        """
+# EPIC-008: Testing Strategy
+
+## Macro Proof Ownership
+
+This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matrix.yaml`:
+
+- `asset-distribution-net-worth`
+- `monthly-income-spending`
+- `investment-performance`
+- `annualized-income-long-term`
+- `source-ledger-report-traceability`
+""".strip()
+        + "\n",
         encoding="utf-8",
     )
     (repo_root / "README.md").write_text(
@@ -30,11 +43,13 @@ def _write_registry(repo_root: Path) -> None:
 Source: docs/ssot/critical-proof-matrix.yaml
 Checker: scripts/check_critical_proof_matrix.py
 
-- asset-distribution-net-worth
-- monthly-income-spending
-- investment-performance
-- annualized-income-long-term
-- source-ledger-report-traceability
+| Outcome ID | Purpose |
+|---|---|
+| `asset-distribution-net-worth` | asset distribution |
+| `monthly-income-spending` | monthly income and spending |
+| `investment-performance` | investment performance |
+| `annualized-income-long-term` | annualized long-term income |
+| `source-ledger-report-traceability` | source to report traceability |
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -64,6 +79,11 @@ groups:
         epic: 8
         epic_name: testing-strategy
         description: critical proof matrix validates macro outcomes
+        mandatory: true
+      - id: AC8.13.54
+        epic: 8
+        epic_name: testing-strategy
+        description: critical proof matrix validates README and owner EPIC closure
         mandatory: true
 """.strip()
         + "\n",
@@ -245,8 +265,14 @@ proofs:
 
     [result] = matrix.validate_matrix(tmp_path, matrix_path)
     assert result.status == "fail"
-    assert any("broad contract tests cannot satisfy critical proof" in error for error in result.errors)
-    assert any("behavioral proof must live under product test roots" in error for error in result.errors)
+    assert any(
+        "broad contract tests cannot satisfy critical proof" in error
+        for error in result.errors
+    )
+    assert any(
+        "behavioral proof must live under product test roots" in error
+        for error in result.errors
+    )
 
 
 def test_unknown_ac_missing_file_and_missing_marker_fail(tmp_path: Path) -> None:
@@ -294,7 +320,9 @@ proofs:
     assert any("file does not exist" in error for error in errors)
 
 
-def test_typescript_anchor_and_missing_test_anchor_are_validated(tmp_path: Path) -> None:
+def test_typescript_anchor_and_missing_test_anchor_are_validated(
+    tmp_path: Path,
+) -> None:
     """AC8.13.41: Frontend test titles can carry stable critical AC proof."""
     _write_registry(tmp_path)
     frontend_dir = tmp_path / "apps" / "frontend" / "src"
@@ -334,7 +362,9 @@ proofs:
     assert valid.status == "behavioral"
     assert not valid.errors
     assert invalid.status == "fail"
-    assert invalid.errors == ["missing-anchor: test anchor not found: AC8.13.1 missing title"]
+    assert invalid.errors == [
+        "missing-anchor: test anchor not found: AC8.13.1 missing title"
+    ]
 
 
 def test_shape_errors_are_reported_before_file_validation(tmp_path: Path) -> None:
@@ -530,12 +560,103 @@ outcomes:
     errors = validation.errors
     assert "macro outcomes include unknown ids: surprise-outcome" in errors
     assert any("owner EPIC does not exist: EPIC-999" in error for error in errors)
-    assert any("covered outcome requires at least one proof_id" in error for error in errors)
-    assert any("proof contract-proof must be behavioral E2E" in error for error in errors)
+    assert any(
+        "covered outcome requires at least one proof_id" in error for error in errors
+    )
+    assert any(
+        "proof contract-proof must be behavioral E2E" in error for error in errors
+    )
     assert any("gap outcome requires issue like #521" in error for error in errors)
     assert any("invalid status 'unknown'" in error for error in errors)
     assert any("outcome[6] must be a mapping" in error for error in errors)
-    assert any("README.md missing macro outcome id `monthly-income-spending`" in error for error in errors)
+    assert any(
+        "README.md missing macro outcome id `monthly-income-spending`" in error
+        for error in errors
+    )
+
+
+def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.54: README macro outcome table and matrix outcomes must be identical."""
+    _write_registry(tmp_path)
+    (tmp_path / "README.md").write_text(
+        """
+# Test README
+
+## Core Proof Paths
+
+Source: docs/ssot/critical-proof-matrix.yaml
+Checker: scripts/check_critical_proof_matrix.py
+
+| Outcome ID | Purpose |
+|---|---|
+| `asset-distribution-net-worth` | asset distribution |
+| `investment-performance` | investment performance |
+| `annualized-income-long-term` | annualized income |
+| `source-ledger-report-traceability` | source traceability |
+| `surprise-outcome` | not in the matrix |
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: static-contract
+    scope: static_contract
+    ci_tier: pr_ci
+    file: docs/project/EPIC-008.testing-strategy.md
+    test: unused
+    ac_ids: [AC8.13.54]
+""",
+    )
+
+    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    errors = validation.errors
+    assert "README macro outcomes missing ids: monthly-income-spending" in errors
+    assert "README macro outcomes include unknown ids: surprise-outcome" in errors
+
+
+def test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.54: Owner EPICs must reverse-declare their macro outcomes."""
+    _write_registry(tmp_path)
+    (tmp_path / "docs" / "project" / "EPIC-008.testing-strategy.md").write_text(
+        """
+# EPIC-008: Testing Strategy
+
+## Macro Proof Ownership
+
+- `asset-distribution-net-worth`
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: static-contract
+    scope: static_contract
+    ci_tier: pr_ci
+    file: docs/project/EPIC-008.testing-strategy.md
+    test: unused
+    ac_ids: [AC8.13.54]
+""",
+    )
+
+    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    errors = validation.errors
+    assert any(
+        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration"
+        in error
+        for error in errors
+    )
 
 
 def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) -> None:
@@ -614,8 +735,13 @@ proofs:
     assert matrix.main() == 0
     stdout = capsys.readouterr().out
     assert "Wrote critical proof matrix report" in stdout
-    assert "Critical proof matrix passed: 1 proof path(s), 5 macro outcome(s) validated." in stdout
-    assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(encoding="utf-8")
+    assert (
+        "Critical proof matrix passed: 1 proof path(s), 5 macro outcome(s) validated."
+        in stdout
+    )
+    assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(
+        encoding="utf-8"
+    )
 
     failure_matrix = _write_matrix(
         tmp_path,

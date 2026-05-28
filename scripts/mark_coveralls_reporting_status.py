@@ -55,7 +55,7 @@ def _run_gh_json(args: list[str]) -> dict[str, object]:
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         if "HTTP 404" in detail:
-            raise GitHubCommitStatusNotFound(detail)
+            raise GitHubCommitStatusNotFound(f"gh api failed: {detail}")
         raise RuntimeError(f"gh api failed: {detail}")
     return json.loads(result.stdout or "{}")
 
@@ -94,14 +94,7 @@ def _run_gh_status_create(
 
 
 def fetch_commit_statuses(repo: str, sha: str) -> list[GitHubCommitStatus]:
-    try:
-        payload = _run_gh_json([f"repos/{repo}/commits/{sha}/status"])
-    except GitHubCommitStatusNotFound as exc:
-        _log(
-            f"GitHub commit status endpoint returned 404 for {sha}: {exc}; "
-            "treating statuses as missing."
-        )
-        return []
+    payload = _run_gh_json([f"repos/{repo}/commits/{sha}/status"])
     statuses = payload.get("statuses", [])
     if not isinstance(statuses, list):
         raise RuntimeError("GitHub commit status response did not contain a list")
@@ -192,7 +185,14 @@ def wait_for_coveralls_observations(
     required_contexts = tuple(contexts)
 
     while True:
-        statuses = fetch_commit_statuses(repo, sha)
+        try:
+            statuses = fetch_commit_statuses(repo, sha)
+        except GitHubCommitStatusNotFound as exc:
+            _log(
+                f"{exc}; publishing local reporting-only status without waiting "
+                f"for remote Coveralls observations on {sha}."
+            )
+            return observed
         observe_terminal_coveralls_statuses(observed, statuses)
 
         if all(observed[context] is not None for context in required_contexts):
@@ -257,7 +257,14 @@ def mark_coveralls_reporting_only(
     if settle_seconds > 0:
         _log(f"Settling for {settle_seconds}s before final Coveralls status check")
         sleep(settle_seconds)
-        latest_statuses = fetch_commit_statuses(repo, sha)
+        try:
+            latest_statuses = fetch_commit_statuses(repo, sha)
+        except GitHubCommitStatusNotFound as exc:
+            _log(
+                f"{exc}; skipping final Coveralls status read after successful "
+                f"reporting-only publication on {sha}."
+            )
+            return observed
         for context in coveralls_contexts_from_statuses(latest_statuses):
             if context not in publish_contexts:
                 publish_contexts = (*publish_contexts, context)

@@ -18,7 +18,8 @@ README.md -> EPIC -> E2E
 
 That macro contract is owned by
 [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) and checked by
-`scripts/check_critical_proof_matrix.py`.
+`scripts/check_critical_proof_matrix.py`. The checker keeps the README outcome
+table, matrix rows, owner EPIC declarations, and E2E proof anchors aligned.
 
 SSOT documents support that hierarchy by explaining why a contract exists and
 linking to its code owner and proof tests.
@@ -74,7 +75,7 @@ contracts is tracked in
 
 | Report | Purpose |
 |---|---|
-| [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Parseable README -> EPIC -> E2E macro outcome contract |
+| [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Bidirectional README -> EPIC -> E2E macro outcome contract |
 | [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Generated AC-to-test coverage report |
 | [../../unified-coverage.json](../../unified-coverage.json) | Current committed coverage baseline |
 

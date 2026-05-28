@@ -15,6 +15,10 @@ Maximize AI utilization across the entire data pipeline from statement upload to
 
 **Core Principle** (from vision.md): AI is a parsing and explanation layer, not a source of record. Confidence thresholds determine auto-accept vs. human review.
 
+## Macro Proof Ownership
+
+- `source-ledger-report-traceability`
+
 **Current Pipeline (Before)**:
 ```
 Upload → [AI Vision] → BankStatement → [Rules Only] → Classification

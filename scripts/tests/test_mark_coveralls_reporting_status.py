@@ -38,6 +38,15 @@ def completed_process(
     )
 
 
+def failed_process(stderr: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["gh"],
+        returncode=1,
+        stdout="",
+        stderr=stderr,
+    )
+
+
 def test_AC8_13_27_failed_coveralls_statuses_are_replaced_after_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -444,3 +453,95 @@ def test_AC8_13_27_discovered_coveralls_contexts_are_replaced(
     assert observed["coverage/coveralls (matrix)"] is not None
     post_contexts = [call[8] for call in calls if "--method" in call]
     assert "context=coverage/coveralls (matrix)" in post_contexts
+
+
+def test_AC8_13_27_status_read_404_still_publishes_reporting_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.27: GitHub status-read 404 does not block local status publish."""
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args[:3] == ["gh", "api", "repos/owner/repo/commits/head-sha/status"]:
+            return failed_process("gh: HTTP 404")
+        return completed_process()
+
+    monkeypatch.setattr(marker.subprocess, "run", fake_run)
+    clock = FakeClock()
+
+    observed = marker.mark_coveralls_reporting_only(
+        repo="owner/repo",
+        sha="head-sha",
+        target_url="https://github.com/owner/repo/actions/runs/12",
+        timeout_seconds=120,
+        poll_seconds=5,
+        settle_seconds=0,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    assert observed == {
+        "coverage/coveralls": None,
+        "coverage/coveralls (push)": None,
+        "Coveralls - unified": None,
+        "Coveralls - backend": None,
+        "Coveralls - frontend": None,
+    }
+    assert clock.sleeps == []
+    post_contexts = [call[8] for call in calls if "--method" in call]
+    assert post_contexts == [
+        "context=coverage/coveralls",
+        "context=coverage/coveralls (push)",
+        "context=Coveralls - unified",
+        "context=Coveralls - backend",
+        "context=Coveralls - frontend",
+    ]
+
+
+def test_AC8_13_27_status_read_404_after_publish_does_not_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.27: A successful publish is enough when the final read is hidden."""
+    calls: list[list[str]] = []
+    query_count = 0
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        nonlocal query_count
+        calls.append(args)
+        if args[:3] == ["gh", "api", "repos/owner/repo/commits/head-sha/status"]:
+            query_count += 1
+            if query_count == 1:
+                return completed_process(
+                    {
+                        "statuses": [
+                            {
+                                "context": context,
+                                "state": "success",
+                                "description": "initial",
+                                "target_url": "https://coveralls.io",
+                            }
+                            for context in marker.DEFAULT_WAIT_CONTEXTS
+                        ]
+                    }
+                )
+            return failed_process("gh: HTTP 404")
+        return completed_process()
+
+    monkeypatch.setattr(marker.subprocess, "run", fake_run)
+    clock = FakeClock()
+
+    marker.mark_coveralls_reporting_only(
+        repo="owner/repo",
+        sha="head-sha",
+        target_url="https://github.com/owner/repo/actions/runs/13",
+        timeout_seconds=120,
+        poll_seconds=5,
+        settle_seconds=45,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+
+    assert query_count == 2
+    assert clock.sleeps == [45]
+    assert len([call for call in calls if "--method" in call]) == 5

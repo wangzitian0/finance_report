@@ -122,9 +122,7 @@ labels are the source of truth for current tracker status.
 
 Macro correctness is owned by
 [`docs/ssot/critical-proof-matrix.yaml`](docs/ssot/critical-proof-matrix.yaml)
-and checked by `python scripts/check_critical_proof_matrix.py`. This is the
-README -> EPIC -> E2E contract. The EPIC -> AC -> test contract remains owned by
-the generated AC registries and AC traceability reports.
+and checked by `python scripts/check_critical_proof_matrix.py`.
 
 The macro outcome set is closed and parseable:
 
@@ -136,9 +134,9 @@ The macro outcome set is closed and parseable:
 | `annualized-income-long-term` | Salary, dividends, ESOP/restricted holdings, and long-term income proof path |
 | `source-ledger-report-traceability` | Source document -> ledger -> report traceability |
 
-Covered outcomes must point to explicit E2E proof anchors in the matrix. Partial
-or gap outcomes must point to a GitHub issue instead of being implied by broad
-AC coverage.
+The checker enforces README -> EPIC -> E2E closure: this table must match the
+matrix, owner EPICs must reverse-declare their outcomes, covered outcomes need
+explicit E2E proof anchors, and partial/gap outcomes need an issue.
 
 ## Documentation Debt Tracked As Issues
 

@@ -34,6 +34,12 @@ Stage 2: Run-Level Review (Consistency Checks)
 
 ---
 
+## Macro Proof Ownership
+
+- `source-ledger-report-traceability`
+
+---
+
 ## 👥 Multi-Role Review
 
 | Role | Focus | Review Opinion |

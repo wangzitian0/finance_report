@@ -30,6 +30,14 @@ Build a **100% self-developed** investment portfolio management system with comp
 
 ---
 
+## Macro Proof Ownership
+
+- `asset-distribution-net-worth`
+- `investment-performance`
+- `annualized-income-long-term`
+
+---
+
 ## 👥 Multi-Role Review
 
 | Role | Focus | Review Opinion |
