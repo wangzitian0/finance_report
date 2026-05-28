@@ -36,6 +36,7 @@ outcomes:
       - EPIC-017
     proof_ids:
       - brokerage-pdf-to-portfolio-value
+      - market-data-provider-price-path
     issue: "#521"
 
   - id: annualized-income-long-term
@@ -129,3 +130,16 @@ proofs:
       - AC11.9.2
       - AC11.9.3
       - AC17.5.4
+
+  - id: market-data-provider-price-path
+    scope: behavioral
+    ci_tier: pr_ci
+    issue: "#539"
+    file: tests/e2e/test_market_data_price_paths.py
+    test: test_market_data_provider_sync_feeds_fx_and_stock_price_paths
+    required_markers:
+      - e2e
+      - tier3
+      - critical
+    ac_ids:
+      - AC11.10.7

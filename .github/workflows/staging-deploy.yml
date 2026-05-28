@@ -248,6 +248,8 @@ jobs:
           SKIP_UI_TESTS: false
           STRICT_E2E_GATES: true
           EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
+          RUN_MARKET_DATA_PROVIDER_E2E: true
+          MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
           run_timed_phase() {
             local phase_name="$1"

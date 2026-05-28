@@ -34,6 +34,7 @@ from src.routers import (
     corrections,
     income,
     journal,
+    market_data,
     portfolio,
     reports,
     review,
@@ -258,6 +259,7 @@ app.include_router(assets.router)
 app.include_router(chat.router)
 app.include_router(corrections.router)
 app.include_router(journal.router)
+app.include_router(market_data.router)
 app.include_router(income.router)
 app.include_router(reports.router)
 app.include_router(statements.router)

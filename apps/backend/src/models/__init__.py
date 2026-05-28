@@ -26,7 +26,7 @@ from src.models.layer3 import (
     TransactionClassification,
 )
 from src.models.layer4 import ReportSnapshot, ReportType
-from src.models.market_data import FxRate
+from src.models.market_data import FxRate, StockPrice
 from src.models.ping_state import PingState
 from src.models.portfolio import (
     DividendIncome,
@@ -106,6 +106,7 @@ __all__ = [
     "RuleType",
     "Statement",  # Alias for BankStatement
     "Stage1Status",
+    "StockPrice",
     "PriceSource",
     "TransactionClassification",
     "TransactionDirection",

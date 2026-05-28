@@ -12,24 +12,23 @@
 | **Report Lazy FX Resolution** | `apps/backend/src/services/market_data.py` | On-demand FX derivation/fetch for reports |
 | **FX Lookup API** | `apps/backend/src/services/fx.py` | DB lookup, in-process cache, optional lazy resolution |
 | **Rate Storage** | `fx_rates` table | Historical direct and derived rates |
-| **Scheduled Sync** | GitHub Issue #539 | Planned daily incremental FX/stock pipeline |
-| **Price Storage** | `stock_prices` table | Planned historical prices |
+| **Market Data Sync** | `apps/backend/src/services/market_data.py` | Incremental FX/stock sync and provider validation |
+| **Price Storage** | `stock_prices` table | Historical daily stock prices |
 
 ---
 
 ## 2. Data Sources
 
 ### Primary: Yahoo Finance
-- **Type**: Yahoo Finance chart endpoint, compatible with yfinance currency symbols
-- **Data**: Report-side lazy FX rates
+- **Type**: Yahoo Finance chart endpoint, compatible with yfinance currency and stock symbols
+- **Data**: Report-side lazy FX rates and daily stock closes
 - **Rate Limit**: Unofficial, ~2000 requests/hour
 - **Fallback**: Stored inverse or bridge rates before external fetch
 
-### Secondary: Twelve Data (Planned)
-- **Type**: REST API (API key required)
-- **Data**: FX rates, stock prices
-- **Rate Limit**: 800 requests/day (free tier)
-- **Use Case**: Cross-source validation and scheduled sync fallback in Issue #539
+### Secondary: Stooq
+- **Type**: Public daily CSV endpoint, no application secret required
+- **Data**: FX rates and daily stock closes
+- **Use Case**: Cross-source validation for incremental sync. If Yahoo and Stooq differ by more than 2%, the row is not persisted and the disagreement is returned/logged.
 
 ### Report Lazy Resolution Priority
 ```python
@@ -47,15 +46,15 @@ async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
 
 ### FX Rates
 - **Frequency**: Daily at 08:00 UTC
-- **Pairs**: USD/SGD, USD/CNY, USD/HKD, EUR/USD, GBP/USD
+- **Pairs**: Derived from actual business data plus a non-empty default pair between `BASE_CURRENCY` and USD. Explicit scheduler/API pairs are also accepted.
 - **History**: Keep 2 years of daily rates
-- **Status**: Planned in Issue #539. Report APIs currently use lazy resolution when a required rate is missing.
+- **Status**: Implemented for incremental fill. Report APIs still use lazy resolution when a required rate is missing.
 
 ### Stock Prices
 - **Frequency**: Daily at 22:00 UTC (after US market close)
-- **Symbols**: User-configured holdings
+- **Symbols**: Active holdings, or explicit symbols from scheduler/API callers
 - **History**: Keep 2 years of daily prices
-- **Status**: Planned in Issue #539.
+- **Status**: Implemented. Portfolio valuation prefers synced daily prices over stale brokerage snapshots.
 
 ### Sync Workflow (via Activepieces)
 ```yaml
@@ -65,9 +64,9 @@ trigger:
 
 actions:
   - name: fetch_fx_rates
-    endpoint: POST /api/v1/market-data/sync/fx
+    endpoint: POST /api/market-data/sync/fx
   - name: fetch_stock_prices
-    endpoint: POST /api/v1/market-data/sync/stocks
+    endpoint: POST /api/market-data/sync/stocks
 ```
 
 ---
@@ -194,8 +193,9 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 | Provider lazy resolution | `test_get_exchange_rate_lazy_fetches_provider_when_enabled` | ✅ Implemented |
 | Report HKD/SGD bridge resolution | `test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates` | ✅ Implemented |
 | Cache hit/miss | `test_fx_cache` | ✅ Implemented |
-| Twelve Data fallback | Issue #539 | ⏳ Planned |
-| Daily stock/FX sync | Issue #539 | ⏳ Planned |
+| Provider disagreement blocks persistence | `test_stock_provider_disagreement_is_reported_without_persisting` | ✅ Implemented |
+| Daily stock/FX sync | `test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent`, `test_sync_fx_rates_starts_after_last_stored_date` | ✅ Implemented |
+| Provider-backed stock and lazy FX E2E | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths` | ✅ Implemented |
 
 ---
 
