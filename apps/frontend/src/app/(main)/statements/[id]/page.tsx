@@ -143,17 +143,6 @@ export default function StatementDetailPage() {
         }
     };
 
-    const formatAmount = (amount: number, direction: string, currency?: string | null) => {
-        const sign = direction === "IN" ? "+" : "-";
-        const prefix = currency ? `${currency} ` : "";
-        return `${prefix}${sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
-    const formatCurrency = (amount?: number | null) => {
-        if (amount === null || amount === undefined) return "—";
-        return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-
     const formatCode = (currency?: string | null) => currency || "—";
 
     const formatPeriod = (start?: string | null, end?: string | null) => {

@@ -417,7 +417,8 @@ describe("AssetsPage", () => {
     fireEvent.change(screen.getByLabelText("As of date"), { target: { value: "2026-05-18" } })
     fireEvent.change(screen.getByLabelText("Value"), { target: { value: "1250000.00" } })
     fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "SGD" } })
-    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "manual" } })
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "broker portal" } })
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Audited manually" } })
     fireEvent.click(screen.getByRole("button", { name: "Add valuation" }))
 
     await waitFor(() => {
@@ -427,5 +428,30 @@ describe("AssetsPage", () => {
       )
     })
     expect(showToastMock).toHaveBeenCalledWith("Manual valuation saved", "success")
+  })
+
+  it("test_AC8_13_48 shows an error toast when manual valuation creation fails", async () => {
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        return Promise.reject(new Error("valuation failed"))
+      }
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve(emptyValuations)
+      }
+      return Promise.resolve({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+    })
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Manual Valuations")).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "1250000.00" } })
+    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "usd" } })
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "broker portal" } })
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Needs follow-up" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add valuation" }))
+
+    await waitFor(() => {
+      expect(showToastMock).toHaveBeenCalledWith("Failed to save valuation: valuation failed", "error")
+    })
   })
 })

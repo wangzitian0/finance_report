@@ -126,6 +126,14 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
   });
 
+  it("test_AC8_13_48 — AI suggestions page renders load errors", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("suggestions unavailable"));
+
+    render(<AiSuggestionsPage />);
+
+    expect(await screen.findByText("suggestions unavailable")).toBeInTheDocument();
+  });
+
   it("AC18.5.5 — Settings AI toggles persist placeholder", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ enable_ai_reconciliation: true, enable_ai_classification: false })
@@ -176,5 +184,32 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     expect(await screen.findByLabelText("Enable AI reconciliation")).not.toBeChecked();
     expect(screen.getByLabelText("Enable AI classification")).toBeChecked();
+  });
+
+  it("test_AC8_13_48 — AI settings handles load and reconciliation update failures", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("settings unavailable"));
+
+    render(<AiSettingsPage />);
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/users/me/settings"));
+    expect(screen.getByText("Loading AI settings...")).toBeInTheDocument();
+
+    mockedApiFetch.mockReset();
+    mockedApiFetch
+      .mockResolvedValueOnce({ enable_ai_reconciliation: false, enable_ai_classification: true })
+      .mockRejectedValueOnce(new Error("update failed"));
+
+    render(<AiSettingsPage />);
+
+    const reconciliationToggle = await screen.findByLabelText("Enable AI reconciliation");
+    fireEvent.click(reconciliationToggle);
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/users/me/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ enable_ai_reconciliation: true }),
+      }),
+    );
+    expect(await screen.findByText("update failed")).toBeInTheDocument();
   });
 });

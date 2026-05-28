@@ -225,6 +225,7 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 ## Coverage Requirements
 
 - Backend line coverage: **≥ 90%** (enforced by `pytest-cov`)
+- Frontend line coverage: **≥ 99%** (enforced by `vitest`)
 - Unified coverage: **no-regression from `unified-coverage.json`** (currently 94.38% floor after AC8.13.15 policy unification)
 - Branch coverage: Required (via `--cov-branch`)
 - See [coverage.md](./coverage.md) and [tdd.md](./tdd.md) for details

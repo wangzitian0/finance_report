@@ -39,17 +39,17 @@ describe("IncomeStatementPage", () => {
     expect(mockedApiFetch).toHaveBeenCalled()
   })
 
-  it("AC16.14.5 renders KPI cards and category lists", async () => {
+  it("AC16.14.5 / test_AC8_13_48 renders string KPI cards and category lists", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
       end_date: "2026-02-01",
       currency: "SGD",
-      income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: 5000 }],
-      expenses: [{ account_id: "e1", name: "Rent", type: "EXPENSE", amount: 1200 }],
-      total_income: 5000,
-      total_expenses: 1200,
-      net_income: 3800,
-      trends: [{ period_start: "2026-01-01", period_end: "2026-01-31", total_income: 5000, total_expenses: 1200, net_income: 3800 }],
+      income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: "5000" }],
+      expenses: [{ account_id: "e1", name: "Rent", type: "EXPENSE", amount: "1200" }],
+      total_income: "5000",
+      total_expenses: "1200",
+      net_income: "3800",
+      trends: [{ period_start: "2026-01-01", period_end: "2026-01-31", total_income: "5000", total_expenses: "1200", net_income: "3800" }],
       filters_applied: { tags: null, account_type: null },
     })
 
@@ -132,7 +132,7 @@ describe("IncomeStatementPage", () => {
     expect(screen.getByText("No expense categories.")).toBeInTheDocument()
   })
 
-  it("AC16.14.11 refetches when account type and tags change", async () => {
+  it("AC16.14.11 / test_AC8_13_48 refetches when account type, tags, and dates change", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
       end_date: "2026-02-01",
@@ -146,7 +146,7 @@ describe("IncomeStatementPage", () => {
       filters_applied: { tags: null, account_type: null },
     })
 
-    render(<IncomeStatementPage />)
+    const { container } = render(<IncomeStatementPage />)
 
     await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
     const selects = screen.getAllByRole("combobox")
@@ -156,6 +156,24 @@ describe("IncomeStatementPage", () => {
       const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
       expect(lastCall).toContain("/api/reports/income-statement?")
       expect(lastCall).toContain("account_type=INCOME")
+    })
+    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
+
+    const dateInputs = container.querySelectorAll('input[type="date"]')
+    fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
+    await waitFor(() => {
+      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
+      expect(lastCall).toContain("start_date=2026-01-15")
+    })
+    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
+    fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
+
+    await waitFor(() => {
+      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
+      expect(lastCall).toContain("/api/reports/income-statement?")
+      expect(lastCall).toContain("account_type=INCOME")
+      expect(lastCall).toContain("start_date=2026-01-15")
+      expect(lastCall).toContain("end_date=2026-02-15")
     })
   })
 })

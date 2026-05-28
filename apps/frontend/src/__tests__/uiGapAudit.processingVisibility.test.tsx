@@ -139,6 +139,14 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     });
   });
 
+  it('test_AC8_13_48 — /processing listing renders load errors', async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("processing unavailable"));
+
+    render(<ProcessingPage />);
+
+    expect(await screen.findByText("processing unavailable")).toBeInTheDocument();
+  });
+
   it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {
     mockedApiFetch.mockImplementation((path) => {
       if (path === '/api/accounts/processing/summary') {

@@ -139,6 +139,21 @@ describe("useWorkspace and WorkspaceProvider", () => {
     await waitFor(() => expect(screen.getByTestId("tabs-json").textContent).toBe("[]"))
   })
 
+  it("test_AC8_13_48 can explicitly activate an existing tab", async () => {
+    render(
+      <WorkspaceProvider>
+        <WorkspaceHarness />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Dashboard" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add Reports" }))
+    await waitFor(() => expect(screen.getByTestId("active-id").textContent).toBe("tab-uuid-2"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Activate First" }))
+    await waitFor(() => expect(screen.getByTestId("active-id").textContent).toBe("tab-uuid-1"))
+  })
+
   it("AC16.21.10 syncs tabs from storage events", async () => {
     render(
       <WorkspaceProvider>
@@ -203,5 +218,43 @@ describe("useWorkspace and WorkspaceProvider", () => {
     )
 
     await waitFor(() => expect(screen.getByTestId("tabs-json").textContent).toBe("[]"))
+  })
+
+  it("test_AC8_13_48 logs storage load and save failures in development", async () => {
+    vi.stubEnv("NODE_ENV", "development")
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    storage.set("finance-workspace-tabs", "not-json")
+    render(
+      <WorkspaceProvider>
+        <WorkspaceHarness />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() =>
+      expect(consoleSpy).toHaveBeenCalledWith("Failed to load workspace tabs:", expect.any(Error)),
+    )
+
+    consoleSpy.mockClear()
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("save blocked")
+      },
+      removeItem: vi.fn(),
+    })
+
+    render(
+      <WorkspaceProvider>
+        <WorkspaceHarness />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() =>
+      expect(consoleSpy).toHaveBeenCalledWith("Failed to save workspace tabs:", expect.any(Error)),
+    )
+
+    consoleSpy.mockRestore()
+    vi.unstubAllEnvs()
   })
 })

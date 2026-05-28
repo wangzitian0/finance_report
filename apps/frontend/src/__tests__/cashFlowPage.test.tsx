@@ -38,21 +38,21 @@ describe("CashFlowPage", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
   })
 
-  it("AC16.14.8 renders summary and activity sections", async () => {
+  it("AC16.14.8 / test_AC8_13_48 renders string summary and activity sections", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
       end_date: "2026-02-01",
       currency: "SGD",
-      operating: [{ category: "operating", subcategory: "Sales", amount: 1000, description: "Main ops" }],
-      investing: [{ category: "investing", subcategory: "ETF", amount: -300, description: null }],
-      financing: [{ category: "financing", subcategory: "Loan", amount: 200, description: null }],
+      operating: [{ category: "operating", subcategory: "Sales", amount: "1000", description: "Main ops" }],
+      investing: [{ category: "investing", subcategory: "ETF", amount: "-300", description: null }],
+      financing: [{ category: "financing", subcategory: "Loan", amount: "200", description: null }],
       summary: {
-        operating_activities: 1000,
-        investing_activities: -300,
-        financing_activities: 200,
-        net_cash_flow: 900,
-        beginning_cash: 5000,
-        ending_cash: 5900,
+        operating_activities: "1000",
+        investing_activities: "-300",
+        financing_activities: "200",
+        net_cash_flow: "900",
+        beginning_cash: "5000",
+        ending_cash: "5900",
       },
     })
 
@@ -107,7 +107,7 @@ describe("CashFlowPage", () => {
     await waitFor(() => expect(screen.getByText("SankeyChartMock")).toBeInTheDocument())
   })
 
-  it("AC16.14.10 refetches when filters change and shows empty category states", async () => {
+  it("AC16.14.10 / test_AC8_13_48 refetches when filters and dates change", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
       end_date: "2026-02-01",
@@ -129,8 +129,6 @@ describe("CashFlowPage", () => {
 
     await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
 
-    const dateInputs = container.querySelectorAll('input[type="date"]')
-    expect(dateInputs).toHaveLength(2)
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "USD" } })
 
     await waitFor(() =>
@@ -138,6 +136,22 @@ describe("CashFlowPage", () => {
         expect.stringContaining("currency=USD")
       )
     )
+    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+
+    const dateInputs = container.querySelectorAll('input[type="date"]')
+    expect(dateInputs).toHaveLength(2)
+    fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("start_date=2026-01-15")),
+    )
+    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("end_date=2026-02-15")),
+    )
+    const lastCall = String(mockedApiFetch.mock.calls.at(-1)?.[0])
+    expect(lastCall).toContain("start_date=2026-01-15")
+    expect(lastCall).toContain("end_date=2026-02-15")
     expect(screen.getAllByText("No items in this category.")).toHaveLength(3)
   })
 })

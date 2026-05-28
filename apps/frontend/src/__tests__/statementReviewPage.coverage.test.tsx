@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
 import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
@@ -203,5 +203,79 @@ describe("StatementReviewPage - coverage additions", () => {
             }
             expect(mockedApi.mock.calls.some(c => String(c[0]).includes("/review/reject"))).toBe(true);
         })();
+    });
+
+    it("test_AC8_13_48 surfaces failed inline edit saves", async () => {
+        const stmt = {
+            id: "s1",
+            original_filename: "file.pdf",
+            institution: "BankX",
+            currency: "SGD",
+            period_start: "2024-01-01",
+            period_end: "2024-01-31",
+            opening_balance: 100,
+            closing_balance: 200,
+            status: "pending",
+            stage1_status: null,
+            balance_validation_result: { opening_match: true, closing_match: true, calculated_closing: "200" },
+            pdf_url: null,
+            transactions: [
+                { id: "t1", txn_date: "2024-01-02", description: "Lunch", amount: 12.5, direction: "OUT", currency: "SGD", confidence: "medium" },
+            ],
+        };
+
+        mockedApi
+            .mockResolvedValueOnce(stmt as any)
+            .mockResolvedValueOnce({ items: [{ id: "s1" }] })
+            .mockRejectedValueOnce(new Error("edit failed"));
+
+        renderReviewComponent(<StatementReviewPage /> as any);
+
+        fireEvent.click(await screen.findByText("Lunch"));
+        fireEvent.change(await screen.findByDisplayValue("Lunch"), { target: { value: "Lunch at cafe" } });
+        fireEvent.blur(screen.getByDisplayValue("Lunch at cafe"));
+        fireEvent.click(await screen.findByRole("button", { name: /Save Edits/i }));
+
+        expect(await screen.findByText("edit failed")).toBeInTheDocument();
+        expect(mockedApi.mock.calls.some((call) => String(call[0]).includes("/review/edit"))).toBe(true);
+    });
+
+    it("test_AC8_13_48 surfaces approve and reject mutation failures", async () => {
+        const stmt = {
+            id: "s1",
+            original_filename: "file.pdf",
+            institution: "BankX",
+            currency: "SGD",
+            period_start: "2024-01-01",
+            period_end: "2024-01-31",
+            opening_balance: 0,
+            closing_balance: 0,
+            status: "pending",
+            stage1_status: null,
+            balance_validation_result: { opening_match: true, closing_match: true, calculated_closing: "0" },
+            pdf_url: null,
+            transactions: [],
+        };
+
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
+            if (path === "/api/statements/s1/review/approve") return Promise.reject(new Error("approve failed"));
+            if (path === "/api/statements/s1/review/reject") return Promise.reject(new Error("reject failed"));
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as any);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+        const approveDialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+        fireEvent.click(within(approveDialog).getByRole("button", { name: "Approve" }));
+        expect(await screen.findByText("approve failed")).toBeInTheDocument();
+        fireEvent.click(within(approveDialog).getByRole("button", { name: "Cancel" }));
+
+        fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+        const rejectDialog = await screen.findByRole("dialog", { name: "Reject Statement" });
+        fireEvent.click(within(rejectDialog).getByRole("button", { name: "Reject" }));
+        expect(await screen.findByText("reject failed")).toBeInTheDocument();
     });
 });

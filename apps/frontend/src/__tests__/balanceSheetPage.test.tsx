@@ -35,27 +35,34 @@ describe("BalanceSheetPage", () => {
     expect(mockedApiFetch).toHaveBeenCalled()
   })
 
-  it("AC16.14.2 renders totals and sections on success", async () => {
+  it("AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date", async () => {
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",
       currency: "SGD",
-      assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: 1000 }],
-      liabilities: [{ account_id: "l-root", name: "Loan", type: "LIABILITY", parent_id: null, amount: 200 }],
-      equity: [{ account_id: "e-root", name: "Capital", type: "EQUITY", parent_id: null, amount: 800 }],
-      total_assets: 1000,
-      total_liabilities: 200,
-      total_equity: 800,
-      equation_delta: 0,
+      assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "1000" }],
+      liabilities: [{ account_id: "l-root", name: "Loan", type: "LIABILITY", parent_id: null, amount: "200" }],
+      equity: [{ account_id: "e-root", name: "Capital", type: "EQUITY", parent_id: null, amount: "800" }],
+      total_assets: "1000",
+      total_liabilities: "200",
+      total_equity: "800",
+      equation_delta: "0",
       is_balanced: true,
     })
 
-    render(<BalanceSheetPage />)
+    const { container } = render(<BalanceSheetPage />)
 
     await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
     expect(screen.getByRole("heading", { name: "Assets", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Liabilities", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Equity", level: 2 })).toBeInTheDocument()
     expect(screen.getAllByText(/Total:/)).toHaveLength(3)
+
+    const dateInput = container.querySelector('input[type="date"]')
+    expect(dateInput).not.toBeNull()
+    fireEvent.change(dateInput!, { target: { value: "2026-03-01" } })
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("as_of_date=2026-03-01")),
+    )
   })
 
   it("AC16.14.3 toggles tree expansion controls", async () => {

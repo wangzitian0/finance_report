@@ -29,6 +29,25 @@ describe("ReconciliationWorkbench", () => {
     mockedApiFetch.mockReset()
   })
 
+  const statsResponse = {
+    total_transactions: 5,
+    matched_transactions: 2,
+    unmatched_transactions: 3,
+    pending_review: 2,
+    auto_accepted: 1,
+    match_rate: 40,
+    score_distribution: { high: 1, medium: 2, low: 2 },
+  }
+
+  const matchResponse = {
+    id: "m1",
+    match_score: 85,
+    status: "pending_review",
+    transaction: { id: "t1", description: "Rent", txn_date: "2026-01-02", direction: "OUT", amount: 800 },
+    entries: [{ id: "e1", memo: "Rent", entry_date: "2026-01-02", total_amount: 800 }],
+    score_breakdown: { amount: 50, date: 20, description: 15 },
+  }
+
   it("AC16.20.1 loads stats and pending queue with default selection", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       const url = String(path)
@@ -162,6 +181,105 @@ describe("ReconciliationWorkbench", () => {
       return h.endsWith("%") && h !== "0%"
     })
     expect(nonZeroBars.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it("test_AC8_13_48 surfaces query failures for stats and pending matches", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) {
+        return Promise.reject(new Error("stats down"))
+      }
+      if (url.includes("/api/reconciliation/pending")) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText("Failed to load reconciliation stats: stats down")).toBeInTheDocument()
+
+    mockedApiFetch.mockReset()
+    mockedApiFetch.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) {
+        return Promise.resolve(statsResponse)
+      }
+      if (url.includes("/api/reconciliation/pending")) {
+        return Promise.reject(new Error("pending down"))
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText("Failed to load pending matches: pending down")).toBeInTheDocument()
+  })
+
+  it("test_AC8_13_48 reports mutation failures without dropping the review queue", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
+      if (url.includes("/api/reconciliation/pending")) return Promise.resolve({ items: [matchResponse] })
+      if (url.includes("/api/reconciliation/transactions/t1/anomalies")) return Promise.resolve([])
+      if (url.includes("/api/reconciliation/run")) return Promise.reject(new Error("run failed"))
+      if (url.includes("/api/reconciliation/batch-accept")) return Promise.reject(new Error("batch failed"))
+      if (url.includes("/api/reconciliation/matches/m1/accept")) return Promise.reject(new Error("accept failed"))
+      if (url.includes("/api/reconciliation/matches/m1/reject")) return Promise.reject(new Error("reject failed"))
+      return Promise.resolve({})
+    })
+
+    render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
+    expect(await screen.findByText("run failed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 80" }))
+    expect(await screen.findByText("Batch accept failed: batch failed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+    expect(await screen.findByText("Failed to accept match: accept failed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+    expect(await screen.findByText("Failed to reject match: reject failed")).toBeInTheDocument()
+  })
+
+  it("test_AC8_13_48 refreshes an existing selection and clears it when the queue becomes empty", async () => {
+    const pendingResponses = [
+      { items: [matchResponse] },
+      {
+        items: [
+          {
+            ...matchResponse,
+            transaction: { ...matchResponse.transaction, amount: 825 },
+            score_breakdown: { amount: 55, date: 20, description: 10 },
+          },
+        ],
+      },
+      { items: [] },
+    ]
+
+    mockedApiFetch.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
+      if (url.includes("/api/reconciliation/pending")) return Promise.resolve(pendingResponses.shift() ?? { items: [] })
+      if (url.includes("/api/reconciliation/transactions/t1/anomalies")) return Promise.resolve([])
+      if (url.includes("/api/reconciliation/run")) return Promise.resolve({})
+      return Promise.resolve({})
+    })
+
+    render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getAllByText("800.00").length).toBeGreaterThan(0))
+
+    fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
+    await waitFor(() => expect(screen.getByText("825.00")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
+    await waitFor(() => expect(screen.getByText("No pending matches")).toBeInTheDocument())
+    expect(screen.getByText("Select a match to review")).toBeInTheDocument()
   })
 
 })

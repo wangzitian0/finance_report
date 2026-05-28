@@ -23,7 +23,7 @@ unified_coverage = total_covered_lines / total_executable_lines
                    (backend_executable + frontend_executable + scripts_executable)
 ```
 
-**CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum threshold enforced.
+**Unified CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum unified threshold is enforced.
 
 **Baseline ownership**: Component line counts, coverage percentages, and
 committed no-regression floors are generated facts. Read
@@ -180,8 +180,8 @@ python scripts/calculate_unified_coverage.py
 
 | Mode    | Backend | Frontend (vitest) | Unified (CI) |
 |---------|---------|-------------------|--------------|
-| CI      | 90%     | 87% lines         | No regression from baseline |
-| Local   | 90%     | 87% lines         | No regression from baseline |
+| CI      | 90%     | 99% lines         | No regression from baseline |
+| Local   | 90%     | 99% lines         | No regression from baseline |
 
 > **Note**: The unified baseline is the primary cross-component gate. Frontend vitest keeps its own local line/function/branch floors, while CI also verifies that frontend LCOV files match the shared policy.
 
@@ -221,7 +221,7 @@ coverage: {
     '**/vitest.setup.ts', '**/*.config.*', '**/types/**',
   ],
   thresholds: {
-    lines: 87,
+    lines: 99,
     functions: 80,
     branches: 70,
     statements: 87,

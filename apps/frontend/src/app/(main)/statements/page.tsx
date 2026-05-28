@@ -69,11 +69,6 @@ export default function StatementsPage() {
 
     const formatCurrency = (currency?: string | null) => currency || "—";
 
-    const formatAmount = (amount?: number | null) => {
-        if (amount === null || amount === undefined) return "—";
-        return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-
     const formatPeriod = (start?: string | null, end?: string | null) => {
         if (!start || !end) return "Parsing...";
         return `${start} → ${end}`;

@@ -69,7 +69,7 @@ describe("SankeyChart", () => {
     })
   })
 
-  it("AC16.21.7 builds sankey nodes and links for inflows and outflows", () => {
+  it("AC16.21.7 / test_AC8_13_48 builds sankey nodes, links, and tooltips", () => {
     render(
       <SankeyChart
         title="Detailed Cash Flow"
@@ -107,6 +107,14 @@ describe("SankeyChart", () => {
         { source: "Financing-Inflows", target: "Financing-Loan", value: 220 },
       ]),
     )
+
+    const formatter = (capturedProps?.option as {
+      tooltip: { formatter: (params: { data: { name?: string; value?: number; source?: string; target?: string } }) => string }
+    }).tooltip.formatter
+    expect(formatter({ data: { source: "Operating-Inflows", target: "Operating-Sales", value: 3000 } })).toBe(
+      "Operating-Inflows → Operating-Sales: 3,000",
+    )
+    expect(formatter({ data: { name: "Operating", value: 12 } })).toBe("Operating: 12")
   })
 
   it("AC16.21.8 recomputes theme-driven colors on root attribute change", async () => {
