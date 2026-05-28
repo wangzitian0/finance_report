@@ -5,10 +5,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_unified_lcov import build_unified_lcov, repo_relative_source  # noqa: E402
-from coverage_policy import CoverageComponent  # noqa: E402
+from common.coverage.policy import CoverageComponent  # noqa: E402
 
 
 def _component(
@@ -38,28 +40,46 @@ def test_repo_relative_source_prefixes_component_root(tmp_path):
 
 
 def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
-    """AC8.13.15: Backend, frontend, and scripts reports share one repo-root path space."""
+    """AC8.13.15 AC8.13.53: Component reports share one repo-root path space."""
     backend = _component("backend", "apps/backend", "src", "coverage/backend.lcov")
     frontend = _component("frontend", "apps/frontend", "src", "coverage/frontend.lcov")
     scripts = _component("scripts", "", "scripts", "coverage/scripts.lcov")
+    common = _component("common", "", "common", "coverage/common.lcov")
 
     coverage_dir = tmp_path / "coverage"
     coverage_dir.mkdir()
-    (coverage_dir / "backend.lcov").write_text("SF:src/api.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n")
-    (coverage_dir / "frontend.lcov").write_text("SF:src/app/page.tsx\nDA:1,1\nLH:1\nLF:1\nend_of_record\n")
-    (coverage_dir / "scripts.lcov").write_text("SF:scripts/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n")
+    (coverage_dir / "backend.lcov").write_text(
+        "SF:src/api.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+    )
+    (coverage_dir / "frontend.lcov").write_text(
+        "SF:src/app/page.tsx\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+    )
+    (coverage_dir / "scripts.lcov").write_text(
+        "SF:scripts/check.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+    )
+    (coverage_dir / "common.lcov").write_text(
+        "SF:common/test_isolation.py\nDA:1,1\nLH:1\nLF:1\nend_of_record\n"
+    )
 
     output = coverage_dir / "unified.lcov"
 
-    assert build_unified_lcov(output, tmp_path, (backend, frontend, scripts)) == 0
+    assert (
+        build_unified_lcov(output, tmp_path, (backend, frontend, scripts, common)) == 0
+    )
     content = output.read_text()
     assert "SF:apps/backend/src/api.py" in content
     assert "SF:apps/frontend/src/app/page.tsx" in content
     assert "SF:scripts/check.py" in content
+    assert "SF:common/test_isolation.py" in content
 
 
 def test_build_unified_lcov_fails_when_no_reports_exist(tmp_path):
     """AC8.13.15: Empty unified reports fail instead of uploading misleading data."""
     component = _component("backend", "apps/backend", "src", "coverage/backend.lcov")
 
-    assert build_unified_lcov(tmp_path / "coverage" / "unified.lcov", tmp_path, (component,)) == 1
+    assert (
+        build_unified_lcov(
+            tmp_path / "coverage" / "unified.lcov", tmp_path, (component,)
+        )
+        == 1
+    )

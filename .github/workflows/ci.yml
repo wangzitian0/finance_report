@@ -356,12 +356,15 @@ jobs:
           fi
       - name: Run scripts tests with coverage
         run: |
-          printf '[run]\nomit = scripts/tests/*\n' > /tmp/scripts-coveragerc
+          printf '[run]\nomit =\n    scripts/tests/*\n    common/__init__.py\n    common/**/__init__.py\n' > /tmp/scripts-coveragerc
           uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest scripts/tests/ \
             --cov=scripts \
+            --cov=common \
             --cov-config=/tmp/scripts-coveragerc \
-            --cov-report=lcov:coverage/scripts.lcov \
+            --cov-report= \
             -x -q
+          COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/scripts.lcov --include='scripts/*'
+          COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
       - name: Check CI metrics contract
         run: |
           uv run python scripts/check_ci_metrics_contract.py

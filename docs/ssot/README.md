@@ -32,7 +32,7 @@ When a fact is already implemented, prefer this ownership model:
 | Constants, thresholds, enum values | Code/config/common package | Link to owner and explain rationale |
 | API request/response shape | Schemas/OpenAPI/generated client | Link to schemas and contract tests |
 | State machines | Code-owned transition model plus tests | Explain lifecycle and link to transition tests |
-| CI/coverage policy | Scripts/workflows | Link to script and workflow checks |
+| CI/coverage policy | common package, scripts, workflows | Link to common policy, script checks, and workflow checks |
 | Operational workflow | AC + test/script | Explain intent and link to executable proof |
 
 The migration of code-owned SSOT facts into common packages or generated
@@ -49,7 +49,7 @@ contracts is tracked in
 | [deployment.md](./deployment.md) | `deployment` | Deployment model and release rationale |
 | [observability.md](./observability.md) | `observability` | Structured logging and SigNoz OTLP rationale |
 | [tdd.md](./tdd.md) | `tdd-transformation` | EPIC -> AC -> test workflow |
-| [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `scripts/coverage_policy.py` |
+| [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/coverage/policy.py` |
 | [auth.md](./auth.md) | `auth` | Auth architecture rationale and code references |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references |
 | [schema.md](./schema.md) | `schema` | Database model rationale; code owner is models/migrations |

@@ -16,8 +16,6 @@ Usage:
     python scripts/test_lifecycle.py [--fast|--smart|--ephemeral] [pytest_args]
 """
 
-import hashlib
-import json
 import os
 import signal
 import subprocess
@@ -28,15 +26,20 @@ from pathlib import Path
 
 # Constants
 REPO_ROOT = Path(__file__).parent.parent.absolute()
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from common import test_isolation  # noqa: E402
+
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"
 DB_CONTAINER_PREFIX = "finance-report-db"
-CACHE_DIR = Path.home() / ".cache" / "finance_report"
-ACTIVE_NAMESPACES_FILE = CACHE_DIR / "active_namespaces.json"
-MAX_POSTGRES_IDENTIFIER_LENGTH = 63
-TEST_DB_PREFIX = "finance_report_test_"
-MAX_NAMESPACE_LENGTH = MAX_POSTGRES_IDENTIFIER_LENGTH - len(TEST_DB_PREFIX)
-MAX_S3_BUCKET_LENGTH = 63
+CACHE_DIR = test_isolation.CACHE_DIR
+ACTIVE_NAMESPACES_FILE = test_isolation.ACTIVE_NAMESPACES_FILE
+MAX_POSTGRES_IDENTIFIER_LENGTH = test_isolation.MAX_POSTGRES_IDENTIFIER_LENGTH
+TEST_DB_PREFIX = test_isolation.TEST_DB_PREFIX
+MAX_NAMESPACE_LENGTH = test_isolation.MAX_NAMESPACE_LENGTH
+MAX_S3_BUCKET_LENGTH = test_isolation.MAX_S3_BUCKET_LENGTH
 
 # ANSI Colors
 GREEN = "\033[92m"
@@ -45,96 +48,32 @@ RED = "\033[91m"
 RESET = "\033[0m"
 
 
-# === Isolation Utilities (inlined from isolation_utils.py) ===
+# === Isolation Utilities ===
 
 
 def get_namespace() -> str:
     """Generate unique namespace for test isolation based on branch/repo."""
-    branch = os.environ.get("BRANCH_NAME")
-    workspace = os.environ.get("WORKSPACE_ID")
-
-    if branch:
-        namespace = _sanitize_namespace(branch)
-        if workspace:
-            try:
-                namespace = f"{namespace}_{_sanitize_namespace(workspace)}"
-            except ValueError:
-                pass  # Invalid workspace ID, use branch-only namespace
-        return _shorten_identifier(namespace, MAX_NAMESPACE_LENGTH, separator="_")
-
-    # Git auto-detection with path hash
-    try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        git_branch = result.stdout.strip()
-        if git_branch:
-            namespace = _sanitize_namespace(git_branch)
-            path_hash = hashlib.sha256(str(Path.cwd().absolute()).encode()).hexdigest()[
-                :8
-            ]
-            return _shorten_identifier(
-                f"{namespace}_{path_hash}", MAX_NAMESPACE_LENGTH, separator="_"
-            )
-    except Exception:
-        pass  # Git command failed or not a git repo, fall through to default
-
-    # Fallback
-    path_hash = hashlib.sha256(str(Path.cwd().absolute()).encode()).hexdigest()[:8]
-    return f"default_{path_hash}"
+    return test_isolation.get_namespace(run=subprocess.run, cwd_getter=Path.cwd)
 
 
 def _sanitize_namespace(name: str) -> str:
     """Convert branch name to safe identifier."""
-    if not name or not name.strip():
-        raise ValueError(f"Invalid namespace '{name}'")
-    safe = name.lower().replace("/", "_").replace("-", "_")
-    safe = "".join(c if c.isalnum() or c == "_" else "" for c in safe)
-    while "__" in safe:
-        safe = safe.replace("__", "_")
-    safe = safe.strip("_")
-    if not safe:
-        raise ValueError(f"Invalid namespace '{name}'")
-    return safe
+    return test_isolation.sanitize_namespace(name)
 
 
 def _shorten_identifier(value: str, max_length: int, separator: str = "_") -> str:
     """Shorten a stable identifier and preserve uniqueness with a hash suffix."""
-    if len(value) <= max_length:
-        return value
-
-    digest = hashlib.sha256(value.encode()).hexdigest()[:8]
-    prefix_length = max_length - len(separator) - len(digest)
-    if prefix_length < 1:
-        raise ValueError(f"Identifier max_length too short: {max_length}")
-
-    prefix = value[:prefix_length].rstrip("_-")
-    return f"{prefix}{separator}{digest}"
+    return test_isolation.shorten_identifier(value, max_length, separator)
 
 
 def get_test_db_name(namespace: str) -> str:
     """Generate test database name from namespace."""
-    safe_namespace = _shorten_identifier(namespace, MAX_NAMESPACE_LENGTH, separator="_")
-    return f"{TEST_DB_PREFIX}{safe_namespace}"
+    return test_isolation.get_test_db_name(namespace)
 
 
 def get_s3_bucket(namespace: str, base_bucket: str = "statements") -> str:
     """Generate S3 bucket name from namespace."""
-    safe_namespace = namespace.replace("_", "-")
-    bucket = f"{base_bucket}-{safe_namespace}"
-    if len(bucket) <= MAX_S3_BUCKET_LENGTH:
-        return bucket
-
-    digest = hashlib.sha256(bucket.encode()).hexdigest()[:8]
-    prefix_length = MAX_S3_BUCKET_LENGTH - len(base_bucket) - 2 - len(digest)
-    if prefix_length < 1:
-        raise ValueError(f"Base bucket name too long: {base_bucket}")
-
-    prefix = safe_namespace[:prefix_length].rstrip("-")
-    return f"{base_bucket}-{prefix}-{digest}"
+    return test_isolation.get_s3_bucket(namespace, base_bucket)
 
 
 # === Logging ===
@@ -146,21 +85,15 @@ def log(msg, color=RESET):
 
 def load_active_namespaces():
     """Load list of active namespaces from persistent storage."""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    if not ACTIVE_NAMESPACES_FILE.exists():
-        return []
-    try:
-        return json.loads(ACTIVE_NAMESPACES_FILE.read_text())
-    except (json.JSONDecodeError, OSError):
-        log("⚠️  Warning: Corrupted active namespaces file, resetting...", YELLOW)
-        return []
+    return test_isolation.load_active_namespaces(ACTIVE_NAMESPACES_FILE, CACHE_DIR)
 
 
 def save_active_namespaces(namespaces):
     """Save list of active namespaces to persistent storage."""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     try:
-        ACTIVE_NAMESPACES_FILE.write_text(json.dumps(namespaces, indent=2))
+        test_isolation.save_active_namespaces(
+            namespaces, ACTIVE_NAMESPACES_FILE, CACHE_DIR
+        )
     except OSError as e:
         log(f"⚠️  Warning: Failed to save active namespaces: {e}", YELLOW)
 

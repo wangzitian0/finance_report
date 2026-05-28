@@ -1,13 +1,15 @@
 """Tests for grouped AC registry format helpers."""
 
-import sys
 from pathlib import Path
+import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 import pytest  # noqa: E402
 
-from ac_registry_format import (  # noqa: E402
+from common.ssot.ac_registry_format import (  # noqa: E402
     epic_group_key,
     load_registry_entries,
     registry_validation_errors,

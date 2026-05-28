@@ -153,7 +153,6 @@ async def test_run_reconciliation_filters_unmatched(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     statement = await _create_statement(db, test_user.id)
-    statement_id = statement.id
     await _create_transaction(db, statement.id, amount=Decimal("5.00"), status=BankStatementTransactionStatus.UNMATCHED)
     await db.commit()
 

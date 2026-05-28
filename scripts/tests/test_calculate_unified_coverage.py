@@ -1,5 +1,5 @@
 """Tests for scripts/calculate_unified_coverage.py.
-Covers unified coverage calculation across backend, frontend, and scripts,
+Covers unified coverage calculation across backend, frontend, common, and scripts,
 including blacklist pattern exclusions and threshold enforcement.
 """
 
@@ -322,7 +322,7 @@ class TestLcovFileRecords:
 
 
 class TestCalculateUnifiedCoverage:
-    """Unified aggregation combines backend + frontend + scripts correctly."""
+    """Unified aggregation combines backend + frontend + common + scripts correctly."""
 
     def _make(self, total, covered):
         return {"total_lines": total, "covered_lines": covered, "coverage_percent": 0}
@@ -357,6 +357,18 @@ class TestCalculateUnifiedCoverage:
         assert result["breakdown"]["backend"] is b
         assert result["breakdown"]["frontend"] is fe
         assert result["breakdown"]["scripts"] is s
+
+    def test_AC8_13_53_common_breakdown_is_included_when_present(self):
+        b = self._make(10, 5)
+        fe = self._make(10, 5)
+        s = self._make(10, 5)
+        common = self._make(10, 10)
+
+        result = cuc.calculate_unified_coverage(b, fe, s, common)
+
+        assert result["total_lines"] == 40
+        assert result["covered_lines"] == 25
+        assert result["breakdown"]["common"] is common
 
     def test_coverage_close_to_30_pct(self):
         # Simulate production-like scenario: ~30% coverage

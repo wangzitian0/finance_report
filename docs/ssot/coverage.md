@@ -19,8 +19,8 @@ Coverage is measured using **LCOV executable lines** (`LF:` field) as the denomi
 
 ```
 unified_coverage = total_covered_lines / total_executable_lines
-                 = (backend_covered + frontend_covered + scripts_covered) /
-                   (backend_executable + frontend_executable + scripts_executable)
+                 = (backend_covered + frontend_covered + common_covered + scripts_covered) /
+                   (backend_executable + frontend_executable + common_executable + scripts_executable)
 ```
 
 **Unified CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum unified threshold is enforced.
@@ -34,12 +34,13 @@ copy those numbers into prose docs.
 
 ## Components
 
-The authoritative component/file policy lives in `scripts/coverage_policy.py`. Coverage tools must emit LCOV source paths that match that policy:
+The authoritative component/file policy lives in `common/coverage/policy.py`. Coverage tools must emit LCOV source paths that match that policy:
 
 | Component | Source Root | LCOV Path Prefix | Main Report |
 |-----------|-------------|------------------|-------------|
 | Backend | `apps/backend/src` | `src/...` relative to `apps/backend` | `coverage/backend.lcov` |
 | Frontend | `apps/frontend/src` | `src/...` relative to `apps/frontend` | `coverage/frontend.lcov` |
+| Common | `common` | `common/...` relative to repo root | `coverage/common.lcov` |
 | Scripts | `scripts` | `scripts/...` relative to repo root | `coverage/scripts.lcov` |
 
 `scripts/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
@@ -80,6 +81,15 @@ The authoritative component/file policy lives in `scripts/coverage_policy.py`. C
   - Python test modules under `scripts/`
   - Shell scripts are not part of LCOV executable-line coverage
 
+### Common Coverage
+
+- **Tool**: pytest-cov from the scripts test suite
+- **Output**: `coverage-common.lcov`
+- **CI Output**: `coverage/common.lcov`
+- **Excluded**:
+  - Package `__init__.py` files
+  - Python test modules under `common/`
+
 ---
 
 ## CI Integration
@@ -102,7 +112,7 @@ jobs:
     # Runs: python scripts/calculate_unified_coverage.py
     # Runs: python scripts/check_coverage_policy.py
     # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
-    # Builds repository-root-relative backend + frontend + scripts LCOV for Coveralls
+    # Builds repository-root-relative backend + frontend + common + scripts LCOV for Coveralls
 ```
 
 ### Coverage Calculation
@@ -111,7 +121,7 @@ jobs:
 
 1. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
 2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
-3. Aggregates backend + frontend + scripts covered/executable counts
+3. Aggregates backend + frontend + common + scripts covered/executable counts
 4. Reports unified percentage and exits 1 if coverage dropped below baseline
 5. Lists file-level low coverage from the same component LCOV files when run
    with `--list-low-files`
@@ -259,7 +269,7 @@ python scripts/calculate_unified_coverage.py
 
 ### Coverage policy audit fails after adding a module
 
-The new source file must either appear in the matching LCOV report or be explicitly excluded in `scripts/coverage_policy.py`. Prefer adding tests/import coverage for real modules. Only exclude generated, type-only, test-only, or entrypoint files.
+The new source file must either appear in the matching LCOV report or be explicitly excluded in `common/coverage/policy.py`. Prefer adding tests/import coverage for real modules. Only exclude generated, type-only, test-only, or entrypoint files.
 
 ### CI fails with coverage error
 

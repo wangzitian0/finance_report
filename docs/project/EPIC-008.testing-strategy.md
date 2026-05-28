@@ -46,7 +46,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - An AC counts as "covered" when it has a **passing Tier 1+ test** that exercises the real code path (not a mock/stub).
 - Tier 2/3 tests that `skip` due to missing env vars (e.g., `FRONTEND_URL`) do NOT count toward coverage.
 - The **AC pass rate** = (ACs with at least one passing Tier 1+ test) / (Total ACs).
-- CI source coverage uses the shared coverage policy in `scripts/coverage_policy.py`. New backend, frontend, and script modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
+- CI source coverage uses the shared coverage policy in `common/coverage/policy.py`. New backend, frontend, common, and script modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
 - **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 - **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
 - **AC8.13.17**: AC registry generation preserves canonical descriptions and stores entries under ACx.y merge anchors without committed totals.
@@ -85,6 +85,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.50**: Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors.
 - **AC8.13.51**: Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling.
 - **AC8.13.52**: Production release dry-run validates release prerequisites and image builds without production mutation.
+- **AC8.13.53**: Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -406,6 +407,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 |
 | AC8.13.49 | Staging AI/OCR gates publish audit input inventory and replay summary fields | `test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.50 | Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors | `test_AC8_13_50_*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
+| AC8.13.53 | Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers | `test_AC8_13_53_*` | `scripts/tests/test_common_tooling_modules.py`, `scripts/tests/test_ci_metrics_contract.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -581,7 +583,7 @@ active README -> EPIC -> AC registry -> tests -> CI artifact chain:
   gates.
 - Historical coverage numbers in the archive are superseded by
   `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json`, and
-  `scripts/coverage_policy.py`.
+  `common/coverage/policy.py`.
 - Historical AC traceability snapshots in the archive are superseded by the
   generated `ac-test-traceability-audit` CI artifact.
 - The business-critical service focus remains valid: reporting,

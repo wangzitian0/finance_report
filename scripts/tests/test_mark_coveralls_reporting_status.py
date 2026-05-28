@@ -169,6 +169,46 @@ def test_AC8_13_27_missing_coveralls_statuses_timeout_then_publish_success(
     assert clock.sleeps == [5, 5]
 
 
+def test_AC8_13_27_status_endpoint_404_is_treated_as_missing_statuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.27: Transient commit status 404s do not fail local coverage CI."""
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args[:3] == ["gh", "api", "repos/owner/repo/commits/ghi789/status"]:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=1,
+                stdout="",
+                stderr="gh: HTTP 404",
+            )
+        return completed_process()
+
+    monkeypatch.setattr(marker.subprocess, "run", fake_run)
+
+    observed = marker.mark_coveralls_reporting_only(
+        repo="owner/repo",
+        sha="ghi789",
+        target_url="https://github.com/owner/repo/actions/runs/12",
+        timeout_seconds=0,
+        settle_seconds=0,
+    )
+
+    assert observed == {
+        "coverage/coveralls": None,
+        "coverage/coveralls (push)": None,
+        "Coveralls - unified": None,
+        "Coveralls - backend": None,
+        "Coveralls - frontend": None,
+    }
+    assert [call[:3] for call in calls].count(
+        ["gh", "api", "repos/owner/repo/commits/ghi789/status"]
+    ) == 1
+    assert len([call for call in calls if "--method" in call]) == 5
+
+
 def test_AC8_13_27_optional_coveralls_push_context_does_not_delay_publish(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
