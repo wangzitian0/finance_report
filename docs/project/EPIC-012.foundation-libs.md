@@ -336,9 +336,10 @@ This EPIC addresses technical debt in the foundational libraries that all module
 
 ## 🗄️ Archive Integration Notes
 
-Useful foundation-library gaps from `docs/project/archive/EPIC-ENCODING-SUMMARY.md`,
-`docs/project/archive/EPIC-QA-Standardization.md`, and
-`docs/project/archive/QA_REPORT_20260121.md` are consolidated here:
+Useful foundation-library gaps from the removed `EPIC-ENCODING-SUMMARY.md`,
+`EPIC-QA-Standardization.md`, and `QA_REPORT_20260121.md` archive snapshots are
+consolidated here. The removed inventory is retained in
+[#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 - Service transaction boundaries remain the main open architecture issue:
   service code should use `flush()` while routers own `commit()`. See H2 and

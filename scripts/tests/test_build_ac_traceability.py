@@ -410,6 +410,13 @@ class TestRenderDocument:
     def test_regeneration_footer(self, tmp_path):
         rendered = bat.render_document([], {}, [tmp_path], "2024-01-01")
         assert "Regeneration" in rendered
+        assert "tmp/AC-TEST-TRACEABILITY-AUDIT.md" in rendered
+
+    def test_default_output_is_ignored_tmp_artifact(self):
+        assert (
+            bat.DEFAULT_OUTPUT
+            == bat.REPO_ROOT / "tmp" / "AC-TEST-TRACEABILITY-AUDIT.md"
+        )
 
 
 class TestMain:

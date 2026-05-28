@@ -257,7 +257,7 @@ Prompt 模板:
 1. **EPIC-018 占位 AC 已替换（P0a）** — 16 个 `ac_registry.yaml` 中的 AC 条目从数字占位符重写为具体验收标准（源自 `EPIC-018.ai-driven-pipeline.md` L234–249）。
 2. **Vision 非目标 #12 重新分类（P0b）** — `vision.md` L232 抵押贷款条目从 ❌ 改为 ✅；EPIC-011 已覆盖完整生命周期。
 3. **README 双状态表同步（P1a）** — `docs/project/README.md` 状态快照与活跃项目表现已对每个 EPIC 的状态保持一致。
-4. **AC-TEST-TRACEABILITY-AUDIT.md 头部刷新（P1b）** — 头部重写标注正文（L80+）为 542-AC 时代的遗留内容；完整的 218-AC 重映射推迟到后续 Issue。
+4. **AC traceability snapshot retired (P1b)** — 旧的 checked-in traceability snapshot 已由 generated reports 和 CI `ac-test-traceability-audit` artifact 取代；删除清单保留在 issue #548。
 5. **AC12.24.1–3 划线弃用确认（P2a）** — `infra_registry.yaml` L765–779 条目已确认为有意弃用标记，保留不变。
 6. **截断的 AC 条目已恢复（P2b）** — 从 EPIC 源文件恢复了 11 个条目（AC16.23 块 + 相邻条目）。
 7. **非连续 AC 编号说明（P2c）** — 在 EPIC-002/008/010/012 的 AC 章节标题旁插入说明注释。

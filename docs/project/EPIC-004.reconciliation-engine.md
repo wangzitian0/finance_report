@@ -229,11 +229,13 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ## 🗄️ Archive Integration Notes
 
-`docs/project/archive/EPIC-004.reconciliation-accuracy-report.md` is folded into
-this EPIC as a historical baseline: scoring dimensions, threshold routing,
-review queue flow, and anomaly handling were implemented, but the old archive
-had pending accuracy and performance measurements. Current work should add AC
-or test evidence rather than hand-maintained accuracy prose.
+The removed `EPIC-004.reconciliation-accuracy-report.md` archive snapshot is
+folded into this EPIC as a historical baseline; the removed inventory is
+retained in [#548](https://github.com/wangzitian0/finance_report/issues/548).
+Scoring dimensions, threshold routing, review queue flow, and anomaly handling
+were implemented, but the old archive had pending accuracy and performance
+measurements. Current work should add AC or test evidence rather than
+hand-maintained accuracy prose.
 
 ## 📄 Owned Documentation Surfaces
 

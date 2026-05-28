@@ -35,7 +35,7 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
-4. **AC Traceability Always Runs**: Docs-only AC/EPIC changes still run the proof gates: `scripts/generate_ac_registry.py --check`, `scripts/check_ac_traceability.py`, and `scripts/check_critical_proof_matrix.py`. Registry generation checks alignment without rewriting historical registry descriptions. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; trivial placeholder assertions do not count. The macro gate fails README/matrix/owner-EPIC drift and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies are informational.
+4. **AC Traceability Always Runs**: Docs-only AC/EPIC changes still run the proof gates: `scripts/generate_ac_registry.py --check`, `scripts/check_ac_traceability.py`, and `scripts/check_critical_proof_matrix.py`. Registry generation checks alignment without rewriting historical registry descriptions. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; trivial placeholder assertions do not count. The macro gate fails README/matrix/owner-EPIC drift and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies were retired to reduce merge conflicts.
 5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`scripts/check_ci_metrics_contract.py`, `scripts/check_coverage_policy.py`, `scripts/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging.
 6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
 7. **Toolchain Contract**: `scripts/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
@@ -171,10 +171,10 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
 - The asynchronous Coveralls status contexts include `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend`. CI does not normalize or require those external contexts. The repository ruleset must require the `finish` check, which aggregates local deterministic gates, rather than Coveralls contexts.
 
-**Checked-in AC traceability archive** (`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md`):
-- This file is a historical/manual snapshot, not the current CI source of truth.
-- Routine PRs should not refresh it solely because ACs or test references changed; the current audit is generated in CI and uploaded as the `ac-test-traceability-audit` artifact.
-- Refresh the checked-in archive only for an intentional documentation snapshot/release, otherwise it creates unnecessary merge conflicts across parallel PRs.
+**AC traceability audit artifact**:
+- The current audit is generated in CI and uploaded as the `ac-test-traceability-audit` artifact.
+- Routine PRs must not commit generated snapshot reports solely because ACs or test references changed.
+- The retired checked-in archive inventory is retained in [issue #548](https://github.com/wangzitian0/finance_report/issues/548), with full text recoverable from git history before commit `64aa58c`.
 
 **Post-merge staging deploy health gate** (`.github/workflows/staging-deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.

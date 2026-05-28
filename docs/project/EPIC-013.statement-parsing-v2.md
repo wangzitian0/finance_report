@@ -220,8 +220,9 @@ The following item was identified during the vision.md recovery audit as a featu
 
 ## 🗄️ Archive Integration Notes
 
-The useful EPIC-013 items from `docs/project/archive/EPIC-ENCODING-SUMMARY.md`
-are consolidated as current proof gaps:
+The useful EPIC-013 items from the removed `EPIC-ENCODING-SUMMARY.md` archive
+snapshot are consolidated as current proof gaps. The removed inventory is
+retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 - Institution auto-detection accepts omitted `institution` for PDF/image flows,
   but still needs provider-backed integration evidence that real document
