@@ -1962,7 +1962,7 @@ groups:
         epic: 8
         epic_name: testing-strategy
         description: Local verification entry points fail on the same backend format errors and route `make test` through
-          the root Moon test command.
+          the root Moon test command without hashing the infra submodule gitlink as a file input.
         mandatory: true
       - id: AC8.13.46
         epic: 8

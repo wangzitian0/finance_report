@@ -123,6 +123,11 @@ python scripts/check_toolchain_contract.py  # Runtime/toolchain drift check
 moon run :build             # Build all
 ```
 
+Root Moon tasks are uncached wrappers with explicit workspace inputs, so local
+verification runs fresh and never treats the `repo` infra submodule gitlink as a
+file input. The `repo/` submodule is verified separately by the agent
+orchestration infra sync check.
+
 ---
 
 ## Documentation

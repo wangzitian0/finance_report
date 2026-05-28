@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -638,6 +640,24 @@ def test_AC8_13_45_make_test_routes_through_root_moon_test() -> None:
     assert "moon run backend:test" not in makefile
     assert "same gate family as GitHub CI" in development
     assert "same gate family as GitHub CI" in environments
+
+
+def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
+    """AC8.13.45: Root Moon gates avoid hashing the infra submodule gitlink."""
+    moon = yaml.safe_load(read("moon.yml"))
+
+    workspace_inputs = moon["fileGroups"]["workspace"]
+    assert "repo" not in workspace_inputs
+    assert "**/*" not in workspace_inputs
+    assert "uncached wrappers with explicit workspace inputs" in read(
+        "docs/ssot/development.md"
+    )
+
+    for task_name in ("setup", "dev", "test", "lint", "build", "clean"):
+        task = moon["tasks"][task_name]
+        task_inputs = task["inputs"]
+        assert task_inputs == ["@group(workspace)"]
+        assert task["options"]["cache"] is False
 
 
 def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
