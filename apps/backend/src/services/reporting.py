@@ -20,7 +20,6 @@ from src.models import (
     Account,
     AccountType,
     Direction,
-    FxRate,
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
@@ -28,7 +27,14 @@ from src.models import (
 from src.models.layer3 import ManagedPosition, ManualValuationLiquidityClass, PositionStatus
 from src.services import fx
 from src.services.assets import AssetService
-from src.services.fx import FxRateError, FxWarning, PrefetchedFxRates, convert_amount, get_average_rate
+from src.services.fx import (
+    FxRateError,
+    FxWarning,
+    PrefetchedFxRates,
+    convert_amount,
+    get_average_rate,
+    get_exchange_rate,
+)
 from src.services.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.services.portfolio import AssetNotFoundError, PortfolioService
 
@@ -173,21 +179,10 @@ async def _get_fx_rates_map(
             rates[source] = Decimal("1")
             continue
 
-        stmt = (
-            select(FxRate.rate)
-            .where(FxRate.base_currency == source)
-            .where(FxRate.quote_currency == target)
-            .where(FxRate.rate_date <= rate_date)
-            .order_by(FxRate.rate_date.desc())
-            .limit(1)
-        )
-        result = await db.execute(stmt)
-        rate = result.scalar_one_or_none()
-
-        if rate is None:
-            raise ReportError(f"No FX rate available for {source}/{target} on {rate_date}")
-
-        rates[source] = Decimal(str(rate)) if not isinstance(rate, Decimal) else rate
+        try:
+            rates[source] = await get_exchange_rate(db, source, target, rate_date, lazy_load=True)
+        except FxRateError as exc:
+            raise ReportError(str(exc)) from exc
 
     return rates
 
@@ -335,6 +330,7 @@ async def _aggregate_net_income_sql(
                 effective_start,
                 as_of_date,
                 fx_warnings=fx_warnings,
+                lazy_load=True,
             )
         except FxRateError as exc:
             raise ReportError(str(exc)) from exc
@@ -439,6 +435,7 @@ async def _build_portfolio_market_adjustment_lines(
                     currency=source_currency,
                     target_currency=target_currency,
                     rate_date=portfolio_eval_date,
+                    lazy_load=True,
                 )
                 cost_basis = await fx.convert_amount(
                     db,
@@ -446,6 +443,7 @@ async def _build_portfolio_market_adjustment_lines(
                     currency=source_currency,
                     target_currency=target_currency,
                     rate_date=position.acquisition_date,
+                    lazy_load=True,
                 )
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
@@ -511,6 +509,7 @@ async def _build_manual_valuation_lines(
                     currency=source_currency,
                     target_currency=target_currency,
                     rate_date=as_of_date,
+                    lazy_load=True,
                 )
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
@@ -697,7 +696,7 @@ async def generate_income_statement(
             fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
 
     # Batch pre-fetch all needed FX rates
-    fx_rates = PrefetchedFxRates(fx_warnings)
+    fx_rates = PrefetchedFxRates(fx_warnings, lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
@@ -740,6 +739,7 @@ async def generate_income_statement(
                         average_start=start_date,
                         average_end=end_date,
                         fx_warnings=fx_warnings,
+                        lazy_load=True,
                     )
                 except FxRateError as exc:
                     logger.warning(
@@ -759,6 +759,7 @@ async def generate_income_statement(
                             currency=line.currency,
                             target_currency=target_currency,
                             rate_date=end_date,
+                            lazy_load=True,
                         )
                     except FxRateError as final_exc:
                         logger.error(
@@ -941,7 +942,7 @@ async def get_account_trend(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, row.entry_date, None, None))
 
-    fx_rates = PrefetchedFxRates()
+    fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
@@ -1086,7 +1087,7 @@ async def get_category_breakdown(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, today, start_date, today))
 
-    fx_rates = PrefetchedFxRates()
+    fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
@@ -1200,7 +1201,7 @@ async def generate_cash_flow(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, end_date, None, None))
 
-    fx_rates = PrefetchedFxRates()
+    fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)

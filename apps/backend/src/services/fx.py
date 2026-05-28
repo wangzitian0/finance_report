@@ -91,6 +91,8 @@ async def get_exchange_rate(
     base_currency: str,
     quote_currency: str,
     rate_date: date,
+    *,
+    lazy_load: bool = False,
 ) -> Decimal:
     """Get FX rate for a given date, falling back to the most recent prior rate."""
     base = _normalize_currency(base_currency)
@@ -115,6 +117,11 @@ async def get_exchange_rate(
     result = await db.execute(stmt)
     rate = result.scalar_one_or_none()
 
+    if rate is None and lazy_load:
+        from src.services.market_data import resolve_missing_fx_rate
+
+        rate = await resolve_missing_fx_rate(db, base, quote, rate_date)
+
     if rate is None:
         raise FxRateError(f"No FX rate available for {base}/{quote} on {rate_date}")
 
@@ -133,6 +140,7 @@ async def get_average_rate(
     end_date: date,
     *,
     fx_warnings: list[FxWarning] | None = None,
+    lazy_load: bool = False,
 ) -> Decimal:
     """Get average FX rate over a period, falling back to period-end rate."""
     base = _normalize_currency(base_currency)
@@ -178,7 +186,7 @@ async def get_average_rate(
             "end_date": end_date.isoformat(),
         }
         _append_fx_warning(fx_warnings, fallback_warning)
-        avg_rate = await get_exchange_rate(db, base, quote, end_date)
+        avg_rate = await get_exchange_rate(db, base, quote, end_date, lazy_load=lazy_load)
     elif not isinstance(avg_rate, Decimal):
         avg_rate = Decimal(str(avg_rate))
         fallback_warning = None
@@ -199,6 +207,7 @@ async def convert_amount(
     average_start: date | None = None,
     average_end: date | None = None,
     fx_warnings: list[FxWarning] | None = None,
+    lazy_load: bool = False,
 ) -> Decimal:
     """Convert an amount into the target currency using FX rates."""
     source = _normalize_currency(currency)
@@ -208,9 +217,17 @@ async def convert_amount(
         return amount
 
     if average_start and average_end:
-        rate = await get_average_rate(db, source, target, average_start, average_end, fx_warnings=fx_warnings)
+        rate = await get_average_rate(
+            db,
+            source,
+            target,
+            average_start,
+            average_end,
+            fx_warnings=fx_warnings,
+            lazy_load=lazy_load,
+        )
     else:
-        rate = await get_exchange_rate(db, source, target, rate_date)
+        rate = await get_exchange_rate(db, source, target, rate_date, lazy_load=lazy_load)
 
     return amount * rate
 
@@ -234,9 +251,10 @@ async def convert_to_base(
 class PrefetchedFxRates:
     """Helper to pre-fetch and store FX rates for batch processing."""
 
-    def __init__(self, fx_warnings: list[FxWarning] | None = None) -> None:
+    def __init__(self, fx_warnings: list[FxWarning] | None = None, *, lazy_load: bool = False) -> None:
         self._rates: dict[str, Decimal] = {}
         self._fx_warnings = fx_warnings
+        self._lazy_load = lazy_load
 
     def get_rate(
         self,
@@ -279,28 +297,27 @@ class PrefetchedFxRates:
         db: AsyncSession,
         pairs: list[tuple[str, str, date, date | None, date | None]],
     ) -> None:
-        """Fetch multiple rates in parallel or batch if possible."""
-        import asyncio
+        """Fetch multiple rates into the local prefetch cache."""
 
         async def _fetch_one(p: tuple[str, str, date, date | None, date | None]) -> None:
             base, quote, r_date, a_start, a_end = p
             if a_start and a_end:
-                rate = await get_average_rate(db, base, quote, a_start, a_end, fx_warnings=self._fx_warnings)
+                rate = await get_average_rate(
+                    db,
+                    base,
+                    quote,
+                    a_start,
+                    a_end,
+                    fx_warnings=self._fx_warnings,
+                    lazy_load=self._lazy_load,
+                )
             else:
-                rate = await get_exchange_rate(db, base, quote, r_date)
+                rate = await get_exchange_rate(db, base, quote, r_date, lazy_load=self._lazy_load)
             self.set_rate(base, quote, r_date, rate, a_start, a_end)
 
         unique_pairs = list(set(pairs))
         if not unique_pairs:
             return
 
-        try:
-            async with asyncio.TaskGroup() as tg:
-                for p in unique_pairs:
-                    tg.create_task(_fetch_one(p))
-        except ExceptionGroup as eg:
-            # Propagate the first FxRateError if present
-            for exc in eg.exceptions:
-                if isinstance(exc, FxRateError):
-                    raise exc
-            raise
+        for pair in unique_pairs:
+            await _fetch_one(pair)

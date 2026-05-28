@@ -89,7 +89,16 @@ def test_AC16_11_17_cmd_test_e2e_route(monkeypatch):
         ),
         ["-q"],
     )
-    assert calls[0][0][:4] == ["uv", "run", "pytest", "-m"]
+    assert calls[0][0][:7] == [
+        "uv",
+        "run",
+        "--python",
+        "3.12.12",
+        "python",
+        "-m",
+        "pytest",
+    ]
+    assert "-m" in calls[0][0]
 
 
 def test_AC16_11_17_cmd_test_perf_route(monkeypatch):
@@ -110,7 +119,15 @@ def test_AC16_11_17_cmd_test_perf_route(monkeypatch):
         ),
         [],
     )
-    assert calls[0][0][:3] == ["uv", "run", "locust"]
+    assert calls[0][0][:7] == [
+        "uv",
+        "run",
+        "--python",
+        "3.12.12",
+        "python",
+        "-m",
+        "locust",
+    ]
 
 
 def test_AC16_11_17_cmd_test_backend_path_route(monkeypatch):
@@ -131,7 +148,15 @@ def test_AC16_11_17_cmd_test_backend_path_route(monkeypatch):
         ),
         ["tests/review/test_x.py"],
     )
-    assert calls[0][0][:3] == ["uv", "run", "pytest"]
+    assert calls[0][0][:7] == [
+        "uv",
+        "run",
+        "--python",
+        "3.12.12",
+        "python",
+        "-m",
+        "pytest",
+    ]
 
 
 def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
@@ -387,7 +412,19 @@ class TestCmdLint:
         cli.cmd_lint(SimpleNamespace(backend=True, frontend=False, fix=False))
 
         format_calls = [
-            call for call in calls if call["cmd"][:4] == ["uv", "run", "ruff", "format"]
+            call
+            for call in calls
+            if call["cmd"][:7]
+            == [
+                "uv",
+                "run",
+                "--python",
+                "3.12.12",
+                "python",
+                "-m",
+                "ruff",
+            ]
+            and "format" in call["cmd"]
         ]
         assert format_calls
         assert format_calls[0]["check"] is True

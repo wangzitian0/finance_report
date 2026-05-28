@@ -100,6 +100,14 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", validation_alias=AliasChoices("ENVIRONMENT", "ENV"))
     debug: bool = False
     base_currency: str = "SGD"
+    market_data_lazy_fetch_enabled: bool = Field(default=True, validation_alias="MARKET_DATA_LAZY_FETCH_ENABLED")
+    market_data_fx_bridge_currency: str = Field(default="USD", validation_alias="MARKET_DATA_FX_BRIDGE_CURRENCY")
+    market_data_yahoo_timeout_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=30,
+        validation_alias="MARKET_DATA_YAHOO_TIMEOUT_SECONDS",
+    )
     redis_url: str | None = Field(default=None, validation_alias="REDIS_URL")
     # Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL
     # and is used by backend components when they need to link to the frontend app.

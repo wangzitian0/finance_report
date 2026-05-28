@@ -34,6 +34,11 @@ def get_runtime_version(name: str) -> str:
     return str(toolchain["runtime"][name])
 
 
+def uv_run(*args: str) -> list[str]:
+    """Build a uv run command pinned to the SSOT Python runtime."""
+    return ["uv", "run", "--python", get_runtime_version("python"), *args]
+
+
 def get_compose_cmd() -> list[str]:
     """Detect container runtime (podman or docker) and return compose command."""
     requested = os.environ.get("CONTAINER_RUNTIME", "").strip().lower()
@@ -85,11 +90,11 @@ def cmd_dev(args):
         run([*compose_cmd, "--profile", "infra", "up", "-d"])
 
     if args.migrate:
-        run(["uv", "run", "alembic", "upgrade", "head"], cwd=BACKEND_DIR)
+        run(uv_run("python", "-m", "alembic", "upgrade", "head"), cwd=BACKEND_DIR)
         return
 
     if args.check:
-        run(["uv", "run", "python", "-m", "src.boot", "--mode=full"], cwd=BACKEND_DIR)
+        run(uv_run("python", "-m", "src.boot", "--mode=full"), cwd=BACKEND_DIR)
         return
 
     if args.backend:
@@ -109,15 +114,16 @@ def cmd_test(args, extra_args: list[str]):
         return
     if args.e2e:
         run(
-            ["uv", "run", "pytest", "-m", "e2e", "tests/e2e/"] + extra_args,
+            uv_run("python", "-m", "pytest", "-m", "e2e", "tests/e2e/")
+            + extra_args,
             cwd=BACKEND_DIR,
         )
         return
     if args.perf:
         run(
-            [
-                "uv",
-                "run",
+            uv_run(
+                "python",
+                "-m",
                 "locust",
                 "-f",
                 "tests/locustfile.py",
@@ -129,13 +135,13 @@ def cmd_test(args, extra_args: list[str]):
                 "--run-time",
                 "30s",
                 "--headless",
-            ],
+            ),
             cwd=BACKEND_DIR,
         )
         return
 
     if extra_args and extra_args[0].startswith("tests/"):
-        run(["uv", "run", "pytest"] + extra_args, cwd=BACKEND_DIR)
+        run(uv_run("python", "-m", "pytest") + extra_args, cwd=BACKEND_DIR)
         return
     lifecycle_args = []
     if args.fast:
@@ -155,12 +161,15 @@ def cmd_lint(args):
     """Run linting and formatting."""
     if args.backend or not args.frontend:
         if args.fix:
-            run(["uv", "run", "ruff", "format", "src/"], cwd=BACKEND_DIR)
-            run(["uv", "run", "ruff", "check", "src/", "--fix"], cwd=BACKEND_DIR)
-        else:
-            run(["uv", "run", "ruff", "check", "src/"], cwd=BACKEND_DIR)
+            run(uv_run("python", "-m", "ruff", "format", "src/"), cwd=BACKEND_DIR)
             run(
-                ["uv", "run", "ruff", "format", "src/", "--check"],
+                uv_run("python", "-m", "ruff", "check", "src/", "--fix"),
+                cwd=BACKEND_DIR,
+            )
+        else:
+            run(uv_run("python", "-m", "ruff", "check", "src/"), cwd=BACKEND_DIR)
+            run(
+                uv_run("python", "-m", "ruff", "format", "src/", "--check"),
                 cwd=BACKEND_DIR,
             )
 

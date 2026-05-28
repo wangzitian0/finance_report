@@ -16,6 +16,7 @@ import signal
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -26,6 +27,18 @@ _started_resources: dict = {
     "uvicorn_proc": None,
     "stack_started": False,
 }
+
+
+def get_runtime_version(name: str) -> str:
+    """Read a runtime version from the repository toolchain contract."""
+    with (REPO_ROOT / "toolchain.toml").open("rb") as fh:
+        toolchain = tomllib.load(fh)
+    return str(toolchain["runtime"][name])
+
+
+def uv_run(*args: str) -> list[str]:
+    """Build a uv run command pinned to the SSOT Python runtime."""
+    return ["uv", "run", "--python", get_runtime_version("python"), *args]
 
 
 def get_compose_cmd() -> list[str]:
@@ -65,7 +78,7 @@ def check_database_ready() -> bool:
     print("  🚀 Running migrations...")
     try:
         subprocess.run(
-            ["uv", "run", "alembic", "upgrade", "head"],
+            uv_run("python", "-m", "alembic", "upgrade", "head"),
             cwd=REPO_ROOT / "apps" / "backend",
             check=True,
             capture_output=True,  # Capture output to avoid noise if it fails
@@ -123,9 +136,9 @@ def main():
     # Start uvicorn
     backend_dir = REPO_ROOT / "apps" / "backend"
     proc = subprocess.Popen(
-        [
-            "uv",
-            "run",
+        uv_run(
+            "python",
+            "-m",
             "uvicorn",
             "src.main:app",
             "--reload",
@@ -133,7 +146,7 @@ def main():
             "0.0.0.0",
             "--port",
             "8000",
-        ],
+        ),
         cwd=backend_dir,
     )
     _started_resources["uvicorn_proc"] = proc
