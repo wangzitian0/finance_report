@@ -95,10 +95,10 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.53**: Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers.
 - **AC8.13.54**: Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift.
 
-**Current state (2026-02-23):**
-- **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
-- **Tier 2**: Not yet implemented (planned: `tests/e2e/` with `APP_URL`)
-- **Tier 3**: 3 Playwright test files, all skip without `FRONTEND_URL`
+Current test and AC coverage status is generated, not hand-maintained here.
+Use `docs/analysis/test-ac-coverage-report.md`,
+`docs/analysis/ac-epic-mismatch-report.md`, and CI artifacts for live proof
+counts.
 
 ### 2.4 Synthetic Test Data (PDF Generation)
 
@@ -433,43 +433,39 @@ These scenarios represent the "Vertical Slices" of user value.
 
 ---
 
-## 5. Historical Implementation Snapshot
+## 5. E2E Suite Ownership
 
-This section records the implementation shape captured during the 2026-02-23
-testing-strategy audit. It is not the live source for current test counts or
-coverage status; use the generated coverage report and CI artifacts for that.
+Current test counts and coverage percentages belong to generated reports and CI
+artifacts, not this EPIC. This section records which suites are allowed to
+serve as E2E proof surfaces.
 
-### 5.1 Implemented Test Files
+### 5.1 E2E Test Files
 
-| File | Type | Tier | Tests | Coverage |
-|------|------|------|-------|----------|
-| `tests/e2e/test_core_journeys.py` | API E2E | Tier 1 | 41 | Health, accounts CRUD, journal entries, reports, reconciliation, auth, statement upload/flow, CI/CD integration, traceability |
-| `tests/e2e/test_statement_upload_e2e.py` | Playwright | Tier 3 | 2 | Statement upload + model selection (skips without `FRONTEND_URL`) |
-| `tests/e2e/test_statement_full_journey.py` | Playwright | Tier 3 | 1 | Full journey: DBS PDF upload → parse polling → detail/transactions → approve → balance sheet (AC8.13.1–5) |
-| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | API E2E | Tier 3 | 1 | Issue #404 hard gate: Moomoo + Futu PDF upload → real OCR parsing → brokerage import → holdings + balance sheet value (AC8.13.10) |
-| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Playwright/API | Tier 3 | 3 | Deterministic vision gate: fresh-user CSV upload → Stage 1 auto-post → reconciliation idempotency → Stage 2 cleared state → processing visibility → exact dashboard/report totals (AC8.13.28–32) |
-| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Browser/API E2E | Tier 3 | 1 | Issue #444 hard gate: fresh-user bank CSV upload → Stage 1/Stage 2 posting → brokerage PDF import → property/mortgage/ESOP manual snapshots → exact as-of net worth and dashboard/report totals (AC8.13.42) |
-| `tests/e2e/test_production_readonly_smoke.py` | Playwright/API | Tier 3 | 3 | Production-safe read-only smoke: health, auth boundary, browser shell, optional credential-gated dashboard |
-| `tests/e2e/test_e2e_flows.py` | Playwright | Tier 3 | 3 | Navigation, registration, reports view (skips without `FRONTEND_URL`) |
-| `tests/e2e/test_auth_flows.py` | Playwright | Tier 3 | 2 | Authentication flows (skips without `FRONTEND_URL`) |
-| `tests/e2e/conftest.py` | Fixtures | — | — | Shared session user, browser context, auth injection |
-| `scripts/smoke_test.sh` | Shell Smoke | — | — | 200+ lines of basic connectivity tests |
+| File | Role | AC Ownership |
+|------|------|--------------|
+| `apps/backend/tests/e2e/test_core_journeys.py` | Backend Tier 1 scenario/API coverage | AC8.1-AC8.10 |
+| `apps/backend/tests/e2e/test_auth_flows.py` | Backend auth flow coverage | AC8.2, AC8.7 |
+| `apps/backend/tests/e2e/test_e2e_flows.py` | Backend report/navigation flow coverage | AC8.2, AC8.6 |
+| `tests/e2e/test_statement_upload_e2e.py` | Statement upload readiness E2E | AC8.4.2, AC8.4.3 |
+| `tests/e2e/test_statement_full_journey.py` | Full statement hard gate | AC8.13.1-AC8.13.8 |
+| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Brokerage portfolio hard gate | AC8.13.10, AC8.13.18, AC8.13.19 |
+| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Deterministic upload-to-dashboard hard gate | AC8.13.28-AC8.13.32 |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Four-asset net-worth hard gate | AC8.13.42 |
+| `tests/e2e/test_production_readonly_smoke.py` | Production-safe read-only smoke | AC8.13.9 |
+| `tests/e2e/test_core_journeys.py` | Supplemental post-merge API smoke | AC8.1, AC8.3, AC8.4, AC8.7, AC8.8, AC8.10, AC1.5, AC6.5, AC6.11 |
+| `tests/e2e/test_e2e_flows.py` | Supplemental browser route/auth smoke | AC8.13.9, AC8.10.8, AC16.12.6, AC1.7.1 |
+| `tests/e2e/test_auth_flows.py` | Supplemental frontend auth/API-path smoke | AC8.10.8, AC8.10.9, AC16.12.5, AC16.12.6, AC1.7.1 |
+| `tests/e2e/test_version_check.py` | Deployment version smoke | AC8.13.36, AC8.13.39 |
 
-### 5.2 Scenario Coverage (Must-Have Requirements)
+Product E2E files under `tests/e2e/test_*.py` and
+`apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are
+not eligible for `docs/analysis/traceability-exceptions.md`; only fixtures and
+shared harness files such as `tests/e2e/conftest.py` may use that exception
+path. The `repo/e2e_regressions/` tree belongs to the `repo/` infra2 submodule
+and is managed by the infrastructure submodule sync process, not by
+finance_report AC coverage.
 
-| Requirement | Status | Test Location |
-|-------------|--------|---------------|
-| Health endpoint reachable | ✅ Passing | `test_core_journeys.py::test_api_health_check` |
-| User can create account | ✅ Passing | `test_core_journeys.py::test_create_cash_account`, `test_accounts_crud_api` |
-| User can create journal entry | ✅ Passing | `test_core_journeys.py::test_simple_expense_entry`, `test_journal_entry_crud` |
-| Statement upload triggers AI | ✅ Passing | `test_core_journeys.py::test_statement_upload_csv` (Tier 1 CSV upload) |
-| Reconciliation engine runs | ✅ Passing | `test_core_journeys.py::test_reconciliation_engine_runs` |
-| Unbalanced entry rejected | ✅ Passing | `test_core_journeys.py::test_unbalanced_journal_entry_rejection` |
-| Reports API accessible | ✅ Passing | `test_core_journeys.py::test_balance_sheet_report`, `test_income_statement_report`, `test_cash_flow_report` |
-| Authentication validation | ✅ Passing | `test_core_journeys.py::test_api_authentication_failures`, `test_unauthorized_access_blocked` |
-| User registration flow | ✅ Passing | `test_core_journeys.py::test_register_and_login_flow` |
-
-### 5.3 Tier 1 Test → AC Mapping (Complete)
+### 5.2 Tier 1 Test -> AC Mapping (Complete)
 
 | Test Function | ACs Covered | Description |
 |---------------|-------------|-------------|
@@ -515,14 +511,14 @@ coverage status; use the generated coverage report and CI artifacts for that.
 | `test_traceability_user_registration` | AC8.10.8 | Dedicated: POST /auth/register |
 | `test_traceability_authentication_validation` | AC8.10.9 | Dedicated: invalid login → 400/401 |
 
-### 5.4 CI/CD Integration Status
+### 5.3 CI/CD Integration Status
 
 - ✅ **PR Workflow**: `.github/workflows/pr-test.yml` runs E2E tests on every PR
 - ✅ **Smoke Tests**: `scripts/smoke_test.sh` integrated into PR pipeline
 - ✅ **Critical Test Check**: `scripts/check_critical_tests.py` validates test results
 - ✅ **Environment Isolation**: Each PR gets isolated DB/Redis/MinIO via Dokploy
 
-### 5.5 Known Gaps
+### 5.4 Known Gaps
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
    - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)
@@ -555,14 +551,13 @@ coverage status; use the generated coverage report and CI artifacts for that.
    - **Coverage**: Health payload, anonymous auth boundary, browser shell/login route, optional credential-gated dashboard
    - **Allowed skip**: Authenticated dashboard check may skip only when `PROD_SMOKE_EMAIL` / `PROD_SMOKE_PASSWORD` are not configured; it must not mutate production data
 
-4. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
+6. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
 
-5. **100 Scenario Coverage**:
-   - **Current**: 13 scenarios checked in Section 3 (of 100)
-   - **Gap**: 87 scenarios from Phase 1-6 not yet automated
-   - **Priority**: Low (core flows are covered, remaining are nice-to-have)
+7. **Scenario coverage tracking**: Section 3 remains a planning checklist.
+   Current proof counts belong to generated reports and CI artifacts, not this
+   prose list.
 
-### 5.6 Running Tests
+### 5.5 Running Tests
 
 ```bash
 # Run all E2E tests locally

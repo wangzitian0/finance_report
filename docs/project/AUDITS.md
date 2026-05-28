@@ -11,16 +11,12 @@ reports for current metrics.
 | [../analysis/ac-epic-mismatch-report.md](../analysis/ac-epic-mismatch-report.md) | Current AC-to-EPIC mismatch triage, separated into actionable and fixture-only refs |
 | [../analysis/traceability-exceptions.md](../analysis/traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
-Current generated AC snapshot:
+Current generated AC snapshot values are owned by:
 
-- 984 registered ACs
-- 981 active ACs
-- 3 deprecated ACs excluded from the coverage gate
-- 981 active ACs with real test-candidate references
-- 0 active registered ACs without real test reference
-- 0 stub-only placeholders
-- 0 invalid AC refs in real tests
-- 0 actionable AC-to-EPIC mismatches
+- `docs/analysis/test-ac-coverage-report.md`
+- `docs/analysis/ac-epic-mismatch-report.md`
+- `python scripts/analyze_test_ac_coverage.py --stdout`
+- `python scripts/check_ac_traceability.py`
 
 Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced
 by the AC traceability gate before the generated audit artifact is uploaded.
