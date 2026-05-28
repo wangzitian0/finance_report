@@ -359,8 +359,9 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 #### 4.3 Archive Integration Notes
 
-The project archive has been swept and its useful operating-model content is
-owned by active EPICs:
+The project archive has been swept, removed from the repository, and indexed in
+[#548](https://github.com/wangzitian0/finance_report/issues/548). Its useful
+operating-model content is owned by active EPICs:
 
 - Historical AC audit inventories are now lineage only; current metrics come
   from generated registries and the AC coverage report.

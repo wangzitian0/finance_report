@@ -21,8 +21,9 @@ other live values should not be duplicated by hand in this directory index.
 - Test proof is reported by `docs/analysis/test-ac-coverage-report.md`.
 - Current AC traceability follows this live chain:
   `README.md` -> `docs/project/EPIC-*.md` -> `docs/*_registry.yaml` ->
-  tests -> CI artifact. Do not refresh archive audit snapshots in routine
-  feature PRs.
+  tests -> CI artifact. Do not commit generated audit snapshots in routine
+  feature PRs; removed archive inventory is retained in
+  [issue #548](https://github.com/wangzitian0/finance_report/issues/548).
 - Coverage policy is owned by `common/coverage/policy.py`.
 - Project status metrics should be generated or validated, not hand-maintained.
   See [issue #455](https://github.com/wangzitian0/finance_report/issues/455).

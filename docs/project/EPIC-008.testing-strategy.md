@@ -578,11 +578,12 @@ HEADLESS=false pytest tests/e2e -v
 
 ## 6. Archive Integration Notes
 
-Useful content from `docs/project/archive/testing-implementation.md`,
-`docs/project/archive/testing-gap-analysis.md`,
-`docs/project/archive/TEST-COVERAGE-PLAN.md`, and
-`docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md` is consolidated into the
-active README -> EPIC -> AC registry -> tests -> CI artifact chain:
+Useful content from `testing-implementation.md`, `testing-gap-analysis.md`,
+`TEST-COVERAGE-PLAN.md`, and `AC-TEST-TRACEABILITY-AUDIT.md` was consolidated
+before the archive snapshots were removed. The removed inventory is retained in
+[#548](https://github.com/wangzitian0/finance_report/issues/548); current proof
+is owned by the active README -> EPIC -> AC registry -> tests -> CI artifact
+chain:
 
 - The durable testing assets are factories, performance/load-test entry points,
   Playwright E2E scaffolding, Moon task integration, and critical-path smoke
@@ -590,8 +591,8 @@ active README -> EPIC -> AC registry -> tests -> CI artifact chain:
 - Historical coverage numbers in the archive are superseded by
   `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json`, and
   `common/coverage/policy.py`.
-- Historical AC traceability snapshots in the archive are superseded by the
-  generated `ac-test-traceability-audit` CI artifact.
+- Historical AC traceability snapshots are superseded by the generated
+  `ac-test-traceability-audit` CI artifact.
 - The business-critical service focus remains valid: reporting,
   reconciliation, FX revaluation, assets, review queue, processing account,
   accounting, and validation.

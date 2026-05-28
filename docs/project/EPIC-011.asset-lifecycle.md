@@ -2018,7 +2018,9 @@ All key decisions confirmed based on requirements:
 
 ## 🗄️ Archive Integration Notes
 
-The EPIC encoding archive is folded into this EPIC as explicit remaining scope:
+The removed EPIC encoding archive snapshot is folded into this EPIC as explicit
+remaining scope; the removed inventory is retained in
+[#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 - Basic position reconciliation is P0-complete, but the broader user stories are
   not all implemented as coded product features.

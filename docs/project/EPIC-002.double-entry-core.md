@@ -317,8 +317,9 @@ def test_many_lines_entry():
 
 ## 🗄️ Archive Integration Notes
 
-The useful material from `docs/project/archive/EPIC-002-*` is consolidated here
-as current EPIC-owned context:
+The useful material from the removed `EPIC-002-*` archive snapshots is
+consolidated here as current EPIC-owned context. The removed inventory is
+retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 - The durable design is the `JournalEntry` header plus `JournalLine` line-item
   model. Account balances are calculated from posted journal lines rather than

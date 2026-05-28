@@ -615,7 +615,7 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
     None
 ):
-    """AC8.13.24: CI uploads traceability audit instead of failing on stale archive output."""
+    """AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
     audit_builder = read("scripts/build_ac_traceability.py")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -634,7 +634,8 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     assert "scripts/build_ac_traceability.py --check" not in workflow
     assert "CI uploads the generated audit as an artifact" in audit_builder
     assert "uploaded as a CI artifact" in ci_cd
-    assert "Do not refresh archive audit snapshots in routine" in project_readme
+    assert "Do not commit generated audit snapshots in routine" in project_readme
+    assert "issue #548" in project_readme
 
 
 def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:

@@ -12,13 +12,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import check_ssot_ownership  # noqa: F401 (module reference for monkeypatch)
 from check_ssot_ownership import (
     MUST_BE_ABSENT,
-    MUST_BE_ARCHIVED,
     REPO_ROOT,
     RULE_KEYWORDS,
     TRANSLATION_PAIRS,
     Violation,
     check_must_be_absent,
-    check_must_be_archived,
+    check_retired_archive_roots,
     check_rule_cross_references,
     check_translation_parity,
     count_lines,
@@ -119,30 +118,31 @@ class TestCheckTranslationParity:
 
 
 # ---------------------------------------------------------------------------
-# Check 2 — must-be-archived
+# Check 2 — retired archive root files
 # ---------------------------------------------------------------------------
 
 
-class TestCheckMustBeArchived:
+class TestCheckRetiredArchiveRoots:
     def test_passes_when_files_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "check_ssot_ownership.MUST_BE_ARCHIVED",
+            "check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES",
             [tmp_path / "should-not-exist.md"],
         )
-        assert check_must_be_archived() == []
+        assert check_retired_archive_roots() == []
 
     def test_fails_when_file_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         bad = tmp_path / "AC-AUDIT-2026-02-25.md"
         bad.write_text("old content")
         monkeypatch.setattr("check_ssot_ownership.REPO_ROOT", tmp_path)
-        monkeypatch.setattr("check_ssot_ownership.MUST_BE_ARCHIVED", [bad])
-        violations = check_must_be_archived()
+        monkeypatch.setattr("check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES", [bad])
+        violations = check_retired_archive_roots()
         assert len(violations) == 1
-        assert "must be moved to" in violations[0].message
+        assert "must not exist" in violations[0].message
+        assert "issue #548" in violations[0].message
 
     def test_real_archived_files_are_absent(self) -> None:
-        """Files that must be archived must not exist in docs/project/ root."""
-        violations = check_must_be_archived()
+        """Retired root archive files must not exist in docs/project/ root."""
+        violations = check_retired_archive_roots()
         assert violations == [], "\n".join(v.message for v in violations)
 
 
@@ -307,7 +307,7 @@ class TestFullRunOnRealRepo:
         """All checks must pass on the real repository."""
         violations = (
             check_translation_parity()
-            + check_must_be_archived()
+            + check_retired_archive_roots()
             + check_must_be_absent()
             + check_rule_cross_references()
         )
