@@ -123,7 +123,10 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "group: staging-post-merge-${{ github.ref }}" in workflow
+    assert (
+        "group: staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
+        in workflow
+    )
     assert "cancel-in-progress: false" in workflow
     assert "timeout-minutes: 75" in workflow
     assert "timeout-minutes: 22" in workflow
@@ -212,7 +215,10 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
         assert "- Uploads verified: ${verified_uploads}" in workflow
         assert "- Parse completions verified: ${verified_parse_completions}" in workflow
         assert "- Brokerage imports verified: ${verified_brokerage_imports}" in workflow
-        assert "- Report verifications verified: ${verified_report_verifications}" in workflow
+        assert (
+            "- Report verifications verified: ${verified_report_verifications}"
+            in workflow
+        )
         assert "- Failures observed: ${verified_failures}" in workflow
         assert "tests/e2e/test_statement_full_journey.py" in workflow
         assert "tests/e2e/test_brokerage_upload_to_portfolio_value.py" in workflow
@@ -228,6 +234,46 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     )
     assert "Staging Audit Replay Contract" in observability
     assert "deployment-level inputs" in observability
+
+
+def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> None:
+    """AC8.13.51: Staging deploy is triggered by successful main CI workflow_run."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "workflow_run:" in workflow
+    assert 'workflows: ["CI"]' in workflow
+    assert "types: [completed]" in workflow
+    assert "branches: [main]" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "github.event.workflow_run.head_branch == 'main'" in workflow
+    assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
+    assert "Wait for matching CI success" not in workflow
+    assert "wait_for_github_ci.py" not in workflow
+    assert "workflow_run event after the matching main CI run succeeds" in ci_cd
+    assert "does not poll or wait for CI inside the deploy job" in ci_cd
+
+
+def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
+    """AC8.13.52: Production release dry-run validates without deploying."""
+    workflow = read(".github/workflows/production-release.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "dry_run:" in workflow
+    assert "Validate release prerequisites without deploying production" in workflow
+    assert "dry-run:" in workflow
+    assert "github.event_name == 'workflow_dispatch' && inputs.dry_run" in workflow
+    assert "CONTAINER_RUNTIME: docker" in workflow
+    assert "moon run :lint" in workflow
+    assert "moon run :test" in workflow
+    assert "push: false" in workflow
+    assert "Production mutation skipped" in workflow
+    dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
+    assert "environment:" not in dry_run_section
+    assert "dokploy_deploy.sh" not in dry_run_section
+    assert "inputs.dry_run" in workflow.split("deploy:", 1)[1].split("steps:", 1)[0]
+    assert "Production release dry-run" in ci_cd
+    assert "without changing Dokploy or production tags" in ci_cd
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -352,7 +398,10 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     deploy_script = read("scripts/dokploy_deploy.sh")
 
-    assert "group: staging-post-merge-${{ github.ref }}" in workflow
+    assert (
+        "group: staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
+        in workflow
+    )
     assert "cancel-in-progress: false" in workflow
     assert "workflow_dispatch:" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
@@ -384,7 +433,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     )
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
-    assert "Wait for matching CI success" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in workflow
     assert "test_four_asset_net_worth_golden_path.py" in workflow
     assert '-v -m "llm"' in workflow
@@ -404,43 +453,40 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '-m "smoke or e2e"' not in pr_workflow
 
 
-def test_AC8_13_21_post_merge_ai_ocr_waits_for_matching_ci_success() -> None:
-    """AC8.13.21: Provider-backed post-merge AI/OCR runs only after same-SHA CI success."""
+def test_AC8_13_21_post_merge_ai_ocr_requires_successful_ci_workflow_run() -> None:
+    """AC8.13.21: Provider-backed post-merge AI/OCR runs only after successful main CI."""
     workflow = read(".github/workflows/staging-deploy.yml")
-    wait_script = read("scripts/wait_for_github_ci.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "Wait for matching CI success" in workflow
-    assert "scripts/wait_for_github_ci.py" in workflow
-    assert "--workflow CI" in workflow
-    assert '--sha "${{ github.sha }}"' in workflow
-    assert "--poll-seconds 10" in workflow
-    assert workflow.index("Wait for matching CI success") < workflow.index(
-        "Build and push Backend"
-    )
-    assert "gh run list" in wait_script
-    assert "matching CI run failed" in wait_script
+    assert "workflow_run:" in workflow
+    assert 'workflows: ["CI"]' in workflow
+    assert "types: [completed]" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
+    assert "Wait for matching CI success" not in workflow
+    assert "scripts/wait_for_github_ci.py" not in workflow
     assert (
-        "waits for the same commit's `CI` push workflow to complete successfully"
+        "successful-main-CI `workflow_run` trigger before spending provider quota"
         in ci_cd
     )
 
 
-def test_AC8_13_22_staging_deploy_waits_for_matching_ci_before_building() -> None:
-    """AC8.13.22: Staging deploy waits for CI before building or deploying images."""
+def test_AC8_13_22_staging_deploy_starts_from_successful_ci_before_building() -> None:
+    """AC8.13.22: Staging deploy builds only after successful main CI workflow_run."""
     workflow = read(".github/workflows/staging-deploy.yml")
 
     assert "actions: read" in workflow
     assert "contents: read" in workflow
     assert "packages: write" in workflow
-    assert "Wait for matching CI success" in workflow
-    assert "timeout-minutes: 45" in workflow
-    assert workflow.index("Wait for matching CI success") < workflow.index(
-        "Build and push Backend"
-    )
-    assert workflow.index("Wait for matching CI success") < workflow.index(
-        "Deploy to Staging"
-    )
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "github.event.workflow_run.head_branch == 'main'" in workflow
+    assert "Wait for matching CI success" not in workflow
+    assert workflow.index(
+        "ref: ${{ github.event.workflow_run.head_sha || github.sha }}"
+    ) < workflow.index("Build and push Backend")
+    assert workflow.index(
+        "ref: ${{ github.event.workflow_run.head_sha || github.sha }}"
+    ) < workflow.index("Deploy to Staging")
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
@@ -483,8 +529,9 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "steps.frontend_image.outputs.build_required == 'true'" in deploy_workflow
     assert "Promote Backend Image to Staging Tag" in deploy_workflow
     assert "Promote Frontend Image to Staging Tag" in deploy_workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in deploy_workflow
     assert deploy_workflow.index(
-        "Wait for matching CI success"
+        "ref: ${{ github.event.workflow_run.head_sha || github.sha }}"
     ) < deploy_workflow.index("Resolve Backend Image")
     assert deploy_workflow.index("Resolve Backend Image") < deploy_workflow.index(
         "Build and push Backend"
@@ -546,7 +593,10 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "group: staging-post-merge-${{ github.ref }}" in deploy_workflow
+    assert (
+        "group: staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
+        in deploy_workflow
+    )
     assert "cancel-in-progress: false" in deploy_workflow
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
@@ -651,38 +701,28 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "Coveralls - unified" in ci_cd
 
 
-def test_AC8_13_43_stale_staging_diagnostic_runs_before_deploy() -> None:
-    """AC8.13.43: Same-SHA CI gate failure reports healthy-but-stale staging."""
+def test_AC8_13_43_failed_ci_workflow_run_reports_no_deploy_diagnostic() -> None:
+    """AC8.13.43: Failed main CI reports staging state without deploying."""
     workflow = read(".github/workflows/staging-deploy.yml")
-    wait_script = read("scripts/wait_for_github_ci.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Probe current staging version" in workflow
     assert "id: staging_before" in workflow
     assert "https://report-staging.zitian.party/api/health" in workflow
     assert "Current Staging Before Deploy" in workflow
-    assert "id: wait_ci" in workflow
-    wait_block = workflow.split("- name: Wait for matching CI success", 1)[1].split(
-        "- name: Diagnose matching CI failure before staging deploy", 1
-    )[0]
-    assert "continue-on-error: true" in wait_block
-    assert "Diagnose matching CI failure before staging deploy" in workflow
-    assert "Staging Deploy Blocked Before VPS Changes" in workflow
-    assert 'tail -n 30 "$RUNNER_TEMP/matching-ci.log" || true' in workflow
-    assert 'current_short="${current_sha:0:7}"' in workflow
-    assert "Matching CI diagnostic" in workflow
-    assert "healthy-but-stale" in workflow
-    assert "Do not classify this as a VPS/container failure" in workflow
-    assert workflow.index("Probe current staging version") < workflow.index(
-        "Wait for matching CI success"
+    assert "ci-not-success-summary:" in workflow
+    assert "name: CI Did Not Pass" in workflow
+    assert "github.event.workflow_run.conclusion != 'success'" in workflow
+    assert "Staging Deploy Skipped Before VPS Changes" in workflow
+    assert "main CI workflow_run did not succeed" in workflow
+    assert (
+        "No image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
+        in workflow
     )
-    assert workflow.index("Diagnose matching CI failure before staging deploy") < (
-        workflow.index("Install moon")
-    )
-    assert "failed_jobs=" in wait_script
-    assert "_run_gh_view_jobs" in wait_script
-    assert "healthy but stale" in ci_cd
-    assert "same-SHA CI gate" in ci_cd
+    assert "id: wait_ci" not in workflow
+    assert "wait_for_github_ci.py" not in workflow
+    assert "Failed, cancelled, or timed-out main CI runs do not promote images" in ci_cd
+    assert "does not poll or wait for CI inside the deploy job" in ci_cd
 
 
 def test_AC8_13_45_make_test_routes_through_root_moon_test() -> None:

@@ -1835,12 +1835,12 @@ groups:
       - id: AC8.13.21
         epic: 8
         epic_name: testing-strategy
-        description: Provider-backed post-merge AI/OCR gate waits for the same SHA's CI success before running.
+        description: Provider-backed post-merge AI/OCR gate runs only after a successful main CI workflow_run.
         mandatory: true
       - id: AC8.13.22
         epic: 8
         epic_name: testing-strategy
-        description: Staging deploy waits for the same SHA's CI success before building or deploying.
+        description: Staging deploy starts from successful main CI workflow_run before building or deploying.
         mandatory: true
       - id: AC8.13.23
         epic: 8
@@ -1913,7 +1913,7 @@ groups:
       - id: AC8.13.36
         epic: 8
         epic_name: testing-strategy
-        description: Main CI builds SHA-tagged staging images and post-merge staging reuses them after same-SHA CI success.
+        description: Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success.
         mandatory: true
       - id: AC8.13.37
         epic: 8
@@ -1950,7 +1950,7 @@ groups:
       - id: AC8.13.43
         epic: 8
         epic_name: testing-strategy
-        description: Staging deploy reports healthy-but-stale state and failed CI jobs when same-SHA CI blocks deployment.
+        description: Failed main CI workflow_run reports current staging state without deploying.
         mandatory: true
       - id: AC8.13.44
         epic: 8
@@ -1977,7 +1977,8 @@ groups:
       - id: AC8.13.48
         epic: 8
         epic_name: testing-strategy
-        description: Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%.
+        description: Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches
+          99%.
         mandatory: true
       - id: AC8.13.49
         epic: 8
@@ -1989,6 +1990,16 @@ groups:
         epic_name: testing-strategy
         description: Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E
           proof anchors.
+        mandatory: true
+      - id: AC8.13.51
+        epic: 8
+        epic_name: testing-strategy
+        description: Automatic staging deploy uses successful main CI workflow_run, with no in-job CI polling.
+        mandatory: true
+      - id: AC8.13.52
+        epic: 8
+        epic_name: testing-strategy
+        description: Production release dry-run validates release prerequisites and image builds without production mutation.
         mandatory: true
   AC11:
     AC11.1:

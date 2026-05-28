@@ -182,12 +182,12 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
 - The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, PR preview, and production smoke runs do not repeatedly download identical E2E dependencies.
 - PR CI validates backend and frontend staging image builds without pushing so Dockerfile, context, and build-argument errors are blocked before merge. Main push CI builds and pushes SHA-tagged staging images in parallel with tests when heavy CI is required. These images are immutable commit artifacts and do not move the live `staging` tag.
-- Staging deploy waits for the same commit's `CI` push workflow to complete successfully before promoting images, pushing `staging` tags, or changing the Dokploy staging environment. If matching CI fails, is cancelled, or times out, staging is not overwritten.
-- Before waiting for same-SHA CI, staging probes `/api/health` and records the currently deployed SHA. If the same-SHA CI gate blocks deploy while staging is healthy but stale, the workflow reports the healthy-but-stale state, target SHA, current staging SHA, and failed CI job summary before any image promotion, Dokploy change, smoke test, or AI/OCR validation runs.
-- After same-SHA CI passes, post-merge staging first looks up the backend and frontend SHA-tagged staging images from GHCR. If a SHA image is missing, the workflow falls back to building only the missing image. Once both SHA images are present, staging retags those immutable images as `staging` before deploy. This keeps deploy detection strict while moving normal image build time out of the serialized post-merge lane.
+- Automatic staging deploy starts from a workflow_run event after the matching main CI run succeeds, and does not poll or wait for CI inside the deploy job. Failed, cancelled, or timed-out main CI runs do not promote images, push `staging` tags, or change the Dokploy staging environment.
+- Staging checks out the `workflow_run.head_sha` so the deployed SHA is the exact commit already proven by main CI. Manual `workflow_dispatch` remains available as a recovery path and checks out the selected ref.
+- After successful main CI, post-merge staging first looks up the backend and frontend SHA-tagged staging images from GHCR. If a SHA image is missing, the workflow falls back to building only the missing image. Once both SHA images are present, staging retags those immutable images as `staging` before deploy. This keeps deploy detection strict while moving normal image build time out of the serialized post-merge lane.
 - Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
 - Automatic provider-backed AI/OCR validation runs as a downstream job in the same serialized post-merge workflow unit. This keeps staging stable for the SHA under validation: a newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running.
-- Staging deploys use a workflow-level `staging-post-merge-${{ github.ref }}` concurrency group with `cancel-in-progress: false`, so GitHub Actions does not cancel a running post-merge lane when a newer `main` commit is pushed. Because GitHub concurrency allows at most one running and one pending run per group, the latest pending post-merge run is retained and older pending runs may be replaced. This is latest-pending serial validation, not strict FIFO for every SHA.
+- Staging deploys use a workflow-level `staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}` concurrency group with `cancel-in-progress: false`, so GitHub Actions does not cancel a running post-merge lane when a newer `main` commit is validated. Because GitHub concurrency allows at most one running and one pending run per group, the latest pending post-merge run is retained and older pending runs may be replaced. This is latest-pending serial validation, not strict FIFO for every SHA.
 - The staging deploy-health job has a 75-minute deploy-health job timeout and the E2E step has a 22-minute E2E step timeout. The E2E command logs `[phase:start]` and `[phase:end]` records for smoke and core non-LLM E2E so timeout and latency failures identify the active phase.
 - The automatic AI/OCR job has a 30-minute job timeout, while the provider-backed pytest step remains capped at 22 minutes.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
@@ -197,7 +197,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
 - Automatic `Staging AI/OCR Gate` execution lives in `.github/workflows/staging-deploy.yml` and starts only after deploy health succeeds in the same serialized post-merge workflow unit.
 - `.github/workflows/staging-ai-ocr-gate.yml` remains as a manual recovery entry point via `workflow_dispatch` for rerunning provider-backed validation against the currently selected ref.
-- Automatic AI/OCR gates inherit the deploy workflow's same-SHA CI wait before spending provider quota. If the matching CI run fails, is cancelled, or times out, the staging deploy workflow fails before calling real OCR/LLM tests or changing staging.
+- Automatic AI/OCR gates inherit the deploy workflow's successful-main-CI `workflow_run` trigger before spending provider quota. If the matching CI run fails, is cancelled, or times out, automatic staging deploy and real OCR/LLM tests do not run.
 - Tests marked `llm` are the only tests allowed to call the configured AI/OCR provider and run once, serially, in this provider-backed gate.
 - The automatic gate passes the deployed short SHA as `EXPECTED_SHA`, so version checks still validate the deployed commit before provider-backed parsing starts.
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed provider gate.
@@ -209,6 +209,11 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR preview non-LLM E2E mirrors the staging non-LLM command shape: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, and `-n 4` parallelism. The provider-backed `llm` marker remains post-merge only.
 - PR preview cleanup has two paths: the PR `closed` event removes the Dokploy stack, volumes, and GHCR PR images; the scheduled `PR Preview Cleanup` fallback removes stale VPS preview containers/compose volumes for closed or missing PRs and prunes aged Docker build cache/images without touching open PR previews.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
+
+**Production release dry-run** (`.github/workflows/production-release.yml`):
+- Manual `workflow_dispatch` with `dry_run=true` runs the same release prerequisite checks (`moon run :lint`, `moon run :test` with `CONTAINER_RUNTIME=docker`) and production image builds with `push: false`.
+- The dry-run uses production frontend build arguments without changing Dokploy or production tags, and does not enter the `production` environment or push GHCR images. Its summary reports the validated ref/tag and states that production mutation was skipped.
+- Tag pushes remain the only automatic path that pushes versioned release images. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked
 in the delivery-engine recommendation note instead of being mixed into routine
@@ -262,7 +267,7 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 
 **Post-merge staging image promotion (2026-05-21 target):**
 - Main push CI owns SHA-tagged staging image creation for heavy runtime changes.
-- The serialized staging lane promotes existing SHA images to the moving `staging` tag after same-SHA CI success, avoiding redundant Docker builds in the normal path.
+- The serialized staging lane promotes existing SHA images to the moving `staging` tag after successful main CI workflow_run validation, avoiding redundant Docker builds in the normal path.
 - Missing SHA images trigger a per-service fallback build, preserving deployability for manual reruns and unusual cache/package states.
 
 **Backend Test Parallelization:**

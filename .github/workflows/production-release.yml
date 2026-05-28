@@ -3,6 +3,7 @@
 # Triggers: 
 #   - Tag push (v*.*.*) → Build images
 #   - Manual dispatch → Deploy existing version
+#   - Manual dispatch with dry_run=true → Validate release without deploying
 #
 # Workflow: Tag push builds images, then manually trigger to deploy
 
@@ -17,6 +18,11 @@ on:
         description: 'Version to deploy (leave empty for latest tag)'
         required: false
         type: string
+      dry_run:
+        description: 'Validate release prerequisites without deploying production'
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -39,6 +45,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract version
         id: version
@@ -116,8 +124,97 @@ jobs:
           echo "✅ Release ${{ steps.version.outputs.tag }} built"
           echo "Deploy: Actions → Production Release → Run workflow"
 
+  dry-run:
+    name: Production Release Dry Run
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve dry-run tag
+        id: version
+        run: |
+          tag="${{ github.event.inputs.version }}"
+          if [ -z "$tag" ]; then
+            tag="dry-run-$(git rev-parse --short HEAD)"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Dry-run tag: $tag"
+
+      - name: Install moon
+        uses: moonrepo/setup-toolchain@v0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: apps/frontend
+
+      - name: Verify Codebase
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
+          S3_ACCESS_KEY: minio
+          S3_SECRET_KEY: minio_local_secret
+          S3_ENDPOINT: http://127.0.0.1:9000
+          S3_BUCKET: statements
+          CONTAINER_RUNTIME: docker
+        run: |
+          moon run :lint
+          moon run :test
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Image Without Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/backend
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}
+
+      - name: Build Frontend Image Without Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/frontend
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://report.zitian.party
+            NEXT_PUBLIC_APP_URL=https://report.zitian.party
+
+      - name: Summary
+        run: |
+          {
+            echo "## Production Release Dry Run"
+            echo ""
+            echo "- Ref: ${{ github.ref_name }}"
+            echo "- Validation tag: ${{ steps.version.outputs.tag }}"
+            echo "- Production mutation skipped: true"
+            echo "- Production mutation skipped because dry_run=true"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Production mutation skipped"
+
   deploy:
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
