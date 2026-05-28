@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, screen, fireEvent, waitFor } from "@testing-library/react";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
 import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
@@ -34,6 +34,9 @@ const parsedBrokerageStatement = {
 
 describe("StatementDetailPage - coverage additions", () => {
     beforeEach(() => vi.clearAllMocks());
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
     it("renders parsing stopped alert and resume polling button", async () => {
         const stmt = {
@@ -176,5 +179,53 @@ describe("StatementDetailPage - coverage additions", () => {
         expect(
             screen.queryByRole("button", { name: /import brokerage positions to portfolio/i }),
         ).not.toBeInTheDocument();
+    });
+
+    it("test_AC8_13_48 stops stuck parsing auto-refresh and resumes polling on demand", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+        const parsingStatement = {
+            ...parsedBrokerageStatement,
+            status: "parsing",
+            parsing_progress: 30,
+            transactions: [],
+        };
+        mockedApi.mockResolvedValue(parsingStatement as any);
+
+        renderReviewComponent(<StatementDetailPage /> as any);
+
+        expect(await screen.findByText(/Parsing in progress/)).toBeInTheDocument();
+
+        await act(async () => {
+            vi.setSystemTime(new Date("2026-01-01T00:05:01Z"));
+            await vi.advanceTimersByTimeAsync(3000);
+        });
+
+        expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Resume Auto-Refresh" }));
+        await waitFor(() => expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1"));
+    });
+
+    it("test_AC8_13_48 shows retry parsing errors for rejected statements", async () => {
+        const rejectedStatement = {
+            ...parsedBrokerageStatement,
+            status: "rejected",
+            validation_error: "Bad parse",
+            transactions: [],
+        };
+
+        mockedApi
+            .mockResolvedValueOnce(rejectedStatement as any)
+            .mockRejectedValueOnce(new Error("retry failed"));
+
+        renderReviewComponent(<StatementDetailPage /> as any);
+
+        await screen.findByText("Parsing Failed");
+        fireEvent.click(screen.getAllByRole("button", { name: "Retry Parse" })[0]);
+
+        await waitFor(() => expect(screen.getAllByText("retry failed").length).toBeGreaterThan(0));
+        expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1/retry", { method: "POST" });
     });
 });

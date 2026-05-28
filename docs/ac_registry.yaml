@@ -1974,6 +1974,11 @@ groups:
         epic_name: testing-strategy
         description: Remaining delivery-engine optimizations are captured in a tracked project recommendation note.
         mandatory: true
+      - id: AC8.13.48
+        epic: 8
+        epic_name: testing-strategy
+        description: Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

@@ -25,6 +25,16 @@ describe("UnmatchedBoard", () => {
     })
   })
 
+  const unmatchedItem = {
+    id: "u1",
+    statement_id: "s1",
+    txn_date: "2026-01-11",
+    description: "Card payment",
+    amount: 88,
+    direction: "OUT",
+    status: "unmatched",
+  }
+
   it("AC16.20.3 loads unmatched items and creates entry", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
@@ -88,6 +98,7 @@ describe("UnmatchedBoard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }))
     await waitFor(() => expect(screen.queryAllByText("Card payment")).toHaveLength(0))
+    expect(screen.getByText("Select a transaction to review")).toBeInTheDocument()
   })
 
   it("creates all entries with batch action", async () => {
@@ -166,5 +177,55 @@ describe("UnmatchedBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
     expect(await screen.findByText("bulk failed")).toBeInTheDocument()
     expect(screen.queryByText("Created 1 journal entry from unmatched transactions.")).not.toBeInTheDocument()
+  })
+
+  it("test_AC8_13_48 tolerates invalid flagged storage and refresh failures", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    localStorage.setItem("finance-unmatched-flagged", "{not-json")
+    mockedApiFetch.mockRejectedValueOnce(new Error("load failed"))
+
+    render(<UnmatchedBoard />)
+
+    expect(await screen.findByText("load failed")).toBeInTheDocument()
+    expect(screen.getByText("No unmatched transactions")).toBeInTheDocument()
+    warnSpy.mockRestore()
+  })
+
+  it("test_AC8_13_48 tolerates flagged storage write failures while unflagging", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(["u1"]),
+      setItem: () => {
+        throw new Error("storage full")
+      },
+      removeItem: vi.fn(),
+    })
+    mockedApiFetch.mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+
+    render(<UnmatchedBoard />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Unflag" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Unflag" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Flag" })).toBeInTheDocument())
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[UnmatchedBoard] Failed to save flagged state:",
+      expect.any(Error),
+    )
+    warnSpy.mockRestore()
+  })
+
+  it("test_AC8_13_48 surfaces single-entry creation failures", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+      .mockRejectedValueOnce(new Error("create failed"))
+
+    render(<UnmatchedBoard />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Entry" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Create Entry" }))
+
+    expect(await screen.findByText("create failed")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create Entry" })).toBeEnabled()
   })
 })

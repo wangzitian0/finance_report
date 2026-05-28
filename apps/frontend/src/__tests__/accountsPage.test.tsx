@@ -231,4 +231,41 @@ describe("AccountsPage", () => {
     await waitFor(() => expect(screen.queryByText("Edit:Cash")).toBeNull())
     expect(screen.queryByText("Create Account Modal")).toBeNull()
   })
+
+  it("test_AC8_13_48 opens and closes the account details sidebar", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/accounts")) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "a1",
+              name: "Cash",
+              type: "ASSET",
+              currency: "SGD",
+              is_active: true,
+              balance: 1000,
+              code: "1000",
+              description: "Operating cash",
+            },
+          ],
+          total: 1,
+        } satisfies AccountListResponse)
+      }
+      if (path === "/api/journal-entries?limit=50") {
+        return Promise.resolve({ items: [], total: 0 })
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Cash"))
+
+    expect(await screen.findByRole("dialog", { name: "Account Details" })).toBeInTheDocument()
+    expect(screen.getAllByText("Operating cash").length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Account Details" })).not.toBeInTheDocument())
+  })
 })

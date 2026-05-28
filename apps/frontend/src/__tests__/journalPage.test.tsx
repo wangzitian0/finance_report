@@ -137,4 +137,121 @@ describe("JournalPage", () => {
       }),
     )
   })
+
+  it("test_AC8_13_48 opens the entry form from header and empty state actions", async () => {
+    mockedApiFetch.mockResolvedValue({ items: [] })
+
+    render(<JournalPage />)
+
+    await waitFor(() => expect(screen.getByText("No journal entries yet")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "New Entry" }))
+    fireEvent.click(screen.getByRole("button", { name: "Mock Submit Entry" }))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByRole("button", { name: "Create First Entry" }))
+    expect(screen.getByRole("button", { name: "Mock Submit Entry" })).toBeInTheDocument()
+  })
+
+  it("test_AC8_13_48 surfaces post failures without closing the page", async () => {
+    const entriesResponse = {
+      items: [
+        {
+          id: "d-error",
+          memo: "Draft Error",
+          entry_date: "2026-01-01",
+          status: "draft",
+          source_type: "manual",
+          lines: [
+            { id: "l1", account_id: "a1", direction: "DEBIT", amount: 200, description: "d" },
+            { id: "l2", account_id: "a2", direction: "CREDIT", amount: 200, description: "c" },
+          ],
+        },
+      ],
+    }
+
+    mockedApiFetch.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("post denied"))
+
+    render(<JournalPage />)
+
+    await waitFor(() => expect(screen.getByText("Draft Error")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Post" }))
+    await waitFor(() => expect(screen.getAllByText("post denied").length).toBeGreaterThan(0))
+  })
+
+  it("test_AC8_13_48 surfaces delete failures from the confirmation dialog", async () => {
+    const entriesResponse = {
+      items: [
+        {
+          id: "d-error",
+          memo: "Draft Error",
+          entry_date: "2026-01-01",
+          status: "draft",
+          source_type: "manual",
+          lines: [
+            { id: "l1", account_id: "a1", direction: "DEBIT", amount: 200, description: "d" },
+            { id: "l2", account_id: "a2", direction: "CREDIT", amount: 200, description: "c" },
+          ],
+        },
+      ],
+    }
+
+    mockedApiFetch.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("delete denied"))
+
+    render(<JournalPage />)
+
+    await waitFor(() => expect(screen.getByText("Draft Error")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete Entry" }))
+    await waitFor(() => expect(screen.getAllByText("delete denied").length).toBeGreaterThan(0))
+  })
+
+  it("test_AC8_13_48 covers delete and void dialog cancel plus void failure", async () => {
+    const entriesResponse = {
+      items: [
+        {
+          id: "d-cancel",
+          memo: "Draft Cancel",
+          entry_date: "2026-01-01",
+          status: "draft",
+          source_type: "manual",
+          lines: [
+            { id: "l1", account_id: "a1", direction: "DEBIT", amount: 100, description: "d" },
+            { id: "l2", account_id: "a2", direction: "CREDIT", amount: 100, description: "c" },
+          ],
+        },
+        {
+          id: "p-error",
+          memo: "Posted Error",
+          entry_date: "2026-01-02",
+          status: "posted",
+          source_type: "manual",
+          lines: [
+            { id: "l3", account_id: "a1", direction: "DEBIT", amount: 300, description: "d" },
+            { id: "l4", account_id: "a2", direction: "CREDIT", amount: 300, description: "c" },
+          ],
+        },
+      ],
+    }
+
+    mockedApiFetch.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("void denied"))
+
+    render(<JournalPage />)
+
+    await waitFor(() => expect(screen.getByText("Draft Cancel")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Delete Entry" })).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Void" }))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Void Entry" })).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: "Void" }))
+    fireEvent.click(screen.getByRole("button", { name: "Void Entry" }))
+    await waitFor(() => expect(screen.getAllByText("void denied").length).toBeGreaterThan(0))
+  })
 })

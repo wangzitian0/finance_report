@@ -6,8 +6,13 @@ import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesC
 import { apiFetch } from "@/lib/api";
 import type { NetWorthTimeSeriesResponse } from "@/lib/types";
 
+let capturedChartOption: { tooltip?: { valueFormatter?: (value: number) => string } } | null = null;
+
 vi.mock("echarts-for-react", () => ({
-  default: () => <div role="img" aria-label="ECharts net worth line chart" />,
+  default: (props: { option: { tooltip?: { valueFormatter?: (value: number) => string } } }) => {
+    capturedChartOption = props.option;
+    return <div role="img" aria-label="ECharts net worth line chart" />;
+  },
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -19,6 +24,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
 
   beforeEach(() => {
     mockedApiFetch.mockReset();
+    capturedChartOption = null;
   });
 
   it("AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart", async () => {
@@ -35,6 +41,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
 
     await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
     expect(screen.getByRole("img", { name: "ECharts net worth line chart" })).toBeInTheDocument();
+    expect(capturedChartOption?.tooltip?.valueFormatter?.(1234)).toContain("1,234.00");
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/reports/net-worth/timeseries"));
   });
 
@@ -55,6 +62,11 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2));
     expect(String(mockedApiFetch.mock.calls[1][0])).toContain("granularity=daily");
     expect(String(mockedApiFetch.mock.calls[1][0])).toContain("from=");
+
+    fireEvent.click(screen.getByRole("tab", { name: "All" }));
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(3));
+    expect(String(mockedApiFetch.mock.calls[2][0])).toContain("from=1970-01-01");
+    expect(String(mockedApiFetch.mock.calls[2][0])).toContain("granularity=monthly");
   });
 
   it("AC5.7.5 renders an empty state when fewer than two points exist", async () => {
@@ -71,5 +83,13 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     await waitFor(() =>
       expect(screen.getByText("At least two net worth points are needed to draw a line.")).toBeInTheDocument(),
     );
+  });
+
+  it("test_AC8_13_48 shows net worth history load failures", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("history failed"));
+
+    render(<NetWorthTimeSeriesChart />);
+
+    expect(await screen.findByText("history failed")).toBeInTheDocument();
   });
 });

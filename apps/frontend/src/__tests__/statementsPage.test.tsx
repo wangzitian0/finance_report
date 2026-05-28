@@ -148,4 +148,45 @@ describe("StatementsPage", () => {
     expect(showToastMock).toHaveBeenCalledWith("Statement deleted successfully", "success")
 })
 
+  it("test_AC8_13_48 renders missing statement values and surfaces delete failures", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "s4",
+            original_filename: "needs-review.pdf",
+            institution: "Unknown",
+            status: "parsed",
+            period_start: null,
+            period_end: null,
+            currency: null,
+            confidence_score: null,
+            transactions: [],
+            opening_balance: null,
+            closing_balance: undefined,
+            balance_validated: false,
+            validation_error: "Balance mismatch",
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error("delete failed"))
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("needs-review.pdf")).toBeInTheDocument())
+    expect(screen.getByText("Parsing...")).toBeInTheDocument()
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText("Needs Review")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle("Delete Statement"))
+    await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByText("Cancel Delete"))
+    expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle("Delete Statement"))
+    fireEvent.click(screen.getByText("Confirm Delete"))
+
+    await waitFor(() => expect(screen.getAllByText("delete failed").length).toBeGreaterThan(0))
+  })
+
 })

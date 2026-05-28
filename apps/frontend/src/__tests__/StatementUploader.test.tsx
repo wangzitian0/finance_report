@@ -203,7 +203,24 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Quota exceeded') });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: () => {
+        throw new Error("Quota exceeded");
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
+      key: (index: number) => Array.from(store.keys())[index] ?? null,
+      get length() {
+        return store.size;
+      },
+    });
     render(<StatementUploader />);
     const select = await screen.findByLabelText(/ai model/i);
     // Wait for models to load (select starts disabled until fetchAiModels resolves)
@@ -211,8 +228,72 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       expect(select).not.toBeDisabled();
     });
     await userEvent.selectOptions(select, "qwen/qwen-2.5-vl-7b-instruct:free");
-    spy.mockRestore();
-    // This should trigger the warning toast (but we didn't mock showToast properly here to check it easily, 80%+ should still be fine)
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[Storage] Failed to write statement_model_v1:",
+      expect.any(Error),
+    );
+    vi.unstubAllGlobals();
+    warnSpy.mockRestore();
+  });
+
+  it("test_AC8_13_48 falls back to the default model when storage reads fail", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("storage blocked");
+      },
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      key: vi.fn(),
+      length: 0,
+    });
+
+    render(<StatementUploader />);
+
+    const select = await screen.findByLabelText(/ai model/i);
+    await waitFor(() => {
+      expect(select).toHaveValue("google/gemini-3-flash-preview");
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[Storage] Failed to read statement_model_v1:",
+      expect.any(Error),
+    );
+
+    vi.unstubAllGlobals();
+    warnSpy.mockRestore();
+  });
+
+  it("test_AC8_13_48 removes invalid stored model ids and tolerates removal failures", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+    localStorage.setItem("statement_model_v1", "obsolete-model");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const removeSpy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("remove blocked");
+    });
+
+    render(<StatementUploader />);
+
+    const select = await screen.findByLabelText(/ai model/i);
+    await waitFor(() => {
+      expect(select).toHaveValue("google/gemini-3-flash-preview");
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[Storage] Failed to remove statement_model_v1:",
+      expect.any(Error),
+    );
+
+    removeSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("handles drag events", async () => {

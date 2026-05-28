@@ -113,6 +113,37 @@ describe('apiFetch', () => {
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(calledHeaders['Authorization']).toBe('Bearer test-jwt-token');
   });
+
+  it('test_AC8_13_48 uses raw text when apiFetch error JSON is not an object', async () => {
+    const fetchMock = makeFetchMock(422, 'false');
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiFetch } = await import('../lib/api');
+    await expect(apiFetch('/api/test')).rejects.toThrow('false');
+  });
+
+  it('test_AC8_13_48 reports redirect assignment failures', async () => {
+    const fetchMock = makeFetchMock(401, {});
+    vi.stubGlobal('fetch', fetchMock);
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('window', {
+      location: {
+        get href() {
+          return '';
+        },
+        set href(_: string) {
+          throw new Error('navigation blocked');
+        },
+      },
+    });
+
+    const { apiFetch, resetRedirectGuard } = await import('../lib/api');
+    resetRedirectGuard();
+
+    await expect(apiFetch('/api/statements')).rejects.toThrow('Authentication required - redirect failed');
+    expect(consoleSpy).toHaveBeenCalledWith('[api] Failed to redirect to login:', expect.any(Error));
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('resetRedirectGuard', () => {
@@ -175,6 +206,19 @@ describe('apiDelete', () => {
     await expect(apiDelete('/api/delete-unauth')).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
+
+  it('test_AC8_13_48 includes Authorization header when deleting with a token', async () => {
+    localStorageMock.setItem('finance_access_token', 'delete-token');
+    const fetchMock = makeFetchMock(200, '');
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiDelete } = await import('../lib/api');
+    await apiDelete('api/resource/1');
+
+    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/resource\/1/);
+    expect(calledHeaders['Authorization']).toBe('Bearer delete-token');
+  });
 });
 
 
@@ -213,6 +257,34 @@ describe('apiStream', () => {
 
     const { apiStream } = await import('../lib/api');
     await expect(apiStream('/api/stream')).rejects.toThrow('Service Unavailable');
+  });
+
+  it('test_AC8_13_48 includes Authorization header on streams', async () => {
+    localStorageMock.setItem('finance_access_token', 'stream-token');
+    const fetchMock = makeFetchMock(200, {}, { 'X-Session-Id': 'sess-auth' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiStream } = await import('../lib/api');
+    const result = await apiStream('api/stream-auth');
+
+    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(result.sessionId).toBe('sess-auth');
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/stream-auth/);
+    expect(calledHeaders['Authorization']).toBe('Bearer stream-token');
+  });
+
+  it('test_AC8_13_48 handles non-object and invalid JSON stream errors', async () => {
+    const { apiStream } = await import('../lib/api');
+
+    vi.stubGlobal('fetch', makeFetchMock(429, 'false'));
+    await expect(apiStream('/api/stream')).rejects.toThrow('false');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve('{bad json'),
+    }));
+    await expect(apiStream('/api/stream')).rejects.toThrow('{bad json');
   });
 });
 
@@ -299,5 +371,14 @@ describe('apiUpload', () => {
     const { apiUpload } = await import('../lib/api');
     const fd = new FormData();
     await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Server Crash');
+  });
+
+  it('test_AC8_13_48 uses raw text when apiUpload error JSON is not an object', async () => {
+    const fetchMock = makeFetchMock(413, 'false');
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiUpload } = await import('../lib/api');
+    const fd = new FormData();
+    await expect(apiUpload('/api/upload', fd)).rejects.toThrow('false');
   });
 });
