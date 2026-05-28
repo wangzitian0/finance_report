@@ -252,8 +252,9 @@ concepts:
 
   critical_proof_matrix:
     owner: docs/ssot/critical-proof-matrix.yaml
-    description: Parseable guard for core product proof paths that must not be satisfied by broad AC references.
+    description: Parseable README -> EPIC -> E2E macro outcome guard and core proof-path matrix.
     cross_refs:
+      - README.md
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
       - .github/workflows/ci.yml

@@ -112,11 +112,33 @@ Known proof-quality caveats:
 Do not hand-maintain open/closed blocker lists here. GitHub issue state and
 labels are the source of truth for current tracker status.
 
-- North-star tracker: [#444](https://github.com/wangzitian0/finance_report/issues/444)
+- Macro proof tracker: [#521](https://github.com/wangzitian0/finance_report/issues/521)
 - Related live work is tracked with labels such as `flow: upload-to-report`,
   `flow: net-worth`, and `scope: valuation`.
 - If a stable proof path is needed in docs, write a parseable matrix and attach
   a checker rather than copying issue state by hand.
+
+## Core Proof Paths
+
+Macro correctness is owned by
+[`docs/ssot/critical-proof-matrix.yaml`](docs/ssot/critical-proof-matrix.yaml)
+and checked by `python scripts/check_critical_proof_matrix.py`. This is the
+README -> EPIC -> E2E contract. The EPIC -> AC -> test contract remains owned by
+the generated AC registries and AC traceability reports.
+
+The macro outcome set is closed and parseable:
+
+| Outcome ID | Purpose |
+|---|---|
+| `asset-distribution-net-worth` | Asset distribution, liabilities, and as-of net worth |
+| `monthly-income-spending` | Current-period income, expenses, and net income |
+| `investment-performance` | Portfolio import, valuation, and performance proof path |
+| `annualized-income-long-term` | Salary, dividends, ESOP/restricted holdings, and long-term income proof path |
+| `source-ledger-report-traceability` | Source document -> ledger -> report traceability |
+
+Covered outcomes must point to explicit E2E proof anchors in the matrix. Partial
+or gap outcomes must point to a GitHub issue instead of being implied by broad
+AC coverage.
 
 ## Documentation Debt Tracked As Issues
 

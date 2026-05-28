@@ -15,6 +15,30 @@ import check_critical_proof_matrix as matrix  # noqa: E402
 def _write_registry(repo_root: Path) -> None:
     docs = repo_root / "docs"
     docs.mkdir(parents=True, exist_ok=True)
+    project = docs / "project"
+    project.mkdir(parents=True, exist_ok=True)
+    (project / "EPIC-008.testing-strategy.md").write_text(
+        "# EPIC-008: Testing Strategy\n",
+        encoding="utf-8",
+    )
+    (repo_root / "README.md").write_text(
+        """
+# Test README
+
+## Core Proof Paths
+
+Source: docs/ssot/critical-proof-matrix.yaml
+Checker: scripts/check_critical_proof_matrix.py
+
+- asset-distribution-net-worth
+- monthly-income-spending
+- investment-performance
+- annualized-income-long-term
+- source-ledger-report-traceability
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
     (docs / "ac_registry.yaml").write_text(
         """
 version: '1.0'
@@ -36,6 +60,11 @@ groups:
         epic_name: testing-strategy
         description: critical proof matrix validates core paths
         mandatory: true
+      - id: AC8.13.50
+        epic: 8
+        epic_name: testing-strategy
+        description: critical proof matrix validates macro outcomes
+        mandatory: true
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -49,7 +78,33 @@ groups:
 def _write_matrix(repo_root: Path, content: str) -> Path:
     matrix_path = repo_root / "docs" / "ssot" / "critical-proof-matrix.yaml"
     matrix_path.parent.mkdir(parents=True, exist_ok=True)
-    matrix_path.write_text(content.strip() + "\n", encoding="utf-8")
+    rendered = content.strip()
+    if "\noutcomes:" not in f"\n{rendered}":
+        rendered += """
+
+outcomes:
+  - id: asset-distribution-net-worth
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: monthly-income-spending
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: investment-performance
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: annualized-income-long-term
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: source-ledger-report-traceability
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+"""
+    matrix_path.write_text(rendered + "\n", encoding="utf-8")
     return matrix_path
 
 
@@ -334,6 +389,155 @@ proofs: []
         matrix.validate_matrix(tmp_path, empty_matrix)
 
 
+def test_AC8_13_50_macro_outcome_contract_requires_closed_set_and_e2e_proofs(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.50: Macro outcomes are closed and covered outcomes must point to E2E proofs."""
+    _write_registry(tmp_path)
+    test_dir = tmp_path / "tests" / "e2e"
+    test_dir.mkdir(parents=True)
+    (test_dir / "test_core.py").write_text(
+        """
+import pytest
+
+@pytest.mark.e2e
+@pytest.mark.critical
+async def test_core_flow():
+    \"\"\"AC8.13.1: macro path proof.\"\"\"
+    assert True
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: core-flow
+    scope: behavioral
+    ci_tier: post_merge_environment
+    file: tests/e2e/test_core.py
+    test: test_core_flow
+    required_markers: [e2e, critical]
+    ac_ids: [AC8.13.1]
+
+outcomes:
+  - id: asset-distribution-net-worth
+    status: covered
+    owner_epics: [EPIC-008]
+    proof_ids: [core-flow]
+  - id: monthly-income-spending
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: investment-performance
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: annualized-income-long-term
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: source-ledger-report-traceability
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+""",
+    )
+
+    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    assert [outcome.outcome_id for outcome in validation.outcomes] == [
+        "asset-distribution-net-worth",
+        "monthly-income-spending",
+        "investment-performance",
+        "annualized-income-long-term",
+        "source-ledger-report-traceability",
+    ]
+    assert not validation.errors
+
+
+def test_AC8_13_50_macro_outcome_contract_rejects_drift(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.50: Covered macro outcomes cannot drift from README, EPICs, or E2E anchors."""
+    _write_registry(tmp_path)
+    (tmp_path / "README.md").write_text(
+        """
+# Test README
+
+## Core Proof Paths
+
+Source: docs/ssot/critical-proof-matrix.yaml
+Checker: scripts/check_critical_proof_matrix.py
+
+- asset-distribution-net-worth
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    script_dir = tmp_path / "scripts" / "tests"
+    script_dir.mkdir(parents=True)
+    (script_dir / "test_contract.py").write_text(
+        """
+def test_contract():
+    \"\"\"AC8.13.1: not an E2E macro proof.\"\"\"
+    assert True
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: contract-proof
+    scope: static_contract
+    ci_tier: pr_ci
+    file: scripts/tests/test_contract.py
+    test: test_contract
+    ac_ids: [AC8.13.1]
+
+outcomes:
+  - id: asset-distribution-net-worth
+    status: covered
+    owner_epics: [EPIC-999]
+    proof_ids: [contract-proof]
+  - id: monthly-income-spending
+    status: covered
+    owner_epics: [EPIC-008]
+  - id: investment-performance
+    status: gap
+    owner_epics: [EPIC-008]
+  - id: annualized-income-long-term
+    status: unknown
+    owner_epics: [EPIC-008]
+    issue: "521"
+  - id: source-ledger-report-traceability
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - id: surprise-outcome
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#521"
+  - not-a-mapping
+""",
+    )
+
+    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    errors = validation.errors
+    assert "macro outcomes include unknown ids: surprise-outcome" in errors
+    assert any("owner EPIC does not exist: EPIC-999" in error for error in errors)
+    assert any("covered outcome requires at least one proof_id" in error for error in errors)
+    assert any("proof contract-proof must be behavioral E2E" in error for error in errors)
+    assert any("gap outcome requires issue like #521" in error for error in errors)
+    assert any("invalid status 'unknown'" in error for error in errors)
+    assert any("outcome[6] must be a mapping" in error for error in errors)
+    assert any("README.md missing macro outcome id `monthly-income-spending`" in error for error in errors)
+
+
 def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) -> None:
     """AC8.13.41: Critical proof cannot be delegated to stubs or unknown anchors."""
     _write_registry(tmp_path)
@@ -410,7 +614,7 @@ proofs:
     assert matrix.main() == 0
     stdout = capsys.readouterr().out
     assert "Wrote critical proof matrix report" in stdout
-    assert "Critical proof matrix passed: 1 proof path(s) validated." in stdout
+    assert "Critical proof matrix passed: 1 proof path(s), 5 macro outcome(s) validated." in stdout
     assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(encoding="utf-8")
 
     failure_matrix = _write_matrix(

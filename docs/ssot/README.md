@@ -10,6 +10,16 @@ Project hierarchy:
 README.md -> EPIC -> AC -> test
 ```
 
+The macro product-proof layer is separate from AC traceability:
+
+```text
+README.md -> EPIC -> E2E
+```
+
+That macro contract is owned by
+[critical-proof-matrix.yaml](./critical-proof-matrix.yaml) and checked by
+`scripts/check_critical_proof_matrix.py`.
+
 SSOT documents support that hierarchy by explaining why a contract exists and
 linking to its code owner and proof tests.
 
@@ -64,6 +74,7 @@ contracts is tracked in
 
 | Report | Purpose |
 |---|---|
+| [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Parseable README -> EPIC -> E2E macro outcome contract |
 | [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Generated AC-to-test coverage report |
 | [../../unified-coverage.json](../../unified-coverage.json) | Current committed coverage baseline |
 
