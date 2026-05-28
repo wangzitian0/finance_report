@@ -272,6 +272,14 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     workflow = read(".github/workflows/production-release.yml")
     prod_smoke = read("tests/e2e/test_production_readonly_smoke.py")
 
+    assert 'NODE_VERSION: "20.19.0"' in workflow
+    assert "Set up Node" in workflow
+    assert "Install frontend dependencies" in workflow
+    assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
+    assert "working-directory: apps/frontend" in workflow
+    assert workflow.index("Install frontend dependencies") < workflow.index(
+        "moon run :lint"
+    )
     assert "Setup E2E Tests" in workflow
     assert "test_production_readonly_smoke.py" in workflow
     assert "TEST_ENV: production" in workflow
