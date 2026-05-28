@@ -134,7 +134,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
     errors: list[str] = []
     workflow = repo_root / ".github" / "workflows" / "ci.yml"
     ci_cd = repo_root / "docs" / "ssot" / "ci-cd.md"
-    traceability = repo_root / "scripts" / "build_ac_traceability.py"
+    traceability = repo_root / "common" / "ssot" / "build_ac_traceability.py"
 
     if workflow.exists():
         workflow_text = workflow.read_text(encoding="utf-8")
@@ -142,8 +142,12 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "tools/ci/check_ci_metrics_contract.py",
             "tools/coverage/check_coverage_policy.py",
             "tools/coverage/calculate_unified_coverage.py",
-            "scripts/check_ac_traceability.py",
-            'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
+            "tools/ssot/lint_doc_consistency.py",
+            "tools/ssot/check_ssot_ownership.py",
+            "tools/ssot/check_manifest.py",
+            "tools/ssot/generate_ac_registry.py --check",
+            "tools/ssot/check_ac_traceability.py",
+            'tools/ssot/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
             "--cov=common",
             "--cov=tools",
             "coverage/common.lcov",
@@ -170,10 +174,10 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         ):
             errors.append("CI metrics contract must run before coverage policy audit")
         if (
-            "scripts/check_ac_traceability.py" in workflow_text
-            and "scripts/build_ac_traceability.py --output" in workflow_text
-            and workflow_text.index("scripts/check_ac_traceability.py")
-            > workflow_text.index("scripts/build_ac_traceability.py --output")
+            "tools/ssot/check_ac_traceability.py" in workflow_text
+            and "tools/ssot/build_ac_traceability.py --output" in workflow_text
+            and workflow_text.index("tools/ssot/check_ac_traceability.py")
+            > workflow_text.index("tools/ssot/build_ac_traceability.py --output")
         ):
             errors.append(
                 "AC traceability gate must run before audit artifact generation"

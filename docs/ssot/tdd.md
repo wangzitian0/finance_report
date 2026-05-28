@@ -30,13 +30,13 @@ AC IDs use `ACx.y.z`:
 | `y` | feature block within the EPIC |
 | `z` | acceptance criterion within the block |
 
-Registry generation is code-owned by `scripts/generate_ac_registry.py`.
+Registry generation is code-owned by `tools/ssot/generate_ac_registry.py`.
 Registry YAML is grouped by `ACx -> ACx.y` so unrelated scenarios do not share
 one append point. The files do not commit a mutable total; CI computes counts
 from the grouped entries.
 
 ```bash
-python scripts/generate_ac_registry.py --check
+python tools/ssot/generate_ac_registry.py --check
 ```
 
 Generated registry files:
@@ -127,11 +127,11 @@ Current coverage enforcement:
 Use these before claiming a documentation or implementation change is aligned:
 
 ```bash
-python scripts/generate_ac_registry.py --check
-python scripts/analyze_test_ac_coverage.py --stdout
-python scripts/check_critical_proof_matrix.py
-python scripts/check_manifest.py
-python scripts/check_ssot_ownership.py
+python tools/ssot/generate_ac_registry.py --check
+python tools/ssot/analyze_test_ac_coverage.py --stdout
+python tools/ssot/check_critical_proof_matrix.py
+python tools/ssot/check_manifest.py
+python tools/ssot/check_ssot_ownership.py
 ```
 
 Coverage is governed by `docs/ssot/coverage.md` and

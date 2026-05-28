@@ -173,8 +173,8 @@ def test_scripts_policy_does_not_expect_shell_files(tmp_path):
     assert component.expected_sources(tmp_path) == {"scripts/build.py"}
 
 
-def test_AC8_13_54_tools_policy_tracks_python_command_entrypoints(tmp_path):
-    """AC8.13.54: Tools command modules are covered as their own source root."""
+def test_AC8_13_55_tools_policy_tracks_python_command_entrypoints(tmp_path):
+    """AC8.13.55: Tools command modules are covered as their own source root."""
     component = CoverageComponent(
         name="tools",
         component_root="",

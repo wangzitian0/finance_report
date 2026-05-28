@@ -43,8 +43,8 @@ Closes #<!-- issue number -->
 - [ ] `NEXT_PUBLIC_` variables added to `apps/frontend/Dockerfile` `ARG`/`ENV` (if applicable)
 - [ ] `repo/` submodule updated for production config changes (if applicable)
 - [ ] `scripts/check_env_keys.py` passes (if env vars changed)
-- [ ] `scripts/check_manifest.py` passes (if SSOT files changed)
-- [ ] `scripts/lint_doc_consistency.py` passes
+- [ ] `tools/ssot/check_manifest.py` passes (if SSOT files changed)
+- [ ] `tools/ssot/lint_doc_consistency.py` passes
 
 ---
 

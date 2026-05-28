@@ -379,19 +379,19 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert (
-        "uv run --with pyyaml python scripts/generate_ac_registry.py --check"
+        "uv run --with pyyaml python tools/ssot/generate_ac_registry.py --check"
         in workflow
     )
-    assert "uv run --with pyyaml python scripts/check_ac_traceability.py" in workflow
+    assert "uv run --with pyyaml python tools/ssot/check_ac_traceability.py" in workflow
     assert (
-        "uv run --with pyyaml python scripts/build_ac_traceability.py --output"
+        "uv run --with pyyaml python tools/ssot/build_ac_traceability.py --output"
         in workflow
     )
-    assert workflow.index("scripts/generate_ac_registry.py --check") < workflow.index(
-        "scripts/check_ac_traceability.py"
-    )
-    assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
-        "scripts/build_ac_traceability.py --output"
+    assert workflow.index(
+        "tools/ssot/generate_ac_registry.py --check"
+    ) < workflow.index("tools/ssot/check_ac_traceability.py")
+    assert workflow.index("tools/ssot/check_ac_traceability.py") < workflow.index(
+        "tools/ssot/build_ac_traceability.py --output"
     )
     assert "without rewriting historical registry descriptions" in ci_cd
     assert (
@@ -658,21 +658,21 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 ):
     """AC8.13.24: CI uploads traceability audit instead of gating stale snapshots."""
     workflow = read(".github/workflows/ci.yml")
-    audit_builder = read("scripts/build_ac_traceability.py")
+    audit_builder = read("common/ssot/build_ac_traceability.py")
     ci_cd = read("docs/ssot/ci-cd.md")
     project_readme = read("docs/project/README.md")
 
     assert (
-        "uv run --with pyyaml python scripts/generate_ac_registry.py --check"
+        "uv run --with pyyaml python tools/ssot/generate_ac_registry.py --check"
         in workflow
     )
     assert (
-        'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"'
+        'tools/ssot/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"'
         in workflow
     )
     assert "uses: actions/upload-artifact@v4" in workflow
     assert "name: ac-test-traceability-audit" in workflow
-    assert "scripts/build_ac_traceability.py --check" not in workflow
+    assert "tools/ssot/build_ac_traceability.py --check" not in workflow
     assert "CI uploads the generated audit as an artifact" in audit_builder
     assert "uploaded as a CI artifact" in ci_cd
     assert "Do not commit generated audit snapshots in routine" in project_readme

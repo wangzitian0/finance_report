@@ -73,8 +73,8 @@ def test_AC8_13_53_root_common_source_root_must_be_in_coverage_policy(tmp_path):
     assert run_contract(tmp_path, components=components) == 1
 
 
-def test_AC8_13_54_root_tools_source_root_must_be_in_coverage_policy(tmp_path):
-    """AC8.13.54: Root tools command modules cannot bypass coverage policy."""
+def test_AC8_13_55_root_tools_source_root_must_be_in_coverage_policy(tmp_path):
+    """AC8.13.55: Root tools command modules cannot bypass coverage policy."""
     _write(tmp_path, "scripts/build.py")
     _write(tmp_path, "tools/coverage/build.py")
 
@@ -95,7 +95,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     """AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text(encoding="utf-8")
-    traceability = (ROOT / "scripts/build_ac_traceability.py").read_text(
+    traceability = (ROOT / "common/ssot/build_ac_traceability.py").read_text(
         encoding="utf-8"
     )
 
@@ -118,13 +118,13 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Mark Coveralls statuses reporting-only" not in workflow
     assert "scripts/mark_coveralls_reporting_status.py" not in workflow
     assert "tools/ci/mark_coveralls_reporting_status.py" not in workflow
-    assert "scripts/check_ac_traceability.py" in workflow
+    assert "tools/ssot/check_ac_traceability.py" in workflow
     assert "--cov=common" in workflow
     assert "--cov=tools" in workflow
     assert "coverage/common.lcov" in workflow
     assert "coverage/tools.lcov" in workflow
-    assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
-        "scripts/build_ac_traceability.py --output"
+    assert workflow.index("tools/ssot/check_ac_traceability.py") < workflow.index(
+        "tools/ssot/build_ac_traceability.py --output"
     )
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
@@ -201,20 +201,20 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
         "docs/ssot/ci-cd.md",
         "single CI metrics contract\n",
     )
-    _write(tmp_path, "scripts/build_ac_traceability.py", "reference metric\n")
+    _write(tmp_path, "common/ssot/build_ac_traceability.py", "reference metric\n")
 
     errors = _validate_repo_contract_files(tmp_path)
 
     assert any(
         "tools/coverage/calculate_unified_coverage.py" in error for error in errors
     )
-    assert any("scripts/check_ac_traceability.py" in error for error in errors)
+    assert any("tools/ssot/check_ac_traceability.py" in error for error in errors)
     assert any("--cov=common" in error for error in errors)
     assert any("--cov=tools" in error for error in errors)
     assert any("coverage/common.lcov" in error for error in errors)
     assert any("coverage/tools.lcov" in error for error in errors)
     assert any(
-        "scripts/build_ac_traceability.py --output" in error for error in errors
+        "tools/ssot/build_ac_traceability.py --output" in error for error in errors
     )
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors

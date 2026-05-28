@@ -43,7 +43,7 @@ def test_repo_relative_source_prefixes_component_root(tmp_path):
 
 
 def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
-    """AC8.13.15 AC8.13.53 AC8.13.54: Reports share one repo-root path space."""
+    """AC8.13.15 AC8.13.53 AC8.13.55: Reports share one repo-root path space."""
     backend = _component("backend", "apps/backend", "src", "coverage/backend.lcov")
     frontend = _component("frontend", "apps/frontend", "src", "coverage/frontend.lcov")
     scripts = _component("scripts", "", "scripts", "coverage/scripts.lcov")

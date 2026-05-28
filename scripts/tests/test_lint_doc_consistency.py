@@ -1,4 +1,4 @@
-"""Tests for scripts/lint_doc_consistency.py.
+"""Tests for tools/ssot/lint_doc_consistency.py.
 
 Covers all six checks plus helper functions: parse_vision_anchors,
 parse_epic_anchor, load_registry_acs, is_deprecated, is_stub,

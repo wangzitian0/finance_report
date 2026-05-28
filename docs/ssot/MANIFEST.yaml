@@ -5,7 +5,7 @@
 # section anchor) and zero-or-more cross-reference files that also
 # discuss the concept without owning it.
 #
-# Validated by: scripts/check_manifest.py  (runs in CI)
+# Validated by: tools/ssot/check_manifest.py  (runs in CI)
 #
 # Format:
 #   concepts:
@@ -258,7 +258,7 @@ concepts:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
       - .github/workflows/ci.yml
-      - scripts/check_critical_proof_matrix.py
+      - tools/ssot/check_critical_proof_matrix.py
 
   # ── Agent governance ──────────────────────────────────────────────────
   security_red_lines:

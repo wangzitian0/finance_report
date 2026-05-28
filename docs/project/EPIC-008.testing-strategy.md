@@ -96,6 +96,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.54**: Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift.
 - **AC8.13.55**: Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes.
 - **AC8.13.56**: Coverage and CI metric command entry points run from `tools/` while shared implementations live under `common/`.
+- **AC8.13.57**: SSOT and AC command entry points run from `tools/ssot/` while shared implementations live under `common/ssot/`.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -423,16 +424,17 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.54 | Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift | `test_AC8_13_54_*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
 | AC8.13.55 | Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes | `test_AC8_13_55_*` | `scripts/tests/test_ci_change_classifier.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.56 | Coverage and CI metric command entry points run from `tools/` while shared implementations live under `common/` | `test_AC8_13_56_*` | `scripts/tests/test_common_tooling_modules.py`, `scripts/tests/test_ci_metrics_contract.py`, `scripts/tests/test_coverage_policy.py`, `scripts/tests/test_build_unified_lcov.py` | P0 |
+| AC8.13.57 | SSOT and AC command entry points run from `tools/ssot/` while shared implementations live under `common/ssot/` | `test_AC8_13_57_*` | `scripts/tests/test_common_tooling_modules.py`, `scripts/tests/test_ci_metrics_contract.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
   owned by [the generated coverage report](../analysis/test-ac-coverage-report.md)
-  and `python scripts/analyze_test_ac_coverage.py --stdout`.
-- Mandatory AC gate behavior is owned by `python scripts/check_ac_traceability.py`.
+  and `python tools/ssot/analyze_test_ac_coverage.py --stdout`.
+- Mandatory AC gate behavior is owned by `python tools/ssot/check_ac_traceability.py`.
 - Critical product proof-path anchoring is owned by
   `docs/ssot/critical-proof-matrix.yaml` and
-  `python scripts/check_critical_proof_matrix.py`.
+  `python tools/ssot/check_critical_proof_matrix.py`.
 - Do not copy generated AC totals or per-group percentages into this EPIC.
 
 ---

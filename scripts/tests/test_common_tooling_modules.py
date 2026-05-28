@@ -75,8 +75,8 @@ def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
     assert "common/test_isolation.py" in component.expected_sources(ROOT)
 
 
-def test_AC8_13_54_tools_coverage_component_is_a_governed_source_root():
-    """AC8.13.54: Tools entry points are measured separately from shared code."""
+def test_AC8_13_55_tools_coverage_component_is_a_governed_source_root():
+    """AC8.13.55: Tools entry points are measured separately from shared code."""
     component = coverage_policy.get_component("tools")
 
     assert component.component_root == ""
@@ -87,8 +87,8 @@ def test_AC8_13_54_tools_coverage_component_is_a_governed_source_root():
     )
 
 
-def test_AC8_13_54_coverage_tools_delegate_to_common_implementations():
-    """AC8.13.54: Coverage commands live under tools and delegate to common."""
+def test_AC8_13_55_coverage_tools_delegate_to_common_implementations():
+    """AC8.13.55: Coverage commands live under tools and delegate to common."""
     build_tool = importlib.import_module("tools.coverage.build_unified_lcov")
     calc_tool = importlib.import_module("tools.coverage.calculate_unified_coverage")
     analyzer_tool = importlib.import_module("tools.coverage.coverage_analyzer")
@@ -97,21 +97,32 @@ def test_AC8_13_54_coverage_tools_delegate_to_common_implementations():
     metrics_tool = importlib.import_module("tools.ci.check_ci_metrics_contract")
     coveralls_tool = importlib.import_module("tools.ci.mark_coveralls_reporting_status")
 
-    assert build_tool.main is importlib.import_module(
-        "common.coverage.build_unified_lcov"
-    ).main
-    assert calc_tool.main is importlib.import_module(
-        "common.coverage.calculate_unified_coverage"
-    ).main
-    assert analyzer_tool.main is importlib.import_module("common.coverage.analyzer").main
+    assert (
+        build_tool.main
+        is importlib.import_module("common.coverage.build_unified_lcov").main
+    )
+    assert (
+        calc_tool.main
+        is importlib.import_module("common.coverage.calculate_unified_coverage").main
+    )
+    assert (
+        analyzer_tool.main is importlib.import_module("common.coverage.analyzer").main
+    )
     assert merge_tool.main is importlib.import_module("common.coverage.merge_lcov").main
-    assert policy_tool.main is importlib.import_module("common.coverage.check_policy").main
-    assert metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
-    assert coveralls_tool.main is importlib.import_module("common.ci.coveralls_status").main
+    assert (
+        policy_tool.main is importlib.import_module("common.coverage.check_policy").main
+    )
+    assert (
+        metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
+    )
+    assert (
+        coveralls_tool.main
+        is importlib.import_module("common.ci.coveralls_status").main
+    )
 
 
-def test_AC8_13_54_legacy_coverage_scripts_delegate_to_common():
-    """AC8.13.54: Legacy coverage scripts are wrappers during migration."""
+def test_AC8_13_55_legacy_coverage_scripts_delegate_to_common():
+    """AC8.13.55: Legacy coverage scripts are wrappers during migration."""
     legacy_build = importlib.import_module("build_unified_lcov")
     legacy_calc = importlib.import_module("calculate_unified_coverage")
     legacy_analyzer = importlib.import_module("coverage_analyzer")
@@ -120,23 +131,75 @@ def test_AC8_13_54_legacy_coverage_scripts_delegate_to_common():
     legacy_metrics = importlib.import_module("check_ci_metrics_contract")
     legacy_coveralls = importlib.import_module("mark_coveralls_reporting_status")
 
-    assert legacy_build.main is importlib.import_module(
-        "common.coverage.build_unified_lcov"
-    ).main
-    assert legacy_calc.main is importlib.import_module(
-        "common.coverage.calculate_unified_coverage"
-    ).main
-    assert legacy_policy.main is importlib.import_module(
-        "common.coverage.check_policy"
-    ).main
-    assert legacy_analyzer.main is importlib.import_module("common.coverage.analyzer").main
-    assert legacy_merge.main is importlib.import_module("common.coverage.merge_lcov").main
-    assert legacy_metrics.main is importlib.import_module(
-        "common.ci.metrics_contract"
-    ).main
-    assert legacy_coveralls.main is importlib.import_module(
-        "common.ci.coveralls_status"
-    ).main
+    assert (
+        legacy_build.main
+        is importlib.import_module("common.coverage.build_unified_lcov").main
+    )
+    assert (
+        legacy_calc.main
+        is importlib.import_module("common.coverage.calculate_unified_coverage").main
+    )
+    assert (
+        legacy_policy.main
+        is importlib.import_module("common.coverage.check_policy").main
+    )
+    assert (
+        legacy_analyzer.main is importlib.import_module("common.coverage.analyzer").main
+    )
+    assert (
+        legacy_merge.main is importlib.import_module("common.coverage.merge_lcov").main
+    )
+    assert (
+        legacy_metrics.main
+        is importlib.import_module("common.ci.metrics_contract").main
+    )
+    assert (
+        legacy_coveralls.main
+        is importlib.import_module("common.ci.coveralls_status").main
+    )
+
+
+def test_AC8_13_56_ssot_tools_delegate_to_common_implementations():
+    """AC8.13.56: SSOT commands live under tools and delegate to common."""
+    command_modules = {
+        "tools.ssot.analyze_test_ac_coverage": "common.ssot.analyze_test_ac_coverage",
+        "tools.ssot.audit_ac_epic_mismatches": "common.ssot.audit_ac_epic_mismatches",
+        "tools.ssot.build_ac_traceability": "common.ssot.build_ac_traceability",
+        "tools.ssot.check_ac_traceability": "common.ssot.check_ac_traceability",
+        "tools.ssot.check_critical_proof_matrix": (
+            "common.ssot.check_critical_proof_matrix"
+        ),
+        "tools.ssot.check_manifest": "common.ssot.check_manifest",
+        "tools.ssot.check_ssot_ownership": "common.ssot.check_ssot_ownership",
+        "tools.ssot.generate_ac_registry": "common.ssot.generate_ac_registry",
+        "tools.ssot.lint_doc_consistency": "common.ssot.lint_doc_consistency",
+    }
+
+    for tool_module, common_module in command_modules.items():
+        assert (
+            importlib.import_module(tool_module).main
+            is importlib.import_module(common_module).main
+        )
+
+
+def test_AC8_13_56_legacy_ssot_scripts_delegate_to_common():
+    """AC8.13.56: Legacy SSOT scripts are wrappers during migration."""
+    legacy_modules = {
+        "analyze_test_ac_coverage": "common.ssot.analyze_test_ac_coverage",
+        "audit_ac_epic_mismatches": "common.ssot.audit_ac_epic_mismatches",
+        "build_ac_traceability": "common.ssot.build_ac_traceability",
+        "check_ac_traceability": "common.ssot.check_ac_traceability",
+        "check_critical_proof_matrix": "common.ssot.check_critical_proof_matrix",
+        "check_manifest": "common.ssot.check_manifest",
+        "check_ssot_ownership": "common.ssot.check_ssot_ownership",
+        "generate_ac_registry": "common.ssot.generate_ac_registry",
+        "lint_doc_consistency": "common.ssot.lint_doc_consistency",
+    }
+
+    for legacy_module, common_module in legacy_modules.items():
+        assert importlib.import_module(legacy_module) is importlib.import_module(
+            common_module
+        )
 
 
 def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():

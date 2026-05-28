@@ -92,13 +92,13 @@ jobs:
           uv run ruff format src/ --check
       - name: Doc Consistency Check
         run: |
-          uv run --with pyyaml python scripts/lint_doc_consistency.py
+          uv run --with pyyaml python tools/ssot/lint_doc_consistency.py
       - name: SSOT Ownership Lint
         run: |
-          python scripts/check_ssot_ownership.py --verbose
+          python tools/ssot/check_ssot_ownership.py --verbose
       - name: SSOT Manifest Check
         run: |
-          uv run --with pyyaml python scripts/check_manifest.py
+          uv run --with pyyaml python tools/ssot/check_manifest.py
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
@@ -429,10 +429,10 @@ jobs:
 
       - name: AC Traceability Check
         run: |
-          uv run --with pyyaml python scripts/generate_ac_registry.py --check
-          uv run --with pyyaml python scripts/check_ac_traceability.py
-          uv run --with pyyaml python scripts/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
-          uv run --with pyyaml python scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
+          uv run --with pyyaml python tools/ssot/generate_ac_registry.py --check
+          uv run --with pyyaml python tools/ssot/check_ac_traceability.py
+          uv run --with pyyaml python tools/ssot/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
+          uv run --with pyyaml python tools/ssot/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
 
       - name: Upload AC traceability audit
         uses: actions/upload-artifact@v4

@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-28 15:27:54 UTC by `scripts/analyze_test_ac_coverage.py`
+> Generated: 2026-05-28 15:27:54 UTC by `tools/ssot/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)

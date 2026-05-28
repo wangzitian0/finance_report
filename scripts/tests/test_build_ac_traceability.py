@@ -1,4 +1,4 @@
-"""Tests for scripts/build_ac_traceability.py.
+"""Tests for tools/ssot/build_ac_traceability.py.
 
 Covers _load_registry, load_all_acs, find_test_files, collect_references,
 helper utilities (_ac_sort_key, _is_manual, _rel, _md_escape, _slug),
@@ -273,15 +273,15 @@ class TestHelpers:
         assert " " not in result
 
     def test_strip_date_normalizes_date_line(self):
-        text = "> **Generated**: 2024-01-01 (mechanically by `scripts/build_ac_traceability.py`)"
+        text = "> **Generated**: 2024-01-01 (mechanically by `tools/ssot/build_ac_traceability.py`)"
         assert (
             bat._strip_date(text)
-            == "> **Generated**: DATE (mechanically by `scripts/build_ac_traceability.py`)"
+            == "> **Generated**: DATE (mechanically by `tools/ssot/build_ac_traceability.py`)"
         )
 
     def test_strip_date_different_dates_produce_same_output(self):
-        old = "> **Generated**: 2024-01-01 (mechanically by `scripts/build_ac_traceability.py`)"
-        new = "> **Generated**: 2099-12-31 (mechanically by `scripts/build_ac_traceability.py`)"
+        old = "> **Generated**: 2024-01-01 (mechanically by `tools/ssot/build_ac_traceability.py`)"
+        new = "> **Generated**: 2099-12-31 (mechanically by `tools/ssot/build_ac_traceability.py`)"
         assert bat._strip_date(old) == bat._strip_date(new)
 
     def test_strip_date_leaves_other_lines_unchanged(self):

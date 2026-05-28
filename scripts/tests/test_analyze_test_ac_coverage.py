@@ -1,4 +1,4 @@
-"""Tests for scripts/analyze_test_ac_coverage.py."""
+"""Tests for tools/ssot/analyze_test_ac_coverage.py."""
 
 from __future__ import annotations
 

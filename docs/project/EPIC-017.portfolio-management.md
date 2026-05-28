@@ -59,7 +59,7 @@ status. For current proof and delivery state, use:
 
 - Generated AC registry: `docs/ac_registry.yaml`
 - AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
-- Live local proof command: `python scripts/analyze_test_ac_coverage.py --stdout`
+- Live local proof command: `python tools/ssot/analyze_test_ac_coverage.py --stdout`
 - North-star tracker: [#444](https://github.com/wangzitian0/finance_report/issues/444)
 - Brokerage proof work: [#477](https://github.com/wangzitian0/finance_report/issues/477), [#478](https://github.com/wangzitian0/finance_report/issues/478), [#479](https://github.com/wangzitian0/finance_report/issues/479)
 

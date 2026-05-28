@@ -369,7 +369,7 @@ class TestCalculateUnifiedCoverage:
         assert result["covered_lines"] == 25
         assert result["breakdown"]["common"] is common
 
-    def test_AC8_13_54_tools_breakdown_is_included_when_present(self):
+    def test_AC8_13_55_tools_breakdown_is_included_when_present(self):
         b = self._make(10, 5)
         fe = self._make(10, 5)
         s = self._make(10, 5)
