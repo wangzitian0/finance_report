@@ -31,6 +31,16 @@ REGISTRY_PATHS = (
 
 VALID_SCOPES = {"behavioral", "static_contract", "manual_gate"}
 VALID_CI_TIERS = {"pr_ci", "post_merge_environment", "manual"}
+VALID_OUTCOME_STATUSES = {"covered", "partial", "gap"}
+REQUIRED_OUTCOME_IDS = {
+    "asset-distribution-net-worth",
+    "monthly-income-spending",
+    "investment-performance",
+    "annualized-income-long-term",
+    "source-ledger-report-traceability",
+}
+ISSUE_RE = re.compile(r"^#\d+$")
+EPIC_RE = re.compile(r"^EPIC-\d{3}$")
 BEHAVIORAL_ROOTS = (
     "apps/backend/tests/",
     "apps/frontend/src/",
@@ -63,6 +73,30 @@ class ProofResult:
     errors: list[str] = field(default_factory=list)
 
 
+@dataclass
+class OutcomeResult:
+    outcome_id: str
+    status: str
+    owner_epics: list[str]
+    proof_ids: list[str]
+    issue: str
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class MatrixValidation:
+    proofs: list[ProofResult]
+    outcomes: list[OutcomeResult]
+
+    @property
+    def errors(self) -> list[str]:
+        return [
+            error
+            for result in [*self.proofs, *self.outcomes]
+            for error in result.errors
+        ]
+
+
 def _rel(path: Path, repo_root: Path) -> str:
     try:
         return path.relative_to(repo_root).as_posix()
@@ -86,6 +120,10 @@ def _load_matrix(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a YAML mapping")
     return data
+
+
+def _epic_exists(repo_root: Path, epic_id: str) -> bool:
+    return any((repo_root / "docs" / "project").glob(f"{epic_id}.*.md"))
 
 
 def _decorator_markers(node: ast.AST) -> set[str]:
@@ -246,7 +284,193 @@ def validate_matrix(repo_root: Path, matrix_path: Path) -> list[ProofResult]:
     ]
 
 
-def render_report(results: list[ProofResult]) -> str:
+def _validate_outcome(
+    outcome: dict[str, Any],
+    *,
+    repo_root: Path,
+    proof_by_id: dict[str, ProofResult],
+    index: int,
+) -> OutcomeResult:
+    outcome_id = str(outcome.get("id", f"outcome[{index}]"))
+    status = str(outcome.get("status", ""))
+    raw_owner_epics = outcome.get("owner_epics", [])
+    raw_proof_ids = outcome.get("proof_ids", [])
+    owner_epics = (
+        [str(epic) for epic in raw_owner_epics]
+        if isinstance(raw_owner_epics, list)
+        else []
+    )
+    proof_ids = (
+        [str(proof_id) for proof_id in raw_proof_ids]
+        if isinstance(raw_proof_ids, list)
+        else []
+    )
+    issue = str(outcome.get("issue", ""))
+    errors: list[str] = []
+
+    required = {"id", "status", "owner_epics"}
+    missing = sorted(required - set(outcome))
+    if missing:
+        errors.append(f"{outcome_id}: missing required outcome keys: {', '.join(missing)}")
+
+    if status not in VALID_OUTCOME_STATUSES:
+        errors.append(f"{outcome_id}: invalid status {status!r}")
+
+    if not isinstance(raw_owner_epics, list) or not owner_epics:
+        errors.append(f"{outcome_id}: owner_epics must be a non-empty list")
+    if "proof_ids" in outcome and not isinstance(raw_proof_ids, list):
+        errors.append(f"{outcome_id}: proof_ids must be a list")
+    for epic_id in owner_epics:
+        if not EPIC_RE.fullmatch(epic_id):
+            errors.append(f"{outcome_id}: invalid owner EPIC id {epic_id!r}")
+        elif not _epic_exists(repo_root, epic_id):
+            errors.append(f"{outcome_id}: owner EPIC does not exist: {epic_id}")
+
+    if status == "covered" and not proof_ids:
+        errors.append(f"{outcome_id}: covered outcome requires at least one proof_id")
+    if status in {"partial", "gap"} and not ISSUE_RE.fullmatch(issue):
+        errors.append(f"{outcome_id}: {status} outcome requires issue like #521")
+    if issue and not ISSUE_RE.fullmatch(issue):
+        errors.append(f"{outcome_id}: invalid issue reference {issue!r}")
+
+    for proof_id in proof_ids:
+        proof = proof_by_id.get(proof_id)
+        if proof is None:
+            errors.append(f"{outcome_id}: unknown proof_id {proof_id}")
+            continue
+        if proof.errors:
+            errors.append(f"{outcome_id}: proof {proof_id} has validation errors")
+        if proof.scope != "behavioral" or not proof.file.startswith("tests/e2e/"):
+            errors.append(f"{outcome_id}: proof {proof_id} must be behavioral E2E")
+
+    return OutcomeResult(
+        outcome_id=outcome_id,
+        status=status,
+        owner_epics=owner_epics,
+        proof_ids=proof_ids,
+        issue=issue,
+        errors=errors,
+    )
+
+
+def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) -> OutcomeResult:
+    readme_path = repo_root / "README.md"
+    errors: list[str] = []
+    text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+    if not text:
+        errors.append("README.md missing")
+    if "## Core Proof Paths" not in text:
+        errors.append("README.md missing `## Core Proof Paths` section")
+    if "docs/ssot/critical-proof-matrix.yaml" not in text:
+        errors.append("README.md missing critical proof matrix source link")
+    if "scripts/check_critical_proof_matrix.py" not in text:
+        errors.append("README.md missing critical proof matrix checker command")
+
+    for outcome in outcomes:
+        if outcome.outcome_id.startswith("__"):
+            continue
+        if outcome.outcome_id not in text:
+            errors.append(f"README.md missing macro outcome id `{outcome.outcome_id}`")
+
+    return OutcomeResult(
+        outcome_id="__readme_contract__",
+        status="contract",
+        owner_epics=[],
+        proof_ids=[],
+        issue="",
+        errors=errors,
+    )
+
+
+def validate_outcomes(
+    repo_root: Path,
+    matrix_payload: dict[str, Any],
+    proof_results: list[ProofResult],
+) -> list[OutcomeResult]:
+    raw_outcomes = matrix_payload.get("outcomes")
+    if not isinstance(raw_outcomes, list) or not raw_outcomes:
+        return [
+            OutcomeResult(
+                outcome_id="__macro_outcomes__",
+                status="fail",
+                owner_epics=[],
+                proof_ids=[],
+                issue="",
+                errors=["critical proof matrix must define a non-empty outcomes list"],
+            )
+        ]
+
+    proof_by_id = {proof.proof_id: proof for proof in proof_results}
+    outcomes: list[OutcomeResult] = []
+    for index, outcome in enumerate(raw_outcomes):
+        if not isinstance(outcome, dict):
+            outcomes.append(
+                OutcomeResult(
+                    outcome_id=f"__outcome_{index}__",
+                    status="fail",
+                    owner_epics=[],
+                    proof_ids=[],
+                    issue="",
+                    errors=[f"outcome[{index}] must be a mapping"],
+                )
+            )
+            continue
+        outcomes.append(
+            _validate_outcome(
+                outcome,
+                repo_root=repo_root,
+                proof_by_id=proof_by_id,
+                index=index,
+            )
+        )
+
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for outcome in outcomes:
+        if outcome.outcome_id.startswith("__"):
+            continue
+        if outcome.outcome_id in seen:
+            duplicates.add(outcome.outcome_id)
+        seen.add(outcome.outcome_id)
+
+    missing = sorted(REQUIRED_OUTCOME_IDS - seen)
+    unknown = sorted(seen - REQUIRED_OUTCOME_IDS)
+    global_errors: list[str] = []
+    if duplicates:
+        global_errors.append(f"macro outcomes duplicate ids: {', '.join(sorted(duplicates))}")
+    if missing:
+        global_errors.append(f"macro outcomes missing required ids: {', '.join(missing)}")
+    if unknown:
+        global_errors.append(f"macro outcomes include unknown ids: {', '.join(unknown)}")
+    if global_errors:
+        outcomes.append(
+            OutcomeResult(
+                outcome_id="__macro_outcomes__",
+                status="fail",
+                owner_epics=[],
+                proof_ids=[],
+                issue="",
+                errors=global_errors,
+            )
+        )
+
+    readme_contract = _validate_readme_contract(repo_root, outcomes)
+    if readme_contract.errors:
+        outcomes.append(readme_contract)
+    return outcomes
+
+
+def validate_matrix_contract(repo_root: Path, matrix_path: Path) -> MatrixValidation:
+    matrix_payload = _load_matrix(matrix_path)
+    proofs = validate_matrix(repo_root, matrix_path)
+    outcomes = validate_outcomes(repo_root, matrix_payload, proofs)
+    return MatrixValidation(proofs=proofs, outcomes=outcomes)
+
+
+def render_report(
+    results: list[ProofResult],
+    outcomes: list[OutcomeResult] | None = None,
+) -> str:
     counts = {scope: 0 for scope in sorted(VALID_SCOPES)}
     failed = 0
     for result in results:
@@ -284,7 +508,33 @@ def render_report(results: list[ProofResult]) -> str:
             f"{ac_cell} | {anchor} | {status} |"
         )
 
-    errors = [error for result in results for error in result.errors]
+    if outcomes is not None:
+        lines.extend(
+            [
+                "",
+                "## Macro Outcomes",
+                "",
+                "| Outcome | Status | Owner EPICs | Proof IDs | Issue | Validation |",
+                "|---|---|---|---|---|---|",
+            ]
+        )
+        for outcome in outcomes:
+            if outcome.outcome_id.startswith("__") and not outcome.errors:
+                continue
+            owners = ", ".join(f"`{epic}`" for epic in outcome.owner_epics) or "-"
+            proofs = ", ".join(f"`{proof_id}`" for proof_id in outcome.proof_ids) or "-"
+            issue = outcome.issue or "-"
+            validation = "fail" if outcome.errors else "ok"
+            lines.append(
+                f"| `{outcome.outcome_id}` | {outcome.status} | {owners} | "
+                f"{proofs} | {issue} | {validation} |"
+            )
+
+    errors = [
+        error
+        for result in [*results, *(outcomes or [])]
+        for error in result.errors
+    ]
     lines.extend(["", "## Errors", ""])
     if errors:
         lines.extend(f"- {error}" for error in errors)
@@ -305,8 +555,8 @@ def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     matrix_path = args.matrix if args.matrix.is_absolute() else repo_root / args.matrix
-    results = validate_matrix(repo_root, matrix_path)
-    report = render_report(results)
+    validation = validate_matrix_contract(repo_root, matrix_path)
+    report = render_report(validation.proofs, validation.outcomes)
 
     output_path = args.output
     if output_path is not None:
@@ -317,12 +567,17 @@ def main() -> int:
     else:
         print(report)
 
-    errors = [error for result in results for error in result.errors]
+    errors = validation.errors
     if errors:
         for error in errors:
             print(f"::error title=Critical proof matrix::{error}", file=sys.stderr)
         return 1
-    print(f"Critical proof matrix passed: {len(results)} proof path(s) validated.")
+    print(
+        "Critical proof matrix passed: "
+        f"{len(validation.proofs)} proof path(s), "
+        f"{len([outcome for outcome in validation.outcomes if not outcome.outcome_id.startswith('__')])} "
+        "macro outcome(s) validated."
+    )
     return 0
 
 

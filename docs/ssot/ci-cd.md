@@ -72,7 +72,7 @@ The test system separates proof by where the failure can be acted on:
 | Behavioral tests | PR CI before merge | Prove deterministic product behavior, accounting invariants, API contracts, frontend flows, and script/tool contracts before code enters `main`. |
 | Environment gates | Post-merge deploy workflows | Prove the exact merged SHA can run in staging/production-like environments with real routing, Vault/Dokploy/GHCR/SigNoz wiring, deployed images, and provider-backed OCR/LLM credentials. |
 | Reference traceability | PR and `main` CI | Prove every mandatory AC has a real non-placeholder test reference; this is not behavioral coverage by itself. |
-| Critical proof matrix | PR and `main` CI | Prove selected core proof paths point to explicit behavioral, static/doc, or manual-gate anchors instead of broad AC string references. |
+| Critical proof matrix | PR and `main` CI | Prove the closed README -> EPIC -> E2E macro outcome set and selected core proof paths point to explicit behavioral, static/doc, or manual-gate anchors instead of broad AC string references. |
 
 Behavioral tests should move left into PR CI whenever they can be deterministic
 without external singleton state or provider spend. Environment-dependent checks

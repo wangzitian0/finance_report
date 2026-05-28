@@ -74,10 +74,12 @@ generated.
 
 Core product journeys have one extra guard:
 `docs/ssot/critical-proof-matrix.yaml`. That matrix is deliberately small. It
-only lists P0 proof paths where a broad AC string reference would create false
-confidence, and `scripts/check_critical_proof_matrix.py` verifies that each row
-points to an existing test anchor with the listed AC IDs in the test name or
-docstring. It is not a general-purpose semantic parser for all tests.
+owns the macro README -> EPIC -> E2E contract for the closed set of core
+vision outcomes and lists P0 proof paths where a broad AC string reference
+would create false confidence. `scripts/check_critical_proof_matrix.py`
+verifies that each covered macro outcome points to owner EPICs and explicit E2E
+proof anchors with the listed AC IDs in the test name or docstring. It is not a
+general-purpose semantic parser for all tests.
 
 ## Proof Semantics
 
@@ -96,6 +98,14 @@ For critical proof matrix rows, behavioral proof must be a product test anchor,
 not a broad contract bucket. Static/doc checks and manual gates may be listed in
 the matrix only when they are explicitly labeled as such; they do not satisfy a
 behavioral row.
+
+Macro and micro proof are intentionally separate:
+
+- **Macro**: README -> EPIC -> E2E, owned by
+  `docs/ssot/critical-proof-matrix.yaml`. Covered outcomes require explicit E2E
+  proof IDs; partial or gap outcomes require a GitHub issue.
+- **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
+  and AC traceability gates.
 
 Manual verification cleanup is tracked in
 [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
