@@ -985,6 +985,11 @@ groups:
         epic_name: reporting-visualization
         description: Balance Sheet Net Income FX Fallback
         mandatory: true
+      - id: AC5.4.3
+        epic: 5
+        epic_name: reporting-visualization
+        description: Report FX Lazy Resolution
+        mandatory: true
     AC5.5:
       - id: AC5.5.1
         epic: 5

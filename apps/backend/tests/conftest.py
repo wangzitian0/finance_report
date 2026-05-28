@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from src.config import settings
 from src.logger import get_logger
 from src.services.fx import clear_fx_cache
 
@@ -43,6 +44,12 @@ def cleanup_fx_cache():
     clear_fx_cache()
     yield
     clear_fx_cache()
+
+
+@pytest.fixture(autouse=True)
+def disable_external_market_data_fetch(monkeypatch):
+    """Keep tests deterministic unless a test explicitly enables provider fetches."""
+    monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", False, raising=False)
 
 
 # --- Helper to ensure 127.0.0.1 consistency ---

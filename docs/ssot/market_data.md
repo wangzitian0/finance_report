@@ -9,39 +9,35 @@
 
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
-| **Sync Logic** | `apps/backend/src/services/market_data.py` | Data fetching |
-| **Rate Storage** | `fx_rates` table | Historical rates |
-| **Price Storage** | `stock_prices` table | Historical prices |
+| **Report Lazy FX Resolution** | `apps/backend/src/services/market_data.py` | On-demand FX derivation/fetch for reports |
+| **FX Lookup API** | `apps/backend/src/services/fx.py` | DB lookup, in-process cache, optional lazy resolution |
+| **Rate Storage** | `fx_rates` table | Historical direct and derived rates |
+| **Scheduled Sync** | GitHub Issue #539 | Planned daily incremental FX/stock pipeline |
+| **Price Storage** | `stock_prices` table | Planned historical prices |
 
 ---
 
 ## 2. Data Sources
 
-### Primary: yfinance
-- **Type**: Python library (free)
-- **Data**: FX rates, stock prices
+### Primary: Yahoo Finance
+- **Type**: Yahoo Finance chart endpoint, compatible with yfinance currency symbols
+- **Data**: Report-side lazy FX rates
 - **Rate Limit**: Unofficial, ~2000 requests/hour
-- **Fallback**: Twelve Data
+- **Fallback**: Stored inverse or bridge rates before external fetch
 
-### Secondary: Twelve Data
+### Secondary: Twelve Data (Planned)
 - **Type**: REST API (API key required)
 - **Data**: FX rates, stock prices
 - **Rate Limit**: 800 requests/day (free tier)
-- **Use Case**: Fallback when yfinance fails
+- **Use Case**: Cross-source validation and scheduled sync fallback in Issue #539
 
-### Source Priority
+### Report Lazy Resolution Priority
 ```python
-MARKET_DATA_SOURCES = [
-    {"name": "yfinance", "priority": 1},
-    {"name": "twelve_data", "priority": 2},
-]
-
 async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
-    for source in sorted(MARKET_DATA_SOURCES, key=lambda x: x["priority"]):
-        try:
-            return await fetch_rate(source["name"], base, quote, date)
-        except SourceError:
-            continue
+    # 1. Existing direct DB row on or before date
+    # 2. Existing inverse DB row, persisted as derived direct row
+    # 3. Existing bridge rows via MARKET_DATA_FX_BRIDGE_CURRENCY, default USD
+    # 4. Yahoo Finance direct/inverse/bridge fetch when lazy fetch is enabled
     raise MarketDataUnavailable(f"No source available for {base}/{quote}")
 ```
 
@@ -53,11 +49,13 @@ async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
 - **Frequency**: Daily at 08:00 UTC
 - **Pairs**: USD/SGD, USD/CNY, USD/HKD, EUR/USD, GBP/USD
 - **History**: Keep 2 years of daily rates
+- **Status**: Planned in Issue #539. Report APIs currently use lazy resolution when a required rate is missing.
 
 ### Stock Prices
 - **Frequency**: Daily at 22:00 UTC (after US market close)
 - **Symbols**: User-configured holdings
 - **History**: Keep 2 years of daily prices
+- **Status**: Planned in Issue #539.
 
 ### Sync Workflow (via Activepieces)
 ```yaml
@@ -132,10 +130,12 @@ amount_usd = (amount_sgd * fx_rate).quantize(Decimal("0.01"))
 
 ## 6. Caching Strategy
 
-### Redis Cache
+### FX Cache
 - **Key format**: `fx:{base}:{quote}:{date}`
 - **TTL**: 24 hours
+- **Implementation**: In-process cache in `apps/backend/src/services/fx.py`
 - **Fallback**: Database lookup if cache miss
+- **Report lazy resolution**: `lazy_load=True` call sites may resolve a missing DB rate through inverse, bridge, or Yahoo Finance and persist the result to `fx_rates`.
 
 ```python
 async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
@@ -152,10 +152,10 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
         await redis.setex(cache_key, 86400, str(rate.rate))
         return rate.rate
     
-    # Fetch from source
-    rate = await fetch_from_source(base, quote, date)
+    # Report-only lazy fallback
+    rate = await resolve_missing_fx_rate(base, quote, date)
     await save_to_db(rate)
-    await redis.setex(cache_key, 86400, str(rate))
+    cache.set(cache_key, rate)
     return rate
 ```
 
@@ -167,10 +167,11 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 - **Pattern A**: Always store source name with rate for auditability
 - **Pattern B**: Use Decimal(6) for rates, Decimal(2) for converted amounts
 - **Pattern C**: Prefer historical rates over real-time for reporting
+- **Pattern D**: Persist derived report-side rates with `source` values such as `derived:inverse:SGD/HKD`, `derived:bridge:USD`, or `yahoo_finance`.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** hardcode exchange rates
-- **Anti-pattern B**: **NEVER** use single source without fallback
+- **Anti-pattern B**: **NEVER** silently invent rates when direct, inverse, bridge, and provider lookup all fail
 
 ---
 
@@ -178,9 +179,10 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 
 | Error | Action |
 |-------|--------|
-| Source timeout | Retry 3x, then try next source |
-| Missing rate for date | Use previous day's rate |
-| All sources failed | Log alert, use last known rate |
+| Missing direct rate | Try inverse and bridge rates from `fx_rates` |
+| Source timeout | Log warning and continue to report error handling |
+| Missing rate for date | Use the latest stored/provider date on or before the requested date |
+| All lazy paths failed | Raise `FxRateError`; report APIs surface a controlled `ReportError` |
 
 ---
 
@@ -188,10 +190,12 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 
 | Behavior | Test Method | Status |
 |----------|-------------|--------|
-| yfinance fetch | `test_yfinance_fx` | ⏳ Pending |
-| Twelve Data fallback | `test_twelve_data_fallback` | ⏳ Pending |
-| Cache hit/miss | `test_fx_cache` | ⏳ Pending |
-| Missing rate handling | `test_missing_rate` | ⏳ Pending |
+| Inverse lazy resolution | `test_get_exchange_rate_lazy_derives_inverse` | ✅ Implemented |
+| Provider lazy resolution | `test_get_exchange_rate_lazy_fetches_provider_when_enabled` | ✅ Implemented |
+| Report HKD/SGD bridge resolution | `test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates` | ✅ Implemented |
+| Cache hit/miss | `test_fx_cache` | ✅ Implemented |
+| Twelve Data fallback | Issue #539 | ⏳ Planned |
+| Daily stock/FX sync | Issue #539 | ⏳ Planned |
 
 ---
 

@@ -49,7 +49,8 @@ Accounting Equation Verification: Reports must comply with accounting equation
 - [x] `services/fx.py` - Exchange rate service
   - [x] `get_exchange_rate()` - Get exchange rate
   - [x] `convert_to_base()` - Convert to base currency
-  - [x] Exchange rate caching (daily update)
+  - [x] Exchange rate caching and report-side lazy FX resolution
+  - [ ] Daily incremental FX sync (tracked by Issue #539)
 - [x] Report currency configuration
   - [x] Base currency setting (default SGD)
   - [x] Unified report conversion
@@ -123,6 +124,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 |----|-----------|---------------|------|----------|
 | AC5.4.1 | FX Fallbacks | `test_reporting_fx_fallbacks` | `reporting/test_reporting_fx.py` | P1 |
 | AC5.4.2 | Balance Sheet Net Income FX Fallback | `test_balance_sheet_net_income_fx_fallback` | `reporting/test_reporting_fx.py` | P1 |
+| AC5.4.3 | Report FX Lazy Resolution | `test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates` | `reporting/test_reporting_fx.py` | P0 |
 
 ### AC5.5: Error Handling
 

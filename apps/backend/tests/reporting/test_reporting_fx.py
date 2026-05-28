@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -1051,6 +1052,87 @@ async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_curr
 
     # Net income should be 100 USD * 1.35 = 135 SGD
     assert report["net_income"] == Decimal("135.00")
+
+
+@pytest.mark.asyncio
+async def test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates(db: AsyncSession, test_user_id):
+    """[AC5.4.3] Reports derive and persist a missing HKD/SGD rate from bridge rates."""
+    hkd_cash = Account(user_id=test_user_id, name="HKD Cash", type=AccountType.ASSET, currency="HKD")
+    hkd_salary = Account(user_id=test_user_id, name="HKD Salary", type=AccountType.INCOME, currency="HKD")
+    db.add_all([hkd_cash, hkd_salary])
+    await db.flush()
+
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="HKD",
+                rate=Decimal("7.800000"),
+                rate_date=date(2025, 6, 30),
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.350000"),
+                rate_date=date(2025, 6, 30),
+                source="test",
+            ),
+        ]
+    )
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 6, 30),
+        memo="HKD salary",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=hkd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("780.00"),
+                currency="HKD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=hkd_salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("780.00"),
+                currency="HKD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    income_statement = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2025, 6, 1),
+        end_date=date(2025, 6, 30),
+        currency="SGD",
+    )
+    balance_sheet = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 6, 30), currency="SGD")
+
+    assert income_statement["total_income"] == Decimal("135.00")
+    assert balance_sheet["total_assets"] == Decimal("135.00")
+    assert balance_sheet["net_income"] == Decimal("135.00")
+    assert balance_sheet["is_balanced"] is True
+
+    result = await db.execute(
+        select(FxRate).where(
+            FxRate.base_currency == "HKD",
+            FxRate.quote_currency == "SGD",
+            FxRate.rate_date == date(2025, 6, 30),
+        )
+    )
+    derived_rate = result.scalar_one()
+    assert derived_rate.rate == Decimal("0.173077")
+    assert derived_rate.source == "derived:bridge:USD"
 
 
 @pytest.mark.asyncio

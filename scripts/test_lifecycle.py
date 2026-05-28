@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 import time
+import tomllib
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -46,6 +47,18 @@ GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
 RESET = "\033[0m"
+
+
+def get_runtime_version(name: str) -> str:
+    """Read a runtime version from the repository toolchain contract."""
+    with (REPO_ROOT / "toolchain.toml").open("rb") as fh:
+        toolchain = tomllib.load(fh)
+    return str(toolchain["runtime"][name])
+
+
+def uv_run(*args: str) -> list[str]:
+    """Build a uv run command pinned to the SSOT Python runtime."""
+    return ["uv", "run", "--python", get_runtime_version("python"), *args]
 
 
 # === Isolation Utilities ===
@@ -453,7 +466,7 @@ def test_database(ephemeral=False):
 
     try:
         subprocess.run(
-            ["uv", "run", "alembic", "upgrade", "head"],
+            uv_run("python", "-m", "alembic", "upgrade", "head"),
             cwd=BACKEND_DIR,
             env=env,
             check=True,
@@ -622,7 +635,7 @@ def main():
             env["S3_ENDPOINT"] = "http://localhost:9000"
             env["S3_BUCKET"] = get_s3_bucket(namespace)
 
-            cmd = ["uv", "run", "pytest", "-v"] + pytest_args
+            cmd = uv_run("python", "-m", "pytest", "-v") + pytest_args
 
             log(f"   Command: {' '.join(cmd)}", YELLOW)
             result = subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
