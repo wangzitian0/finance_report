@@ -29,6 +29,11 @@
 - Crypto wallet integration
 - Collectibles (art, wine, etc.)
 
+## Macro Proof Ownership
+
+- `asset-distribution-net-worth`
+- `annualized-income-long-term`
+
 ---
 
 ## 🎯 Business Value

@@ -10,6 +10,13 @@
 
 This epic defines the strategy for **Smoke Testing** and **End-to-End (E2E) Testing** to ensure system stability across environments. The focus is on **vertical, scenario-based flows** that mimic real user behavior, moving away from isolated functional checks.
 
+## Macro Proof Ownership
+
+- `asset-distribution-net-worth`
+- `monthly-income-spending`
+- `investment-performance`
+- `source-ledger-report-traceability`
+
 ## 2. Testing Strategy
 
 ### 2.1 Smoke Tests (Health Checks)
@@ -86,6 +93,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.51**: Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling.
 - **AC8.13.52**: Production release dry-run validates release prerequisites and image builds without production mutation.
 - **AC8.13.53**: Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers.
+- **AC8.13.54**: Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -407,7 +415,10 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 |
 | AC8.13.49 | Staging AI/OCR gates publish audit input inventory and replay summary fields | `test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.50 | Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors | `test_AC8_13_50_*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
+| AC8.13.51 | Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling | `test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.52 | Production release dry-run validates release prerequisites and image builds without production mutation | `test_AC8_13_52_production_release_dry_run_does_not_mutate_production` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.53 | Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers | `test_AC8_13_53_*` | `scripts/tests/test_common_tooling_modules.py`, `scripts/tests/test_ci_metrics_contract.py` | P0 |
+| AC8.13.54 | Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift | `test_AC8_13_54_*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

@@ -1,8 +1,8 @@
 version: "1.0"
 description: >
-  Critical product proof paths that must not be satisfied by broad AC string
-  references. This matrix protects only the small set of core user journeys;
-  full AC traceability remains a separate hygiene gate.
+  Bidirectional README -> EPIC -> E2E macro outcome guard and critical product
+  proof paths that must not be satisfied by broad AC string references. Full AC
+  traceability remains a separate hygiene gate.
 
 outcomes:
   - id: asset-distribution-net-worth

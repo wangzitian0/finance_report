@@ -230,7 +230,9 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       )
     })
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve Run" }))
+    const approveRunButton = await screen.findByRole("button", { name: "Approve Run" })
+    await waitFor(() => expect(approveRunButton).toBeEnabled())
+    fireEvent.click(approveRunButton)
     await waitFor(() => {
       const approveCalls = mockedApiFetch.mock.calls.filter((call) => call[0] === "/api/statements/batch-approve-matches")
       expect(approveCalls.length).toBeGreaterThanOrEqual(2)

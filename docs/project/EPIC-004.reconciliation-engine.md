@@ -21,6 +21,12 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ---
 
+## Macro Proof Ownership
+
+- `source-ledger-report-traceability`
+
+---
+
 ## 👥 Multi-Role Review
 
 | Role | Focus | Review Opinion |

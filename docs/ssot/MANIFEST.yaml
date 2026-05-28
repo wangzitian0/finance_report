@@ -252,7 +252,7 @@ concepts:
 
   critical_proof_matrix:
     owner: docs/ssot/critical-proof-matrix.yaml
-    description: Parseable README -> EPIC -> E2E macro outcome guard and core proof-path matrix.
+    description: Bidirectional README -> EPIC -> E2E macro outcome guard and core proof-path matrix.
     cross_refs:
       - README.md
       - docs/ssot/tdd.md
