@@ -75,6 +75,7 @@ jobs:
           S3_SECRET_KEY: minio_local_secret
           S3_ENDPOINT: http://127.0.0.1:9000
           S3_BUCKET: statements
+          CONTAINER_RUNTIME: docker
         run: |
           # Ensure release is built from clean state
           moon run :lint

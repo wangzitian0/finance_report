@@ -36,13 +36,25 @@ def get_runtime_version(name: str) -> str:
 
 def get_compose_cmd() -> list[str]:
     """Detect container runtime (podman or docker) and return compose command."""
+    requested = os.environ.get("CONTAINER_RUNTIME", "").strip().lower()
+    if requested:
+        if requested not in {"podman", "docker"}:
+            print(
+                "ERROR: CONTAINER_RUNTIME must be either 'podman' or 'docker'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if shutil.which(requested):
+            return [requested, "compose"]
+        print(f"ERROR: CONTAINER_RUNTIME={requested} not found in PATH")
+        sys.exit(1)
+
     if shutil.which("podman"):
         return ["podman", "compose"]
-    elif shutil.which("docker"):
+    if shutil.which("docker"):
         return ["docker", "compose"]
-    else:
-        print("ERROR: Neither podman nor docker found in PATH")
-        sys.exit(1)
+    print("ERROR: Neither podman nor docker found in PATH")
+    sys.exit(1)
 
 
 def run(cmd: list[str], cwd: Path = REPO_ROOT, env: dict = None, check: bool = True):
