@@ -97,12 +97,13 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Upload backend to Coveralls (per-flag)" in workflow
     assert "Upload frontend to Coveralls (per-flag)" in workflow
     assert "Mark Coveralls statuses reporting-only" in workflow
-    assert (
-        "Final Coveralls reporting-only pass after all SHA contexts settle" in workflow
-    )
     assert "scripts/mark_coveralls_reporting_status.py" in workflow
-    assert "--timeout-seconds 0" in workflow
-    assert "--settle-seconds 0" in workflow
+    assert "Settling Coveralls statuses before reporting-only override" in workflow
+    assert (
+        "Final Coveralls reporting-only pass after asynchronous statuses settle"
+        in workflow
+    )
+    assert "sleep 45" in workflow
     assert (
         'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")'
         in workflow
@@ -204,6 +205,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("coverage/common.lcov" in error for error in errors)
     assert any("scripts/build_ac_traceability.py --output" in error for error in errors)
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
+    assert any("Settling Coveralls statuses" in error for error in errors)
     assert any("Final Coveralls reporting-only pass" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
