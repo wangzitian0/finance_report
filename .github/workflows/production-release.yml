@@ -24,6 +24,7 @@ env:
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   PRODUCTION_COMPOSE_ID: lNn9gVS1Zyw79Jzw5dlbu
   PYTHON_VERSION: "3.12.12"
+  NODE_VERSION: "20.19.0"
   UV_VERSION: "0.9.18"
 
 jobs:
@@ -31,6 +32,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     
 
@@ -54,6 +56,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: apps/frontend
 
       - name: Verify Codebase
         env:
@@ -106,6 +119,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: read
     environment:
       name: production
