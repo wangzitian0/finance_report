@@ -184,6 +184,52 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "manual recovery entry point" in ci_cd
 
 
+def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -> None:
+    """AC8.13.49: Staging AI/OCR gates publish replay inputs and summary fields."""
+    deploy_workflow = read(".github/workflows/staging-deploy.yml")
+    ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
+    observability = read("docs/ssot/observability-logging.md")
+
+    for workflow in (deploy_workflow, ai_workflow):
+        assert "write_staging_audit_inventory()" in workflow
+        assert "write_staging_audit_result()" in workflow
+        assert "## Staging Audit Replay Inputs" in workflow
+        assert "## Staging Audit Replay Summary" in workflow
+        assert "- Environment: staging" in workflow
+        assert "- GitHub run ID: ${{ github.run_id }}" in workflow
+        assert "- Expected SHA: ${EXPECTED_SHA}" in workflow
+        assert "- Backend image tag:" in workflow
+        assert "- Frontend image tag:" in workflow
+        assert (
+            "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+            in workflow
+        )
+        assert "- Expected uploads: 7" in workflow
+        assert "- Expected parse completions: 7" in workflow
+        assert "- Expected brokerage imports: 3" in workflow
+        assert "- Expected report verifications: 1" in workflow
+        assert "- Expected failures: 0" in workflow
+        assert "- Uploads verified: ${verified_uploads}" in workflow
+        assert "- Parse completions verified: ${verified_parse_completions}" in workflow
+        assert "- Brokerage imports verified: ${verified_brokerage_imports}" in workflow
+        assert "- Report verifications verified: ${verified_report_verifications}" in workflow
+        assert "- Failures observed: ${verified_failures}" in workflow
+        assert "tests/e2e/test_statement_full_journey.py" in workflow
+        assert "tests/e2e/test_brokerage_upload_to_portfolio_value.py" in workflow
+        assert "tests/e2e/test_four_asset_net_worth_golden_path.py" in workflow
+        assert "tests/e2e/test_statement_upload_e2e.py" in workflow
+        assert "GITHUB_STEP_SUMMARY" in workflow
+
+    assert deploy_workflow.index(
+        "write_staging_audit_inventory"
+    ) < deploy_workflow.index('run_timed_phase "Staging AI/OCR Version Check"')
+    assert ai_workflow.index("write_staging_audit_inventory") < ai_workflow.index(
+        'run_timed_phase "Staging AI/OCR Version Check"'
+    )
+    assert "Staging Audit Replay Contract" in observability
+    assert "deployment-level inputs" in observability
+
+
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")

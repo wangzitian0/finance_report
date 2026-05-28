@@ -33,6 +33,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 3. Update Vault templates/README in infra repo.
 4. Add restart-safe wiring for Vault template updates.
 5. Validate via tests and env consistency check.
+6. Add staging audit replay events for statement upload, async parsing, brokerage import, and reconciliation.
 
 ### Result
 - Optional OTEL export implemented; local/dev remains stdout-only.
@@ -146,11 +147,20 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.7.6 | Vault templates include OTEL keys | `test_vault_template_exposes_otel_keys_with_safe_quoting()` | `infra/test_observability_contract.py` | P0 |
 | AC10.7.7 | Structured JSON logs in non-debug | `test_production_renderer_outputs_structured_json()` | `infra/test_observability_contract.py` | P0 |
 
+### AC10.8: Staging Audit Replay Logging
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC10.8.1 | Statement upload audit logs include non-sensitive input provenance, correlation IDs, and storage failure context | `test_AC10_8_1_upload_audit_logs_include_statement_input_provenance()`, `test_AC10_8_1_upload_storage_failure_logs_safe_audit_context()` | `api/test_statements_router.py` | P0 |
+| AC10.8.2 | Async statement parsing emits structured 5/10/20/70/80/90/100 checkpoints and safe failure context | `test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured()` | `extraction/test_statement_parsing_audit_logging.py` | P0 |
+| AC10.8.3 | Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts | `test_AC10_8_3_statement_scoped_brokerage_import_audit_logs()`, `test_AC10_8_3_brokerage_import_audit_checkpoints()`, `test_AC10_8_3_reconciliation_run_audit_checkpoints()` | `api/test_statements_router.py`, `extraction/test_statement_parsing_audit_logging.py`, `reconciliation/test_reconciliation_router_additional.py` | P0 |
+| AC10.8.4 | High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs | `test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level()` | `infra/test_observability_contract.py` | P1 |
+
 **Traceability Result**:
-- Total AC IDs: 18 (AC10.2.1, AC10.3.1, AC10.3.2 removed as duplicates of EPIC-012 canonical ACs)
+- Total AC IDs: 22 (AC10.2.1, AC10.3.1, AC10.3.2 removed as duplicates of EPIC-012 canonical ACs)
 - Requirements converted to AC IDs: 100% (EPIC-010 checklist + must-have standards)
 - Requirements with implemented test references: 100% (contract tests cover config, docs, templates, and logger behavior)
-- Test files: 2
+- Test files: 5
 - Note: Staging/production SigNoz UI checks remain operational smoke verification outside the AC contract suite
 
 ---

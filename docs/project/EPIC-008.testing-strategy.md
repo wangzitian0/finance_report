@@ -81,6 +81,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.46**: PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E.
 - **AC8.13.47**: Remaining delivery-engine optimizations are captured in a tracked project recommendation note.
 - **AC8.13.48**: Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%.
+- **AC8.13.49**: Staging AI/OCR gates publish audit input inventory and replay summary fields.
 
 **Current state (2026-02-23):**
 - **Tier 1**: 41 tests in `test_core_journeys.py` covering 45 ACs → **91.8% AC pass rate** (45/49)
@@ -400,6 +401,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.46 | PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E | `test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.47 | Remaining delivery-engine optimizations are captured in a tracked project recommendation note | `test_AC8_13_47_delivery_engine_recommendations_are_tracked` | `scripts/tests/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.48 | Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99% | `test_AC8_13_48_*` | `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx`, `apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx`, `apps/frontend/src/__tests__/StatementUploader.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx`, `apps/frontend/src/__tests__/apiFunctions.test.ts`, `apps/frontend/src/__tests__/accountsPage.test.tsx`, `apps/frontend/src/__tests__/assetsPage.test.tsx`, `apps/frontend/src/__tests__/statementsPage.test.tsx`, `apps/frontend/src/__tests__/useWorkspaceHook.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.netWorthTimeSeries.test.tsx`, `apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx` | P0 |
+| AC8.13.49 | Staging AI/OCR gates publish audit input inventory and replay summary fields | `test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

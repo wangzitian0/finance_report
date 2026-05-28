@@ -252,7 +252,7 @@ async def calculate_unrealized_fx_gains(
             revaluations.append(reval)
             total_unrealized += reval.unrealized_gain_loss
 
-    logger.info(
+    logger.debug(
         "Calculated unrealized FX gains/losses",
         user_id=str(user_id),
         revaluation_date=revaluation_date.isoformat(),

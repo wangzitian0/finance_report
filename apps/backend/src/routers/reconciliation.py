@@ -1,8 +1,9 @@
 """Reconciliation API router."""
 
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import structlog
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +50,19 @@ from src.utils import raise_bad_request, raise_not_found
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
 MAX_BATCH_CREATE_ALL = 200
+
+
+def _current_request_id() -> str:
+    value = structlog.contextvars.get_contextvars().get("request_id")
+    if value:
+        return str(value)
+    generated = str(uuid4())
+    structlog.contextvars.bind_contextvars(request_id=generated)
+    return generated
+
+
+def _safe_error_message(message: str | None) -> str | None:
+    return message[:500] if message else message
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
@@ -137,13 +151,42 @@ async def run_reconciliation(
         if not stmt_result.scalar_one_or_none():
             raise_not_found("Statement")
 
-    matches = await execute_matching(
-        db,
-        statement_id=payload.statement_id,
+    request_id = _current_request_id()
+    statement_id = str(payload.statement_id) if payload.statement_id else None
+    logger.info(
+        "reconciliation.run.started",
+        audit_event="reconciliation.run.started",
+        request_id=request_id,
+        statement_id=statement_id,
+        phase="matching_started",
+        progress=None,
+        model_to_use=None,
         limit=payload.limit,
-        user_id=user_id,
     )
-    await db.commit()
+
+    try:
+        matches = await execute_matching(
+            db,
+            statement_id=payload.statement_id,
+            limit=payload.limit,
+            user_id=user_id,
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.exception(
+            "reconciliation.run.failed",
+            audit_event="reconciliation.run.failed",
+            request_id=request_id,
+            statement_id=statement_id,
+            phase="matching_failed",
+            progress=None,
+            model_to_use=None,
+            limit=payload.limit,
+            error_type=type(exc).__name__,
+            safe_error_message=_safe_error_message(str(exc)),
+        )
+        await db.rollback()
+        raise
 
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
@@ -159,6 +202,21 @@ async def run_reconciliation(
         unmatched_query = unmatched_query.where(BankStatementTransaction.statement_id == payload.statement_id)
     unmatched_result = await db.execute(unmatched_query)
     unmatched_count = unmatched_result.scalar_one()
+
+    logger.info(
+        "reconciliation.run.completed",
+        audit_event="reconciliation.run.completed",
+        request_id=request_id,
+        statement_id=statement_id,
+        phase="matching_completed",
+        progress=None,
+        model_to_use=None,
+        limit=payload.limit,
+        matches_created=len(matches),
+        auto_accepted=auto_accepted,
+        pending_review=pending_review,
+        unmatched=unmatched_count,
+    )
 
     return ReconciliationRunResponse(
         matches_created=len(matches),

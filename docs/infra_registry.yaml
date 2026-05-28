@@ -512,6 +512,27 @@ groups:
         epic_name: signoz-logging
         description: Structured JSON logs in non-debug
         mandatory: true
+    AC10.8:
+      - id: AC10.8.1
+        epic: 10
+        epic_name: signoz-logging
+        description: Statement upload audit logs include non-sensitive input provenance and correlation IDs
+        mandatory: true
+      - id: AC10.8.2
+        epic: 10
+        epic_name: signoz-logging
+        description: Async statement parsing emits structured 5/10/20/70/80/90/100 checkpoints and safe failure context
+        mandatory: true
+      - id: AC10.8.3
+        epic: 10
+        epic_name: signoz-logging
+        description: Brokerage import and reconciliation emit start/complete audit checkpoints with result counts
+        mandatory: true
+      - id: AC10.8.4
+        epic: 10
+        epic_name: signoz-logging
+        description: High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs
+        mandatory: true
   AC12:
     AC12.1:
       - id: AC12.1.1
