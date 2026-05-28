@@ -672,39 +672,14 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
         "  ac-traceability:", 1
     )[0]
     assert "statuses: write" not in global_permissions
-    assert "statuses: write" in unified_coverage_block
-    assert "Mark Coveralls statuses reporting-only" in workflow
-    mark_block = workflow.split("- name: Mark Coveralls statuses reporting-only", 1)[
-        1
-    ].split("  ac-traceability:", 1)[0]
-    assert "continue-on-error: true" in mark_block
-    assert "scripts/mark_coveralls_reporting_status.py" in workflow
-    assert (
-        'shas=("${{ github.event.pull_request.head.sha }}" "${{ github.sha }}")'
-        in workflow
-    )
-    assert "Coveralls - unified" in read("scripts/mark_coveralls_reporting_status.py")
-    assert "coverage/coveralls (push)" in read(
-        "scripts/mark_coveralls_reporting_status.py"
-    )
-    assert "discover_coveralls_contexts" in read(
-        "scripts/mark_coveralls_reporting_status.py"
-    )
-    assert "--timeout-seconds" not in unified_coverage_block
-    assert "--settle-seconds" not in unified_coverage_block
-    assert (
-        unified_coverage_block.count("scripts/mark_coveralls_reporting_status.py") == 1
-    )
-    assert unified_coverage_block.count("publish_coveralls_reporting_statuses") == 3
-    assert "Settling Coveralls statuses before reporting-only override" in workflow
-    assert "sleep 45" in unified_coverage_block
-    assert (
-        "Final Coveralls reporting-only pass after asynchronous statuses settle"
-        in workflow
-    )
+    assert "statuses: write" not in unified_coverage_block
+    assert "Mark Coveralls statuses reporting-only" not in workflow
+    assert "scripts/mark_coveralls_reporting_status.py" not in workflow
+    assert "publish_coveralls_reporting_statuses" not in workflow
     assert "Wait for Coveralls unified status" not in workflow
     assert "scripts/wait_for_github_status.py" not in workflow
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "Coveralls contexts are not required checks" in ci_cd
     assert "coverage/coveralls" in ci_cd
     assert "Coveralls - unified" in ci_cd
 
