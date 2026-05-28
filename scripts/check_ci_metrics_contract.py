@@ -11,6 +11,7 @@ from coverage_policy import COMPONENTS, ROOT_DIR, CoverageComponent
 
 CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx"}
 DISCOVERED_APP_ROOTS = ("apps", "packages")
+DISCOVERED_ROOT_SOURCE_DIRS = ("common", "scripts")
 EXCLUDED_DIR_NAMES = {
     ".git",
     ".next",
@@ -56,9 +57,10 @@ def discover_source_roots(repo_root: Path = ROOT_DIR) -> list[str]:
             if source_root.is_dir() and _has_code_files(source_root):
                 roots.add(_repo_rel(source_root, repo_root))
 
-    scripts_root = repo_root / "scripts"
-    if scripts_root.is_dir() and _has_code_files(scripts_root):
-        roots.add("scripts")
+    for root_name in DISCOVERED_ROOT_SOURCE_DIRS:
+        source_root = repo_root / root_name
+        if source_root.is_dir() and _has_code_files(source_root):
+            roots.add(root_name)
 
     return sorted(roots)
 
@@ -108,7 +110,8 @@ def _validate_policy_shape(
     for duplicate in _duplicate_values(ci_lcov_paths):
         errors.append(f"duplicate CI LCOV path: {duplicate}")
 
-    for component, source_root in zip(components, source_roots, strict=True):
+    for component in components:
+        source_root = _repo_rel(component.source_path(repo_root), repo_root)
         if not component.source_path(repo_root).exists():
             errors.append(
                 f"coverage component source root does not exist: {source_root}"
@@ -121,7 +124,7 @@ def _validate_policy_shape(
     missing_roots = find_uncovered_source_roots(repo_root, components)
     if missing_roots:
         errors.append(
-            "source roots are not governed by coverage_policy.py: "
+            "source roots are not governed by common/coverage/policy.py: "
             + ", ".join(missing_roots)
         )
 
@@ -142,6 +145,8 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "scripts/calculate_unified_coverage.py",
             "scripts/check_ac_traceability.py",
             'scripts/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
+            "--cov=common",
+            "coverage/common.lcov",
             "Upload unified coverage to Coveralls",
             "Upload backend to Coveralls (per-flag)",
             "Upload frontend to Coveralls (per-flag)",
@@ -188,7 +193,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "Coveralls uploads are reporting-only and do not block CI pass/fail",
             "PR CI dry-runs staging image builds before merge",
             "Main push CI is the only path that pushes SHA-tagged images",
-            "New `apps/*/src` or `packages/*/src` source roots fail CI",
+            "New `apps/*/src`, `packages/*/src`, or root shared source roots fail CI",
         ):
             if token not in ci_cd_text:
                 errors.append(f"CI/CD SSOT is missing metrics semantics: {token}")

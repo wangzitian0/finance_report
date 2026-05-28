@@ -5,7 +5,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_ci_metrics_contract as contract  # noqa: E402
 from check_ci_metrics_contract import (  # noqa: E402
@@ -17,9 +19,7 @@ from check_ci_metrics_contract import (  # noqa: E402
     main,
     run_contract,
 )
-from coverage_policy import CoverageComponent  # noqa: E402
-
-ROOT = Path(__file__).resolve().parents[2]
+from common.coverage.policy import CoverageComponent  # noqa: E402
 
 
 def _write(root: Path, relative_path: str, content: str = "x = 1\n") -> Path:
@@ -57,6 +57,19 @@ def test_AC8_13_26_future_app_source_roots_must_be_in_coverage_policy(tmp_path):
     roots = discover_source_roots(tmp_path)
     assert "apps/new_service/src" in roots
     assert find_uncovered_source_roots(tmp_path, components) == ["apps/new_service/src"]
+    assert run_contract(tmp_path, components=components) == 1
+
+
+def test_AC8_13_53_root_common_source_root_must_be_in_coverage_policy(tmp_path):
+    """AC8.13.53: Root common modules cannot bypass unified coverage policy."""
+    _write(tmp_path, "common/shared.py")
+    _write(tmp_path, "scripts/build.py")
+
+    components = (_component("scripts", "", "scripts", ".py"),)
+
+    roots = discover_source_roots(tmp_path)
+    assert "common" in roots
+    assert find_uncovered_source_roots(tmp_path, components) == ["common"]
     assert run_contract(tmp_path, components=components) == 1
 
 
@@ -101,6 +114,8 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "statuses: write" not in global_permissions
     assert "statuses: write" in unified_coverage_block
     assert "scripts/check_ac_traceability.py" in workflow
+    assert "--cov=common" in workflow
+    assert "coverage/common.lcov" in workflow
     assert workflow.index("scripts/check_ac_traceability.py") < workflow.index(
         "scripts/build_ac_traceability.py --output"
     )
@@ -185,6 +200,8 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
 
     assert any("scripts/calculate_unified_coverage.py" in error for error in errors)
     assert any("scripts/check_ac_traceability.py" in error for error in errors)
+    assert any("--cov=common" in error for error in errors)
+    assert any("coverage/common.lcov" in error for error in errors)
     assert any("scripts/build_ac_traceability.py --output" in error for error in errors)
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
     assert any("Final Coveralls reporting-only pass" in error for error in errors)

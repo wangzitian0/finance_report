@@ -7,11 +7,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_coverage_policy as check_policy  # noqa: E402
 from check_coverage_policy import compare_component, main, run_audit  # noqa: E402
-from coverage_policy import CoverageComponent, parse_lcov_sources  # noqa: E402
+from common.coverage.policy import CoverageComponent, parse_lcov_sources  # noqa: E402
 
 
 def _component(

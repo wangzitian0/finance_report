@@ -139,7 +139,7 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 | Environment | Tests Run | Purpose | Duration |
 |-------------|-----------|---------|----------|
 | **Local Dev** | None (manual testing) | Fast iteration | — |
-| **Local CI** | Unit + integration with coverage policy from `scripts/coverage_policy.py` | Pre-push validation | ~30s |
+| **Local CI** | Unit + integration with coverage policy from `common/coverage/policy.py` | Pre-push validation | ~30s |
 | **GitHub CI** | Lint, AC traceability, unit + integration with unified coverage for heavy changes | Quality gate | ~7min heavy / lightweight skips heavy jobs |
 | **PR Preview** | Health check + non-LLM E2E against per-PR Dokploy environment | Deployment validation | ~3-5min |
 | **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR gate runs separately | Full validation | ~6min deploy + variable AI/OCR gate |

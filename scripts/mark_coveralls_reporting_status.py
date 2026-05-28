@@ -37,6 +37,10 @@ class GitHubCommitStatus:
     target_url: str | None
 
 
+class GitHubCommitStatusNotFound(RuntimeError):
+    """GitHub commit statuses can be transiently unavailable for PR SHAs."""
+
+
 def _log(message: str) -> None:
     print(message, flush=True)
 
@@ -50,6 +54,8 @@ def _run_gh_json(args: list[str]) -> dict[str, object]:
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
+        if "HTTP 404" in detail:
+            raise GitHubCommitStatusNotFound(detail)
         raise RuntimeError(f"gh api failed: {detail}")
     return json.loads(result.stdout or "{}")
 
@@ -88,7 +94,14 @@ def _run_gh_status_create(
 
 
 def fetch_commit_statuses(repo: str, sha: str) -> list[GitHubCommitStatus]:
-    payload = _run_gh_json([f"repos/{repo}/commits/{sha}/status"])
+    try:
+        payload = _run_gh_json([f"repos/{repo}/commits/{sha}/status"])
+    except GitHubCommitStatusNotFound as exc:
+        _log(
+            f"GitHub commit status endpoint returned 404 for {sha}: {exc}; "
+            "treating statuses as missing."
+        )
+        return []
     statuses = payload.get("statuses", [])
     if not isinstance(statuses, list):
         raise RuntimeError("GitHub commit status response did not contain a list")

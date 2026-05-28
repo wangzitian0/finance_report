@@ -2001,6 +2001,11 @@ groups:
         epic_name: testing-strategy
         description: Production release dry-run validates release prerequisites and image builds without production mutation.
         mandatory: true
+      - id: AC8.13.53
+        epic: 8
+        epic_name: testing-strategy
+        description: Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

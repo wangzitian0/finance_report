@@ -137,7 +137,7 @@ python scripts/check_ssot_ownership.py
 ```
 
 Coverage is governed by `docs/ssot/coverage.md` and
-`scripts/coverage_policy.py`. The current policy is no-regression from
+`common/coverage/policy.py`. The current policy is no-regression from
 `unified-coverage.json`; there is no fixed 96% unified gate at the time of this
 writing.
 
