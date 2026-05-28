@@ -101,7 +101,7 @@ moon run :dev -- --backend        # Full Stack (App + DB + Redis + MinIO)
 moon run :dev -- --frontend       # Next.js on :3000
 
 # Local CI / Verification (Recommended)
-moon run :lint && moon run :test  # One-button check (matches GitHub CI exactly)
+moon run :lint && moon run :test  # One-button local gate (same gate family as GitHub CI)
 
 # Testing
 moon run :test                    # All tests (default, 90% backend coverage)
@@ -122,6 +122,11 @@ python scripts/check_toolchain_contract.py  # Runtime/toolchain drift check
 # Build
 moon run :build             # Build all
 ```
+
+Root Moon tasks are uncached wrappers with explicit workspace inputs, so local
+verification runs fresh and never treats the `repo` infra submodule gitlink as a
+file input. The `repo/` submodule is verified separately by the agent
+orchestration infra sync check.
 
 ---
 
@@ -212,7 +217,8 @@ Integration points:
 
 > **See dedicated file** → **[docs/ssot/ci-cd.md](./ci-cd.md)**
 >
-> Covers: smart/fast/full test modes, 4-way CI sharding, no-regression coverage gate,
+> Covers: smart/fast/full test modes, 4-way local test parallelism,
+> GitHub CI sharding, no-regression coverage gate,
 > CI job structure, and performance metrics.
 
 ---

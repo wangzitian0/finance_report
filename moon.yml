@@ -3,24 +3,65 @@ $schema: 'https://moonrepo.dev/schemas/project.json'
 # Root project - 6 unified commands
 layer: tool
 
+fileGroups:
+  workspace:
+    - '.github/**/*'
+    - '.moon/**/*'
+    - 'apps/**/*'
+    - 'docs/**/*'
+    - 'infra/**/*'
+    - 'scripts/**/*'
+    - 'tests/**/*'
+    - '*.md'
+    - '*.toml'
+    - '*.yml'
+    - '*.yaml'
+    - '*.ini'
+    - 'Makefile'
+    - 'package*.json'
+
 tasks:
   setup:
     command: 'python3 scripts/cli.py setup'
     deps: []
+    inputs:
+      - '@group(workspace)'
+    options:
+      cache: false
 
   dev:
     command: 'python3 scripts/cli.py dev'
     preset: 'server'
+    inputs:
+      - '@group(workspace)'
+    options:
+      cache: false
 
   test:
     command: 'python3 scripts/cli.py test'
+    inputs:
+      - '@group(workspace)'
+    options:
+      cache: false
 
   lint:
     command: 'python3 scripts/cli.py lint'
+    inputs:
+      - '@group(workspace)'
+    options:
+      cache: false
 
   build:
     command: 'python3 scripts/cli.py build'
+    inputs:
+      - '@group(workspace)'
+    options:
+      cache: false
 
   clean:
     command: 'python3 scripts/cli.py clean'
     preset: 'server'
+    inputs:
+      - '@group(workspace)'
+    options:
+      cache: false

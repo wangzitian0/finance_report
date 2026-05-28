@@ -150,7 +150,6 @@ def cmd_lint(args):
             run(
                 ["uv", "run", "ruff", "format", "src/", "--check"],
                 cwd=BACKEND_DIR,
-                check=False,
             )
 
     if args.frontend or not args.backend:
