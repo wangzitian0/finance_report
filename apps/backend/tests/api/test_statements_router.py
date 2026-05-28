@@ -17,6 +17,7 @@ import hashlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -38,6 +39,7 @@ from src.schemas import StatementDecisionRequest
 from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest, Stage1ApprovalRequest
 from src.services import (
     ExtractionError,
+    StorageError,
     statement_parsing as statement_parsing_mod,
     statement_validation as statement_validation_mod,
 )
@@ -288,6 +290,151 @@ async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage
     assert "statement.pdf" not in storage_key
     assert str(test_user.id) not in storage_key
     assert storage_key.endswith(".pdf")
+
+
+async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
+    db, monkeypatch, storage_stub, model_catalog_stub, test_user
+):
+    """AC10.8.1: Upload audit logs expose safe replay inputs and correlation IDs."""
+    content = b"audit-log-input"
+    mock_parse = AsyncMock(return_value=None)
+    mock_info = MagicMock()
+    monkeypatch.setattr(statements_router, "parse_statement_background", mock_parse)
+    monkeypatch.setattr(statements_router.logger, "info", mock_info)
+
+    upload_file = make_upload_file("staging-audit.pdf", content)
+    created = await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        model="google/gemini-3-flash-preview",
+        db=db,
+        user_id=test_user.id,
+    )
+    await upload_file.close()
+    await wait_for_background_tasks()
+
+    calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
+    accepted = next(kwargs for event, kwargs in calls if event == "statement.upload.accepted")
+    storage_saved = next(kwargs for event, kwargs in calls if event == "statement.upload.storage_saved")
+    enqueued = next(kwargs for event, kwargs in calls if event == "statement.parse.enqueued")
+
+    expected_hash_prefix = hashlib.sha256(content).hexdigest()[:12]
+    assert accepted["audit_event"] == "statement.upload.accepted"
+    assert accepted["request_id"]
+    assert accepted["statement_id"] == str(created.id)
+    assert accepted["filename"] == "staging-audit.pdf"
+    assert accepted["file_type"] == "pdf"
+    assert accepted["institution"] == "DBS"
+    assert accepted["model_requested"] == "google/gemini-3-flash-preview"
+    assert accepted["model_to_use"] == "google/gemini-3-flash-preview"
+    assert accepted["file_size_bytes"] == len(content)
+    assert accepted["file_hash_prefix"] == expected_hash_prefix
+    assert accepted["file_hash_prefix"] != hashlib.sha256(content).hexdigest()
+    assert "content" not in accepted
+
+    assert storage_saved["audit_event"] == "statement.upload.storage_saved"
+    assert storage_saved["request_id"] == accepted["request_id"]
+    assert storage_saved["statement_id"] == str(created.id)
+    assert storage_saved["file_hash_prefix"] == expected_hash_prefix
+
+    assert enqueued["audit_event"] == "statement.parse.enqueued"
+    assert enqueued["request_id"] == accepted["request_id"]
+    assert enqueued["statement_id"] == str(created.id)
+    assert enqueued["model_to_use"] == "google/gemini-3-flash-preview"
+    assert mock_parse.await_args.kwargs["statement_id"] == created.id
+
+
+async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(
+    db, monkeypatch, model_catalog_stub, test_user
+):
+    """AC10.8.1: Upload storage failures keep replayable safe failure context."""
+    content = b"storage-failure-input"
+    mock_error = MagicMock()
+    monkeypatch.setattr(statements_router.logger, "error", mock_error)
+
+    class FailingStorage(DummyStorage):
+        def upload_bytes(self, **_kwargs) -> None:
+            raise StorageError("object store rejected upload without source bytes")
+
+    monkeypatch.setattr(statements_router, "StorageService", FailingStorage)
+
+    upload_file = make_upload_file("staging-failure.pdf", content)
+    with pytest.raises(HTTPException) as exc_info:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=None,
+            model=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    failed = next(call.kwargs for call in mock_error.call_args_list if call.args[0] == "statement.upload.storage_failed")
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert failed["audit_event"] == "statement.upload.storage_failed"
+    assert failed["request_id"]
+    assert failed["statement_id"]
+    assert failed["phase"] == "storage_upload_failed"
+    assert failed["progress"] is None
+    assert failed["model_to_use"] is None
+    assert failed["filename"] == "staging-failure.pdf"
+    assert failed["file_type"] == "pdf"
+    assert failed["file_size_bytes"] == len(content)
+    assert failed["file_hash_prefix"] == hashlib.sha256(content).hexdigest()[:12]
+    assert failed["error_type"] == "StorageError"
+    assert failed["safe_error_message"] == "object store rejected upload without source bytes"
+    assert "content" not in failed
+
+
+async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_user, monkeypatch):
+    """AC10.8.3: Statement-scoped brokerage import logs replay context and counts."""
+    statement = build_statement(test_user.id, "manual_brokerage_audit", 95)
+    statement.institution = "Moomoo"
+    statement.parsing_progress = 100
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    mock_info = MagicMock()
+    result = SimpleNamespace(
+        broker="Moomoo",
+        parsed_positions=1,
+        created_atomic_positions=1,
+        existing_atomic_positions=0,
+        reconcile_created=1,
+        reconcile_updated=0,
+        reconcile_disposed=0,
+        skipped=0,
+    )
+
+    async def fake_import_positions(*_args, **_kwargs):
+        return result
+
+    monkeypatch.setattr(statements_router.logger, "info", mock_info)
+    monkeypatch.setattr(statements_router._BROKERAGE_IMPORT_SERVICE, "import_positions", fake_import_positions)
+
+    response = await statements_router.import_brokerage_statement_positions(
+        statement_id=statement_id,
+        db=db,
+        user_id=test_user.id,
+    )
+
+    calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
+    started = next(kwargs for event, kwargs in calls if event == "statement.brokerage_import.started")
+    completed = next(kwargs for event, kwargs in calls if event == "statement.brokerage_import.completed")
+
+    assert response.created_atomic_positions == 1
+    assert started["audit_event"] == "statement.brokerage_import.started"
+    assert started["statement_id"] == str(statement_id)
+    assert started["phase"] == "brokerage_import_started"
+    assert started["progress"] == 100
+    assert started["model_to_use"] is None
+    assert completed["audit_event"] == "statement.brokerage_import.completed"
+    assert completed["statement_id"] == str(statement_id)
+    assert completed["phase"] == "brokerage_import_completed"
+    assert completed["created_atomic_positions"] == 1
 
 
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):

@@ -83,6 +83,19 @@ def _track_task(task: asyncio.Task[None]) -> None:
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
 
 
+def _current_request_id() -> str | None:
+    value = structlog.contextvars.get_contextvars().get("request_id")
+    if value:
+        return str(value)
+    generated = str(uuid4())
+    structlog.contextvars.bind_contextvars(request_id=generated)
+    return generated
+
+
+def _safe_error_message(message: str | None) -> str | None:
+    return message[:500] if message else message
+
+
 async def _queue_statement_reparse(
     db: DbSession,
     statement: BankStatement,
@@ -92,6 +105,8 @@ async def _queue_statement_reparse(
 ) -> None:
     storage = StorageService()
     content = await run_in_threadpool(storage.get_object, statement.file_path)
+    request_id = _current_request_id()
+    model_to_use = None if model == settings.ocr_model else model
     task = asyncio.create_task(
         parse_statement_background(
             statement_id=statement.id,
@@ -102,12 +117,23 @@ async def _queue_statement_reparse(
             file_hash=statement.file_hash,
             storage_key=statement.file_path,
             content=content,
-            model=None if model == settings.ocr_model else model,
+            model=model_to_use,
             session_maker=create_session_maker_from_db(db),
-            request_id=structlog.contextvars.get_contextvars().get("request_id"),
+            request_id=request_id,
         )
     )
     _track_task(task)
+    logger.info(
+        "statement.parse.enqueued",
+        audit_event="statement.parse.enqueued",
+        request_id=request_id,
+        statement_id=str(statement.id),
+        filename=statement.original_filename,
+        file_type=statement.original_filename.rsplit(".", 1)[-1].lower()
+        if "." in statement.original_filename
+        else "pdf",
+        model_to_use=model_to_use,
+    )
 
 
 async def _auto_create_posted_entries_for_statement(
@@ -302,6 +328,7 @@ async def upload_statement(
         raise_too_large("File exceeds 10MB limit")
 
     file_hash = hashlib.sha256(content).hexdigest()
+    file_hash_prefix = file_hash[:12]
     duplicate = await db.execute(
         select(BankStatement.id).where(BankStatement.user_id == user_id).where(BankStatement.file_hash == file_hash)
     )
@@ -320,6 +347,23 @@ async def upload_statement(
                 raise_bad_request("Selected model does not support image/PDF inputs.")
 
     statement_id = uuid4()
+    request_id = _current_request_id()
+    model_to_use = None if model == settings.ocr_model else model
+    logger.info(
+        "statement.upload.accepted",
+        audit_event="statement.upload.accepted",
+        request_id=request_id,
+        user_id=str(user_id),
+        statement_id=str(statement_id),
+        filename=filename,
+        file_type=extension,
+        institution=institution or "(auto-detect)",
+        model_requested=model,
+        model_to_use=model_to_use,
+        file_size_bytes=len(content),
+        file_hash_prefix=file_hash_prefix,
+        has_account_id=account_id is not None,
+    )
     storage_key = build_statement_storage_key(
         statement_id=statement_id,
         file_hash=file_hash,
@@ -335,8 +379,30 @@ async def upload_statement(
             content_type=mimetypes.guess_type(filename)[0] or "application/pdf",
         )
     except StorageError as exc:
-        logger.error("Failed to upload statement to storage", error=str(exc))
+        logger.error(
+            "statement.upload.storage_failed",
+            audit_event="statement.upload.storage_failed",
+            request_id=request_id,
+            statement_id=str(statement_id),
+            phase="storage_upload_failed",
+            progress=None,
+            model_to_use=model_to_use,
+            filename=filename,
+            file_type=extension,
+            file_size_bytes=len(content),
+            file_hash_prefix=file_hash_prefix,
+            error_type=type(exc).__name__,
+            safe_error_message=_safe_error_message(str(exc)),
+        )
         raise_service_unavailable(str(exc), cause=exc)
+    logger.info(
+        "statement.upload.storage_saved",
+        audit_event="statement.upload.storage_saved",
+        request_id=request_id,
+        statement_id=str(statement_id),
+        storage_key=storage_key,
+        file_hash_prefix=file_hash_prefix,
+    )
 
     statement = BankStatement(
         id=statement_id,
@@ -382,12 +448,21 @@ async def upload_statement(
             file_hash=file_hash,
             storage_key=storage_key,
             content=content,
-            model=None if model == settings.ocr_model else model,
+            model=model_to_use,
             session_maker=create_session_maker_from_db(db),
-            request_id=structlog.contextvars.get_contextvars().get("request_id"),
+            request_id=request_id,
         )
     )
     _track_task(task)
+    logger.info(
+        "statement.parse.enqueued",
+        audit_event="statement.parse.enqueued",
+        request_id=request_id,
+        statement_id=str(statement_id),
+        filename=filename,
+        file_type=extension,
+        model_to_use=model_to_use,
+    )
 
     result = await db.execute(
         select(BankStatement)
@@ -632,14 +707,57 @@ async def import_brokerage_statement_positions(
         raise_bad_request(_brokerage_import_not_ready_reason(statement))
 
     payload = _brokerage_payload_from_statement(statement)
-    import_result = await _BROKERAGE_IMPORT_SERVICE.import_positions(
-        db,
-        user_id=user_id,
-        payload=payload,
-        filename=statement.original_filename,
-        source_document_id=str(statement.id),
+    request_id = _current_request_id()
+    logger.info(
+        "statement.brokerage_import.started",
+        audit_event="statement.brokerage_import.started",
+        request_id=request_id,
+        statement_id=str(statement.id),
+        phase="brokerage_import_started",
+        progress=statement.parsing_progress,
+        model_to_use=None,
+        broker=statement.institution,
+        parsed_positions=len(statement.transactions or []),
     )
-    await db.commit()
+    try:
+        import_result = await _BROKERAGE_IMPORT_SERVICE.import_positions(
+            db,
+            user_id=user_id,
+            payload=payload,
+            filename=statement.original_filename,
+            source_document_id=str(statement.id),
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.exception(
+            "statement.brokerage_import.failed",
+            audit_event="statement.brokerage_import.failed",
+            request_id=request_id,
+            statement_id=str(statement.id),
+            phase="brokerage_import_failed",
+            progress=statement.parsing_progress,
+            model_to_use=None,
+            error_type=type(exc).__name__,
+            safe_error_message=_safe_error_message(str(exc)),
+        )
+        await db.rollback()
+        raise
+    logger.info(
+        "statement.brokerage_import.completed",
+        audit_event="statement.brokerage_import.completed",
+        request_id=request_id,
+        statement_id=str(statement.id),
+        phase="brokerage_import_completed",
+        progress=statement.parsing_progress,
+        model_to_use=None,
+        broker=import_result.broker,
+        parsed_positions=import_result.parsed_positions,
+        created_atomic_positions=import_result.created_atomic_positions,
+        existing_atomic_positions=import_result.existing_atomic_positions,
+        reconcile_created=import_result.reconcile_created,
+        reconcile_updated=import_result.reconcile_updated,
+        reconcile_disposed=import_result.reconcile_disposed,
+    )
     return BrokerageImportResponse(**import_result.__dict__)
 
 

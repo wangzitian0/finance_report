@@ -9,10 +9,14 @@
 ### Files Modified
 - `apps/frontend/src/components/statements/StatementUploader.tsx` - Model selection and upload logging
 - `apps/backend/src/routers/statements.py` - Upload request and background task logging
+- `apps/backend/src/routers/reconciliation.py` - Reconciliation run audit checkpoints
+- `apps/backend/src/services/statement_parsing.py` - Async parse progress and brokerage import checkpoints
 - `apps/backend/src/routers/ai_models.py` - Model catalog request/response logging
 - `apps/backend/src/services/extraction.py` - Model selection and HTTP error logging
 - `apps/backend/src/services/ai_provider_models.py` - Cache and model lookup logging
 - `apps/backend/src/services/ai_provider_streaming.py` - Enhanced AI provider API error logging
+- `.github/workflows/staging-deploy.yml` - Post-merge staging audit input inventory and phase summary
+- `.github/workflows/staging-ai-ocr-gate.yml` - Manual staging AI/OCR audit input inventory
 
 ### Configuration
 - **Logger**: Structured logging via `src/logger.py` with OTEL integration
@@ -81,6 +85,84 @@ sequenceDiagram
 5. Extraction: Model selection logic (force_model vs primary_model)
 6. Extraction: HTTP error with status code extraction
 7. AI provider: API error with headers and retryability
+
+### Staging Audit Replay Contract
+
+Staging logs and GitHub Actions output must support replaying any staging run from
+either a GitHub Actions `run_id` or a backend `statement_id` within five minutes.
+The goal is not higher log volume; it is enough structured context to answer:
+
+1. What input was processed?
+2. Which phase did it reach?
+3. What result was produced?
+4. If it failed, what safe failure reason explains it?
+
+#### Required Fields
+
+Every staging audit event uses a stable dotted `audit_event` value plus the
+native structured log event message. Statement-scoped events include
+`statement_id`, `request_id` when available, `phase`, and `progress` when the
+phase maps to parsing progress. Upload events also include `filename`,
+`file_type`, `institution`, `model_requested`, `model_to_use`,
+`file_size_bytes`, and `file_hash_prefix`.
+
+The staging workflow records deployment-level inputs before provider-backed
+tests run: target SHA, backend and frontend image tags, environment, app URL,
+primary/OCR/vision model IDs, fixture test files, expected upload count,
+expected brokerage import count, expected report verification count, and the
+phase labels that should appear in the run log. After the gate finishes, the
+workflow appends verified upload, parse completion, brokerage import, report
+verification, and failure counts when the suite passes; failures emit `unknown`
+counts plus a non-zero failure marker for fast triage.
+
+#### Event Names
+
+| Event | Required Fields | Purpose |
+|-------|-----------------|---------|
+| `statement.upload.accepted` | `request_id`, `statement_id`, `filename`, `file_type`, `institution`, `model_requested`, `model_to_use`, `file_size_bytes`, `file_hash_prefix` | Confirms accepted input without logging document content |
+| `statement.upload.storage_saved` | `request_id`, `statement_id`, `storage_key`, `file_hash_prefix` | Confirms the object was persisted to storage |
+| `statement.upload.storage_failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `filename`, `file_type`, `file_size_bytes`, `file_hash_prefix`, `error_type`, `safe_error_message` | Shows storage failure after upload acceptance without logging document content |
+| `statement.parse.enqueued` | `request_id`, `statement_id`, `filename`, `file_type`, `model_to_use` | Connects the upload request to the async parse task |
+| `statement.parse.checkpoint` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `file_type` | Emits async parse progress at 5/10/20/70/80/90/100 |
+| `statement.parse.extraction_completed` | `request_id`, `statement_id`, `model_to_use`, `file_type` | Replaces misleading enqueue wording after extraction returns |
+| `statement.parse.completed` | `request_id`, `statement_id`, `phase`, `progress`, `duration_ms`, `transactions_count` | Marks parse finalization success |
+| `statement.parse.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `error_type`, `safe_error_message` | Marks parse failure without leaking source content |
+| `statement.brokerage_import.started` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `broker`, `parsed_positions` when known | Shows brokerage import was attempted |
+| `statement.brokerage_import.completed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `broker`, `parsed_positions`, `created_atomic_positions`, `existing_atomic_positions`, `reconcile_created`, `reconcile_updated`, `reconcile_disposed` | Shows brokerage import result counts |
+| `statement.brokerage_import.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `error_type`, `safe_error_message` | Shows brokerage import failure without leaking payload |
+| `reconciliation.run.started` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit` | Shows reconciliation was explicitly started |
+| `reconciliation.run.completed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit`, `matches_created`, `auto_accepted`, `pending_review`, `unmatched` | Shows reconciliation result counts |
+| `reconciliation.run.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit`, `error_type`, `safe_error_message` | Shows reconciliation failure without leaking transaction details |
+
+#### Progress Phases
+
+`statement.parse.checkpoint` uses these progress mappings:
+
+| Progress | Phase |
+|----------|-------|
+| 5 | `parse_started` |
+| 10 | `storage_url_resolved` |
+| 20 | `extraction_started` |
+| 70 | `extraction_completed` |
+| 80 | `statement_metadata_persisted` |
+| 90 | `transactions_persisted` |
+| 100 | `statement_persisted` |
+
+#### Sensitive Data Policy
+
+Allowed fields are identifiers and operational metadata only. Do not log document
+bytes, parsed transaction descriptions, account names supplied by users, full
+file hashes, raw AI prompts/responses, provider API keys, session cookies,
+Vault/Dokploy/GitHub tokens, email addresses, or bank account numbers. File
+hashes are truncated to a prefix suitable for correlation, and error fields use
+safe summaries capped before emission.
+
+#### Noise Control
+
+Audit queries should exclude health checks, SQL echo, and repeated per-day FX or
+portfolio valuation detail logs by default. High-frequency FX valuation detail
+belongs at `debug`; staging audit views should prioritize the events above and
+phase timing lines from GitHub Actions.
 
 ---
 
@@ -278,6 +360,15 @@ sequenceDiagram
 # Find all logs for a specific statement upload
 attributes.statement_id = "<UUID>"
 
+# Replay staging audit events for one statement
+attributes.statement_id = "<UUID>" AND attributes.audit_event EXISTS
+
+# Replay a staging run while excluding routine noise
+body NOT CONTAINS "/api/health"
+AND body NOT CONTAINS "sqlalchemy.engine"
+AND body NOT CONTAINS "Calculated unrealized FX gains/losses"
+AND attributes.audit_event EXISTS
+
 # Trace model selection for a user
 attributes.user_id = "<UUID>" AND body CONTAINS "model"
 
@@ -298,11 +389,12 @@ attributes.retryable = true
 
 **Per Statement Upload**:
 - Frontend: 2 console logs (model selection + upload)
-- Backend: 2 info logs (request received + background task)
+- Backend: 1 upload accepted log, 1 storage saved log, 1 parse enqueue log, 7 parse checkpoint logs, and 1 parse completion or failure log
 - Extraction: 1 info log (model selection)
 - AI provider: 0-1 error log (only on failure)
+- Brokerage/reconciliation: 0-4 audit logs when the parsed payload triggers import or a run is requested
 
-**Total**: ~5-6 log entries per upload (negligible performance impact)
+**Total**: ~12-18 log entries per upload, concentrated around replay checkpoints and still low enough for staging volume.
 
 ---
 

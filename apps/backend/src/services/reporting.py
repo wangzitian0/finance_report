@@ -420,7 +420,7 @@ async def _build_portfolio_market_adjustment_lines(
         try:
             latest_price = await portfolio_service._get_latest_price(db, position, portfolio_eval_date, user_id)
         except AssetNotFoundError:
-            logger.warning(
+            logger.debug(
                 "Skipping portfolio valuation without market price",
                 position_id=str(position.id),
                 asset_identifier=position.asset_identifier,

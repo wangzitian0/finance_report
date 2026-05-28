@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -152,6 +153,7 @@ async def test_run_reconciliation_filters_unmatched(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     statement = await _create_statement(db, test_user.id)
+    statement_id = statement.id
     await _create_transaction(db, statement.id, amount=Decimal("5.00"), status=BankStatementTransactionStatus.UNMATCHED)
     await db.commit()
 
@@ -183,6 +185,81 @@ async def test_run_reconciliation_filters_unmatched(
     assert response.auto_accepted == 1
     assert response.pending_review == 1
     assert response.unmatched == 1
+
+
+@pytest.mark.asyncio
+async def test_AC10_8_3_reconciliation_run_audit_checkpoints(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC10.8.3: Reconciliation run logs start/completion/failure replay checkpoints."""
+    statement = await _create_statement(db, test_user.id)
+    statement_id = statement.id
+    await _create_transaction(db, statement_id, amount=Decimal("5.00"), status=BankStatementTransactionStatus.UNMATCHED)
+    await db.commit()
+
+    async def fake_execute_matching(*_args, **_kwargs):
+        return [
+            ReconciliationMatch(
+                bank_txn_id=uuid4(),
+                journal_entry_ids=[],
+                match_score=90,
+                score_breakdown={},
+                status=ReconciliationStatus.AUTO_ACCEPTED,
+            )
+        ]
+
+    mock_info = MagicMock()
+    mock_exception = MagicMock()
+    monkeypatch.setattr(reconciliation_router, "execute_matching", fake_execute_matching)
+    monkeypatch.setattr(reconciliation_router.logger, "info", mock_info)
+    monkeypatch.setattr(reconciliation_router.logger, "exception", mock_exception)
+
+    response = await reconciliation_router.run_reconciliation(
+        ReconciliationRunRequest(statement_id=statement_id, limit=25), db, test_user.id
+    )
+
+    calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
+    started = next(kwargs for event, kwargs in calls if event == "reconciliation.run.started")
+    completed = next(kwargs for event, kwargs in calls if event == "reconciliation.run.completed")
+
+    assert response.matches_created == 1
+    assert started["audit_event"] == "reconciliation.run.started"
+    assert started["request_id"]
+    assert started["statement_id"] == str(statement_id)
+    assert started["phase"] == "matching_started"
+    assert started["progress"] is None
+    assert started["model_to_use"] is None
+    assert started["limit"] == 25
+    assert completed["audit_event"] == "reconciliation.run.completed"
+    assert completed["request_id"] == started["request_id"]
+    assert completed["statement_id"] == str(statement_id)
+    assert completed["phase"] == "matching_completed"
+    assert completed["progress"] is None
+    assert completed["model_to_use"] is None
+    assert completed["matches_created"] == 1
+    assert completed["auto_accepted"] == 1
+    assert completed["pending_review"] == 0
+    assert completed["unmatched"] == 1
+
+    async def fail_execute_matching(*_args, **_kwargs):
+        raise RuntimeError("matching score service unavailable with raw details omitted")
+
+    monkeypatch.setattr(reconciliation_router, "execute_matching", fail_execute_matching)
+
+    with pytest.raises(RuntimeError, match="matching score service unavailable"):
+        await reconciliation_router.run_reconciliation(
+            ReconciliationRunRequest(statement_id=statement_id, limit=25), db, test_user.id
+        )
+
+    failed = next(call.kwargs for call in mock_exception.call_args_list if call.args[0] == "reconciliation.run.failed")
+    assert failed["audit_event"] == "reconciliation.run.failed"
+    assert failed["statement_id"] == str(statement_id)
+    assert failed["phase"] == "matching_failed"
+    assert failed["progress"] is None
+    assert failed["model_to_use"] is None
+    assert failed["limit"] == 25
+    assert failed["error_type"] == "RuntimeError"
+    assert failed["safe_error_message"] == "matching score service unavailable with raw details omitted"
 
 
 @pytest.mark.asyncio
@@ -314,7 +391,9 @@ async def test_pending_review_queue_returns_items(db: AsyncSession, test_user) -
 @pytest.mark.asyncio
 async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     """[AC4.3.3] Test batch accept functionality."""
-    account = Account(user_id=test_user.id, name="Mapped Reconciliation Account", type=AccountType.ASSET, currency="SGD")
+    account = Account(
+        user_id=test_user.id, name="Mapped Reconciliation Account", type=AccountType.ASSET, currency="SGD"
+    )
     db.add(account)
     await db.flush()
     statement = await _create_statement(db, test_user.id, account_id=account.id)

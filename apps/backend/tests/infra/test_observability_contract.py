@@ -124,3 +124,14 @@ def test_production_renderer_outputs_structured_json(monkeypatch) -> None:
 
     payload = json.loads(rendered)
     assert payload == {"event": "startup", "service": "backend"}
+
+
+def test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level() -> None:
+    """AC10.8.4: High-volume staging audit noise is debug-only by default."""
+    database = _read(REPO_ROOT / "apps" / "backend" / "src" / "database.py")
+    fx_revaluation = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "fx_revaluation.py")
+    reporting = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "reporting.py")
+
+    assert "echo=settings.debug" in database
+    assert 'logger.debug(\n        "Calculated unrealized FX gains/losses"' in fx_revaluation
+    assert 'logger.debug(\n                "Skipping portfolio valuation without market price"' in reporting
