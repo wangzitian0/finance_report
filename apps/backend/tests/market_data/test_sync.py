@@ -112,6 +112,70 @@ async def test_sync_fx_rates_starts_after_last_stored_date(
 
 
 @pytest.mark.asyncio
+async def test_sync_fx_rates_reports_skip_missing_disagreement_and_empty_work(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.3: FX sync exposes skipped, missing, and disagreement rows without aborting."""
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.340000"),
+                rate_date=date(2026, 1, 5),
+                source="seed",
+            ),
+            FxRate(
+                base_currency="CAD",
+                quote_currency="SGD",
+                rate=Decimal("1.010000"),
+                rate_date=date(2026, 1, 6),
+                source="seed",
+            ),
+        ]
+    )
+    await db.commit()
+
+    async def fake_fetch(base: str, quote: str, requested_date: date) -> market_data.ValidatedMarketObservation:
+        if base == "EUR":
+            return market_data.ValidatedMarketObservation(
+                observation=None,
+                disagreement=market_data.ProviderDisagreement(
+                    asset=f"{base}/{quote}",
+                    observed_date=requested_date,
+                    primary_source="yahoo_finance",
+                    secondary_source="stooq",
+                    primary_value=Decimal("1.00"),
+                    secondary_value=Decimal("1.10"),
+                    relative_difference=Decimal("0.10"),
+                    threshold=Decimal("0.02"),
+                ),
+            )
+        return market_data.ValidatedMarketObservation(observation=None)
+
+    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate", fake_fetch)
+
+    result = await market_data.sync_fx_rates(
+        db,
+        pairs=["SGD/SGD", "USD/SGD", "HKD/SGD", "EUR/SGD"],
+        start_date=date(2026, 1, 5),
+        end_date=date(2026, 1, 5),
+    )
+    empty = await market_data.sync_fx_rates(
+        db,
+        pairs=["CAD/SGD"],
+        end_date=date(2026, 1, 5),
+    )
+
+    assert result.skipped == 1
+    assert result.missing == 1
+    assert result.inserted == 0
+    assert len(result.disagreements) == 1
+    assert empty.requested == 0
+
+
+@pytest.mark.asyncio
 async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -165,6 +229,62 @@ async def test_observed_fx_pairs_include_default_and_non_base_business_currency(
 
 
 @pytest.mark.asyncio
+async def test_active_stock_symbols_use_active_nonzero_holdings(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC11.10.1: Stock sync discovers active non-zero holdings by user."""
+    account = Account(
+        user_id=test_user.id,
+        name="Brokerage",
+        type=AccountType.ASSET,
+        currency="USD",
+    )
+    db.add(account)
+    await db.flush()
+    db.add_all(
+        [
+            ManagedPosition(
+                user_id=test_user.id,
+                account_id=account.id,
+                asset_identifier="aapl",
+                quantity=Decimal("2"),
+                cost_basis=Decimal("100.00"),
+                currency="USD",
+                acquisition_date=date(2026, 1, 1),
+                status=PositionStatus.ACTIVE,
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+            ManagedPosition(
+                user_id=test_user.id,
+                account_id=account.id,
+                asset_identifier="MSFT",
+                quantity=Decimal("0"),
+                cost_basis=Decimal("0.00"),
+                currency="USD",
+                acquisition_date=date(2026, 1, 1),
+                status=PositionStatus.ACTIVE,
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+            ManagedPosition(
+                user_id=test_user.id,
+                account_id=account.id,
+                asset_identifier="TSLA",
+                quantity=Decimal("1"),
+                cost_basis=Decimal("100.00"),
+                currency="USD",
+                acquisition_date=date(2026, 1, 1),
+                status=PositionStatus.DISPOSED,
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+        ]
+    )
+    await db.commit()
+
+    assert await market_data._active_stock_symbols(db, test_user.id) == ["AAPL"]
+
+
+@pytest.mark.asyncio
 async def test_sync_stock_prices_records_missing_trading_days(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -186,6 +306,38 @@ async def test_sync_stock_prices_records_missing_trading_days(
     assert result.inserted == 0
     assert result.missing == 1
     assert result.disagreements == []
+
+
+@pytest.mark.asyncio
+async def test_sync_stock_prices_skips_empty_symbols_and_completed_ranges(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.1: Stock sync skips blank symbols and completed incremental ranges."""
+    db.add(
+        StockPrice(
+            symbol="AAPL",
+            price=Decimal("150.000000"),
+            currency="USD",
+            price_date=date(2026, 1, 6),
+            source="seed",
+        )
+    )
+    await db.commit()
+
+    async def fake_fetch(_symbol: str, _requested_date: date) -> market_data.ValidatedMarketObservation:
+        raise AssertionError("completed ranges should not call the provider")
+
+    monkeypatch.setattr(market_data, "_fetch_validated_stock_price", fake_fetch)
+
+    result = await market_data.sync_stock_prices(
+        db,
+        symbols=["", "AAPL"],
+        end_date=date(2026, 1, 5),
+    )
+
+    assert result.requested == 0
+    assert result.inserted == 0
 
 
 @pytest.mark.asyncio
@@ -282,3 +434,33 @@ async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(
     assert len(holdings) == 1
     assert holdings[0].market_value == Decimal("310.00")
     assert holdings[0].unrealized_pnl == Decimal("210.00")
+
+
+@pytest.mark.asyncio
+async def test_persist_stock_price_returns_existing_row(
+    db: AsyncSession,
+) -> None:
+    """AC11.10.1: Persisting a duplicate stock price returns the existing row idempotently."""
+    db.add(
+        StockPrice(
+            symbol="AAPL",
+            price=Decimal("150.000000"),
+            currency="USD",
+            price_date=date(2026, 1, 5),
+            source="seed",
+        )
+    )
+    await db.commit()
+
+    price = await market_data._persist_stock_price(
+        db,
+        market_data.StockPriceObservation(
+            symbol="aapl",
+            price=Decimal("160.000000"),
+            currency="USD",
+            price_date=date(2026, 1, 5),
+            source="new",
+        ),
+    )
+
+    assert price == Decimal("150.000000")
