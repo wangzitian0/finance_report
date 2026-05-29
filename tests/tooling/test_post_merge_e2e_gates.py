@@ -508,6 +508,40 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
         assert mutating_token not in prod_smoke
 
 
+def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
+    """AC8.13.67: Production release preserves deployed version metadata."""
+    workflow = read(".github/workflows/production-release.yml")
+    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
+
+    backend_build_blocks = re.findall(
+        r"- name: Build Backend(?: Image Without Push)?\n(?:(?!\n      - name:).)*",
+        workflow,
+        flags=re.S,
+    )
+    assert len(backend_build_blocks) == 2
+    for block in backend_build_blocks:
+        assert "context: ./apps/backend" in block
+        assert "build-args:" in block
+        assert "GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}" in block
+
+    config_hash_update = (
+        'new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" '
+        '"deploy-${IMAGE_TAG}-$(date +%s)")'
+    )
+    assert config_hash_update in deploy_script
+    assert deploy_script.count('update_env_var "$new_env" "IAC_CONFIG_HASH"') == 1
+    assert deploy_script.index(config_hash_update) < deploy_script.index(
+        'dokploy_api_call "POST" "compose.update"'
+    )
+    assert "models-${IMAGE_TAG}" not in deploy_script
+
+    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in app_compose
+    assert app_compose.index("backend:") < app_compose.index(
+        "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}"
+    )
+
+
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
     workflow = read(".github/workflows/staging-deploy.yml")
@@ -548,10 +582,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
         'update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE"'
         in deploy_script
     )
-    assert (
-        'update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)"'
-        in deploy_script
-    )
+    assert 'update_env_var "$new_env" "IAC_CONFIG_HASH"' in deploy_script
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     assert "github.event.workflow_run.conclusion == 'success'" in workflow

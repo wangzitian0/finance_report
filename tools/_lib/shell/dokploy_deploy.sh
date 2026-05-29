@@ -89,6 +89,7 @@ new_env=$(update_env_var "$new_env" "GIT_COMMIT_SHA" "$IMAGE_TAG")
 new_env=$(update_env_var "$new_env" "NEXT_PUBLIC_APP_URL" "$APP_URL")
 new_env=$(update_env_var "$new_env" "COMPOSE_PROFILES" "app")
 new_env=$(update_env_var "$new_env" "TRAEFIK_ENABLE" "true")
+new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "deploy-${IMAGE_TAG}-$(date +%s)")
 
 if [[ -n "${DEPLOY_PRIMARY_MODEL_OVERRIDE:-}" ]]; then
   new_env=$(update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE")
@@ -100,10 +101,6 @@ fi
 
 if [[ -n "${DEPLOY_VISION_MODEL_OVERRIDE:-}" ]]; then
   new_env=$(update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE")
-fi
-
-if [[ -n "${DEPLOY_PRIMARY_MODEL_OVERRIDE:-}" || -n "${DEPLOY_OCR_MODEL_OVERRIDE:-}" || -n "${DEPLOY_VISION_MODEL_OVERRIDE:-}" ]]; then
-  new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "models-${IMAGE_TAG}-$(date +%s)")
 fi
 
 # Traefik routing configuration

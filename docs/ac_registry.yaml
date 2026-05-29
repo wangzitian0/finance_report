@@ -2159,6 +2159,11 @@ groups:
         description: Coveralls uploads strip branch counters so external percentages track the line-only unified coverage
           gate.
         mandatory: true
+      - id: AC8.13.67
+        epic: 8
+        epic_name: testing-strategy
+        description: Production release preserves deployed version metadata from image build through Dokploy runtime health.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

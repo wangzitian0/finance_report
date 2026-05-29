@@ -102,6 +102,12 @@ git push origin v1.2.3
 # → Actions → Production Release → Run workflow → dry_run=true
 ```
 
+Production app deploys must keep the image tag, Dokploy runtime
+`GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
+the tag into backend images, and `tools/dokploy_deploy.sh` refreshes
+`IAC_CONFIG_HASH` on every deploy attempt so Dokploy restarts the app even when
+redeploying the same tag.
+
 **Hotfix flow**:
 ```bash
 git checkout -b hotfix/bug v1.2.3

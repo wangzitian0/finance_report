@@ -217,6 +217,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Manual `workflow_dispatch` with `dry_run=true` verifies the target SHA's successful `main` CI result, runs release lint, and builds production images with `push: false`.
 - The dry-run uses production frontend build arguments without changing Dokploy or production tags, and does not enter the `production` environment or push GHCR images. Its summary reports the validated ref/tag and states that production mutation was skipped.
 - Tag pushes remain the only automatic path that pushes versioned release images. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
+- Production backend release images bake `GIT_COMMIT_SHA` from the release tag, and Dokploy deploys also inject the same runtime `GIT_COMMIT_SHA` so `/api/health` can prove the deployed version even after a same-tag redeploy.
 - Production deploys run `tools/production_infra_smoke.py` after health check. That gate verifies the deployed version, `/api/health` dependency checks for database and S3, read-only `/api/ping`, frontend reachability, and the shared SigNoz health/version endpoints before production smoke and read-only E2E run.
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked
