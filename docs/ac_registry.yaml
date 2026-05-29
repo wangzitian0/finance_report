@@ -2043,6 +2043,12 @@ groups:
         epic_name: testing-strategy
         description: Config validation command entry points run from tools/ while shared implementations live under common/config/.
         mandatory: true
+      - id: AC8.13.60
+        epic: 8
+        epic_name: testing-strategy
+        description: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block
+          release risk.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

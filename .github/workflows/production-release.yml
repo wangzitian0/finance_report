@@ -259,12 +259,6 @@ jobs:
           done
           echo "✅ Images verified"
 
-      - name: Check Deployment Dependencies
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
-        run: echo "Deployment deps check skipped (integrated into deploy script)"
-
       - name: Deploy & Health Check
         env:
           IMAGE_TAG: ${{ steps.version.outputs.tag }}

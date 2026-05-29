@@ -99,6 +99,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.57**: SSOT and AC command entry points run from `tools/` while shared implementations live under `common/ssot/`.
 - **AC8.13.58**: CI and toolchain command entry points run from `tools/` while shared implementations live under `common/ci/`.
 - **AC8.13.59**: Config validation command entry points run from `tools/` while shared implementations live under `common/config/`.
+- **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -429,6 +430,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.57 | SSOT and AC command entry points run from `tools/` while shared implementations live under `common/ssot/` | `test_AC8_13_57_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.58 | CI and toolchain command entry points run from `tools/` while shared implementations live under `common/ci/` | `test_AC8_13_58_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_toolchain_contract.py`, `tests/tooling/test_ci_change_classifier.py`, `tests/tooling/test_github_workflow_timing_summary.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.59 | Config validation command entry points run from `tools/` while shared implementations live under `common/config/` | `test_AC8_13_59_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_check_env_keys.py`, `tests/tooling/test_validate_schemas.py` | P0 |
+| AC8.13.60 | Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk | `test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -541,7 +543,7 @@ finance_report AC coverage.
    - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
    - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips and reports the statement id, validation error, parsing progress, confidence, and selected model. The separate post-merge `Staging AI/OCR Gate` is the provider-backed AI/OCR gate.
    - **Provider budget rule**: Tests marked `llm` run serially in `.github/workflows/staging-ai-ocr-gate.yml`, not under the staging deploy `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging AI/OCR gate. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate. The gate waits for the same SHA's `CI` push run to succeed before spending provider quota.
-   - **Fast-fail guardrail**: Staging post-merge workflows use GitHub concurrency without canceling a running validation. GitHub retains one running run and one latest pending run per group, so rapid pushes are batched to the latest pending commit rather than interrupting the active deploy/gate. The deploy job is capped at 30 minutes, the deploy E2E step is capped at 22 minutes, and phase timing logs identify smoke and core non-LLM E2E latency. Provider-backed OCR parsing runs afterward in the separate `Staging AI/OCR Gate`.
+   - **Fast-fail guardrail**: Staging post-merge workflows use GitHub concurrency without canceling a running validation. GitHub retains one running run and one latest pending run per group, so rapid pushes are batched to the latest pending commit rather than interrupting the active deploy/gate. The deploy-health job is capped at 75 minutes, the deploy E2E step is capped at 22 minutes, and phase timing logs identify smoke and core non-LLM E2E latency. Provider-backed OCR parsing runs afterward in the separate `Staging AI/OCR Gate`.
    - **Route diagnostics**: If staging `/api/health` remains 404, `tools/health_check.sh` probes `/api/ping` and `/` and identifies a likely Traefik API route miss or web-route shadow before failing the deploy.
 
 3. **Multi-Brokerage Upload to Portfolio Value (Tier 3)** (`test_brokerage_upload_to_portfolio_value.py`):

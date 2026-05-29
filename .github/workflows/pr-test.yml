@@ -123,12 +123,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Check Deployment Dependencies
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
-        run: echo "Deployment deps check skipped (integrated into deploy script)"
-
       - name: Check if compose exists
         id: check
         run: |
