@@ -90,7 +90,7 @@ def check_database_ready() -> bool:
             f"   Stderr: {e.stderr.decode().strip() if e.stderr else 'Unknown error'}"
         )
         print("\n💡 TIP: Did you forget to run the infrastructure?")
-        print("   👉 Run 'moon run :infra' in a separate terminal first.")
+        print("   Run 'bash tools/infra.sh up' in a separate terminal first.")
         return False
 
 

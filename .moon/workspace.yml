@@ -8,7 +8,6 @@ vcs:
 # Project discovery
 projects:
   - 'apps/*'
-  - 'infra'
   - '.'
 
 # Task pipeline settings

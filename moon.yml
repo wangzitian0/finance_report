@@ -10,7 +10,6 @@ fileGroups:
     - 'apps/**/*'
     - 'common/**/*'
     - 'docs/**/*'
-    - 'infra/**/*'
     - 'tools/**/*'
     - 'tests/**/*'
     - '*.md'

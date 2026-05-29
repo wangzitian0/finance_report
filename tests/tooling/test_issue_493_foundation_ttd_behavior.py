@@ -44,13 +44,13 @@ def _imported_names_from_module(path: Path, module_name: str) -> set[str]:
 
 
 def test_AC12_19_1_moon_workspace_loads_root_and_app_projects() -> None:
-    """AC12.19.1: Moon workspace config discovers apps, infra, and root tasks."""
+    """AC12.19.1: Moon workspace config discovers apps and root tool tasks."""
     workspace = yaml.safe_load(_read(REPO_ROOT / ".moon" / "workspace.yml"))
     root_project = yaml.safe_load(_read(REPO_ROOT / "moon.yml"))
 
     assert workspace["vcs"]["client"] == "git"
     assert workspace["vcs"]["defaultBranch"] == "main"
-    assert workspace["projects"] == ["apps/*", "infra", "."]
+    assert workspace["projects"] == ["apps/*", "."]
     assert root_project["layer"] == "tool"
     expected_tasks = {"setup", "dev", "test", "lint", "build", "clean"}
     assert set(root_project["tasks"]) == expected_tasks

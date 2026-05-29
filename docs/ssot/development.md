@@ -103,7 +103,11 @@ wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -l
 bash tools/bootstrap.sh
 
 # Development
-moon run :dev -- --backend        # Full Stack (App + DB + Redis + MinIO)
+moon run :dev -- --infra          # Start local infra through tools/cli.py
+bash tools/infra.sh up            # Start local infra directly
+bash tools/infra.sh logs          # Follow local infra logs
+bash tools/infra.sh down          # Stop local infra
+moon run :dev -- --backend        # FastAPI backend after infra is running
 moon run :dev -- --frontend       # Next.js on :3000
 
 # Local CI / Verification (Recommended)

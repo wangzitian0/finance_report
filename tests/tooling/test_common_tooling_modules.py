@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -57,9 +58,16 @@ def test_AC8_13_53_common_ssot_helpers_are_the_authoritative_imports():
     )
 
 
-def test_AC8_13_53_root_scripts_tree_is_removed():
-    """AC8.13.53: Root scripts are removed after command migration."""
+def test_AC8_13_53_root_scripts_and_infra_project_are_removed():
+    """AC8.13.53: Root command trees are removed after command migration."""
     assert not (ROOT / "scripts").exists()
+    assert not (ROOT / "infra").exists()
+
+    workspace = yaml.safe_load((ROOT / ".moon" / "workspace.yml").read_text())
+    assert workspace["projects"] == ["apps/*", "."]
+
+    root_project = yaml.safe_load((ROOT / "moon.yml").read_text())
+    assert "infra/**/*" not in root_project["fileGroups"]["workspace"]
 
 
 def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
@@ -253,6 +261,19 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
         assert len(wrapper.splitlines()) <= 5
         assert implementation.startswith("#!")
         assert "tools/_lib/shell/$(basename" not in implementation
+
+
+def test_AC8_13_58_infra_shell_tool_owns_legacy_docker_actions():
+    """AC8.13.58: Legacy infra Moon docker actions are owned by tools/infra.sh."""
+    implementation = (ROOT / "tools" / "_lib" / "shell" / "infra.sh").read_text(
+        encoding="utf-8"
+    )
+
+    for command in ("docker-up", "docker-down", "docker-logs"):
+        assert command in implementation
+    assert "--profile infra up -d" in implementation
+    assert 'down "$@"' in implementation
+    assert 'logs -f "$@"' in implementation
 
 
 def test_AC8_13_56_python_tool_wrappers_bootstrap_repo_root_when_run_directly():

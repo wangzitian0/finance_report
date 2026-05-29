@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -13,9 +14,15 @@ from src.database import create_session_maker_from_db
 from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition
+from src.services import statement_parsing
 from src.services.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
 from src.services.extraction import ExtractionService
-from src.services.statement_parsing import import_brokerage_payload_if_present, parse_statement_background
+from src.services.statement_parsing import (
+    _count_brokerage_positions,
+    _filter_failure_handler_kwargs,
+    import_brokerage_payload_if_present,
+    parse_statement_background,
+)
 
 _BRIDGE_ASSET_IDENTIFIER = "BRIDGE_TEST_STOCK"
 
@@ -73,6 +80,51 @@ def test_looks_like_brokerage_payload_detection_paths():
         filename="dbs-statement.pdf",
         institution="DBS",
     )
+
+
+def test_count_brokerage_positions_handles_empty_and_nested_payloads():
+    """AC17.4.7: Brokerage import counts top-level and nested parsed position arrays."""
+    assert _count_brokerage_positions({"positions": [{}, {}]}) == 2
+    assert _count_brokerage_positions({"statement": {"holdings": [{}]}}) == 1
+    assert _count_brokerage_positions({"statement": {"positions": [{}, {}, {}]}}) == 3
+    assert _count_brokerage_positions({}) is None
+    assert _count_brokerage_positions({"statement": {"holdings": "unstructured"}}) is None
+
+
+def test_filter_failure_handler_kwargs_returns_original_when_signature_unavailable(monkeypatch):
+    """AC17.4.7: Parse failure compatibility shim tolerates opaque handlers."""
+    payload = {"message": "parse failed", "future_arg": "preserved"}
+
+    def raise_value_error(_callable):
+        raise ValueError("opaque callable")
+
+    monkeypatch.setattr(statement_parsing, "signature", raise_value_error)
+
+    assert _filter_failure_handler_kwargs(payload) is payload
+
+
+def test_filter_failure_handler_kwargs_keeps_payload_for_var_keyword_handler(monkeypatch):
+    """AC17.4.7: Parse failure compatibility shim preserves kwargs-capable handlers."""
+    payload = {"message": "parse failed", "future_arg": "preserved"}
+
+    async def accepts_kwargs(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(statement_parsing, "handle_parse_failure", accepts_kwargs)
+
+    assert _filter_failure_handler_kwargs(payload) is payload
+
+
+def test_filter_failure_handler_kwargs_drops_unknown_keys_for_fixed_handler(monkeypatch):
+    """AC17.4.7: Parse failure compatibility shim filters unknown kwargs."""
+    payload = {"message": "parse failed", "future_arg": "dropped"}
+
+    async def fixed_handler(_statement, _db, *, message):
+        return message
+
+    monkeypatch.setattr(statement_parsing, "handle_parse_failure", fixed_handler)
+
+    assert _filter_failure_handler_kwargs(payload) == {"message": "parse failed"}
 
 
 def test_parse_brokerage_positions_skips_malformed_moomoo_subscription_row():
@@ -335,6 +387,94 @@ async def test_import_brokerage_payload_if_present_records_zero_position_payload
     assert refreshed is not None
     assert refreshed.validation_error is not None
     assert "no positions detected" in refreshed.validation_error
+
+
+@pytest.mark.asyncio
+async def test_import_brokerage_payload_if_present_uses_nested_statement_institution(db, test_user, monkeypatch):
+    """AC17.4.7: Brokerage import reads broker identity from nested statement metadata."""
+    statement = _parsed_statement(test_user.id, "nested-broker-hash")
+    info_events = []
+
+    async def fake_import_positions(*_args, **_kwargs):
+        return SimpleNamespace(
+            broker="Interactive Brokers",
+            parsed_positions=1,
+            created_atomic_positions=0,
+            existing_atomic_positions=0,
+            reconcile_created=0,
+            reconcile_updated=0,
+            reconcile_disposed=0,
+        )
+
+    def capture_info(event_name, **kwargs):
+        info_events.append((event_name, kwargs))
+
+    monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fake_import_positions)
+    monkeypatch.setattr(statement_parsing.logger, "info", capture_info)
+
+    await import_brokerage_payload_if_present(
+        statement=statement,
+        db=db,
+        user_id=test_user.id,
+        filename="ibkr-statement.pdf",
+        institution=None,
+        payload={
+            "statement": {
+                "institution": "Interactive Brokers",
+                "positions": [{"symbol": "AAPL"}],
+            }
+        },
+    )
+
+    started_events = [
+        kwargs for event_name, kwargs in info_events if event_name == "statement.brokerage_import.started"
+    ]
+    assert started_events[0]["broker"] == "Interactive Brokers"
+
+
+@pytest.mark.asyncio
+async def test_import_brokerage_payload_if_present_stops_when_failed_statement_is_missing(monkeypatch):
+    """AC17.4.7: Brokerage import failure handling tolerates deleted statements."""
+    statement_id = uuid4()
+    statement = BankStatement(
+        id=statement_id,
+        user_id=uuid4(),
+        status=BankStatementStatus.PARSED,
+        file_path="statements/missing-after-failure.pdf",
+        file_hash="missing-after-failure-hash",
+        original_filename="missing-after-failure.pdf",
+        institution="Moomoo",
+    )
+
+    class MissingStatementDb:
+        def __init__(self):
+            self.rolled_back = False
+            self.lookup = None
+
+        async def rollback(self):
+            self.rolled_back = True
+
+        async def get(self, model, lookup_id):
+            self.lookup = (model, lookup_id)
+            return None
+
+    async def fail_import_positions(*_args, **_kwargs):
+        raise RuntimeError("forced import failure")
+
+    db = MissingStatementDb()
+    monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fail_import_positions)
+
+    await import_brokerage_payload_if_present(
+        statement=statement,
+        db=db,
+        user_id=statement.user_id,
+        filename="moomoo-statement.pdf",
+        institution="Moomoo",
+        payload={"institution": "Moomoo", "positions": [{"symbol": "AAPL"}]},
+    )
+
+    assert db.rolled_back is True
+    assert db.lookup == (BankStatement, statement_id)
 
 
 @pytest.mark.asyncio

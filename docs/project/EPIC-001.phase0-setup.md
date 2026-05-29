@@ -33,7 +33,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 - [x] Create `moon.yml` workspace configuration
 - [x] Configure `apps/backend/moon.yml` tasks
 - [x] Configure `apps/frontend/moon.yml` tasks
-- [x] Configure `infra/moon.yml` tasks
+- [x] Configure local infrastructure commands through `tools/infra.sh`
 
 ### Backend Skeleton
 - [x] FastAPI project structure (`apps/backend/src/`)
@@ -71,7 +71,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 | AC1.1.1 | Root `moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
 | AC1.1.2 | `apps/backend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
 | AC1.1.3 | `apps/frontend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
-| AC1.1.4 | `infra/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
+| AC1.1.4 | `tools/infra.sh` local infrastructure command exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` |
 
 ### AC1.2: Backend Skeleton Requirements
 
@@ -137,7 +137,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | Standard | Verification | Status |
 |------|----------|------|
-| `docker compose up -d` successfully starts database | Manual verification | ✅ |
+| `bash tools/infra.sh up` successfully starts database | Manual verification | ✅ |
 | `moon run :dev -- --backend` starts FastAPI | Console without errors | ✅ |
 | `moon run :dev -- --frontend` starts Next.js | Access localhost:3000 | ✅ |
 | `/api/health` returns 200 OK | curl test | ✅ |
@@ -202,8 +202,8 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 ## Issues & Gaps
 
-- [x] Status is marked "Complete" while the checklist still has deferred items (infra/moon.yml, pre-commit hooks, Zustand), which makes Phase 0 exit criteria ambiguous.
-- [x] Phase 0 plan references `infra:docker:up`; without infra/moon.yml tasks, the Moon workflow is incomplete for local docker.
+- [x] Status is marked "Complete" while the checklist still has deferred items (pre-commit hooks, Zustand), which makes Phase 0 exit criteria ambiguous.
+- [x] Legacy Moon Docker project command migrated to `tools/infra.sh up`; root `infra/` project removed.
 - [x] Ping demo API/Frontend field mismatch (`updated_at` vs `last_toggled`) fixed for consistency.
 
 ---

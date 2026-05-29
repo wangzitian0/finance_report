@@ -22,7 +22,7 @@ groups:
       - id: AC1.1.4
         epic: 1
         epic_name: phase0-setup
-        description: infra/moon.yml exists
+        description: tools/infra.sh local infrastructure command exists
         mandatory: true
     AC1.2:
       - id: AC1.2.1

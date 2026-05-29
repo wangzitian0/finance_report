@@ -17,15 +17,20 @@ def _load_first_json_object(output: str) -> dict:
 
 
 def test_epic_001_moon_workspace_configs_exist() -> None:
-    """AC1.1.1: Moon workspace configuration files must exist."""
+    """AC1.1.1 AC1.1.2 AC1.1.3 AC1.1.4: Moon and tools entry configs exist."""
     required_files = [
         REPO_ROOT / "moon.yml",
         REPO_ROOT / "apps/backend/moon.yml",
         REPO_ROOT / "apps/frontend/moon.yml",
-        REPO_ROOT / "infra/moon.yml",
+        REPO_ROOT / "tools/infra.sh",
+        REPO_ROOT / "tools/_lib/shell/infra.sh",
     ]
     for file_path in required_files:
         assert file_path.exists(), f"Missing moon config: {file_path}"
+
+    workspace = yaml.safe_load((REPO_ROOT / ".moon/workspace.yml").read_text())
+    assert workspace["projects"] == ["apps/*", "."]
+    assert not (REPO_ROOT / "infra").exists()
 
 
 def test_epic_001_backend_skeleton_exists() -> None:
