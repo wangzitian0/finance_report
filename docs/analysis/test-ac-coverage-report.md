@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-29 12:26:22 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-05-29 13:18:03 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -33,7 +33,7 @@
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |
 |---|---:|---:|---:|---:|
 | backend | 172 | 677 | 0 | 0 |
-| frontend | 79 | 190 | 0 | 0 |
+| frontend | 80 | 191 | 0 | 0 |
 | tooling_tests | 49 | 229 | 23 | 0 |
 | e2e | 12 | 49 | 0 | 0 |
 

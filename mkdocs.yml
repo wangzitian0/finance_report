@@ -100,6 +100,17 @@ nav:
           - "EPIC-005: Reporting": project/EPIC-005.reporting-visualization.md
           - "EPIC-006: AI Advisor": project/EPIC-006.ai-advisor.md
           - "EPIC-007: Deployment": project/EPIC-007.deployment.md
+          - "EPIC-008: Comprehensive Testing Strategy (Smoke & E2E)": project/EPIC-008.testing-strategy.md
+          - "EPIC-009: PDF Fixture Generation for Testing": project/EPIC-009.pdf-fixture-generation.md
+          - "EPIC-010: SigNoz Logging Integration": project/EPIC-010.signoz-logging.md
+          - "EPIC-011: Asset Lifecycle Management": project/EPIC-011.asset-lifecycle.md
+          - "EPIC-012: Foundation Libraries Enhancement": project/EPIC-012.foundation-libs.md
+          - "EPIC-013: Statement Parsing V2": project/EPIC-013.statement-parsing-v2.md
+          - "EPIC-014: Test-Driven Documentation (TTD) Transformation": project/EPIC-014.ttd-transformation.md
+          - "EPIC-015: Processing Account Integration": project/EPIC-015.processing-account.md
+          - "EPIC-016: Two-Stage Review & Data Validation UI": project/EPIC-016.two-stage-review-ui.md
+          - "EPIC-017: Investment Portfolio Management (100% Self-Developed)": project/EPIC-017.portfolio-management.md
+          - "EPIC-018: AI-Driven Data Pipeline": project/EPIC-018.ai-driven-pipeline.md
 
 extra:
   social:
