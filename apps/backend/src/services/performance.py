@@ -1,6 +1,6 @@
 """Portfolio performance metrics service - XIRR, TWR, MWR calculations."""
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -11,6 +11,7 @@ from src.config import settings
 from src.logger import get_logger
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.portfolio import DividendIncome
 from src.services import fx
 
 logger = get_logger(__name__)
@@ -366,6 +367,48 @@ async def calculate_money_weighted_return(
     """
     # MWR = XIRR (they are the same concept)
     return await calculate_xirr(db, user_id, as_of_date)
+
+
+async def calculate_dividend_yield(
+    db: AsyncSession,
+    user_id: UUID,
+    as_of_date: date | None = None,
+) -> Decimal:
+    """
+    Calculate trailing 12-month dividend yield.
+
+    Formula: annual dividends / current portfolio value.
+    """
+    if as_of_date is None:
+        as_of_date = date.today()
+
+    period_start = as_of_date - timedelta(days=365)
+    result = await db.execute(
+        select(DividendIncome).where(
+            DividendIncome.user_id == user_id,
+            DividendIncome.payment_date > period_start,
+            DividendIncome.payment_date <= as_of_date,
+        )
+    )
+    dividends = result.scalars().all()
+
+    annual_dividends = Decimal("0")
+    for dividend in dividends:
+        annual_dividends += await fx.convert_amount(
+            db,
+            dividend.amount,
+            dividend.currency,
+            settings.base_currency,
+            dividend.payment_date,
+        )
+
+    current_value = await _get_portfolio_value(db, user_id, as_of_date)
+    if current_value == Decimal("0"):
+        if annual_dividends == Decimal("0"):
+            return Decimal("0")
+        raise InsufficientDataError("Cannot calculate dividend yield with zero current portfolio value")
+
+    return (annual_dividends / current_value * Decimal("100")).quantize(Decimal("0.01"))
 
 
 async def _get_portfolio_value(

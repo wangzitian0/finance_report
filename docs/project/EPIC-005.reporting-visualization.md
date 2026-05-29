@@ -147,12 +147,12 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC5.6.2 | Annualized return (TWR) computed correctly | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC5.6.3 | Dividend yield = annual dividends / current value | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC5.6.1 | XIRR calculation accuracy ≤ 0.01% error vs Excel XIRR | `test_AC5_6_1_xirr_matches_single_year_excel_case` | `portfolio/test_performance_service.py` | P0 |
+| AC5.6.2 | Annualized return (TWR) computed correctly | `test_AC5_6_2_time_weighted_return_matches_snapshot_period` | `portfolio/test_performance_service.py` | P0 |
+| AC5.6.3 | Dividend yield = annual dividends / current value | `test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value` | `portfolio/test_performance_service.py` | P0 |
 | AC5.6.4 | Annualized income KPI is surfaced through the dashboard/reporting path and delegates calculation ownership to AC11.8.1 | `test_annualized_income_endpoint_groups_last_12_month_income`, `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `reporting/test_income_annualized_router.py`, `frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
 | AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_reporting_dashboard_fixture_exact_totals` | `reporting/test_reporting.py` | P0 |
-| AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow` | `portfolio/test_performance_service.py` | P1 |
 
 **Traceability Result**:
 - Total AC IDs: 19

@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
+from src.models.portfolio import DividendIncome
 from src.services.performance import (
     InsufficientDataError,
     XIRRCalculationError,
+    calculate_dividend_yield,
     calculate_money_weighted_return,
     calculate_time_weighted_return,
     calculate_xirr,
@@ -152,6 +154,57 @@ async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_w
 
 
 @pytest.mark.asyncio
+async def test_AC5_6_1_xirr_matches_single_year_excel_case(db: AsyncSession, test_user, investment_account):
+    """AC5.6.1: XIRR is within 0.01 percentage points of a one-year Excel case."""
+    from src.models.layer2 import AtomicPosition, AtomicTransaction
+
+    start = date.today() - timedelta(days=365)
+    db.add(
+        AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=start,
+            amount=Decimal("10000.00"),
+            currency="SGD",
+            direction=TransactionDirection.IN,
+            description="one-year XIRR deposit",
+            source_documents={},
+            dedup_hash="ac5_6_1_xirr_deposit",
+        )
+    )
+    db.add(
+        ManagedPosition(
+            user_id=test_user.id,
+            account_id=investment_account.id,
+            asset_identifier="XIRR10",
+            quantity=Decimal("100"),
+            cost_basis=Decimal("10000.00"),
+            currency="SGD",
+            acquisition_date=start,
+            status=PositionStatus.ACTIVE,
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+    )
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=date.today(),
+            asset_identifier="XIRR10",
+            broker="Test Broker",
+            quantity=Decimal("100"),
+            market_value=Decimal("11000.00"),
+            currency="SGD",
+            dedup_hash="ac5_6_1_xirr_snapshot",
+            source_documents={},
+        )
+    )
+    await db.flush()
+
+    xirr = await calculate_xirr(db, test_user.id)
+
+    assert abs(xirr - Decimal("10.00")) <= Decimal("0.01")
+
+
+@pytest.mark.asyncio
 async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user):
     """AC17.3.3: TWR returns zero for empty portfolio.
 
@@ -183,6 +236,63 @@ async def test_time_weighted_return_with_period(db: AsyncSession, test_user, por
 
 
 @pytest.mark.asyncio
+async def test_AC5_6_2_time_weighted_return_matches_snapshot_period(
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC5.6.2: TWR computes the exact period return from start/end snapshots."""
+    from src.models.layer2 import AtomicPosition
+
+    start = date.today() - timedelta(days=30)
+    end = date.today()
+    db.add(
+        ManagedPosition(
+            user_id=test_user.id,
+            account_id=investment_account.id,
+            asset_identifier="TWR",
+            quantity=Decimal("100"),
+            cost_basis=Decimal("10000.00"),
+            currency="SGD",
+            acquisition_date=start,
+            status=PositionStatus.ACTIVE,
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+    )
+    db.add_all(
+        [
+            AtomicPosition(
+                user_id=test_user.id,
+                snapshot_date=start,
+                asset_identifier="TWR",
+                broker="Test Broker",
+                quantity=Decimal("100"),
+                market_value=Decimal("10000.00"),
+                currency="SGD",
+                dedup_hash="ac5_6_2_twr_start",
+                source_documents={},
+            ),
+            AtomicPosition(
+                user_id=test_user.id,
+                snapshot_date=end,
+                asset_identifier="TWR",
+                broker="Test Broker",
+                quantity=Decimal("100"),
+                market_value=Decimal("11250.00"),
+                currency="SGD",
+                dedup_hash="ac5_6_2_twr_end",
+                source_documents={},
+            ),
+        ]
+    )
+    await db.flush()
+
+    twr = await calculate_time_weighted_return(db, test_user.id, start, end)
+
+    assert twr == Decimal("12.500")
+
+
+@pytest.mark.asyncio
 async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_user):
     """AC17.3.5: MWR raises InsufficientDataError on empty portfolio.
 
@@ -204,6 +314,158 @@ async def test_money_weighted_return_with_data(db: AsyncSession, test_user, port
     assert isinstance(mwr, Decimal)
     # With total deposits 15000 and current value 12000, MWR should be negative
     assert mwr < Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value(
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC5.6.3: Dividend yield equals annual dividends divided by current value."""
+    from src.models.layer2 import AtomicPosition
+
+    today = date.today()
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="DIV",
+        quantity=Decimal("120"),
+        cost_basis=Decimal("10000.00"),
+        currency="SGD",
+        acquisition_date=today - timedelta(days=400),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(position)
+    await db.flush()
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=today,
+            asset_identifier="DIV",
+            broker="Test Broker",
+            quantity=Decimal("120"),
+            market_value=Decimal("12000.00"),
+            currency="SGD",
+            dedup_hash="ac5_6_3_dividend_snapshot",
+            source_documents={},
+        )
+    )
+    db.add(
+        DividendIncome(
+            user_id=test_user.id,
+            position_id=position.id,
+            payment_date=today - timedelta(days=30),
+            amount=Decimal("240.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    dividend_yield = await calculate_dividend_yield(db, test_user.id, today)
+
+    assert dividend_yield == Decimal("2.00")
+
+
+@pytest.mark.asyncio
+async def test_AC5_6_3_dividend_yield_empty_portfolio_returns_zero(db: AsyncSession, test_user):
+    """AC5.6.3: Dividend yield returns zero when no dividends or holdings exist."""
+    dividend_yield = await calculate_dividend_yield(db, test_user.id)
+
+    assert dividend_yield == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_AC5_6_3_dividend_yield_with_income_requires_current_value(
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC5.6.3: Dividend yield refuses positive income with zero current value."""
+    today = date.today()
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="DIV-ZERO",
+        quantity=Decimal("120"),
+        cost_basis=Decimal("10000.00"),
+        currency="SGD",
+        acquisition_date=today - timedelta(days=400),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(position)
+    await db.flush()
+    db.add(
+        DividendIncome(
+            user_id=test_user.id,
+            position_id=position.id,
+            payment_date=today - timedelta(days=30),
+            amount=Decimal("240.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    with pytest.raises(InsufficientDataError):
+        await calculate_dividend_yield(db, test_user.id, today)
+
+
+@pytest.mark.asyncio
+async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC5.6.6: MWR matches XIRR for a single cash-flow portfolio."""
+    from src.models.layer2 import AtomicPosition, AtomicTransaction
+
+    start = date.today() - timedelta(days=365)
+    db.add(
+        AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=start,
+            amount=Decimal("10000.00"),
+            currency="SGD",
+            direction=TransactionDirection.IN,
+            description="single cashflow",
+            source_documents={},
+            dedup_hash="ac5_6_6_mwr_deposit",
+        )
+    )
+    db.add(
+        ManagedPosition(
+            user_id=test_user.id,
+            account_id=investment_account.id,
+            asset_identifier="MWR",
+            quantity=Decimal("100"),
+            cost_basis=Decimal("10000.00"),
+            currency="SGD",
+            acquisition_date=start,
+            status=PositionStatus.ACTIVE,
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+    )
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=date.today(),
+            asset_identifier="MWR",
+            broker="Test Broker",
+            quantity=Decimal("100"),
+            market_value=Decimal("11000.00"),
+            currency="SGD",
+            dedup_hash="ac5_6_6_mwr_snapshot",
+            source_documents={},
+        )
+    )
+    await db.flush()
+
+    xirr = await calculate_xirr(db, test_user.id)
+    mwr = await calculate_money_weighted_return(db, test_user.id)
+
+    assert mwr == xirr
 
 
 @pytest.mark.asyncio
