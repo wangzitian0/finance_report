@@ -253,6 +253,41 @@ def is_db_ready(runtime, container_name):
         return False
 
 
+def _extract_host_port(port_output):
+    """Extract the host port from compose/docker/podman port output."""
+    for raw_line in port_output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if "->" in line:
+            line = line.rsplit("->", 1)[1].strip()
+        host_port = line.rsplit(":", 1)[-1].strip()
+        if host_port.isdigit():
+            return host_port
+    return None
+
+
+def resolve_postgres_host_port(runtime, compose_cmd, env, container_name):
+    """Resolve Postgres host port, including podman-compose random-port fallback."""
+    port_res = subprocess.run(
+        [*compose_cmd, "port", "postgres", "5432"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    host_port = _extract_host_port(port_res.stdout)
+    if host_port:
+        return host_port
+
+    runtime_port_res = subprocess.run(
+        [runtime, "port", container_name, "5432/tcp"],
+        capture_output=True,
+        text=True,
+    )
+    host_port = _extract_host_port(runtime_port_res.stdout)
+    return host_port or "5432"
+
+
 def cleanup_worker_databases(runtime, container_name, namespace):
     """Clean up pytest-xdist worker databases after test run."""
     log("🧹 Cleaning up worker databases...", YELLOW)
@@ -355,6 +390,9 @@ def test_database(ephemeral=False):
     # Inject ENV_SUFFIX into environment for subprocess
     env = os.environ.copy()
     env["ENV_SUFFIX"] = env_suffix
+    env.setdefault("DB_PORTS", "127.0.0.1::5432")
+    env.setdefault("MINIO_API_PORTS", "127.0.0.1::9000")
+    env.setdefault("MINIO_CONSOLE_PORTS", "127.0.0.1::9001")
 
     compose_cmd = [runtime, "compose", "-p", project_name, "-f", str(COMPOSE_FILE)]
 
@@ -449,12 +487,7 @@ def test_database(ephemeral=False):
     )
     log(f"   Created '{test_db_name}' database.", GREEN)
 
-    port_res = subprocess.run(
-        [*compose_cmd, "port", "postgres", "5432"], capture_output=True, text=True
-    )
-    host_port = "5432"
-    if port_res.stdout.strip():
-        host_port = port_res.stdout.strip().split(":")[-1]
+    host_port = resolve_postgres_host_port(runtime, compose_cmd, env, container_name)
 
     test_db_url = (
         f"postgresql+asyncpg://postgres:postgres@localhost:{host_port}/{test_db_name}"

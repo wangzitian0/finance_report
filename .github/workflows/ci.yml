@@ -431,6 +431,7 @@ jobs:
         run: |
           uv run --with pyyaml python tools/generate_ac_registry.py --check
           uv run --with pyyaml python tools/check_ac_traceability.py
+          uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md"
           uv run --with pyyaml python tools/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
           uv run --with pyyaml python tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
 
@@ -440,6 +441,7 @@ jobs:
           name: ac-test-traceability-audit
           path: |
             ${{ runner.temp }}/AC-TEST-TRACEABILITY-AUDIT.md
+            ${{ runner.temp }}/E2E-EPIC-TRACEABILITY.md
             ${{ runner.temp }}/CRITICAL-PROOF-MATRIX.md
           retention-days: 14
 

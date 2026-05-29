@@ -54,7 +54,7 @@ async def setup_e2e(page: Page):
 @pytest.mark.smoke
 @pytest.mark.e2e
 async def test_full_navigation(page: Page):
-    """AC8.13.9: Verify main routes load or redirect to login without 500s."""
+    """EPIC-001 EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify main routes."""
     pages = [
         "/dashboard",
         "/accounts",
@@ -82,7 +82,7 @@ async def test_full_navigation(page: Page):
 
 @pytest.mark.e2e
 async def test_reports_view(page: Page):
-    """AC8.13.9 AC16.12.11: Reports page renders or redirects to login."""
+    """EPIC-005 EPIC-008 EPIC-016 / AC8.13.9 AC16.12.11: Reports route."""
     await page.goto(get_url("/reports"), wait_until="domcontentloaded")
 
     # Wait a moment for potential AuthGuard redirect
@@ -99,7 +99,7 @@ async def test_reports_view(page: Page):
 @pytest.mark.e2e
 async def test_registration_flow(page: Page):
     """
-    AC8.10.8 AC16.12.6 AC1.7.1
+    EPIC-001 EPIC-008 EPIC-016 / AC8.10.8 AC16.12.6 AC1.7.1
 
     User Registration Flow.
     Verifies that the API URL configuration is correct (no double /api/ issue).

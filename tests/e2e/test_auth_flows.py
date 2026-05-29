@@ -37,6 +37,8 @@ def get_url(path: str) -> str:
 @pytest.mark.asyncio
 async def test_registration_api_path(page: Page):
     """
+    EPIC-001 EPIC-008 EPIC-016.
+
     AC8.10.8 AC16.12.6 AC1.7.1
 
     Verify registration form submits to correct API path.
@@ -90,6 +92,8 @@ async def test_registration_api_path(page: Page):
 @pytest.mark.asyncio
 async def test_login_api_path(page: Page):
     """
+    EPIC-001 EPIC-008 EPIC-016.
+
     AC8.10.9 AC16.12.5
 
     Verify login form submits to correct API path.
@@ -128,6 +132,8 @@ async def test_login_api_path(page: Page):
 @pytest.mark.asyncio
 async def test_full_registration_flow(page: Page):
     """
+    EPIC-001 EPIC-008 EPIC-016.
+
     AC8.10.8 AC16.12.6 AC1.7.1
 
     Full E2E test: Register a new user and verify redirect to dashboard.

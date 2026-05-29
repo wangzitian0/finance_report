@@ -22,7 +22,7 @@ import pytest
 @pytest.mark.e2e
 async def test_registration_flow(page):
     """
-    AC8.2.1: New User Registration
+    EPIC-001 EPIC-016 / AC8.2.1: New User Registration
     GIVEN a new user visits the registration page
     WHEN they complete the registration form with valid data
     THEN they should be successfully registered and redirected to dashboard
@@ -46,7 +46,7 @@ async def test_registration_flow(page):
 @pytest.mark.e2e
 async def test_login_flow(page):
     """
-    AC8.2.1: Login flow
+    EPIC-001 EPIC-016 / AC8.2.1: Login flow
     GIVEN a registered user visits the login page
     WHEN they enter valid credentials
     THEN they should be logged in and redirected to dashboard
@@ -69,7 +69,7 @@ async def test_login_flow(page):
 @pytest.mark.e2e
 async def test_navigation_flow(page):
     """
-    AC8.6.4: Report navigation
+    EPIC-001 EPIC-005 EPIC-016 / AC8.6.4: Report navigation
     GIVEN a logged-in user navigates through the application
     WHEN they access different sections
     THEN navigation should work smoothly without errors
@@ -96,7 +96,7 @@ async def test_navigation_flow(page):
 @pytest.mark.e2e
 async def test_report_viewing_flow(page):
     """
-    AC8.6.1: View Balance Sheet
+    EPIC-005 / AC8.6.1: View Balance Sheet
     GIVEN a logged-in user navigates to reports
     WHEN they select and view a balance sheet
     THEN the balance sheet should display correctly with proper formatting
@@ -119,7 +119,7 @@ async def test_report_viewing_flow(page):
 @pytest.mark.e2e
 async def test_income_statement_viewing_flow(page):
     """
-    AC8.6.2: View Income Statement
+    EPIC-005 / AC8.6.2: View Income Statement
     GIVEN a logged-in user navigates to reports
     WHEN they select and view an income statement
     THEN the income statement should display correctly
@@ -142,7 +142,7 @@ async def test_income_statement_viewing_flow(page):
 @pytest.mark.e2e
 async def test_cash_flow_viewing_flow(page):
     """
-    AC8.6.3: View Cash Flow Report
+    EPIC-005 / AC8.6.3: View Cash Flow Report
     GIVEN a logged-in user navigates to reports
     WHEN they select and view a cash flow report
     THEN the cash flow report should display correctly

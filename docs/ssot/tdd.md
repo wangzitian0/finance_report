@@ -72,6 +72,12 @@ The CI AC traceability gate fails mandatory ACs that are missing,
 placeholder-only, or stub-only before the traceability audit artifact is
 generated.
 
+Product E2E tests have an additional EPIC ownership rule: every `test_*`
+function under product E2E roots must carry at least one `EPIC-xxx` ID in the
+test function name or function docstring, and every `docs/project/EPIC-*.md`
+file must be referenced by at least one such test.
+`tools/check_e2e_epic_traceability.py` enforces this closure in CI.
+
 Core product journeys have one extra guard:
 `docs/ssot/critical-proof-matrix.yaml`. It owns the macro README -> EPIC -> E2E
 contract for the closed set of core vision outcomes. The checker keeps the
@@ -129,6 +135,7 @@ Use these before claiming a documentation or implementation change is aligned:
 ```bash
 python tools/generate_ac_registry.py --check
 python tools/analyze_test_ac_coverage.py --stdout
+python tools/check_e2e_epic_traceability.py
 python tools/check_critical_proof_matrix.py
 python tools/check_manifest.py
 python tools/check_ssot_ownership.py

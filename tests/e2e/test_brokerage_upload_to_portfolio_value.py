@@ -242,7 +242,10 @@ async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: st
 
 
 def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
-    """AC8.13.10/Issue #409: E2E timeout distinguishes parsed-data routing stalls."""
+    """EPIC-003 EPIC-008 EPIC-009.
+
+    AC8.13.10/Issue #409: E2E timeout distinguishes parsed-data routing stalls.
+    """
     message = _statement_poll_failure_message(
         "stmt-409",
         {
@@ -259,7 +262,10 @@ def test_statement_poll_failure_message_flags_state_transition_stall() -> None:
 
 
 def test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines() -> None:
-    """AC8.13.18/Issue #433: Gate checks portfolio valuation lines, not total assets."""
+    """EPIC-005 EPIC-008 EPIC-017.
+
+    AC8.13.18/Issue #433: Gate checks portfolio valuation lines, not total assets.
+    """
     holdings = [{"market_value": "324980.5000000"}]
     balance_sheet = {
         "assets": [
@@ -279,7 +285,10 @@ def test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines() -> No
 
 
 def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
-    """AC8.13.19/Issue #433: Gate failure messages expose valuation and non-portfolio totals."""
+    """EPIC-005 EPIC-008 EPIC-017.
+
+    AC8.13.19/Issue #433: Gate failure messages expose valuation and non-portfolio totals.
+    """
     holdings = [{"market_value": "100.00"}]
     balance_sheet = {
         "assets": [
@@ -312,7 +321,10 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
 async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value(
     shared_auth_state: AuthState,
 ) -> None:
-    """AC8.13.10: two brokerage PDFs → real OCR → positions → balance sheet value."""
+    """EPIC-003 EPIC-005 EPIC-008 EPIC-009 EPIC-017.
+
+    AC8.13.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
+    """
     headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
     async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
         model = await _default_image_model(client)

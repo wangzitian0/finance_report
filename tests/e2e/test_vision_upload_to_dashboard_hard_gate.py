@@ -117,7 +117,10 @@ def _assert_expected_totals(payload: dict, expected: dict[str, Decimal], keys: S
 @pytest.mark.tier3
 @pytest.mark.critical
 async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page_unique: Page) -> None:
-    """AC8.13.28 AC8.13.29 AC8.13.30 AC8.13.31 AC8.13.32: upload fixture to trusted reports."""
+    """EPIC-003 EPIC-004 EPIC-005 EPIC-008 EPIC-010 EPIC-014 EPIC-015 EPIC-016 EPIC-018.
+
+    AC8.13.28 AC8.13.29 AC8.13.30 AC8.13.31 AC8.13.32: upload fixture to trusted reports.
+    """
     page = authenticated_page_unique
     fixture_path = _require_fixture_path()
 
@@ -352,7 +355,10 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
 
 def test_vision_fixture_totals_match_expected_values() -> None:
-    """AC8.13.32: deterministic fixture totals stay pinned to exact reporting values."""
+    """EPIC-003 EPIC-005 EPIC-008 EPIC-016 EPIC-018.
+
+    AC8.13.32: deterministic fixture totals stay pinned to exact reporting values.
+    """
     rows = _read_fixture_rows()
     income = sum((_money(row["Amount"]) for row in rows if _money(row["Amount"]) > Decimal("0.00")), Decimal("0.00"))
     expenses = sum((-_money(row["Amount"]) for row in rows if _money(row["Amount"]) < Decimal("0.00")), Decimal("0.00"))
@@ -365,7 +371,10 @@ def test_vision_fixture_totals_match_expected_values() -> None:
 
 
 def test_vision_fixture_balances_to_zero_for_stage1_approval() -> None:
-    """AC8.13.29: fixture net cash is zero so Stage 1 CSV approval remains balance-valid."""
+    """EPIC-003 EPIC-005 EPIC-008 EPIC-016 EPIC-018.
+
+    AC8.13.29: fixture net cash is zero so Stage 1 CSV approval remains balance-valid.
+    """
     rows = _read_fixture_rows()
     net_cash = sum((_money(row["Amount"]) for row in rows), Decimal("0.00"))
 

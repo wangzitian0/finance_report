@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-29 09:46:10 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-05-29 11:22:50 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -17,10 +17,10 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 1044 |
-| Active ACs | 1041 |
+| Registered ACs | 1047 |
+| Active ACs | 1044 |
 | Deprecated ACs excluded from coverage gate | 3 |
-| Covered by real test candidates | 1041 (100.0%) |
+| Covered by real test candidates | 1044 (100.0%) |
 | Placeholder-only assertions | 0 |
 | Stub-only placeholders (`_ac_stubs`) | 0 |
 | Active registered but untested | 0 |
@@ -32,9 +32,9 @@
 
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |
 |---|---:|---:|---:|---:|
-| backend | 172 | 676 | 0 | 0 |
+| backend | 172 | 677 | 0 | 0 |
 | frontend | 80 | 190 | 7 | 0 |
-| tooling_tests | 48 | 225 | 23 | 0 |
+| tooling_tests | 49 | 228 | 23 | 0 |
 | e2e | 12 | 49 | 0 | 0 |
 
 ## Coverage by EPIC
@@ -48,7 +48,7 @@
 | EPIC-005 | reporting-visualization | 37 | 0 | 37 | 0 | 0 | 0 | 100.0% |
 | EPIC-006 | ai-advisor | 63 | 0 | 63 | 0 | 0 | 0 | 100.0% |
 | EPIC-007 | deployment | 39 | 0 | 39 | 0 | 0 | 0 | 100.0% |
-| EPIC-008 | testing-strategy | 123 | 0 | 123 | 0 | 0 | 0 | 100.0% |
+| EPIC-008 | testing-strategy | 126 | 0 | 126 | 0 | 0 | 0 | 100.0% |
 | EPIC-009 | pdf-fixture-generation | 37 | 0 | 37 | 0 | 0 | 0 | 100.0% |
 | EPIC-010 | signoz-logging | 25 | 0 | 25 | 0 | 0 | 0 | 100.0% |
 | EPIC-011 | asset-lifecycle | 49 | 0 | 49 | 0 | 0 | 0 | 100.0% |

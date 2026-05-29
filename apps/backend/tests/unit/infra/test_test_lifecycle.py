@@ -101,6 +101,63 @@ def test_test_database_persistence(
 @patch("test_lifecycle.unregister_namespace")
 @patch("test_lifecycle.cleanup_orphan_databases")
 @patch("test_lifecycle.cleanup_worker_databases")
+def test_namespaced_infra_uses_ephemeral_host_ports(
+    mock_worker,
+    mock_orphan,
+    mock_unregister,
+    mock_register,
+    mock_get_namespace,
+    mock_get_runtime,
+    mock_run,
+):
+    """AC8.13.69: Namespaced test infra avoids host port collisions."""
+    mock_get_namespace.return_value = "feature_branch"
+    mock_get_runtime.return_value = "podman"
+    mock_run.side_effect = [
+        MagicMock(returncode=0),  # up
+        MagicMock(stdout="db_container\n"),  # ps
+        MagicMock(returncode=0),  # ready check
+        MagicMock(stdout="0"),  # check db exists
+        MagicMock(returncode=0),  # create db
+        MagicMock(stdout=""),  # compose port check
+        MagicMock(stdout="5432/tcp -> 127.0.0.1:65432"),  # runtime port fallback
+        MagicMock(returncode=0),  # migrations
+        MagicMock(returncode=0),  # drop test db
+    ]
+
+    with test_lifecycle.test_database(ephemeral=False) as (url, ns):
+        assert ns == "feature_branch"
+        assert "localhost:65432" in url
+
+    up_call = mock_run.call_args_list[0]
+    env = up_call.kwargs["env"]
+    assert env["DB_PORTS"] == "127.0.0.1::5432"
+    assert env["MINIO_API_PORTS"] == "127.0.0.1::9000"
+    assert env["MINIO_CONSOLE_PORTS"] == "127.0.0.1::9001"
+
+
+def test_extract_host_port_skips_blank_and_invalid_lines():
+    """AC8.13.69: Host port parsing tolerates compose output noise."""
+    assert (
+        test_lifecycle._extract_host_port("\n  \nnot-a-port\n0.0.0.0:65432\n")
+        == "65432"
+    )
+    assert (
+        test_lifecycle._extract_host_port(
+            "5432/tcp -> 127.0.0.1:65433\nignored:invalid\n"
+        )
+        == "65433"
+    )
+    assert test_lifecycle._extract_host_port("\ninvalid\n") is None
+
+
+@patch("test_lifecycle.subprocess.run")
+@patch("test_lifecycle.get_container_runtime")
+@patch("test_lifecycle.get_namespace")
+@patch("test_lifecycle.register_namespace")
+@patch("test_lifecycle.unregister_namespace")
+@patch("test_lifecycle.cleanup_orphan_databases")
+@patch("test_lifecycle.cleanup_worker_databases")
 def test_test_database_ephemeral(
     mock_worker, mock_orphan, mock_unregister, mock_register, mock_get_namespace, mock_get_runtime, mock_run
 ):

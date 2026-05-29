@@ -54,7 +54,7 @@ def app_url():
 @pytest.mark.smoke
 @pytest.mark.api
 async def test_api_health_check(app_url):
-    """AC8.10.1 AC8.8.1: Verify the API health endpoint is up."""
+    """EPIC-001 EPIC-007 EPIC-010 EPIC-012 / AC8.10.1 AC8.8.1: Verify API health."""
     # verify=False is intentional for dev/staging self-signed certs
     async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         # Try both common health paths just in case
@@ -72,7 +72,7 @@ async def test_api_health_check(app_url):
 
 @pytest.mark.smoke
 async def test_homepage_loads(app_url):
-    """AC8.1.3: Verify the homepage is accessible (returns 200 or 302)."""
+    """EPIC-001 EPIC-007 / AC8.1.3: Verify the homepage is accessible."""
     async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         response = await client.get(f"{app_url}/")
         assert response.status_code < 400, f"Homepage returned {response.status_code}"
@@ -84,7 +84,7 @@ async def test_homepage_loads(app_url):
 @pytest.mark.e2e
 @SKIP_UI
 async def test_dashboard_ui_load(page: Page, app_url):
-    """AC8.13.9: Verify the dashboard route loads for read-only smoke."""
+    """EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify dashboard route smoke."""
     await page.goto(f"{app_url}/dashboard")
 
     # We expect some key element to be present.
@@ -103,7 +103,7 @@ async def test_dashboard_ui_load(page: Page, app_url):
 @SKIP_WRITE
 async def test_ping_toggle_via_api(app_url):
     """
-    AC1.5.4
+    EPIC-001 / AC1.5.4
 
     Scenario: Toggle ping/pong state via API (no auth required).
     Environment: Staging/Dev Only.
@@ -131,7 +131,7 @@ async def test_ping_toggle_via_api(app_url):
 @pytest.mark.api
 async def test_api_authentication_failures(app_url):
     """
-    AC8.7.1 AC8.10.9
+    EPIC-001 EPIC-016 / AC8.7.1 AC8.10.9
 
     Scenario: Verify API endpoints return 401 without valid authentication.
     Environment: All (security validation).
@@ -157,7 +157,7 @@ async def test_api_authentication_failures(app_url):
 @SKIP_WRITE
 async def test_accounts_crud_api(app_url, shared_auth_state):
     """
-    AC8.8.2 AC8.10.2
+    EPIC-001 EPIC-002 / AC8.8.2 AC8.10.2
 
     Scenario: Full CRUD lifecycle for accounts via API.
     Environment: Staging/Dev Only.
@@ -234,7 +234,7 @@ async def test_accounts_crud_api(app_url, shared_auth_state):
 @SKIP_WRITE
 async def test_journal_entry_lifecycle_api(app_url, shared_auth_state):
     """
-    AC8.8.3 AC8.10.3
+    EPIC-002 / AC8.8.3 AC8.10.3
 
     Scenario: Create, post, and void a journal entry via API.
     Environment: Staging/Dev Only.
@@ -354,7 +354,7 @@ async def test_journal_entry_lifecycle_api(app_url, shared_auth_state):
 @pytest.mark.api
 async def test_reports_api(app_url, shared_auth_state):
     """
-    AC8.8.4 AC8.10.7
+    EPIC-005 / AC8.8.4 AC8.10.7
 
     Scenario: Fetch all financial reports via API.
     Environment: All (read-only).
@@ -410,7 +410,7 @@ async def test_reports_api(app_url, shared_auth_state):
 @pytest.mark.api
 async def test_reconciliation_api(app_url, shared_auth_state):
     """
-    AC8.8.5 AC8.10.5
+    EPIC-004 / AC8.8.5 AC8.10.5
 
     Scenario: Test reconciliation endpoints via API.
     Environment: All (read-only operations).
@@ -453,7 +453,7 @@ async def test_reconciliation_api(app_url, shared_auth_state):
 @pytest.mark.api
 async def test_statements_api(app_url, shared_auth_state):
     """
-    AC8.4.2
+    EPIC-003 EPIC-013 / AC8.4.2
 
     Scenario: Test statement listing endpoints via API.
     Environment: All (read-only operations).
@@ -480,7 +480,7 @@ async def test_statements_api(app_url, shared_auth_state):
 @pytest.mark.api
 async def test_ai_models_api(app_url, shared_auth_state):
     """
-    AC6.11.1
+    EPIC-006 / AC6.11.1
 
     Scenario: Test AI models listing endpoint.
     Environment: All (read-only).
@@ -502,7 +502,7 @@ async def test_ai_models_api(app_url, shared_auth_state):
 @pytest.mark.api
 async def test_chat_suggestions_api(app_url, shared_auth_state):
     """
-    AC6.5.1
+    EPIC-006 / AC6.5.1
 
     Scenario: Test chat suggestions endpoint.
     Environment: All (read-only).
@@ -522,7 +522,7 @@ async def test_chat_suggestions_api(app_url, shared_auth_state):
 @SKIP_WRITE
 async def test_unbalanced_journal_entry_rejection(app_url, shared_auth_state):
     """
-    AC8.3.4 AC8.10.6
+    EPIC-002 / AC8.3.4 AC8.10.6
 
     Scenario: Verify unbalanced journal entries are rejected (accounting red line).
     Environment: Staging/Dev Only.

@@ -477,6 +477,30 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     )
 
 
+def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
+    """AC8.13.68: CI gates product E2E tests and project EPIC ownership."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    tdd = read("docs/ssot/tdd.md")
+
+    assert (
+        "uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output"
+        in workflow
+    )
+    assert "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md" in workflow
+    assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
+        "tools/check_e2e_epic_traceability.py"
+    )
+    assert workflow.index("tools/check_e2e_epic_traceability.py") < workflow.index(
+        "tools/check_critical_proof_matrix.py"
+    )
+    assert workflow.index("tools/check_e2e_epic_traceability.py") < workflow.index(
+        "tools/build_ac_traceability.py --output"
+    )
+    assert "function-level EPIC IDs" in ci_cd
+    assert "tools/check_e2e_epic_traceability.py" in tdd
+
+
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
     workflow = read(".github/workflows/production-release.yml")

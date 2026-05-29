@@ -80,7 +80,11 @@ def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
 async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
     shared_auth_state: AuthState,
 ) -> None:
-    """AC11.10.7 AC11.10.11: Reports auto-refresh provider FX and stock data from a user path."""
+    """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
+
+    AC11.10.7 AC11.10.11: Reports auto-refresh provider FX and stock data
+    from a user path.
+    """
     headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
     async with httpx.AsyncClient(
         headers=headers, verify=False, timeout=120.0

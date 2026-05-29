@@ -128,6 +128,40 @@ def test_AC16_13_7_get_container_runtime_honors_container_runtime_override(
     assert tl.get_container_runtime() == "docker"
 
 
+def test_AC8_13_69_extract_host_port_skips_blank_and_invalid_lines():
+    """AC8.13.69: Host port parsing tolerates compose output noise."""
+    assert tl._extract_host_port("\n  \nnot-a-port\n0.0.0.0:65432\n") == "65432"
+    assert (
+        tl._extract_host_port("5432/tcp -> 127.0.0.1:65433\nignored:invalid\n")
+        == "65433"
+    )
+    assert tl._extract_host_port("\ninvalid\n") is None
+
+
+def test_AC8_13_69_resolve_postgres_host_port_uses_runtime_fallback(monkeypatch):
+    """AC8.13.69: Random compose ports fall back to runtime port inspection."""
+    calls = []
+
+    def fake_run(cmd, capture_output=True, text=False, env=None):
+        calls.append((cmd, env))
+        if cmd == ["podman-compose", "port", "postgres", "5432"]:
+            return SimpleNamespace(stdout="")
+        return SimpleNamespace(stdout="5432/tcp -> 127.0.0.1:65432\n")
+
+    monkeypatch.setattr(tl.subprocess, "run", fake_run)
+
+    assert (
+        tl.resolve_postgres_host_port(
+            "podman", ["podman-compose"], {"TEST_ENV": "1"}, "db-container"
+        )
+        == "65432"
+    )
+    assert calls == [
+        (["podman-compose", "port", "postgres", "5432"], {"TEST_ENV": "1"}),
+        (["podman", "port", "db-container", "5432/tcp"], None),
+    ]
+
+
 def test_AC16_13_8_is_db_ready_handles_failure(monkeypatch):
     def raise_called(*args, **kwargs):
         raise tl.subprocess.CalledProcessError(1, "pg_isready")
