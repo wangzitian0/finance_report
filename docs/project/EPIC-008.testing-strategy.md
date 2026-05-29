@@ -115,12 +115,39 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.73**: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
 - **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
 
+### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
+
+Integration tests and E2E tests are intentionally different in this project:
+
+- **Integration (marker-level, backend)**: multiple backend service/modules participate, usually with real infrastructure (DB/storage/config), but no browser path.
+- **E2E (behavioral)**: requirement-level behavior is proven end-to-end from API contract or real browser workflow.
+
+### Coverage and Proof Semantics by Stage
+
+| Stage | Scope | CI execution now | Coverage / proof semantics |
+|---|---|---|---|
+| Unit (Fast/Shard) | Backend tests excluding `slow`, `e2e`, and `integration` markers | Required on `main`/heavy PR after integration/Tier-1 gates pass: `backend` job, 6-way shard, `-m "not slow and not e2e and not integration"` | Contributes to unified line coverage (backend part), AC traceability generation, and baseline no-regression gate |
+| Integration (backend) | Backend tests marked `integration` | Explicit CI stage: `backend-integration` job, marker-scoped and service-backed | Not included in unified coverage by default; AC proof channel only |
+| Tier 1 API E2E (`-m e2e`) | `apps/backend/tests/e2e/test_core_journeys.py` ASGI/API contract flows | Explicit CI stage: `backend-e2e-tier1` job with marker override and explicit Tier-1 scope | Behavioral proof for ACs and regression risk; **not included in unified line coverage** |
+| Tier 2 HTTP E2E | Deploy-aware HTTP-level flows in staging/prod | Not a CI-shard job today; kept for staged/manual/prod smoke command evolution | Behavioral proof only, not part of unified line coverage |
+| Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates and PR preview where appropriate | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
+
+### Stage-by-Stage Semantics
+
+| Metric | Definition | Data source | Regression gate behavior |
+|---|---|---|---|
+| Unified Line Coverage | `(sum covered LF) / (sum executable LF)` over unified files only | `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov` after policy mapping | No-regression vs `unified-coverage.json`; line-based only |
+| AC Pass Rate | `(ACs with at least one passing qualifying test) / (Total ACs)` | Generated AC coverage audit report | Informational for behavior completeness; not a line-coverage substitute |
+| AC Traceability Gate | Real AC references in mandatory code paths | `tools/check_ac_traceability.py` / `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, or placeholder-only |
+
+AC rates are generated on each CI run from `python tools/analyze_test_ac_coverage.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
+
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
 `docs/analysis/ac-epic-mismatch-report.md`, and CI artifacts for live proof
 counts.
 
-### 2.3.1 E2E EPIC Traceability
+### 2.3.2 E2E EPIC Traceability
 
 Every `test_*` function under product E2E roots must carry at least one
 `EPIC-xxx` ID in the test function name or function docstring. Every
