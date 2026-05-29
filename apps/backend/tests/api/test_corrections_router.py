@@ -1,5 +1,10 @@
+from uuid import uuid4
+
+import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 
+from src.routers import corrections
 from tests.factories import BankStatementFactory, BankStatementTransactionFactory
 
 
@@ -32,3 +37,30 @@ async def test_post_create_correction_and_stats(client: AsyncClient, db, test_us
     sbody = stats.json()
     assert sbody["total_corrections"] >= 1
     assert isinstance(sbody["top_corrections"], list)
+
+
+@pytest.mark.asyncio
+async def test_create_correction_returns_404_when_transaction_is_missing(monkeypatch):
+    """AC18.2.2: Corrections API maps missing transactions to 404 responses."""
+
+    async def fail_record_correction(*_args, **_kwargs):
+        raise ValueError("transaction not found")
+
+    class CommitShouldNotRun:
+        async def commit(self):
+            raise AssertionError("commit should not run after correction lookup fails")
+
+    monkeypatch.setattr(corrections, "record_correction", fail_record_correction)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await corrections.create_correction(
+            corrections.CorrectionRequest(
+                transaction_id=uuid4(),
+                corrected_category="Office Supplies",
+            ),
+            db=CommitShouldNotRun(),
+            user_id=uuid4(),
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "transaction not found"
