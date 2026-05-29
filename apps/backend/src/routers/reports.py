@@ -338,7 +338,7 @@ async def export_report(
             writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
             writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
-        else:
+        else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
     except ReportError as exc:
         logger.warning(

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import FxRate, MarketDataSyncState, StockPrice
@@ -66,6 +67,7 @@ async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
     assert latest is not None
     assert latest.price == Decimal("150.123456")
     assert latest.currency == "USD"
+    assert repr(latest) == "<StockPrice AAPL 150.123456 USD 2026-01-06>"
 
 
 @pytest.mark.asyncio
@@ -226,6 +228,70 @@ async def test_sync_fx_rates_reports_skip_missing_disagreement_and_empty_work(
     assert result.inserted == 0
     assert len(result.disagreements) == 1
     assert empty.requested == 0
+
+
+@pytest.mark.asyncio
+async def test_sync_ignores_mismatched_observation_types(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.4: Sync ignores provider observations with the wrong market data kind."""
+
+    async def fake_stock_observation_for_fx(
+        _base: str,
+        _quote: str,
+        start_date: date,
+        _end_date: date,
+    ) -> market_data.ValidatedMarketObservationSeries:
+        return market_data.ValidatedMarketObservationSeries(
+            observations=[
+                market_data.StockPriceObservation(
+                    symbol="AAPL",
+                    price=Decimal("100.000000"),
+                    currency="USD",
+                    price_date=start_date,
+                    source="bad_provider",
+                )
+            ]
+        )
+
+    async def fake_fx_observation_for_stock(
+        _symbol: str,
+        start_date: date,
+        _end_date: date,
+    ) -> market_data.ValidatedMarketObservationSeries:
+        return market_data.ValidatedMarketObservationSeries(
+            observations=[
+                market_data.FxRateObservation(
+                    base_currency="USD",
+                    quote_currency="SGD",
+                    rate=Decimal("1.350000"),
+                    rate_date=start_date,
+                    source="bad_provider",
+                )
+            ]
+        )
+
+    monkeypatch.setattr(market_data, "_fetch_validated_fx_rate_series", fake_stock_observation_for_fx)
+    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_fx_observation_for_stock)
+
+    fx_result = await market_data.sync_fx_rates(
+        db,
+        pairs=["USD/SGD"],
+        start_date=date(2026, 1, 5),
+        end_date=date(2026, 1, 5),
+    )
+    stock_result = await market_data.sync_stock_prices(
+        db,
+        symbols=["AAPL"],
+        start_date=date(2026, 1, 5),
+        end_date=date(2026, 1, 5),
+    )
+
+    assert fx_result.inserted == 0
+    assert fx_result.missing == 1
+    assert stock_result.inserted == 0
+    assert stock_result.missing == 1
 
 
 @pytest.mark.asyncio
@@ -532,6 +598,90 @@ async def test_persist_stock_price_returns_existing_row(
 
 
 @pytest.mark.asyncio
+async def test_persist_stock_price_reraises_integrity_error_without_concurrent_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.1: Stock price persistence reraises unresolved concurrent insert errors."""
+
+    class FakeDb:
+        def add(self, _row: object) -> None:
+            return None
+
+        async def commit(self) -> None:
+            raise IntegrityError("insert", {}, Exception("duplicate"))
+
+        async def rollback(self) -> None:
+            return None
+
+    async def fake_load(*_args: object) -> None:
+        return None
+
+    monkeypatch.setattr(market_data, "_load_stored_stock_price_on_date", fake_load)
+
+    with pytest.raises(IntegrityError):
+        await market_data._persist_stock_price(
+            FakeDb(),  # type: ignore[arg-type]
+            market_data.StockPriceObservation(
+                symbol="AAPL",
+                price=Decimal("160.000000"),
+                currency="USD",
+                price_date=date(2026, 1, 5),
+                source="new",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC11.10.9: Sync state upsert resolves concurrent inserts idempotently."""
+
+    class FakeState:
+        last_success_at = datetime(2026, 1, 4, tzinfo=UTC)
+        last_success_date = date(2026, 1, 4)
+        last_observation_date = date(2026, 1, 4)
+        updated_at = datetime(2026, 1, 4, tzinfo=UTC)
+
+    class FakeDb:
+        commits = 0
+
+        def add(self, _row: object) -> None:
+            return None
+
+        async def commit(self) -> None:
+            self.commits += 1
+            if self.commits == 1:
+                raise IntegrityError("insert", {}, Exception("duplicate"))
+
+        async def rollback(self) -> None:
+            return None
+
+    calls = 0
+    state = FakeState()
+
+    async def fake_load(_db: object, _kind: str, _scope: str) -> FakeState | None:
+        nonlocal calls
+        calls += 1
+        return None if calls == 1 else state
+
+    monkeypatch.setattr(market_data, "_load_sync_state", fake_load)
+
+    observed_now = datetime(2026, 1, 6, tzinfo=UTC)
+    db = FakeDb()
+    await market_data._upsert_sync_state(
+        db,  # type: ignore[arg-type]
+        kind="stock",
+        scope="AAPL",
+        last_success_date=date(2026, 1, 6),
+        last_observation_date=date(2026, 1, 5),
+        now=observed_now,
+    )
+
+    assert db.commits == 2
+    assert state.last_success_at == observed_now
+    assert state.last_success_date == date(2026, 1, 6)
+
+
+@pytest.mark.asyncio
 async def test_market_data_freshness_sync_runs_once_after_24h(
     db: AsyncSession,
     test_user,
@@ -637,6 +787,27 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
     assert first.fx.requested > 0
     assert first.stock.requested > 0
     assert second.triggered is False
+
+
+@pytest.mark.asyncio
+async def test_market_data_freshness_skips_same_currency_pair(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.9: Report freshness ignores same-currency FX scopes."""
+
+    async def fake_sync(*_args: object, **_kwargs: object) -> market_data.MarketDataSyncResult:
+        raise AssertionError("same-currency scope should not sync")
+
+    monkeypatch.setattr(market_data, "sync_fx_rates", fake_sync)
+
+    result = await market_data.ensure_market_data_fresh(
+        db,
+        extra_fx_pairs=["SGD/SGD"],
+        end_date=date(2026, 1, 5),
+    )
+
+    assert result.triggered is False
 
 
 @pytest.mark.asyncio

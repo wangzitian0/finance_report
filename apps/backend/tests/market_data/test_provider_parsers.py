@@ -29,6 +29,7 @@ def test_market_data_helper_boundaries() -> None:
     assert market_data._stooq_stock_symbol("AAPL") == "aapl.us"
     assert market_data._stooq_stock_symbol("0700.HK") == "0700.hk"
     assert market_data._stooq_fx_symbol("USD", "SGD") == "usdsgd"
+    assert market_data._normalize_utc(datetime(2026, 1, 5)).tzinfo == UTC
 
 
 def test_select_validated_observation_paths() -> None:
@@ -87,6 +88,26 @@ def test_select_validated_observation_paths() -> None:
     assert disagreement.observation is None
     assert disagreement.disagreement is not None
     assert disagreement.disagreement.to_dict()["asset"] == "AAPL"
+
+    series = market_data._select_validated_observation_series(
+        asset="AAPL",
+        start_date=observed_date,
+        end_date=observed_date,
+        primary=[
+            market_data.StockPriceObservation(
+                symbol="AAPL",
+                price=Decimal("99.00"),
+                currency="USD",
+                price_date=date(2026, 1, 4),
+                source="primary",
+            ),
+            primary,
+        ],
+        secondary=[secondary_far],
+        provider_success=True,
+    )
+    assert series.observations == []
+    assert len(series.disagreements) == 1
 
 
 def test_yahoo_response_parsers_select_latest_valid_observation() -> None:
@@ -462,6 +483,53 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
 
     monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_failed_fetch)
     assert await market_data._fetch_yahoo_or_derived_fx_rate_series("GBP", "SGD", observed_date, observed_date) is None
+
+    async def fake_pair_bridge_fetch(
+        _base: str,
+        _quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_pair_bridge_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("USD", "SGD", observed_date, observed_date) == []
+
+    async def fake_missing_bridge_leg_fetch(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        if (base, quote) == ("EUR", "USD"):
+            return [market_data.FxRateObservation(base, quote, Decimal("1.100000"), observed_date, "yahoo_finance")]
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_missing_bridge_leg_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
+
+    async def fake_mismatched_bridge_fetch(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        if (base, quote) == ("EUR", "USD"):
+            return [market_data.FxRateObservation(base, quote, Decimal("1.100000"), observed_date, "yahoo_finance")]
+        if (base, quote) == ("USD", "SGD"):
+            return [
+                market_data.FxRateObservation(
+                    base,
+                    quote,
+                    Decimal("1.350000"),
+                    date(2026, 1, 6),
+                    "yahoo_finance",
+                )
+            ]
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_mismatched_bridge_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
 
 
 @pytest.mark.asyncio

@@ -78,6 +78,22 @@ async def test_market_data_sync_endpoints_return_counts(
 
 
 @pytest.mark.asyncio
+async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncClient) -> None:
+    """AC11.10.5: FX sync endpoint returns 422 for malformed pair requests."""
+    response = await client.post(
+        "/market-data/sync/fx",
+        json={
+            "pairs": ["USD-SGD"],
+            "start_date": "2026-01-05",
+            "end_date": "2026-01-05",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "expected BASE/QUOTE" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_report_endpoint_runs_market_data_freshness_check(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
