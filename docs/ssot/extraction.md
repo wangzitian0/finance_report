@@ -199,6 +199,8 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
+- **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
+  `src/services/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests.
 - **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
   with a validation error so users can retry.
 - **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching

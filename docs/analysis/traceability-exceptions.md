@@ -3,6 +3,7 @@
 > Generated from the issue #475 audit on 2026-05-21.
 > Updated for issue #511 on 2026-05-26.
 > Updated for E2E AC ownership cleanup on 2026-05-28.
+> Updated for storage sweep AC ownership on 2026-05-29.
 
 The project proof chain is `README.md -> docs/project/EPIC-*.md ->
 docs/*_registry.yaml -> tests`. Tests that assert product behavior should carry
@@ -80,7 +81,6 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/schemas/test_audit_schema.py` | `docs/ssot/schema.md` |
 | `apps/backend/tests/schemas/test_user_schema.py` | `docs/ssot/auth.md` |
 | `apps/backend/tests/services/test_confidence_tier.py` | `docs/ssot/source-type-priority.md` |
-| `apps/backend/tests/services/test_storage_sweep.py` | `docs/ssot/extraction.md` |
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `docs/ssot/schema.md` |
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `docs/ssot/source-type-priority.md` |
 | `apps/backend/tests/unit/utils/test_exceptions.py` | `docs/ssot/development.md` |

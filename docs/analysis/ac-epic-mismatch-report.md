@@ -1,6 +1,6 @@
 # AC↔EPIC Mismatch Triage
 
-- Total ACx.y.z refs scanned: **2322**
+- Total ACx.y.z refs scanned: **2335**
 - Actionable mismatched refs: **0**
 - Fixture-only mismatched refs: **67**
 - Actionable files affected: **0**
@@ -15,7 +15,7 @@
 
 ## `tests/tooling/test_generate_ac_registry.py` — 12 bad / 6 unique
 - **Suggest**: FIXTURE-EXCLUDE
-- Alt-epic matches: EPIC-11:10, EPIC-17:8, EPIC-2:6, EPIC-6:6, EPIC-8:6, EPIC-13:6, EPIC-16:6, EPIC-7:6, EPIC-12:6, EPIC-1:4, EPIC-4:4, EPIC-10:4, EPIC-3:2, EPIC-5:2, EPIC-15:2, EPIC-18:2, EPIC-9:2
+- Alt-epic matches: EPIC-11:10, EPIC-17:8, EPIC-2:6, EPIC-3:6, EPIC-6:6, EPIC-8:6, EPIC-13:6, EPIC-16:6, EPIC-7:6, EPIC-12:6, EPIC-1:4, EPIC-4:4, EPIC-10:4, EPIC-5:2, EPIC-15:2, EPIC-18:2, EPIC-9:2
 - Bad IDs: AC1.1.9, AC1.1.10, AC1.99.1, AC9.8.1, AC9.8.2, AC10.2.1
 
 ## `tests/tooling/test_lint_doc_consistency.py` — 11 bad / 4 unique

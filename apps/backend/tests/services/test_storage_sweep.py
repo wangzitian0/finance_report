@@ -1,4 +1,4 @@
-"""Tests for orphaned storage object sweep service (Issue #6).
+"""Tests for EPIC-003 orphaned storage object sweep behavior.
 
 Verifies that sweep_orphaned_storage_objects correctly identifies S3 objects
 that have no matching database record and deletes them.
@@ -50,7 +50,7 @@ def _make_db_sessionmaker(db: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
-    """Orphaned storage objects (no DB record, old enough) should be deleted."""
+    """AC3.8.1: Orphaned storage objects old enough for sweep are deleted."""
     orphan_key = "statements/user-1/orphan-id/orphan.pdf"
     mock_keys = [(orphan_key, _old_timestamp())]
 
@@ -70,7 +70,7 @@ async def test_sweep_deletes_orphaned_object(db: AsyncSession, test_user):
 
 @pytest.mark.asyncio
 async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
-    """Objects with a matching DB record should NOT be deleted."""
+    """AC3.8.2: Storage objects with matching DB records are preserved."""
     known_key = "statements/user-1/known-id/statement.pdf"
 
     # Create a matching DB record
@@ -103,7 +103,7 @@ async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
 
 @pytest.mark.asyncio
 async def test_sweep_skips_recent_objects(db: AsyncSession, test_user):
-    """Objects newer than ORPHAN_MIN_AGE should be skipped (in-flight uploads)."""
+    """AC3.8.3: Recent storage objects are skipped as in-flight uploads."""
     recent_key = "statements/user-1/recent-id/recent.pdf"
     mock_keys = [(recent_key, _recent_timestamp())]
 
@@ -123,7 +123,7 @@ async def test_sweep_skips_recent_objects(db: AsyncSession, test_user):
 
 @pytest.mark.asyncio
 async def test_sweep_skips_when_no_bucket_configured():
-    """Sweep should be a no-op when S3 bucket is not configured."""
+    """AC3.8.4: Storage sweep is a no-op when no S3 bucket is configured."""
     with patch("src.services.storage_sweep.settings") as mock_settings:
         mock_settings.s3_bucket = None
 
@@ -134,7 +134,7 @@ async def test_sweep_skips_when_no_bucket_configured():
 
 @pytest.mark.asyncio
 async def test_sweep_returns_zero_when_no_objects():
-    """Sweep should return 0 when storage has no objects under the statements prefix."""
+    """AC3.8.5: Storage sweep returns zero when no statement objects exist."""
     with (
         patch("src.services.storage_sweep.settings") as mock_settings,
         patch("src.services.storage_sweep._list_storage_keys", return_value=[]),
@@ -149,7 +149,7 @@ async def test_sweep_returns_zero_when_no_objects():
 
 @pytest.mark.asyncio
 async def test_sweep_handles_storage_list_error():
-    """Sweep should return 0 and log when storage listing raises StorageError."""
+    """AC3.8.6: Storage sweep handles storage listing failures without deletions."""
     with (
         patch("src.services.storage_sweep.settings") as mock_settings,
         patch("src.services.storage_sweep.StorageService"),
@@ -166,7 +166,7 @@ async def test_sweep_handles_storage_list_error():
 
 @pytest.mark.asyncio
 async def test_sweep_handles_delete_error(db: AsyncSession):
-    """Delete errors should be logged but not increment the deleted count."""
+    """AC3.8.7: Storage sweep logs delete errors without incrementing deleted count."""
     orphan_key = "statements/user-1/orphan-id/orphan-del-err.pdf"
     mock_keys = [(orphan_key, _old_timestamp())]
 
@@ -183,8 +183,45 @@ async def test_sweep_handles_delete_error(db: AsyncSession):
     assert deleted == 0
 
 
+def test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps():
+    """AC3.8.8: Storage key listing paginates and normalizes naive timestamps."""
+    aware_modified = datetime(2026, 5, 29, 8, 0, tzinfo=UTC)
+    naive_modified = datetime(2026, 5, 29, 9, 30)
+
+    mock_storage = MagicMock()
+    mock_storage.bucket = "test-bucket"
+    mock_paginator = MagicMock()
+    mock_storage.client.get_paginator.return_value = mock_paginator
+    mock_paginator.paginate.return_value = [
+        {
+            "Contents": [
+                {
+                    "Key": "statements/user-a/file-a.pdf",
+                    "LastModified": aware_modified,
+                }
+            ]
+        },
+        {},
+        {
+            "Contents": [
+                {
+                    "Key": "statements/user-b/file-b.pdf",
+                    "LastModified": naive_modified,
+                }
+            ]
+        },
+    ]
+
+    assert _list_storage_keys(mock_storage) == [
+        ("statements/user-a/file-a.pdf", aware_modified),
+        ("statements/user-b/file-b.pdf", naive_modified.replace(tzinfo=UTC)),
+    ]
+    mock_storage.client.get_paginator.assert_called_once_with("list_objects_v2")
+    mock_paginator.paginate.assert_called_once_with(Bucket="test-bucket", Prefix="statements/")
+
+
 def test_list_storage_keys_raises_on_client_error():
-    """_list_storage_keys converts ClientError to StorageError."""
+    """AC3.8.9: Storage key listing converts client errors to StorageError."""
     mock_storage = MagicMock()
     mock_paginator = MagicMock()
     mock_storage.client.get_paginator.return_value = mock_paginator
@@ -199,7 +236,7 @@ def test_list_storage_keys_raises_on_client_error():
 
 @pytest.mark.asyncio
 async def test_run_storage_sweep_exits_on_stop_event():
-    """run_storage_sweep should exit cleanly when stop_event is set during a sweep."""
+    """AC3.8.10: Storage sweep runner exits cleanly when stop_event is set."""
     stop_event = asyncio.Event()
 
     async def mock_sweep(*args, **kwargs):
@@ -216,7 +253,7 @@ async def test_run_storage_sweep_exits_on_stop_event():
 
 @pytest.mark.asyncio
 async def test_run_storage_sweep_logs_when_objects_deleted():
-    """run_storage_sweep should log when orphaned objects are deleted."""
+    """AC3.8.11: Storage sweep runner logs when orphaned objects are deleted."""
     stop_event = asyncio.Event()
 
     async def mock_sweep_with_deletions(*args, **kwargs):
@@ -236,7 +273,7 @@ async def test_run_storage_sweep_logs_when_objects_deleted():
 
 @pytest.mark.asyncio
 async def test_run_storage_sweep_handles_exception():
-    """run_storage_sweep should catch unexpected exceptions and continue looping."""
+    """AC3.8.12: Storage sweep runner catches unexpected exceptions and continues."""
     stop_event = asyncio.Event()
     call_count = [0]
 
@@ -260,7 +297,7 @@ async def test_run_storage_sweep_handles_exception():
 
 @pytest.mark.asyncio
 async def test_run_storage_sweep_disabled_by_feature_flag():
-    """run_storage_sweep should exit immediately when ENABLE_STORAGE_SWEEP is False."""
+    """AC3.8.13: Storage sweep runner exits immediately when disabled by feature flag."""
     stop_event = asyncio.Event()
 
     with (
