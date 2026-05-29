@@ -17,6 +17,7 @@
 | File | Purpose |
 |------|---------|
 | `tools/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics |
+| `common/shell/` | Shared shell implementations and helpers used by `tools/*.sh` command entry points |
 | `toolchain.toml` | Runtime and container image version SSOT |
 | `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI |
 | `.moon/toolchain.yml` | Moon's local Node/npm toolchain mirror |
@@ -57,13 +58,13 @@ fails when workflow runtime declarations, local tool files, Docker base images,
 Compose service images, or frontend engine constraints drift from
 `toolchain.toml`.
 
-Local bootstrapping is owned by `tools/bootstrap.sh`. It installs or verifies
-uv, Python, nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks,
-then reports whether Docker or Podman is available for workflows that need a
-host container runtime. Local commands prefer Podman when both runtimes are
-available, but `CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be
-set to force a specific runtime in CI or on hosts where only one daemon is
-usable.
+Local bootstrapping is invoked through `tools/bootstrap.sh`; the reusable shell
+implementation lives under `common/shell/`. It installs or verifies uv, Python,
+nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks, then reports
+whether Docker or Podman is available for workflows that need a host container
+runtime. Local commands prefer Podman when both runtimes are available, but
+`CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be set to force a
+specific runtime in CI or on hosts where only one daemon is usable.
 
 ### Local Host Shell Matrix
 

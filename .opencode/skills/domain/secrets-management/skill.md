@@ -306,7 +306,7 @@ moon run :test
 cat .env | grep DATABASE_URL
 
 # 2. Dokploy: Check service ENV
-python scripts/check_dokploy.py | jq '.env'
+python tools/debug.py status backend --env production
 
 # 3. Vault: Check secret
 export VAULT_ADDR=https://vault.zitian.party
@@ -329,7 +329,7 @@ docker exec finance-report-backend env | grep DATABASE
 ### Validation Script
 
 ```bash
-# Full environment validation (runs env_smoke_test.py)
+# Full environment validation (runs src.boot)
 moon run :dev -- --check
 
 # Critical-only check (for CI)
@@ -377,7 +377,7 @@ moon run :dev -- --check -- --critical-only
 | `repo/finance_report/finance_report/10.app/secrets.ctmpl` | Vault template for app | Vault SSOT |
 | `repo/finance_report/finance_report/01.postgres/secrets.ctmpl` | Vault template for DB | Vault SSOT |
 | `tools/check_env_keys.py` | Consistency validation script | CI gate |
-| `scripts/env_smoke_test.py` | Runtime environment testing | Validation |
+| `src/boot.py` | Runtime environment testing | Validation |
 
 ---
 
@@ -397,10 +397,10 @@ vault kv put secret/data/finance_report/production/app \
   S3_SECRET_KEY="new-secret"
 
 # 3. Restart service (vault-agent auto-renders)
-python scripts/dokploy_deploy.sh finance-report production
+bash tools/dokploy_deploy.sh <compose_id> <image_tag> https://report.zitian.party
 
 # 4. Verify
-python scripts/debug.py logs backend --env production --tail 20
+python tools/debug.py logs backend --env production --tail 20
 # Should see: "Starting server on 0.0.0.0:8000"
 ```
 
@@ -416,7 +416,7 @@ vault kv put secret/data/finance_report/qa/app \
 # Set ENV=qa in service environment
 
 # 3. Deploy
-ENV=qa python scripts/dokploy_deploy.sh finance-report qa
+bash tools/dokploy_deploy.sh <qa_compose_id> <image_tag> https://report-qa.zitian.party
 
 # 4. Container will render secrets from secret/data/finance_report/qa/app
 ```
@@ -433,7 +433,7 @@ vault kv patch secret/data/finance_report/production/app \
 
 # 3. Rolling restart (to avoid downtime)
 # Old tokens valid until ACCESS_TOKEN_EXPIRE_MINUTES
-python scripts/dokploy_deploy.sh finance-report production
+bash tools/dokploy_deploy.sh <compose_id> <image_tag> https://report.zitian.party
 
 # 4. Verify
 curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/accounts
@@ -469,7 +469,7 @@ curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/acco
   run: |
     # Dokploy creates ephemeral containers
     # Vault path: secret/data/finance_report/pr-47/app
-    python scripts/dokploy_deploy.sh finance-report $ENV
+    bash tools/dokploy_deploy.sh "$COMPOSE_ID" "$IMAGE_TAG" "$APP_URL"
 ```
 
 ---
@@ -511,7 +511,7 @@ moon run :dev -- --check
 # Expected: ✅ Database OK, ✅ S3 OK, ✅ Redis OK (if set)
 
 # 3. Production check
-python scripts/debug.py status backend --env production
+python tools/debug.py status backend --env production
 # Expected: Container running, healthy
 
 # 4. Vault read test

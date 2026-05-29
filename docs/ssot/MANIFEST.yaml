@@ -169,6 +169,7 @@ concepts:
     cross_refs:
       - toolchain.toml
       - tools/bootstrap.sh
+      - common/shell/bootstrap.sh
       - tools/check_toolchain_contract.py
       - common/ci/check_toolchain_contract.py
       - .moon/toolchain.yml
@@ -182,6 +183,7 @@ concepts:
       - README.md
       - docs/ssot/environments.md#host-shell-boundaries
       - tools/bootstrap.sh
+      - common/shell/
 
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation

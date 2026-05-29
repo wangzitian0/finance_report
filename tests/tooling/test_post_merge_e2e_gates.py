@@ -67,7 +67,7 @@ def test_AC8_13_8_upload_readiness_gate_rejects_rejected_status() -> None:
 
 def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     """AC8.13.11: Staging health 404 reports API route diagnostics."""
-    health_check = read("tools/health_check.sh")
+    health_check = read("common/shell/health_check.sh")
 
     assert "print_404_route_diagnostics" in health_check
     assert "Traefik API route is missing or shadowed" in health_check
@@ -79,7 +79,7 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
 def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     """AC8.13.11: Staging deploy fails before redeploy when Vault token is invalid."""
     common = read("common/shell/common.sh")
-    deploy_script = read("tools/dokploy_deploy.sh")
+    deploy_script = read("common/shell/dokploy_deploy.sh")
 
     assert "verify_vault_app_token()" in common
     assert "auth/token/lookup-self" in common
@@ -436,7 +436,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
-    deploy_script = read("tools/dokploy_deploy.sh")
+    deploy_script = read("common/shell/dokploy_deploy.sh")
 
     assert (
         "group: staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
@@ -533,7 +533,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     """AC8.13.36: Main CI builds SHA images and staging reuses them after CI passes."""
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    check_script = read("tools/check_ghcr_image_tag.sh")
+    check_script = read("common/shell/check_ghcr_image_tag.sh")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "container-images:" in ci_workflow

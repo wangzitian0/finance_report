@@ -156,6 +156,31 @@ def test_AC8_13_59_config_validation_tools_delegate_to_common_implementations():
         )
 
 
+def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
+    """AC8.13.58: Shell command entry points stay thin and delegate to common."""
+    shell_commands = [
+        "bootstrap.sh",
+        "check_ghcr_image_tag.sh",
+        "check_repo_submodule.sh",
+        "cleanup_dev_resources.sh",
+        "dokploy_deploy.sh",
+        "health_check.sh",
+        "infra.sh",
+        "smoke_test.sh",
+    ]
+
+    for command in shell_commands:
+        wrapper = (ROOT / "tools" / command).read_text(encoding="utf-8")
+        implementation = (ROOT / "common" / "shell" / command).read_text(
+            encoding="utf-8"
+        )
+
+        assert "common/shell/$(basename" in wrapper
+        assert len(wrapper.splitlines()) <= 5
+        assert implementation.startswith("#!")
+        assert "common/shell/$(basename" not in implementation
+
+
 def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():
     """AC8.13.53: Test isolation naming is reusable outside command entry points."""
     namespace = test_isolation.sanitize_namespace("Feature/Auth-v2")
