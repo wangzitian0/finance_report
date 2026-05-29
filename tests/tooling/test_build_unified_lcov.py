@@ -73,6 +73,39 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
     assert "SF:common/test_isolation.py" in content
 
 
+def test_build_unified_lcov_can_emit_line_only_coveralls_report(tmp_path):
+    """AC8.13.66: Unified Coveralls LCOV omits branch counters."""
+    backend = _component("backend", "apps/backend", "src", "coverage/backend.lcov")
+
+    coverage_dir = tmp_path / "coverage"
+    coverage_dir.mkdir()
+    (coverage_dir / "backend.lcov").write_text(
+        "\n".join(
+            [
+                "SF:src/api.py",
+                "DA:1,1",
+                "BRDA:1,0,0,1",
+                "BRF:1",
+                "BRH:1",
+                "LH:1",
+                "LF:1",
+                "end_of_record",
+                "",
+            ]
+        )
+    )
+
+    output = coverage_dir / "coveralls-unified.lcov"
+
+    assert build_unified_lcov(output, tmp_path, (backend,), strip_branches=True) == 0
+    content = output.read_text()
+    assert "SF:apps/backend/src/api.py" in content
+    assert "DA:1,1" in content
+    assert "BRDA:" not in content
+    assert "BRF:" not in content
+    assert "BRH:" not in content
+
+
 def test_build_unified_lcov_fails_when_no_reports_exist(tmp_path):
     """AC8.13.15: Empty unified reports fail instead of uploading misleading data."""
     component = _component("backend", "apps/backend", "src", "coverage/backend.lcov")

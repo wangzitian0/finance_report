@@ -238,10 +238,12 @@ def test_tools_policy_does_not_expect_shell_files(tmp_path):
 
 def test_build_unified_lcov_main_exits_with_builder_result(tmp_path, monkeypatch):
     """AC8.13.15: Unified LCOV CLI passes repo root and output into the builder."""
-    calls: list[tuple[Path, Path]] = []
+    calls: list[tuple[Path, Path, bool]] = []
 
-    def fake_build_unified_lcov(output: Path, repo_root: Path) -> int:
-        calls.append((output, repo_root))
+    def fake_build_unified_lcov(
+        output: Path, repo_root: Path, strip_branches: bool = False
+    ) -> int:
+        calls.append((output, repo_root, strip_branches))
         return 4
 
     monkeypatch.setattr(
@@ -264,7 +266,9 @@ def test_build_unified_lcov_main_exits_with_builder_result(tmp_path, monkeypatch
         build_unified_lcov.main()
 
     assert exc.value.code == 4
-    assert calls == [(tmp_path / "coverage" / "unified.lcov", tmp_path.resolve())]
+    assert calls == [
+        (tmp_path / "coverage" / "unified.lcov", tmp_path.resolve(), False)
+    ]
 
 
 def test_AC8_13_56_tools_policy_tracks_python_command_entrypoints(tmp_path):

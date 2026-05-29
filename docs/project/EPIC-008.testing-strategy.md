@@ -105,6 +105,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.63**: Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope.
 - **AC8.13.64**: Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy.
 - **AC8.13.65**: Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane.
+- **AC8.13.66**: Coveralls uploads strip branch counters so external percentages track the line-only unified coverage gate.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -441,6 +442,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
 | AC8.13.64 | Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy | `test_AC8_13_64_*` | `tests/tooling/test_production_infra_smoke.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.65 | Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane | `test_AC8_13_52_production_release_dry_run_does_not_mutate_production`, `test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.66 | Coveralls uploads strip branch counters so external percentages track the line-only unified coverage gate | `test_AC8_13_66_*` | `tests/tooling/test_build_unified_lcov.py`, `tests/tooling/test_strip_lcov_branches.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

@@ -2082,8 +2082,8 @@ groups:
       - id: AC8.13.53
         epic: 8
         epic_name: testing-strategy
-        description: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry
-          points and tool-owned implementations live in tools/.
+        description: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points
+          and tool-owned implementations live in tools/.
         mandatory: true
       - id: AC8.13.54
         epic: 8
@@ -2111,8 +2111,8 @@ groups:
       - id: AC8.13.58
         epic: 8
         epic_name: testing-strategy
-        description: CI and toolchain command entry points run from tools/; reusable contracts stay under common/ci/,
-          while report and shell command implementations live under tools/_lib/.
+        description: CI and toolchain command entry points run from tools/; reusable contracts stay under common/ci/, while
+          report and shell command implementations live under tools/_lib/.
         mandatory: true
       - id: AC8.13.59
         epic: 8
@@ -2152,6 +2152,12 @@ groups:
         epic_name: testing-strategy
         description: Production release reuses successful main CI proof instead of rerunning container-backed tests in the
           release lane.
+        mandatory: true
+      - id: AC8.13.66
+        epic: 8
+        epic_name: testing-strategy
+        description: Coveralls uploads strip branch counters so external percentages track the line-only unified coverage
+          gate.
         mandatory: true
   AC11:
     AC11.1:

@@ -806,6 +806,33 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "Coveralls - unified" in ci_cd
 
 
+def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
+    """AC8.13.66: Coveralls reports the same line-only metric as the CI gate."""
+    workflow = read(".github/workflows/ci.yml")
+    coverage = read("docs/ssot/coverage.md")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert (
+        "tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches"
+        in workflow
+    )
+    assert (
+        "tools/strip_lcov_branches.py coverage/backend.lcov "
+        "coverage/coveralls-backend.lcov"
+        in workflow
+    )
+    assert (
+        "tools/strip_lcov_branches.py coverage/frontend.lcov "
+        "coverage/coveralls-frontend.lcov"
+        in workflow
+    )
+    assert "file: coverage/coveralls-unified.lcov" in workflow
+    assert "file: coverage/coveralls-backend.lcov" in workflow
+    assert "file: coverage/coveralls-frontend.lcov" in workflow
+    assert "Coveralls upload LCOV files are line-only" in coverage
+    assert "strip branch records before upload" in ci_cd
+
+
 def test_AC8_13_43_failed_ci_workflow_run_reports_no_deploy_diagnostic() -> None:
     """AC8.13.43: Failed main CI reports staging state without deploying."""
     workflow = read(".github/workflows/staging-deploy.yml")

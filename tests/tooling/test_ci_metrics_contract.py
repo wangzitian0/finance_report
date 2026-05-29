@@ -111,6 +111,10 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Upload unified coverage to Coveralls" in workflow
     assert "Upload backend to Coveralls (per-flag)" in workflow
     assert "Upload frontend to Coveralls (per-flag)" in workflow
+    assert "tools/strip_lcov_branches.py" in workflow
+    assert "coverage/coveralls-unified.lcov" in workflow
+    assert "coverage/coveralls-backend.lcov" in workflow
+    assert "coverage/coveralls-frontend.lcov" in workflow
     global_permissions = workflow.split("env:", 1)[0]
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
@@ -131,6 +135,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "strip branch records before upload" in ci_cd
     assert "not behavioral coverage" in traceability
     assert "placeholder assertions" in traceability
 
