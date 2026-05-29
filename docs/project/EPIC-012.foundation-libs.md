@@ -36,7 +36,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 - [~] Metrics endpoint — deferred: project uses SigNoz OTLP, not Prometheus pull scraping (see EPIC-010)
 
 ### Nice to Have (P2)
-- [ ] UUID auto-serialization structlog processor
+- [ ] UUID auto-serialization structlog processor (P2 backlog, AC12.25.1)
 
 ---
 
@@ -312,6 +312,12 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.24.2 | ~~`/metrics` endpoint returns text/plain~~ | Removed | Deferred: SigNoz OTLP path | P1 |
 | AC12.24.3 | ~~`/metrics` response contains Prometheus data~~ | Removed | Deferred: SigNoz OTLP path | P1 |
 
+### AC12.25: Logging Developer Experience - UUID Serialization
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.25.1 | UUID auto-serialization structlog processor remains EPIC-012 P2 backlog until implemented | `test_AC12_25_1_uuid_logging_residual_is_epic_owned` | `scripts/tests/test_archive_residual_epic_ownership.py` | P2 |
+
 ## 📊 Progress Tracking
 
 | Phase | Task | Status | PR |
@@ -323,6 +329,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | 4 | Exception Hierarchy (M2) | ✅ Complete | This PR |
 | 5 | Rate Limiting (M3) | ✅ Complete | This PR |
 | 6 | Metrics Endpoint (M4) | ❌ Deferred | Removed — SigNoz OTLP used instead of Prometheus pull |
+| 7 | UUID Logging Serialization (L3) | ⏳ P2 Backlog | AC12.25.1 |
 
 ---
 
@@ -352,6 +359,8 @@ consolidated here. The removed inventory is retained in
   SSOT references, not standalone QA reports.
 - Prometheus-style `/metrics` was reviewed and deferred because current
   observability flows through SigNoz OTLP.
+- UUID auto-serialization for structlog is retained as EPIC-012 P2 backlog
+  under AC12.25.1, not as archive-only prose.
 
 ---
 

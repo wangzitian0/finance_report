@@ -865,6 +865,12 @@ groups:
         epic_name: foundation-libs
         description: ~~/metrics response contains Prometheus data~~
         mandatory: true
+    AC12.25:
+      - id: AC12.25.1
+        epic: 12
+        epic_name: foundation-libs
+        description: UUID auto-serialization structlog processor remains EPIC-012 P2 backlog until implemented
+        mandatory: true
   AC14:
     AC14.1:
       - id: AC14.1.1

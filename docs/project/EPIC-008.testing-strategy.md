@@ -100,6 +100,9 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.58**: CI and toolchain command entry points run from `tools/` while shared implementations live under `common/ci/`.
 - **AC8.13.59**: Config validation command entry points run from `tools/` while shared implementations live under `common/config/`.
 - **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
+- **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
+- **AC8.13.62**: Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope.
+- **AC8.13.63**: Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -431,6 +434,9 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.58 | CI and toolchain command entry points run from `tools/` while shared implementations live under `common/ci/` | `test_AC8_13_58_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_toolchain_contract.py`, `tests/tooling/test_ci_change_classifier.py`, `tests/tooling/test_github_workflow_timing_summary.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.59 | Config validation command entry points run from `tools/` while shared implementations live under `common/config/` | `test_AC8_13_59_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_check_env_keys.py`, `tests/tooling/test_validate_schemas.py` | P0 |
 | AC8.13.60 | Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk | `test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 |
+| AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
+| AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -612,6 +618,18 @@ chain:
   the current policy; the CI traceability gate fails missing, placeholder-only,
   and stub-only mandatory AC references. Manual-verification treatment remains
   tracked by [#454](https://github.com/wangzitian0/finance_report/issues/454).
+
+### 6.1 Archive Residual Backlog Ownership
+
+The removed testing archive also contained future testing-capability ideas. They
+are not current CI requirements, but they are owned here so they do not remain
+archive-only TODOs:
+
+| Residual | Owner AC | Current status | Future proof boundary |
+|---|---|---|---|
+| Visual regression | AC8.13.61 | P3 future testing capability; no current CI gate | Add a Playwright screenshot or equivalent visual regression gate only when visual stability becomes a release requirement |
+| Test observability: test report dashboard, failure notification, trend analysis | AC8.13.62 | Current replacements are GitHub Step Summary, CI artifacts, Coveralls, and generated coverage reports | Add report dashboard, Slack/Email failure notification, or failure-rate trend analysis only as explicit EPIC-008 work |
+| Performance testing | AC8.13.63 | Locust exists for load tests and staging has a non-blocking API benchmark | Promote to a required P95 trend gate only after threshold ownership and failure policy are defined |
 
 ## 📄 Owned Documentation Surfaces
 
