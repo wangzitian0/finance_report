@@ -493,6 +493,7 @@ serve as E2E proof surfaces.
 | `tests/e2e/test_statement_full_journey.py` | Full statement hard gate | AC8.13.1-AC8.13.8 |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Brokerage portfolio hard gate | AC8.13.10, AC8.13.18, AC8.13.19 |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Deterministic upload-to-dashboard hard gate | AC8.13.28-AC8.13.32 |
+| `tests/e2e/test_personal_financial_report_package.py` | Personal financial report package post-merge proof | AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC11.8.3, AC11.9.1, AC11.9.2, AC11.9.3 |
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Four-asset net-worth hard gate | AC8.13.42, AC8.13.10, AC5.7.3, AC11.9.1, AC11.9.2, AC11.9.3, AC17.5.4 |
 | `tests/e2e/test_market_data_price_paths.py` | Provider-backed market-data price path gate | AC11.10.7, AC11.10.11 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-safe read-only smoke | AC8.13.9 |
