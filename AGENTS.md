@@ -86,9 +86,9 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ✅ Before starting, check issue assignee status + open PR list so the same issue is never claimed by two people.
 - ✅ Claim an issue in one place only: assign yourself, add a start comment with branch/worktree name.
 - ✅ `_infra` labels are local coordination tags only; they do not block GitHub assignment by themselves.
-- ✅ If naming conventions conflict with branch policy, prioritize branch/PR naming and adjust only workspace naming to keep uniqueness.
 - ✅ PR title must include workspace scope derived from directory suffix (for example `[finance_report_infra] ...`), and branch names for active work should remain scoped consistently.
 - ✅ Scope rule is local-only: only enforce title fixes for your own scope (`[finance_report_infra] ...` in this repository). Do not rewrite PRs clearly belonging to another scope.
+
 
 ## 🤖 Agent Architecture
 
