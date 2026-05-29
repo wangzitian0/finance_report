@@ -28,6 +28,7 @@ This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matri
 - `investment-performance`
 - `annualized-income-long-term`
 - `source-ledger-report-traceability`
+- `personal-financial-report-package`
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -48,6 +49,7 @@ Checker: tools/check_critical_proof_matrix.py
 | `investment-performance` | investment performance |
 | `annualized-income-long-term` | annualized long-term income |
 | `source-ledger-report-traceability` | source to report traceability |
+| `personal-financial-report-package` | personal report package |
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -121,6 +123,10 @@ outcomes:
     status: gap
     owner_epics: [EPIC-008]
     issue: "#521"
+  - id: personal-financial-report-package
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#563"
 """
     matrix_path.write_text(rendered + "\n", encoding="utf-8")
     return matrix_path
@@ -471,6 +477,10 @@ outcomes:
     status: gap
     owner_epics: [EPIC-008]
     issue: "#521"
+  - id: personal-financial-report-package
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#563"
 """,
     )
 
@@ -481,6 +491,7 @@ outcomes:
         "investment-performance",
         "annualized-income-long-term",
         "source-ledger-report-traceability",
+        "personal-financial-report-package",
     ]
     assert not validation.errors
 
@@ -546,6 +557,10 @@ outcomes:
     status: gap
     owner_epics: [EPIC-008]
     issue: "#521"
+  - id: personal-financial-report-package
+    status: gap
+    owner_epics: [EPIC-008]
+    issue: "#563"
   - id: surprise-outcome
     status: gap
     owner_epics: [EPIC-008]
@@ -566,7 +581,7 @@ outcomes:
     )
     assert any("gap outcome requires issue like #521" in error for error in errors)
     assert any("invalid status 'unknown'" in error for error in errors)
-    assert any("outcome[6] must be a mapping" in error for error in errors)
+    assert any("outcome[7] must be a mapping" in error for error in errors)
     assert any(
         "README.md missing macro outcome id `monthly-income-spending`" in error
         for error in errors
@@ -593,6 +608,7 @@ Checker: tools/check_critical_proof_matrix.py
 | `investment-performance` | investment performance |
 | `annualized-income-long-term` | annualized income |
 | `source-ledger-report-traceability` | source traceability |
+| `personal-financial-report-package` | personal report package |
 | `surprise-outcome` | not in the matrix |
 """.strip()
         + "\n",
@@ -734,7 +750,7 @@ proofs:
     stdout = capsys.readouterr().out
     assert "Wrote critical proof matrix report" in stdout
     assert (
-        "Critical proof matrix passed: 1 proof path(s), 5 macro outcome(s) validated."
+        "Critical proof matrix passed: 1 proof path(s), 6 macro outcome(s) validated."
         in stdout
     )
     assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(

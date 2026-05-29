@@ -32,6 +32,7 @@ Build a **100% self-developed** investment portfolio management system with comp
 
 ## Macro Proof Ownership
 
+- `personal-financial-report-package`
 - `asset-distribution-net-worth`
 - `investment-performance`
 - `annualized-income-long-term`
@@ -352,6 +353,17 @@ Provider-backed gate details live in
 [EPIC-008](EPIC-008.testing-strategy.md#tier-3-e2e-implementation) and
 [CI/CD SSOT](../ssot/ci-cd.md#post-merge-staging-aiocr-gate). The README keeps
 the compact entry-point version of this matrix.
+
+### Personal Report Package Dependency
+
+[#564](https://github.com/wangzitian0/finance_report/issues/564) owns the
+investment performance schedule proof path needed by the personal
+financial-report package tracked in
+[#563](https://github.com/wangzitian0/finance_report/issues/563). This EPIC
+must supply holdings, cost basis, realized and unrealized P&L, dividends,
+allocation, and as-of valuation schedules in a form that EPIC-005 can assemble
+into the generated package. EPIC-008 owns the post-merge E2E proof tracked by
+[#565](https://github.com/wangzitian0/finance_report/issues/565).
 
 **Traceability Result**:
 - Total AC IDs: 27

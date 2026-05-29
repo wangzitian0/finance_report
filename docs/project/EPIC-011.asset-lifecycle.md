@@ -31,6 +31,7 @@
 
 ## Macro Proof Ownership
 
+- `personal-financial-report-package`
 - `asset-distribution-net-worth`
 - `annualized-income-long-term`
 
@@ -2076,3 +2077,14 @@ The following items were identified during the vision.md recovery audit as featu
 
 **Priority**: P1 (high) — closes the largest "vision parity" gap after net worth time series.
 **Estimated effort**: 4-6 days backend (income aggregation + restricted-flag schema check) + 3-4 days frontend.
+
+### Personal Report Package Dependency
+
+[#566](https://github.com/wangzitian0/finance_report/issues/566) owns the
+annualized income and long-term compensation proof path needed by the personal
+financial-report package tracked in
+[#563](https://github.com/wangzitian0/finance_report/issues/563). This EPIC
+must supply report-ready schedules for salary, dividends, ESOP/RSU, restricted
+holdings, vesting/unlock dates, valuation basis, and liquid-versus-restricted
+net worth treatment. EPIC-005 owns final package assembly; EPIC-008 owns the
+post-merge E2E proof.

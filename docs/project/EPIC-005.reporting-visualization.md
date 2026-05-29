@@ -23,6 +23,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 ## Macro Proof Ownership
 
+- `personal-financial-report-package`
 - `asset-distribution-net-worth`
 - `monthly-income-spending`
 - `investment-performance`
@@ -223,6 +224,28 @@ Accounting Equation Verification: Reports must comply with accounting equation
 
 - [ ] Performance tests with high transaction volumes (stress testing) are missing.
 - [ ] Tests for partial date ranges (fiscal year boundaries) are missing.
+
+## Personal Financial Report Package Plan
+
+The north-star package is tracked by
+[#563](https://github.com/wangzitian0/finance_report/issues/563). EPIC-005 is
+the primary product owner for assembling the generated package tracked by
+[#567](https://github.com/wangzitian0/finance_report/issues/567).
+
+Scope owned here:
+
+- Balance sheet, income statement, cash-flow view, and report export assembly.
+- Report notes that identify methods, currencies, periods, and data freshness.
+- Package-level navigation from dashboard/report pages to source-backed report
+  outputs.
+- Integration of EPIC-011 annualized income and long-term compensation schedules
+  tracked by [#566](https://github.com/wangzitian0/finance_report/issues/566).
+- Integration of EPIC-017 investment performance schedules tracked by
+  [#564](https://github.com/wangzitian0/finance_report/issues/564).
+
+US GAAP and Hong Kong listed-company reporting are reference structures for
+coverage and naming discipline. This EPIC does not claim regulated filing
+compliance.
 
 ## 📄 Owned Documentation Surfaces
 

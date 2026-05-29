@@ -5,9 +5,9 @@
 [![Deploy Staging](https://github.com/wangzitian0/finance_report/actions/workflows/staging-deploy.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/staging-deploy.yml)
 [![Docs](https://github.com/wangzitian0/finance_report/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/wangzitian0/finance_report/actions/workflows/docs.yml)
 
-Personal finance system for accurate, auditable asset reporting: double-entry
-bookkeeping, statement import, reconciliation, reports, AI-assisted review, and
-portfolio tracking.
+Personal finance system for accurate, auditable asset reporting and generated
+personal financial-report packages: double-entry bookkeeping, statement import,
+reconciliation, reports, AI-assisted review, and portfolio tracking.
 
 ## Operating Model
 
@@ -113,6 +113,8 @@ Do not hand-maintain open/closed blocker lists here. GitHub issue state and
 labels are the source of truth for current tracker status.
 
 - Macro proof tracker: [#521](https://github.com/wangzitian0/finance_report/issues/521)
+- Personal report package tracker:
+  [#563](https://github.com/wangzitian0/finance_report/issues/563)
 - Related live work is tracked with labels such as `flow: upload-to-report`,
   `flow: net-worth`, and `scope: valuation`.
 - If a stable proof path is needed in docs, write a parseable matrix and attach
@@ -130,6 +132,7 @@ The macro outcome set is closed and parseable:
 
 | Outcome ID | Purpose |
 |---|---|
+| `personal-financial-report-package` | Generated personal report package with statements, schedules, notes, and source traceability |
 | `asset-distribution-net-worth` | Asset distribution, liabilities, and as-of net worth |
 | `monthly-income-spending` | Current-period income, expenses, and net income |
 | `investment-performance` | Portfolio import, valuation, and performance proof path |

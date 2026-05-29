@@ -5,6 +5,17 @@ description: >
   traceability remains a separate hygiene gate.
 
 outcomes:
+  - id: personal-financial-report-package
+    question: "Can I generate one auditable personal financial-report package with statements, schedules, notes, and source traceability?"
+    status: partial
+    owner_epics:
+      - EPIC-005
+      - EPIC-008
+      - EPIC-011
+      - EPIC-017
+      - EPIC-018
+    issue: "#563"
+
   - id: asset-distribution-net-worth
     question: "How much money do I have, and where is it distributed?"
     status: covered
