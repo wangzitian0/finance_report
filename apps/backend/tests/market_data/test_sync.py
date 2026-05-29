@@ -568,6 +568,62 @@ async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(
 
 
 @pytest.mark.asyncio
+async def test_portfolio_quantizes_synced_stock_market_values(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC11.10.6: Synced provider prices are rounded to money scale for holding responses."""
+    account = Account(
+        user_id=test_user.id,
+        name="Brokerage",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="AAPL",
+        quantity=Decimal("3"),
+        cost_basis=Decimal("26.90"),
+        currency="SGD",
+        acquisition_date=date(2026, 1, 1),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date(2026, 1, 5),
+        asset_identifier="AAPL",
+        broker="Test Broker",
+        quantity=Decimal("3"),
+        market_value=Decimal("300.00"),
+        currency="SGD",
+        dedup_hash="aapl-decimal-snapshot",
+        source_documents={},
+    )
+    synced_price = StockPrice(
+        symbol="AAPL",
+        price=Decimal("173.980232"),
+        currency="SGD",
+        price_date=date(2026, 1, 6),
+        source="test_sync",
+    )
+    db.add_all([position, snapshot, synced_price])
+    await db.commit()
+
+    holdings = await PortfolioService().get_holdings(
+        db,
+        user_id=test_user.id,
+        as_of_date=date(2026, 1, 6),
+    )
+
+    assert holdings[0].market_value == Decimal("521.94")
+    assert holdings[0].unrealized_pnl == Decimal("495.04")
+
+
+@pytest.mark.asyncio
 async def test_persist_stock_price_returns_existing_row(
     db: AsyncSession,
 ) -> None:

@@ -139,8 +139,11 @@ class PortfolioService:
                 converted_cost = position.cost_basis
                 currency = position.currency
 
+            converted_value = converted_value.quantize(Decimal("0.01"))
+            converted_cost = converted_cost.quantize(Decimal("0.01"))
+
             # Calculate P&L (unrealized: market_value - cost_basis)
-            unrealized_pnl = converted_value - converted_cost
+            unrealized_pnl = (converted_value - converted_cost).quantize(Decimal("0.01"))
             if converted_cost != Decimal("0"):
                 unrealized_pnl_percent = (unrealized_pnl / converted_cost) * Decimal("100")
             else:
@@ -271,7 +274,10 @@ class PortfolioService:
             else:
                 converted_cost_basis = cost_basis
 
-            unrealized_pnl = converted_market_value - converted_cost_basis
+            converted_market_value = converted_market_value.quantize(Decimal("0.01"))
+            converted_cost_basis = converted_cost_basis.quantize(Decimal("0.01"))
+
+            unrealized_pnl = (converted_market_value - converted_cost_basis).quantize(Decimal("0.01"))
             if converted_cost_basis != Decimal("0"):
                 unrealized_pnl_percent = (unrealized_pnl / converted_cost_basis) * Decimal("100")
             else:
