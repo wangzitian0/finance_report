@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -18,6 +19,15 @@ MARKET_DATA_E2E_DATE = date.fromisoformat(
 MARKET_DATA_PROVIDER_E2E_ENABLED = os.getenv(
     "RUN_MARKET_DATA_PROVIDER_E2E", ""
 ).lower() in {"1", "true", "yes"}
+MARKET_DATA_E2E_SYMBOL_CANDIDATES = tuple(
+    symbol.strip().upper()
+    for symbol in os.getenv(
+        "MARKET_DATA_E2E_SYMBOL_CANDIDATES",
+        "IBM,ORCL,INTC,CSCO,KO,PEP,WMT,DIS,V,MA,ADBE,CRM",
+    ).split(",")
+    if symbol.strip()
+)
+STALE_BROKERAGE_MARKET_VALUE = Decimal("20.00")
 
 
 def _api_url(path: str) -> str:
@@ -26,6 +36,38 @@ def _api_url(path: str) -> str:
 
 def _money(value: object) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+async def _market_data_status_by_scope(
+    client: httpx.AsyncClient,
+    *,
+    symbols: tuple[str, ...],
+) -> dict[tuple[str, str], dict]:
+    params: list[tuple[str, str]] = [("pairs", "USD/SGD")]
+    params.extend(("symbols", symbol) for symbol in symbols)
+    response = await client.get(_api_url("/market-data/status"), params=params)
+    assert response.status_code == 200, (
+        f"market data status failed: {response.status_code} {response.text}"
+    )
+    return {(item["kind"], item["scope"]): item for item in response.json()}
+
+
+def _select_stale_or_first_symbol(status_by_scope: dict[tuple[str, str], dict]) -> str:
+    for symbol in MARKET_DATA_E2E_SYMBOL_CANDIDATES:
+        status = status_by_scope.get(("stock", symbol))
+        if status is None or not status["fresh"]:
+            return symbol
+    return MARKET_DATA_E2E_SYMBOL_CANDIDATES[0]
+
+
+def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
+    return [
+        line
+        for line in report.get("assets", [])
+        if isinstance(line, dict)
+        and broker_name.lower() in str(line.get("name", "")).lower()
+        and "market valuation adjustment" in str(line.get("name", "")).lower()
+    ]
 
 
 @pytest.mark.e2e
@@ -38,27 +80,36 @@ def _money(value: object) -> Decimal:
 async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
     shared_auth_state: AuthState,
 ) -> None:
-    """AC11.10.7: Lazy FX and stock sync feed portfolio and report valuation paths."""
+    """AC11.10.7 AC11.10.11: Reports auto-refresh provider FX and stock data from a user path."""
     headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
     async with httpx.AsyncClient(
         headers=headers, verify=False, timeout=120.0
     ) as client:
+        before_status = await _market_data_status_by_scope(
+            client,
+            symbols=MARKET_DATA_E2E_SYMBOL_CANDIDATES,
+        )
+        symbol = _select_stale_or_first_symbol(before_status)
+        broker_name = f"Market Data User E2E {symbol}"
         import_response = await client.post(
             _api_url("/portfolio/brokerage/import"),
             json={
-                "filename": "market-data-provider-e2e.json",
-                "source_document_id": f"market-data-provider-e2e-{shared_auth_state.user_id}",
+                "filename": f"market-data-user-e2e-{symbol.lower()}.json",
+                "source_document_id": (
+                    f"market-data-user-e2e-{shared_auth_state.user_id}-{uuid.uuid4()}"
+                ),
                 "payload": {
-                    "institution": "Market Data Provider E2E",
+                    "institution": broker_name,
                     "statement": {
                         "period_end": MARKET_DATA_E2E_DATE.isoformat(),
                         "currency": "USD",
                     },
                     "positions": [
                         {
-                            "symbol": "AAPL",
+                            "symbol": symbol,
+                            "broker": broker_name,
                             "quantity": "2",
-                            "market_value": "20.00",
+                            "market_value": str(STALE_BROKERAGE_MARKET_VALUE),
                             "currency": "USD",
                         }
                     ],
@@ -70,20 +121,28 @@ async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
         )
         assert import_response.json()["parsed_positions"] == 1
 
-        stock_response = await client.post(
-            _api_url("/market-data/sync/stocks"),
-            json={
-                "symbols": ["AAPL"],
-                "start_date": MARKET_DATA_E2E_DATE.isoformat(),
-                "end_date": MARKET_DATA_E2E_DATE.isoformat(),
-            },
+        report_response = await client.get(
+            _api_url(
+                f"/reports/balance-sheet?as_of_date={MARKET_DATA_E2E_DATE.isoformat()}&currency=SGD"
+            )
         )
-        assert stock_response.status_code == 200, (
-            f"stock sync failed: {stock_response.status_code} {stock_response.text}"
+        assert report_response.status_code == 200, (
+            f"balance sheet failed through report-time market data refresh: "
+            f"{report_response.status_code} {report_response.text}"
         )
-        stock_payload = stock_response.json()
-        assert stock_payload["inserted"] + stock_payload["skipped"] >= 1, stock_payload
-        assert stock_payload["disagreements"] == []
+        report = report_response.json()
+        assert report["is_balanced"] is True
+        assert _money(report["total_assets"]) > STALE_BROKERAGE_MARKET_VALUE, report
+
+        after_status = await _market_data_status_by_scope(client, symbols=(symbol,))
+        stock_status = after_status.get(("stock", symbol))
+        fx_status = after_status.get(("fx", "USD/SGD"))
+        assert stock_status is not None, after_status
+        assert fx_status is not None, after_status
+        assert stock_status["fresh"] is True, stock_status
+        assert fx_status["fresh"] is True, fx_status
+        assert stock_status["last_observation_date"] is not None, stock_status
+        assert fx_status["last_observation_date"] is not None, fx_status
 
         holdings_response = await client.get(
             _api_url(
@@ -94,22 +153,16 @@ async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
             f"holdings failed: {holdings_response.status_code} {holdings_response.text}"
         )
         holdings = holdings_response.json()
-        aapl = next(
-            (item for item in holdings if item["asset_identifier"] == "AAPL"), None
+        selected_holding = next(
+            (item for item in holdings if item["asset_identifier"] == symbol), None
         )
-        assert aapl is not None, f"AAPL holding missing: {holdings}"
-        assert _money(aapl["market_value"]) > Decimal("20.00"), (
-            f"synced stock price did not replace stale brokerage snapshot: {aapl}"
+        assert selected_holding is not None, f"{symbol} holding missing: {holdings}"
+        assert _money(selected_holding["market_value"]) > STALE_BROKERAGE_MARKET_VALUE, (
+            f"synced stock price did not replace stale brokerage snapshot: {selected_holding}"
         )
 
-        report_response = await client.get(
-            _api_url(
-                f"/reports/balance-sheet?as_of_date={MARKET_DATA_E2E_DATE.isoformat()}&currency=SGD"
-            )
+        valuation_lines = _market_valuation_lines(report, broker_name)
+        assert valuation_lines, (
+            f"balance sheet did not expose the refreshed brokerage valuation line; "
+            f"broker={broker_name}; report={report}"
         )
-        assert report_response.status_code == 200, (
-            f"balance sheet failed through lazy FX resolution: {report_response.status_code} {report_response.text}"
-        )
-        report = report_response.json()
-        assert _money(report["total_assets"]) > Decimal("20.00"), report
-        assert report["is_balanced"] is True

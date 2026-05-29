@@ -139,6 +139,28 @@ class MarketDataFreshnessResult:
 
 
 @dataclass(frozen=True)
+class MarketDataScopeStatus:
+    """Read-only freshness status for one market data scope."""
+
+    kind: str
+    scope: str
+    fresh: bool
+    last_success_at: datetime | None
+    last_success_date: date | None
+    last_observation_date: date | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "scope": self.scope,
+            "fresh": self.fresh,
+            "last_success_at": self.last_success_at.isoformat() if self.last_success_at else None,
+            "last_success_date": self.last_success_date.isoformat() if self.last_success_date else None,
+            "last_observation_date": self.last_observation_date.isoformat() if self.last_observation_date else None,
+        }
+
+
+@dataclass(frozen=True)
 class _StoredFxRate:
     rate: Decimal
     rate_date: date
@@ -548,13 +570,76 @@ async def _fallback_last_success_at(db: AsyncSession, kind: str, scope: str) -> 
     return _normalize_utc(value) if value is not None else None
 
 
-async def _is_sync_scope_fresh(db: AsyncSession, kind: str, scope: str, now: datetime) -> bool:
+async def _latest_observation_date_on_or_before(
+    db: AsyncSession,
+    kind: str,
+    scope: str,
+    observed_date: date,
+) -> date | None:
+    if kind == "fx":
+        base, quote_currency = _parse_fx_pair(scope)
+        return await db.scalar(
+            select(func.max(FxRate.rate_date))
+            .where(FxRate.base_currency == base)
+            .where(FxRate.quote_currency == quote_currency)
+            .where(FxRate.rate_date <= observed_date)
+        )
+    return await db.scalar(
+        select(func.max(StockPrice.price_date))
+        .where(StockPrice.symbol == _normalize_symbol(scope))
+        .where(StockPrice.price_date <= observed_date)
+    )
+
+
+async def _is_sync_scope_fresh(
+    db: AsyncSession,
+    kind: str,
+    scope: str,
+    now: datetime,
+    *,
+    required_observation_date: date | None = None,
+) -> bool:
     state = await _load_sync_state(db, kind, scope)
     if state is not None:
-        return _normalize_utc(state.last_success_at) >= now - _FRESHNESS_THRESHOLD
+        fresh = _normalize_utc(state.last_success_at) >= now - _FRESHNESS_THRESHOLD
+    else:
+        fallback = await _fallback_last_success_at(db, kind, scope)
+        fresh = fallback is not None and fallback >= now - _FRESHNESS_THRESHOLD
 
-    fallback = await _fallback_last_success_at(db, kind, scope)
-    return fallback is not None and fallback >= now - _FRESHNESS_THRESHOLD
+    if not fresh or required_observation_date is None:
+        return fresh
+
+    return await _latest_observation_date_on_or_before(db, kind, scope, required_observation_date) is not None
+
+
+async def _latest_observation_date(db: AsyncSession, kind: str, scope: str) -> date | None:
+    if kind == "fx":
+        base, quote_currency = _parse_fx_pair(scope)
+        return await _latest_fx_rate_date(db, base, quote_currency)
+    return await _latest_stock_price_date(db, scope)
+
+
+async def _sync_scope_status(
+    db: AsyncSession,
+    *,
+    kind: str,
+    scope: str,
+    now: datetime,
+) -> MarketDataScopeStatus:
+    state = await _load_sync_state(db, kind, scope)
+    fallback_success_at = await _fallback_last_success_at(db, kind, scope) if state is None else None
+    last_success_at = _normalize_utc(state.last_success_at) if state is not None else fallback_success_at
+    latest_observation_date = await _latest_observation_date(db, kind, scope)
+    last_success_date = state.last_success_date if state is not None else latest_observation_date
+    last_observation_date = state.last_observation_date if state is not None else latest_observation_date
+    return MarketDataScopeStatus(
+        kind=kind,
+        scope=scope,
+        fresh=last_success_at is not None and last_success_at >= now - _FRESHNESS_THRESHOLD,
+        last_success_at=last_success_at,
+        last_success_date=last_success_date,
+        last_observation_date=last_observation_date,
+    )
 
 
 async def _upsert_sync_state(
@@ -859,23 +944,47 @@ async def ensure_market_data_fresh(
         if base == quote_currency:
             continue
         scope = _fx_scope(base, quote_currency)
-        if not await _is_sync_scope_fresh(db, "fx", scope, checked_at):
+        if not await _is_sync_scope_fresh(
+            db,
+            "fx",
+            scope,
+            checked_at,
+            required_observation_date=sync_end,
+        ):
             stale_pairs.append(scope)
 
     stock_symbols = await _active_stock_symbols(db, user_id)
     stale_symbols: list[str] = []
     for symbol in stock_symbols:
         scope = _stock_scope(symbol)
-        if not await _is_sync_scope_fresh(db, "stock", scope, checked_at):
+        if not await _is_sync_scope_fresh(
+            db,
+            "stock",
+            scope,
+            checked_at,
+            required_observation_date=sync_end,
+        ):
             stale_symbols.append(scope)
 
     fx_result = (
-        await sync_fx_rates(db, pairs=stale_pairs, end_date=sync_end, user_id=user_id)
+        await sync_fx_rates(
+            db,
+            pairs=stale_pairs,
+            start_date=_default_start_date(sync_end),
+            end_date=sync_end,
+            user_id=user_id,
+        )
         if stale_pairs
         else MarketDataSyncResult(kind="fx")
     )
     stock_result = (
-        await sync_stock_prices(db, symbols=stale_symbols, end_date=sync_end, user_id=user_id)
+        await sync_stock_prices(
+            db,
+            symbols=stale_symbols,
+            start_date=_default_start_date(sync_end),
+            end_date=sync_end,
+            user_id=user_id,
+        )
         if stale_symbols
         else MarketDataSyncResult(kind="stock")
     )
@@ -888,6 +997,55 @@ async def ensure_market_data_fresh(
             stock_inserted=stock_result.inserted,
         )
     return MarketDataFreshnessResult(checked_at=checked_at, fx=fx_result, stock=stock_result)
+
+
+async def get_market_data_status(
+    db: AsyncSession,
+    *,
+    pairs: Sequence[str] | None = None,
+    symbols: Sequence[str] | None = None,
+    user_id: UUID | None = None,
+    include_default_fx: bool = False,
+    now: datetime | None = None,
+) -> list[MarketDataScopeStatus]:
+    """Return read-only sync freshness status for explicit or observed scopes."""
+    checked_at = _normalize_utc(now or datetime.now(UTC))
+    statuses: list[MarketDataScopeStatus] = []
+
+    sync_pairs = (
+        list(pairs) if pairs is not None else await _observed_fx_pairs(db, user_id, include_default=include_default_fx)
+    )
+    for raw_pair in sorted(set(sync_pairs)):
+        base, quote_currency = _parse_fx_pair(raw_pair)
+        if base == quote_currency:
+            continue
+        statuses.append(
+            await _sync_scope_status(
+                db,
+                kind="fx",
+                scope=_fx_scope(base, quote_currency),
+                now=checked_at,
+            )
+        )
+
+    sync_symbols = (
+        sorted({_normalize_symbol(symbol) for symbol in symbols})
+        if symbols is not None
+        else await _active_stock_symbols(db, user_id)
+    )
+    for symbol in sync_symbols:
+        if not symbol:
+            continue
+        statuses.append(
+            await _sync_scope_status(
+                db,
+                kind="stock",
+                scope=_stock_scope(symbol),
+                now=checked_at,
+            )
+        )
+
+    return statuses
 
 
 async def _fetch_validated_fx_rate_series(

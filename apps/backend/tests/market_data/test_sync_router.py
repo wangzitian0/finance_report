@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from httpx import AsyncClient
 
+from src.models import FxRate, MarketDataSyncState, StockPrice
 from src.routers import market_data as market_data_router, reports as reports_router
 from src.services import market_data
 
@@ -94,6 +95,65 @@ async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncCl
 
 
 @pytest.mark.asyncio
+async def test_market_data_status_endpoint_returns_authenticated_scope_freshness(
+    client: AsyncClient,
+    db,
+) -> None:
+    """AC11.10.11: Authenticated users can inspect market data freshness without triggering sync."""
+    observed_at = datetime(2026, 1, 6, tzinfo=UTC)
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.350000"),
+                rate_date=date(2026, 1, 5),
+                source="test",
+            ),
+            StockPrice(
+                symbol="IBM",
+                price=Decimal("160.000000"),
+                currency="USD",
+                price_date=date(2026, 1, 5),
+                source="test",
+            ),
+            MarketDataSyncState(
+                kind="fx",
+                scope="USD/SGD",
+                last_success_at=observed_at,
+                last_success_date=date(2026, 1, 5),
+                last_observation_date=date(2026, 1, 5),
+                created_at=observed_at,
+                updated_at=observed_at,
+            ),
+            MarketDataSyncState(
+                kind="stock",
+                scope="IBM",
+                last_success_at=observed_at,
+                last_success_date=date(2026, 1, 5),
+                last_observation_date=date(2026, 1, 5),
+                created_at=observed_at,
+                updated_at=observed_at,
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get(
+        "/market-data/status",
+        params=[("pairs", "USD/SGD"), ("symbols", "IBM")],
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert {(item["kind"], item["scope"]) for item in payload} == {
+        ("fx", "USD/SGD"),
+        ("stock", "IBM"),
+    }
+    assert all(item["last_success_date"] == "2026-01-05" for item in payload)
+
+
+@pytest.mark.asyncio
 async def test_report_endpoint_runs_market_data_freshness_check(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -102,9 +162,10 @@ async def test_report_endpoint_runs_market_data_freshness_check(
     calls: list[str] = []
 
     async def fake_ensure(
-        _db, *, user_id, include_default_fx: bool, extra_fx_pairs: list[str]
+        _db, *, user_id, end_date: date, include_default_fx: bool, extra_fx_pairs: list[str]
     ) -> market_data.MarketDataFreshnessResult:
         calls.append(str(user_id))
+        assert end_date == date(2026, 1, 6)
         assert include_default_fx is False
         assert extra_fx_pairs == []
         return market_data.MarketDataFreshnessResult(
@@ -147,7 +208,7 @@ def test_report_target_currency_pair_includes_requested_non_base_currency() -> N
 
 
 def test_market_data_provider_e2e_gate_is_declared() -> None:
-    """AC11.10.7: Provider-backed stock and lazy FX E2E gate is wired as critical."""
+    """AC11.10.11: Provider-backed user-view E2E gate is wired as critical."""
     repo_root = Path(__file__).resolve().parents[4]
     e2e_source = (repo_root / "tests/e2e/test_market_data_price_paths.py").read_text()
 
@@ -155,5 +216,6 @@ def test_market_data_provider_e2e_gate_is_declared() -> None:
     assert "@pytest.mark.tier3" in e2e_source
     assert "@pytest.mark.critical" in e2e_source
     assert "RUN_MARKET_DATA_PROVIDER_E2E" in e2e_source
-    assert "/market-data/sync/stocks" in e2e_source
+    assert "/market-data/status" in e2e_source
+    assert "/market-data/sync/stocks" not in e2e_source
     assert "/reports/balance-sheet" in e2e_source

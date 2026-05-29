@@ -2300,6 +2300,11 @@ groups:
         epic_name: asset-lifecycle
         description: Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window
         mandatory: true
+      - id: AC11.10.11
+        epic: 11
+        epic_name: asset-lifecycle
+        description: Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync
+        mandatory: true
   AC13:
     AC13.1:
       - id: AC13.1.1

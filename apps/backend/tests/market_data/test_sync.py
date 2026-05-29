@@ -846,6 +846,86 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
 
 
 @pytest.mark.asyncio
+async def test_market_data_freshness_backfills_report_date_when_latest_price_is_newer(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.9: Fresh sync state does not skip a missing historical report-date price."""
+    account = Account(
+        user_id=test_user.id,
+        name="Historical Brokerage",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    db.add_all(
+        [
+            ManagedPosition(
+                user_id=test_user.id,
+                account_id=account.id,
+                asset_identifier="IBM",
+                quantity=Decimal("1"),
+                cost_basis=Decimal("100.00"),
+                currency="SGD",
+                acquisition_date=date(2024, 1, 1),
+                status=PositionStatus.ACTIVE,
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+            StockPrice(
+                symbol="IBM",
+                price=Decimal("200.000000"),
+                currency="USD",
+                price_date=date(2026, 1, 6),
+                source="future_seed",
+            ),
+            MarketDataSyncState(
+                kind="stock",
+                scope="IBM",
+                last_success_at=datetime(2026, 1, 6, 8, 0, tzinfo=UTC),
+                last_success_date=date(2026, 1, 6),
+                last_observation_date=date(2026, 1, 6),
+                created_at=datetime(2026, 1, 6, 8, 0, tzinfo=UTC),
+                updated_at=datetime(2026, 1, 6, 8, 0, tzinfo=UTC),
+            ),
+        ]
+    )
+    await db.commit()
+
+    requested_ranges: list[tuple[str, date, date]] = []
+
+    async def fake_stock_fetch(
+        symbol: str, start_date: date, end_date: date
+    ) -> market_data.ValidatedMarketObservationSeries:
+        requested_ranges.append((symbol, start_date, end_date))
+        return market_data.ValidatedMarketObservationSeries(
+            observations=[
+                market_data.StockPriceObservation(
+                    symbol=symbol,
+                    price=Decimal("150.000000"),
+                    currency="USD",
+                    price_date=end_date,
+                    source="test_primary",
+                )
+            ]
+        )
+
+    monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_stock_fetch)
+
+    result = await market_data.ensure_market_data_fresh(
+        db,
+        user_id=test_user.id,
+        end_date=date(2024, 6, 3),
+        now=datetime(2026, 1, 6, 9, 0, tzinfo=UTC),
+    )
+
+    assert result.triggered is True
+    assert requested_ranges == [("IBM", date(2024, 5, 28), date(2024, 6, 3))]
+    assert result.stock.inserted == 1
+
+
+@pytest.mark.asyncio
 async def test_market_data_freshness_skips_same_currency_pair(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
