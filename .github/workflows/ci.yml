@@ -378,15 +378,17 @@ jobs:
       # Update unified-coverage.json manually via PR when raising the threshold.
 
 
-      - name: Merge all coverage into unified LCOV
+      - name: Build line-only Coveralls LCOV
         run: |
-          uv run python tools/build_unified_lcov.py coverage/unified.lcov
+          uv run python tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches
+          uv run python tools/strip_lcov_branches.py coverage/backend.lcov coverage/coveralls-backend.lcov
+          uv run python tools/strip_lcov_branches.py coverage/frontend.lcov coverage/coveralls-frontend.lcov
 
       - name: Upload unified coverage to Coveralls
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
-          file: coverage/unified.lcov
+          file: coverage/coveralls-unified.lcov
           flag-name: unified
           base-path: .
 
@@ -394,7 +396,7 @@ jobs:
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
-          file: coverage/backend.lcov
+          file: coverage/coveralls-backend.lcov
           flag-name: backend
           base-path: apps/backend
       - name: Upload frontend to Coveralls (per-flag)
@@ -402,7 +404,7 @@ jobs:
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
-          file: coverage/frontend.lcov
+          file: coverage/coveralls-frontend.lcov
           flag-name: frontend
           base-path: apps/frontend
 

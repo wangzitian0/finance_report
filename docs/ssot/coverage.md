@@ -47,6 +47,12 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 
 `tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
 
+Coveralls upload LCOV files are line-only. CI strips `BRDA:`, `BRF:`, and
+`BRH:` records before upload so Coveralls percentages track the same line
+coverage metric as `tools/calculate_unified_coverage.py`. Branch coverage may
+still be collected by test tools, but it is not part of the unified coverage
+gate or Coveralls reporting percentage.
+
 ### Backend Coverage
 
 - **Tool**: pytest + pytest-cov
@@ -64,7 +70,7 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 - **Config**: `apps/frontend/vitest.config.ts`
 - **Output**: `apps/frontend/coverage/lcov.info` (copied to `coverage/frontend.lcov` in CI)
 - **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); Coveralls uploads must use `base-path: apps/frontend`.
-- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, and future `coverage/coveralls ...` or `Coveralls...` contexts are external reporting signals only. CI does not normalize them or require them for mergeability.
+- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, and future `coverage/coveralls ...` or `Coveralls...` contexts are external reporting signals only. CI uploads line-only LCOV files so Coveralls does not blend branch counters into the unified percentage, and CI does not require Coveralls contexts for mergeability.
 - **Key config**: `include: ['src/**/*.{ts,tsx}']` plus the shared policy audit ensures source files appear in LCOV consistently.
 - **Excluded**:
   - `**/tests/**`, `**/__tests__/**`
@@ -112,7 +118,7 @@ jobs:
     # Runs: python tools/calculate_unified_coverage.py
     # Runs: python tools/check_coverage_policy.py
     # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
-    # Builds repository-root-relative backend + frontend + common + tools LCOV for Coveralls
+    # Builds repository-root-relative, line-only backend + frontend + common + tools LCOV for Coveralls
 ```
 
 ### Coverage Calculation
@@ -131,6 +137,7 @@ not `coverage.py report` text output or stale component-local artifacts:
 
 ```bash
 python tools/build_unified_lcov.py coverage/unified.lcov
+python tools/strip_lcov_branches.py coverage/unified.lcov coverage/coveralls-unified.lcov
 python tools/calculate_unified_coverage.py --list-low-files --threshold 90
 ```
 
@@ -193,7 +200,7 @@ python tools/calculate_unified_coverage.py
 | CI      | 90%     | 99% lines         | No regression from baseline |
 | Local   | 90%     | 99% lines         | No regression from baseline |
 
-> **Note**: The unified baseline is the primary cross-component gate. Frontend vitest keeps its own local line/function/branch floors, while CI also verifies that frontend LCOV files match the shared policy.
+> **Note**: The unified baseline is the primary cross-component gate. Frontend vitest keeps its own local line/function/branch floors, while CI also verifies that frontend LCOV files match the shared policy. Coveralls receives line-only LCOV files so its percentages match the unified line coverage gate.
 
 ---
 
@@ -464,7 +471,8 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
 
 **Badge**: README shows real-time coverage from Coveralls
 **Update frequency**: After every CI run
-**Comparison**: CI coverage should match Coveralls badge
+**Comparison**: CI line coverage should match the Coveralls badge; branch
+coverage is collected separately and stripped from Coveralls upload LCOV files.
 
 ---
 

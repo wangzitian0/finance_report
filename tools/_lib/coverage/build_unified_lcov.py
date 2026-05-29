@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from common.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
+from tools._lib.coverage.strip_lcov_branches import is_branch_record
 
 
 def repo_relative_source(
@@ -20,7 +21,10 @@ def repo_relative_source(
 
 
 def append_component_lcov(
-    output: Path, component: CoverageComponent, repo_root: Path = ROOT_DIR
+    output: Path,
+    component: CoverageComponent,
+    repo_root: Path = ROOT_DIR,
+    strip_branches: bool = False,
 ) -> bool:
     lcov_path = component.lcov_path(repo_root)
     if not lcov_path.exists():
@@ -32,6 +36,8 @@ def append_component_lcov(
         open(output, "a", encoding="utf-8") as target,
     ):
         for line in source:
+            if strip_branches and is_branch_record(line):
+                continue
             if line.startswith("SF:"):
                 target.write(
                     f"SF:{repo_relative_source(component, line[3:].strip(), repo_root)}\n"
@@ -45,6 +51,7 @@ def build_unified_lcov(
     output: Path,
     repo_root: Path = ROOT_DIR,
     components: tuple[CoverageComponent, ...] = COMPONENTS,
+    strip_branches: bool = False,
 ) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("", encoding="utf-8")
@@ -52,7 +59,7 @@ def build_unified_lcov(
     included = [
         component.name
         for component in components
-        if append_component_lcov(output, component, repo_root)
+        if append_component_lcov(output, component, repo_root, strip_branches)
     ]
     if not included:
         print("No LCOV files found for unified report", file=sys.stderr)
@@ -70,8 +77,17 @@ def main() -> None:
         "output", nargs="?", type=Path, default=ROOT_DIR / "coverage" / "unified.lcov"
     )
     parser.add_argument("--repo-root", type=Path, default=ROOT_DIR)
+    parser.add_argument(
+        "--strip-branches",
+        action="store_true",
+        help="Omit BRDA/BRF/BRH records so reporting uses line coverage only.",
+    )
     args = parser.parse_args()
-    sys.exit(build_unified_lcov(args.output, args.repo_root.resolve()))
+    sys.exit(
+        build_unified_lcov(
+            args.output, args.repo_root.resolve(), strip_branches=args.strip_branches
+        )
+    )
 
 
 if __name__ == "__main__":

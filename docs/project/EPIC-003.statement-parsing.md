@@ -80,6 +80,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
   - [x] Mark as "Requires Manual Review"
   - [x] Log failure reason
   - [x] Notify user
+  - [x] Sweep orphaned storage objects that do not have DB records
 
 ### API Endpoints (Backend)
 
@@ -113,7 +114,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `apps/backend/tests/extraction/` and `apps/backend/tests/test_csv_parsing.py`
+> **Coverage**: See `apps/backend/tests/extraction/`, `apps/backend/tests/test_csv_parsing.py`, and `apps/backend/tests/services/test_storage_sweep.py`
 
 ### AC3.1: Parsing Core (PDF/CSV)
 
@@ -174,11 +175,28 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.7.3 | Missing/Overlapping/Duplicate Periods | `test_account_coverage_reports_missing_overlapping_and_duplicate_ranges` | `accounting/test_account_statement_coverage.py` | P1 |
 | AC3.7.4 | Broker Daily Snapshot Override | `test_account_coverage_accepts_broker_monthly_cadence_with_daily_snapshot_override` | `accounting/test_account_statement_coverage.py` | P1 |
 
+### AC3.8: Storage Lifecycle Cleanup
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.8.1 | Delete old orphaned storage objects | `test_sweep_deletes_orphaned_object` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.2 | Preserve objects with DB records | `test_sweep_skips_known_db_objects` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.3 | Skip recent in-flight uploads | `test_sweep_skips_recent_objects` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.4 | No-op without configured S3 bucket | `test_sweep_skips_when_no_bucket_configured` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.5 | Return zero for empty statement prefix | `test_sweep_returns_zero_when_no_objects` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.6 | Handle storage listing errors | `test_sweep_handles_storage_list_error` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.7 | Handle object delete errors | `test_sweep_handles_delete_error` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.8 | Paginate storage keys and normalize timestamps | `test_list_storage_keys_returns_paginated_keys_and_normalizes_timestamps` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.9 | Convert storage client listing errors | `test_list_storage_keys_raises_on_client_error` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.10 | Exit runner on stop event | `test_run_storage_sweep_exits_on_stop_event` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.11 | Log runner deletion counts | `test_run_storage_sweep_logs_when_objects_deleted` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.12 | Continue runner after unexpected sweep exception | `test_run_storage_sweep_handles_exception` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.13 | Disable runner by feature flag | `test_run_storage_sweep_disabled_by_feature_flag` | `services/test_storage_sweep.py` | P1 |
+
 **Traceability Result**:
-- Total AC IDs: 22
+- Total AC IDs: 35
 - Requirements converted to AC IDs: 100% (EPIC-003 checklist + must-have standards)
 - Requirements with test references: 100%
-- Test files: 8
+- Test files: 9
 
 ---
 

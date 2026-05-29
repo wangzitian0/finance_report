@@ -707,6 +707,72 @@ groups:
         epic_name: statement-parsing
         description: Broker Daily Snapshot Override
         mandatory: true
+    AC3.8:
+      - id: AC3.8.1
+        epic: 3
+        epic_name: statement-parsing
+        description: Delete old orphaned storage objects
+        mandatory: true
+      - id: AC3.8.2
+        epic: 3
+        epic_name: statement-parsing
+        description: Preserve objects with DB records
+        mandatory: true
+      - id: AC3.8.3
+        epic: 3
+        epic_name: statement-parsing
+        description: Skip recent in-flight uploads
+        mandatory: true
+      - id: AC3.8.4
+        epic: 3
+        epic_name: statement-parsing
+        description: No-op without configured S3 bucket
+        mandatory: true
+      - id: AC3.8.5
+        epic: 3
+        epic_name: statement-parsing
+        description: Return zero for empty statement prefix
+        mandatory: true
+      - id: AC3.8.6
+        epic: 3
+        epic_name: statement-parsing
+        description: Handle storage listing errors
+        mandatory: true
+      - id: AC3.8.7
+        epic: 3
+        epic_name: statement-parsing
+        description: Handle object delete errors
+        mandatory: true
+      - id: AC3.8.8
+        epic: 3
+        epic_name: statement-parsing
+        description: Paginate storage keys and normalize timestamps
+        mandatory: true
+      - id: AC3.8.9
+        epic: 3
+        epic_name: statement-parsing
+        description: Convert storage client listing errors
+        mandatory: true
+      - id: AC3.8.10
+        epic: 3
+        epic_name: statement-parsing
+        description: Exit runner on stop event
+        mandatory: true
+      - id: AC3.8.11
+        epic: 3
+        epic_name: statement-parsing
+        description: Log runner deletion counts
+        mandatory: true
+      - id: AC3.8.12
+        epic: 3
+        epic_name: statement-parsing
+        description: Continue runner after unexpected sweep exception
+        mandatory: true
+      - id: AC3.8.13
+        epic: 3
+        epic_name: statement-parsing
+        description: Disable runner by feature flag
+        mandatory: true
   AC4:
     AC4.1:
       - id: AC4.1.1
@@ -2016,8 +2082,8 @@ groups:
       - id: AC8.13.53
         epic: 8
         epic_name: testing-strategy
-        description: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry
-          points and tool-owned implementations live in tools/.
+        description: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points
+          and tool-owned implementations live in tools/.
         mandatory: true
       - id: AC8.13.54
         epic: 8
@@ -2045,8 +2111,8 @@ groups:
       - id: AC8.13.58
         epic: 8
         epic_name: testing-strategy
-        description: CI and toolchain command entry points run from tools/; reusable contracts stay under common/ci/,
-          while report and shell command implementations live under tools/_lib/.
+        description: CI and toolchain command entry points run from tools/; reusable contracts stay under common/ci/, while
+          report and shell command implementations live under tools/_lib/.
         mandatory: true
       - id: AC8.13.59
         epic: 8
@@ -2086,6 +2152,12 @@ groups:
         epic_name: testing-strategy
         description: Production release reuses successful main CI proof instead of rerunning container-backed tests in the
           release lane.
+        mandatory: true
+      - id: AC8.13.66
+        epic: 8
+        epic_name: testing-strategy
+        description: Coveralls uploads strip branch counters so external percentages track the line-only unified coverage
+          gate.
         mandatory: true
   AC11:
     AC11.1:
@@ -2336,8 +2408,8 @@ groups:
       - id: AC11.10.9
         epic: 11
         epic_name: asset-lifecycle
-        description: Report reads check market data freshness and trigger at most one immediate refresh when the last successful sync
-          is older than 24 hours
+        description: Report reads check market data freshness and trigger at most one immediate refresh when the last successful
+          sync is older than 24 hours
         mandatory: true
       - id: AC11.10.10
         epic: 11
@@ -2347,7 +2419,8 @@ groups:
       - id: AC11.10.11
         epic: 11
         epic_name: asset-lifecycle
-        description: Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync
+        description: Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual
+          sync
         mandatory: true
   AC13:
     AC13.1:

@@ -85,8 +85,13 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     assert component.source_subdir == "tools"
     assert component.ci_lcov_path == "coverage/tools.lcov"
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
+    assert "tools/strip_lcov_branches.py" in component.expected_sources(ROOT)
     assert (
         "tools/_lib/coverage/calculate_unified_coverage.py"
+        in component.expected_sources(ROOT)
+    )
+    assert (
+        "tools/_lib/coverage/strip_lcov_branches.py"
         in component.expected_sources(ROOT)
     )
     assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
@@ -98,6 +103,7 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     calc_tool = importlib.import_module("tools.calculate_unified_coverage")
     analyzer_tool = importlib.import_module("tools.coverage_analyzer")
     merge_tool = importlib.import_module("tools.merge_lcov")
+    strip_tool = importlib.import_module("tools.strip_lcov_branches")
     policy_tool = importlib.import_module("tools.check_coverage_policy")
     metrics_tool = importlib.import_module("tools.check_ci_metrics_contract")
 
@@ -118,6 +124,10 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     assert (
         merge_tool.main
         is importlib.import_module("tools._lib.coverage.merge_lcov").main
+    )
+    assert (
+        strip_tool.main
+        is importlib.import_module("tools._lib.coverage.strip_lcov_branches").main
     )
     assert (
         policy_tool.main
