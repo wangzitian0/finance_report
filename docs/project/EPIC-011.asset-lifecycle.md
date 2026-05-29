@@ -1235,6 +1235,9 @@ DR  Equity:APIC                 $1,250
 | AC11.10.5 | Market data sync endpoints expose FX and stock sync status for scheduler/E2E callers | `test_market_data_sync_endpoints_return_counts()` | `market_data/test_sync_router.py` | P0 |
 | AC11.10.6 | Portfolio valuation prefers synced stock prices over stale brokerage snapshots | `test_portfolio_uses_synced_stock_price_before_atomic_snapshot()` | `market_data/test_sync.py` | P0 |
 | AC11.10.7 | E2E gates cover provider-backed FX sync and stock-price portfolio valuation paths | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths()` | `tests/e2e/test_market_data_price_paths.py` | P0 |
+| AC11.10.8 | Long historical market data sync uses bounded range provider requests instead of per-day provider calls | `test_sync_stock_prices_fetches_decade_range_once()` | `market_data/test_sync.py` | P0 |
+| AC11.10.9 | Report reads check market data freshness and trigger at most one immediate refresh when the last successful sync is older than 24 hours | `test_market_data_freshness_sync_runs_once_after_24h()` | `market_data/test_sync.py` | P0 |
+| AC11.10.10 | Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window | `test_next_market_data_sync_at_uses_nightly_sgt_schedule()` | `market_data/test_scheduler.py` | P0 |
 
 **Test Coverage Summary**:
 - Total AC IDs: 28

@@ -2258,6 +2258,22 @@ groups:
         epic_name: asset-lifecycle
         description: E2E gates cover provider-backed FX sync and stock-price portfolio valuation paths
         mandatory: true
+      - id: AC11.10.8
+        epic: 11
+        epic_name: asset-lifecycle
+        description: Long historical market data sync uses bounded range provider requests instead of per-day provider calls
+        mandatory: true
+      - id: AC11.10.9
+        epic: 11
+        epic_name: asset-lifecycle
+        description: Report reads check market data freshness and trigger at most one immediate refresh when the last successful sync
+          is older than 24 hours
+        mandatory: true
+      - id: AC11.10.10
+        epic: 11
+        epic_name: asset-lifecycle
+        description: Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window
+        mandatory: true
   AC13:
     AC13.1:
       - id: AC13.1.1

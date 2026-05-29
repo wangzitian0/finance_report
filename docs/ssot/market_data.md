@@ -13,7 +13,9 @@
 | **FX Lookup API** | `apps/backend/src/services/fx.py` | DB lookup, in-process cache, optional lazy resolution |
 | **Rate Storage** | `fx_rates` table | Historical direct and derived rates |
 | **Market Data Sync** | `apps/backend/src/services/market_data.py` | Incremental FX/stock sync and provider validation |
+| **Market Data Scheduler** | `apps/backend/src/services/market_data_scheduler.py` | Daily 22:00 Asia/Singapore background sync |
 | **Price Storage** | `stock_prices` table | Historical daily stock prices |
+| **Sync State Storage** | `market_data_sync_state` table | Last successful provider sync timestamp by FX pair or stock symbol |
 
 ---
 
@@ -45,29 +47,22 @@ async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
 ## 3. Sync Schedule
 
 ### FX Rates
-- **Frequency**: Daily at 08:00 UTC
-- **Pairs**: Derived from actual business data plus a non-empty default pair between `BASE_CURRENCY` and USD. Explicit scheduler/API pairs are also accepted.
-- **History**: Keep 2 years of daily rates
-- **Status**: Implemented for incremental fill. Report APIs still use lazy resolution when a required rate is missing.
+- **Frequency**: Daily at 22:00 Asia/Singapore from the backend scheduler.
+- **Pairs**: Derived from actual business data plus a non-empty default pair between `BASE_CURRENCY` and USD. Explicit API pairs are also accepted.
+- **History**: Long-lived daily history is retained. Incremental sync starts after the latest stored date so decade-scale datasets do not require full refreshes.
+- **Status**: Implemented for incremental range fill. Report APIs still use lazy resolution when a required rate is missing.
 
 ### Stock Prices
-- **Frequency**: Daily at 22:00 UTC (after US market close)
-- **Symbols**: Active holdings, or explicit symbols from scheduler/API callers
-- **History**: Keep 2 years of daily prices
+- **Frequency**: Daily at 22:00 Asia/Singapore from the backend scheduler.
+- **Symbols**: Active holdings, or explicit symbols from API callers.
+- **History**: Long-lived daily history is retained. Incremental sync starts after the latest stored date so decade-scale datasets do not require full refreshes.
 - **Status**: Implemented. Portfolio valuation prefers synced daily prices over stale brokerage snapshots.
 
-### Sync Workflow (via Activepieces)
-```yaml
-trigger:
-  type: schedule
-  cron: "0 8 * * *"  # Daily 08:00 UTC
-
-actions:
-  - name: fetch_fx_rates
-    endpoint: POST /api/market-data/sync/fx
-  - name: fetch_stock_prices
-    endpoint: POST /api/market-data/sync/stocks
-```
+### Sync Workflow
+- The backend starts `run_market_data_scheduler()` in FastAPI lifespan and runs FX plus stock sync once per day at 22:00 Asia/Singapore.
+- Manual and E2E callers can still use `POST /api/market-data/sync/fx` and `POST /api/market-data/sync/stocks`.
+- Report endpoints call `ensure_market_data_fresh()` before report generation. If the relevant FX pair, requested non-base report currency, or active stock symbol has no successful provider sync in the last 24 hours, the backend sends one immediate incremental provider request and records the new sync state, including successful no-row responses such as weekends or market holidays.
+- Sync fetches provider chart/CSV data by bounded date range per pair or symbol, then inserts only missing daily rows. It does not issue one provider request per calendar day.
 
 ---
 
@@ -105,6 +100,24 @@ CREATE TABLE stock_prices (
 
 CREATE INDEX idx_stock_prices_lookup 
     ON stock_prices(symbol, price_date);
+```
+
+### market_data_sync_state
+```sql
+CREATE TABLE market_data_sync_state (
+    id UUID PRIMARY KEY,
+    kind VARCHAR(10) NOT NULL,
+    scope VARCHAR(50) NOT NULL,
+    last_success_at TIMESTAMP NOT NULL,
+    last_success_date DATE NOT NULL,
+    last_observation_date DATE NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    UNIQUE(kind, scope)
+);
+
+CREATE INDEX idx_market_data_sync_state_lookup
+    ON market_data_sync_state(kind, scope);
 ```
 
 ---
@@ -196,6 +209,9 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 | Provider disagreement blocks persistence | `test_stock_provider_disagreement_is_reported_without_persisting` | ✅ Implemented |
 | Daily stock/FX sync | `test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent`, `test_sync_fx_rates_starts_after_last_stored_date` | ✅ Implemented |
 | Provider-backed stock and lazy FX E2E | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths` | ✅ Implemented |
+| Long-history range sync | `test_sync_stock_prices_fetches_decade_range_once` | ✅ Implemented |
+| Report-time 24h freshness check | `test_market_data_freshness_sync_runs_once_after_24h`, `test_report_endpoint_runs_market_data_freshness_check` | ✅ Implemented |
+| Nightly scheduler | `test_next_market_data_sync_at_uses_nightly_sgt_schedule` | ✅ Implemented |
 
 ---
 
