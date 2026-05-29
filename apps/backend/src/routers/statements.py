@@ -50,7 +50,6 @@ from src.schemas.review import (
 )
 from src.services import StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService
-from src.services.consistency_checks import run_all_consistency_checks
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
@@ -220,13 +219,14 @@ async def _assert_no_unresolved_checks_for_statement(
     user_id: UUID,
     statement: BankStatement,
 ) -> None:
-    """Ensure statement-related consistency checks are resolved before Stage 1 approval."""
-    if not statement.transactions:
+    """Ensure statement-related unresolved checks are resolved before Stage 1 approval."""
+    txn_result = await db.execute(
+        select(BankStatementTransaction.id).where(BankStatementTransaction.statement_id == statement.id)
+    )
+    txn_ids = {str(txn_id) for txn_id in txn_result.scalars().all()}
+    if not txn_ids:
         return
 
-    await run_all_consistency_checks(db, user_id, statement.id)
-
-    txn_ids = {str(txn.id) for txn in statement.transactions}
     pending_checks_result = await db.execute(
         select(ConsistencyCheck)
         .where(ConsistencyCheck.user_id == user_id)
