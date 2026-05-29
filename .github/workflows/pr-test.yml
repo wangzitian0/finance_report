@@ -419,8 +419,7 @@ jobs:
       - name: Generate PDF fixtures for E2E tests
         run: |
           mkdir -p tmp/fixtures
-          cd scripts/pdf_fixtures
-          python generate_pdf_fixtures.py --source dbs --output ../../tmp/fixtures/
+          python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
 
       - name: End-to-End Tests
         id: e2e_tests
@@ -436,7 +435,7 @@ jobs:
           echo "🚀 Starting E2E Pipeline for $APP_URL"
 
           echo "--- Phase 1: Smoke Check (Shell) ---"
-          bash scripts/smoke_test.sh "$APP_URL" staging
+          bash tools/smoke_test.sh "$APP_URL" staging
 
           echo "--- Phase 2: Core Flow Validation (Python, no real AI/OCR) ---"
           pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results.xml

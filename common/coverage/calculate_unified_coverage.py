@@ -2,7 +2,7 @@
 """
 Unified Coverage Calculator
 
-Calculates unified test coverage across backend, frontend, scripts, tools, and common.
+Calculates unified test coverage across backend, frontend, common, and tools.
 Uses blacklist approach: all .py/.ts/.sh files count as code UNLESS:
 - Filename starts with 'test_'
 - Path contains '/test/' or '__tests__/'
@@ -10,7 +10,6 @@ Uses blacklist approach: all .py/.ts/.sh files count as code UNLESS:
 Output: unified-coverage.json with:
 - backend: {total_lines, covered_lines, coverage_percent}
 - frontend: {total_lines, covered_lines, coverage_percent}
-- scripts: {total_lines, covered_lines, coverage_percent}
 - tools: {total_lines, covered_lines, coverage_percent}
 - common: {total_lines, covered_lines, coverage_percent}
 - unified: {total_lines, covered_lines, coverage_percent}
@@ -28,7 +27,6 @@ from common.coverage.policy import COMPONENTS, CoverageComponent, get_component
 ROOT_DIR = Path(__file__).resolve().parents[2]
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
-SCRIPTS_DIR = ROOT_DIR / "scripts"
 TOOLS_DIR = ROOT_DIR / "tools"
 COMMON_DIR = ROOT_DIR / "common"
 
@@ -232,10 +230,6 @@ def get_frontend_coverage() -> dict:
     return get_component_coverage(get_component("frontend"))
 
 
-def get_scripts_coverage() -> dict:
-    return get_component_coverage(get_component("scripts"))
-
-
 def get_common_coverage() -> dict:
     return get_component_coverage(get_component("common"))
 
@@ -247,7 +241,6 @@ def get_tools_coverage() -> dict:
 def calculate_unified_coverage(
     backend: dict,
     frontend: dict,
-    scripts: dict,
     common: dict | None = None,
     tools: dict | None = None,
 ) -> dict:
@@ -255,7 +248,6 @@ def calculate_unified_coverage(
     breakdown = {
         "backend": backend,
         "frontend": frontend,
-        "scripts": scripts,
     }
     if common is not None:
         breakdown["common"] = common
@@ -391,12 +383,6 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     print(f"   Covered lines: {frontend['covered_lines']:,}")
     print(f"   Coverage: {frontend['coverage_percent']}%")
 
-    print("\n📊 Scripts Coverage...")
-    scripts = get_scripts_coverage()
-    print(f"   Total lines: {scripts['total_lines']:,}")
-    print(f"   Covered lines: {scripts['covered_lines']:,}")
-    print(f"   Coverage: {scripts['coverage_percent']}%")
-
     print("\n📊 Common Coverage...")
     common = get_common_coverage()
     print(f"   Total lines: {common['total_lines']:,}")
@@ -410,7 +396,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     print(f"   Coverage: {tools['coverage_percent']}%")
 
     # Calculate unified coverage
-    unified = calculate_unified_coverage(backend, frontend, scripts, common, tools)
+    unified = calculate_unified_coverage(backend, frontend, common, tools)
 
     if args.list_low_files:
         print_low_coverage_files(
@@ -448,10 +434,6 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             if "frontend" in baseline_breakdown:
                 components_to_check.append(
                     ("frontend", frontend, baseline_breakdown["frontend"])
-                )
-            if "scripts" in baseline_breakdown:
-                components_to_check.append(
-                    ("scripts", scripts, baseline_breakdown["scripts"])
                 )
             if "common" in baseline_breakdown:
                 components_to_check.append(

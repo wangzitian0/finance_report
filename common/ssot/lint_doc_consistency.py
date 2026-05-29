@@ -16,11 +16,11 @@ Hard-fail checks enforced in CI:
      two registries (no dangling AC IDs in EPIC docs).
   5. Every AC ID present in either registry MUST appear at least once
      under apps/backend/tests/, apps/frontend/src/__tests__/,
-     scripts/tests/, or tests/e2e/, unless the AC is marked ``deprecated``
+     tests/tooling/, or tests/e2e/, unless the AC is marked ``deprecated``
      (full traceability).
   6. Every ``ACx.y.z`` referenced from a test file MUST exist in one of
      the two registries AND its ``epic`` field MUST equal ``x`` (the
-     epic prefix of the AC ID). Test fixtures under ``scripts/tests/``
+     epic prefix of the AC ID). Test fixtures under ``tests/tooling/``
      are excluded from check #6 because they intentionally reference
      synthetic AC IDs (e.g. ``AC9.9.9``) that are not present in the
      registries.
@@ -78,7 +78,7 @@ TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "analysis" / "traceability-except
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src" / "__tests__",
-    REPO_ROOT / "scripts" / "tests",
+    REPO_ROOT / "tests" / "tooling",
     REPO_ROOT / "tests" / "e2e",
 ]
 
@@ -88,11 +88,11 @@ NO_AC_SCAN_TARGETS: tuple[tuple[Path, tuple[str, ...]], ...] = (
         REPO_ROOT / "apps" / "frontend" / "src",
         ("**/*.test.ts", "**/*.test.tsx"),
     ),
-    (REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
+    (REPO_ROOT / "tests" / "tooling", ("**/*.py",)),
     (REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
 )
 
-CHECK6_TEST_ROOTS = [r for r in TEST_ROOTS if r != REPO_ROOT / "scripts" / "tests"]
+CHECK6_TEST_ROOTS = [r for r in TEST_ROOTS if r != REPO_ROOT / "tests" / "tooling"]
 E2E_PRODUCT_TEST_EXCEPTION_PREFIXES = (
     "tests/e2e/test_",
     "apps/backend/tests/e2e/test_",
@@ -301,7 +301,7 @@ def discover_no_ac_test_files(
                 REPO_ROOT / "apps" / "frontend" / "src",
                 ("**/*.test.ts", "**/*.test.tsx"),
             ),
-            (REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
+            (REPO_ROOT / "tests" / "tooling", ("**/*.py",)),
             (REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
         )
 
@@ -525,7 +525,7 @@ def check_registry_to_tests(
                     message=(
                         f"{ac_id}: present in registry but not referenced "
                         "by any test under apps/backend/tests/, "
-                        "apps/frontend/src/__tests__/, or scripts/tests/"
+                        "apps/frontend/src/__tests__/, or tests/tooling/"
                     ),
                 )
             )

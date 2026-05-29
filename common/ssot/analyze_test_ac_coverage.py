@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Analyze AC-to-test coverage across backend, frontend, scripts, and E2E suites.
+"""Analyze AC-to-test coverage across backend, frontend, tooling, and E2E suites.
 
 This analyzer scans AC references (``ACx.y.z``) in:
 - ``apps/backend/tests/**/*.py``
 - ``apps/frontend/src/**/*.test.ts(x)``
-- ``scripts/tests/**/*.py``
+- ``tests/tooling/**/*.py``
 - ``tests/e2e/**/*.py``
 
 Coverage accounting follows EPIC-008 rules:
@@ -43,7 +43,7 @@ SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
         REPO_ROOT / "apps" / "frontend" / "src",
         ("**/*.test.ts", "**/*.test.tsx"),
     ),
-    ("scripts_tests", REPO_ROOT / "scripts" / "tests", ("**/*.py",)),
+    ("tooling_tests", REPO_ROOT / "tests" / "tooling", ("**/*.py",)),
     ("e2e", REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
 )
 
@@ -123,7 +123,7 @@ def _is_deprecated_description(description: str) -> bool:
 def _is_ignored_script_fixture_invalid_ref(rel_path: str) -> bool:
     path = Path(rel_path)
     return (
-        len(path.parts) >= 2 and path.parts[0] == "scripts" and path.parts[1] == "tests"
+        len(path.parts) >= 2 and path.parts[0] == "tests" and path.parts[1] == "tooling"
     )
 
 
@@ -391,7 +391,7 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
         "- Strikethrough deprecated ACs are excluded from active coverage and untested counts."
     )
     lines.append(
-        "- Synthetic AC IDs inside `scripts/tests` fixtures are excluded from invalid-ref counts; fixture-only mismatches are audited separately."
+        "- Synthetic AC IDs inside `tests/tooling` fixtures are excluded from invalid-ref counts; fixture-only mismatches are audited separately."
     )
     lines.append(
         "- Invalid AC references are other AC IDs found in tests but missing from registries."

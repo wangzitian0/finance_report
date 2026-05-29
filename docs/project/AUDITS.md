@@ -15,13 +15,13 @@ Current generated AC snapshot values are owned by:
 
 - `docs/analysis/test-ac-coverage-report.md`
 - `docs/analysis/ac-epic-mismatch-report.md`
-- `python scripts/analyze_test_ac_coverage.py --stdout`
-- `python scripts/check_ac_traceability.py`
+- `python tools/analyze_test_ac_coverage.py --stdout`
+- `python tools/check_ac_traceability.py`
 
 Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced
 by the AC traceability gate before the generated audit artifact is uploaded.
 
-Fixture-only fake AC IDs in script tests are classified separately in the
+Fixture-only fake AC IDs in tooling tests are classified separately in the
 generated AC-to-EPIC mismatch report.
 
 ## Historical Audits
@@ -33,7 +33,7 @@ generated AC-to-EPIC mismatch report.
 
 ## Audit Rules
 
-1. Current counts should come from scripts, not hand-maintained prose.
+1. Current counts should come from generated tooling, not hand-maintained prose.
 2. New project audits should explain what was checked and link to generated
    evidence.
 3. When an audit finds work that belongs in code or tests, create an issue and

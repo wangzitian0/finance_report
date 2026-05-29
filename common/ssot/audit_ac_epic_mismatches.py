@@ -63,12 +63,12 @@ def walk_tests() -> list[Path]:
 
 
 def is_fixture_test_file(path: Path) -> bool:
-    """Return True for script tests that intentionally embed fake AC IDs."""
+    """Return True for tooling tests that intentionally embed fake AC IDs."""
     try:
         rel = path.relative_to(ROOT)
     except ValueError:
         return False
-    return len(rel.parts) >= 2 and rel.parts[0] == "scripts" and rel.parts[1] == "tests"
+    return len(rel.parts) >= 2 and rel.parts[0] == "tests" and rel.parts[1] == "tooling"
 
 
 def print_rows(

@@ -117,21 +117,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
         ),
     ),
     CoverageComponent(
-        name="scripts",
-        component_root="",
-        source_subdir="scripts",
-        extensions=(".py",),
-        ci_lcov_path="coverage/scripts.lcov",
-        local_lcov_paths=("coverage-scripts.lcov",),
-        exclude_patterns=(
-            "scripts/tests/**",
-            "scripts/**/__pycache__/**",
-            "scripts/**/test_*.py",
-            "scripts/**/*_test.py",
-            "conftest.py",
-        ),
-    ),
-    CoverageComponent(
         name="tools",
         component_root="",
         source_subdir="tools",
@@ -159,8 +144,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "common/**/__init__.py",
             "common/**/__pycache__/**",
             "common/tests/**",
-            "common/**/test_*.py",
-            "common/**/*_test.py",
         ),
     ),
 )

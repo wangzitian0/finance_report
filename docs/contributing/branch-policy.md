@@ -24,7 +24,7 @@
 Before your first commit, install pre-commit hooks to prevent CI failures:
 
 ```bash
-make install          # Runs scripts/bootstrap.sh
+make install          # Runs tools/bootstrap.sh
 # OR manually:
 uvx pre-commit install
 ```
@@ -57,19 +57,19 @@ Full reference: [docs/ssot/development.md](../ssot/development.md)
 
 ## 🔍 Debugging & Observability
 
-**Use `scripts/debug.py` for unified debugging** across all environments.
+**Use `tools/debug.py` for unified debugging** across all environments.
 
 ```bash
 # View logs (auto-detects environment)
-python scripts/debug.py logs backend
-python scripts/debug.py logs frontend --tail 100
+python tools/debug.py logs backend
+python tools/debug.py logs frontend --tail 100
 
 # Specify environment explicitly
-python scripts/debug.py logs backend --env staging
-python scripts/debug.py logs frontend --env production
+python tools/debug.py logs backend --env staging
+python tools/debug.py logs frontend --env production
 
 # Check service status
-python scripts/debug.py status backend --env staging
+python tools/debug.py status backend --env staging
 ```
 
 **Log retention**:

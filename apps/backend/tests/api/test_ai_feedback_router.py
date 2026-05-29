@@ -262,7 +262,9 @@ async def test_ai_suggestions_fallback_uses_string_when_tags_none_and_account_mi
     resp = await client.get("/ai/suggestions")
     assert resp.status_code == 200
     items = resp.json()["items"]
-    assert any(it["transaction"] == "Fallback txn" and it["suggested_category_or_match"] == "AI classification" for it in items)
+    assert any(
+        it["transaction"] == "Fallback txn" and it["suggested_category_or_match"] == "AI classification" for it in items
+    )
 
 
 async def test_ac18_5_6_get_ai_suggestions_returns_reconciliation_match_in_review_band(

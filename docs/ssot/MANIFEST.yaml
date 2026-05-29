@@ -168,7 +168,7 @@ concepts:
     description: Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.
     cross_refs:
       - toolchain.toml
-      - scripts/bootstrap.sh
+      - tools/bootstrap.sh
       - tools/check_toolchain_contract.py
       - common/ci/check_toolchain_contract.py
       - .moon/toolchain.yml
@@ -181,7 +181,7 @@ concepts:
     cross_refs:
       - README.md
       - docs/ssot/environments.md#host-shell-boundaries
-      - scripts/bootstrap.sh
+      - tools/bootstrap.sh
 
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation
@@ -246,7 +246,7 @@ concepts:
   # ── Coverage ──────────────────────────────────────────────────────────
   test_coverage:
     owner: docs/ssot/coverage.md
-    description: Unified coverage system (backend + frontend + common + tools + scripts).
+    description: Unified coverage system (backend + frontend + common + tools).
     cross_refs:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md

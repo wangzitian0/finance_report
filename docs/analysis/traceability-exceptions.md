@@ -32,8 +32,8 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/portfolio/__init__.py` | Package marker |
 | `apps/backend/tests/reconciliation/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/__init__.py` | Package marker |
-| `scripts/tests/__init__.py` | Package marker |
-| `scripts/tests/conftest.py` | Shared scripts-test fixtures |
+| `tests/tooling/__init__.py` | Package marker |
+| `tests/tooling/conftest.py` | Shared tooling-test fixtures |
 | `tests/e2e/conftest.py` | Shared top-level E2E fixtures |
 | `apps/backend/tests/unit/conftest.py` | Shared unit fixtures |
 | `apps/frontend/src/__tests__/helpers/renderReviewComponent.tsx` | Shared frontend render helper |
@@ -107,16 +107,16 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/lib/currency.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `scripts/tests/test_check_env_keys.py` | `docs/ssot/development.md` |
-| `scripts/tests/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
-| `scripts/tests/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
-| `scripts/tests/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
-| `scripts/tests/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
-| `scripts/tests/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
-| `scripts/tests/test_merge_lcov.py` | `docs/ssot/coverage.md` |
-| `scripts/tests/test_sanitize_fixtures.py` | `docs/agents/red-lines.md` |
-| `scripts/tests/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
-| `scripts/tests/test_validate_schemas.py` | `docs/ssot/schema.md` |
+| `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
+| `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
+| `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
+| `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
+| `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
+| `tests/tooling/test_merge_lcov.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_sanitize_fixtures.py` | `docs/agents/red-lines.md` |
+| `tests/tooling/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
+| `tests/tooling/test_validate_schemas.py` | `docs/ssot/schema.md` |
 
 ## Source Direct-Test Heuristic Exceptions
 
@@ -131,8 +131,8 @@ router, or generated-fixture flows.
 | `apps/frontend/src/components/review/BalanceIndicator.tsx` | Review UI subcomponent covered through review page/component suites |
 | `apps/frontend/src/components/review/ReviewActionBar.tsx` | Review UI subcomponent covered through review page/action suites |
 | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` | Review UI subcomponent covered through review queue and run review page suites |
-| `scripts/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `scripts/tests/test_pdf_fixture_epic009_behavior.py` |
-| `scripts/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `scripts/tests/test_pdf_fixture_tooling_coverage.py` |
+| `common/pdf_fixtures/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
+| `common/pdf_fixtures/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 
 ## Rule
 

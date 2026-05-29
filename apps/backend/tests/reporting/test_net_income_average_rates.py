@@ -51,11 +51,17 @@ async def fx_rates_varying(db: AsyncSession):
     """FX rates that vary significantly to make the test meaningful."""
     rates = [
         # Start of period: 1 USD = 1.20 SGD
-        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.20"), rate_date=date(2025, 1, 1), source="test"),
+        FxRate(
+            base_currency="USD", quote_currency="SGD", rate=Decimal("1.20"), rate_date=date(2025, 1, 1), source="test"
+        ),
         # Mid period: 1 USD = 1.30 SGD
-        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=date(2025, 1, 15), source="test"),
+        FxRate(
+            base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=date(2025, 1, 15), source="test"
+        ),
         # End of period: 1 USD = 1.40 SGD
-        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.40"), rate_date=date(2025, 1, 31), source="test"),
+        FxRate(
+            base_currency="USD", quote_currency="SGD", rate=Decimal("1.40"), rate_date=date(2025, 1, 31), source="test"
+        ),
     ]
     db.add_all(rates)
     await db.commit()
@@ -77,26 +83,54 @@ async def test_aggregate_net_income_uses_average_rate(
     checking, capital, salary, food = income_expense_accounts
 
     # Create two entries at different dates: early and late in January
-    entry_early = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 1), memo="Early", status=JournalEntryStatus.POSTED)
-    entry_late = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 31), memo="Late", status=JournalEntryStatus.POSTED)
+    entry_early = JournalEntry(
+        user_id=user_id, entry_date=date(2025, 1, 1), memo="Early", status=JournalEntryStatus.POSTED
+    )
+    entry_late = JournalEntry(
+        user_id=user_id, entry_date=date(2025, 1, 31), memo="Late", status=JournalEntryStatus.POSTED
+    )
     db.add_all([entry_early, entry_late])
     await db.flush()
 
     # Salary income on Jan 1 (rate = 1.20 under historical cost)
     # Food expense on Jan 31 (rate = 1.40 under historical cost)
-    db.add_all([
-        JournalLine(journal_entry_id=entry_early.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal("1000"), currency="USD"),
-        JournalLine(journal_entry_id=entry_early.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal("1000"), currency="USD"),
-        JournalLine(journal_entry_id=entry_late.id, account_id=food.id, direction=Direction.DEBIT, amount=Decimal("200"), currency="USD"),
-        JournalLine(journal_entry_id=entry_late.id, account_id=checking.id, direction=Direction.CREDIT, amount=Decimal("200"), currency="USD"),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry_early.id,
+                account_id=checking.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_early.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1000"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_late.id,
+                account_id=food.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("200"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry_late.id,
+                account_id=checking.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("200"),
+                currency="USD",
+            ),
+        ]
+    )
     await db.commit()
 
     # Average rate across the period [Jan 1 - Jan 31] = avg(1.20, 1.30, 1.40) = 1.30 SGD/USD
     # SQL AVG() computes an unweighted arithmetic mean across the three rate rows
-    net_income = await _aggregate_net_income_sql(
-        db, user_id, "SGD", date(2025, 1, 31), start_date=date(2025, 1, 1)
-    )
+    net_income = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 1, 31), start_date=date(2025, 1, 1))
 
     # Expected: (1000 - 200) * 1.30 = 800 * 1.30 = 1040
     # Under historical cost: 1000*1.20 - 200*1.40 = 1200 - 280 = 920 (different!)
@@ -120,10 +154,24 @@ async def test_aggregate_net_income_no_start_date_uses_all_time_average(
     db.add(entry)
     await db.flush()
 
-    db.add_all([
-        JournalLine(journal_entry_id=entry.id, account_id=checking.id, direction=Direction.DEBIT, amount=Decimal("500"), currency="USD"),
-        JournalLine(journal_entry_id=entry.id, account_id=salary.id, direction=Direction.CREDIT, amount=Decimal("500"), currency="USD"),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=checking.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("500"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("500"),
+                currency="USD",
+            ),
+        ]
+    )
     await db.commit()
 
     # All-time average from Jan 1 to Jan 15 = avg(1.20, 1.30) = 1.25 (only rates on or before Jan 15)
@@ -154,12 +202,38 @@ async def test_aggregate_net_income_same_currency_no_conversion(
     db.add(entry)
     await db.flush()
 
-    db.add_all([
-        JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal("3000"), currency="SGD"),
-        JournalLine(journal_entry_id=entry.id, account_id=revenue.id, direction=Direction.CREDIT, amount=Decimal("3000"), currency="SGD"),
-        JournalLine(journal_entry_id=entry.id, account_id=rent.id, direction=Direction.DEBIT, amount=Decimal("1200"), currency="SGD"),
-        JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("1200"), currency="SGD"),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("3000"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=revenue.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("3000"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=rent.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1200"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1200"),
+                currency="SGD",
+            ),
+        ]
+    )
     await db.commit()
 
     net_income = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 31))
@@ -186,10 +260,24 @@ async def test_aggregate_net_income_raises_on_missing_fx_rate(
     db.add(entry)
     await db.flush()
 
-    db.add_all([
-        JournalLine(journal_entry_id=entry.id, account_id=cash.id, direction=Direction.DEBIT, amount=Decimal("100"), currency="EUR"),
-        JournalLine(journal_entry_id=entry.id, account_id=sales.id, direction=Direction.CREDIT, amount=Decimal("100"), currency="EUR"),
-    ])
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="EUR",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=sales.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="EUR",
+            ),
+        ]
+    )
     await db.commit()
 
     # No EUR/SGD rate exists → should raise ReportError

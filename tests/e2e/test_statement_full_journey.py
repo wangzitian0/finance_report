@@ -47,7 +47,7 @@ def _get_dbs_pdf_path() -> Path:
     from datetime import datetime
 
     root = Path(__file__).resolve().parents[2]
-    dbs_dir = root / "scripts" / "pdf_fixtures" / "output" / "dbs"
+    dbs_dir = root / "common" / "pdf_fixtures" / "output" / "dbs"
     yymm = datetime.now().strftime("%y%m")
     prebuilt = dbs_dir / f"test_dbs_{yymm}.pdf"
     if prebuilt.exists():
@@ -57,11 +57,11 @@ def _get_dbs_pdf_path() -> Path:
         if pdfs:
             return pdfs[-1]
 
-    script = root / "scripts" / "pdf_fixtures" / "generate_pdf_fixtures.py"
+    script = root / "tools" / "generate_pdf_fixtures.py"
     if not script.exists():
         pytest.skip(
             f"PDF fixture generator not found: {script} — skipping full-journey E2E. "
-            "Run: python scripts/pdf_fixtures/generate_pdf_fixtures.py --source dbs"
+            "Run: python tools/generate_pdf_fixtures.py --source dbs"
         )
     result = subprocess.run(
         [sys.executable, str(script), "--source", "dbs"],

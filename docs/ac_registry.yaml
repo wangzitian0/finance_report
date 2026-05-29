@@ -2009,7 +2009,7 @@ groups:
       - id: AC8.13.53
         epic: 8
         epic_name: testing-strategy
-        description: Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers.
+        description: Common shared tooling owns SSOT, coverage, and isolation helpers; root command entry points live in tools/.
         mandatory: true
       - id: AC8.13.54
         epic: 8

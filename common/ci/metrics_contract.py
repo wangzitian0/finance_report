@@ -11,7 +11,7 @@ from common.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
 
 CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx"}
 DISCOVERED_APP_ROOTS = ("apps", "packages")
-DISCOVERED_ROOT_SOURCE_DIRS = ("common", "scripts", "tools")
+DISCOVERED_ROOT_SOURCE_DIRS = ("common", "tools")
 EXCLUDED_DIR_NAMES = {
     ".git",
     ".next",

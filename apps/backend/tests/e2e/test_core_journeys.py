@@ -909,7 +909,7 @@ def test_smoke_tests_integrated():
     WHEN checking for smoke_test.sh
     THEN it should exist and be referenced in at least one workflow
     """
-    smoke_script = REPO_ROOT / "scripts" / "smoke_test.sh"
+    smoke_script = REPO_ROOT / "tools" / "smoke_test.sh"
     assert smoke_script.exists(), f"Smoke test script not found: {smoke_script}"
 
     # Verify it is referenced in at least one workflow

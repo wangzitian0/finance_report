@@ -7,8 +7,8 @@ Create Date: 2026-03-19
 Merge migration: unifies the 0013 and 0010_ai_category branches.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -22,12 +22,29 @@ def upgrade() -> None:
     op.create_table(
         "correction_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("transaction_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("bank_statement_transactions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "transaction_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("bank_statement_transactions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("original_category", sa.String(100), nullable=True),
         sa.Column("corrected_category", sa.String(100), nullable=False),
-        sa.Column("original_account_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("corrected_account_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "original_account_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("accounts.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "corrected_account_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("accounts.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("transaction_description", sa.Text, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

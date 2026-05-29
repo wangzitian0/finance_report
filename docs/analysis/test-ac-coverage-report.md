@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-28 15:57:18 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-05-29 04:34:21 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -9,7 +9,7 @@
 - `expect(true).toBe(true)`, pure `pass`, and pure skipped references are tracked as placeholder-only and **do not** count as covered.
 - `_ac_stubs` references are tracked as placeholders (`stub-only`) and **do not** count as covered.
 - Strikethrough deprecated ACs are excluded from active coverage and untested counts.
-- Synthetic AC IDs inside `scripts/tests` fixtures are excluded from invalid-ref counts; fixture-only mismatches are audited separately.
+- Synthetic AC IDs inside `tests/tooling` fixtures are excluded from invalid-ref counts; fixture-only mismatches are audited separately.
 - Invalid AC references are other AC IDs found in tests but missing from registries.
 - Untested AC = registered AC without any real passing-test candidate reference.
 
@@ -34,7 +34,7 @@
 |---|---:|---:|---:|---:|
 | backend | 168 | 653 | 0 | 0 |
 | frontend | 80 | 190 | 7 | 0 |
-| scripts_tests | 45 | 215 | 23 | 0 |
+| tooling_tests | 45 | 215 | 23 | 0 |
 | e2e | 11 | 47 | 0 | 0 |
 
 ## Coverage by EPIC

@@ -213,8 +213,9 @@ def check_retired_archive_roots() -> list[Violation]:
                 Violation(
                     check="check2_retired_archive_roots",
                     message=(
-                        f"{path.relative_to(REPO_ROOT)} is a retired archive snapshot; "
-                        "remove it from the active project tree."
+                        f"{path.relative_to(REPO_ROOT)} must not exist; "
+                        "retired archive snapshots are retained through "
+                        "GitHub issue #548 and git history"
                     ),
                 )
             )

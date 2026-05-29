@@ -86,6 +86,7 @@ async def test_list_models_error_handling(mock_fetch: AsyncMock, client: AsyncCl
 
 async def test_list_models_filters_out_entries_without_id(client: AsyncClient):
     """AC6.11.6: Entries with no id are skipped (covers id-filter branch in routers/ai_models.py L44)."""
+
     async def fake_fetch():
         return [{"id": None, "name": "NoID"}, {"id": "m1", "name": "HasID", "is_free": True}]
 

@@ -41,66 +41,66 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 
 **Goal**: Extract format information from real PDFs (run locally, don't commit real PDFs)
 
-- [x] **Create PDF Analyzer** (`scripts/analyzers/pdf_analyzer.py`)
+- [x] **Create PDF Analyzer** (`common/pdf_fixtures/analyzers/pdf_analyzer.py`)
   - [x] Use `pdfplumber` to extract table structure
   - [x] Measure column widths, row heights, margins
   - [x] Extract font information (if available)
   - [x] Analyze text positions and formatting
   - [x] **Only extract format info, NOT transaction data**
 
-- [x] **Template Extractor** (`scripts/analyzers/template_extractor.py`)
+- [x] **Template Extractor** (`common/pdf_fixtures/analyzers/template_extractor.py`)
   - [x] Convert analysis results to YAML/JSON format
   - [x] Structure: page layout, fonts, table structure, text positions
   - [x] Validate template doesn't contain sensitive data
 
-- [x] **CLI Tool** (`scripts/analyzers/analyze_pdf.py`)
-  - [x] Command: `python scripts/analyzers/analyze_pdf.py --input <real_pdf> --output <template.yaml>`
+- [x] **CLI Tool** (`common/pdf_fixtures/analyzers/analyze_pdf.py`)
+  - [x] Command: `python common/pdf_fixtures/analyzers/analyze_pdf.py --input <real_pdf> --output <template.yaml>`
   - [x] Validate output template (check for PII)
   - [x] Support multiple sources (DBS, CMB, Mari Bank)
 
 - [x] **Create Format Templates** (Based on adapter code analysis)
-  - [x] DBS template → `scripts/templates/dbs_template.yaml`
-  - [x] CMB template → `scripts/templates/cmb_template.yaml`
-  - [x] Mari Bank template → `scripts/templates/mari_template.yaml`
+  - [x] DBS template → `common/pdf_fixtures/templates/dbs_template.yaml`
+  - [x] CMB template → `common/pdf_fixtures/templates/cmb_template.yaml`
+  - [x] Mari Bank template → `common/pdf_fixtures/templates/mari_template.yaml`
   - [ ] Manual verification with real PDFs (pending real PDF access)
 
 ### Phase 1: PDF Generation (Based on Templates)
 
 **Goal**: Generate test PDFs using format templates and fictional data
 
-- [x] **Base Generator Class** (`scripts/generators/base_generator.py`)
+- [x] **Base Generator Class** (`common/pdf_fixtures/generators/base_generator.py`)
   - [x] Load format template (YAML)
   - [x] Common PDF creation methods
   - [x] Style definitions based on template
   - [x] Table generation utilities (using template column widths)
 
-- [x] **DBS Generator** (`scripts/generators/dbs_generator.py`)
+- [x] **DBS Generator** (`common/pdf_fixtures/generators/dbs_generator.py`)
   - [x] Load `dbs_template.yaml`
   - [x] Generate header (Account Number, Statement Period)
   - [x] Generate Transaction Details table
   - [x] Format: Date (DD/MM/YYYY), Description, Withdrawal, Deposit, Balance
   - [x] Opening/Closing balance calculation
 
-- [x] **CMB Generator** (`scripts/generators/cmb_generator.py`)
+- [x] **CMB Generator** (`common/pdf_fixtures/generators/cmb_generator.py`)
   - [x] Load `cmb_template.yaml`
   - [x] Support Chinese fonts (宋体, 黑体)
   - [x] Generate transaction table (记账日期, 货币, 交易金额, 联机余额, 交易摘要, 对手信息)
   - [x] Format: Date (YYYY-MM-DD), CNY currency
 
-- [x] **Mari Bank Generator** (`scripts/generators/mari_generator.py`)
+- [x] **Mari Bank Generator** (`common/pdf_fixtures/generators/mari_generator.py`)
   - [x] Load `mari_template.yaml`
   - [x] Generate Account Summary section
   - [x] Generate Transaction Details (DATE, TRANSACTION, OUTGOING, INCOMING)
   - [x] Generate Interest Details section (optional)
   - [x] Format: Date (DD MMM), Statement Period
 
-- [x] **Fake Data Generator** (`scripts/data/fake_data.py`)
+- [x] **Fake Data Generator** (`common/pdf_fixtures/data/fake_data.py`)
   - [x] Generate fictional transactions per source
   - [x] Ensure balance calculations are correct
   - [x] Use realistic but fictional descriptions
   - [x] Support different transaction types per source
 
-- [x] **Main Script** (`scripts/generate_pdf_fixtures.py`)
+- [x] **Main Script** (`tools/generate_pdf_fixtures.py`)
   - [x] Refactor existing script
   - [x] Support `--source` parameter (dbs, cmb, mari, all)
   - [x] Support `--output` parameter (default: `tmp/fixtures/`)
@@ -111,7 +111,7 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 
 **Goal**: Ensure generated PDFs match format and are parseable
 
-- [x] **Format Validator** (`scripts/validators/pdf_validator.py`)
+- [x] **Format Validator** (`common/pdf_fixtures/validators/pdf_validator.py`)
   - [x] Compare generated PDF structure with template
   - [x] Verify table structure (column count, widths, alignment)
   - [x] Verify key text positions
@@ -157,48 +157,48 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `scripts/pdf_fixtures/` and template files
+> **Coverage**: See `common/pdf_fixtures/` and template files
 
 ### AC9.1: PDF Format Analysis (Phase 0)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC9.1.1 | PDF analyzer exists | Manual verification | `scripts/pdf_fixtures/analyzers/pdf_analyzer.py` | P0 |
-| AC9.1.2 | Template extractor exists | Manual verification | `scripts/pdf_fixtures/analyzers/template_extractor.py` | P0 |
-| AC9.1.3 | CLI tool exists | Manual verification | `scripts/pdf_fixtures/analyzers/analyze_pdf.py` | P0 |
-| AC9.1.4 | DBS template exists | Manual verification | `scripts/pdf_fixtures/templates/dbs_template.yaml` | P0 |
-| AC9.1.5 | CMB template exists | Manual verification | `scripts/pdf_fixtures/templates/cmb_template.yaml` | P0 |
-| AC9.1.6 | Mari Bank template exists | Manual verification | `scripts/pdf_fixtures/templates/mari_template.yaml` | P0 |
+| AC9.1.1 | PDF analyzer exists | Manual verification | `common/pdf_fixtures/analyzers/pdf_analyzer.py` | P0 |
+| AC9.1.2 | Template extractor exists | Manual verification | `common/pdf_fixtures/analyzers/template_extractor.py` | P0 |
+| AC9.1.3 | CLI tool exists | Manual verification | `common/pdf_fixtures/analyzers/analyze_pdf.py` | P0 |
+| AC9.1.4 | DBS template exists | Manual verification | `common/pdf_fixtures/templates/dbs_template.yaml` | P0 |
+| AC9.1.5 | CMB template exists | Manual verification | `common/pdf_fixtures/templates/cmb_template.yaml` | P0 |
+| AC9.1.6 | Mari Bank template exists | Manual verification | `common/pdf_fixtures/templates/mari_template.yaml` | P0 |
 
 ### AC9.2: PDF Generators (Phase 1)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC9.2.1 | Base generator class exists | Manual verification | `scripts/pdf_fixtures/generators/base_generator.py` | P0 |
-| AC9.2.2 | DBS generator exists | Manual verification | `scripts/pdf_fixtures/generators/dbs_generator.py` | P0 |
-| AC9.2.3 | CMB generator exists | Manual verification | `scripts/pdf_fixtures/generators/cmb_generator.py` | P0 |
-| AC9.2.4 | Mari Bank generator exists | Manual verification | `scripts/pdf_fixtures/generators/mari_generator.py` | P0 |
-| AC9.2.5 | Font utilities exist | Manual verification | `scripts/pdf_fixtures/generators/font_utils.py` | P0 |
-| AC9.2.6 | Fake data generator exists | Manual verification | `scripts/pdf_fixtures/data/fake_data.py` | P0 |
-| AC9.2.7 | Main script exists | Manual verification | `scripts/pdf_fixtures/generate_pdf_fixtures.py` | P0 |
+| AC9.2.1 | Base generator class exists | Manual verification | `common/pdf_fixtures/generators/base_generator.py` | P0 |
+| AC9.2.2 | DBS generator exists | Manual verification | `common/pdf_fixtures/generators/dbs_generator.py` | P0 |
+| AC9.2.3 | CMB generator exists | Manual verification | `common/pdf_fixtures/generators/cmb_generator.py` | P0 |
+| AC9.2.4 | Mari Bank generator exists | Manual verification | `common/pdf_fixtures/generators/mari_generator.py` | P0 |
+| AC9.2.5 | Font utilities exist | Manual verification | `common/pdf_fixtures/generators/font_utils.py` | P0 |
+| AC9.2.6 | Fake data generator exists | Manual verification | `common/pdf_fixtures/data/fake_data.py` | P0 |
+| AC9.2.7 | Main script exists | Manual verification | `common/pdf_fixtures/generate_pdf_fixtures.py` | P0 |
 
 ### AC9.3: PDF Validation (Phase 2)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC9.3.1 | Format validator exists | Manual verification | `scripts/pdf_fixtures/validators/pdf_validator.py` | P0 |
-| AC9.3.2 | Generated DBS PDF parseable | `test_ac9_3_2_dbs_generated_pdf_parseable` | `scripts/tests/test_pdf_fixture_parseable.py` | P0 |
-| AC9.3.3 | Generated CMB PDF parseable | `test_ac9_3_3_cmb_generated_pdf_parseable` | `scripts/tests/test_pdf_fixture_parseable.py` | P0 |
-| AC9.3.4 | Generated Mari PDF parseable | `test_ac9_3_4_mari_generated_pdf_parseable` | `scripts/tests/test_pdf_fixture_parseable.py` | P0 |
-| AC9.3.5 | Balance calculations correct | `test_ac9_3_5_balance_calculations_correct` | `scripts/tests/test_pdf_fixture_parseable.py` | P0 |
-| AC9.3.6 | Date formats correct | `test_ac9_3_6_date_formats_correct_per_source` | `scripts/tests/test_pdf_fixture_parseable.py` | P0 |
+| AC9.3.1 | Format validator exists | Manual verification | `common/pdf_fixtures/validators/pdf_validator.py` | P0 |
+| AC9.3.2 | Generated DBS PDF parseable | `test_ac9_3_2_dbs_generated_pdf_parseable` | `tests/tooling/test_pdf_fixture_parseable.py` | P0 |
+| AC9.3.3 | Generated CMB PDF parseable | `test_ac9_3_3_cmb_generated_pdf_parseable` | `tests/tooling/test_pdf_fixture_parseable.py` | P0 |
+| AC9.3.4 | Generated Mari PDF parseable | `test_ac9_3_4_mari_generated_pdf_parseable` | `tests/tooling/test_pdf_fixture_parseable.py` | P0 |
+| AC9.3.5 | Balance calculations correct | `test_ac9_3_5_balance_calculations_correct` | `tests/tooling/test_pdf_fixture_parseable.py` | P0 |
+| AC9.3.6 | Date formats correct | `test_ac9_3_6_date_formats_correct_per_source` | `tests/tooling/test_pdf_fixture_parseable.py` | P0 |
 
 ### AC9.4: Documentation & Integration (Phase 3)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC9.4.1 | Format analysis README | Manual verification | `scripts/pdf_fixtures/analyzers/README.md` | P0 |
-| AC9.4.2 | Generation README | Manual verification | `scripts/pdf_fixtures/README.md` | P0 |
+| AC9.4.1 | Format analysis README | Manual verification | `common/pdf_fixtures/analyzers/README.md` | P0 |
+| AC9.4.2 | Generation README | Manual verification | `common/pdf_fixtures/README.md` | P0 |
 | AC9.4.3 | Template format specification | Manual verification | README documentation | P0 |
 | AC9.4.4 | Usage examples | Manual verification | README documentation | P0 |
 
@@ -254,7 +254,7 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 | Balance calculations are correct | Opening + Transactions = Closing (within tolerance) | ⏳ |
 | Date formats match real PDFs | DBS: DD/MM/YYYY, CMB: YYYY-MM-DD, Mari: DD MMM | ⏳ |
 | Generated PDFs use fictional data | Review generated PDF, confirm no real account numbers | ⏳ |
-| Format templates are committed to repo | Check `scripts/templates/*.yaml` in git | ⏳ |
+| Format templates are committed to repo | Check `common/pdf_fixtures/templates/*.yaml` in git | ⏳ |
 | Real PDFs are NOT committed to repo | Verify `.gitignore` excludes real PDFs | ⏳ |
 
 ### 🌟 Nice to Have
@@ -287,15 +287,15 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 ### Code Structure
 
 ```
-scripts/
-  generate_pdf_fixtures.py      # Main script (refactored)
+tools/
+  generate_pdf_fixtures.py      # Command entry point
+  analyze_pdf_fixture.py        # Analyzer command entry point
+common/pdf_fixtures/
   analyzers/
-    ├── __init__.py
     ├── pdf_analyzer.py          # PDF format analyzer
     ├── template_extractor.py    # Format template extractor
-    └── analyze_pdf.py           # CLI tool for analysis
+    └── analyze_pdf.py           # Analysis implementation
   generators/
-    ├── __init__.py
     ├── base_generator.py        # Base generator class
     ├── dbs_generator.py         # DBS PDF generator
     ├── cmb_generator.py         # CMB PDF generator
@@ -315,22 +315,22 @@ scripts/
 **Phase 0: Format Analysis (Local, Offline)**
 ```bash
 # 1. Analyze real PDF (local, not committed)
-python scripts/analyzers/analyze_pdf.py \
+python common/pdf_fixtures/analyzers/analyze_pdf.py \
   --input ~/wealth_pipeline/input/dbs/2501.pdf \
-  --output scripts/templates/dbs_template.yaml
+  --output common/pdf_fixtures/templates/dbs_template.yaml
 
 # 2. Review template (verify no PII)
-cat scripts/templates/dbs_template.yaml
+cat common/pdf_fixtures/templates/dbs_template.yaml
 
 # 3. Commit template and code (not real PDF)
-git add scripts/templates/dbs_template.yaml scripts/analyzers/ scripts/generators/
+git add common/pdf_fixtures/templates/dbs_template.yaml common/pdf_fixtures/analyzers/ common/pdf_fixtures/generators/
 git commit -m "Add DBS PDF format template and generators"
 ```
 
 **Phase 1: Generate Test PDFs (Can Commit Generated PDFs)**
 ```bash
 # Generate test PDFs (using committed templates)
-python scripts/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
+python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
 
 # Generated PDFs can be committed (fictional data)
 git add tmp/fixtures/dbs/test_dbs_2501.pdf
@@ -350,15 +350,15 @@ wealth_pipeline/input/**/*.PDF
 # Local analysis outputs (if contain sensitive info)
 *.analysis.json
 *.analysis.yaml
-!scripts/templates/*.yaml  # But allow committed templates
+!common/pdf_fixtures/templates/*.yaml  # But allow committed templates
 ```
 
 **What CAN be committed:**
-- ✅ Format templates (`scripts/templates/*.yaml`) - Only format parameters
-- ✅ Analysis tool code (`scripts/analyzers/`)
-- ✅ Generation code (`scripts/generators/`)
+- ✅ Format templates (`common/pdf_fixtures/templates/*.yaml`) - Only format parameters
+- ✅ Analysis tool code (`common/pdf_fixtures/analyzers/`)
+- ✅ Generation code (`common/pdf_fixtures/generators/`)
 - ✅ Generated test PDFs (`tmp/fixtures/*.pdf`) - Fictional data
-- ✅ Fake data generator (`scripts/data/fake_data.py`)
+- ✅ Fake data generator (`common/pdf_fixtures/data/fake_data.py`)
 
 **What CANNOT be committed:**
 - ❌ Real PDF files (any location)
@@ -437,15 +437,15 @@ table:
 
 - EPIC-003: Statement Parsing (uses generated PDFs)
 - EPIC-008: Testing Strategy (mentions PDF fixtures)
-- Existing: `scripts/generate_pdf_fixtures.py` (needs refactoring)
+- Existing: `tools/generate_pdf_fixtures.py` (needs refactoring)
 - Adapters: `wealth_pipeline2/src/adapters/` (DBS, CMB, Mari Bank)
 
 ## 📄 Owned Documentation Surfaces
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../../scripts/pdf_fixtures/README.md](../../scripts/pdf_fixtures/README.md) — PDF fixture tool usage.
-- [../../scripts/pdf_fixtures/FONT_HANDLING.md](../../scripts/pdf_fixtures/FONT_HANDLING.md) — fixture font fallback behavior.
+- [../../common/pdf_fixtures/README.md](../../common/pdf_fixtures/README.md) — PDF fixture tool usage.
+- [../../common/pdf_fixtures/FONT_HANDLING.md](../../common/pdf_fixtures/FONT_HANDLING.md) — fixture font fallback behavior.
 
 ---
 

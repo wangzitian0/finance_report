@@ -232,7 +232,7 @@ def parse_args() -> argparse.Namespace:
         default=[
             "apps/backend/tests",
             "apps/frontend/src",
-            "scripts/tests",
+            "tests/tooling",
             "tests/e2e",
         ],
     )

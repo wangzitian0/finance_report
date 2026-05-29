@@ -30,7 +30,9 @@ def upgrade() -> None:
         "ai_feedback",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("suggestion_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("action", sa.String(20), nullable=False),
         sa.Column("corrected_value", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

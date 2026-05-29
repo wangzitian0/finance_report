@@ -345,9 +345,7 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     assert mock_parse.await_args.kwargs["statement_id"] == created.id
 
 
-async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(
-    db, monkeypatch, model_catalog_stub, test_user
-):
+async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(db, monkeypatch, model_catalog_stub, test_user):
     """AC10.8.1: Upload storage failures keep replayable safe failure context."""
     content = b"storage-failure-input"
     mock_error = MagicMock()
@@ -371,7 +369,9 @@ async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(
         )
     await upload_file.close()
 
-    failed = next(call.kwargs for call in mock_error.call_args_list if call.args[0] == "statement.upload.storage_failed")
+    failed = next(
+        call.kwargs for call in mock_error.call_args_list if call.args[0] == "statement.upload.storage_failed"
+    )
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert failed["audit_event"] == "statement.upload.storage_failed"
     assert failed["request_id"]

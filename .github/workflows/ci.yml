@@ -351,19 +351,17 @@ jobs:
           else
             echo "No frontend coverage found"
           fi
-      - name: Run scripts tests with coverage
+      - name: Run tooling tests with coverage
         run: |
-          printf '[run]\nomit =\n    scripts/tests/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n' > /tmp/scripts-coveragerc
-          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest scripts/tests/ \
-            --cov=scripts \
+          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n' > /tmp/tooling-coveragerc
+          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest tests/tooling/ \
             --cov=common \
             --cov=tools \
-            --cov-config=/tmp/scripts-coveragerc \
+            --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
             -x -q
-          COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/scripts.lcov --include='scripts/*'
-          COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
-          COVERAGE_RCFILE=/tmp/scripts-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
       - name: Check CI metrics contract
         run: |
           uv run python tools/check_ci_metrics_contract.py

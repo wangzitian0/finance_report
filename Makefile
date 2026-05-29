@@ -23,7 +23,7 @@ help:
 	@echo "  make clean        Clean generated files"
 
 install:
-	bash scripts/bootstrap.sh
+	bash tools/bootstrap.sh
 
 pre-commit:
 	uvx pre-commit install

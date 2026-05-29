@@ -32,14 +32,14 @@ def _skip_if_no_url() -> None:
 def _get_test_pdf() -> Path:
     # tests/e2e/ → tests/ → repo root  (parents[2])
     root = Path(__file__).resolve().parents[2]
-    dbs_dir = root / "scripts" / "pdf_fixtures" / "output" / "dbs"
+    dbs_dir = root / "common" / "pdf_fixtures" / "output" / "dbs"
 
     if dbs_dir.exists():
         pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf"))
         if pdfs:
             return pdfs[-1]
 
-    script = root / "scripts" / "pdf_fixtures" / "generate_pdf_fixtures.py"
+    script = root / "tools" / "generate_pdf_fixtures.py"
     if script.exists():
         result = subprocess.run(
             [sys.executable, str(script), "--source", "dbs"],
@@ -53,7 +53,7 @@ def _get_test_pdf() -> Path:
 
     pytest.skip(
         "No PDF fixture found and generator unavailable — skipping upload E2E. "
-        "Run: python scripts/pdf_fixtures/generate_pdf_fixtures.py --source dbs"
+        "Run: python tools/generate_pdf_fixtures.py --source dbs"
     )
 
 

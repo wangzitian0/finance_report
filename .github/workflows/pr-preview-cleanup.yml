@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '--dry-run' || '' }}
         run: |
-          python scripts/cleanup_pr_preview_resources.py \
+          python tools/cleanup_pr_preview_resources.py \
             --host cloud.zitian.party \
             --ssh-key ~/.ssh/vps_key \
             --builder-prune-until 24h \

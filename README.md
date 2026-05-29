@@ -169,7 +169,7 @@ dependencies, and pre-commit hooks.
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-bash scripts/bootstrap.sh
+bash tools/bootstrap.sh
 moon run :dev
 ```
 
@@ -179,7 +179,7 @@ not share PATH entries or Python/Node packages with WSL. From PowerShell, enter
 the project through WSL explicitly:
 
 ```powershell
-wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash scripts/bootstrap.sh"
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash tools/bootstrap.sh"
 ```
 
 Open <http://localhost:3000>.
@@ -213,7 +213,8 @@ apps/
 ├── backend/     # FastAPI + SQLAlchemy + PostgreSQL
 └── frontend/    # Next.js + TypeScript
 
-scripts/         # CI, coverage, registry, fixture, and lifecycle tools
+common/          # Shared libraries for CI, coverage, SSOT, fixtures, and dev helpers
+tools/           # Command entry points that delegate to common libraries
 docs/project/    # EPICs and project audit reports
 docs/ssot/       # Rationale docs that link to code owners and proof tests
 ```

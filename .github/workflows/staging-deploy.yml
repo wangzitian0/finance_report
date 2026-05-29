@@ -119,7 +119,7 @@ jobs:
             git diff --name-only "$base_sha" "$head_sha" > changed-files.txt
           fi
 
-          python scripts/ci_change_classifier.py \
+          python tools/ci_change_classifier.py \
             --changed-files changed-files.txt \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
@@ -213,7 +213,7 @@ jobs:
       - name: Resolve Backend Image
         id: backend_image
         run: |
-          bash scripts/check_ghcr_image_tag.sh \
+          bash tools/check_ghcr_image_tag.sh \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Build and push Backend
@@ -231,7 +231,7 @@ jobs:
       - name: Resolve Frontend Image
         id: frontend_image
         run: |
-          bash scripts/check_ghcr_image_tag.sh \
+          bash tools/check_ghcr_image_tag.sh \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Build and push Frontend
@@ -275,13 +275,13 @@ jobs:
           DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
           DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
         run: |
-          bash scripts/dokploy_deploy.sh \
+          bash tools/dokploy_deploy.sh \
             "${{ env.STAGING_COMPOSE_ID }}" \
             "$IMAGE_TAG" \
             "https://report-staging.zitian.party"
           
           echo "Deployment triggered. Waiting for backend to become healthy..."
-          bash scripts/health_check.sh \
+          bash tools/health_check.sh \
             "https://report-staging.zitian.party/api/health" \
             "staging" \
             36 \
@@ -324,7 +324,7 @@ jobs:
           echo "🚀 Starting E2E Pipeline for $APP_URL"
           
           run_timed_phase "Phase 1: Smoke Check (Shell)" \
-            bash scripts/smoke_test.sh "$APP_URL" staging
+            bash tools/smoke_test.sh "$APP_URL" staging
           
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.

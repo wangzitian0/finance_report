@@ -47,7 +47,7 @@ BEHAVIORAL_ROOTS = (
     "tests/e2e/",
 )
 BROAD_CONTRACT_DENYLIST = {
-    "scripts/tests/test_issue_459_infra_contracts.py",
+    "tests/tooling/test_issue_459_infra_contracts.py",
 }
 TEST_CALL_RE = re.compile(
     r"\b(?:it|test)\s*(?:\.\w+)?\s*\(\s*(['\"`])(?P<title>.*?)(?<!\\)\1",

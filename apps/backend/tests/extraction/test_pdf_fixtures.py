@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 BACKEND_DIR = REPO_ROOT / "apps/backend"
-SCRIPT_PATH = REPO_ROOT / "scripts/generate_test_pdfs.py"
+SCRIPT_PATH = REPO_ROOT / "tools/generate_test_pdfs.py"
 OUTPUT_DIR = BACKEND_DIR / "tests/fixtures/generated"
 
 EXPECTED = {

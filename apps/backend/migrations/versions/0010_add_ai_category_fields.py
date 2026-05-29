@@ -5,9 +5,8 @@ Revises: 5e7857c97b74
 Create Date: 2026-03-18
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0010_ai_category"
 down_revision = "5e7857c97b74"

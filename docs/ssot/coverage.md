@@ -19,8 +19,8 @@ Coverage is measured using **LCOV executable lines** (`LF:` field) as the denomi
 
 ```
 unified_coverage = total_covered_lines / total_executable_lines
-                 = (backend_covered + frontend_covered + common_covered + tools_covered + scripts_covered) /
-                   (backend_executable + frontend_executable + common_executable + tools_executable + scripts_executable)
+                 = (backend_covered + frontend_covered + common_covered + tools_covered) /
+                   (backend_executable + frontend_executable + common_executable + tools_executable)
 ```
 
 **Unified CI Gate**: No-regression baseline comparison (zero tolerance for drops), plus a source tree vs LCOV policy audit. No fixed minimum unified threshold is enforced.
@@ -42,7 +42,6 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 | Frontend | `apps/frontend/src` | `src/...` relative to `apps/frontend` | `coverage/frontend.lcov` |
 | Common | `common` | `common/...` relative to repo root | `coverage/common.lcov` |
 | Tools | `tools` | `tools/...` relative to repo root | `coverage/tools.lcov` |
-| Scripts | `scripts` | `scripts/...` relative to repo root | `coverage/scripts.lcov` |
 
 `tools/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
 
@@ -72,20 +71,9 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
   - `**/*.test.ts`, `**/*.spec.ts`
   - `**/*.config.*`, `**/types/**`
 
-### Scripts Coverage
-
-- **Tool**: pytest-cov
-- **Output**: `coverage-scripts.lcov`
-- **CI Output**: `coverage/scripts.lcov`
-- **Scope**: legacy compatibility wrappers while migration removes `scripts/`
-- **Excluded**:
-  - `scripts/tests/**`
-  - Python test modules under `scripts/`
-  - Shell scripts are not part of LCOV executable-line coverage
-
 ### Tools Coverage
 
-- **Tool**: pytest-cov from the scripts test suite
+- **Tool**: pytest-cov from the tooling test suite
 - **Output**: `coverage-tools.lcov`
 - **CI Output**: `coverage/tools.lcov`
 - **Scope**: command entry points only; reusable implementation belongs in `common/`
@@ -95,7 +83,7 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 
 ### Common Coverage
 
-- **Tool**: pytest-cov from the scripts test suite
+- **Tool**: pytest-cov from the tooling test suite
 - **Output**: `coverage-common.lcov`
 - **CI Output**: `coverage/common.lcov`
 - **Excluded**:
@@ -124,7 +112,7 @@ jobs:
     # Runs: python tools/calculate_unified_coverage.py
     # Runs: python tools/check_coverage_policy.py
     # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
-    # Builds repository-root-relative backend + frontend + common + tools + scripts LCOV for Coveralls
+    # Builds repository-root-relative backend + frontend + common + tools LCOV for Coveralls
 ```
 
 ### Coverage Calculation
@@ -133,7 +121,7 @@ jobs:
 
 1. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
 2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
-3. Aggregates backend + frontend + common + tools + scripts covered/executable counts
+3. Aggregates backend + frontend + common + tools covered/executable counts
 4. Reports unified percentage and exits 1 if coverage dropped below baseline
 5. Lists file-level low coverage from the same component LCOV files when run
    with `--list-low-files`
