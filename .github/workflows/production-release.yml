@@ -121,6 +121,8 @@ jobs:
           context: ./apps/backend
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}
+          build-args: |
+            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
 
       - name: Build Frontend
         uses: docker/build-push-action@v5
@@ -217,6 +219,8 @@ jobs:
           context: ./apps/backend
           push: false
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}
+          build-args: |
+            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
 
       - name: Build Frontend Image Without Push
         uses: docker/build-push-action@v5
