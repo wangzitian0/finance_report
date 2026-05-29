@@ -34,6 +34,7 @@ from src.routers import (
     corrections,
     income,
     journal,
+    market_data,
     portfolio,
     reports,
     review,
@@ -43,6 +44,7 @@ from src.routers import (
 )
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
+from src.services.market_data_scheduler import run_market_data_scheduler
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
 from src.services.storage_sweep import run_storage_sweep
 from src.utils.exceptions import BaseAppException
@@ -99,15 +101,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     stop_event = asyncio.Event()
     supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
+    market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event))
     sweep_task = asyncio.create_task(run_storage_sweep(stop_event))
     logger.info("Application started", version="0.1.0")
     yield
     stop_event.set()
     supervisor_task.cancel()
+    market_data_task.cancel()
     sweep_task.cancel()
 
     with suppress(asyncio.CancelledError):
         await supervisor_task
+    with suppress(asyncio.CancelledError):
+        await market_data_task
     with suppress(asyncio.CancelledError):
         await sweep_task
     logger.info("Application shutting down")
@@ -258,6 +264,7 @@ app.include_router(assets.router)
 app.include_router(chat.router)
 app.include_router(corrections.router)
 app.include_router(journal.router)
+app.include_router(market_data.router)
 app.include_router(income.router)
 app.include_router(reports.router)
 app.include_router(statements.router)

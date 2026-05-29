@@ -431,6 +431,8 @@ jobs:
           TIMEOUT_MS: 60000
           E2E_API_TIMEOUT: 30
           STRICT_E2E_GATES: true
+          RUN_MARKET_DATA_PROVIDER_E2E: true
+          MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
 

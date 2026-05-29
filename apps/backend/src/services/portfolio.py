@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.logger import get_logger
+from src.models import StockPrice
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import MarketDataOverride, PriceSource
@@ -122,6 +123,7 @@ class PortfolioService:
                     currency=position.currency,
                     target_currency=settings.base_currency,
                     rate_date=eval_date,
+                    lazy_load=True,
                 )
                 converted_cost = await fx.convert_amount(
                     db,
@@ -129,6 +131,7 @@ class PortfolioService:
                     currency=position.currency,
                     target_currency=settings.base_currency,
                     rate_date=position.acquisition_date,
+                    lazy_load=True,
                 )
                 currency = settings.base_currency
             else:
@@ -136,8 +139,11 @@ class PortfolioService:
                 converted_cost = position.cost_basis
                 currency = position.currency
 
+            converted_value = converted_value.quantize(Decimal("0.01"))
+            converted_cost = converted_cost.quantize(Decimal("0.01"))
+
             # Calculate P&L (unrealized: market_value - cost_basis)
-            unrealized_pnl = converted_value - converted_cost
+            unrealized_pnl = (converted_value - converted_cost).quantize(Decimal("0.01"))
             if converted_cost != Decimal("0"):
                 unrealized_pnl_percent = (unrealized_pnl / converted_cost) * Decimal("100")
             else:
@@ -229,30 +235,49 @@ class PortfolioService:
                 )
                 continue
 
-            market_value = snapshot.market_value
-            cost_basis = snapshot.market_value
-            currency = snapshot.currency
-            if snapshot.currency != settings.base_currency:
+            synced_price = await self._get_latest_synced_stock_price(db, snapshot.asset_identifier, as_of_date)
+            if synced_price is not None and snapshot.quantity != Decimal("0"):
+                market_value = synced_price.price * snapshot.quantity
+                market_value_currency = synced_price.currency
+                cost_basis = position.cost_basis
+                cost_basis_currency = position.currency
+            else:
+                market_value = snapshot.market_value
+                market_value_currency = snapshot.currency
+                cost_basis = snapshot.market_value
+                cost_basis_currency = snapshot.currency
+
+            currency = market_value_currency
+            if market_value_currency != settings.base_currency:
                 converted_market_value = await fx.convert_amount(
                     db,
                     amount=market_value,
-                    currency=snapshot.currency,
+                    currency=market_value_currency,
                     target_currency=settings.base_currency,
                     rate_date=as_of_date,
-                )
-                converted_cost_basis = await fx.convert_amount(
-                    db,
-                    amount=cost_basis,
-                    currency=snapshot.currency,
-                    target_currency=settings.base_currency,
-                    rate_date=as_of_date,
+                    lazy_load=True,
                 )
                 currency = settings.base_currency
             else:
                 converted_market_value = market_value
+
+            if cost_basis_currency != settings.base_currency:
+                converted_cost_basis = await fx.convert_amount(
+                    db,
+                    amount=cost_basis,
+                    currency=cost_basis_currency,
+                    target_currency=settings.base_currency,
+                    rate_date=as_of_date,
+                    lazy_load=True,
+                )
+                currency = settings.base_currency
+            else:
                 converted_cost_basis = cost_basis
 
-            unrealized_pnl = converted_market_value - converted_cost_basis
+            converted_market_value = converted_market_value.quantize(Decimal("0.01"))
+            converted_cost_basis = converted_cost_basis.quantize(Decimal("0.01"))
+
+            unrealized_pnl = (converted_market_value - converted_cost_basis).quantize(Decimal("0.01"))
             if converted_cost_basis != Decimal("0"):
                 unrealized_pnl_percent = (unrealized_pnl / converted_cost_basis) * Decimal("100")
             else:
@@ -387,6 +412,7 @@ class PortfolioService:
                     currency=position.currency,
                     target_currency=settings.base_currency,
                     rate_date=position.disposal_date,
+                    lazy_load=True,
                 )
                 converted_cost = await fx.convert_amount(
                     db,
@@ -394,6 +420,7 @@ class PortfolioService:
                     currency=position.currency,
                     target_currency=settings.base_currency,
                     rate_date=position.acquisition_date,
+                    lazy_load=True,
                 )
             else:
                 converted_disposal = disposal_value
@@ -498,6 +525,7 @@ class PortfolioService:
                     currency=position.currency,
                     target_currency=settings.base_currency,
                     rate_date=eval_date,
+                    lazy_load=True,
                 )
                 converted_cost = await fx.convert_amount(
                     db,
@@ -505,6 +533,7 @@ class PortfolioService:
                     currency=position.currency,
                     target_currency=settings.base_currency,
                     rate_date=position.acquisition_date,
+                    lazy_load=True,
                 )
                 currency = settings.base_currency
             else:
@@ -722,6 +751,19 @@ class PortfolioService:
         if override:
             return override.price
 
+        synced_price = await self._get_latest_synced_stock_price(db, position.asset_identifier, eval_date)
+        if synced_price is not None:
+            if synced_price.currency == position.currency:
+                return synced_price.price
+            return await fx.convert_amount(
+                db,
+                amount=synced_price.price,
+                currency=synced_price.currency,
+                target_currency=position.currency,
+                rate_date=eval_date,
+                lazy_load=True,
+            )
+
         # Get latest snapshot from AtomicPosition (scoped by user_id)
         snapshot_query = (
             select(AtomicPosition)
@@ -742,6 +784,21 @@ class PortfolioService:
 
         # No price data available
         raise AssetNotFoundError(f"No price data available for {position.asset_identifier} on {eval_date}")
+
+    async def _get_latest_synced_stock_price(
+        self,
+        db: AsyncSession,
+        asset_identifier: str,
+        eval_date: date,
+    ) -> StockPrice | None:
+        """Return the latest synced daily stock price on or before eval_date."""
+        return await db.scalar(
+            select(StockPrice)
+            .where(StockPrice.symbol == asset_identifier.strip().upper())
+            .where(StockPrice.price_date <= eval_date)
+            .order_by(StockPrice.price_date.desc())
+            .limit(1)
+        )
 
     async def _default_holdings_eval_date(self, db: AsyncSession, user_id: UUID) -> date:
         """Use today unless the latest imported portfolio snapshot is newer."""

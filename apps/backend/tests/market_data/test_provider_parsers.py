@@ -1,0 +1,662 @@
+"""AC11.10: Market data provider parsing and validation tests."""
+
+from datetime import UTC, date, datetime
+from decimal import Decimal
+
+import httpx
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from src.services import market_data
+
+
+def _epoch(value: date) -> int:
+    return int(datetime(value.year, value.month, value.day, tzinfo=UTC).timestamp())
+
+
+def test_market_data_helper_boundaries() -> None:
+    """AC11.10.2: Helper boundaries keep sync ranges and provider symbols deterministic."""
+    assert market_data._iter_dates(date(2026, 1, 3), date(2026, 1, 1)) == []
+    assert market_data._parse_fx_pair(" usd / sgd ") == ("USD", "SGD")
+    with pytest.raises(ValueError, match="expected BASE/QUOTE"):
+        market_data._parse_fx_pair("USD-SGD")
+
+    assert market_data._default_start_date(date(2026, 1, 8)) == date(2026, 1, 2)
+    assert market_data._incremental_start(date(2026, 1, 3), None, date(2026, 1, 5)) == date(2026, 1, 4)
+    assert market_data._incremental_start(date(2026, 1, 6), None, date(2026, 1, 5)) is None
+    assert market_data._relative_difference(Decimal("0"), Decimal("0")) == Decimal("0")
+    assert market_data._relative_difference(Decimal("100"), Decimal("98")) == Decimal("0.020000")
+    assert market_data._stooq_stock_symbol("AAPL") == "aapl.us"
+    assert market_data._stooq_stock_symbol("0700.HK") == "0700.hk"
+    assert market_data._stooq_fx_symbol("USD", "SGD") == "usdsgd"
+    assert market_data._normalize_utc(datetime(2026, 1, 5)).tzinfo == UTC
+
+
+def test_select_validated_observation_paths() -> None:
+    """AC11.10.4: Provider selection accepts fallback data and blocks disagreements."""
+    observed_date = date(2026, 1, 5)
+    primary = market_data.StockPriceObservation(
+        symbol="AAPL",
+        price=Decimal("100.00"),
+        currency="USD",
+        price_date=observed_date,
+        source="primary",
+    )
+    secondary_close = market_data.StockPriceObservation(
+        symbol="AAPL",
+        price=Decimal("100.50"),
+        currency="USD",
+        price_date=observed_date,
+        source="secondary",
+    )
+    secondary_far = market_data.StockPriceObservation(
+        symbol="AAPL",
+        price=Decimal("120.00"),
+        currency="USD",
+        price_date=observed_date,
+        source="secondary",
+    )
+
+    assert (
+        market_data._select_validated_observation(
+            asset="AAPL", observed_date=observed_date, primary=None, secondary=secondary_close
+        ).observation
+        == secondary_close
+    )
+    assert (
+        market_data._select_validated_observation(
+            asset="AAPL", observed_date=observed_date, primary=primary, secondary=None
+        ).observation
+        == primary
+    )
+
+    validated = market_data._select_validated_observation(
+        asset="AAPL",
+        observed_date=observed_date,
+        primary=primary,
+        secondary=secondary_close,
+    )
+    assert isinstance(validated.observation, market_data.StockPriceObservation)
+    assert validated.observation.source == "primary:validated:secondary"
+
+    disagreement = market_data._select_validated_observation(
+        asset="AAPL",
+        observed_date=observed_date,
+        primary=primary,
+        secondary=secondary_far,
+    )
+    assert disagreement.observation is None
+    assert disagreement.disagreement is not None
+    assert disagreement.disagreement.to_dict()["asset"] == "AAPL"
+
+    series = market_data._select_validated_observation_series(
+        asset="AAPL",
+        start_date=observed_date,
+        end_date=observed_date,
+        primary=[
+            market_data.StockPriceObservation(
+                symbol="AAPL",
+                price=Decimal("99.00"),
+                currency="USD",
+                price_date=date(2026, 1, 4),
+                source="primary",
+            ),
+            primary,
+        ],
+        secondary=[secondary_far],
+        provider_success=True,
+    )
+    assert series.observations == []
+    assert len(series.disagreements) == 1
+
+
+def test_yahoo_response_parsers_select_latest_valid_observation() -> None:
+    """AC11.10.4: Yahoo parsers ignore null/future closes and keep Decimal precision."""
+    payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "usd"},
+                    "timestamp": [
+                        _epoch(date(2026, 1, 3)),
+                        _epoch(date(2026, 1, 4)),
+                        _epoch(date(2026, 1, 5)),
+                    ],
+                    "indicators": {"quote": [{"close": [1.23, None, 1.25]}]},
+                }
+            ]
+        }
+    }
+
+    fx = market_data._parse_yahoo_fx_response(payload, "USD", "SGD", date(2026, 1, 4))
+    assert fx is not None
+    assert fx.rate == Decimal("1.230000")
+    assert fx.rate_date == date(2026, 1, 3)
+
+    stock = market_data._parse_yahoo_stock_response(payload, "AAPL", date(2026, 1, 5))
+    assert stock is not None
+    assert stock.price == Decimal("1.250000")
+    assert stock.currency == "USD"
+    assert stock.price_date == date(2026, 1, 5)
+
+    assert market_data._parse_yahoo_fx_response({"chart": {"result": []}}, "USD", "SGD", date(2026, 1, 5)) is None
+    assert market_data._parse_yahoo_stock_response({"chart": {"result": []}}, "AAPL", date(2026, 1, 5)) is None
+
+
+def test_yahoo_response_series_parsers_return_bounded_rows() -> None:
+    """AC11.10.8: Yahoo range parsers return only observations inside the requested window."""
+    payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "usd"},
+                    "timestamp": [
+                        _epoch(date(2026, 1, 3)),
+                        _epoch(date(2026, 1, 4)),
+                        _epoch(date(2026, 1, 5)),
+                    ],
+                    "indicators": {"quote": [{"close": [1.23, None, 1.25]}]},
+                }
+            ]
+        }
+    }
+
+    fx_rows = market_data._parse_yahoo_fx_response_series(
+        payload,
+        "USD",
+        "SGD",
+        date(2026, 1, 4),
+        date(2026, 1, 5),
+    )
+    stock_rows = market_data._parse_yahoo_stock_response_series(
+        payload,
+        "AAPL",
+        date(2026, 1, 4),
+        date(2026, 1, 5),
+    )
+
+    assert [row.rate_date for row in fx_rows] == [date(2026, 1, 5)]
+    assert fx_rows[0].rate == Decimal("1.250000")
+    assert [row.price_date for row in stock_rows] == [date(2026, 1, 5)]
+    assert stock_rows[0].currency == "USD"
+    assert (
+        market_data._parse_yahoo_fx_response_series(
+            {"chart": {"result": []}}, "USD", "SGD", date(2026, 1, 4), date(2026, 1, 5)
+        )
+        == []
+    )
+    assert (
+        market_data._parse_yahoo_stock_response_series(
+            {"chart": {"result": []}}, "AAPL", date(2026, 1, 4), date(2026, 1, 5)
+        )
+        == []
+    )
+
+
+def test_stock_parsers_return_none_when_only_future_rows_exist() -> None:
+    """AC11.10.3: Future-dated provider rows are ignored as unavailable for the requested day."""
+    yahoo_payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "USD"},
+                    "timestamp": [_epoch(date(2026, 1, 6))],
+                    "indicators": {"quote": [{"close": [150.25]}]},
+                }
+            ]
+        }
+    }
+    stooq_payload = "Date,Close\n2026-01-06,150.25\n"
+
+    assert market_data._parse_yahoo_stock_response(yahoo_payload, "AAPL", date(2026, 1, 5)) is None
+    assert market_data._parse_stooq_stock_csv(stooq_payload, "AAPL", date(2026, 1, 5)) is None
+
+
+def test_stooq_csv_parsers_skip_invalid_rows_and_select_latest() -> None:
+    """AC11.10.4: Stooq CSV parsers skip N/D and future rows."""
+    payload = "\n".join(
+        [
+            "Date,Open,High,Low,Close,Volume",
+            "2026-01-03,1,1,1,N/D,0",
+            "2026-01-04,1,1,1,1.35001,0",
+            "2026-01-05,1,1,1,1.36001,0",
+        ]
+    )
+
+    fx = market_data._parse_stooq_fx_csv(payload, "USD", "SGD", date(2026, 1, 4))
+    assert fx is not None
+    assert fx.rate == Decimal("1.350010")
+    assert fx.rate_date == date(2026, 1, 4)
+
+    stock = market_data._parse_stooq_stock_csv(payload, "AAPL", date(2026, 1, 5))
+    assert stock is not None
+    assert stock.price == Decimal("1.360010")
+    assert stock.currency == "USD"
+    assert stock.price_date == date(2026, 1, 5)
+
+    assert market_data._parse_stooq_fx_csv("Date,Close\n2026-01-01,N/D\n", "USD", "SGD", date(2026, 1, 5)) is None
+    assert market_data._parse_stooq_stock_csv("Date,Close\n2026-01-01,N/D\n", "AAPL", date(2026, 1, 5)) is None
+
+
+def test_stooq_csv_series_parsers_skip_invalid_and_out_of_range_rows() -> None:
+    """AC11.10.8: Stooq range parsers return bounded valid rows for bulk sync."""
+    payload = "\n".join(
+        [
+            "Date,Open,High,Low,Close,Volume",
+            "2026-01-03,1,1,1,1.33000,0",
+            "2026-01-04,1,1,1,N/D,0",
+            "2026-01-05,1,1,1,1.35000,0",
+            "2026-01-06,1,1,1,1.36000,0",
+        ]
+    )
+
+    fx_rows = market_data._parse_stooq_fx_csv_series(payload, "USD", "SGD", date(2026, 1, 4), date(2026, 1, 5))
+    stock_rows = market_data._parse_stooq_stock_csv_series(payload, "AAPL", date(2026, 1, 4), date(2026, 1, 5))
+
+    assert [row.rate_date for row in fx_rows] == [date(2026, 1, 5)]
+    assert fx_rows[0].rate == Decimal("1.350000")
+    assert [row.price_date for row in stock_rows] == [date(2026, 1, 5)]
+    assert stock_rows[0].price == Decimal("1.350000")
+
+
+@pytest.mark.asyncio
+async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.1: Concurrent stock price inserts are resolved idempotently."""
+
+    class FakeDb:
+        def add(self, _row: object) -> None:
+            return None
+
+        async def commit(self) -> None:
+            raise IntegrityError("insert", {}, Exception("duplicate"))
+
+        async def rollback(self) -> None:
+            return None
+
+    calls = 0
+
+    async def fake_load(
+        _db: object,
+        _symbol: str,
+        _requested_date: date,
+    ) -> market_data._StoredStockPrice | None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None
+        return market_data._StoredStockPrice(
+            price=Decimal("150.000000"),
+            currency="USD",
+            price_date=date(2026, 1, 5),
+            source="concurrent",
+        )
+
+    monkeypatch.setattr(market_data, "_load_stored_stock_price_on_date", fake_load)
+
+    price = await market_data._persist_stock_price(
+        FakeDb(),  # type: ignore[arg-type]
+        market_data.StockPriceObservation(
+            symbol="aapl",
+            price=Decimal("160.000000"),
+            currency="usd",
+            price_date=date(2026, 1, 5),
+            source="provider",
+        ),
+    )
+
+    assert price == Decimal("150.000000")
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_validated_provider_functions_cross_validate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC11.10.4: Validated fetches combine primary and secondary providers."""
+    observed_date = date(2026, 1, 5)
+
+    async def fake_yahoo_fx(base: str, quote: str, requested_date: date) -> market_data.FxRateObservation:
+        return market_data.FxRateObservation(base, quote, Decimal("1.350000"), requested_date, "yahoo_finance")
+
+    async def fake_stooq_fx(base: str, quote: str, requested_date: date) -> market_data.FxRateObservation:
+        return market_data.FxRateObservation(base, quote, Decimal("1.351000"), requested_date, "stooq")
+
+    async def fake_yahoo_stock(symbol: str, requested_date: date) -> market_data.StockPriceObservation:
+        return market_data.StockPriceObservation(symbol, Decimal("100.00"), "USD", requested_date, "yahoo_finance")
+
+    async def fake_stooq_stock(symbol: str, requested_date: date) -> market_data.StockPriceObservation:
+        return market_data.StockPriceObservation(symbol, Decimal("100.10"), "USD", requested_date, "stooq")
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_or_derived_fx_rate", fake_yahoo_fx)
+    monkeypatch.setattr(market_data, "_fetch_stooq_fx_rate", fake_stooq_fx)
+    monkeypatch.setattr(market_data, "_fetch_yahoo_stock_price", fake_yahoo_stock)
+    monkeypatch.setattr(market_data, "_fetch_stooq_stock_price", fake_stooq_stock)
+
+    fx = await market_data._fetch_validated_fx_rate("USD", "SGD", observed_date)
+    stock = await market_data._fetch_validated_stock_price("aapl", observed_date)
+
+    assert isinstance(fx.observation, market_data.FxRateObservation)
+    assert fx.observation.source == "yahoo_finance:validated:stooq"
+    assert isinstance(stock.observation, market_data.StockPriceObservation)
+    assert stock.observation.symbol == "AAPL"
+    assert stock.observation.source == "yahoo_finance:validated:stooq"
+
+
+@pytest.mark.asyncio
+async def test_fetch_validated_provider_series_functions_cross_validate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC11.10.8: Validated range fetches cross-validate rows by observation date."""
+    observed_date = date(2026, 1, 5)
+
+    async def fake_yahoo_fx(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation]:
+        return [market_data.FxRateObservation(base, quote, Decimal("1.350000"), observed_date, "yahoo_finance")]
+
+    async def fake_stooq_fx(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation]:
+        return [market_data.FxRateObservation(base, quote, Decimal("1.351000"), observed_date, "stooq")]
+
+    async def fake_yahoo_stock(
+        symbol: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.StockPriceObservation]:
+        return [market_data.StockPriceObservation(symbol, Decimal("100.00"), "USD", observed_date, "yahoo_finance")]
+
+    async def fake_stooq_stock(
+        symbol: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.StockPriceObservation]:
+        return [market_data.StockPriceObservation(symbol, Decimal("100.10"), "USD", observed_date, "stooq")]
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_or_derived_fx_rate_series", fake_yahoo_fx)
+    monkeypatch.setattr(market_data, "_fetch_stooq_fx_rate_series", fake_stooq_fx)
+    monkeypatch.setattr(market_data, "_fetch_yahoo_stock_price_series", fake_yahoo_stock)
+    monkeypatch.setattr(market_data, "_fetch_stooq_stock_price_series", fake_stooq_stock)
+
+    fx = await market_data._fetch_validated_fx_rate_series("USD", "SGD", observed_date, observed_date)
+    stock = await market_data._fetch_validated_stock_price_series("aapl", observed_date, observed_date)
+
+    assert len(fx.observations) == 1
+    assert isinstance(fx.observations[0], market_data.FxRateObservation)
+    assert fx.observations[0].source == "yahoo_finance:validated:stooq"
+    assert len(stock.observations) == 1
+    assert isinstance(stock.observations[0], market_data.StockPriceObservation)
+    assert stock.observations[0].source == "yahoo_finance:validated:stooq"
+
+
+@pytest.mark.asyncio
+async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse_and_bridge(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC11.10.2: Yahoo FX fetch derives inverse and bridge pairs when direct data is absent."""
+    observed_date = date(2026, 1, 5)
+
+    async def fake_inverse_fetch(base: str, quote: str, requested_date: date) -> market_data.FxRateObservation | None:
+        if (base, quote) == ("SGD", "USD"):
+            return market_data.FxRateObservation(base, quote, Decimal("0.740000"), requested_date, "yahoo_finance")
+        return None
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_inverse_fetch)
+    inverse = await market_data._fetch_yahoo_or_derived_fx_rate("USD", "SGD", observed_date)
+    assert inverse is not None
+    assert inverse.rate == Decimal("1.351351")
+    assert inverse.source == "yahoo_finance:inverse"
+
+    async def fake_bridge_fetch(base: str, quote: str, requested_date: date) -> market_data.FxRateObservation | None:
+        rates = {
+            ("EUR", "USD"): Decimal("1.100000"),
+            ("USD", "SGD"): Decimal("1.350000"),
+        }
+        rate = rates.get((base, quote))
+        if rate is None:
+            return None
+        return market_data.FxRateObservation(base, quote, rate, requested_date, "yahoo_finance")
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate", fake_bridge_fetch)
+    bridge = await market_data._fetch_yahoo_or_derived_fx_rate("EUR", "SGD", observed_date)
+    assert bridge is not None
+    assert bridge.rate == Decimal("1.485000")
+    assert bridge.source == "yahoo_finance:bridge:USD"
+
+    missing = await market_data._fetch_yahoo_or_derived_fx_rate("GBP", "SGD", observed_date)
+    assert missing is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC11.10.8: Yahoo FX range fetch derives inverse and bridge rows for bulk sync."""
+    observed_date = date(2026, 1, 5)
+
+    async def fake_inverse_fetch(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        if (base, quote) == ("SGD", "USD"):
+            return [market_data.FxRateObservation(base, quote, Decimal("0.740000"), observed_date, "yahoo_finance")]
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_inverse_fetch)
+    inverse = await market_data._fetch_yahoo_or_derived_fx_rate_series("USD", "SGD", observed_date, observed_date)
+    assert inverse is not None
+    assert inverse[0].rate == Decimal("1.351351")
+    assert inverse[0].source == "yahoo_finance:inverse"
+
+    async def fake_bridge_fetch(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        rates = {
+            ("EUR", "USD"): Decimal("1.100000"),
+            ("USD", "SGD"): Decimal("1.350000"),
+        }
+        rate = rates.get((base, quote))
+        if rate is None:
+            return []
+        return [market_data.FxRateObservation(base, quote, rate, observed_date, "yahoo_finance")]
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_bridge_fetch)
+    bridge = await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date)
+    assert bridge is not None
+    assert bridge[0].rate == Decimal("1.485000")
+    assert bridge[0].source == "yahoo_finance:bridge:USD"
+
+    async def fake_failed_fetch(
+        _base: str,
+        _quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        return None
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_failed_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("GBP", "SGD", observed_date, observed_date) is None
+
+    async def fake_pair_bridge_fetch(
+        _base: str,
+        _quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_pair_bridge_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("USD", "SGD", observed_date, observed_date) == []
+
+    async def fake_missing_bridge_leg_fetch(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        if (base, quote) == ("EUR", "USD"):
+            return [market_data.FxRateObservation(base, quote, Decimal("1.100000"), observed_date, "yahoo_finance")]
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_missing_bridge_leg_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
+
+    async def fake_mismatched_bridge_fetch(
+        base: str,
+        quote: str,
+        _start_date: date,
+        _end_date: date,
+    ) -> list[market_data.FxRateObservation] | None:
+        if (base, quote) == ("EUR", "USD"):
+            return [market_data.FxRateObservation(base, quote, Decimal("1.100000"), observed_date, "yahoo_finance")]
+        if (base, quote) == ("USD", "SGD"):
+            return [
+                market_data.FxRateObservation(
+                    base,
+                    quote,
+                    Decimal("1.350000"),
+                    date(2026, 1, 6),
+                    "yahoo_finance",
+                )
+            ]
+        return []
+
+    monkeypatch.setattr(market_data, "_fetch_yahoo_fx_rate_series", fake_mismatched_bridge_fetch)
+    assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
+
+
+@pytest.mark.asyncio
+async def test_provider_http_wrappers_parse_success_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC11.10.4: HTTP wrappers hand responses to parsers and convert provider errors to misses."""
+
+    class FakeResponse:
+        def __init__(self, *, payload: dict[str, object] | None = None, text: str = "", error: bool = False) -> None:
+            self._payload = payload or {}
+            self.text = text
+            self._error = error
+
+        def json(self) -> dict[str, object]:
+            return self._payload
+
+        def raise_for_status(self) -> None:
+            if self._error:
+                raise httpx.HTTPStatusError(
+                    "boom", request=httpx.Request("GET", "https://example.test"), response=httpx.Response(500)
+                )
+
+    class FakeAsyncClient:
+        response: FakeResponse
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def get(self, _url: str, *, params: dict[str, str]) -> FakeResponse:
+            assert params["interval"] == "1d" if "interval" in params else params["i"] == "d"
+            return self.response
+
+    monkeypatch.setattr(market_data.httpx, "AsyncClient", FakeAsyncClient)
+    chart_payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "USD"},
+                    "timestamp": [_epoch(date(2026, 1, 5))],
+                    "indicators": {"quote": [{"close": [150.25]}]},
+                }
+            ]
+        }
+    }
+    csv_payload = "Date,Close\n2026-01-05,150.25\n"
+
+    FakeAsyncClient.response = FakeResponse(payload=chart_payload)
+    assert await market_data._fetch_yahoo_fx_rate("USD", "SGD", date(2026, 1, 5)) is not None
+    assert await market_data._fetch_yahoo_stock_price("AAPL", date(2026, 1, 5)) is not None
+
+    FakeAsyncClient.response = FakeResponse(text=csv_payload)
+    assert await market_data._fetch_stooq_fx_rate("USD", "SGD", date(2026, 1, 5)) is not None
+    assert await market_data._fetch_stooq_stock_price("AAPL", date(2026, 1, 5)) is not None
+
+    FakeAsyncClient.response = FakeResponse(error=True)
+    assert await market_data._fetch_yahoo_fx_rate("USD", "SGD", date(2026, 1, 5)) is None
+    assert await market_data._fetch_yahoo_stock_price("AAPL", date(2026, 1, 5)) is None
+    assert await market_data._fetch_stooq_fx_rate("USD", "SGD", date(2026, 1, 5)) is None
+    assert await market_data._fetch_stooq_stock_price("AAPL", date(2026, 1, 5)) is None
+
+
+@pytest.mark.asyncio
+async def test_provider_http_range_wrappers_parse_success_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC11.10.8: HTTP range wrappers parse bulk provider responses and report request failures."""
+
+    class FakeResponse:
+        def __init__(self, *, payload: dict[str, object] | None = None, text: str = "", error: bool = False) -> None:
+            self._payload = payload or {}
+            self.text = text
+            self._error = error
+
+        def json(self) -> dict[str, object]:
+            return self._payload
+
+        def raise_for_status(self) -> None:
+            if self._error:
+                raise httpx.HTTPStatusError(
+                    "boom",
+                    request=httpx.Request("GET", "https://example.test"),
+                    response=httpx.Response(500),
+                )
+
+    class FakeAsyncClient:
+        response: FakeResponse
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def get(self, _url: str, *, params: dict[str, str]) -> FakeResponse:
+            assert params["interval"] == "1d" if "interval" in params else params["i"] == "d"
+            return self.response
+
+    monkeypatch.setattr(market_data.httpx, "AsyncClient", FakeAsyncClient)
+    chart_payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "USD"},
+                    "timestamp": [_epoch(date(2026, 1, 5))],
+                    "indicators": {"quote": [{"close": [150.25]}]},
+                }
+            ]
+        }
+    }
+    csv_payload = "Date,Close\n2026-01-05,150.25\n"
+
+    FakeAsyncClient.response = FakeResponse(payload=chart_payload)
+    assert await market_data._fetch_yahoo_fx_rate_series("USD", "SGD", date(2026, 1, 5), date(2026, 1, 5))
+    assert await market_data._fetch_yahoo_stock_price_series("AAPL", date(2026, 1, 5), date(2026, 1, 5))
+
+    FakeAsyncClient.response = FakeResponse(text=csv_payload)
+    assert await market_data._fetch_stooq_fx_rate_series("USD", "SGD", date(2026, 1, 5), date(2026, 1, 5))
+    assert await market_data._fetch_stooq_stock_price_series("AAPL", date(2026, 1, 5), date(2026, 1, 5))
+
+    FakeAsyncClient.response = FakeResponse(error=True)
+    assert await market_data._fetch_yahoo_fx_rate_series("USD", "SGD", date(2026, 1, 5), date(2026, 1, 5)) is None
+    assert await market_data._fetch_yahoo_stock_price_series("AAPL", date(2026, 1, 5), date(2026, 1, 5)) is None
+    assert await market_data._fetch_stooq_fx_rate_series("USD", "SGD", date(2026, 1, 5), date(2026, 1, 5)) is None
+    assert await market_data._fetch_stooq_stock_price_series("AAPL", date(2026, 1, 5), date(2026, 1, 5)) is None

@@ -15,7 +15,7 @@ from sqlalchemy import select, union
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import AccountType, FxRate
+from src.models import Account, AccountType, FxRate
 from src.schemas import (
     AccountTrendResponse,
     BalanceSheetResponse,
@@ -28,6 +28,7 @@ from src.schemas import (
     NetWorthTimeSeriesResponse,
     TrendPeriod,
 )
+from src.services.market_data import ensure_market_data_fresh
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -41,6 +42,29 @@ from src.utils import raise_bad_request
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
+
+
+def _target_currency_pair(currency: str | None) -> list[str]:
+    target = (currency or settings.base_currency).strip().upper()
+    base = settings.base_currency.strip().upper()
+    if target == base:
+        return []
+    return [f"{target}/{base}"]
+
+
+async def _ensure_report_market_data_fresh(
+    db: DbSession,
+    user_id: CurrentUserId,
+    *,
+    currency: str | None,
+) -> None:
+    has_report_subjects = await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1))
+    await ensure_market_data_fresh(
+        db,
+        user_id=user_id,
+        include_default_fx=False,
+        extra_fx_pairs=_target_currency_pair(currency) if has_report_subjects is not None else [],
+    )
 
 
 @router.get("/currencies", response_model=list[str])
@@ -83,6 +107,7 @@ async def balance_sheet(
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         report = await generate_balance_sheet(
             db,
             user_id,
@@ -113,6 +138,7 @@ async def income_statement(
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         report = await generate_income_statement(
             db,
             user_id,
@@ -144,6 +170,7 @@ async def cash_flow(
 ) -> CashFlowResponse:
     """Get cash flow statement for a period."""
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         report = await generate_cash_flow(
             db,
             user_id,
@@ -173,6 +200,7 @@ async def account_trend(
 ) -> AccountTrendResponse:
     """Get account trend data."""
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         report = await get_account_trend(
             db,
             user_id,
@@ -203,6 +231,7 @@ async def net_worth_timeseries(
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         report = await get_net_worth_timeseries(
             db,
             user_id,
@@ -235,6 +264,7 @@ async def category_breakdown(
     """Get income or expense category breakdown."""
     account_type = AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         report = await get_category_breakdown(
             db,
             user_id,
@@ -270,6 +300,7 @@ async def export_report(
     writer = csv.writer(output)
 
     try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         if report_type == ReportType.BALANCE_SHEET:
             report = await generate_balance_sheet(
                 db,
@@ -307,7 +338,7 @@ async def export_report(
             writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
             writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
-        else:
+        else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
     except ReportError as exc:
         logger.warning(

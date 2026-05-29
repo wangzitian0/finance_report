@@ -39,3 +39,52 @@ class FxRate(Base):
 
     def __repr__(self) -> str:
         return f"<FxRate {self.base_currency}/{self.quote_currency} {self.rate} {self.rate_date}>"
+
+
+class StockPrice(Base):
+    """Daily stock price snapshot used for portfolio valuation."""
+
+    __tablename__ = "stock_prices"
+    __table_args__ = (
+        UniqueConstraint("symbol", "price_date", name="uq_stock_prices_symbol_date"),
+        Index("idx_stock_prices_lookup", "symbol", "price_date"),
+    )
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    price: Mapped[Decimal] = mapped_column(DECIMAL(18, 6), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    price_date: Mapped[date] = mapped_column(Date, nullable=False)
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    def __repr__(self) -> str:
+        return f"<StockPrice {self.symbol} {self.price} {self.currency} {self.price_date}>"
+
+
+class MarketDataSyncState(Base):
+    """Last successful provider sync state for one market data scope."""
+
+    __tablename__ = "market_data_sync_state"
+    __table_args__ = (
+        UniqueConstraint("kind", "scope", name="uq_market_data_sync_state_kind_scope"),
+        Index("idx_market_data_sync_state_lookup", "kind", "scope"),
+    )
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    scope: Mapped[str] = mapped_column(String(50), nullable=False)
+    last_success_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_success_date: Mapped[date] = mapped_column(Date, nullable=False)
+    last_observation_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
