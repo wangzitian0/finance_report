@@ -77,7 +77,7 @@ status.
 | **Deployment** | ✅ Automated | `tools/dokploy_deploy.sh`, `moon run :deploy` | 100% |
 | **Environment Consistency** | ✅ Automated | `tools/check_env_keys.py`, `validate_schemas.py` | 100% |
 | **Container Management** | ✅ Automated | `cleanup_leaked_containers.py` | 100% |
-| **PDF Fixture Generation** | 🟡 Semi-automated | `common/pdf_fixtures/` with `tools/generate_pdf_fixtures.py` | 60% |
+| **PDF Fixture Generation** | 🟡 Semi-automated | `tools/_lib/pdf_fixtures/` with `tools/generate_pdf_fixtures.py` | 60% |
 | **Smoke Testing** | ✅ Automated | `tools/smoke_test.sh` | 100% |
 
 ### Documentation Constraints Found

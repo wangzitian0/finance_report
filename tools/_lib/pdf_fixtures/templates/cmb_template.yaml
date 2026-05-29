@@ -1,6 +1,6 @@
 # CMB (China Merchants Bank) PDF Format Template
 # Extracted format information only (no sensitive data)
-# This template can be refined by running: python tools/analyze_pdf_fixture.py --input <real_pdf> --output common/pdf_fixtures/templates/cmb_template.yaml --source cmb
+# This template can be refined by running: python tools/analyze_pdf_fixture.py --input <real_pdf> --output tools/_lib/pdf_fixtures/templates/cmb_template.yaml --source cmb
 
 source: cmb
 

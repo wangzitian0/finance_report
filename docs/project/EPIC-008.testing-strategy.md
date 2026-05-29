@@ -53,7 +53,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - An AC counts as "covered" when it has a **passing Tier 1+ test** that exercises the real code path (not a mock/stub).
 - Tier 2/3 tests that `skip` due to missing env vars (e.g., `FRONTEND_URL`) do NOT count toward coverage.
 - The **AC pass rate** = (ACs with at least one passing Tier 1+ test) / (Total ACs).
-- CI source coverage uses the shared coverage policy in `common/coverage/policy.py`. New backend, frontend, common, and script modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
+- CI source coverage uses the shared coverage policy in `common/coverage/policy.py`. New backend, frontend, common, and tools modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
 - **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 - **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
 - **AC8.13.17**: AC registry generation preserves canonical descriptions and stores entries under ACx.y merge anchors without committed totals.
@@ -92,12 +92,12 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.50**: Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors.
 - **AC8.13.51**: Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling.
 - **AC8.13.52**: Production release dry-run validates release prerequisites and image builds without production mutation.
-- **AC8.13.53**: Common shared tooling owns SSOT, coverage, and isolation helpers; root command entry points live in `tools/`.
+- **AC8.13.53**: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points and tool-owned implementations live in `tools/`.
 - **AC8.13.54**: Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift.
 - **AC8.13.55**: Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes.
-- **AC8.13.56**: Coverage and CI metric command entry points run from `tools/` while shared implementations live under `common/`.
+- **AC8.13.56**: Coverage command entry points run from `tools/`; the shared policy stays in `common/coverage/policy.py`, and command implementations live under `tools/_lib/coverage/`.
 - **AC8.13.57**: SSOT and AC command entry points run from `tools/` while shared implementations live under `common/ssot/`.
-- **AC8.13.58**: CI and toolchain command entry points run from `tools/` while shared implementations live under `common/ci/`.
+- **AC8.13.58**: CI and toolchain command entry points run from `tools/`; reusable contracts stay under `common/ci/`, while report and shell command implementations live under `tools/_lib/`.
 - **AC8.13.59**: Config validation command entry points run from `tools/` while shared implementations live under `common/config/`.
 - **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
 - **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
@@ -426,12 +426,12 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.50 | Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors | `test_AC8_13_50_*` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
 | AC8.13.51 | Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling | `test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.52 | Production release dry-run validates release prerequisites and image builds without production mutation | `test_AC8_13_52_production_release_dry_run_does_not_mutate_production` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.53 | Common shared tooling owns SSOT, coverage, and isolation helpers; root command entry points live in `tools/` | `test_AC8_13_53_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py` | P0 |
+| AC8.13.53 | Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points and tool-owned implementations live in `tools/` | `test_AC8_13_53_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py` | P0 |
 | AC8.13.54 | Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift | `test_AC8_13_54_*` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
 | AC8.13.55 | Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes | `test_AC8_13_55_*` | `tests/tooling/test_ci_change_classifier.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.56 | Coverage and CI metric command entry points run from `tools/` while shared implementations live under `common/` | `test_AC8_13_56_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_coverage_policy.py`, `tests/tooling/test_build_unified_lcov.py` | P0 |
+| AC8.13.56 | Coverage command entry points run from `tools/`; the shared policy stays in `common/coverage/policy.py`, and command implementations live under `tools/_lib/coverage/` | `test_AC8_13_56_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_coverage_policy.py`, `tests/tooling/test_build_unified_lcov.py` | P0 |
 | AC8.13.57 | SSOT and AC command entry points run from `tools/` while shared implementations live under `common/ssot/` | `test_AC8_13_57_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_ci_metrics_contract.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.58 | CI and toolchain command entry points run from `tools/` while shared implementations live under `common/ci/` | `test_AC8_13_58_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_toolchain_contract.py`, `tests/tooling/test_ci_change_classifier.py`, `tests/tooling/test_github_workflow_timing_summary.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.58 | CI and toolchain command entry points run from `tools/`; reusable contracts stay under `common/ci/`, while report and shell command implementations live under `tools/_lib/` | `test_AC8_13_58_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_toolchain_contract.py`, `tests/tooling/test_ci_change_classifier.py`, `tests/tooling/test_github_workflow_timing_summary.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.59 | Config validation command entry points run from `tools/` while shared implementations live under `common/config/` | `test_AC8_13_59_*` | `tests/tooling/test_common_tooling_modules.py`, `tests/tooling/test_check_env_keys.py`, `tests/tooling/test_validate_schemas.py` | P0 |
 | AC8.13.60 | Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk | `test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 |

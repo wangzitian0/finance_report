@@ -9,7 +9,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.fixtures.generate_fixtures import main  # noqa: E402
+from tools._lib.fixtures.generate_fixtures import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(main())

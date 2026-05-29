@@ -28,7 +28,7 @@ PR_PREVIEW_PREFIXES = (
     "apps/backend/",
     "apps/frontend/",
     ".github/actions/setup-e2e-tests/",
-    "common/pdf_fixtures/",
+    "tools/_lib/pdf_fixtures/",
     "tests/e2e/",
 )
 
@@ -51,7 +51,7 @@ STAGING_PREFIXES = (
     "apps/frontend/",
     ".github/actions/setup-e2e-tests/",
     "repo/",
-    "common/pdf_fixtures/",
+    "tools/_lib/pdf_fixtures/",
     "tests/e2e/",
 )
 

@@ -3,24 +3,25 @@
 from __future__ import annotations
 
 import sys
+import builtins
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from common.pdf_fixtures.analyzers import analyze_pdf as analyze_pdf_cli
-from common.pdf_fixtures.analyzers.pdf_analyzer import PDFAnalyzer, TemplateExtractor
-from common.pdf_fixtures.data.fake_data import (
+from tools._lib.pdf_fixtures.analyzers import analyze_pdf as analyze_pdf_cli
+from tools._lib.pdf_fixtures.analyzers.pdf_analyzer import PDFAnalyzer, TemplateExtractor
+from tools._lib.pdf_fixtures.data.fake_data import (
     generate_cmb_transactions,
     generate_dbs_transactions,
     generate_mari_transactions,
     generate_moomoo_transactions,
     generate_pingan_transactions,
 )
-from common.pdf_fixtures import generate_pdf_fixtures
-from common.pdf_fixtures.generators import font_utils
-from common.pdf_fixtures.validators.pdf_validator import PDFValidator
+from tools._lib.pdf_fixtures import generate_pdf_fixtures
+from tools._lib.pdf_fixtures.generators import font_utils
+from tools._lib.pdf_fixtures.validators.pdf_validator import PDFValidator
 
 
 class _FakePdf:
@@ -47,7 +48,7 @@ def test_AC9_1_1_analyzer_extracts_page_table_and_text_positions(
         extract_text=lambda: "Statement Period\nTransaction Details\nBalance",
     )
     monkeypatch.setattr(
-        "common.pdf_fixtures.analyzers.pdf_analyzer.pdfplumber.open",
+        "tools._lib.pdf_fixtures.analyzers.pdf_analyzer.pdfplumber.open",
         lambda _path: _FakePdf([page]),
     )
 
@@ -68,7 +69,7 @@ def test_AC9_1_1_analyzer_rejects_unreadable_pdf(
         raise RuntimeError("cannot parse")
 
     monkeypatch.setattr(
-        "common.pdf_fixtures.analyzers.pdf_analyzer.pdfplumber.open",
+        "tools._lib.pdf_fixtures.analyzers.pdf_analyzer.pdfplumber.open",
         raise_open,
     )
 
@@ -111,7 +112,7 @@ def test_AC9_3_1_validator_reports_page_table_and_key_phrase_findings(
         extract_text=lambda: "Account Summary",
     )
     monkeypatch.setattr(
-        "common.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
         lambda _path: _FakePdf([page]),
     )
 
@@ -146,7 +147,7 @@ def test_AC9_3_1_validator_fails_empty_and_unreadable_pdfs(
 ) -> None:
     """AC9.3.1: Empty or unreadable PDFs fail validation explicitly."""
     monkeypatch.setattr(
-        "common.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
         lambda _path: _FakePdf([]),
     )
     empty_result = PDFValidator().validate_structure(Path("empty.pdf"), {})
@@ -157,7 +158,7 @@ def test_AC9_3_1_validator_fails_empty_and_unreadable_pdfs(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "common.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
         raise_open,
     )
     bad_result = PDFValidator().validate_structure(Path("bad.pdf"), {})
@@ -173,7 +174,7 @@ def test_AC9_3_1_validator_compares_real_and_generated_structure(
     generated_page = SimpleNamespace(extract_tables=lambda: [])
     opened = iter([_FakePdf([real_page, real_page]), _FakePdf([generated_page])])
     monkeypatch.setattr(
-        "common.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
         lambda _path: next(opened),
     )
 
@@ -193,7 +194,7 @@ def test_AC9_3_1_validator_reports_compare_errors(
         raise RuntimeError("compare failed")
 
     monkeypatch.setattr(
-        "common.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
+        "tools._lib.pdf_fixtures.validators.pdf_validator.pdfplumber.open",
         raise_open,
     )
 
@@ -346,6 +347,26 @@ def test_AC9_7_1_main_legacy_mode_uses_backward_compatible_filename(
     assert generated[0].read_bytes() == b"%PDF fake"
 
 
+def test_AC9_7_1_main_legacy_mode_defaults_to_tmp_fixtures(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC9.7.1: Legacy CLI mode keeps the tmp/fixtures default for E2E callers."""
+    generated: list[Path] = []
+
+    def fake_generate(output_path: Path) -> None:
+        generated.append(output_path)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["generate_pdf_fixtures.py"])
+    monkeypatch.setattr(generate_pdf_fixtures, "generate_legacy_dbs_pdf", fake_generate)
+
+    generate_pdf_fixtures.main()
+
+    assert generated == [Path("tmp/fixtures") / "e2e_dbs_statement.pdf"]
+    assert (tmp_path / "tmp" / "fixtures").is_dir()
+
+
 def test_AC9_7_1_AC9_7_2_main_generates_selected_source(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -370,6 +391,92 @@ def test_AC9_7_1_AC9_7_2_main_generates_selected_source(
     assert generated[0].read_bytes().startswith(b"%PDF")
 
 
+def test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC9.7.1 AC9.7.2: --source all dispatches every generator branch."""
+    generated: list[tuple[str, Path, Path]] = []
+
+    def make_generator(source: str):
+        class FakeGenerator:
+            def __init__(self, template_path: Path) -> None:
+                self.template_path = template_path
+
+            def generate(
+                self,
+                output_path: Path,
+                period_start: datetime,
+                period_end: datetime,
+            ) -> None:
+                assert period_start < period_end
+                generated.append((source, self.template_path, output_path))
+
+        return FakeGenerator
+
+    import tools._lib.pdf_fixtures.generators.cmb_generator as cmb_module
+    import tools._lib.pdf_fixtures.generators.dbs_generator as dbs_module
+    import tools._lib.pdf_fixtures.generators.futu_generator as futu_module
+    import tools._lib.pdf_fixtures.generators.mari_generator as mari_module
+    import tools._lib.pdf_fixtures.generators.moomoo_generator as moomoo_module
+    import tools._lib.pdf_fixtures.generators.pingan_generator as pingan_module
+
+    monkeypatch.setattr(cmb_module, "CMBGenerator", make_generator("cmb"))
+    monkeypatch.setattr(dbs_module, "DBSGenerator", make_generator("dbs"))
+    monkeypatch.setattr(futu_module, "FutuGenerator", make_generator("futu"))
+    monkeypatch.setattr(mari_module, "MariGenerator", make_generator("mari"))
+    monkeypatch.setattr(moomoo_module, "MoomooGenerator", make_generator("moomoo"))
+    monkeypatch.setattr(pingan_module, "PinganGenerator", make_generator("pingan"))
+    monkeypatch.setattr(
+        generate_pdf_fixtures,
+        "__file__",
+        str(tmp_path / "generate_pdf_fixtures.py"),
+    )
+    monkeypatch.setattr(sys, "argv", ["generate_pdf_fixtures.py", "--source", "all"])
+
+    generate_pdf_fixtures.main()
+
+    assert [source for source, _, _ in generated] == [
+        "dbs",
+        "cmb",
+        "mari",
+        "moomoo",
+        "futu",
+        "pingan",
+    ]
+    for source, template_path, output_path in generated:
+        assert template_path == tmp_path / "templates" / f"{source}_template.yaml"
+        assert output_path.parent == tmp_path / "output" / source
+        assert output_path.name.startswith(f"test_{source}_")
+
+
+def test_AC9_7_1_main_reports_generator_import_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC9.7.1: Main fixture CLI fails closed when generator imports fail."""
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "generators.cmb_generator" and level == 1:
+            raise ImportError("missing cmb generator")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["generate_pdf_fixtures.py", "--source", "dbs", "--output", str(tmp_path)],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        generate_pdf_fixtures.main()
+
+    assert exc.value.code == 1
+    assert "missing cmb generator" in capsys.readouterr().out
+
+
 def test_AC9_7_1_main_reports_generator_errors(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -390,7 +497,7 @@ def test_AC9_7_1_main_reports_generator_errors(
     )
 
     # Patch the imported class inside the real generators module path used by main().
-    import common.pdf_fixtures.generators.dbs_generator as dbs_module
+    import tools._lib.pdf_fixtures.generators.dbs_generator as dbs_module
 
     monkeypatch.setattr(dbs_module, "DBSGenerator", BrokenGenerator)
 

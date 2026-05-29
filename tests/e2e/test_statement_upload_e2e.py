@@ -32,7 +32,7 @@ def _skip_if_no_url() -> None:
 def _get_test_pdf() -> Path:
     # tests/e2e/ → tests/ → repo root  (parents[2])
     root = Path(__file__).resolve().parents[2]
-    dbs_dir = root / "common" / "pdf_fixtures" / "output" / "dbs"
+    dbs_dir = root / "tools" / "_lib" / "pdf_fixtures" / "output" / "dbs"
 
     if dbs_dir.exists():
         pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf"))

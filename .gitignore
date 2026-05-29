@@ -29,9 +29,9 @@ htmlcov/
 coverage-common.lcov
 coverage-tools.lcov
 # unified-coverage.json is intentionally tracked (coverage baseline)
-coverage/
+/coverage/
 
 # PDF Fixtures: Input and Output directories
-common/pdf_fixtures/input/
-common/pdf_fixtures/output/
+tools/_lib/pdf_fixtures/input/
+tools/_lib/pdf_fixtures/output/
 .sisyphus/

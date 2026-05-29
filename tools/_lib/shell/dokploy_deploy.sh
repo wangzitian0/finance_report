@@ -20,7 +20,8 @@
 set -euo pipefail
 
 # shellcheck source=common/shell/common.sh
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$REPO_ROOT/common/shell/common.sh"
 
 missing_args=()
 missing_envs=()

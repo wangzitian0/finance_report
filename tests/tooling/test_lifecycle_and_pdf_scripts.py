@@ -13,21 +13,21 @@ from types import ModuleType
 
 import pytest
 
-from common.dev import test_lifecycle as tl  # noqa: E402
+from tools._lib.dev import test_lifecycle as tl  # noqa: E402
 
-GENERATE_TEST_PDFS_MODULE = "common.fixtures.generate_test_pdfs"
+GENERATE_TEST_PDFS_MODULE = "tools._lib.fixtures.generate_test_pdfs"
 
 
 def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
     """AC8.13.15: Script coverage policy can see PDF fixture tool modules."""
     modules = [
-        "common.pdf_fixtures.analyzers.analyze_pdf",
-        "common.pdf_fixtures.analyzers.pdf_analyzer",
-        "common.pdf_fixtures.generate_pdf_fixtures",
-        "common.pdf_fixtures.generators.moomoo_generator",
-        "common.pdf_fixtures.generators.pingan_generator",
-        "common.pdf_fixtures.validators",
-        "common.pdf_fixtures.validators.pdf_validator",
+        "tools._lib.pdf_fixtures.analyzers.analyze_pdf",
+        "tools._lib.pdf_fixtures.analyzers.pdf_analyzer",
+        "tools._lib.pdf_fixtures.generate_pdf_fixtures",
+        "tools._lib.pdf_fixtures.generators.moomoo_generator",
+        "tools._lib.pdf_fixtures.generators.pingan_generator",
+        "tools._lib.pdf_fixtures.validators",
+        "tools._lib.pdf_fixtures.validators.pdf_validator",
     ]
 
     for module in modules:

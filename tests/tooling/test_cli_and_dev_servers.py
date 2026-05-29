@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.dev import cli, dev_backend, dev_frontend  # noqa: E402
+from tools._lib.dev import cli, dev_backend, dev_frontend  # noqa: E402
 
 
 def test_AC16_11_16_get_compose_cmd_prefers_podman(monkeypatch):

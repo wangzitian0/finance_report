@@ -10,8 +10,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.coverage import check_policy  # noqa: E402
-from common.coverage.check_policy import compare_component, main, run_audit  # noqa: E402
+from tools._lib.coverage import build_unified_lcov  # noqa: E402
+from tools._lib.coverage import check_policy  # noqa: E402
+from tools._lib.coverage.check_policy import compare_component, main, run_audit  # noqa: E402
 from common.coverage.policy import CoverageComponent, parse_lcov_sources  # noqa: E402
 
 
@@ -154,6 +155,69 @@ def test_lcov_sources_normalize_component_prefixed_paths(tmp_path):
     }
 
 
+def test_lcov_path_prefers_ci_then_local_fallback(tmp_path):
+    """AC8.13.15: Coverage policy uses local LCOV only when CI LCOV is absent."""
+    component = CoverageComponent(
+        name="sample",
+        component_root="",
+        source_subdir="tools",
+        extensions=(".py",),
+        ci_lcov_path="coverage/ci.lcov",
+        local_lcov_paths=("coverage/local.lcov",),
+        exclude_patterns=(),
+    )
+    local_lcov = _write(tmp_path, "coverage/local.lcov", "")
+
+    assert component.lcov_path(tmp_path) == local_lcov
+
+    ci_lcov = _write(tmp_path, "coverage/ci.lcov", "")
+    assert component.lcov_path(tmp_path) == ci_lcov
+
+
+def test_normalize_absolute_lcov_source_outside_component_root(tmp_path):
+    """AC8.13.15: External absolute LCOV sources stay unchanged for diagnostics."""
+    component = _component(tmp_path)
+    external = tmp_path.parent / "outside.py"
+
+    assert component.normalize_lcov_source(str(external), tmp_path) == str(external)
+
+
+def test_expected_sources_handles_missing_roots_and_directory_matches(tmp_path):
+    """AC8.13.15: Missing roots and directory matches do not enter expected files."""
+    component = CoverageComponent(
+        name="sample",
+        component_root="",
+        source_subdir="missing",
+        extensions=(".py",),
+        ci_lcov_path="coverage/sample.lcov",
+        local_lcov_paths=(),
+        exclude_patterns=(),
+    )
+    assert component.expected_sources(tmp_path) == set()
+
+    component = CoverageComponent(
+        name="sample",
+        component_root="",
+        source_subdir="tools",
+        extensions=(".py",),
+        ci_lcov_path="coverage/sample.lcov",
+        local_lcov_paths=(),
+        exclude_patterns=(),
+    )
+    (tmp_path / "tools" / "package.py").mkdir(parents=True)
+    assert component.expected_sources(tmp_path) == set()
+
+
+def test_parse_lcov_sources_missing_file_returns_empty(tmp_path):
+    """AC8.13.15: Missing LCOV reports produce an empty source set."""
+    component = _component(tmp_path)
+
+    assert (
+        parse_lcov_sources(tmp_path / "coverage" / "missing.lcov", component, tmp_path)
+        == set()
+    )
+
+
 def test_tools_policy_does_not_expect_shell_files(tmp_path):
     """AC8.13.15: Tools LCOV tracks Python modules and does not require shell files."""
     component = CoverageComponent(
@@ -170,6 +234,37 @@ def test_tools_policy_does_not_expect_shell_files(tmp_path):
     _write(tmp_path, "tests/tooling/test_build.py")
 
     assert component.expected_sources(tmp_path) == {"tools/build.py"}
+
+
+def test_build_unified_lcov_main_exits_with_builder_result(tmp_path, monkeypatch):
+    """AC8.13.15: Unified LCOV CLI passes repo root and output into the builder."""
+    calls: list[tuple[Path, Path]] = []
+
+    def fake_build_unified_lcov(output: Path, repo_root: Path) -> int:
+        calls.append((output, repo_root))
+        return 4
+
+    monkeypatch.setattr(
+        build_unified_lcov,
+        "build_unified_lcov",
+        fake_build_unified_lcov,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_unified_lcov.py",
+            str(tmp_path / "coverage" / "unified.lcov"),
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        build_unified_lcov.main()
+
+    assert exc.value.code == 4
+    assert calls == [(tmp_path / "coverage" / "unified.lcov", tmp_path.resolve())]
 
 
 def test_AC8_13_56_tools_policy_tracks_python_command_entrypoints(tmp_path):

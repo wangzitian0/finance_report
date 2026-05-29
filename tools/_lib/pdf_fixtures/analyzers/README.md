@@ -5,15 +5,15 @@ for synthetic fixture generation.
 
 ## Local-Only Input
 
-Place real PDFs under `common/pdf_fixtures/input/`. This directory is
+Place real PDFs under `tools/_lib/pdf_fixtures/input/`. This directory is
 gitignored and must stay local because it may contain sensitive statement data.
 
 ## Extract a Template
 
 ```bash
 python tools/analyze_pdf_fixture.py \
-  --input common/pdf_fixtures/input/real_dbs_statement.pdf \
-  --output common/pdf_fixtures/templates/dbs_template.yaml \
+  --input tools/_lib/pdf_fixtures/input/real_dbs_statement.pdf \
+  --output tools/_lib/pdf_fixtures/templates/dbs_template.yaml \
   --source dbs
 ```
 

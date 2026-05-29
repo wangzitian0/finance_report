@@ -6,6 +6,8 @@ import importlib
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -53,28 +55,34 @@ def test_AC8_13_53_root_scripts_tree_is_removed():
 
 
 def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
-    """AC8.13.53: Common code is measured as its own coverage component."""
+    """AC8.13.53: Common code is measured without tool-owned implementations."""
     component = coverage_policy.get_component("common")
 
     assert component.component_root == ""
     assert component.source_subdir == "common"
     assert component.ci_lcov_path == "coverage/common.lcov"
     assert "common/test_isolation.py" in component.expected_sources(ROOT)
-    assert "common/dev/test_lifecycle.py" in component.expected_sources(ROOT)
+    assert "common/ssot/check_ac_traceability.py" in component.expected_sources(ROOT)
+    assert "tools/_lib/dev/test_lifecycle.py" not in component.expected_sources(ROOT)
+    assert not (ROOT / "common" / "dev").exists()
+    assert not (ROOT / "common" / "fixtures").exists()
+    assert not (ROOT / "common" / "pdf_fixtures").exists()
 
 
 def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
-    """AC8.13.56: Tools entry points are measured separately from shared code."""
+    """AC8.13.56: Tools entry points and private implementations are measured."""
     component = coverage_policy.get_component("tools")
 
     assert component.component_root == ""
     assert component.source_subdir == "tools"
     assert component.ci_lcov_path == "coverage/tools.lcov"
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
+    assert "tools/_lib/coverage/calculate_unified_coverage.py" in component.expected_sources(ROOT)
+    assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
-    """AC8.13.56: Coverage commands live under tools and delegate to common."""
+    """AC8.13.56: Coverage commands live under tools and delegate to tools._lib."""
     build_tool = importlib.import_module("tools.build_unified_lcov")
     calc_tool = importlib.import_module("tools.calculate_unified_coverage")
     analyzer_tool = importlib.import_module("tools.coverage_analyzer")
@@ -84,21 +92,52 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
 
     assert (
         build_tool.main
-        is importlib.import_module("common.coverage.build_unified_lcov").main
+        is importlib.import_module("tools._lib.coverage.build_unified_lcov").main
     )
     assert (
         calc_tool.main
-        is importlib.import_module("common.coverage.calculate_unified_coverage").main
+        is importlib.import_module("tools._lib.coverage.calculate_unified_coverage").main
     )
     assert (
-        analyzer_tool.main is importlib.import_module("common.coverage.analyzer").main
+        analyzer_tool.main is importlib.import_module("tools._lib.coverage.analyzer").main
     )
-    assert merge_tool.main is importlib.import_module("common.coverage.merge_lcov").main
+    assert merge_tool.main is importlib.import_module("tools._lib.coverage.merge_lcov").main
     assert (
-        policy_tool.main is importlib.import_module("common.coverage.check_policy").main
+        policy_tool.main is importlib.import_module("tools._lib.coverage.check_policy").main
     )
     assert (
         metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
+    )
+
+
+@pytest.mark.parametrize(
+    ("tool_module", "implementation_module"),
+    [
+        ("tools.analyze_pdf_fixture", "tools._lib.pdf_fixtures.analyzers.analyze_pdf"),
+        ("tools.generate_pdf_fixtures", "tools._lib.pdf_fixtures.generate_pdf_fixtures"),
+        ("tools.generate_fixtures", "tools._lib.fixtures.generate_fixtures"),
+        ("tools.generate_test_pdfs", "tools._lib.fixtures.generate_test_pdfs"),
+        ("tools.sanitize_fixtures", "tools._lib.fixtures.sanitize_fixtures"),
+        ("tools.seed_fx_rates", "tools._lib.market_data.seed_fx_rates"),
+        ("tools.cleanup_orphaned_dbs", "tools._lib.dev.cleanup_orphaned_dbs"),
+        (
+            "tools.cleanup_pr_preview_resources",
+            "tools._lib.dev.cleanup_pr_preview_resources",
+        ),
+        ("tools.cli", "tools._lib.dev.cli"),
+        ("tools.debug", "tools._lib.dev.debug"),
+        ("tools.dev_backend", "tools._lib.dev.dev_backend"),
+        ("tools.dev_frontend", "tools._lib.dev.dev_frontend"),
+        ("tools.test_lifecycle", "tools._lib.dev.test_lifecycle"),
+    ],
+)
+def test_AC8_13_53_tool_owned_commands_delegate_to_tools_lib(
+    tool_module: str, implementation_module: str
+):
+    """AC8.13.53: Tool-owned commands delegate to tools._lib, not common."""
+    assert (
+        importlib.import_module(tool_module).main
+        is importlib.import_module(implementation_module).main
     )
 
 
@@ -126,12 +165,12 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
 
 
 def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
-    """AC8.13.58: CI commands live under tools and delegate to common."""
+    """AC8.13.58: CI commands keep common contracts separate from tool reports."""
     command_modules = {
         "tools.check_toolchain_contract": "common.ci.check_toolchain_contract",
         "tools.ci_change_classifier": "common.ci.change_classifier",
         "tools.github_workflow_timing_summary": (
-            "common.ci.github_workflow_timing_summary"
+            "tools._lib.ci.github_workflow_timing_summary"
         ),
     }
 
@@ -157,7 +196,7 @@ def test_AC8_13_59_config_validation_tools_delegate_to_common_implementations():
 
 
 def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
-    """AC8.13.58: Shell command entry points stay thin and delegate to common."""
+    """AC8.13.58: Shell command entry points stay thin and delegate to tools._lib."""
     shell_commands = [
         "bootstrap.sh",
         "check_ghcr_image_tag.sh",
@@ -171,14 +210,14 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
 
     for command in shell_commands:
         wrapper = (ROOT / "tools" / command).read_text(encoding="utf-8")
-        implementation = (ROOT / "common" / "shell" / command).read_text(
+        implementation = (ROOT / "tools" / "_lib" / "shell" / command).read_text(
             encoding="utf-8"
         )
 
-        assert "common/shell/$(basename" in wrapper
+        assert "tools/_lib/shell/$(basename" in wrapper
         assert len(wrapper.splitlines()) <= 5
         assert implementation.startswith("#!")
-        assert "common/shell/$(basename" not in implementation
+        assert "tools/_lib/shell/$(basename" not in implementation
 
 
 def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():
@@ -197,3 +236,37 @@ def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():
     assert len(db_name) <= test_isolation.MAX_POSTGRES_IDENTIFIER_LENGTH
     assert bucket.startswith("statements-feature-")
     assert len(bucket) <= test_isolation.MAX_S3_BUCKET_LENGTH
+
+
+def test_AC8_13_53_common_isolation_handles_error_and_registry_edges(tmp_path):
+    """AC8.13.53: Common isolation helpers cover invalid and persistent edges."""
+    with pytest.raises(ValueError, match="max_length too short"):
+        test_isolation.shorten_identifier("abcdefghi", 8)
+
+    with pytest.raises(ValueError, match="Base bucket name too long"):
+        test_isolation.get_s3_bucket("feature_" + "x" * 20, base_bucket="b" * 60)
+
+    assert (
+        test_isolation.get_namespace(branch_name="Feature/X", workspace_id="!!!")
+        == "feature_x"
+    )
+
+    class Result:
+        stdout = "Issue/Branch\n"
+
+    assert test_isolation.get_namespace(
+        run=lambda *args, **kwargs: Result(),
+        cwd_getter=lambda: tmp_path,
+    ).startswith("issue_branch_")
+
+    assert test_isolation.get_namespace(
+        run=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("git down")),
+        cwd_getter=lambda: tmp_path,
+    ).startswith("default_")
+
+    cache_dir = tmp_path / "cache"
+    active_file = cache_dir / "active.json"
+    test_isolation.register_namespace("feature_x", active_file, cache_dir)
+    assert test_isolation.load_active_namespaces(active_file, cache_dir) == ["feature_x"]
+    test_isolation.unregister_namespace("feature_x", active_file, cache_dir)
+    assert test_isolation.load_active_namespaces(active_file, cache_dir) == []

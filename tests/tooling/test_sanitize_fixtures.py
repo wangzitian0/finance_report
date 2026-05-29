@@ -1,5 +1,5 @@
 """
-Tests for common.fixtures.sanitize_fixtures.
+Tests for tools._lib.fixtures.sanitize_fixtures.
 
 Covers:
 - mask_company_name(): PTE LTD pattern, generic company names
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from common.fixtures.sanitize_fixtures import (
+from tools._lib.fixtures.sanitize_fixtures import (
     mask_company_name,
     sanitize_description,
     sanitize_fixture,
@@ -236,7 +236,7 @@ class TestFileIO:
         """Import and exercise load_fixture / save_fixture via direct file ops."""
         import importlib
 
-        module = importlib.import_module("common.fixtures.sanitize_fixtures")
+        module = importlib.import_module("tools._lib.fixtures.sanitize_fixtures")
 
         # Some versions may not export these helpers; skip gracefully
         load_fixture = getattr(module, "load_fixture", None)
@@ -255,7 +255,7 @@ class TestFileIO:
     def test_save_creates_file(self, tmp_path):
         import importlib
 
-        module = importlib.import_module("common.fixtures.sanitize_fixtures")
+        module = importlib.import_module("tools._lib.fixtures.sanitize_fixtures")
         save_fixture = getattr(module, "save_fixture", None)
 
         if save_fixture is None:
@@ -310,7 +310,7 @@ class TestMainFunction:
     def test_main_sanitizes_fixture_files(self, tmp_path, monkeypatch):
         """main() iterates JSON fixtures and sanitizes them (lines 153-186)."""
         import importlib
-        module = importlib.import_module("common.fixtures.sanitize_fixtures")
+        module = importlib.import_module("tools._lib.fixtures.sanitize_fixtures")
 
         fixtures_dir = tmp_path / "apps" / "backend" / "tests" / "fixtures"
         fixtures_dir.mkdir(parents=True, exist_ok=True)
@@ -328,7 +328,7 @@ class TestMainFunction:
             {"success": False, "error": "parse failed"}
         ]))
 
-        module_path = tmp_path / "common" / "fixtures" / "sanitize_fixtures.py"
+        module_path = tmp_path / "tools" / "_lib" / "fixtures" / "sanitize_fixtures.py"
         module_path.parent.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr(module, "__file__", str(module_path))
 
@@ -345,7 +345,7 @@ class TestMainFunction:
     def test_main_skips_summary_json_in_glob(self, tmp_path, monkeypatch):
         """main() skips summary.json during glob iteration (line 156-157)."""
         import importlib
-        module = importlib.import_module("common.fixtures.sanitize_fixtures")
+        module = importlib.import_module("tools._lib.fixtures.sanitize_fixtures")
 
         fixtures_dir = tmp_path / "apps" / "backend" / "tests" / "fixtures"
         fixtures_dir.mkdir(parents=True, exist_ok=True)
@@ -355,7 +355,7 @@ class TestMainFunction:
             {"success": True, "opening_balance": "500.00", "closing_balance": "600.00"}
         ]))
 
-        module_path = tmp_path / "common" / "fixtures" / "sanitize_fixtures.py"
+        module_path = tmp_path / "tools" / "_lib" / "fixtures" / "sanitize_fixtures.py"
         module_path.parent.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr(module, "__file__", str(module_path))
 
@@ -367,7 +367,7 @@ class TestMainFunction:
     def test_main_no_summary_file(self, tmp_path, monkeypatch, capsys):
         """main() handles missing summary.json gracefully (line 173)."""
         import importlib
-        module = importlib.import_module("common.fixtures.sanitize_fixtures")
+        module = importlib.import_module("tools._lib.fixtures.sanitize_fixtures")
 
         fixtures_dir = tmp_path / "apps" / "backend" / "tests" / "fixtures"
         fixtures_dir.mkdir(parents=True, exist_ok=True)
@@ -378,7 +378,7 @@ class TestMainFunction:
             "closing_balance": "200.00"
         }))
 
-        module_path = tmp_path / "common" / "fixtures" / "sanitize_fixtures.py"
+        module_path = tmp_path / "tools" / "_lib" / "fixtures" / "sanitize_fixtures.py"
         module_path.parent.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr(module, "__file__", str(module_path))
 

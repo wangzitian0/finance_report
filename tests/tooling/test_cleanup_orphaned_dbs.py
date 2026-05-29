@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.dev import cleanup_orphaned_dbs as cod  # noqa: E402
+from tools._lib.dev import cleanup_orphaned_dbs as cod  # noqa: E402
 
 
 def test_AC16_11_8_extract_namespace_variants():

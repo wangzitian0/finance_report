@@ -2016,7 +2016,8 @@ groups:
       - id: AC8.13.53
         epic: 8
         epic_name: testing-strategy
-        description: Common shared tooling owns SSOT, coverage, and isolation helpers; root command entry points live in tools/.
+        description: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry
+          points and tool-owned implementations live in tools/.
         mandatory: true
       - id: AC8.13.54
         epic: 8
@@ -2033,7 +2034,8 @@ groups:
       - id: AC8.13.56
         epic: 8
         epic_name: testing-strategy
-        description: Coverage and CI metric command entry points run from tools/ while shared implementations live under common/.
+        description: Coverage command entry points run from tools/; the shared policy stays in common/coverage/policy.py,
+          and command implementations live under tools/_lib/coverage/.
         mandatory: true
       - id: AC8.13.57
         epic: 8
@@ -2043,7 +2045,8 @@ groups:
       - id: AC8.13.58
         epic: 8
         epic_name: testing-strategy
-        description: CI and toolchain command entry points run from tools/ while shared implementations live under common/ci/.
+        description: CI and toolchain command entry points run from tools/; reusable contracts stay under common/ci/,
+          while report and shell command implementations live under tools/_lib/.
         mandatory: true
       - id: AC8.13.59
         epic: 8

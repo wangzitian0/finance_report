@@ -24,7 +24,7 @@ from pathlib import Path
 from common.coverage.policy import COMPONENTS, CoverageComponent, get_component
 
 # Configuration
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[3]
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
 TOOLS_DIR = ROOT_DIR / "tools"

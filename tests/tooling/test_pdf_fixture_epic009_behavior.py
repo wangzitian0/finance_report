@@ -11,16 +11,16 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PDF_FIXTURES = REPO_ROOT / "common" / "pdf_fixtures"
+PDF_FIXTURES = REPO_ROOT / "tools" / "_lib" / "pdf_fixtures"
 
-from common.pdf_fixtures.analyzers.template_extractor import (  # noqa: E402
+from tools._lib.pdf_fixtures.analyzers.template_extractor import (  # noqa: E402
     TemplateExtractor as SanitizingTemplateExtractor,
 )
-from common.pdf_fixtures.generators.base_generator import BasePDFGenerator  # noqa: E402
-from common.pdf_fixtures.generators.cmb_generator import CMBGenerator  # noqa: E402
-from common.pdf_fixtures.generators.dbs_generator import DBSGenerator  # noqa: E402
-import common.pdf_fixtures.generators.mari_generator as mari_module  # noqa: E402
-from common.pdf_fixtures.generators.mari_generator import MariGenerator  # noqa: E402
+from tools._lib.pdf_fixtures.generators.base_generator import BasePDFGenerator  # noqa: E402
+from tools._lib.pdf_fixtures.generators.cmb_generator import CMBGenerator  # noqa: E402
+from tools._lib.pdf_fixtures.generators.dbs_generator import DBSGenerator  # noqa: E402
+import tools._lib.pdf_fixtures.generators.mari_generator as mari_module  # noqa: E402
+from tools._lib.pdf_fixtures.generators.mari_generator import MariGenerator  # noqa: E402
 
 
 def _load_template(name: str) -> dict:
@@ -130,7 +130,7 @@ def test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates(
     """AC9.2.2 AC9.2.3 AC9.2.4: bank-specific generators load committed templates."""
     if klass is CMBGenerator:
         monkeypatch.setattr(
-            "common.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
+            "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
             lambda: None,
         )
 
@@ -143,7 +143,7 @@ def test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates(
 
 def test_AC9_2_7_main_script_registers_all_supported_generators() -> None:
     """AC9.2.7: Main script exposes all committed PDF fixture generators."""
-    from common.pdf_fixtures import generate_pdf_fixtures
+    from tools._lib.pdf_fixtures import generate_pdf_fixtures
 
     text = Path(generate_pdf_fixtures.__file__).read_text()
 
@@ -204,7 +204,7 @@ def test_AC9_5_1_AC9_5_2_AC9_5_3_AC9_5_4_AC9_5_5_git_contract_tracks_safe_source
 def test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC9.6.1 AC9.6.2: DBS and CMB generators load their own source templates."""
     monkeypatch.setattr(
-        "common.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
+        "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
         lambda: None,
     )
 
@@ -239,13 +239,13 @@ def test_AC9_6_3_cmb_generator_uses_registered_chinese_font(monkeypatch: pytest.
             captured_table_styles.append(style)
 
     monkeypatch.setattr(
-        "common.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
+        "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
         lambda: "ChineseFont",
     )
     monkeypatch.setattr(
-        "common.pdf_fixtures.generators.cmb_generator.Paragraph", FakeParagraph
+        "tools._lib.pdf_fixtures.generators.cmb_generator.Paragraph", FakeParagraph
     )
-    monkeypatch.setattr("common.pdf_fixtures.generators.cmb_generator.Table", FakeTable)
+    monkeypatch.setattr("tools._lib.pdf_fixtures.generators.cmb_generator.Table", FakeTable)
     monkeypatch.setattr(CMBGenerator, "create_document", lambda self, output_path: FakeDoc())
 
     generator = CMBGenerator(PDF_FIXTURES / "templates" / "cmb_template.yaml")
