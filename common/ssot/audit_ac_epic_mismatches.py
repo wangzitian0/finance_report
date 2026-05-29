@@ -31,6 +31,7 @@ EXCL_DIRS = {
     ".venv",
     "venv",
     "_ac_stubs",
+    "tmp",
 }
 TEST_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 TEST_PREFIXES = ("test_",)

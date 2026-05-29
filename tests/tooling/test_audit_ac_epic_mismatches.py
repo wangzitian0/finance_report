@@ -162,6 +162,15 @@ class TestWalkTests:
             files = aam.walk_tests()
         assert not any("node_modules" in f.parts for f in files)
 
+    def test_excludes_tmp_dir(self, tmp_path):
+        self._make_test_tree(tmp_path)
+        tmp = tmp_path / "tmp" / "tests"
+        tmp.mkdir(parents=True)
+        (tmp / "test_tmp.py").write_text("# AC1.1.1\n")
+        with mock.patch.object(aam, "ROOT", tmp_path):
+            files = aam.walk_tests()
+        assert not any("tmp" in f.relative_to(tmp_path).parts for f in files)
+
     def test_excludes_ac_stubs(self, tmp_path):
         stubs = tmp_path / "apps" / "backend" / "tests" / "_ac_stubs"
         stubs.mkdir(parents=True)
