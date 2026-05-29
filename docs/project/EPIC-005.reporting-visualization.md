@@ -251,15 +251,15 @@ Current blocker breakdown:
 
 - [#570](https://github.com/wangzitian0/finance_report/issues/570) defines the
   package-level API/export contract and stable section IDs.
+- [#564](https://github.com/wangzitian0/finance_report/issues/564) supplies the
+  investment performance schedule input from EPIC-017.
+- [#566](https://github.com/wangzitian0/finance_report/issues/566) supplies the
+  annualized income and long-term compensation schedule input from EPIC-011.
 - [#571](https://github.com/wangzitian0/finance_report/issues/571) codifies the
   standards-inspired note and disclosure taxonomy without claiming regulated
   filing compliance.
 - [#572](https://github.com/wangzitian0/finance_report/issues/572) defines the
   source-ledger-report traceability appendix for package output.
-- [#564](https://github.com/wangzitian0/finance_report/issues/564) supplies the
-  investment performance schedule input from EPIC-017.
-- [#566](https://github.com/wangzitian0/finance_report/issues/566) supplies the
-  annualized income and long-term compensation schedule input from EPIC-011.
 - [#573](https://github.com/wangzitian0/finance_report/issues/573) supplies the
   representative fixture contract consumed by the post-merge package E2E in
   [#565](https://github.com/wangzitian0/finance_report/issues/565).
@@ -268,12 +268,14 @@ Closure order:
 
 1. Land the package contract (#570) so backend, frontend, export, and E2E
    assertions share one shape.
-2. Add notes/disclosures (#571), traceability appendix (#572), investment
-   schedule (#564), and annualized compensation schedule (#566) against that
-   contract.
-3. Build the deterministic fixture dataset (#573).
-4. Promote `personal-financial-report-package` from `partial` only after the
-   post-merge E2E proof in #565 is attached to
+2. Deliver schedule inputs that this package consumes: investment performance
+   (#564), annualized income/long-term compensation (#566).
+3. Deliver explanation outputs for the package output shape: notes/disclosures
+   (#571) and traceability appendix (#572).
+4. Build deterministic fixture coverage (#573) against the same contract and
+   schedules.
+5. Attach the post-merge E2E proof in #565 (behavioral package journey) and then
+   promote `personal-financial-report-package` from `partial` in
    `docs/ssot/critical-proof-matrix.yaml`.
 
 ## 📄 Owned Documentation Surfaces

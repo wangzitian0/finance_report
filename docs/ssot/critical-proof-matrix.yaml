@@ -7,14 +7,16 @@ description: >
 outcomes:
   - id: personal-financial-report-package
     question: "Can I generate one auditable personal financial-report package with statements, schedules, notes, and source traceability?"
-    status: partial
+    status: covered
     owner_epics:
       - EPIC-005
       - EPIC-008
       - EPIC-011
       - EPIC-017
       - EPIC-018
-    issue: "#563"
+    issue: "#565"
+    proof_ids:
+      - personal-financial-report-package-post-merge
 
   - id: asset-distribution-net-worth
     question: "How much money do I have, and where is it distributed?"
@@ -155,3 +157,24 @@ proofs:
     ac_ids:
       - AC11.10.7
       - AC11.10.11
+
+  - id: personal-financial-report-package-post-merge
+    scope: behavioral
+    ci_tier: post_merge_environment
+    issue: "#565"
+    file: tests/e2e/test_personal_financial_report_package.py
+    test: test_personal_financial_report_package_post_merge_journey
+    required_markers:
+      - e2e
+      - tier3
+      - critical
+      - llm
+    ac_ids:
+      - AC5.1.1
+      - AC5.1.4
+      - AC5.2.3
+      - AC5.3.1
+      - AC11.8.3
+      - AC11.9.1
+      - AC11.9.2
+      - AC11.9.3

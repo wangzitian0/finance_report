@@ -2086,10 +2086,19 @@ financial-report package tracked in
 [#563](https://github.com/wangzitian0/finance_report/issues/563). This EPIC
 must supply report-ready schedules for salary, dividends, ESOP/RSU, restricted
 holdings, vesting/unlock dates, valuation basis, and liquid-versus-restricted
-net worth treatment. The package contract is tracked by
-[#570](https://github.com/wangzitian0/finance_report/issues/570), the
-standards-inspired notes that consume this EPIC's valuation basis are tracked by
-[#571](https://github.com/wangzitian0/finance_report/issues/571), and the
-representative E2E fixture input is tracked by
-[#573](https://github.com/wangzitian0/finance_report/issues/573). EPIC-005 owns
-final package assembly; EPIC-008 owns the post-merge E2E proof.
+net worth treatment.
+
+For #521 closure, this EPIC should be sequenced as:
+
+1. Consume the package section contract from `#570`.
+2. Finalize annualized income and long-term compensation schedule data
+   (`#566`).
+3. Land supporting explanation assets:
+   - report notes (`#571`)
+   - traceability appendix (`#572`)
+4. Provide deterministic fixture inputs for the package proof (`#573`).
+5. Enable post-merge package proof in `#565` once EPIC-005 can consume this data.
+
+`#570`, `#571`, and `#572` are shared package prerequisites with EPIC-005;
+`#566`, `#573`, and `#565` are specifically the issue chain to close
+`annualized-income-long-term` in `docs/ssot/critical-proof-matrix.yaml`.

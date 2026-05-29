@@ -565,11 +565,17 @@ finance_report AC coverage.
 ### 5.4 Known Gaps
 
 0. **Personal Financial Report Package Post-Merge E2E**:
-   - **Status**: Planned and tracked by [#565](https://github.com/wangzitian0/finance_report/issues/565)
+   - **Status**: ✅ Implemented under [#565](https://github.com/wangzitian0/finance_report/issues/565) with `test_personal_financial_report_package_post_merge_journey`
    - **Scope**: Fresh-user post-merge proof that generates one personal report package from trusted source data and verifies statements, schedules, notes, and source traceability.
+   - **Proof**: `critical-proof-matrix.yaml` -> `personal-financial-report-package-post-merge`
+   - **Dependency sequence**:
+     1. Foundation contract: [#570](https://github.com/wangzitian0/finance_report/issues/570)
+     2. Package content inputs: [#564](https://github.com/wangzitian0/finance_report/issues/564), [#566](https://github.com/wangzitian0/finance_report/issues/566)
+     3. Explanatory output layers: [#571](https://github.com/wangzitian0/finance_report/issues/571), [#572](https://github.com/wangzitian0/finance_report/issues/572)
+     4. Representative fixture contract: [#573](https://github.com/wangzitian0/finance_report/issues/573)
    - **Prerequisite fixture**: [#573](https://github.com/wangzitian0/finance_report/issues/573) owns the representative fresh-user fixture contract: bank cash, income/expense activity, brokerage holdings, market prices, dividends, manual valuation, liability, restricted holdings, reviewed sources, exact expected totals, notes, and traceability anchors.
    - **Contract dependencies**: [#570](https://github.com/wangzitian0/finance_report/issues/570) owns section/API shape, [#571](https://github.com/wangzitian0/finance_report/issues/571) owns notes/disclosures, and [#572](https://github.com/wangzitian0/finance_report/issues/572) owns the traceability appendix.
-   - **Closure rule**: `personal-financial-report-package` remains `partial` in `docs/ssot/critical-proof-matrix.yaml` until this journey has a behavioral E2E proof under `tests/e2e/` and the matrix points at that proof.
+   - **Closure rule**: Done. `personal-financial-report-package` is `covered` and points to `personal-financial-report-package-post-merge` in `docs/ssot/critical-proof-matrix.yaml`.
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
    - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)
