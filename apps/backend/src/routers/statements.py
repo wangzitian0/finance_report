@@ -212,9 +212,7 @@ async def _resolve_statement_posting_account(
         if account:
             return account
         raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
-    raise ValueError(
-        "Account mapping required before posting. Confirm the target account before posting."
-    )
+    raise ValueError("Account mapping required before posting. Confirm the target account before posting.")
 
 
 async def _assert_no_unresolved_checks_for_statement(

@@ -1540,7 +1540,7 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
-    """AC3.6.2: Stage 1 posting requires explicit account mapping before posting."""
+    """AC3.6.1: Unique prior mapping no longer auto applies; explicit mapping is required."""
     bank_account = Account(
         user_id=test_user.id,
         name="DBS Confirmed Account",
