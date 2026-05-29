@@ -109,6 +109,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.67**: Production release preserves deployed version metadata from image build through Dokploy runtime health.
 - **AC8.13.68**: E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners.
 - **AC8.13.69**: Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide.
+- **AC8.13.70**: E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -122,6 +123,9 @@ Every `test_*` function under product E2E roots must carry at least one
 `docs/project/EPIC-*.md` file must be owned by at least one product E2E test
 function. The CI traceability gate enforces this with
 `tools/check_e2e_epic_traceability.py` before generating traceability artifacts.
+The same gate validates the root README EPIC map against the project EPIC file
+set, and scans E2E-like test assets so files outside product E2E roots are
+either explicitly classified as non-product infra/submodule assets or fail CI.
 
 ### 2.4 Synthetic Test Data (PDF Generation)
 
@@ -457,6 +461,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.67 | Production release preserves deployed version metadata from image build through Dokploy runtime health | `test_AC8_13_67_production_release_preserves_version_metadata` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.68 | E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners | `test_AC8_13_68_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.69 | Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide | `test_namespaced_infra_uses_ephemeral_host_ports` | `apps/backend/tests/unit/infra/test_test_lifecycle.py` | P0 |
+| AC8.13.70 | E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots | `test_AC8_13_70_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

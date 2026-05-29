@@ -9,13 +9,38 @@ from pathlib import Path
 from common.ssot import check_e2e_epic_traceability as checker
 
 
-def _write_epic(repo_root: Path, epic_id: str) -> None:
+def _write_readme_epic_map(repo_root: Path, epic_ids: list[str]) -> None:
+    rows = "\n".join(
+        f"| [{epic_id}](docs/project/{epic_id}.sample.md) | Sample |"
+        for epic_id in epic_ids
+    )
+    (repo_root / "README.md").write_text(
+        f"""# Sample
+
+## EPIC Map
+
+| EPIC | Scope |
+|---|---|
+{rows}
+""",
+        encoding="utf-8",
+    )
+
+
+def _project_epic_ids(repo_root: Path) -> list[str]:
+    project = repo_root / "docs" / "project"
+    return sorted(path.name.split(".", 1)[0] for path in project.glob("EPIC-*.md"))
+
+
+def _write_epic(repo_root: Path, epic_id: str, *, update_readme: bool = True) -> None:
     project = repo_root / "docs" / "project"
     project.mkdir(parents=True, exist_ok=True)
     (project / f"{epic_id}.sample.md").write_text(
         f"# {epic_id}: Sample\n\n- **AC8.13.68**: E2E EPIC traceability.\n",
         encoding="utf-8",
     )
+    if update_readme:
+        _write_readme_epic_map(repo_root, _project_epic_ids(repo_root))
 
 
 def _write_test(repo_root: Path, rel_path: str, content: str) -> None:
@@ -109,6 +134,234 @@ def test_file_level_reference_only():
         in result.errors
     )
     assert "EPIC-001: no product E2E owner test" in result.errors
+
+
+def test_AC8_13_70_readme_epic_map_must_match_project_epics(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.70: README EPIC map drift fails E2E EPIC traceability."""
+    _write_epic(tmp_path, "EPIC-001", update_readme=False)
+    _write_epic(tmp_path, "EPIC-002", update_readme=False)
+    _write_readme_epic_map(tmp_path, ["EPIC-001", "EPIC-999"])
+    _write_test(
+        tmp_path,
+        "tests/e2e/test_flow.py",
+        """
+def test_first_flow():
+    \"\"\"EPIC-001 / AC8.13.70: first product E2E owner.\"\"\"
+    assert True
+
+
+def test_second_flow():
+    \"\"\"EPIC-002 / AC8.13.70: second product E2E owner.\"\"\"
+    assert True
+""",
+    )
+
+    result = checker.check_traceability(tmp_path)
+
+    assert "README EPIC map missing project EPICs: EPIC-002" in result.errors
+    assert "README EPIC map includes unknown EPICs: EPIC-999" in result.errors
+
+
+def test_AC8_13_70_readme_epic_map_rejects_duplicate_or_bad_links(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.70: README EPIC map rows must be unique and link to their EPIC."""
+    _write_epic(tmp_path, "EPIC-001", update_readme=False)
+    _write_epic(tmp_path, "EPIC-002", update_readme=False)
+    (tmp_path / "README.md").write_text(
+        """# Sample
+
+## EPIC Map
+
+| EPIC | Scope |
+|---|---|
+| [EPIC-001](docs/project/EPIC-002.sample.md) | Bad target |
+| [EPIC-001](docs/project/EPIC-001.sample.md) | Duplicate |
+| EPIC-002 | Missing link |
+""",
+        encoding="utf-8",
+    )
+    _write_test(
+        tmp_path,
+        "tests/e2e/test_flow.py",
+        """
+def test_first_flow():
+    \"\"\"EPIC-001 / AC8.13.70: first product E2E owner.\"\"\"
+    assert True
+
+
+def test_second_flow():
+    \"\"\"EPIC-002 / AC8.13.70: second product E2E owner.\"\"\"
+    assert True
+""",
+    )
+
+    result = checker.check_traceability(tmp_path)
+
+    assert (
+        "README.md:7 EPIC-001 link target does not match row EPIC: "
+        "docs/project/EPIC-002.sample.md"
+    ) in result.errors
+    assert "README.md:9 EPIC-002 row must link to docs/project/EPIC-002*.md" in (
+        result.errors
+    )
+    assert "README EPIC map duplicates EPIC row: EPIC-001" in result.errors
+
+
+def test_AC8_13_70_readme_epic_map_structure_errors_are_explicit(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.70: README EPIC map structural drift reports precise errors."""
+    assert checker.discover_readme_epics(tmp_path) == ([], ["README.md missing"])
+
+    (tmp_path / "README.md").write_text("# Sample\n", encoding="utf-8")
+    assert checker.discover_readme_epics(tmp_path) == (
+        [],
+        ["README.md missing `## EPIC Map` section"],
+    )
+
+    (tmp_path / "README.md").write_text(
+        """# Sample
+
+## EPIC Map
+
+Intro text.
+
+## Next Section
+""",
+        encoding="utf-8",
+    )
+    assert checker.discover_readme_epics(tmp_path) == (
+        [],
+        ["README.md missing parseable EPIC Map table"],
+    )
+
+    (tmp_path / "README.md").write_text(
+        """# Sample
+
+## EPIC Map
+
+| EPIC | Scope |
+|---|---|
+| | Empty |
+""",
+        encoding="utf-8",
+    )
+    assert checker.discover_readme_epics(tmp_path) == (
+        [],
+        ["README.md EPIC Map table has no EPIC rows"],
+    )
+
+
+def test_AC8_13_70_readme_epic_map_stops_after_first_table(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.70: README EPIC parsing is bounded to the EPIC map table."""
+    _write_epic(tmp_path, "EPIC-001", update_readme=False)
+    _write_epic(tmp_path, "EPIC-002", update_readme=False)
+    (tmp_path / "README.md").write_text(
+        """# Sample
+
+## EPIC Map
+
+| EPIC | Scope |
+|---|---|
+| [EPIC-001](docs/project/EPIC-001.sample.md) | Sample |
+
+| [EPIC-999](docs/project/EPIC-999.sample.md) | Outside table |
+""",
+        encoding="utf-8",
+    )
+
+    epic_ids, errors = checker.discover_readme_epics(tmp_path)
+
+    assert epic_ids == ["EPIC-001"]
+    assert errors == []
+
+
+def test_AC8_13_70_unclassified_e2e_like_assets_fail(tmp_path: Path) -> None:
+    """AC8.13.70: E2E-like assets outside declared roots must be classified."""
+    _write_epic(tmp_path, "EPIC-001")
+    _write_test(
+        tmp_path,
+        "tests/e2e/test_flow.py",
+        """
+def test_product_flow():
+    \"\"\"EPIC-001 / AC8.13.70: product E2E owner.\"\"\"
+    assert True
+""",
+    )
+    _write_test(
+        tmp_path,
+        "unowned/e2e/test_hidden_flow.py",
+        """
+def test_hidden_flow():
+    assert True
+""",
+    )
+
+    result = checker.check_traceability(tmp_path)
+
+    assert (
+        "unowned/e2e/test_hidden_flow.py: unclassified E2E-like asset outside "
+        "declared product or non-product roots"
+    ) in result.errors
+
+
+def test_AC8_13_70_classified_non_product_e2e_assets_are_allowed(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.70: Declared infra/submodule E2E assets do not need project EPIC IDs."""
+    _write_epic(tmp_path, "EPIC-001")
+    _write_test(
+        tmp_path,
+        "tests/e2e/test_flow.py",
+        """
+def test_product_flow():
+    \"\"\"EPIC-001 / AC8.13.70: product E2E owner.\"\"\"
+    assert True
+""",
+    )
+    _write_test(
+        tmp_path,
+        "repo/e2e_regressions/tests/apps/test_api_health.py",
+        """
+def test_infra_health():
+    assert True
+""",
+    )
+    _write_test(
+        tmp_path,
+        "repo/finance/appwrite/scripts/e2e-test.sh",
+        "#!/usr/bin/env bash\ntrue",
+    )
+
+    result = checker.check_traceability(tmp_path)
+
+    assert result.errors == []
+    assert "No E2E EPIC traceability errors found." in checker.render_report(result)
+
+
+def test_AC8_13_70_e2e_asset_discovery_ignores_excluded_or_missing_paths(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.70: E2E asset inventory ignores excluded generated paths."""
+    assert checker.discover_e2e_assets(tmp_path / "missing") == []
+
+    _write_test(
+        tmp_path,
+        "node_modules/package/e2e/test_generated.py",
+        "def test_generated():\n    assert True",
+    )
+    _write_test(
+        tmp_path,
+        ".venv/lib/e2e/test_generated.py",
+        "def test_generated():\n    assert True",
+    )
+
+    assert checker.discover_e2e_assets(tmp_path) == []
 
 
 def test_AC8_13_68_non_test_functions_are_ignored(tmp_path: Path) -> None:

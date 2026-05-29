@@ -75,7 +75,9 @@ generated.
 Product E2E tests have an additional EPIC ownership rule: every `test_*`
 function under product E2E roots must carry at least one `EPIC-xxx` ID in the
 test function name or function docstring, and every `docs/project/EPIC-*.md`
-file must be referenced by at least one such test.
+file must be referenced by at least one such test. The same gate validates the
+root README EPIC map against `docs/project/EPIC-*.md` and fails unclassified
+E2E-like assets outside declared product or non-product roots.
 `tools/check_e2e_epic_traceability.py` enforces this closure in CI.
 
 Core product journeys have one extra guard:

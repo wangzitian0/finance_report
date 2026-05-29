@@ -501,6 +501,22 @@ def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
     assert "tools/check_e2e_epic_traceability.py" in tdd
 
 
+def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
+    """AC8.13.70: E2E traceability documents README and asset closure."""
+    ci_cd = read("docs/ssot/ci-cd.md")
+    tdd = read("docs/ssot/tdd.md")
+    readme = read("README.md")
+    checker = read("common/ssot/check_e2e_epic_traceability.py")
+
+    assert "the README EPIC map matches project EPIC files" in ci_cd
+    assert "unclassified E2E-like assets outside declared roots" in ci_cd
+    assert "root README EPIC map" in tdd
+    assert "fails unclassified" in tdd
+    assert "tools/check_e2e_epic_traceability.py" in readme
+    assert "DECLARED_NON_PRODUCT_E2E_ROOTS" in checker
+    assert "DECLARED_NON_PRODUCT_E2E_FILES" in checker
+
+
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     """AC8.13.9: Production release runs prod-safe read-only E2E smoke."""
     workflow = read(".github/workflows/production-release.yml")
