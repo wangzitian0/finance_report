@@ -2,7 +2,7 @@
 
 import DetailDialog from "@/components/ui/DetailDialog";
 import AuditTrailPanel from "@/components/AuditTrailPanel";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale, sumAmounts } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry } from "@/lib/types";
 
@@ -21,10 +21,10 @@ export default function JournalEntryDetailsModal({
 
     const totalDebits = entry.lines
         .filter((l) => l.direction === "DEBIT")
-        .reduce((sum, l) => sum + l.amount, 0);
+        .map((line) => line.amount);
     const totalCredits = entry.lines
         .filter((l) => l.direction === "CREDIT")
-        .reduce((sum, l) => sum + l.amount, 0);
+        .map((line) => line.amount);
 
     const baseCurrency = entry.lines[0]?.currency || "SGD";
 
@@ -101,11 +101,11 @@ export default function JournalEntryDetailsModal({
                                         <div className="flex flex-col items-end gap-1">
                                             <div className="text-[var(--success)]">
                                                 <span className="text-[10px] uppercase mr-1">DR:</span>
-                                                {formatCurrencyLocale(totalDebits, baseCurrency)}
+                                                {formatCurrencyLocale(sumAmounts(totalDebits), baseCurrency)}
                                             </div>
                                             <div className="text-[var(--error)]">
                                                 <span className="text-[10px] uppercase mr-1">CR:</span>
-                                                {formatCurrencyLocale(totalCredits, baseCurrency)}
+                                                {formatCurrencyLocale(sumAmounts(totalCredits), baseCurrency)}
                                             </div>
                                         </div>
                                     </td>

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { amountToChartNumber, compareAmounts } from "@/lib/currency";
 
 const ReactECharts = dynamic(
   () => import("echarts-for-react").catch(() => {
@@ -44,13 +45,6 @@ interface SankeyChartProps {
   height?: number;
 }
 
-const toNumber = (value: number | string): number => {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  if (value === null || value === undefined) return 0;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
 export function SankeyChart({
   operating = [],
   investing = [],
@@ -89,8 +83,8 @@ export function SankeyChart({
     const links: { source: string; target: string; value: number }[] = [];
 
     const addCategory = (items: SankeyItem[], color: string, prefix: string) => {
-      const inflowItems = items.filter((i) => toNumber(i.amount) > 0);
-      const outflowItems = items.filter((i) => toNumber(i.amount) < 0);
+      const inflowItems = items.filter((i) => compareAmounts(i.amount, "0") > 0);
+      const outflowItems = items.filter((i) => compareAmounts(i.amount, "0") < 0);
       
       if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
@@ -99,7 +93,7 @@ export function SankeyChart({
       nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: errorColor } });
 
       inflowItems.forEach((item) => {
-        const amount = toNumber(item.amount);
+        const amount = amountToChartNumber(item.amount);
         nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: foregroundMutedColor } });
         links.push({
           source: `${prefix}-Inflows`,
@@ -109,7 +103,7 @@ export function SankeyChart({
       });
 
       outflowItems.forEach((item) => {
-        const rawValue = toNumber(item.amount);
+        const rawValue = amountToChartNumber(item.amount);
         const amount = Math.abs(rawValue);
         nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: foregroundMutedColor } });
         links.push({

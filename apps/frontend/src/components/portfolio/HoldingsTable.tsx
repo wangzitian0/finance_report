@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 
 interface HoldingsTableProps {
@@ -17,16 +17,14 @@ function formatQuantity(quantity: string): string {
 }
 
 function getPnlColor(value: string): string {
-    const num = parseFloat(value);
-    if (isNaN(num) || num === 0) return "";
-    return num > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
+    const comparison = compareAmounts(value, "0");
+    if (comparison === 0) return "";
+    return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
 }
 
 function formatPnlPercent(value: string): string {
-    const num = parseFloat(value);
-    if (isNaN(num)) return "—";
-    const sign = num > 0 ? "+" : "";
-    return `${sign}${num.toFixed(2)}%`;
+    const sign = compareAmounts(value, "0") > 0 ? "+" : "";
+    return `${sign}${formatAmount(value, 2)}%`;
 }
 
 export function HoldingsTable({ holdings, showDisposed = false }: HoldingsTableProps) {

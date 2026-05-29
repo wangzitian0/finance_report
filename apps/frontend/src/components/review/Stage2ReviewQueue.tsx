@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
+import { formatAmount } from "@/lib/currency";
 
 interface ConsistencyCheck {
     id: string;
@@ -29,7 +30,7 @@ interface PendingMatch {
     status: string;
     created_at: string | null;
     description?: string;
-    amount?: number;
+    amount?: number | string;
     txn_date?: string;
 }
 
@@ -654,7 +655,7 @@ export function Stage2ReviewQueue() {
                                                     {match.description || "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-right font-medium">
-                                                    {match.amount != null ? match.amount.toFixed(2) : "—"}
+                                                    {match.amount != null ? formatAmount(match.amount, 2) : "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-muted">
                                                     {match.txn_date ? formatDateDisplay(match.txn_date) : "—"}

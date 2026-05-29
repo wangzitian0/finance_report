@@ -67,7 +67,7 @@ export default function ProcessingPage() {
                     <td className="px-6 py-4">{item.from_account}</td>
                     <td className="px-6 py-4">{item.to_account}</td>
                     <td className="px-6 py-4 text-right font-mono">
-                      {formatCurrencyLocale(Number(item.amount), item.currency)}
+                      {formatCurrencyLocale(item.amount, item.currency)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

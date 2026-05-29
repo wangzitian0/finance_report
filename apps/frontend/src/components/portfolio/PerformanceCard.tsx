@@ -2,19 +2,28 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { compareAmounts, formatAmount } from "@/lib/currency";
 import { PerformanceMetrics } from "@/lib/types";
 
+function safeComparePercent(value: string): number | null {
+    try {
+        return compareAmounts(value, "0");
+    } catch {
+        return null;
+    }
+}
+
 function formatPercent(value: string): string {
-    const num = parseFloat(value);
-    if (isNaN(num)) return "—";
-    const sign = num > 0 ? "+" : "";
-    return `${sign}${num.toFixed(2)}%`;
+    const comparison = safeComparePercent(value);
+    if (comparison === null) return "—";
+    const sign = comparison > 0 ? "+" : "";
+    return `${sign}${formatAmount(value, 2)}%`;
 }
 
 function getPercentColor(value: string): string {
-    const num = parseFloat(value);
-    if (isNaN(num) || num === 0) return "";
-    return num > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
+    const comparison = safeComparePercent(value);
+    if (comparison === null || comparison === 0) return "";
+    return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
 }
 
 export function PerformanceCard() {

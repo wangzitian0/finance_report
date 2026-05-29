@@ -8,46 +8,12 @@ import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { isAmountZero } from "@/lib/currency";
 import type { ProcessingSummaryResponse } from "@/lib/types";
+import { primaryNavItems } from "@/components/navigation";
 import { useState, useEffect } from "react";
-import {
-    LayoutDashboard,
-    Landmark,
-    BookOpen,
-    FileText,
-    ClipboardCheck,
-    Wallet,
-    BarChart3,
-    Link2,
-    Clock,
-    MessageSquare,
-    Zap,
-    LogOut,
-    LogIn,
-    type LucideIcon,
-} from "lucide-react";
+import { LogIn, LogOut, Zap } from "lucide-react";
 
 // Hide dev routes in production
 const IS_DEV = process.env.NODE_ENV === "development";
-
-interface NavItem {
-    icon: LucideIcon;
-    label: string;
-    href: string;
-    protected: boolean;
-}
-
-const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", protected: true },
-    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
-    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
-    { icon: FileText, label: "Statements", href: "/statements", protected: true },
-    { icon: ClipboardCheck, label: "Review", href: "/review", protected: true },
-    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
-    { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
-    { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
-    { icon: Clock, label: "Processing", href: "/processing", protected: true },
-    { icon: MessageSquare, label: "AI Advisor", href: "/chat", protected: true },
-];
 
 export function Sidebar() {
     const pathname = usePathname();
@@ -167,7 +133,7 @@ export function Sidebar() {
 
             {/* Navigation */}
             <nav className="p-2 space-y-0.5">
-                {navItems.filter(item => isAuth || !item.protected).map((item) => {
+                {primaryNavItems.filter(item => isAuth || !item.protected).map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                     const IconComponent = item.icon;
                     const badgeCount = item.href === "/review" ? pendingReviewCount : 0;

@@ -56,13 +56,33 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 - **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 
-## 5. Security & Authentication
+## 5. Monetary Amounts
+
+Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/currency.ts`.
+
+**Rules:**
+- Do not convert money with `Number()`, `parseFloat()`, or `toFixed()` in page/component code.
+- Use `formatCurrencyLocale()` for currency display; it formats from Decimal/string values without JS number precision loss.
+- Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
+- Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
+
+## 6. Responsive Navigation
+
+Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as the route source of truth.
+
+**Rules:**
+- Add primary app routes once in `primaryNavItems`.
+- Add workspace tab labels/icons once in `ROUTE_CONFIG`.
+- Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
+- Do not create separate reduced mobile menus that hide core routes.
+
+## 7. Security & Authentication
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
 - **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
 
-## 6. Shared Types
+## 8. Shared Types
 
 To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
 
@@ -80,7 +100,7 @@ import { Account, AccountListResponse } from "@/lib/types";
 // components/accounts/AccountFormModal.tsx
 ```
 
-## 7. Brokerage Import Completion Path
+## 9. Brokerage Import Completion Path
 
 After a brokerage PDF is uploaded and parsed, users must be able to see the import status and navigate to their portfolio.
 
@@ -111,7 +131,7 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 
-## 8. Dashboard First-Run Onboarding
+## 10. Dashboard First-Run Onboarding
 
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
 

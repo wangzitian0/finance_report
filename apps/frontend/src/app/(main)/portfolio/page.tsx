@@ -10,7 +10,7 @@ import { PortfolioHolding, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale, sumAmounts } from "@/lib/currency";
 
 export default function PortfolioPage() {
     const [showDisposed, setShowDisposed] = useState(false);
@@ -36,10 +36,7 @@ export default function PortfolioPage() {
     });
 
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
-    const totalPortfolioValue = activeHoldings.reduce((sum, h) => {
-        const val = parseFloat(h.market_value);
-        return sum + (isNaN(val) ? 0 : val);
-    }, 0);
+    const totalPortfolioValue = sumAmounts(activeHoldings.map((holding) => holding.market_value));
     const primaryCurrency = activeHoldings[0]?.currency ?? "USD";
 
     return (
