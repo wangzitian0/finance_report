@@ -2086,5 +2086,10 @@ financial-report package tracked in
 [#563](https://github.com/wangzitian0/finance_report/issues/563). This EPIC
 must supply report-ready schedules for salary, dividends, ESOP/RSU, restricted
 holdings, vesting/unlock dates, valuation basis, and liquid-versus-restricted
-net worth treatment. EPIC-005 owns final package assembly; EPIC-008 owns the
-post-merge E2E proof.
+net worth treatment. The package contract is tracked by
+[#570](https://github.com/wangzitian0/finance_report/issues/570), the
+standards-inspired notes that consume this EPIC's valuation basis are tracked by
+[#571](https://github.com/wangzitian0/finance_report/issues/571), and the
+representative E2E fixture input is tracked by
+[#573](https://github.com/wangzitian0/finance_report/issues/573). EPIC-005 owns
+final package assembly; EPIC-008 owns the post-merge E2E proof.

@@ -22,7 +22,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     mockedApiFetch.mockReset();
   });
 
-  it("AC18.5.1 — ConfidenceBadge tier rendering placeholder", () => {
+  it("AC18.5.1 — ConfidenceBadge renders confidence tier labels", () => {
     const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const;
 
     render(
@@ -43,7 +43,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     }
   });
 
-  it("AC18.5.2 — ConfidenceBadge mounted across review surfaces placeholder", async () => {
+  it("AC18.5.2 — Journal page surfaces ConfidenceBadge tier", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
         {
@@ -67,7 +67,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(screen.getByText("LOW")).toBeInTheDocument();
   });
 
-  it("AC18.5.3 — AI Suggestion Review Queue page placeholder", async () => {
+  it("AC18.5.3 — AI Suggestion Review Queue page renders suggestions", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
         {
@@ -88,7 +88,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(screen.getByText("Merchant name indicates dining.")).toBeInTheDocument();
   });
 
-  it("AC18.5.4 — feedback POST on accept/reject/edit placeholder", async () => {
+  it("AC18.5.4 — feedback POST on accept/reject/edit", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
         items: [
@@ -134,7 +134,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(await screen.findByText("suggestions unavailable")).toBeInTheDocument();
   });
 
-  it("AC18.5.5 — Settings AI toggles persist placeholder", async () => {
+  it("AC18.5.5 — Settings AI toggles persist", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ enable_ai_reconciliation: true, enable_ai_classification: false })
       .mockResolvedValueOnce({ enable_ai_reconciliation: true, enable_ai_classification: true });
@@ -156,7 +156,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
   });
 
-  it("AC18.5.6 — Audit Trail panel placeholder", async () => {
+  it("AC18.5.6 — Audit Trail panel renders provenance", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
         {
@@ -177,7 +177,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(screen.getByText(/Food & Dining/)).toBeInTheDocument();
   });
 
-  it("AC18.5.7 — frontend mount tests placeholder", async () => {
+  it("AC18.5.7 — AI settings mount reflects saved toggles", async () => {
     mockedApiFetch.mockResolvedValueOnce({ enable_ai_reconciliation: false, enable_ai_classification: true });
 
     render(<AiSettingsPage />);
