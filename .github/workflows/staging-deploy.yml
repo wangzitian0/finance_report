@@ -260,12 +260,6 @@ jobs:
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging" \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
-      - name: Check Deployment Dependencies
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
-        run: echo "Deployment deps check skipped (integrated into deploy script)"
-
       - name: Deploy to Staging
         env:
           IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
@@ -334,27 +328,6 @@ jobs:
             pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
 
           echo "✅ Staging deploy health gate passed!"
-
-      - name: Performance Benchmark
-        continue-on-error: true  # Don't block deploy, but report issues
-        run: |
-          echo "Running API performance benchmark..."
-          BASE_URL="https://report-staging.zitian.party"
-          
-          # Test key endpoints
-          for endpoint in /api/health /api/ping; do
-            response_time=$(curl -sf -w "%{time_total}" -o /dev/null "$BASE_URL$endpoint" 2>/dev/null || echo "failed")
-            
-            if [ "$response_time" = "failed" ]; then
-              echo "::warning::$endpoint - Failed to connect"
-            elif (( $(echo "$response_time > 2.0" | bc -l 2>/dev/null || echo 0) )); then
-              echo "::warning::$endpoint - Slow: ${response_time}s (> 2s threshold)"
-            else
-              echo "✅ $endpoint - ${response_time}s"
-            fi
-          done
-          
-          echo "Performance benchmark complete."
 
   ai-ocr-gate:
     name: Staging AI/OCR Gate

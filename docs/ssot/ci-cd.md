@@ -192,6 +192,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - The automatic AI/OCR job has a 30-minute job timeout, while the provider-backed pytest step remains capped at 22 minutes.
 - Staging deploys may set `DEPLOY_PRIMARY_MODEL_OVERRIDE`, `DEPLOY_OCR_MODEL_OVERRIDE`, and `DEPLOY_VISION_MODEL_OVERRIDE`; the current post-merge gate pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v`.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
+- Deploy dependency preflight lives in `tools/dokploy_deploy.sh` and the shared shell helpers it delegates to. Workflow-only no-op dependency checks and warning-only post-deploy performance probes are intentionally absent; deploy workflows keep only gates that can fail on release risk: image availability/build, Dokploy rollout, health, smoke, E2E, and provider-backed AI/OCR validation.
 - The post-merge workflow appends a GitHub Step Summary after deploy health and AI/OCR finish, making queue time, serial execution time, and slow jobs visible without manually scraping logs.
 
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):

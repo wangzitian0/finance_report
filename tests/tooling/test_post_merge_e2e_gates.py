@@ -165,7 +165,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert (
         '-v -m "llm"'
         not in deploy_workflow.split("name: End-to-End Tests", 1)[1].split(
-            "Performance Benchmark", 1
+            "ai-ocr-gate:", 1
         )[0]
     )
     assert "name: Staging AI/OCR Gate" in ai_workflow
@@ -293,6 +293,25 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
         "Documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton"
         in ci_cd
     )
+
+
+def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
+    """AC8.13.60: Deploy gates do not keep no-op or warning-only checks."""
+    workflows = [
+        read(".github/workflows/staging-deploy.yml"),
+        read(".github/workflows/production-release.yml"),
+        read(".github/workflows/pr-test.yml"),
+    ]
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    for workflow in workflows:
+        assert "Check Deployment Dependencies" not in workflow
+        assert "Deployment deps check skipped" not in workflow
+
+    staging = workflows[0]
+    assert "Performance Benchmark" not in staging
+    assert "Don't block deploy, but report issues" not in staging
+    assert "Deploy dependency preflight lives in `tools/dokploy_deploy.sh`" in ci_cd
 
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
@@ -791,7 +810,7 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
         "- name: Rollback on E2E Failure", 1
     )[0]
     staging_block = staging.split("- name: End-to-End Tests", 1)[1].split(
-        "- name: Performance Benchmark", 1
+        "\n  ai-ocr-gate:", 1
     )[0]
 
     for block in (preview_block, staging_block):
