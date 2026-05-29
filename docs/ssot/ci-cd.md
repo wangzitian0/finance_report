@@ -33,19 +33,19 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 ### Key CI Properties
 
 1. **Standalone Lint Job**: Runs independently; lint failures surface in ~1 min (not after 10 min backend shard).
-2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, script, CI, dependency, and coverage-policy changes run the full heavy path.
+2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, tooling, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
-4. **AC Traceability Always Runs**: Docs-only AC/EPIC changes still run the proof gates: `scripts/generate_ac_registry.py --check`, `scripts/check_ac_traceability.py`, and `scripts/check_critical_proof_matrix.py`. Registry generation checks alignment without rewriting historical registry descriptions. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; trivial placeholder assertions do not count. The macro gate fails README/matrix/owner-EPIC drift and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies were retired to reduce merge conflicts.
-5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`scripts/check_ci_metrics_contract.py`, `scripts/check_coverage_policy.py`, `scripts/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging.
-6. **Single CI Metrics Contract**: `scripts/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
-7. **Toolchain Contract**: `scripts/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
+4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `tools/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `tools/check_ac_traceability.py` as the fail-closed gate, then runs `tools/check_critical_proof_matrix.py` to validate the small core proof matrix, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact together with the critical proof matrix report. The audit distinguishes real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. The macro gate fails README/matrix/owner-EPIC drift and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies were retired to reduce merge conflicts.
+5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging.
+6. **Single CI Metrics Contract**: `tools/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
+7. **Toolchain Contract**: `tools/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
 8. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
-9. **Coverage Policy Audit**: `scripts/check_coverage_policy.py` fails CI if backend, frontend, common, or script source files drift from their LCOV report.
+9. **Coverage Policy Audit**: `tools/check_coverage_policy.py` fails CI if backend, frontend, common, or tools source files drift from their LCOV report.
 10. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 
 ### PR vs Main CI Responsibilities
 
-Pull requests run the same heavy CI path as `main` when runtime, tests, scripts,
+Pull requests run the same heavy CI path as `main` when runtime, tests, tooling,
 CI, dependency, or coverage-policy files change. This keeps branch protection
 strict before merge.
 
@@ -69,7 +69,7 @@ The test system separates proof by where the failure can be acted on:
 
 | Proof type | Runs where | Purpose |
 |---|---|---|
-| Behavioral tests | PR CI before merge | Prove deterministic product behavior, accounting invariants, API contracts, frontend flows, and script/tool contracts before code enters `main`. |
+| Behavioral tests | PR CI before merge | Prove deterministic product behavior, accounting invariants, API contracts, frontend flows, and tooling contracts before code enters `main`. |
 | Environment gates | Post-merge deploy workflows | Prove the exact merged SHA can run in staging/production-like environments with real routing, Vault/Dokploy/GHCR/SigNoz wiring, deployed images, and provider-backed OCR/LLM credentials. |
 | Reference traceability | PR and `main` CI | Prove every mandatory AC has a real non-placeholder test reference; this is not behavioral coverage by itself. |
 | Critical proof matrix | PR and `main` CI | Prove README -> EPIC -> E2E macro closure and selected core proof paths instead of broad AC string references. |
@@ -94,15 +94,15 @@ The CI workflow enforces a **no-regression policy** for test coverage.
 
 2. **Comparison Logic**:
    - Reads `unified-coverage.json` before calculating final coverage
-   - Compares current vs baseline for **all components**: unified, backend, frontend, scripts
+   - Compares current vs baseline for **all components**: unified, backend, frontend, common, tools
    - Uses `round(x, 2)` for floating-point comparison
    - **Zero tolerance**: `current < baseline` → CI fails immediately
    - If baseline file missing: falls through to `COVERAGE_THRESHOLD` check (safety net)
 3. **Source-tree/LCOV Logic**:
    - `common/coverage/policy.py` defines the single component policy used by coverage calculation and audit checks
-   - `scripts/check_ci_metrics_contract.py` first discovers source roots and fails CI when a new `apps/*/src`, `packages/*/src`, or root shared source root is not represented in `common/coverage/policy.py`
-   - `scripts/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
-   - `scripts/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
+   - `tools/check_ci_metrics_contract.py` first discovers source roots and fails CI when a new `apps/*/src`, `packages/*/src`, or root shared source root is not represented in `common/coverage/policy.py`
+   - `tools/check_coverage_policy.py` compares eligible source files with LCOV `SF:` entries
+   - `tools/build_unified_lcov.py` rewrites component-relative LCOV paths to repository-root-relative paths for Coveralls
    - New source modules are automatically required to appear in LCOV unless explicitly excluded by policy
    - New `apps/*/src`, `packages/*/src`, or root shared source roots fail CI until they are added to the coverage policy and report pipeline
 
@@ -144,31 +144,31 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 ### Implementation
 
-**Scripts**:
-- `scripts/test_lifecycle.py --smart` — Runs backend tests with coverage on changed Python modules only
-- `scripts/test_lifecycle.py --fast` — Runs backend tests without coverage
-- `scripts/test_lifecycle.py` — DB lifecycle and namespace isolation for backend tests
+**Tooling**:
+- `tools/test_lifecycle.py --smart` — Runs backend tests with coverage on changed Python modules only
+- `tools/test_lifecycle.py --fast` — Runs backend tests without coverage
+- `tools/test_lifecycle.py` — DB lifecycle and namespace isolation for backend tests
 
 **CI Optimization** (`.github/workflows/ci.yml`):
-- Change classification is implemented in `scripts/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
+- Change classification is implemented in `tools/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
 - PR preview environments deploy only for app, compose, E2E, or preview-action changes. Traceability tooling, docs, and non-preview workflow changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Automatic staging deploys are scoped to runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes. Documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton.
-- Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or script documentation changes from being hidden by a global `*.md` skip.
+- Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or tooling documentation changes from being hidden by a global `*.md` skip.
 - Backend shards and AC traceability run in parallel with lint once change classification has finished, so lint remains visible without delaying independent test work.
 - 6-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 6 --group N`
 - Coverage reports merged post-run
-- Coverage policy audited after backend, frontend, common, and scripts LCOV reports exist
-- Coveralls unified upload uses repository-root-relative backend + frontend + common + scripts LCOV, matching the local unified calculation.
+- Coverage policy audited after backend, frontend, common, and tools LCOV reports exist
+- Coveralls unified upload uses repository-root-relative backend + frontend + common + tools LCOV, matching the local unified calculation.
 - CI keeps Coveralls uploads enabled after local coverage gates pass; external Coveralls status is informational and does not block `unified-coverage` job success.
-- CI calls `scripts/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
+- CI calls `tools/check_toolchain_contract.py` in lint before dependency installation. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
 - Main push CI is the only path that pushes SHA-tagged images. Registry login and image push are guarded by `github.event_name == 'push' && github.ref == 'refs/heads/main'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
 - Production release tag builds set `CONTAINER_RUNTIME=docker` during `moon run :test`
   so the release verification path uses the GitHub-hosted Docker daemon instead
   of auto-selecting an unavailable Podman socket.
-- The `finish` job appends a GitHub Step Summary from `scripts/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
+- The `finish` job appends a GitHub Step Summary from `tools/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 - Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
 - The asynchronous Coveralls status contexts include `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend`. CI does not normalize or require those external contexts. The repository ruleset must require the `finish` check, which aggregates local deterministic gates, rather than Coveralls contexts.
 
@@ -182,7 +182,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, PR preview, and production smoke runs do not repeatedly download identical E2E dependencies.
 - PR CI validates backend and frontend staging image builds without pushing so Dockerfile, context, and build-argument errors are blocked before merge. Main push CI builds and pushes SHA-tagged staging images in parallel with tests when heavy CI is required. These images are immutable commit artifacts and do not move the live `staging` tag.
 - Automatic staging deploy starts from a workflow_run event after the matching main CI run succeeds, and does not poll or wait for CI inside the deploy job. Failed, cancelled, or timed-out main CI runs do not promote images, push `staging` tags, or change the Dokploy staging environment.
-- Before deploying, the staging workflow reuses `scripts/ci_change_classifier.py` to compare the successful main CI SHA with its parent. Non-runtime documentation, project archive, AC traceability, and tooling-only changes stop after CI/AC proof and write a skip summary; runtime, deploy, E2E, staging workflow, toolchain, and infra-submodule changes still run the full staging deploy, non-LLM E2E, and AI/OCR gate.
+- Before deploying, the staging workflow reuses `tools/ci_change_classifier.py` to compare the successful main CI SHA with its parent. Non-runtime documentation, project archive, AC traceability, and tooling-only changes stop after CI/AC proof and write a skip summary; runtime, deploy, E2E, staging workflow, toolchain, and infra-submodule changes still run the full staging deploy, non-LLM E2E, and AI/OCR gate.
 - Staging checks out the `workflow_run.head_sha` so the deployed SHA is the exact commit already proven by main CI. Manual `workflow_dispatch` remains available as a recovery path and checks out the selected ref.
 - After successful main CI, post-merge staging first looks up the backend and frontend SHA-tagged staging images from GHCR. If a SHA image is missing, the workflow falls back to building only the missing image. Once both SHA images are present, staging retags those immutable images as `staging` before deploy. This keeps deploy detection strict while moving normal image build time out of the serialized post-merge lane.
 - Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
@@ -257,7 +257,7 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 **CI Pipeline (2026-05-20 after 6-way backend sharding):**
 - Full heavy CI execution window on `main`: **~5m 48s** after jobs start; run wall time may be higher when GitHub queues the run.
 - Longest backend shard: **~4m 48s**.
-- Unified coverage: **~42s**, including scripts coverage and reporting-only Coveralls uploads.
+- Unified coverage: **~42s**, including tooling coverage and reporting-only Coveralls uploads.
 - The timing summary reports queue delay separately from execution time so future regressions can distinguish runner capacity from workflow critical-path changes.
 
 **Post-merge staging (2026-05-20 observed baseline):**
@@ -284,14 +284,14 @@ Options:
 
 ---
 
-## Smoke Tests (`scripts/smoke_test.sh`)
+## Smoke Tests (`tools/smoke_test.sh`)
 
 ```bash
 # Local (after starting servers)
-bash scripts/smoke_test.sh
+bash tools/smoke_test.sh
 
 # Against staging/prod
-BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh
+BASE_URL=https://report.zitian.party bash tools/smoke_test.sh
 ```
 
 | Endpoint | Check |
@@ -310,10 +310,10 @@ deploy-blocking usability gates:
 
 | Environment | Gate | Command | Skip Policy |
 |-------------|------|---------|-------------|
-| Staging | Shell smoke | `bash scripts/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
+| Staging | Shell smoke | `bash tools/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
 | Staging | Non-LLM E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4` | Tests marked `critical` must fail instead of skip |
 | Staging | AI/OCR E2E | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_brokerage_upload_to_portfolio_value.py tests/e2e/test_four_asset_net_worth_golden_path.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Serial provider-backed GLM gate; `rejected` fails deploy |
-| Production | Shell smoke | `bash scripts/smoke_test.sh https://report.zitian.party production` | Read-only checks only |
+| Production | Shell smoke | `bash tools/smoke_test.sh https://report.zitian.party production` | Read-only checks only |
 | Production | Prod-safe E2E | `pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"` | Authenticated dashboard check may skip only when read-only smoke credentials are absent |
 
 Critical staging E2E tests are the proof that a deployment is usable, not just

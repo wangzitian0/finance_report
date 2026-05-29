@@ -9,6 +9,13 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
+def _load_first_json_object(output: str) -> dict:
+    """Parse moon JSON while tolerating duplicate output from local runners."""
+    data, _ = json.JSONDecoder().raw_decode(output.lstrip())
+    assert isinstance(data, dict)
+    return data
+
+
 def test_epic_001_moon_workspace_configs_exist() -> None:
     """AC1.1.1: Moon workspace configuration files must exist."""
     required_files = [
@@ -85,14 +92,14 @@ def test_epic_001_frontend_moon_tasks_configured() -> None:
         pytest.skip("moon CLI not installed")
 
     result = subprocess.run(
-        [moon_bin, "project", "frontend", "--json"],
+        [moon_bin, "--cache", "off", "project", "frontend", "--json"],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
     )
     assert result.returncode == 0, f"Moon frontend project query failed: {result.stderr}"
-    project_data = json.loads(result.stdout)
-    # Tasks are now global (scripts/cli.py), so frontend project has no specific tasks.
+    project_data = _load_first_json_object(result.stdout)
+    # Tasks are now global (tools/cli.py), so frontend project has no specific tasks.
     # We verify the project is correctly identified by checking its language.
     # 'type' field seems to be missing in some moon versions' JSON output, but 'language' is present.
     assert project_data.get("language") == "javascript", (

@@ -1852,7 +1852,7 @@ Backend Logic:
 | **Lint** | `moon run :lint -- --fix && moon run :lint` | No errors |
 | **Schema Guardrails** | `moon run :test -k test_schema_guardrails` | Enum naming enforced |
 | **Balance Validation** | `moon run :test -k test_accounting_integration` | All entries balanced |
-| **Smoke Test** | `bash scripts/smoke_test.sh` | Asset endpoints return 2xx |
+| **Smoke Test** | `bash tools/smoke_test.sh` | Asset endpoints return 2xx |
 | **Manual E2E** | See "End-to-End Acceptance Checklist" above | All user stories pass |
 
 ---

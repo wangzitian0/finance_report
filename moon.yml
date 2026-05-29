@@ -8,9 +8,10 @@ fileGroups:
     - '.github/**/*'
     - '.moon/**/*'
     - 'apps/**/*'
+    - 'common/**/*'
     - 'docs/**/*'
     - 'infra/**/*'
-    - 'scripts/**/*'
+    - 'tools/**/*'
     - 'tests/**/*'
     - '*.md'
     - '*.toml'
@@ -22,7 +23,7 @@ fileGroups:
 
 tasks:
   setup:
-    command: 'python3 scripts/cli.py setup'
+    command: 'python3 tools/cli.py setup'
     deps: []
     inputs:
       - '@group(workspace)'
@@ -30,7 +31,7 @@ tasks:
       cache: false
 
   dev:
-    command: 'python3 scripts/cli.py dev'
+    command: 'python3 tools/cli.py dev'
     preset: 'server'
     inputs:
       - '@group(workspace)'
@@ -38,28 +39,28 @@ tasks:
       cache: false
 
   test:
-    command: 'python3 scripts/cli.py test'
+    command: 'python3 tools/cli.py test'
     inputs:
       - '@group(workspace)'
     options:
       cache: false
 
   lint:
-    command: 'python3 scripts/cli.py lint'
+    command: 'python3 tools/cli.py lint'
     inputs:
       - '@group(workspace)'
     options:
       cache: false
 
   build:
-    command: 'python3 scripts/cli.py build'
+    command: 'python3 tools/cli.py build'
     inputs:
       - '@group(workspace)'
     options:
       cache: false
 
   clean:
-    command: 'python3 scripts/cli.py clean'
+    command: 'python3 tools/cli.py clean'
     preset: 'server'
     inputs:
       - '@group(workspace)'

@@ -1,0 +1,11 @@
+# Input: Real PDFs (sensitive, don't commit)
+input/**/*.pdf
+input/**/*.PDF
+
+# Output: Generated test PDFs (can be committed if needed, but usually ignored)
+output/**/*.pdf
+output/**/*.PDF
+
+# Local analysis outputs (if contain sensitive info)
+*.analysis.json
+*.analysis.yaml

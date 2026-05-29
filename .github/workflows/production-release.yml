@@ -271,19 +271,19 @@ jobs:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
         run: |
-          bash scripts/dokploy_deploy.sh \
+          bash tools/dokploy_deploy.sh \
             "$PRODUCTION_COMPOSE_ID" \
             "$IMAGE_TAG" \
             "https://report.zitian.party"
           
-          bash scripts/health_check.sh \
+          bash tools/health_check.sh \
             "https://report.zitian.party/api/health" \
             "production" \
             24 \
             "$IMAGE_TAG"
 
       - name: Smoke Tests
-        run: bash scripts/smoke_test.sh https://report.zitian.party production
+        run: bash tools/smoke_test.sh https://report.zitian.party production
 
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests

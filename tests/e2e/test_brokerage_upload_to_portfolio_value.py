@@ -37,7 +37,7 @@ def _get_pdf_path(source: str) -> Path:
     from datetime import datetime
 
     root = Path(__file__).resolve().parents[2]
-    source_dir = root / "scripts" / "pdf_fixtures" / "output" / source
+    source_dir = root / "common" / "pdf_fixtures" / "output" / source
     yymm = datetime.now().strftime("%y%m")
     prebuilt = source_dir / f"test_{source}_{yymm}.pdf"
     if prebuilt.exists():
@@ -47,7 +47,7 @@ def _get_pdf_path(source: str) -> Path:
         if pdfs:
             return pdfs[-1]
 
-    script = root / "scripts" / "pdf_fixtures" / "generate_pdf_fixtures.py"
+    script = root / "tools" / "generate_pdf_fixtures.py"
     result = subprocess.run(
         [sys.executable, str(script), "--source", source],
         capture_output=True,

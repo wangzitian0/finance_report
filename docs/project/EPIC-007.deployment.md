@@ -122,7 +122,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `apps/backend/tests/infra/` and `scripts/smoke_test.sh`
+> **Coverage**: See `apps/backend/tests/infra/` and `tools/smoke_test.sh`
 
 ### AC7.1: Infrastructure Setup
 

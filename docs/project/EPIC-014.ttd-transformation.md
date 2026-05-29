@@ -73,12 +73,12 @@ status.
 | **Development Setup** | ✅ Automated | `make install`, `moon run :dev` | 100% |
 | **Code Quality** | ✅ Automated | Ruff pre-commit, mypy pre-commit, CI lint | 100% |
 | **Testing** | ✅ Automated | `moon run :test`, pytest-xdist | 100% |
-| **Debugging** | ✅ Automated | `scripts/debug.py` (env auto-detect) | 100% |
-| **Deployment** | ✅ Automated | `scripts/dokploy_deploy.sh`, `moon run :deploy` | 100% |
-| **Environment Consistency** | ✅ Automated | `scripts/check_env_keys.py`, `validate_schemas.py` | 100% |
+| **Debugging** | ✅ Automated | `tools/debug.py` (env auto-detect) | 100% |
+| **Deployment** | ✅ Automated | `tools/dokploy_deploy.sh`, `moon run :deploy` | 100% |
+| **Environment Consistency** | ✅ Automated | `tools/check_env_keys.py`, `validate_schemas.py` | 100% |
 | **Container Management** | ✅ Automated | `cleanup_leaked_containers.py` | 100% |
-| **PDF Fixture Generation** | 🟡 Semi-automated | `scripts/pdf_fixtures/` (interactive) | 60% |
-| **Smoke Testing** | ✅ Automated | `scripts/smoke_test.sh` | 100% |
+| **PDF Fixture Generation** | 🟡 Semi-automated | `common/pdf_fixtures/` with `tools/generate_pdf_fixtures.py` | 60% |
+| **Smoke Testing** | ✅ Automated | `tools/smoke_test.sh` | 100% |
 
 ### Documentation Constraints Found
 
@@ -196,14 +196,14 @@ All existing runtime constraints are **legitimate business logic** (e.g., journa
   hooks:
     - id: validate-config-schemas
       name: Validate Pydantic schemas
-      entry: python scripts/validate_schemas.py
+      entry: python tools/validate_schemas.py
       language: python
       files: ^(apps/backend/src/config\.py|apps/backend/src/schemas/.*\.py)$
 ```
 
-#### 3.2 Script Enhancements
+#### 3.2 Tool Enhancements
 
-**New Script: `scripts/validate_schemas.py`**
+**New Tool: `tools/validate_schemas.py`**
 ```python
 #!/usr/bin/env python3
 """
@@ -218,11 +218,11 @@ Ensures:
 # Implementation would validate Pydantic models at static time
 ```
 
-**Enhanced: `scripts/debug.py`**
+**Enhanced: `tools/debug.py`**
 - Add `--auto-cleanup` flag to remove leaked containers after debugging
 - Add `--health-check` to run basic smoke tests
 
-**Enhanced: `scripts/pdf_fixtures/generate_pdf_fixtures.py`**
+**Enhanced: `tools/generate_pdf_fixtures.py`**
 - Add `--template bank=dbs|cmb|moomoo|pingan|mari` flag
 - Add `--auto-verify` to run validation after generation
 - Add `--export-json` for non-interactive use
@@ -243,7 +243,7 @@ e2e:
     - name: Install moon
       uses: moonrepo/setup-toolchain@v0
     - name: Run smoke tests
-      run: bash scripts/smoke_test.sh local
+      run: bash tools/smoke_test.sh local
 ```
 
 **Add to `.github/workflows/pr-test.yml`**:
@@ -426,7 +426,7 @@ Before marking a doc as "Complete", verify:
 
 ### Phase 2 Tasks ✅ (COMPLETE)
 - [x] Add mypy pre-commit hook
-- [x] Create `scripts/validate_schemas.py`
+- [x] Create `tools/validate_schemas.py`
 - [x] Add dependency security scan (safety/pip-audit)
 - [ ] Add hadolint for Dockerfile linting (P1)
 - [x] Integrate smoke_test.sh into pr-test.yml
@@ -457,7 +457,7 @@ Before marking a doc as "Complete", verify:
 ## 📊 Success Metrics Snapshot
 
 The values below are historical progress markers for this EPIC. Current metrics
-should be regenerated from scripts or read from CI artifacts.
+should be regenerated from tooling or read from CI artifacts.
 
 ### Quantitative
 

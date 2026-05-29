@@ -275,5 +275,5 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/services/storage.py` | Object storage uploads + presigned URLs |
 | `src/prompts/statement.py` | Parsing prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |
-| `scripts/generate_fixtures.py` | Parse docs with caching |
-| `scripts/sanitize_fixtures.py` | Mask PII |
+| `tools/generate_fixtures.py` | Parse docs with caching |
+| `tools/sanitize_fixtures.py` | Mask PII |

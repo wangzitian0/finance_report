@@ -63,9 +63,7 @@ def upgrade() -> None:
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
             sa.PrimaryKeyConstraint("id"),
         )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_market_data_override_user_id ON market_data_override (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_market_data_override_user_id ON market_data_override (user_id)")
 
     if not _has_table(inspector, "dividend_income"):
         op.create_table(
@@ -128,18 +126,14 @@ def upgrade() -> None:
     op.execute("ALTER TABLE atomic_positions DROP CONSTRAINT IF EXISTS atomic_positions_user_id_fkey")
     op.execute("DROP INDEX IF EXISTS idx_atomic_txn_date")
     op.execute("DROP INDEX IF EXISTS idx_atomic_txn_dedup")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_atomic_transactions_user_id ON atomic_transactions (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_atomic_transactions_user_id ON atomic_transactions (user_id)")
     op.execute("ALTER TABLE atomic_transactions DROP CONSTRAINT IF EXISTS atomic_transactions_user_id_fkey")
     op.execute("DROP INDEX IF EXISTS ix_bank_statement_transactions_status")
     op.execute("DROP INDEX IF EXISTS ix_bank_statement_transactions_txn_date")
     op.execute("DROP INDEX IF EXISTS ix_bank_statements_status")
     op.execute("ALTER TABLE bank_statements DROP CONSTRAINT IF EXISTS bank_statements_user_id_fkey")
     op.execute("ALTER TABLE chat_sessions DROP CONSTRAINT IF EXISTS chat_sessions_user_id_fkey")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_classification_rules_user_id ON classification_rules (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_classification_rules_user_id ON classification_rules (user_id)")
     op.execute("ALTER TABLE classification_rules DROP CONSTRAINT IF EXISTS classification_rules_user_id_fkey")
     op.alter_column(
         "consistency_checks",
@@ -173,9 +167,7 @@ def upgrade() -> None:
         existing_nullable=True,
     )
     op.execute("CREATE INDEX IF NOT EXISTS ix_journal_lines_account_id ON journal_lines (account_id)")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_journal_lines_journal_entry_id ON journal_lines (journal_entry_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_journal_lines_journal_entry_id ON journal_lines (journal_entry_id)")
     op.execute("ALTER TABLE journal_lines DROP CONSTRAINT IF EXISTS journal_lines_journal_entry_id_fkey")
     op.create_foreign_key(None, "journal_lines", "journal_entries", ["journal_entry_id"], ["id"])
 
@@ -210,19 +202,13 @@ def upgrade() -> None:
                 comment="Realized gain/loss from disposals",
             ),
         )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_managed_positions_user_id ON managed_positions (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_managed_positions_user_id ON managed_positions (user_id)")
     op.execute("ALTER TABLE managed_positions DROP CONSTRAINT IF EXISTS managed_positions_user_id_fkey")
     op.execute("DROP INDEX IF EXISTS idx_reconciliation_matches_atomic_txn")
     op.execute("DROP INDEX IF EXISTS ix_reconciliation_matches_status")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_report_snapshots_user_id ON report_snapshots (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_report_snapshots_user_id ON report_snapshots (user_id)")
     op.execute("ALTER TABLE report_snapshots DROP CONSTRAINT IF EXISTS report_snapshots_user_id_fkey")
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_uploaded_documents_user_id ON uploaded_documents (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_uploaded_documents_user_id ON uploaded_documents (user_id)")
     op.execute("ALTER TABLE uploaded_documents DROP CONSTRAINT IF EXISTS uploaded_documents_user_id_fkey")
     # ### end Alembic commands ###
 

@@ -71,6 +71,6 @@ Terminal 1 exits                   → refcount=0 (stop container)
 |------|---------|
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
-| `scripts/test_backend.sh` | Database lifecycle |
+| `tools/test_lifecycle.py` | Database lifecycle |
 | `docker-compose.yml` | Development containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |

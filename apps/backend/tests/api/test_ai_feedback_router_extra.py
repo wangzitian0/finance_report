@@ -25,7 +25,9 @@ from src.models.layer2 import TransactionDirection
 pytestmark = pytest.mark.asyncio
 
 
-async def _create_classification(db: AsyncSession, user_id, *, tags, account_id=None, confidence=70, status=ClassificationStatus.DRAFT):
+async def _create_classification(
+    db: AsyncSession, user_id, *, tags, account_id=None, confidence=70, status=ClassificationStatus.DRAFT
+):
     atomic = AtomicTransaction(
         user_id=user_id,
         txn_date=date(2024, 6, 1),

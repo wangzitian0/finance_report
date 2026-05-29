@@ -42,7 +42,9 @@ class CoverageComponent:
     def to_lcov_source(self, file_path: Path, repo_root: Path = ROOT_DIR) -> str:
         return file_path.relative_to(self.root_path(repo_root)).as_posix()
 
-    def normalize_lcov_source(self, source_file: str, repo_root: Path = ROOT_DIR) -> str:
+    def normalize_lcov_source(
+        self, source_file: str, repo_root: Path = ROOT_DIR
+    ) -> str:
         source = source_file.replace("\\", "/")
         root = self.root_path(repo_root)
         if Path(source).is_absolute():
@@ -115,18 +117,19 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
         ),
     ),
     CoverageComponent(
-        name="scripts",
+        name="tools",
         component_root="",
-        source_subdir="scripts",
+        source_subdir="tools",
         extensions=(".py",),
-        ci_lcov_path="coverage/scripts.lcov",
-        local_lcov_paths=("coverage-scripts.lcov",),
+        ci_lcov_path="coverage/tools.lcov",
+        local_lcov_paths=("coverage-tools.lcov",),
         exclude_patterns=(
-            "scripts/tests/**",
-            "scripts/**/__pycache__/**",
-            "scripts/**/test_*.py",
-            "scripts/**/*_test.py",
-            "conftest.py",
+            "tools/__init__.py",
+            "tools/**/__init__.py",
+            "tools/**/__pycache__/**",
+            "tools/tests/**",
+            "tools/**/test_*.py",
+            "tools/**/*_test.py",
         ),
     ),
     CoverageComponent(
@@ -141,8 +144,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "common/**/__init__.py",
             "common/**/__pycache__/**",
             "common/tests/**",
-            "common/**/test_*.py",
-            "common/**/*_test.py",
         ),
     ),
 )

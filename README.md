@@ -41,9 +41,9 @@ from project intent to executable proof without reading archive fragments.
 | Decision filter | `vision.md` | Direction for ambiguous product and architecture choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
-| AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml` | Generated acceptance criteria inventory | `scripts/generate_ac_registry.py --check` |
-| SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `scripts/check_ssot_ownership.py` |
-| Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Checked-in AC-to-test snapshot and coverage baseline | `scripts/check_ac_traceability.py`, `common/coverage/policy.py` |
+| AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml` | Generated acceptance criteria inventory | `tools/generate_ac_registry.py --check` |
+| SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `tools/check_ssot_ownership.py` |
+| Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Checked-in AC-to-test snapshot and coverage baseline | `tools/check_ac_traceability.py`, `tools/check_coverage_policy.py` |
 
 Implementation facts should be code-owned where possible. Prose SSOT documents
 explain rationale and link to code, tests, generated registries, or issues
@@ -58,8 +58,8 @@ change whenever registries, tests, or coverage baselines change.
 Use these sources instead:
 
 - Checked-in AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
-- Live local AC coverage: `python scripts/analyze_test_ac_coverage.py --stdout`
-- Traceability gate: `python scripts/check_ac_traceability.py`
+- Live local AC coverage: `python tools/analyze_test_ac_coverage.py --stdout`
+- Traceability gate: `python tools/check_ac_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
 - Coverage policy owner: `common/coverage/policy.py`
 
@@ -122,7 +122,9 @@ labels are the source of truth for current tracker status.
 
 Macro correctness is owned by
 [`docs/ssot/critical-proof-matrix.yaml`](docs/ssot/critical-proof-matrix.yaml)
-and checked by `python scripts/check_critical_proof_matrix.py`.
+and checked by `python tools/check_critical_proof_matrix.py`. This is the
+README -> EPIC -> E2E contract. The EPIC -> AC -> test contract remains owned by
+the generated AC registries and AC traceability reports.
 
 The macro outcome set is closed and parseable:
 
@@ -167,7 +169,7 @@ dependencies, and pre-commit hooks.
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-bash scripts/bootstrap.sh
+bash tools/bootstrap.sh
 moon run :dev
 ```
 
@@ -177,7 +179,7 @@ not share PATH entries or Python/Node packages with WSL. From PowerShell, enter
 the project through WSL explicitly:
 
 ```powershell
-wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash scripts/bootstrap.sh"
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash tools/bootstrap.sh"
 ```
 
 Open <http://localhost:3000>.
@@ -211,7 +213,8 @@ apps/
 ├── backend/     # FastAPI + SQLAlchemy + PostgreSQL
 └── frontend/    # Next.js + TypeScript
 
-scripts/         # CI, coverage, registry, fixture, and lifecycle tools
+common/          # Shared libraries for CI, coverage, SSOT, fixtures, and dev helpers
+tools/           # Command entry points that delegate to common libraries
 docs/project/    # EPICs and project audit reports
 docs/ssot/       # Rationale docs that link to code owners and proof tests
 ```

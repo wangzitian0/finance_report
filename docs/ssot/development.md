@@ -16,14 +16,15 @@
 
 | File | Purpose |
 |------|---------|
-| `scripts/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics |
+| `tools/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics |
+| `common/shell/` | Shared shell implementations and helpers used by `tools/*.sh` command entry points |
 | `toolchain.toml` | Runtime and container image version SSOT |
 | `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI |
 | `.moon/toolchain.yml` | Moon's local Node/npm toolchain mirror |
 | `moon.yml` | Root workspace tasks |
 | `apps/*/moon.yml` | Per-project tasks |
-| `scripts/test_lifecycle.py` | Database lifecycle (Python Context Manager) |
-| `scripts/smoke_test.sh` | Unified smoke tests |
+| `tools/test_lifecycle.py` | Database lifecycle (Python Context Manager) |
+| `tools/smoke_test.sh` | Unified smoke tests |
 | `docker-compose.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
 | `.github/workflows/staging-deploy.yml` | Staging Build & Deploy |
@@ -52,18 +53,18 @@ The frontend sets `engine-strict=true` in `.npmrc` and declares
 `engines.node=20.19.0`, so running npm under another Node major/minor fails
 early instead of producing a different dependency tree.
 
-CI runs `python scripts/check_toolchain_contract.py` in the lint job. The check
+CI runs `python tools/check_toolchain_contract.py` in the lint job. The check
 fails when workflow runtime declarations, local tool files, Docker base images,
 Compose service images, or frontend engine constraints drift from
 `toolchain.toml`.
 
-Local bootstrapping is owned by `scripts/bootstrap.sh`. It installs or verifies
-uv, Python, nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks,
-then reports whether Docker or Podman is available for workflows that need a
-host container runtime. Local commands prefer Podman when both runtimes are
-available, but `CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be
-set to force a specific runtime in CI or on hosts where only one daemon is
-usable.
+Local bootstrapping is invoked through `tools/bootstrap.sh`; the reusable shell
+implementation lives under `common/shell/`. It installs or verifies uv, Python,
+nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks, then reports
+whether Docker or Podman is available for workflows that need a host container
+runtime. Local commands prefer Podman when both runtimes are available, but
+`CONTAINER_RUNTIME=docker` or `CONTAINER_RUNTIME=podman` may be set to force a
+specific runtime in CI or on hosts where only one daemon is usable.
 
 ### Local Host Shell Matrix
 
@@ -73,22 +74,22 @@ shells, Windows PowerShell, Git Bash, Scoop, or the Codex Windows runner.
 
 | Host shell | Support | Command entry point | Tool install scope |
 |---|---|---|---|
-| WSL Ubuntu | Primary Windows path | `bash scripts/bootstrap.sh` inside WSL | `/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `$HOME/.nvm` in WSL |
-| macOS Terminal | Supported POSIX path | `bash scripts/bootstrap.sh` | Homebrew/system tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
-| Linux shell | Supported POSIX path | `bash scripts/bootstrap.sh` | Distro tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
-| Windows PowerShell | Not a direct project shell | Use `wsl.exe -d Ubuntu --cd ... --exec /bin/bash -lc "bash scripts/bootstrap.sh"` | Windows PATH and Scoop installs only; not visible to WSL |
+| WSL Ubuntu | Primary Windows path | `bash tools/bootstrap.sh` inside WSL | `/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `$HOME/.nvm` in WSL |
+| macOS Terminal | Supported POSIX path | `bash tools/bootstrap.sh` | Homebrew/system tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
+| Linux shell | Supported POSIX path | `bash tools/bootstrap.sh` | Distro tools plus `$HOME/.local/bin` and `$HOME/.nvm` |
+| Windows PowerShell | Not a direct project shell | Use `wsl.exe -d Ubuntu --cd ... --exec /bin/bash -lc "bash tools/bootstrap.sh"` | Windows PATH and Scoop installs only; not visible to WSL |
 | Git Bash/MSYS/Cygwin | Not supported for repo bootstrap | Use WSL Ubuntu instead | Windows-mounted POSIX compatibility layer; not the repo target shell |
 | Codex Windows runner | Not the repo command runner | Delegate repo commands to WSL | Runner PATH may omit interactive profile entries and WSL-only tools |
 
 Non-interactive shells often skip interactive profile files such as `.zshrc` or
-`.bashrc`. Scripts that need tools must set PATH explicitly or run through
-`scripts/bootstrap.sh`; do not rely on an interactive terminal having loaded the
+`.bashrc`. Command entry points that need tools must set PATH explicitly or run through
+`tools/bootstrap.sh`; do not rely on an interactive terminal having loaded the
 right Python, Node, `gh`, `uv`, `op`, `jq`, `yq`, `direnv`, Docker, or Podman.
 
 From Windows PowerShell, run the bootstrap through WSL:
 
 ```powershell
-wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash scripts/bootstrap.sh"
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash tools/bootstrap.sh"
 ```
 
 ---
@@ -97,7 +98,7 @@ wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -l
 
 ```bash
 # First-time local setup
-bash scripts/bootstrap.sh
+bash tools/bootstrap.sh
 
 # Development
 moon run :dev -- --backend        # Full Stack (App + DB + Redis + MinIO)
@@ -120,7 +121,7 @@ uv run python -m src.boot --mode full  # Full Stack Check (Gate 3)
 # Code Quality
 moon run :lint              # Lint all
 moon run :lint -- --fix     # Format Python (auto-fix)
-python scripts/check_toolchain_contract.py  # Runtime/toolchain drift check
+python tools/check_toolchain_contract.py  # Runtime/toolchain drift check
 
 # Build
 moon run :build             # Build all
@@ -160,7 +161,7 @@ Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/
 
 ### Database Management (Python Context Manager)
 
-`scripts/test_lifecycle.py` uses `@contextmanager` to handle the database lifecycle:
+`tools/test_lifecycle.py` uses `@contextmanager` to handle the database lifecycle:
 
 1. **Setup**: Starts the `postgres` service via Docker Compose; ensures DB is ready.
 2. **Isolation**: Creates `finance_report_test` database and runs migrations.
@@ -211,7 +212,7 @@ moon run :test                                             # Auto-detect from gi
 
 Integration points:
 - `common/test_isolation.py` — owns reusable namespace, database, bucket, and suffix helpers
-- `scripts/test_lifecycle.py` — command entry point that creates DBs and overrides `S3_BUCKET`
+- `tools/test_lifecycle.py` — command entry point that creates DBs and overrides `S3_BUCKET`
 - `apps/backend/tests/conftest.py` — reads `TEST_NAMESPACE`, generates worker URLs
 - Contract tests: `apps/backend/tests/infra/test_isolation.py` (15 tests)
 
@@ -249,8 +250,8 @@ All resources are bound to either **dev server lifecycle** (Ctrl+C) or **test li
 ## Smoke Tests
 
 ```bash
-bash scripts/smoke_test.sh                              # Local
-BASE_URL=https://report.zitian.party bash scripts/smoke_test.sh  # Staging/prod
+bash tools/smoke_test.sh                              # Local
+BASE_URL=https://report.zitian.party bash tools/smoke_test.sh  # Staging/prod
 ```
 
 Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliation`, `/api/ping`
@@ -275,6 +276,14 @@ Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliatio
 | CI | Same as Local Test | `localhost:5433` (services) |
 | Staging/Prod | External PostgreSQL | Dokploy Managed |
 
+Environment/config validation is shared library logic under `common/config/`.
+`common/config/env_keys.py` owns the three-way key comparison across
+`secrets.ctmpl`, `apps/backend/src/config.py`, and `.env.example`;
+`tools/check_env_keys.py` is the command entry point. Pydantic config/schema
+validation is implemented in `common/config/schema_validation.py` and exposed
+through `tools/validate_schemas.py`. The root command namespace is `tools/`;
+shared implementation belongs in `common/`.
+
 ---
 
 ## Verification
@@ -287,7 +296,7 @@ moon run :test
 nohup moon run :dev -- --backend > /dev/null 2>&1 &
 sleep 10
 export BASE_URL="http://localhost:8000"
-bash scripts/smoke_test.sh
+bash tools/smoke_test.sh
 
 # Check no orphan containers after tests
 podman ps | grep finance_report
@@ -300,7 +309,7 @@ podman ps | grep finance_report
 ### Automatic Cleanup (Recommended)
 
 ```bash
-./scripts/install_git_hooks.sh  # Install post-push hook for auto-cleanup
+./tools/install_git_hooks.sh  # Install post-push hook for auto-cleanup
 ```
 
 Cleans: Test databases from interrupted runs, worker DBs from pytest-xdist crashes.
@@ -310,18 +319,18 @@ Does NOT touch: Development data, running tests.
 
 ```bash
 # Orphaned test databases (after interrupted runs)
-python scripts/cleanup_orphaned_dbs.py --dry-run  # Preview
-python scripts/cleanup_orphaned_dbs.py            # Clean orphaned
-python scripts/cleanup_orphaned_dbs.py --all      # Clean ALL test DBs
+python tools/cleanup_orphaned_dbs.py --dry-run  # Preview
+python tools/cleanup_orphaned_dbs.py            # Clean orphaned
+python tools/cleanup_orphaned_dbs.py --all      # Clean ALL test DBs
 
 # All development resources (WARNING: data loss!)
-./scripts/cleanup_dev_resources.sh        # Containers + locks only
-./scripts/cleanup_dev_resources.sh --all  # EVERYTHING (volumes, MinIO)
+./tools/cleanup_dev_resources.sh        # Containers + locks only
+./tools/cleanup_dev_resources.sh --all  # EVERYTHING (volumes, MinIO)
 
 # Resource leak monitoring (run weekly)
-./scripts/check_resource_leaks.sh
-./scripts/check_resource_leaks.sh --verbose
-VPS_HOST=cloud.zitian.party ./scripts/check_resource_leaks.sh
+./tools/check_resource_leaks.sh
+./tools/check_resource_leaks.sh --verbose
+VPS_HOST=cloud.zitian.party ./tools/check_resource_leaks.sh
 ```
 
 ### PR Preview Cleanup (Automated)

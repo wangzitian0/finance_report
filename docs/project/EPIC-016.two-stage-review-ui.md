@@ -457,9 +457,9 @@ delivery status table.
 | AC16.10.13 | `apiFetch` normalizes path without leading slash | ⏳ |
 | AC16.10.14 | `apiFetch` includes `Authorization` header when token is present | ⏳ |
 
-### AC16.11 — Dev Tooling / Infra Scripts (Infra)
+### AC16.11 — Dev Tooling / Infra Commands (Infra)
 
-> These ACs cover `scripts/debug.py`, `scripts/cleanup_orphaned_dbs.py`, `scripts/cli.py`, `scripts/dev_backend.py`, and `scripts/dev_frontend.py`.
+> These ACs cover `tools/debug.py`, `tools/cleanup_orphaned_dbs.py`, `tools/cli.py`, `tools/dev_backend.py`, and `tools/dev_frontend.py`.
 
 | AC ID | Description | Status |
 |-------|-------------|--------|
@@ -517,7 +517,7 @@ delivery status table.
 
 ### AC16.13 — Test Lifecycle Infrastructure (Infra)
 
-> These ACs cover `scripts/test_backend.py` / `scripts/test_lifecycle.py` and test infrastructure helpers.
+> These ACs cover `tools/test_lifecycle.py` and test infrastructure helpers.
 
 | AC ID | Description | Status |
 |-------|-------------|--------|

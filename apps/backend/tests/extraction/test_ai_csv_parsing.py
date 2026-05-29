@@ -86,7 +86,9 @@ async def test_ai_csv_parsing_skips_empty_debit_credit_rows():
     """AI CSV parser skips mapped debit/credit rows that contain no amount."""
     service = ExtractionService()
 
-    ai_mapping = '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}'
+    ai_mapping = (
+        '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}'
+    )
     rows = [
         {"Txn Date": "15/01/2025", "Narration": "No Amount", "Debit": "", "Credit": ""},
         {"Txn Date": "16/01/2025", "Narration": "Salary", "Debit": "", "Credit": "3000.00"},

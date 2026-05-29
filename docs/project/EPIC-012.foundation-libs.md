@@ -48,7 +48,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | Database | `src/database.py`, `src/config.py` | Pool config, transaction patterns |
 | Exceptions | `src/utils/exceptions.py` | BaseAppException class |
 | Rate Limiting | `src/rate_limit.py` | Global API limiter |
-| Debugging | `scripts/debug.py` | SigNoz API integration |
+| Debugging | `tools/debug.py` | SigNoz API integration |
 | Schemas | `src/schemas/*.py` | Consistent BaseResponse inheritance |
 
 ---
@@ -345,7 +345,7 @@ consolidated here. The removed inventory is retained in
   service code should use `flush()` while routers own `commit()`. See H2 and
   issue #182.
 - Environment variable lifecycle is guarded by config sync tests and
-  `scripts/check_env_keys.py`; archive prose about config drift is superseded by
+  `tools/check_env_keys.py`; archive prose about config drift is superseded by
   those checks and `docs/ssot/development.md`.
 - Frontend API base URL normalization, schema enum naming, Alembic filename
   guardrails, and Decimal safety are current guardrail topics owned by tests and
@@ -368,7 +368,7 @@ consolidated here. The removed inventory is retained in
 | Rate Limit | `src/rate_limit.py` | ⚠️ Auth-only |
 | Dependencies | `src/deps.py` | ✅ DbSession, CurrentUserId |
 | Boot | `src/boot.py` | ✅ Health checks |
-| Debug | `scripts/debug.py` | ⚠️ Needs SigNoz API |
+| Debug | `tools/debug.py` | ⚠️ Needs SigNoz API |
 | Error IDs | `src/constants/error_ids.py` | ✅ Centralized constants |
 
 ### Frontend Foundation

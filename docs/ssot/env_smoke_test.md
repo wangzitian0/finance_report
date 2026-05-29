@@ -99,6 +99,6 @@ Bootloader: Running validation cycle (mode=full)
 | Test Type | Tool | Purpose |
 | :--- | :--- | :--- |
 | **Environment Check** | `src.boot` | **Internal Connectivity**. "Can the App talk to DB?" |
-| **E2E Smoke Test** | `scripts/smoke_test.sh` | **External Availability**. "Can the User talk to the App?" |
+| **E2E Smoke Test** | `tools/smoke_test.sh` | **External Availability**. "Can the User talk to the App?" |
 
 Both are required for a healthy system. `src.boot` is the foundation; `smoke_test.sh` is the acceptance.

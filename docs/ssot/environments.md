@@ -37,7 +37,7 @@
 - Uses same `docker-compose.yml` (Profile: `infra`)
 - **Ephemeral data**: Test DB reset before each run, worker DBs auto-cleaned
 - Isolation: `finance_report_test_{namespace}` + worker DBs (`_gw0`, `_gw1`, etc.); long namespaces are hash-shortened to keep DB names and `statements-{namespace}` buckets within 63-character backend limits.
-- Command: `moon run :lint && moon run :test` (**same gate family as GitHub CI**; GitHub adds sharding, frontend coverage, scripts coverage, traceability, and image validation)
+- Command: `moon run :lint && moon run :test` (**same gate family as GitHub CI**; GitHub adds sharding, frontend coverage, tooling coverage, traceability, and image validation)
 
 ### Host Shell Boundaries
 
@@ -58,7 +58,7 @@ wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -l
 
 Non-interactive shells usually do not load the same profile files as an
 interactive terminal. Treat PATH, `NVM_DIR`, and tool locations as part of the
-environment contract; bootstrap and automation scripts must set them explicitly
+environment contract; bootstrap and automation commands must set them explicitly
 before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 
 ### GitHub Environments
@@ -112,7 +112,7 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 
 | Workflow File | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
-| `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, scripts coverage, unified coverage, and image validation |
+| `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
 | `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
 | `.github/workflows/staging-deploy.yml` | Staging | Push to main | Build images (`:staging` tag), deploy |
 | `.github/workflows/production-release.yml` | Production | Tag `v*.*.*` or manual | Build release images, deploy on manual trigger |

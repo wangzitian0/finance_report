@@ -18,7 +18,7 @@ README.md -> EPIC -> E2E
 
 That macro contract is owned by
 [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) and checked by
-`scripts/check_critical_proof_matrix.py`. The checker keeps the README outcome
+`tools/check_critical_proof_matrix.py`. The checker keeps the README outcome
 table, matrix rows, owner EPIC declarations, and E2E proof anchors aligned.
 
 SSOT documents support that hierarchy by explaining why a contract exists and
@@ -33,8 +33,8 @@ When a fact is already implemented, prefer this ownership model:
 | Constants, thresholds, enum values | Code/config/common package | Link to owner and explain rationale |
 | API request/response shape | Schemas/OpenAPI/generated client | Link to schemas and contract tests |
 | State machines | Code-owned transition model plus tests | Explain lifecycle and link to transition tests |
-| CI/coverage policy | common package, scripts, workflows | Link to common policy, script checks, and workflow checks |
-| Operational workflow | AC + test/script | Explain intent and link to executable proof |
+| CI/coverage policy | common package, tools, workflows | Link to common policy, tool checks, and workflow checks |
+| Operational workflow | AC + test/tool | Explain intent and link to executable proof |
 
 The migration of code-owned SSOT facts into common packages or generated
 contracts is tracked in

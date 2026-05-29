@@ -207,11 +207,11 @@ For testing FX gain/loss calculations, use the seeding script.
 
 ```bash
 # Local development (from repo root)
-uv run python scripts/seed_fx_rates.py --env local
+uv run python tools/seed_fx_rates.py --env local
 
 # Staging (requires DATABASE_URL)
 DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/db \
-  uv run python scripts/seed_fx_rates.py --env staging
+  uv run python tools/seed_fx_rates.py --env staging
 ```
 
 ### Test Data Seeded

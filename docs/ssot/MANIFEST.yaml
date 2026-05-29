@@ -5,7 +5,7 @@
 # section anchor) and zero-or-more cross-reference files that also
 # discuss the concept without owning it.
 #
-# Validated by: scripts/check_manifest.py  (runs in CI)
+# Validated by: tools/check_manifest.py  (runs in CI)
 #
 # Format:
 #   concepts:
@@ -168,8 +168,10 @@ concepts:
     description: Python, Node.js, uv, and container image versions shared by local, CI, and Docker environments.
     cross_refs:
       - toolchain.toml
-      - scripts/bootstrap.sh
-      - scripts/check_toolchain_contract.py
+      - tools/bootstrap.sh
+      - common/shell/bootstrap.sh
+      - tools/check_toolchain_contract.py
+      - common/ci/check_toolchain_contract.py
       - .moon/toolchain.yml
       - .github/workflows/ci.yml
       - docker-compose.yml
@@ -180,7 +182,8 @@ concepts:
     cross_refs:
       - README.md
       - docs/ssot/environments.md#host-shell-boundaries
-      - scripts/bootstrap.sh
+      - tools/bootstrap.sh
+      - common/shell/
 
   namespace_isolation:
     owner: docs/ssot/development.md#local-test-isolation
@@ -194,6 +197,14 @@ concepts:
     cross_refs:
       - docs/agents/red-lines.md
       - docs/ssot/deployment.md
+      - .env.example
+      - apps/backend/src/config.py
+      - repo/finance_report/finance_report/10.app/secrets.ctmpl
+      - common/config/env_keys.py
+      - common/config/schema_validation.py
+      - tools/check_env_keys.py
+      - tools/validate_schemas.py
+      - .pre-commit-config.yaml
 
   # ── Environments ───────────────────────────────────────────────────────
   six_environments:
@@ -237,7 +248,7 @@ concepts:
   # ── Coverage ──────────────────────────────────────────────────────────
   test_coverage:
     owner: docs/ssot/coverage.md
-    description: Unified coverage system (backend + frontend + common + scripts).
+    description: Unified coverage system (backend + frontend + common + tools).
     cross_refs:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
@@ -258,7 +269,7 @@ concepts:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
       - .github/workflows/ci.yml
-      - scripts/check_critical_proof_matrix.py
+      - tools/check_critical_proof_matrix.py
 
   # ── Agent governance ──────────────────────────────────────────────────
   security_red_lines:

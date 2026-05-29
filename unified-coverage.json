@@ -1,26 +1,31 @@
 {
-  "total_lines": 14948,
-  "covered_lines": 14116,
-  "coverage_percent": 94.38,
+  "total_lines": 17263,
+  "covered_lines": 16610,
+  "coverage_percent": 96.22,
   "breakdown": {
     "backend": {
-      "total_lines": 8506,
-      "covered_lines": 8416,
-      "coverage_percent": 98.89,
-      "file_count": 93
+      "total_lines": 8986,
+      "covered_lines": 8732,
+      "coverage_percent": 97.17,
+      "file_count": 99
     },
     "frontend": {
-      "total_lines": 2338,
-      "covered_lines": 2151,
-      "coverage_percent": 91.95,
+      "total_lines": 2421,
+      "covered_lines": 2397,
+      "coverage_percent": 99.01,
       "file_count": 78
     },
-    "scripts": {
-      "total_lines": 4104,
-      "covered_lines": 3549,
-      "coverage_percent": 86.43,
-      "file_count": 44
+    "common": {
+      "total_lines": 5624,
+      "covered_lines": 5361,
+      "coverage_percent": 95.32,
+      "file_count": 49
+    },
+    "tools": {
+      "total_lines": 232,
+      "covered_lines": 120,
+      "coverage_percent": 51.72,
+      "file_count": 33
     }
-  },
-  "_note": "AC8.13.15 baseline reset after coverage policy unification. Percent floors are 0.05 below local Python 3.12 measurements: backend=98.94, frontend=92.00, scripts=86.48, unified=94.43. CI still uses zero-tolerance no-regression against these floors."
+  }
 }

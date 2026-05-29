@@ -23,7 +23,7 @@ help:
 	@echo "  make clean        Clean generated files"
 
 install:
-	bash scripts/bootstrap.sh
+	bash tools/bootstrap.sh
 
 pre-commit:
 	uvx pre-commit install
@@ -62,7 +62,7 @@ test:
 	moon run :test
 
 env-check:
-	python scripts/check_env_keys.py
+	python tools/check_env_keys.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

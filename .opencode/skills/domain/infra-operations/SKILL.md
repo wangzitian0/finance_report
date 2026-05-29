@@ -20,7 +20,7 @@ cd repo && uv run invoke --list
 ## Tool Priority
 
 1. **`invoke`** — Primary (type-safe, idempotent)
-2. **`scripts/debug.py`** — Unified debugging
+2. **`tools/debug.py`** — Unified debugging
 3. **`libs` API** — For automation
 4. **SSH** — Emergency only (read-only)
 
@@ -32,16 +32,16 @@ cd repo && uv run invoke --list
 
 ```bash
 # View logs
-python scripts/debug.py logs backend [--env production] [--tail 50] [--follow]
+python tools/debug.py logs backend [--env production] [--tail 50] [--follow]
 
 # Check health
-python scripts/debug.py status backend --env production
+python tools/debug.py status backend --env production
 
 # List containers
-python scripts/debug.py containers --env production
+python tools/debug.py containers --env production
 
 # SigNoz (historical)
-python scripts/debug.py logs backend --env production --method signoz
+python tools/debug.py logs backend --env production --method signoz
 ```
 
 ### Container Naming
@@ -56,7 +56,7 @@ python scripts/debug.py logs backend --env production --method signoz
 
 **Critical**: Container name = hostname in Dokploy network.
 
-**Note**: `scripts/debug.py` currently only supports hyphenated patterns (staging/PR).
+**Note**: `tools/debug.py` currently only supports hyphenated patterns (staging/PR).
 For production, use direct SSH: `ssh root@$VPS_HOST "docker logs finance_report-backend"`
 
 ---
@@ -142,7 +142,7 @@ deployer.compose_up("finance_report", "production", "docker-compose.prod.yml")
 
 **Fix**:
 ```bash
-python scripts/debug.py containers --env production
+python tools/debug.py containers --env production
 invoke fr-app.setup
 ```
 
@@ -162,7 +162,7 @@ invoke fr-app.setup
 
 **Fix**:
 ```bash
-python scripts/debug.py logs backend --tail 100
+python tools/debug.py logs backend --tail 100
 # Fix issue, then:
 invoke fr-app.setup
 ```
@@ -206,7 +206,7 @@ invoke redis.setup
 invoke myapp.setup
 
 # 4. Verify
-python scripts/debug.py logs myapp --tail 50
+python tools/debug.py logs myapp --tail 50
 curl https://myapp.zitian.party/health
 ```
 
@@ -333,8 +333,8 @@ export DEPLOY_ENV=pr-47
 
 ```bash
 # Debug
-python scripts/debug.py logs backend --env production
-python scripts/debug.py status backend --env production
+python tools/debug.py logs backend --env production
+python tools/debug.py status backend --env production
 
 # Secrets
 invoke env.get DATABASE_URL finance_report app production

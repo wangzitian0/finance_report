@@ -30,13 +30,13 @@ AC IDs use `ACx.y.z`:
 | `y` | feature block within the EPIC |
 | `z` | acceptance criterion within the block |
 
-Registry generation is code-owned by `scripts/generate_ac_registry.py`.
+Registry generation is code-owned by `tools/generate_ac_registry.py`.
 Registry YAML is grouped by `ACx -> ACx.y` so unrelated scenarios do not share
 one append point. The files do not commit a mutable total; CI computes counts
 from the grouped entries.
 
 ```bash
-python scripts/generate_ac_registry.py --check
+python tools/generate_ac_registry.py --check
 ```
 
 Generated registry files:
@@ -88,7 +88,7 @@ tests.
 | Generated report reference without test behavior | No | Traceability only |
 | `_ac_stubs` reference | No | Fails mandatory AC gate |
 | `expect(true).toBe(true)` or pure `pass` | No | Placeholder debt |
-| `scripts/tests` registered AC reference | Yes | Tooling/CI behavior proof; synthetic fixture IDs are excluded from invalid-ref counts |
+| `tests/tooling` registered AC reference | Yes | Tooling/CI behavior proof; synthetic fixture IDs are excluded from invalid-ref counts |
 | Strikethrough deprecated AC | Not required | Excluded from active coverage and untested counts |
 | Manual verification | Not automated proof | Convert or mark as explicit manual gate |
 
@@ -101,7 +101,7 @@ Macro and micro proof are intentionally separate:
 
 - **Macro**: README -> EPIC -> E2E, owned by
   `docs/ssot/critical-proof-matrix.yaml` and enforced bidirectionally by
-  `scripts/check_critical_proof_matrix.py`.
+  `tools/check_critical_proof_matrix.py`.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
 
@@ -127,11 +127,11 @@ Current coverage enforcement:
 Use these before claiming a documentation or implementation change is aligned:
 
 ```bash
-python scripts/generate_ac_registry.py --check
-python scripts/analyze_test_ac_coverage.py --stdout
-python scripts/check_critical_proof_matrix.py
-python scripts/check_manifest.py
-python scripts/check_ssot_ownership.py
+python tools/generate_ac_registry.py --check
+python tools/analyze_test_ac_coverage.py --stdout
+python tools/check_critical_proof_matrix.py
+python tools/check_manifest.py
+python tools/check_ssot_ownership.py
 ```
 
 Coverage is governed by `docs/ssot/coverage.md` and
@@ -164,7 +164,7 @@ code:
 - thresholds and constants -> code/config/common package
 - API shapes -> schemas/OpenAPI/generated client
 - state machines -> code-owned transition model plus tests
-- process checks -> scripts/tests/CI gates
+- process checks -> tests/tooling/CI gates
 
 Tracked by
 [#453](https://github.com/wangzitian0/finance_report/issues/453).

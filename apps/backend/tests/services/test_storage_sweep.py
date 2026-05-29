@@ -273,4 +273,3 @@ async def test_run_storage_sweep_disabled_by_feature_flag():
     # Should have returned without running any sweep (stop_event not set, sweep not called)
     assert not stop_event.is_set()
     mock_sweep.assert_not_called()
-
