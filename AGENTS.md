@@ -95,6 +95,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ✅ Scope rule is local-only and deterministic: only rewrite/validate PRs when title prefix matches current `scope`, never rewrite PRs from another scope.
 - ✅ `ongoing` is for currently open PRs only; remove it when PR is merged/closed.
 
+
 ## 🤖 Agent Architecture
 
 Full guide: **[docs/agents/orchestration.md](docs/agents/orchestration.md)**
