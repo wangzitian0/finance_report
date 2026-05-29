@@ -77,8 +77,8 @@ Triggers:
   - Manual dispatch:   Deploy to production
   - Manual dry-run:    Validate release prerequisites without deploy
 
-Build job:  Tag → Install backend/frontend toolchains → Verify with Docker test lifecycle → Build backend + frontend → Push to GHCR
-Dry-run:    Manual → Verify with Docker test lifecycle → Build production images with push=false → Skip Dokploy
+Build job:  Tag → Verify successful main CI for SHA → Release lint → Build backend + frontend → Push to GHCR
+Dry-run:    Manual → Verify successful main CI for SHA → Release lint → Build production images with push=false → Skip Dokploy
 Deploy job: Verify images → Deploy → Health (4min) → Smoke test
 
 URL: https://report.zitian.party

@@ -315,7 +315,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
 
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
-    """AC8.13.52: Production release dry-run validates without deploying."""
+    """AC8.13.52 AC8.13.65: Production dry-run validates without deploying."""
     workflow = read(".github/workflows/production-release.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
@@ -323,9 +323,12 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "Validate release prerequisites without deploying production" in workflow
     assert "dry-run:" in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.dry_run" in workflow
-    assert "CONTAINER_RUNTIME: docker" in workflow
     assert "moon run :lint" in workflow
-    assert "moon run :test" in workflow
+    assert "moon run :test" not in workflow
+    assert "Verify source CI passed" in workflow
+    assert "--workflow ci.yml" in workflow
+    assert '--commit "$GITHUB_SHA"' in workflow
+    assert '.headBranch == "main"' in workflow
     assert "push: false" in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
@@ -428,11 +431,14 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     assert "Install frontend dependencies" in workflow
     assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
     assert "working-directory: apps/frontend" in workflow
-    assert "CONTAINER_RUNTIME: docker" in workflow
+    assert "Verify source CI passed" in workflow
     assert workflow.index("Install frontend dependencies") < workflow.index(
         "moon run :lint"
     )
     assert "Setup E2E Tests" in workflow
+    assert "Production Infrastructure Smoke" in workflow
+    assert "tools/production_infra_smoke.py" in workflow
+    assert "--signoz-url" in workflow
     assert "test_production_readonly_smoke.py" in workflow
     assert "TEST_ENV: production" in workflow
     assert "@pytest.mark.prod_safe" in prod_smoke

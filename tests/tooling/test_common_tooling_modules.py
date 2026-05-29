@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
+import runpy
 import sys
 from pathlib import Path
 
@@ -14,6 +16,12 @@ sys.path.insert(0, str(ROOT))
 from common.coverage import policy as coverage_policy  # noqa: E402
 from common.ssot import ac_registry_format, ac_traceability_refs  # noqa: E402
 from common import test_isolation  # noqa: E402
+
+
+def _module_is_available(module_name: str) -> bool:
+    if module_name in sys.modules:
+        return True
+    return importlib.util.find_spec(module_name) is not None
 
 
 def test_AC8_13_53_common_ssot_helpers_are_the_authoritative_imports():
@@ -77,7 +85,10 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     assert component.source_subdir == "tools"
     assert component.ci_lcov_path == "coverage/tools.lcov"
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
-    assert "tools/_lib/coverage/calculate_unified_coverage.py" in component.expected_sources(ROOT)
+    assert (
+        "tools/_lib/coverage/calculate_unified_coverage.py"
+        in component.expected_sources(ROOT)
+    )
     assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
 
 
@@ -96,14 +107,21 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     )
     assert (
         calc_tool.main
-        is importlib.import_module("tools._lib.coverage.calculate_unified_coverage").main
+        is importlib.import_module(
+            "tools._lib.coverage.calculate_unified_coverage"
+        ).main
     )
     assert (
-        analyzer_tool.main is importlib.import_module("tools._lib.coverage.analyzer").main
+        analyzer_tool.main
+        is importlib.import_module("tools._lib.coverage.analyzer").main
     )
-    assert merge_tool.main is importlib.import_module("tools._lib.coverage.merge_lcov").main
     assert (
-        policy_tool.main is importlib.import_module("tools._lib.coverage.check_policy").main
+        merge_tool.main
+        is importlib.import_module("tools._lib.coverage.merge_lcov").main
+    )
+    assert (
+        policy_tool.main
+        is importlib.import_module("tools._lib.coverage.check_policy").main
     )
     assert (
         metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
@@ -114,7 +132,10 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     ("tool_module", "implementation_module"),
     [
         ("tools.analyze_pdf_fixture", "tools._lib.pdf_fixtures.analyzers.analyze_pdf"),
-        ("tools.generate_pdf_fixtures", "tools._lib.pdf_fixtures.generate_pdf_fixtures"),
+        (
+            "tools.generate_pdf_fixtures",
+            "tools._lib.pdf_fixtures.generate_pdf_fixtures",
+        ),
         ("tools.generate_fixtures", "tools._lib.fixtures.generate_fixtures"),
         ("tools.generate_test_pdfs", "tools._lib.fixtures.generate_test_pdfs"),
         ("tools.sanitize_fixtures", "tools._lib.fixtures.sanitize_fixtures"),
@@ -172,6 +193,7 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.github_workflow_timing_summary": (
             "tools._lib.ci.github_workflow_timing_summary"
         ),
+        "tools.production_infra_smoke": "common.ci.production_infra_smoke",
     }
 
     for tool_module, common_module in command_modules.items():
@@ -218,6 +240,41 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
         assert len(wrapper.splitlines()) <= 5
         assert implementation.startswith("#!")
         assert "tools/_lib/shell/$(basename" not in implementation
+
+
+def test_AC8_13_56_python_tool_wrappers_bootstrap_repo_root_when_run_directly():
+    """AC8.13.56: Python tool wrappers are executable without preset PYTHONPATH."""
+    optional_dependency_wrappers = {
+        "analyze_pdf_fixture.py": "pdfplumber",
+        "generate_fixtures.py": "dotenv",
+        "generate_pdf_fixtures.py": "reportlab",
+        "generate_test_pdfs.py": "reportlab",
+        "seed_fx_rates.py": "sqlalchemy",
+    }
+    wrappers = sorted(
+        path for path in (ROOT / "tools").glob("*.py") if path.name != "__init__.py"
+    )
+
+    assert wrappers
+    for wrapper in wrappers:
+        optional_dependency = optional_dependency_wrappers.get(wrapper.name)
+        if optional_dependency and not _module_is_available(optional_dependency):
+            continue
+
+        original_sys_path = list(sys.path)
+        try:
+            sys.path[:] = [entry for entry in sys.path if entry != str(ROOT)]
+
+            module_globals = runpy.run_path(
+                wrapper.as_posix(),
+                run_name=f"_tool_wrapper_{wrapper.stem}",
+            )
+
+            assert sys.path[0] == str(ROOT)
+            assert module_globals["ROOT_DIR"] == ROOT
+            assert callable(module_globals["main"])
+        finally:
+            sys.path[:] = original_sys_path
 
 
 def test_AC8_13_53_common_isolation_names_are_stable_and_bounded():
@@ -267,6 +324,8 @@ def test_AC8_13_53_common_isolation_handles_error_and_registry_edges(tmp_path):
     cache_dir = tmp_path / "cache"
     active_file = cache_dir / "active.json"
     test_isolation.register_namespace("feature_x", active_file, cache_dir)
-    assert test_isolation.load_active_namespaces(active_file, cache_dir) == ["feature_x"]
+    assert test_isolation.load_active_namespaces(active_file, cache_dir) == [
+        "feature_x"
+    ]
     test_isolation.unregister_namespace("feature_x", active_file, cache_dir)
     assert test_isolation.load_active_namespaces(active_file, cache_dir) == []

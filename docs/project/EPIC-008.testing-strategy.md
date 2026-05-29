@@ -103,6 +103,8 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
 - **AC8.13.62**: Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope.
 - **AC8.13.63**: Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope.
+- **AC8.13.64**: Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy.
+- **AC8.13.65**: Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -437,6 +439,8 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.61 | Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability | `test_AC8_13_61_visual_regression_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P3 |
 | AC8.13.62 | Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope | `test_AC8_13_62_test_observability_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
 | AC8.13.63 | Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope | `test_AC8_13_63_performance_testing_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
+| AC8.13.64 | Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy | `test_AC8_13_64_*` | `tests/tooling/test_production_infra_smoke.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.65 | Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane | `test_AC8_13_52_production_release_dry_run_does_not_mutate_production`, `test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

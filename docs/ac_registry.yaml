@@ -2076,6 +2076,17 @@ groups:
         description: Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and
           future P95 trend gate scope.
         mandatory: true
+      - id: AC8.13.64
+        epic: 8
+        epic_name: testing-strategy
+        description: Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy.
+        mandatory: true
+      - id: AC8.13.65
+        epic: 8
+        epic_name: testing-strategy
+        description: Production release reuses successful main CI proof instead of rerunning container-backed tests in the
+          release lane.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
