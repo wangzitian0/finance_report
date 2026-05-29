@@ -136,6 +136,21 @@ def test_namespaced_infra_uses_ephemeral_host_ports(
     assert env["MINIO_CONSOLE_PORTS"] == "127.0.0.1::9001"
 
 
+def test_extract_host_port_skips_blank_and_invalid_lines():
+    """AC8.13.69: Host port parsing tolerates compose output noise."""
+    assert (
+        test_lifecycle._extract_host_port("\n  \nnot-a-port\n0.0.0.0:65432\n")
+        == "65432"
+    )
+    assert (
+        test_lifecycle._extract_host_port(
+            "5432/tcp -> 127.0.0.1:65433\nignored:invalid\n"
+        )
+        == "65433"
+    )
+    assert test_lifecycle._extract_host_port("\ninvalid\n") is None
+
+
 @patch("test_lifecycle.subprocess.run")
 @patch("test_lifecycle.get_container_runtime")
 @patch("test_lifecycle.get_namespace")

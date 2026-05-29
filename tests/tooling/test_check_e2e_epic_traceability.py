@@ -111,6 +111,30 @@ def test_file_level_reference_only():
     assert "EPIC-001: no product E2E owner test" in result.errors
 
 
+def test_AC8_13_68_non_test_functions_are_ignored(tmp_path: Path) -> None:
+    """AC8.13.68: E2E discovery ignores helper functions in product E2E roots."""
+    _write_epic(tmp_path, "EPIC-001")
+    _write_test(
+        tmp_path,
+        "tests/e2e/test_flow.py",
+        """
+def helper_flow():
+    \"\"\"EPIC-999: helper references do not create E2E ownership.\"\"\"
+    return True
+
+
+def test_owned_flow():
+    \"\"\"EPIC-001 / AC8.13.68: product E2E owner.\"\"\"
+    assert helper_flow()
+""",
+    )
+
+    result = checker.check_traceability(tmp_path)
+
+    assert result.errors == []
+    assert [test.name for test in result.tests] == ["test_owned_flow"]
+
+
 def test_AC8_13_68_uncovered_project_epic_fails(tmp_path: Path) -> None:
     """AC8.13.68: Every project EPIC must have product E2E ownership."""
     _write_epic(tmp_path, "EPIC-001")

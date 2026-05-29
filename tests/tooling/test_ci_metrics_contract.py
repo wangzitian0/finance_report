@@ -229,6 +229,66 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("not behavioral coverage" in error for error in errors)
 
 
+def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
+    """AC8.13.68: CI must run AC traceability before E2E EPIC traceability."""
+    _write(
+        tmp_path,
+        ".github/workflows/ci.yml",
+        "\n".join(
+            [
+                "tools/check_ci_metrics_contract.py",
+                "tools/check_coverage_policy.py",
+                "tools/calculate_unified_coverage.py",
+                "tools/ci_change_classifier.py",
+                "tools/github_workflow_timing_summary.py",
+                "Backend Tests (Shard ${{ matrix.shard }}/6)",
+                "shard: [1, 2, 3, 4, 5, 6]",
+                "--splits 6",
+                "Upload unified coverage to Coveralls",
+                "Upload backend to Coveralls (per-flag)",
+                "Upload frontend to Coveralls (per-flag)",
+                "tools/strip_lcov_branches.py",
+                "coverage/coveralls-unified.lcov",
+                "coverage/coveralls-backend.lcov",
+                "coverage/coveralls-frontend.lcov",
+                "--cov=common",
+                "--cov=tools",
+                "coverage/common.lcov",
+                "coverage/tools.lcov",
+                "tools/check_e2e_epic_traceability.py",
+                "tools/check_ac_traceability.py",
+                "tools/build_ac_traceability.py --output",
+                "Build Backend SHA image",
+                "Build Frontend SHA image",
+                "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
+                "Container image validation failed",
+            ]
+        ),
+    )
+    _write(
+        tmp_path,
+        "docs/ssot/ci-cd.md",
+        "single CI metrics contract\n"
+        "AC traceability is a reference metric, not behavioral coverage\n"
+        "trivial placeholder assertions\n"
+        "Coveralls uploads are reporting-only and do not block CI pass/fail\n"
+        "New `apps/*/src`\n"
+        "strip branch records before upload\n",
+    )
+    _write(
+        tmp_path,
+        "common/ssot/build_ac_traceability.py",
+        "not behavioral coverage\nplaceholder assertions\nreference metric\n",
+    )
+
+    errors = _validate_repo_contract_files(tmp_path)
+
+    assert (
+        "AC traceability gate must run before E2E EPIC traceability"
+        in errors
+    )
+
+
 def test_AC8_13_26_main_exits_with_contract_result(
     tmp_path,
     monkeypatch,
