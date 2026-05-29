@@ -254,6 +254,47 @@ def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> N
     assert "does not poll or wait for CI inside the deploy job" in ci_cd
 
 
+def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> None:
+    """AC8.13.55: Post-merge staging only runs for deploy-relevant changes."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    classifier = read("scripts/ci_change_classifier.py")
+    classifier_tests = read("scripts/tests/test_ci_change_classifier.py")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "classify-staging:" in workflow
+    assert "name: Classify Staging Relevance" in workflow
+    assert "fetch-depth: 0" in workflow
+    assert "git diff --name-only" in workflow
+    assert "scripts/ci_change_classifier.py" in workflow
+    assert (
+        "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
+    )
+    assert "staging_reason: ${{ steps.classify.outputs.staging_reason }}" in workflow
+    assert "needs: [classify-staging]" in workflow
+    assert "needs.classify-staging.outputs.staging_required == 'true'" in workflow
+    assert "manual-dispatch" in workflow
+
+    assert "STAGING_EXACT" in classifier
+    assert "STAGING_PREFIXES" in classifier
+    assert "def is_staging_relevant" in classifier
+    assert "staging-paths-changed" in classifier
+    assert "no-staging-paths-changed" in classifier
+    assert (
+        "test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes"
+        in classifier_tests
+    )
+    assert "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md" in classifier_tests
+    assert "scripts/check_ssot_ownership.py" in classifier_tests
+    assert (
+        "Automatic staging deploys are scoped to runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes"
+        in ci_cd
+    )
+    assert (
+        "Documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton"
+        in ci_cd
+    )
+
+
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
     """AC8.13.52: Production release dry-run validates without deploying."""
     workflow = read(".github/workflows/production-release.yml")
@@ -949,7 +990,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert '--run-id "${{ github.run_id }}"' in ci_workflow
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
     assert "post-merge-summary:" in deploy_workflow
-    assert "needs: [build-and-deploy, ai-ocr-gate]" in deploy_workflow
+    assert "needs: [classify-staging, build-and-deploy, ai-ocr-gate]" in deploy_workflow
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow
     assert "Queue delay" in timing_script
