@@ -150,7 +150,7 @@ def sanitize_fixture(data: dict) -> dict:
 
 
 def main():
-    fixtures_dir = Path(__file__).resolve().parents[2] / "apps/backend/tests/fixtures"
+    fixtures_dir = Path(__file__).resolve().parents[3] / "apps/backend/tests/fixtures"
     
     for json_file in fixtures_dir.glob("*.json"):
         if json_file.name == "summary.json":

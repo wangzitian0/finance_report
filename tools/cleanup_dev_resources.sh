@@ -2,4 +2,4 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec bash "$REPO_ROOT/common/shell/$(basename "${BASH_SOURCE[0]}")" "$@"
+exec bash "$REPO_ROOT/tools/_lib/shell/$(basename "${BASH_SOURCE[0]}")" "$@"

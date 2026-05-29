@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 # Add backend src to path
-repo_root = Path(__file__).resolve().parents[2]
+repo_root = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(repo_root / "apps/backend"))
 
 # Load env from repo root

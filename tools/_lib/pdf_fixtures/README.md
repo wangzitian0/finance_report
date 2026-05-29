@@ -5,7 +5,7 @@ This directory contains a complete tool for generating synthetic PDF bank and br
 ## Directory Structure
 
 ```
-common/pdf_fixtures/
+tools/_lib/pdf_fixtures/
 ├── generate_pdf_fixtures.py  # Shared implementation
 ├── analyzers/                 # PDF format analysis tools
 │   ├── pdf_analyzer.py
@@ -51,26 +51,26 @@ python tools/generate_pdf_fixtures.py --source moomoo
 python tools/generate_pdf_fixtures.py --source futu
 python tools/generate_pdf_fixtures.py --source pingan
 
-# Output will be in: common/pdf_fixtures/output/{source}/test_{source}_{period}.pdf
+# Output will be in: tools/_lib/pdf_fixtures/output/{source}/test_{source}_{period}.pdf
 ```
 
 ### Analyze Real PDF (Offline, Local Only)
 
 ```bash
 # 1. Place real PDF in input/ directory (not committed)
-cp ~/real_dbs_statement.pdf common/pdf_fixtures/input/
+cp ~/real_dbs_statement.pdf tools/_lib/pdf_fixtures/input/
 
 # 2. Analyze and extract format template
 python tools/analyze_pdf_fixture.py \
-  --input common/pdf_fixtures/input/real_dbs_statement.pdf \
-  --output common/pdf_fixtures/templates/dbs_template.yaml \
+  --input tools/_lib/pdf_fixtures/input/real_dbs_statement.pdf \
+  --output tools/_lib/pdf_fixtures/templates/dbs_template.yaml \
   --source dbs
 
 # 3. Review template (verify no sensitive data)
-cat common/pdf_fixtures/templates/dbs_template.yaml
+cat tools/_lib/pdf_fixtures/templates/dbs_template.yaml
 
 # 4. Commit updated template (not the real PDF)
-git add common/pdf_fixtures/templates/dbs_template.yaml
+git add tools/_lib/pdf_fixtures/templates/dbs_template.yaml
 git commit -m "Update DBS format template"
 ```
 
@@ -93,8 +93,8 @@ python tools/generate_pdf_fixtures.py --source dbs --output /path/to/output/
 ```bash
 # Analyze real PDF and create/update template
 python tools/analyze_pdf_fixture.py \
-  --input common/pdf_fixtures/input/real_pdf.pdf \
-  --output common/pdf_fixtures/templates/source_template.yaml \
+  --input tools/_lib/pdf_fixtures/input/real_pdf.pdf \
+  --output tools/_lib/pdf_fixtures/templates/source_template.yaml \
   --source dbs
 ```
 
@@ -149,7 +149,7 @@ Example:
 ```python
 # In test file
 from pathlib import Path
-pdf_path = Path("common/pdf_fixtures/output/dbs/test_dbs_2501.pdf")
+pdf_path = Path("tools/_lib/pdf_fixtures/output/dbs/test_dbs_2501.pdf")
 # Use PDF for testing...
 ```
 
@@ -157,25 +157,25 @@ pdf_path = Path("common/pdf_fixtures/output/dbs/test_dbs_2501.pdf")
 
 1. **Analyze Real PDF** (local, offline):
    ```bash
-   python tools/analyze_pdf_fixture.py --input common/pdf_fixtures/input/real.pdf --output common/pdf_fixtures/templates/template.yaml --source dbs
+   python tools/analyze_pdf_fixture.py --input tools/_lib/pdf_fixtures/input/real.pdf --output tools/_lib/pdf_fixtures/templates/template.yaml --source dbs
    ```
 
 2. **Review Template**:
    ```bash
-   cat common/pdf_fixtures/templates/template.yaml
+   cat tools/_lib/pdf_fixtures/templates/template.yaml
    # Verify no sensitive data
    ```
 
 3. **Commit Template**:
    ```bash
-   git add common/pdf_fixtures/templates/template.yaml
+   git add tools/_lib/pdf_fixtures/templates/template.yaml
    git commit -m "Update format template"
    ```
 
 4. **Generate Test PDFs**:
    ```bash
    python tools/generate_pdf_fixtures.py --source dbs
-   # Output: common/pdf_fixtures/output/dbs/test_dbs_2501.pdf
+   # Output: tools/_lib/pdf_fixtures/output/dbs/test_dbs_2501.pdf
    ```
 
 ## See Also

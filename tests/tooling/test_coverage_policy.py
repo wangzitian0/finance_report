@@ -10,8 +10,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.coverage import check_policy  # noqa: E402
-from common.coverage.check_policy import compare_component, main, run_audit  # noqa: E402
+from tools._lib.coverage import check_policy  # noqa: E402
+from tools._lib.coverage.check_policy import compare_component, main, run_audit  # noqa: E402
 from common.coverage.policy import CoverageComponent, parse_lcov_sources  # noqa: E402
 
 
@@ -152,6 +152,69 @@ def test_lcov_sources_normalize_component_prefixed_paths(tmp_path):
     assert parse_lcov_sources(lcov, component, tmp_path) == {
         "src/services/new_module.py"
     }
+
+
+def test_lcov_path_prefers_ci_then_local_fallback(tmp_path):
+    """AC8.13.15: Coverage policy uses local LCOV only when CI LCOV is absent."""
+    component = CoverageComponent(
+        name="sample",
+        component_root="",
+        source_subdir="tools",
+        extensions=(".py",),
+        ci_lcov_path="coverage/ci.lcov",
+        local_lcov_paths=("coverage/local.lcov",),
+        exclude_patterns=(),
+    )
+    local_lcov = _write(tmp_path, "coverage/local.lcov", "")
+
+    assert component.lcov_path(tmp_path) == local_lcov
+
+    ci_lcov = _write(tmp_path, "coverage/ci.lcov", "")
+    assert component.lcov_path(tmp_path) == ci_lcov
+
+
+def test_normalize_absolute_lcov_source_outside_component_root(tmp_path):
+    """AC8.13.15: External absolute LCOV sources stay unchanged for diagnostics."""
+    component = _component(tmp_path)
+    external = tmp_path.parent / "outside.py"
+
+    assert component.normalize_lcov_source(str(external), tmp_path) == str(external)
+
+
+def test_expected_sources_handles_missing_roots_and_directory_matches(tmp_path):
+    """AC8.13.15: Missing roots and directory matches do not enter expected files."""
+    component = CoverageComponent(
+        name="sample",
+        component_root="",
+        source_subdir="missing",
+        extensions=(".py",),
+        ci_lcov_path="coverage/sample.lcov",
+        local_lcov_paths=(),
+        exclude_patterns=(),
+    )
+    assert component.expected_sources(tmp_path) == set()
+
+    component = CoverageComponent(
+        name="sample",
+        component_root="",
+        source_subdir="tools",
+        extensions=(".py",),
+        ci_lcov_path="coverage/sample.lcov",
+        local_lcov_paths=(),
+        exclude_patterns=(),
+    )
+    (tmp_path / "tools" / "package.py").mkdir(parents=True)
+    assert component.expected_sources(tmp_path) == set()
+
+
+def test_parse_lcov_sources_missing_file_returns_empty(tmp_path):
+    """AC8.13.15: Missing LCOV reports produce an empty source set."""
+    component = _component(tmp_path)
+
+    assert (
+        parse_lcov_sources(tmp_path / "coverage" / "missing.lcov", component, tmp_path)
+        == set()
+    )
 
 
 def test_tools_policy_does_not_expect_shell_files(tmp_path):

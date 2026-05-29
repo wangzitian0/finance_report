@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.dev import cleanup_pr_preview_resources as cleanup  # noqa: E402
+from tools._lib.dev import cleanup_pr_preview_resources as cleanup  # noqa: E402
 
 
 def test_AC8_13_38_parse_preview_resources_groups_by_pr() -> None:

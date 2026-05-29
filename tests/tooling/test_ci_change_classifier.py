@@ -77,13 +77,13 @@ def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
 def test_AC8_13_20_markdown_under_runtime_trees_is_heavy() -> None:
     """AC8.13.20: Markdown outside the documented lightweight trees is not globally skipped."""
     result = classify_changed_paths(
-        ["apps/backend/README.md", "common/pdf_fixtures/README.md"]
+        ["apps/backend/README.md", "tools/_lib/pdf_fixtures/README.md"]
     )
 
     assert result.heavy_required is True
     assert result.heavy_files == (
         "apps/backend/README.md",
-        "common/pdf_fixtures/README.md",
+        "tools/_lib/pdf_fixtures/README.md",
     )
 
 
@@ -140,7 +140,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "tools/health_check.sh",
         "tools/smoke_test.sh",
         "tools/check_ghcr_image_tag.sh",
-        "common/pdf_fixtures/generate_pdf_fixtures.py",
+        "tools/_lib/pdf_fixtures/generate_pdf_fixtures.py",
         "toolchain.toml",
         ".python-version",
         ".node-version",

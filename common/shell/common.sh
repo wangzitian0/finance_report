@@ -2,7 +2,7 @@
 # Common deployment utilities
 # Shared functions for deployment command entry points.
 #
-# Usage: source "$(dirname "$0")/../common/shell/common.sh"
+# Usage: source "$REPO_ROOT/common/shell/common.sh"
 
 # Validate string is non-empty and not whitespace-only
 # Fixes: CRITICAL-1 (whitespace-only env vars)

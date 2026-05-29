@@ -1,4 +1,4 @@
-"""Tests for common.market_data.seed_fx_rates."""
+"""Tests for tools._lib.market_data.seed_fx_rates."""
 import sys
 from datetime import date
 from decimal import Decimal
@@ -41,7 +41,7 @@ _sys_modules_patcher = patch.dict(sys.modules, _MODULE_STUBS)
 _sys_modules_patcher.start()
 
 # ---------------------------------------------------------------------------
-from common.market_data import seed_fx_rates  # noqa: E402 — must come after sys.modules stubs
+from tools._lib.market_data import seed_fx_rates  # noqa: E402 — must come after sys.modules stubs
 seed_fx_rates.settings = _settings_stub
 
 @pytest.fixture(scope="session", autouse=True)
@@ -125,8 +125,8 @@ class TestSeedFxRates:
                 "get_database_url",
                 return_value="postgresql+asyncpg://localhost/test",
             ),
-            patch("common.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
-            patch("common.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
+            patch("tools._lib.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
+            patch("tools._lib.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
         ):
             await seed_fx_rates.seed_fx_rates("local")
 
@@ -158,8 +158,8 @@ class TestSeedFxRates:
                 "get_database_url",
                 return_value="postgresql+asyncpg://localhost/test",
             ),
-            patch("common.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
-            patch("common.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
+            patch("tools._lib.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
+            patch("tools._lib.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
         ):
             await seed_fx_rates.seed_fx_rates("local")
 
@@ -190,8 +190,8 @@ class TestSeedFxRates:
                 "get_database_url",
                 return_value="postgresql+asyncpg://localhost/test",
             ),
-            patch("common.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
-            patch("common.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
+            patch("tools._lib.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
+            patch("tools._lib.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
         ):
             await seed_fx_rates.seed_fx_rates("local")
 
@@ -211,8 +211,8 @@ class TestSeedFxRates:
                 "get_database_url",
                 return_value="postgresql+asyncpg://user:pass@myhost:5432/db",
             ),
-            patch("common.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
-            patch("common.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
+            patch("tools._lib.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
+            patch("tools._lib.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
         ):
             await seed_fx_rates.seed_fx_rates("staging")
 
@@ -228,8 +228,8 @@ class TestSeedFxRates:
             patch.object(
                 seed_fx_rates, "get_database_url", return_value="sqlite:///test.db"
             ),
-            patch("common.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
-            patch("common.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
+            patch("tools._lib.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
+            patch("tools._lib.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
         ):
             await seed_fx_rates.seed_fx_rates("local")
 
@@ -247,8 +247,8 @@ class TestSeedFxRates:
                 "get_database_url",
                 return_value="postgresql+asyncpg://localhost/test",
             ),
-            patch("common.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
-            patch("common.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
+            patch("tools._lib.market_data.seed_fx_rates.create_async_engine", return_value=mock_engine),
+            patch("tools._lib.market_data.seed_fx_rates.async_sessionmaker", return_value=mock_session_maker),
         ):
             await seed_fx_rates.seed_fx_rates("local")
 
@@ -260,12 +260,12 @@ class TestSeedFxRates:
 class TestMain:
     def test_main_success(self, capsys, monkeypatch):
         """Given successful seeding, should print success message."""
-        monkeypatch.setattr("sys.argv", ["common.market_data.seed_fx_rates.py", "--env", "local"])
+        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"])
 
         with patch(
-            "common.market_data.seed_fx_rates.seed_fx_rates",
+            "tools._lib.market_data.seed_fx_rates.seed_fx_rates",
         ):
-            with patch("common.market_data.seed_fx_rates.asyncio.run") as mock_run:
+            with patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run:
                 seed_fx_rates.main()
 
         captured = capsys.readouterr()
@@ -274,9 +274,9 @@ class TestMain:
 
     def test_main_error_exits_1(self, capsys, monkeypatch):
         """Given seed_fx_rates raises, should print error and sys.exit(1)."""
-        monkeypatch.setattr("sys.argv", ["common.market_data.seed_fx_rates.py", "--env", "local"])
+        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"])
 
-        with patch("common.market_data.seed_fx_rates.asyncio.run", side_effect=RuntimeError("DB down")):
+        with patch("tools._lib.market_data.seed_fx_rates.asyncio.run", side_effect=RuntimeError("DB down")):
             with pytest.raises(SystemExit) as exc:
                 seed_fx_rates.main()
 
@@ -286,10 +286,10 @@ class TestMain:
 
     def test_main_default_env_is_local(self, monkeypatch):
         """Given no --env flag, should default to 'local'."""
-        monkeypatch.setattr("sys.argv", ["common.market_data.seed_fx_rates.py"])
+        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py"])
         with (
-            patch("common.market_data.seed_fx_rates.seed_fx_rates") as mock_seed,
-            patch("common.market_data.seed_fx_rates.asyncio.run") as mock_run,
+            patch("tools._lib.market_data.seed_fx_rates.seed_fx_rates") as mock_seed,
+            patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run,
         ):
             seed_fx_rates.main()
         mock_seed.assert_called_once_with("local")
@@ -297,9 +297,9 @@ class TestMain:
 
     def test_main_staging_env(self, capsys, monkeypatch):
         """Given --env staging, should pass 'staging' to seed_fx_rates."""
-        monkeypatch.setattr("sys.argv", ["common.market_data.seed_fx_rates.py", "--env", "staging"])
+        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "staging"])
 
-        with patch("common.market_data.seed_fx_rates.asyncio.run") as mock_run:
+        with patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run:
             seed_fx_rates.main()
 
         captured = capsys.readouterr()

@@ -22,7 +22,7 @@ reportlab 默认不支持中文字体（SimSun、SimHei 等），导致中文字
 ### 2. 使用方式
 
 ```python
-from common.pdf_fixtures.generators.font_utils import (
+from tools._lib.pdf_fixtures.generators.font_utils import (
     can_display_chinese,
     get_safe_font,
     register_chinese_fonts,
@@ -74,7 +74,7 @@ else:
 运行以下命令验证字体注册：
 
 ```bash
-python -c "from common.pdf_fixtures.generators.font_utils import register_chinese_fonts; print(register_chinese_fonts())"
+python -c "from tools._lib.pdf_fixtures.generators.font_utils import register_chinese_fonts; print(register_chinese_fonts())"
 # 应该输出: ChineseFont (如果成功) 或 None (如果失败)
 ```
 

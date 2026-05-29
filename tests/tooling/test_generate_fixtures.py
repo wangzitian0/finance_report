@@ -1,5 +1,5 @@
 """
-Tests for common.fixtures.generate_fixtures.
+Tests for tools._lib.fixtures.generate_fixtures.
 
 Covers:
 - get_cache_path(): cache file path generation
@@ -18,7 +18,7 @@ import pytest
 # We need to mock the dotenv and backend imports before importing the module
 # generate_fixtures.py does `from dotenv import load_dotenv` at module level
 # and also inserts backend path. We can import it directly since dotenv is available.
-from common.fixtures import generate_fixtures
+from tools._lib.fixtures import generate_fixtures
 
 
 # ---------------------------------------------------------------------------
