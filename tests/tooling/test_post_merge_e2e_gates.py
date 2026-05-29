@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import yaml
 
@@ -7,6 +8,61 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def row_covers_ac_id(row: str, ac_id: str) -> bool:
+    if ac_id in row:
+        return True
+
+    ac_match = re.fullmatch(r"(AC\d+\.\d+\.)(\d+)", ac_id)
+    if not ac_match:
+        return False
+    ac_prefix, ac_number = ac_match.group(1), int(ac_match.group(2))
+
+    for range_match in re.finditer(r"(AC\d+\.\d+\.)(\d+)-AC\d+\.\d+\.(\d+)", row):
+        prefix, start, end = range_match.groups()
+        if prefix == ac_prefix and int(start) <= ac_number <= int(end):
+            return True
+    return False
+
+
+def test_AC8_13_50_critical_proof_e2e_files_are_epic_owned() -> None:
+    """AC8.13.50: Critical proof E2E files stay listed in EPIC-008 ownership."""
+    proof_matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+
+    proof_files = {
+        proof["file"]: proof["ac_ids"]
+        for proof in proof_matrix["proofs"]
+        if proof["file"].startswith(("tests/e2e/", "apps/backend/tests/e2e/"))
+    }
+
+    assert proof_files
+    epic_rows = {
+        path: line
+        for line in epic.splitlines()
+        for path in proof_files
+        if f"`{path}`" in line
+    }
+    assert [path for path in proof_files if path not in epic_rows] == []
+    assert {
+        path: [ac_id for ac_id in ac_ids if not row_covers_ac_id(epic_rows[path], ac_id)]
+        for path, ac_ids in proof_files.items()
+        if any(not row_covers_ac_id(epic_rows[path], ac_id) for ac_id in ac_ids)
+    } == {}
+
+
+def test_AC8_13_50_product_e2e_files_are_epic_owned() -> None:
+    """AC8.13.50: Product E2E test files stay owned by EPIC-008."""
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    product_e2e_files = sorted(
+        path.relative_to(ROOT).as_posix()
+        for root in [ROOT / "tests" / "e2e", ROOT / "apps" / "backend" / "tests" / "e2e"]
+        for path in root.glob("test_*.py")
+    )
+
+    assert product_e2e_files
+    assert [path for path in product_e2e_files if f"`{path}`" not in epic] == []
 
 
 def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:

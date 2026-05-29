@@ -59,6 +59,8 @@ def test_AC12_25_1_uuid_logging_residual_is_epic_owned() -> None:
     assert "AC12.25.1" in epic
     assert "UUID auto-serialization structlog processor" in epic
     assert "P2 backlog" in epic
+    assert "tests/tooling/test_archive_residual_epic_ownership.py" in epic
+    assert "scripts/tests/test_archive_residual_epic_ownership.py" not in epic
     assert "AC12.25.1" in registry
 
 
@@ -74,4 +76,9 @@ def test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned() -> None:
     assert "benchmark evidence" in epic
     assert "0.1 USD Threshold**" in epic
     assert "Done (AC4.6.1)" in epic
+    assert "tests/tooling/test_archive_residual_epic_ownership.py" in epic
+    assert "python tools/analyze_test_ac_coverage.py --stdout" in epic
+    assert "python tools/check_ac_traceability.py" in epic
+    assert "scripts/tests/test_archive_residual_epic_ownership.py" not in epic
+    assert "python scripts/" not in epic
     assert "AC4.8.1" in registry

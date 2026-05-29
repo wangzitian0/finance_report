@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-05-29 04:34:21 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-05-29 08:28:15 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -17,10 +17,10 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 1010 |
-| Active ACs | 1007 |
+| Registered ACs | 1028 |
+| Active ACs | 1025 |
 | Deprecated ACs excluded from coverage gate | 3 |
-| Covered by real test candidates | 1007 (100.0%) |
+| Covered by real test candidates | 1025 (100.0%) |
 | Placeholder-only assertions | 0 |
 | Stub-only placeholders (`_ac_stubs`) | 0 |
 | Active registered but untested | 0 |
@@ -32,10 +32,10 @@
 
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |
 |---|---:|---:|---:|---:|
-| backend | 168 | 653 | 0 | 0 |
+| backend | 172 | 663 | 0 | 0 |
 | frontend | 80 | 190 | 7 | 0 |
-| tooling_tests | 45 | 215 | 23 | 0 |
-| e2e | 11 | 47 | 0 | 0 |
+| tooling_tests | 46 | 222 | 23 | 0 |
+| e2e | 12 | 49 | 0 | 0 |
 
 ## Coverage by EPIC
 
@@ -44,15 +44,15 @@
 | EPIC-001 | phase0-setup | 29 | 0 | 29 | 0 | 0 | 0 | 100.0% |
 | EPIC-002 | double-entry-core | 59 | 0 | 59 | 0 | 0 | 0 | 100.0% |
 | EPIC-003 | statement-parsing | 47 | 0 | 47 | 0 | 0 | 0 | 100.0% |
-| EPIC-004 | reconciliation-engine | 39 | 0 | 39 | 0 | 0 | 0 | 100.0% |
+| EPIC-004 | reconciliation-engine | 40 | 0 | 40 | 0 | 0 | 0 | 100.0% |
 | EPIC-005 | reporting-visualization | 37 | 0 | 37 | 0 | 0 | 0 | 100.0% |
 | EPIC-006 | ai-advisor | 63 | 0 | 63 | 0 | 0 | 0 | 100.0% |
 | EPIC-007 | deployment | 39 | 0 | 39 | 0 | 0 | 0 | 100.0% |
-| EPIC-008 | testing-strategy | 115 | 0 | 115 | 0 | 0 | 0 | 100.0% |
+| EPIC-008 | testing-strategy | 120 | 0 | 120 | 0 | 0 | 0 | 100.0% |
 | EPIC-009 | pdf-fixture-generation | 37 | 0 | 37 | 0 | 0 | 0 | 100.0% |
 | EPIC-010 | signoz-logging | 25 | 0 | 25 | 0 | 0 | 0 | 100.0% |
-| EPIC-011 | asset-lifecycle | 38 | 0 | 38 | 0 | 0 | 0 | 100.0% |
-| EPIC-012 | foundation-libs | 62 | 3 | 59 | 0 | 0 | 0 | 100.0% |
+| EPIC-011 | asset-lifecycle | 49 | 0 | 49 | 0 | 0 | 0 | 100.0% |
+| EPIC-012 | foundation-libs | 63 | 3 | 60 | 0 | 0 | 0 | 100.0% |
 | EPIC-013 | statement-parsing-v2 | 60 | 0 | 60 | 0 | 0 | 0 | 100.0% |
 | EPIC-014 | ttd-transformation | 6 | 0 | 6 | 0 | 0 | 0 | 100.0% |
 | EPIC-015 | processing-account | 31 | 0 | 31 | 0 | 0 | 0 | 100.0% |
