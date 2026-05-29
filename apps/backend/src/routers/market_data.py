@@ -2,11 +2,17 @@
 
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
-from src.services.market_data import MarketDataSyncResult, sync_fx_rates, sync_stock_prices
+from src.services.market_data import (
+    MarketDataScopeStatus,
+    MarketDataSyncResult,
+    get_market_data_status,
+    sync_fx_rates,
+    sync_stock_prices,
+)
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
@@ -44,8 +50,45 @@ class MarketDataSyncResponse(BaseModel):
     disagreements: list[ProviderDisagreementResponse]
 
 
+class MarketDataStatusResponse(BaseModel):
+    """Read-only market data freshness status for authenticated users."""
+
+    kind: str
+    scope: str
+    fresh: bool
+    last_success_at: str | None
+    last_success_date: str | None
+    last_observation_date: str | None
+
+
 def _response_from_result(result: MarketDataSyncResult) -> MarketDataSyncResponse:
     return MarketDataSyncResponse.model_validate(result.to_dict())
+
+
+def _status_response(status_result: MarketDataScopeStatus) -> MarketDataStatusResponse:
+    return MarketDataStatusResponse.model_validate(status_result.to_dict())
+
+
+@router.get("/status", response_model=list[MarketDataStatusResponse], status_code=status.HTTP_200_OK)
+async def market_data_status_endpoint(
+    db: DbSession,
+    user_id: CurrentUserId,
+    pairs: list[str] | None = Query(default=None, description="FX pairs in BASE/QUOTE format"),
+    symbols: list[str] | None = Query(default=None, description="Stock symbols"),
+    include_default_fx: bool = Query(default=False),
+) -> list[MarketDataStatusResponse]:
+    """Return read-only market data freshness status for observed or explicit scopes."""
+    try:
+        statuses = await get_market_data_status(
+            db,
+            pairs=pairs,
+            symbols=symbols,
+            user_id=user_id,
+            include_default_fx=include_default_fx,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return [_status_response(item) for item in statuses]
 
 
 @router.post("/sync/fx", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)

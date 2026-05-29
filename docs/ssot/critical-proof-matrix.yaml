@@ -133,7 +133,7 @@ proofs:
 
   - id: market-data-provider-price-path
     scope: behavioral
-    ci_tier: pr_ci
+    ci_tier: post_merge_environment
     issue: "#539"
     file: tests/e2e/test_market_data_price_paths.py
     test: test_market_data_provider_sync_feeds_fx_and_stock_price_paths
@@ -143,3 +143,4 @@ proofs:
       - critical
     ac_ids:
       - AC11.10.7
+      - AC11.10.11

@@ -13,6 +13,7 @@
 | **FX Lookup API** | `apps/backend/src/services/fx.py` | DB lookup, in-process cache, optional lazy resolution |
 | **Rate Storage** | `fx_rates` table | Historical direct and derived rates |
 | **Market Data Sync** | `apps/backend/src/services/market_data.py` | Incremental FX/stock sync and provider validation |
+| **Market Data Status** | `GET /api/market-data/status` | Authenticated read-only freshness status for ordinary-user E2E and support diagnostics |
 | **Market Data Scheduler** | `apps/backend/src/services/market_data_scheduler.py` | Daily 22:00 Asia/Singapore background sync |
 | **Price Storage** | `stock_prices` table | Historical daily stock prices |
 | **Sync State Storage** | `market_data_sync_state` table | Last successful provider sync timestamp by FX pair or stock symbol |
@@ -61,7 +62,8 @@ async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
 ### Sync Workflow
 - The backend starts `run_market_data_scheduler()` in FastAPI lifespan and runs FX plus stock sync once per day at 22:00 Asia/Singapore.
 - Manual and E2E callers can still use `POST /api/market-data/sync/fx` and `POST /api/market-data/sync/stocks`.
-- Report endpoints call `ensure_market_data_fresh()` before report generation. If the relevant FX pair, requested non-base report currency, or active stock symbol has no successful provider sync in the last 24 hours, the backend sends one immediate incremental provider request and records the new sync state, including successful no-row responses such as weekends or market holidays.
+- Report endpoints call `ensure_market_data_fresh()` before report generation with the report's own effective end date. If the relevant FX pair, requested non-base report currency, or active stock symbol has no successful provider sync in the last 24 hours, the backend sends one immediate incremental provider request and records the new sync state, including successful no-row responses such as weekends or market holidays.
+- Authenticated users can call `GET /api/market-data/status` with explicit `pairs` and `symbols` query parameters, or with no explicit scopes to inspect observed user scopes. The endpoint is read-only and does not trigger provider requests.
 - Sync fetches provider chart/CSV data by bounded date range per pair or symbol, then inserts only missing daily rows. It does not issue one provider request per calendar day.
 
 ---
@@ -211,6 +213,7 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 | Provider-backed stock and lazy FX E2E | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths` | ✅ Implemented |
 | Long-history range sync | `test_sync_stock_prices_fetches_decade_range_once` | ✅ Implemented |
 | Report-time 24h freshness check | `test_market_data_freshness_sync_runs_once_after_24h`, `test_report_endpoint_runs_market_data_freshness_check` | ✅ Implemented |
+| Ordinary-user staging report refresh | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths`, `test_market_data_status_endpoint_returns_authenticated_scope_freshness` | ✅ Implemented |
 | Nightly scheduler | `test_next_market_data_sync_at_uses_nightly_sgt_schedule` | ✅ Implemented |
 
 ---

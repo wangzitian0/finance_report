@@ -1238,9 +1238,10 @@ DR  Equity:APIC                 $1,250
 | AC11.10.8 | Long historical market data sync uses bounded range provider requests instead of per-day provider calls | `test_sync_stock_prices_fetches_decade_range_once()` | `market_data/test_sync.py` | P0 |
 | AC11.10.9 | Report reads check market data freshness and trigger at most one immediate refresh when the last successful sync is older than 24 hours | `test_market_data_freshness_sync_runs_once_after_24h()` | `market_data/test_sync.py` | P0 |
 | AC11.10.10 | Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window | `test_next_market_data_sync_at_uses_nightly_sgt_schedule()` | `market_data/test_scheduler.py` | P0 |
+| AC11.10.11 | Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths()` | `tests/e2e/test_market_data_price_paths.py` | P0 |
 
 **Test Coverage Summary**:
-- Total AC IDs: 28
+- Total AC IDs: 29
 - Requirements converted to AC IDs: 100% (EPIC-011 P0 implementation)
 - Requirements with test references: 100%
 - Test files: 2 (`test_asset_service.py`, `test_assets_router.py`)

@@ -57,11 +57,13 @@ async def _ensure_report_market_data_fresh(
     user_id: CurrentUserId,
     *,
     currency: str | None,
+    end_date: date,
 ) -> None:
     has_report_subjects = await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1))
     await ensure_market_data_fresh(
         db,
         user_id=user_id,
+        end_date=end_date,
         include_default_fx=False,
         extra_fx_pairs=_target_currency_pair(currency) if has_report_subjects is not None else [],
     )
@@ -107,11 +109,12 @@ async def balance_sheet(
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
+        report_date = as_of_date or date.today()
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
         report = await generate_balance_sheet(
             db,
             user_id,
-            as_of_date=as_of_date or date.today(),
+            as_of_date=report_date,
             currency=currency,
             include_restricted=include_restricted,
         )
@@ -138,7 +141,7 @@ async def income_statement(
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
         report = await generate_income_statement(
             db,
             user_id,
@@ -170,7 +173,7 @@ async def cash_flow(
 ) -> CashFlowResponse:
     """Get cash flow statement for a period."""
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
         report = await generate_cash_flow(
             db,
             user_id,
@@ -200,7 +203,7 @@ async def account_trend(
 ) -> AccountTrendResponse:
     """Get account trend data."""
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=date.today())
         report = await get_account_trend(
             db,
             user_id,
@@ -231,7 +234,7 @@ async def net_worth_timeseries(
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=to_date)
         report = await get_net_worth_timeseries(
             db,
             user_id,
@@ -264,7 +267,7 @@ async def category_breakdown(
     """Get income or expense category breakdown."""
     account_type = AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=date.today())
         report = await get_category_breakdown(
             db,
             user_id,
@@ -300,12 +303,13 @@ async def export_report(
     writer = csv.writer(output)
 
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency)
         if report_type == ReportType.BALANCE_SHEET:
+            report_date = as_of_date or date.today()
+            await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
             report = await generate_balance_sheet(
                 db,
                 user_id,
-                as_of_date=as_of_date or date.today(),
+                as_of_date=report_date,
                 currency=currency,
             )
             writer.writerow(["section", "account", "amount", "currency"])
@@ -323,6 +327,7 @@ async def export_report(
         elif report_type == ReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for income statement export")
+            await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
             report = await generate_income_statement(
                 db,
                 user_id,

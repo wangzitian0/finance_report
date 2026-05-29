@@ -17,6 +17,8 @@ from src.services.brokerage_positions import looks_like_brokerage_payload, parse
 from src.services.extraction import ExtractionService
 from src.services.statement_parsing import import_brokerage_payload_if_present, parse_statement_background
 
+_BRIDGE_ASSET_IDENTIFIER = "BRIDGE_TEST_STOCK"
+
 
 def _parsed_statement(user_id, file_hash: str) -> BankStatement:
     return BankStatement(
@@ -45,7 +47,7 @@ def _brokerage_payload() -> dict:
         "statement": {"period_end": "2026-05-18", "currency": "SGD"},
         "positions": [
             {
-                "symbol": "AAPL",
+                "symbol": _BRIDGE_ASSET_IDENTIFIER,
                 "snapshot_date": date(2026, 5, 18),
                 "quantity": "10",
                 "market_value": "1900.25",
@@ -396,10 +398,10 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     assert refreshed.balance_validated is True
     assert refreshed.validation_error is None
     assert len(atomic_rows) == 1
-    assert atomic_rows[0].asset_identifier == "AAPL"
+    assert atomic_rows[0].asset_identifier == _BRIDGE_ASSET_IDENTIFIER
     assert atomic_rows[0].source_documents["documents"][0]["doc_id"] == str(statement_id)
     assert len(managed_rows) == 1
-    assert managed_rows[0].asset_identifier == "AAPL"
+    assert managed_rows[0].asset_identifier == _BRIDGE_ASSET_IDENTIFIER
     assert managed_rows[0].quantity == Decimal("10")
 
     holdings_response = await client.get(
@@ -409,12 +411,16 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     assert holdings_response.status_code == 200
     holdings = holdings_response.json()
     assert len(holdings) == 1
-    assert holdings[0]["asset_identifier"] == "AAPL"
+    assert holdings[0]["asset_identifier"] == _BRIDGE_ASSET_IDENTIFIER
     assert holdings[0]["account_name"] == "Moomoo"
     assert Decimal(str(holdings[0]["quantity"])) == Decimal("10.00000000")
     assert Decimal(str(holdings[0]["market_value"])) == Decimal("1900.25")
     assert holdings[0]["currency"] == "SGD"
 
+    async def skip_report_market_data_refresh(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("src.routers.reports.ensure_market_data_fresh", skip_report_market_data_refresh)
     balance_response = await client.get(
         "/reports/balance-sheet",
         params={"as_of_date": "2026-05-18", "currency": "SGD"},
