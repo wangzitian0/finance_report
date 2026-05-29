@@ -123,7 +123,7 @@ def cleanup_orphaned(dry_run=False, clean_all=False):
     )
     if not container_check.stdout.strip():
         log(f"⚠️  Container '{DB_CONTAINER_NAME}' not running", YELLOW)
-        log("   Start infrastructure: moon run :infra", YELLOW)
+        log("   Start infrastructure: bash tools/infra.sh up", YELLOW)
         return 1
 
     databases = list_test_databases(runtime)
