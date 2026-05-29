@@ -38,6 +38,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       packages: write
     
@@ -76,18 +77,30 @@ jobs:
         run: npm ci
         working-directory: apps/frontend
 
-      - name: Verify Codebase
+      - name: Verify source CI passed
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
-          S3_ACCESS_KEY: minio
-          S3_SECRET_KEY: minio_local_secret
-          S3_ENDPOINT: http://127.0.0.1:9000
-          S3_BUCKET: statements
-          CONTAINER_RUNTIME: docker
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Ensure release is built from clean state
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --commit "$GITHUB_SHA" \
+              --limit 20 \
+              --json databaseId,status,conclusion,event,headBranch \
+              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful main CI run found for $GITHUB_SHA"
+            exit 1
+          fi
+          echo "Using successful main CI run: $run_id"
+
+      - name: Verify Release Codebase
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
           moon run :lint
-          moon run :test
           
           # Clean up artifacts before build
           rm -rf .venv
@@ -129,6 +142,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -169,17 +183,30 @@ jobs:
         run: npm ci
         working-directory: apps/frontend
 
-      - name: Verify Codebase
+      - name: Verify source CI passed
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
-          S3_ACCESS_KEY: minio
-          S3_SECRET_KEY: minio_local_secret
-          S3_ENDPOINT: http://127.0.0.1:9000
-          S3_BUCKET: statements
-          CONTAINER_RUNTIME: docker
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --commit "$GITHUB_SHA" \
+              --limit 20 \
+              --json databaseId,status,conclusion,event,headBranch \
+              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful main CI run found for $GITHUB_SHA"
+            exit 1
+          fi
+          echo "Using successful main CI run: $run_id"
+
+      - name: Verify Release Codebase
+        env:
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           moon run :lint
-          moon run :test
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
@@ -275,6 +302,13 @@ jobs:
             "production" \
             24 \
             "$IMAGE_TAG"
+
+      - name: Production Infrastructure Smoke
+        run: |
+          python tools/production_infra_smoke.py \
+            --base-url "https://report.zitian.party" \
+            --expected-sha "${{ steps.version.outputs.tag }}" \
+            --signoz-url "https://signoz.zitian.party"
 
       - name: Smoke Tests
         run: bash tools/smoke_test.sh https://report.zitian.party production

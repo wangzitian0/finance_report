@@ -165,9 +165,10 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
 - Main push CI is the only path that pushes SHA-tagged images. Registry login and image push are guarded by `github.event_name == 'push' && github.ref == 'refs/heads/main'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
-- Production release tag builds set `CONTAINER_RUNTIME=docker` during `moon run :test`
-  so the release verification path uses the GitHub-hosted Docker daemon instead
-  of auto-selecting an unavailable Podman socket.
+- Production release tag builds and dry-runs verify that the target SHA already
+  has a successful `main` CI `finish` result, then run release lint and image
+  build validation. They do not rerun the container-backed `moon run :test`
+  lifecycle in the release lane.
 - The `finish` job appends a GitHub Step Summary from `tools/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 - Coveralls uploads are reporting-only and do not block CI pass/fail when local deterministic gates pass.
 - The asynchronous Coveralls status contexts include `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend`. CI does not normalize or require those external contexts. The repository ruleset must require the `finish` check, which aggregates local deterministic gates, rather than Coveralls contexts.
@@ -212,9 +213,10 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 **Production release dry-run** (`.github/workflows/production-release.yml`):
-- Manual `workflow_dispatch` with `dry_run=true` runs the same release prerequisite checks (`moon run :lint`, `moon run :test` with `CONTAINER_RUNTIME=docker`) and production image builds with `push: false`.
+- Manual `workflow_dispatch` with `dry_run=true` verifies the target SHA's successful `main` CI result, runs release lint, and builds production images with `push: false`.
 - The dry-run uses production frontend build arguments without changing Dokploy or production tags, and does not enter the `production` environment or push GHCR images. Its summary reports the validated ref/tag and states that production mutation was skipped.
 - Tag pushes remain the only automatic path that pushes versioned release images. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
+- Production deploys run `tools/production_infra_smoke.py` after health check. That gate verifies the deployed version, `/api/health` dependency checks for database and S3, read-only `/api/ping`, frontend reachability, and the shared SigNoz health/version endpoints before production smoke and read-only E2E run.
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked
 in the delivery-engine recommendation note instead of being mixed into routine
