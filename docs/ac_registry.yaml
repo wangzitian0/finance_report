@@ -2175,6 +2175,11 @@ groups:
         epic_name: testing-strategy
         description: Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide.
         mandatory: true
+      - id: AC8.13.70
+        epic: 8
+        epic_name: testing-strategy
+        description: E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

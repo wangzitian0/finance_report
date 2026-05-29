@@ -216,6 +216,8 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "single CI metrics contract",
             "AC traceability is a reference metric, not behavioral coverage",
             "E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs",
+            "README EPIC map drift",
+            "unclassified E2E-like assets outside declared roots",
             "trivial placeholder assertions",
             "Coveralls uploads are reporting-only and do not block CI pass/fail",
             "strip branch records before upload",

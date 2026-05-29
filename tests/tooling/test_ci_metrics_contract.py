@@ -133,6 +133,8 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     )
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
+    assert "README EPIC map drift" in ci_cd
+    assert "unclassified E2E-like assets outside declared roots" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "strip branch records before upload" in ci_cd
@@ -221,6 +223,8 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
+    assert any("README EPIC map drift" in error for error in errors)
+    assert any("unclassified E2E-like assets" in error for error in errors)
     assert any(
         "Coveralls uploads are reporting-only and do not block CI pass/fail" in error
         for error in errors
@@ -270,6 +274,8 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
         "docs/ssot/ci-cd.md",
         "single CI metrics contract\n"
         "AC traceability is a reference metric, not behavioral coverage\n"
+        "README EPIC map drift\n"
+        "unclassified E2E-like assets outside declared roots\n"
         "trivial placeholder assertions\n"
         "Coveralls uploads are reporting-only and do not block CI pass/fail\n"
         "New `apps/*/src`\n"

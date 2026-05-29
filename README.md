@@ -60,6 +60,7 @@ Use these sources instead:
 - Checked-in AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
 - Live local AC coverage: `python tools/analyze_test_ac_coverage.py --stdout`
 - Traceability gate: `python tools/check_ac_traceability.py`
+- E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
 - Coverage policy owner: `common/coverage/policy.py`
 
@@ -70,9 +71,10 @@ placeholder-only, or stub-only.
 
 ## EPIC Map
 
-This map is for navigation only. Project status and AC proof counts should be
-read from EPIC documents, generated registries, and generated reports rather
-than duplicated here.
+This map is for navigation only. Its EPIC row set is CI-validated against
+`docs/project/EPIC-*.md` by `tools/check_e2e_epic_traceability.py`. Project
+status and AC proof counts should be read from EPIC documents, generated
+registries, and generated reports rather than duplicated here.
 
 | EPIC | Scope |
 |---|---|
@@ -104,7 +106,7 @@ Known proof-quality caveats:
 - AC-to-EPIC mismatch audit output lives in
   [docs/analysis/ac-epic-mismatch-report.md](docs/analysis/ac-epic-mismatch-report.md);
   do not copy current mismatch counts into this README.
-- README EPIC metrics should eventually be generated or validated by CI. See
+- README EPIC status and completion metrics should eventually be generated. See
   [issue #455](https://github.com/wangzitian0/finance_report/issues/455).
 
 ## Vision Tracking
@@ -141,7 +143,9 @@ The macro outcome set is closed and parseable:
 
 The checker enforces README -> EPIC -> E2E closure: this table must match the
 matrix, owner EPICs must reverse-declare their outcomes, covered outcomes need
-explicit E2E proof anchors, and partial/gap outcomes need an issue.
+explicit E2E proof anchors, and partial/gap outcomes need an issue. The separate
+E2E EPIC closure gate ensures the README EPIC map matches project EPIC files and
+that E2E-like assets outside product roots are explicitly classified.
 
 ## Documentation Debt Tracked As Issues
 
