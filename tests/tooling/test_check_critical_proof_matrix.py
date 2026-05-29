@@ -423,6 +423,134 @@ proofs: []
         matrix.validate_matrix(tmp_path, empty_matrix)
 
 
+def test_AC8_13_54_readme_outcome_table_parser_handles_empty_and_split_rows() -> (
+    None
+):
+    """AC8.13.54: README macro table parsing handles empty and interrupted tables."""
+    ids, errors = matrix._readme_outcome_ids("no table here")
+    assert ids == []
+    assert errors == [
+        "README.md missing parseable macro outcome table with `Outcome ID` header"
+    ]
+
+    ids, errors = matrix._readme_outcome_ids(
+        """
+| Outcome ID | Purpose |
+|---|---|
+""".strip()
+    )
+    assert ids == []
+    assert errors == ["README.md macro outcome table has no outcome rows"]
+
+    ids, errors = matrix._readme_outcome_ids(
+        """
+| Outcome ID | Purpose |
+|---|---|
+
+| `asset-distribution-net-worth` | asset distribution |
+not part of the table
+| `monthly-income-spending` | ignored after table close |
+""".strip()
+    )
+    assert ids == ["asset-distribution-net-worth"]
+    assert errors == []
+
+
+def test_AC8_13_54_macro_ownership_section_parser_handles_absent_and_bounded() -> (
+    None
+):
+    """AC8.13.54: Owner EPIC macro declarations are section-scoped."""
+    assert matrix._macro_ownership_section("# EPIC\n\nNo ownership here") is None
+
+    section = matrix._macro_ownership_section(
+        """
+# EPIC
+
+## Macro Proof Ownership
+
+- `asset-distribution-net-worth`
+
+## Other Section
+
+- `not-in-ownership`
+""".strip()
+    )
+
+    assert section is not None
+    assert "asset-distribution-net-worth" in section
+    assert "not-in-ownership" not in section
+
+
+def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.50: Macro outcome rows fail closed on malformed owner/proof data."""
+    _write_registry(tmp_path)
+    (tmp_path / "docs" / "project" / "EPIC-007.deployment.md").write_text(
+        "# EPIC-007: Deployment\n\nNo macro ownership section.\n",
+        encoding="utf-8",
+    )
+    broken_proof = matrix.ProofResult(
+        proof_id="broken-proof",
+        scope="static_contract",
+        ci_tier="pr_ci",
+        file="tests/tooling/test_contract.py",
+        test="test_contract",
+        ac_ids=["AC8.13.1"],
+        status="fail",
+        errors=["broken proof"],
+    )
+
+    missing_shape = matrix._validate_outcome(
+        {"id": "shape-only"},
+        repo_root=tmp_path,
+        proof_by_id={},
+        index=0,
+    )
+    assert "shape-only: missing required outcome keys: owner_epics, status" in (
+        missing_shape.errors
+    )
+    assert "shape-only: owner_epics must be a non-empty list" in missing_shape.errors
+
+    malformed = matrix._validate_outcome(
+        {
+            "id": "bad-outcome",
+            "status": "covered",
+            "owner_epics": ["NOT-AN-EPIC", "EPIC-007"],
+            "proof_ids": ["missing-proof", "broken-proof"],
+        },
+        repo_root=tmp_path,
+        proof_by_id={"broken-proof": broken_proof},
+        index=1,
+    )
+
+    assert "bad-outcome: invalid owner EPIC id 'NOT-AN-EPIC'" in malformed.errors
+    assert (
+        "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section"
+        in malformed.errors
+    )
+    assert "bad-outcome: unknown proof_id missing-proof" in malformed.errors
+    assert "bad-outcome: proof broken-proof has validation errors" in malformed.errors
+    assert "bad-outcome: proof broken-proof must be behavioral E2E" in (
+        malformed.errors
+    )
+
+    bad_shape = matrix._validate_outcome(
+        {
+            "id": "bad-shape",
+            "status": "gap",
+            "owner_epics": "EPIC-008",
+            "proof_ids": "not-a-list",
+            "issue": "#521",
+        },
+        repo_root=tmp_path,
+        proof_by_id={},
+        index=2,
+    )
+    assert "bad-shape: owner_epics must be a non-empty list" in bad_shape.errors
+    assert "bad-shape: proof_ids must be a list" in bad_shape.errors
+
+
 def test_AC8_13_50_macro_outcome_contract_requires_closed_set_and_e2e_proofs(
     tmp_path: Path,
 ) -> None:
@@ -671,6 +799,137 @@ proofs:
         in error
         for error in errors
     )
+
+
+def test_AC8_13_54_readme_contract_reports_missing_duplicate_and_drift(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.54: README contract validation reports absent docs and table drift."""
+    missing = matrix._validate_readme_contract(
+        tmp_path,
+        [
+            matrix.OutcomeResult(
+                outcome_id="asset-distribution-net-worth",
+                status="gap",
+                owner_epics=[],
+                proof_ids=[],
+                issue="#521",
+            )
+        ],
+    )
+    assert "README.md missing" in missing.errors
+    assert "README.md missing `## Core Proof Paths` section" in missing.errors
+    assert "README.md missing critical proof matrix source link" in missing.errors
+    assert "README.md missing critical proof matrix checker command" in (
+        missing.errors
+    )
+
+    (tmp_path / "README.md").write_text(
+        """
+# README
+
+## Core Proof Paths
+
+Source: docs/ssot/critical-proof-matrix.yaml
+Checker: tools/check_critical_proof_matrix.py
+
+| Outcome ID | Purpose |
+|---|---|
+| `asset-distribution-net-worth` | asset distribution |
+| `asset-distribution-net-worth` | duplicate |
+| `surprise-outcome` | not in matrix |
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    drift = matrix._validate_readme_contract(
+        tmp_path,
+        [
+            matrix.OutcomeResult(
+                outcome_id="asset-distribution-net-worth",
+                status="gap",
+                owner_epics=[],
+                proof_ids=[],
+                issue="#521",
+            ),
+            matrix.OutcomeResult(
+                outcome_id="monthly-income-spending",
+                status="gap",
+                owner_epics=[],
+                proof_ids=[],
+                issue="#521",
+            ),
+        ],
+    )
+
+    assert (
+        "README macro outcomes duplicate ids: asset-distribution-net-worth"
+        in drift.errors
+    )
+    assert "README macro outcomes missing ids: monthly-income-spending" in (
+        drift.errors
+    )
+    assert "README macro outcomes include unknown ids: surprise-outcome" in (
+        drift.errors
+    )
+
+
+def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.50: Macro outcome collection validation reports closed-set drift."""
+    _write_registry(tmp_path)
+
+    empty = matrix.validate_outcomes(tmp_path, {"outcomes": []}, [])
+    assert empty[0].errors == [
+        "critical proof matrix must define a non-empty outcomes list"
+    ]
+
+    outcomes = matrix.validate_outcomes(
+        tmp_path,
+        {
+            "outcomes": [
+                {
+                    "id": "asset-distribution-net-worth",
+                    "status": "gap",
+                    "owner_epics": ["EPIC-008"],
+                    "issue": "#521",
+                },
+                {
+                    "id": "asset-distribution-net-worth",
+                    "status": "gap",
+                    "owner_epics": ["EPIC-008"],
+                    "issue": "#521",
+                },
+            ]
+        },
+        [],
+    )
+
+    errors = [error for outcome in outcomes for error in outcome.errors]
+    assert "macro outcomes duplicate ids: asset-distribution-net-worth" in errors
+    assert any("macro outcomes missing required ids:" in error for error in errors)
+
+
+def test_render_report_omits_internal_success_outcomes() -> None:
+    """AC8.13.54: Successful internal validation rows stay out of rendered reports."""
+    report = matrix.render_report(
+        [],
+        [
+            matrix.OutcomeResult(
+                outcome_id="__readme_contract__",
+                status="contract",
+                owner_epics=[],
+                proof_ids=[],
+                issue="",
+                errors=[],
+            )
+        ],
+    )
+
+    assert "__readme_contract__" not in report
+    assert "No critical proof matrix errors found." in report
 
 
 def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) -> None:
