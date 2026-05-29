@@ -92,6 +92,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
   - Start: assign yourself, add `ongoing`, and post a start comment containing branch/worktree name.
   - Finish: remove `ongoing` only after branch is merged/abandoned or handed off.
 - ✅ If `ongoing` conflicts with a required naming convention or automation policy, keep branch/PR naming as authoritative and use label rules as supplemental coordination signal.
+- ✅ PR title must include workspace scope derived from directory suffix (for example `[finance_report_infra] ...`), and branch names for active work should remain scoped consistently.
 
 ## 🤖 Agent Architecture
 
