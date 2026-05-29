@@ -265,9 +265,9 @@ issues.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC17.1.1 | Holdings Summary | `test_get_holdings_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
-| AC17.1.2 | FIFO Cost Basis | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC17.1.3 | LIFO Cost Basis | `TBD` | `TBD (test to be implemented)` | P0 |
-| AC17.1.4 | Average Cost Basis | `TBD` | `TBD (test to be implemented)` | P0 |
+| AC17.1.2 | FIFO Cost Basis | `test_sell_transaction_uses_fifo_and_records_realized_gain` | `portfolio/test_investment_accounting.py` | P0 |
+| AC17.1.3 | LIFO Cost Basis | `test_sell_transaction_uses_lifo_loss_and_disposes_position` | `portfolio/test_investment_accounting.py` | P0 |
+| AC17.1.4 | Average Cost Basis | `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.1.5 | Unrealized P&L Calculation | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
 | AC17.1.6 | Manual Price Update | `test_update_prices_happy` | `portfolio/test_portfolio_service.py` | P1 |
 

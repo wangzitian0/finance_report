@@ -114,7 +114,7 @@ async def test_sell_transaction_uses_fifo_and_records_realized_gain(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.2/AC17.6.1: Sell transactions consume FIFO lots and record realized P&L."""
+    """AC17.1.2 AC17.5.2 AC17.6.1: Sell transactions consume FIFO lots and record realized P&L."""
     await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -182,7 +182,7 @@ async def test_sell_transaction_uses_average_cost_for_realized_pnl(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.2: Average cost basis is explicit and persisted on sell transactions."""
+    """AC17.1.4 AC17.5.2: Average cost basis is explicit and persisted on sell transactions."""
     await svc.post_buy(
         db,
         user_id=test_user.id,
@@ -233,7 +233,7 @@ async def test_sell_transaction_uses_lifo_loss_and_disposes_position(
     chart,
     svc: InvestmentAccountingService,
 ):
-    """AC17.5.2/AC17.6.1: LIFO sells can realize losses and close positions."""
+    """AC17.1.3 AC17.5.2 AC17.6.1: LIFO sells can realize losses and close positions."""
     await svc.post_buy(
         db,
         user_id=test_user.id,

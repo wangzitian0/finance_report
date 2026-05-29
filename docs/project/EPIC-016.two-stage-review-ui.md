@@ -654,7 +654,7 @@ delivery status table.
 | AC16.22.3 | Stage 2 `pending_review → accepted` transition blocked when unresolved checks exist | `test_batch_approve_matches_blocked_by_unresolved_checks` | `api/test_statements_router.py` | P0 |
 | AC16.22.4 | Journal entry created only on `accepted` transition, never on `pending_review` | `test_batch_approve_matches_creates_missing_entry_once` | `api/test_statements_router.py` | P0 |
 | AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
-| AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `TBD` | `TBD (test to be implemented)` | P1 |
+| AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_get_statement_for_update_wrong_user_raises` | `review/test_statement_validation.py` | P1 |
 
 
 ---
