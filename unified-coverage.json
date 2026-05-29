@@ -1,7 +1,7 @@
 {
   "total_lines": 17263,
-  "covered_lines": 16705,
-  "coverage_percent": 96.77,
+  "covered_lines": 16774,
+  "coverage_percent": 97.17,
   "breakdown": {
     "backend": {
       "total_lines": 8986,
@@ -23,8 +23,8 @@
     },
     "tools": {
       "total_lines": 3034,
-      "covered_lines": 2834,
-      "coverage_percent": 93.41,
+      "covered_lines": 2903,
+      "coverage_percent": 95.68,
       "file_count": 64
     }
   }
