@@ -75,9 +75,59 @@ jobs:
             echo "No image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
           } >> "$GITHUB_STEP_SUMMARY"
 
+  classify-staging:
+    name: Classify Staging Relevance
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    runs-on: ubuntu-latest
+    outputs:
+      staging_required: ${{ steps.classify.outputs.staging_required }}
+      staging_reason: ${{ steps.classify.outputs.staging_reason }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Classify staging relevance
+        id: classify
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "staging_required=true"
+              echo "staging_reason=manual-dispatch"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Staging Change Classification"
+              echo ""
+              echo "- Staging deploy required: \`true\`"
+              echo "- Staging reason: \`manual-dispatch\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          head_sha="${HEAD_SHA:-$(git rev-parse HEAD)}"
+          base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || true)"
+          if [ -z "$base_sha" ]; then
+            echo "::warning::Could not resolve parent for $head_sha; failing closed into staging deploy."
+            : > changed-files.txt
+          else
+            git diff --name-only "$base_sha" "$head_sha" > changed-files.txt
+          fi
+
+          python scripts/ci_change_classifier.py \
+            --changed-files changed-files.txt \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
   build-and-deploy:
     name: Build and Deploy
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && needs.classify-staging.outputs.staging_required == 'true') }}
+    needs: [classify-staging]
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -440,7 +490,7 @@ jobs:
   post-merge-summary:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
-    needs: [build-and-deploy, ai-ocr-gate]
+    needs: [classify-staging, build-and-deploy, ai-ocr-gate]
     if: ${{ always() }}
     permissions:
       actions: read

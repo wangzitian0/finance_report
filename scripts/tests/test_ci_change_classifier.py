@@ -8,6 +8,7 @@ from ci_change_classifier import (
     classify_changed_paths,
     is_lightweight,
     is_pr_preview_relevant,
+    is_staging_relevant,
 )  # noqa: E402
 
 
@@ -28,6 +29,9 @@ def test_AC8_13_20_docs_and_docs_workflow_are_lightweight() -> None:
     assert result.pr_preview_required is False
     assert result.pr_preview_files == ()
     assert result.pr_preview_reason == "no-pr-preview-paths-changed"
+    assert result.staging_required is False
+    assert result.staging_files == ()
+    assert result.staging_reason == "no-staging-paths-changed"
 
 
 def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
@@ -51,6 +55,11 @@ def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
         "apps/backend/src/services/reporting.py",
         "apps/frontend/src/app/page.tsx",
     )
+    assert result.staging_required is True
+    assert result.staging_files == (
+        "apps/backend/src/services/reporting.py",
+        "apps/frontend/src/app/page.tsx",
+    )
 
 
 def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
@@ -58,6 +67,7 @@ def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
     assert is_lightweight(".github/workflows/docs.yml") is True
     assert is_lightweight(".github/workflows/ci.yml") is False
     assert classify_changed_paths([".github/workflows/ci.yml"]).heavy_required is True
+    assert classify_changed_paths([".github/workflows/ci.yml"]).staging_required is True
     assert (
         classify_changed_paths([".github/workflows/ci.yml"]).pr_preview_required
         is False
@@ -86,6 +96,8 @@ def test_AC8_13_20_empty_change_set_requires_heavy_ci() -> None:
     assert result.reason == "no-changed-files-detected"
     assert result.pr_preview_required is True
     assert result.pr_preview_reason == "no-changed-files-detected"
+    assert result.staging_required is True
+    assert result.staging_reason == "no-changed-files-detected"
 
 
 def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None:
@@ -108,6 +120,59 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert result.heavy_required is True
     assert result.pr_preview_required is False
     assert result.pr_preview_reason == "no-pr-preview-paths-changed"
+    assert result.staging_required is True
+    assert result.staging_files == (".github/workflows/ci.yml",)
+    assert result.staging_reason == "staging-paths-changed"
+
+
+def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None:
+    """AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
+    for path in (
+        "apps/backend/src/routers/statements.py",
+        "apps/frontend/src/app/page.tsx",
+        "tests/e2e/test_core_journeys.py",
+        "docker-compose.yml",
+        ".github/workflows/staging-deploy.yml",
+        ".github/workflows/staging-ai-ocr-gate.yml",
+        ".github/workflows/ci.yml",
+        ".github/actions/setup-e2e-tests/action.yml",
+        "scripts/dokploy_deploy.sh",
+        "scripts/health_check.sh",
+        "scripts/smoke_test.sh",
+        "scripts/check_ghcr_image_tag.sh",
+        "scripts/pdf_fixtures/generate_pdf_fixtures.py",
+        "toolchain.toml",
+        ".python-version",
+        ".node-version",
+        "repo",
+        "repo/docker-compose.yml",
+    ):
+        assert is_staging_relevant(path) is True
+
+    for path in (
+        "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
+        "docs/ssot/ci-cd.md",
+        "scripts/check_ssot_ownership.py",
+        "scripts/build_ac_traceability.py",
+        "scripts/tests/test_check_ssot_ownership.py",
+        ".github/workflows/docs.yml",
+        ".github/workflows/production-release.yml",
+    ):
+        assert is_staging_relevant(path) is False
+
+    result = classify_changed_paths(
+        [
+            "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
+            "docs/ssot/ci-cd.md",
+            "scripts/check_ssot_ownership.py",
+            "scripts/tests/test_check_ssot_ownership.py",
+        ]
+    )
+
+    assert result.heavy_required is True
+    assert result.staging_required is False
+    assert result.staging_files == ()
+    assert result.staging_reason == "no-staging-paths-changed"
 
 
 def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
@@ -128,11 +193,14 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
         "reason=runtime-or-ci-paths-changed",
         "pr_preview_required=false",
         "pr_preview_reason=no-pr-preview-paths-changed",
+        "staging_required=false",
+        "staging_reason=no-staging-paths-changed",
     ]
     summary_text = summary.read_text(encoding="utf-8")
     assert "## Change Classification" in summary_text
     assert "- Heavy CI required: `true`" in summary_text
     assert "- PR preview required: `false`" in summary_text
+    assert "- Staging deploy required: `false`" in summary_text
     assert "- `scripts/ci_change_classifier.py`" in summary_text
 
 
@@ -152,6 +220,7 @@ def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
     assert "PR preview-triggering files:" in summary_text
     assert "- `apps/frontend/src/app/page.tsx`" in summary_text
     assert "- `tests/e2e/test_core_journeys.py`" in summary_text
+    assert "Staging-triggering files:" in summary_text
 
 
 def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
@@ -187,7 +256,10 @@ def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
     assert "reason=lightweight-docs-or-docs-workflow-only" in stdout
     assert "pr_preview_required=false" in stdout
     assert "pr_preview_reason=no-pr-preview-paths-changed" in stdout
+    assert "staging_required=false" in stdout
+    assert "staging_reason=no-staging-paths-changed" in stdout
     assert "changed_files=2" in stdout
     assert "heavy_required=false" in github_output.read_text(encoding="utf-8")
     assert "pr_preview_required=false" in github_output.read_text(encoding="utf-8")
+    assert "staging_required=false" in github_output.read_text(encoding="utf-8")
     assert "Changed files: `2`" in github_summary.read_text(encoding="utf-8")

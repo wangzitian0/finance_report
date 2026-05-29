@@ -94,6 +94,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.52**: Production release dry-run validates release prerequisites and image builds without production mutation.
 - **AC8.13.53**: Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers.
 - **AC8.13.54**: Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift.
+- **AC8.13.55**: Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -419,6 +420,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.52 | Production release dry-run validates release prerequisites and image builds without production mutation | `test_AC8_13_52_production_release_dry_run_does_not_mutate_production` | `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.53 | Common shared tooling owns SSOT, coverage, and isolation helpers while scripts remain command wrappers | `test_AC8_13_53_*` | `scripts/tests/test_common_tooling_modules.py`, `scripts/tests/test_ci_metrics_contract.py` | P0 |
 | AC8.13.54 | Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift | `test_AC8_13_54_*` | `scripts/tests/test_check_critical_proof_matrix.py` | P0 |
+| AC8.13.55 | Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes | `test_AC8_13_55_*` | `scripts/tests/test_ci_change_classifier.py`, `scripts/tests/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

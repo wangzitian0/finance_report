@@ -32,6 +32,29 @@ PR_PREVIEW_PREFIXES = (
     "tests/e2e/",
 )
 
+STAGING_EXACT = {
+    ".github/workflows/ci.yml",
+    ".github/workflows/staging-deploy.yml",
+    ".github/workflows/staging-ai-ocr-gate.yml",
+    ".node-version",
+    ".python-version",
+    "docker-compose.yml",
+    "scripts/check_ghcr_image_tag.sh",
+    "scripts/dokploy_deploy.sh",
+    "scripts/health_check.sh",
+    "scripts/smoke_test.sh",
+    "toolchain.toml",
+    "repo",
+}
+STAGING_PREFIXES = (
+    "apps/backend/",
+    "apps/frontend/",
+    ".github/actions/setup-e2e-tests/",
+    "repo/",
+    "scripts/pdf_fixtures/",
+    "tests/e2e/",
+)
+
 
 @dataclass(frozen=True)
 class ChangeClassification:
@@ -42,6 +65,9 @@ class ChangeClassification:
     pr_preview_files: tuple[str, ...]
     pr_preview_required: bool
     pr_preview_reason: str
+    staging_files: tuple[str, ...]
+    staging_required: bool
+    staging_reason: str
 
 
 def normalize_path(path: str) -> str:
@@ -60,6 +86,13 @@ def is_pr_preview_relevant(path: str) -> bool:
     if normalized in PR_PREVIEW_EXACT:
         return True
     return normalized.startswith(PR_PREVIEW_PREFIXES)
+
+
+def is_staging_relevant(path: str) -> bool:
+    normalized = normalize_path(path)
+    if normalized in STAGING_EXACT:
+        return True
+    return normalized.startswith(STAGING_PREFIXES)
 
 
 def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
@@ -82,6 +115,15 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         if not files
         else "no-pr-preview-paths-changed"
     )
+    staging_files = tuple(path for path in files if is_staging_relevant(path))
+    staging_required = bool(staging_files or not files)
+    staging_reason = (
+        "staging-paths-changed"
+        if staging_files
+        else "no-changed-files-detected"
+        if not files
+        else "no-staging-paths-changed"
+    )
     return ChangeClassification(
         files=files,
         heavy_files=heavy_files,
@@ -90,6 +132,9 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         pr_preview_files=pr_preview_files,
         pr_preview_required=pr_preview_required,
         pr_preview_reason=pr_preview_reason,
+        staging_files=staging_files,
+        staging_required=staging_required,
+        staging_reason=staging_reason,
     )
 
 
@@ -103,6 +148,8 @@ def write_github_outputs(
             f"pr_preview_required={str(classification.pr_preview_required).lower()}\n"
         )
         fh.write(f"pr_preview_reason={classification.pr_preview_reason}\n")
+        fh.write(f"staging_required={str(classification.staging_required).lower()}\n")
+        fh.write(f"staging_reason={classification.staging_reason}\n")
 
 
 def write_github_summary(
@@ -118,6 +165,10 @@ def write_github_summary(
             f"- PR preview required: `{str(classification.pr_preview_required).lower()}`\n"
         )
         fh.write(f"- PR preview reason: `{classification.pr_preview_reason}`\n")
+        fh.write(
+            f"- Staging deploy required: `{str(classification.staging_required).lower()}`\n"
+        )
+        fh.write(f"- Staging reason: `{classification.staging_reason}`\n")
         fh.write(f"- Changed files: `{len(classification.files)}`\n")
         if classification.heavy_files:
             fh.write("\nHeavy-triggering files:\n\n")
@@ -126,6 +177,10 @@ def write_github_summary(
         if classification.pr_preview_files:
             fh.write("\nPR preview-triggering files:\n\n")
             for path in classification.pr_preview_files[:50]:
+                fh.write(f"- `{path}`\n")
+        if classification.staging_files:
+            fh.write("\nStaging-triggering files:\n\n")
+            for path in classification.staging_files[:50]:
                 fh.write(f"- `{path}`\n")
 
 
@@ -149,6 +204,8 @@ def main() -> int:
     print(f"reason={classification.reason}")
     print(f"pr_preview_required={str(classification.pr_preview_required).lower()}")
     print(f"pr_preview_reason={classification.pr_preview_reason}")
+    print(f"staging_required={str(classification.staging_required).lower()}")
+    print(f"staging_reason={classification.staging_reason}")
     print(f"changed_files={len(classification.files)}")
     return 0
 
