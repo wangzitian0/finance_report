@@ -55,7 +55,8 @@ def walk_tests() -> list[Path]:
     for p in ROOT.rglob("*"):
         if not p.is_file():
             continue
-        if any(part in EXCL_DIRS for part in p.parts):
+        rel = p.relative_to(ROOT)
+        if any(part in EXCL_DIRS for part in rel.parts):
             continue
         if not is_test_file(p):
             continue
