@@ -362,7 +362,13 @@ financial-report package tracked in
 [#563](https://github.com/wangzitian0/finance_report/issues/563). This EPIC
 must supply holdings, cost basis, realized and unrealized P&L, dividends,
 allocation, and as-of valuation schedules in a form that EPIC-005 can assemble
-into the generated package. EPIC-008 owns the post-merge E2E proof tracked by
+into the generated package. The package contract is tracked by
+[#570](https://github.com/wangzitian0/finance_report/issues/570), the
+standards-inspired investment notes are tracked by
+[#571](https://github.com/wangzitian0/finance_report/issues/571), and the
+representative E2E fixture input is tracked by
+[#573](https://github.com/wangzitian0/finance_report/issues/573). EPIC-008 owns
+the post-merge E2E proof tracked by
 [#565](https://github.com/wangzitian0/finance_report/issues/565).
 
 **Traceability Result**:

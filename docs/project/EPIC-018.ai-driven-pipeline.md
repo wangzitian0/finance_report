@@ -28,7 +28,10 @@ The personal financial-report package tracked by
 EPIC for source confidence, extraction provenance, review status, and
 source-to-ledger-to-report traceability notes. AI remains a parsing and
 explanation layer; deterministic ledger and reporting logic remain the source
-of record.
+of record. The package traceability appendix is tracked by
+[#572](https://github.com/wangzitian0/finance_report/issues/572), and the
+representative E2E fixture that must include confidence/review provenance is
+tracked by [#573](https://github.com/wangzitian0/finance_report/issues/573).
 
 **Current Pipeline (Before)**:
 ```
