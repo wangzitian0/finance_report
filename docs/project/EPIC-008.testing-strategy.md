@@ -4,7 +4,7 @@
 > **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Owner**: QA / DevOps
 > **Date**: 2026-01-16
-> **Updated**: 2026-03-04
+> **Updated**: 2026-05-29
 
 ## 1. Overview
 
@@ -102,16 +102,25 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
 - **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
 - **AC8.13.62**: Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope.
-- **AC8.13.63**: Performance testing residual is explicitly owned by EPIC-008 with current Locust/staging coverage and future P95 trend gate scope.
 - **AC8.13.64**: Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy.
 - **AC8.13.65**: Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane.
 - **AC8.13.66**: Coveralls uploads strip branch counters so external percentages track the line-only unified coverage gate.
 - **AC8.13.67**: Production release preserves deployed version metadata from image build through Dokploy runtime health.
+- **AC8.13.68**: E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners.
+- **AC8.13.69**: Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
 `docs/analysis/ac-epic-mismatch-report.md`, and CI artifacts for live proof
 counts.
+
+### 2.3.1 E2E EPIC Traceability
+
+Every `test_*` function under product E2E roots must carry at least one
+`EPIC-xxx` ID in the test function name or function docstring. Every
+`docs/project/EPIC-*.md` file must be owned by at least one product E2E test
+function. The CI traceability gate enforces this with
+`tools/check_e2e_epic_traceability.py` before generating traceability artifacts.
 
 ### 2.4 Synthetic Test Data (PDF Generation)
 
@@ -445,6 +454,8 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.65 | Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane | `test_AC8_13_52_production_release_dry_run_does_not_mutate_production`, `test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.66 | Coveralls uploads strip branch counters so external percentages track the line-only unified coverage gate | `test_AC8_13_66_*` | `tests/tooling/test_build_unified_lcov.py`, `tests/tooling/test_strip_lcov_branches.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.67 | Production release preserves deployed version metadata from image build through Dokploy runtime health | `test_AC8_13_67_production_release_preserves_version_metadata` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.68 | E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners | `test_AC8_13_68_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.69 | Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide | `test_namespaced_infra_uses_ephemeral_host_ports` | `apps/backend/tests/unit/infra/test_test_lifecycle.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

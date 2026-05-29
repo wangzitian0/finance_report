@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.smoke
 @pytest.mark.e2e
 async def test_deployed_version_matches_source(config: TestConfig):
-    """AC8.13.36 AC8.13.39: /health returns the expected Git SHA."""
+    """EPIC-007 EPIC-008 EPIC-012 / AC8.13.36 AC8.13.39: /health Git SHA."""
     if not config.EXPECTED_SHA:
         logger.warning("Skipping version check: EXPECTED_SHA not set in environment")
         pytest.skip("EXPECTED_SHA not set")

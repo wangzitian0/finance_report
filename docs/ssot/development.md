@@ -183,6 +183,9 @@ Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/
 - Test Database: `finance_report_test_{namespace}`
 - Worker Databases: `finance_report_test_{namespace}_gw0`, `gw1`, etc. (pytest-xdist)
 - S3 Buckets: `statements-{namespace}`
+- Namespaced test infra binds Postgres and MinIO to ephemeral localhost ports
+  (`127.0.0.1::5432`, `127.0.0.1::9000`, `127.0.0.1::9001`) so parallel
+  branch test runs do not collide with persistent local containers.
 
 Long branch/workspace namespaces are shortened deterministically with an 8-character hash suffix before resource creation. This keeps PostgreSQL identifiers and S3-compatible bucket names within their 63-character limits while preserving stable local/CI isolation.
 

@@ -20,7 +20,7 @@ from conftest import TestConfig
 @pytest.mark.smoke
 @pytest.mark.prod_safe
 async def test_AC8_13_9_production_public_runtime_contract() -> None:
-    """AC8.13.9: Production read-only smoke verifies public runtime contract."""
+    """EPIC-007 EPIC-008 EPIC-010 EPIC-012 / AC8.13.9: Public runtime smoke."""
     app_url = TestConfig.APP_URL.rstrip("/")
 
     async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
@@ -41,7 +41,7 @@ async def test_AC8_13_9_production_public_runtime_contract() -> None:
 @pytest.mark.smoke
 @pytest.mark.prod_safe
 async def test_AC8_13_9_production_browser_readonly_shell(page: Page) -> None:
-    """AC8.13.9: Production read-only smoke verifies browser shell usability."""
+    """EPIC-001 EPIC-007 EPIC-008 EPIC-016 / AC8.13.9: Browser shell smoke."""
     app_url = TestConfig.APP_URL.rstrip("/")
 
     await page.goto(app_url, wait_until="domcontentloaded")
@@ -61,7 +61,7 @@ async def test_AC8_13_9_production_browser_readonly_shell(page: Page) -> None:
 async def test_AC8_13_9_production_authenticated_readonly_when_configured(
     page: Page,
 ) -> None:
-    """AC8.13.9: Production auth smoke is read-only and credential-gated."""
+    """EPIC-001 EPIC-007 EPIC-008 EPIC-016 / AC8.13.9: Read-only auth smoke."""
     email = os.getenv("PROD_SMOKE_EMAIL")
     password = os.getenv("PROD_SMOKE_PASSWORD")
     if not email or not password:

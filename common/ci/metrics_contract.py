@@ -150,7 +150,9 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "tools/check_manifest.py",
             "tools/generate_ac_registry.py --check",
             "tools/check_ac_traceability.py",
+            "tools/check_e2e_epic_traceability.py",
             'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
+            "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md",
             "--cov=common",
             "--cov=tools",
             "coverage/common.lcov",
@@ -182,6 +184,24 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             errors.append("CI metrics contract must run before coverage policy audit")
         if (
             "tools/check_ac_traceability.py" in workflow_text
+            and "tools/check_e2e_epic_traceability.py" in workflow_text
+            and workflow_text.index("tools/check_ac_traceability.py")
+            > workflow_text.index("tools/check_e2e_epic_traceability.py")
+        ):
+            errors.append(
+                "AC traceability gate must run before E2E EPIC traceability"
+            )
+        if (
+            "tools/check_e2e_epic_traceability.py" in workflow_text
+            and "tools/build_ac_traceability.py --output" in workflow_text
+            and workflow_text.index("tools/check_e2e_epic_traceability.py")
+            > workflow_text.index("tools/build_ac_traceability.py --output")
+        ):
+            errors.append(
+                "E2E EPIC traceability gate must run before audit artifact generation"
+            )
+        if (
+            "tools/check_ac_traceability.py" in workflow_text
             and "tools/build_ac_traceability.py --output" in workflow_text
             and workflow_text.index("tools/check_ac_traceability.py")
             > workflow_text.index("tools/build_ac_traceability.py --output")
@@ -195,6 +215,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         for token in (
             "single CI metrics contract",
             "AC traceability is a reference metric, not behavioral coverage",
+            "E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs",
             "trivial placeholder assertions",
             "Coveralls uploads are reporting-only and do not block CI pass/fail",
             "strip branch records before upload",

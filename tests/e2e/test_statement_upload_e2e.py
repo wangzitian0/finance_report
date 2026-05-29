@@ -99,7 +99,7 @@ async def _find_statement_by_institution(page: Page, institution: str) -> dict |
 @pytest.mark.e2e
 @pytest.mark.llm
 async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
-    """AC8.4.3: Upload PDF → wait for processing → verify statement appears."""
+    """EPIC-003 EPIC-008 EPIC-009 EPIC-013 / AC8.4.3: Upload PDF flow."""
     _skip_if_no_url()
 
     pdf_path = _unique_pdf_copy(_get_test_pdf())
@@ -161,7 +161,7 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
 @pytest.mark.e2e
 @pytest.mark.llm
 async def test_model_selection_and_upload(authenticated_page: Page) -> None:
-    """AC8.4.2: Select AI model from dropdown → upload → verify model persisted."""
+    """EPIC-003 EPIC-006 EPIC-008 EPIC-013 / AC8.4.2: Model upload flow."""
     _skip_if_no_url()
 
     pdf_path = _unique_pdf_copy(_get_test_pdf())
@@ -194,7 +194,7 @@ async def test_model_selection_and_upload(authenticated_page: Page) -> None:
 
 @pytest.mark.e2e
 async def test_stale_model_id_auto_cleanup(authenticated_page: Page) -> None:
-    """AC8.4.2: Stale localStorage model ID is cleaned up on page reload.
+    """EPIC-003 EPIC-006 EPIC-008 EPIC-013 / AC8.4.2: Stale model cleanup.
 
     Uses a deliberately invalid/fictional model ID that can never appear in the
     AI provider catalog, guaranteeing the stale-cleanup branch always fires.

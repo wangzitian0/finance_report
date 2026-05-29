@@ -182,6 +182,9 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
         "tools.check_critical_proof_matrix": (
             "common.ssot.check_critical_proof_matrix"
         ),
+        "tools.check_e2e_epic_traceability": (
+            "common.ssot.check_e2e_epic_traceability"
+        ),
         "tools.check_manifest": "common.ssot.check_manifest",
         "tools.check_ssot_ownership": "common.ssot.check_ssot_ownership",
         "tools.generate_ac_registry": "common.ssot.generate_ac_registry",

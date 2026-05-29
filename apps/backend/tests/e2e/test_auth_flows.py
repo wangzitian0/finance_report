@@ -22,7 +22,7 @@ import pytest
 @pytest.mark.e2e
 async def test_registration_flow(page):
     """
-    AC8.2.1: User registration flow
+    EPIC-001 EPIC-016 / AC8.2.1: User registration flow
     GIVEN a new user visits the registration page
     WHEN they complete the registration form with valid data
     THEN they should be successfully registered and redirected to dashboard
@@ -46,7 +46,7 @@ async def test_registration_flow(page):
 @pytest.mark.e2e
 async def test_login_flow(page):
     """
-    AC8.2.3: Login with valid credentials
+    EPIC-001 EPIC-016 / AC8.2.3: Login with valid credentials
     GIVEN a registered user visits the login page
     WHEN they enter valid credentials
     THEN they should be logged in and redirected to dashboard
@@ -69,7 +69,7 @@ async def test_login_flow(page):
 @pytest.mark.e2e
 async def test_login_invalid_credentials(page):
     """
-    AC8.2.4: Login with invalid credentials
+    EPIC-001 EPIC-016 / AC8.2.4: Login with invalid credentials
     GIVEN a registered user visits the login page
     WHEN they enter invalid credentials
     THEN they should see an error message
@@ -92,7 +92,7 @@ async def test_login_invalid_credentials(page):
 @pytest.mark.e2e
 async def test_logout_flow(page):
     """
-    AC8.2.5: Logout flow
+    EPIC-001 EPIC-016 / AC8.2.5: Logout flow
     GIVEN a logged-in user clicks logout
     WHEN the logout completes
     THEN they should be redirected to login page
@@ -113,7 +113,7 @@ async def test_logout_flow(page):
 @pytest.mark.e2e
 async def test_password_reset_flow(page):
     """
-    AC8.2.6: Password reset flow
+    EPIC-001 EPIC-016 / AC8.2.6: Password reset flow
     GIVEN a user visits the password reset page
     WHEN they request a password reset with valid email
     THEN they should see confirmation message

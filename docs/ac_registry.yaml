@@ -2164,6 +2164,17 @@ groups:
         epic_name: testing-strategy
         description: Production release preserves deployed version metadata from image build through Dokploy runtime health.
         mandatory: true
+      - id: AC8.13.68
+        epic: 8
+        epic_name: testing-strategy
+        description: E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs
+          without E2E owners.
+        mandatory: true
+      - id: AC8.13.69
+        epic: 8
+        epic_name: testing-strategy
+        description: Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

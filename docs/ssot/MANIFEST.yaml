@@ -262,6 +262,8 @@ concepts:
     cross_refs:
       - AGENTS.md
       - docs/agents/orchestration.md
+      - .github/workflows/ci.yml
+      - tools/check_e2e_epic_traceability.py
 
   critical_proof_matrix:
     owner: docs/ssot/critical-proof-matrix.yaml
