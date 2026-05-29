@@ -33,6 +33,7 @@ VALID_SCOPES = {"behavioral", "static_contract", "manual_gate"}
 VALID_CI_TIERS = {"pr_ci", "post_merge_environment", "manual"}
 VALID_OUTCOME_STATUSES = {"covered", "partial", "gap"}
 REQUIRED_OUTCOME_IDS = {
+    "personal-financial-report-package",
     "asset-distribution-net-worth",
     "monthly-income-spending",
     "investment-performance",

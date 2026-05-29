@@ -12,6 +12,7 @@ This epic defines the strategy for **Smoke Testing** and **End-to-End (E2E) Test
 
 ## Macro Proof Ownership
 
+- `personal-financial-report-package`
 - `asset-distribution-net-worth`
 - `monthly-income-spending`
 - `investment-performance`
@@ -546,6 +547,11 @@ finance_report AC coverage.
 - ✅ **Environment Isolation**: Each PR gets isolated DB/Redis/MinIO via Dokploy
 
 ### 5.4 Known Gaps
+
+0. **Personal Financial Report Package Post-Merge E2E**:
+   - **Status**: Planned and tracked by [#565](https://github.com/wangzitian0/finance_report/issues/565)
+   - **Scope**: Fresh-user post-merge proof that generates one personal report package from trusted source data and verifies statements, schedules, notes, and source traceability.
+   - **Closure rule**: `personal-financial-report-package` remains `partial` in `docs/ssot/critical-proof-matrix.yaml` until this journey has a behavioral E2E proof under `tests/e2e/` and the matrix points at that proof.
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
    - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)

@@ -2,10 +2,19 @@
 
 ## Terminal Goal
 
-**An accurate asset dashboard.**
+**A generated personal financial-report package backed by an accurate asset
+dashboard.**
+
+The final product should generate a self-hosted personal financial report
+package whose structure is inspired by US GAAP and Hong Kong listed-company
+reporting: statements, schedules, notes, and source traceability. It is a
+personal management report, not a regulated filing, audit opinion, legal
+advice, or tax advice.
 
 At any time, the system should help answer:
 
+- Can I generate one auditable personal report package from trusted source
+  data?
 - How much money do I have, and where is it distributed?
 - How much did I earn and spend this month?
 - How are my investments performing?
@@ -64,6 +73,18 @@ If the answer is unclear, choose the smaller step that improves proof quality.
 
 ## Strategic Decisions
 
+### Personal Report Package Is The North-Star Output
+
+Dashboards are working surfaces; the durable product output is a generated
+personal financial-report package. The package should include balance sheet,
+income statement, cash-flow view, investment schedules, annualized income and
+long-term compensation schedules, notes, and source-to-ledger-to-report
+traceability.
+
+US GAAP and Hong Kong listed-company reporting are reference structures for
+coverage, naming, and disclosure discipline. The system must not claim filing
+compliance unless that scope is explicitly registered, tested, and reviewed.
+
 <a id="decision-1-portfolio-self-developed"></a>
 
 ### Portfolio Is Native
@@ -117,6 +138,8 @@ Decimal-safe accounting, explicit schemas, and a self-hostable deployment model.
 ## Non-Goals
 
 - Replacing accounting logic with LLMs.
+- Regulated US/HK filing compliance, XBRL filing, audit opinions, legal advice,
+  or tax advice.
 - <a id="non-goals-not-budgeting-app"></a>Becoming a consumer budgeting app
   centered on bank OAuth aggregation.
 - <a id="non-goals-not-robo-advisor"></a>Trading, portfolio optimization, or

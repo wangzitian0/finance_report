@@ -17,7 +17,18 @@ Maximize AI utilization across the entire data pipeline from statement upload to
 
 ## Macro Proof Ownership
 
+- `personal-financial-report-package`
 - `source-ledger-report-traceability`
+
+## Personal Report Package Traceability Inputs
+
+The personal financial-report package tracked by
+[#563](https://github.com/wangzitian0/finance_report/issues/563) and
+[#567](https://github.com/wangzitian0/finance_report/issues/567) depends on this
+EPIC for source confidence, extraction provenance, review status, and
+source-to-ledger-to-report traceability notes. AI remains a parsing and
+explanation layer; deterministic ledger and reporting logic remain the source
+of record.
 
 **Current Pipeline (Before)**:
 ```
