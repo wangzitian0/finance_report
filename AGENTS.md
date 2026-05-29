@@ -80,6 +80,19 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 
 ---
 
+## 🧭 Parallel Windows Coordination
+
+- ✅ Add an `_infra` suffix or prefix for local workspace identifiers when working on infra tasks (for example: `finance_report_infra_issue-1234-infra`, `issue-1234-infra`).
+- ✅ Before starting, check issue assignee status + open PR list so the same issue is never claimed by two people.
+- ✅ Claim an issue in one place only: assign yourself, add a start comment with branch/worktree name.
+- ✅ `_infra` labels are local coordination tags only; they do not block GitHub assignment by themselves.
+- ✅ If naming conventions conflict with branch policy, prioritize branch/PR naming and adjust only workspace naming to keep uniqueness.
+- ✅ Use an `ongoing` label as a working lock for issue+PR pairs:
+  - Before starting: check Issue does not have `ongoing` and has no duplicate open PR on same scope.
+  - Start: assign yourself, add `ongoing`, and post a start comment containing branch/worktree name.
+  - Finish: remove `ongoing` only after branch is merged/abandoned or handed off.
+- ✅ If `ongoing` conflicts with a required naming convention or automation policy, keep branch/PR naming as authoritative and use label rules as supplemental coordination signal.
+
 ## 🤖 Agent Architecture
 
 Full guide: **[docs/agents/orchestration.md](docs/agents/orchestration.md)**
