@@ -87,8 +87,9 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ✅ Claim an issue in one place only: assign yourself, add a start comment with branch/worktree name.
 - ✅ `_infra` labels are local coordination tags only; they do not block GitHub assignment by themselves.
 - ✅ If naming conventions conflict with branch policy, prioritize branch/PR naming and adjust only workspace naming to keep uniqueness.
-- ✅ PR title must include workspace scope derived from directory suffix (for example `[finance_report_infra] ...`), and branch names for active work should remain scoped consistently.
-- ✅ Scope rule is local-only: only enforce title fixes for your own scope (`[finance_report_infra] ...` in this repository). Do not rewrite PRs clearly belonging to another scope.
+- ✅ PR title must include workspace scope derived from the local directory scope (for example `[finance_report_infra] ...`, `[finance_report_ui] ...`), and branch names for active work should remain scoped consistently.
+- ✅ Scope rule is local-only: when operating in one checkout, only rewrite PRs that belong to that checkout scope (derived from title prefix), never touch PRs from another scope.
+- ✅ `ongoing` is for currently open PRs only; remove it when PR is merged/closed.
 
 ## 🤖 Agent Architecture
 
