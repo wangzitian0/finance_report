@@ -30,6 +30,7 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
+from src.models.consistency_check import CheckStatus, ConsistencyCheck
 from src.schemas import (
     BankStatementListResponse,
     BankStatementResponse,
@@ -49,6 +50,7 @@ from src.schemas.review import (
 )
 from src.services import StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService
+from src.services.consistency_checks import run_all_consistency_checks
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
@@ -197,7 +199,11 @@ async def _resolve_statement_posting_account(
     statement: BankStatement,
     user_id: UUID,
 ) -> Account:
-    """Resolve the asset account for automatic posting without generic fallback."""
+    """Resolve the asset account for automatic posting.
+
+    Posting is only allowed when the statement is explicitly mapped to an
+    account to avoid implicit/guessed account attribution.
+    """
     if statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
@@ -206,45 +212,36 @@ async def _resolve_statement_posting_account(
         if account:
             return account
         raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
-
-    institution = (statement.institution or "").strip()
-    account_last4 = (statement.account_last4 or "").strip()
-    currency = (statement.currency or "").strip().upper()
-    if not institution or not account_last4 or not currency:
-        raise ValueError(
-            "Account mapping required before posting. Confirm the statement account because institution, "
-            "account_last4, or currency metadata is missing."
-        )
-
-    account_result = await db.execute(
-        select(Account)
-        .join(BankStatement, BankStatement.account_id == Account.id)
-        .where(Account.user_id == user_id)
-        .where(Account.type == AccountType.ASSET)
-        .where(Account.currency == currency)
-        .where(Account.is_active.is_(True))
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.id != statement.id)
-        .where(BankStatement.account_id.is_not(None))
-        .where(func.lower(BankStatement.institution) == institution.lower())
-        .where(BankStatement.account_last4 == account_last4)
-        .where(func.upper(BankStatement.currency) == currency)
-    )
-    accounts_by_id = {account.id: account for account in account_result.scalars().all()}
-    if len(accounts_by_id) == 1:
-        account = next(iter(accounts_by_id.values()))
-        statement.account_id = account.id
-        await db.flush()
-        return account
-    if len(accounts_by_id) > 1:
-        raise ValueError(
-            "Ambiguous account mapping. Multiple accounts match this statement's institution, account_last4, "
-            "and currency; confirm the target account before posting."
-        )
     raise ValueError(
-        "Account mapping required before posting. No confirmed account matches this statement's institution, "
-        "account_last4, and currency."
+        "Account mapping required before posting. Confirm the target account before posting."
     )
+
+
+async def _assert_no_unresolved_checks_for_statement(
+    db: DbSession,
+    user_id: UUID,
+    statement: BankStatement,
+) -> None:
+    """Ensure statement-related consistency checks are resolved before Stage 1 approval."""
+    if not statement.transactions:
+        return
+
+    await run_all_consistency_checks(db, user_id, statement.id)
+
+    txn_ids = {str(txn.id) for txn in statement.transactions}
+    pending_checks_result = await db.execute(
+        select(ConsistencyCheck)
+        .where(ConsistencyCheck.user_id == user_id)
+        .where(ConsistencyCheck.status == CheckStatus.PENDING)
+    )
+    unresolved = [
+        check
+        for check in pending_checks_result.scalars().all()
+        if set(check.related_txn_ids or []).intersection(txn_ids)
+    ]
+
+    if unresolved:
+        raise ValueError("Cannot approve statement while there are unresolved consistency checks for this statement.")
 
 
 async def _create_statement_account_from_confirmation(
@@ -923,6 +920,7 @@ async def approve_statement_stage1(
     """Stage 1: Approve statement with balance validation."""
     try:
         statement = await approve_statement_svc(db, statement_id, user_id)
+        await _assert_no_unresolved_checks_for_statement(db, user_id, statement)
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
         created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id)
@@ -981,6 +979,7 @@ async def edit_and_approve_statement(
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
+        await _assert_no_unresolved_checks_for_statement(db, user_id, statement)
         created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id)
         await db.commit()
     except ValueError as e:

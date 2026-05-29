@@ -28,6 +28,7 @@ from sqlalchemy.orm import selectinload
 from src.models import Account, AccountType, User
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.statement import (
     BankStatement,
     BankStatementStatus,
@@ -1539,7 +1540,7 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
-    """AC3.6.1: Stage 1 posting may auto-map only from a unique prior confirmed statement."""
+    """AC3.6.2: Stage 1 posting requires explicit account mapping before posting."""
     bank_account = Account(
         user_id=test_user.id,
         name="DBS Confirmed Account",
@@ -1572,25 +1573,25 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     )
     db.add(txn)
     await db.flush()
-    bank_account_id = bank_account.id
     txn_id = txn.id
     await db.commit()
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
-    assert result.journal_entries_created == 1
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Account mapping required" in str(exc.value.detail)
 
     await db.refresh(statement)
-    assert statement.account_id == bank_account_id
+    assert statement.account_id is None
 
     entry_result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == test_user.id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn_id)
-        .options(selectinload(JournalEntry.lines))
     )
-    entry = entry_result.scalar_one()
-    assert any(line.account_id == bank_account_id for line in entry.lines)
+    assert entry_result.scalar_one_or_none() is None
 
 
 async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):
@@ -1661,7 +1662,7 @@ async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "metadata is missing" in str(exc.value.detail)
+    assert "Account mapping required" in str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(db, test_user):
@@ -1811,7 +1812,62 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Ambiguous account mapping" in str(exc.value.detail)
+    assert "Account mapping required" in str(exc.value.detail)
+
+
+async def test_approve_statement_stage1_blocks_unresolved_consistency_checks(db, test_user):
+    """AC16.22.3: Stage 1 approval blocked if statement has unresolved checks."""
+    bank_account = Account(
+        user_id=test_user.id,
+        name="DBS Edit Check Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(bank_account)
+    await db.flush()
+
+    statement = build_statement(test_user.id, "hash_s1_unresolved_checks", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    txn = BankStatementTransaction(
+        statement_id=statement_id,
+        txn_date=date(2025, 1, 6),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+
+    db.add(
+        ConsistencyCheck(
+            user_id=test_user.id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=[str(txn.id)],
+            details={"count": 1, "amount": "20.00"},
+            severity="high",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "unresolved consistency checks" in str(exc.value.detail)
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+    )
+    assert entry_result.scalars().all() == []
 
 
 async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, test_user):
@@ -2033,6 +2089,59 @@ async def test_edit_and_approve_statement_success(db, test_user):
         statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
     )
     assert result.status == BankStatementStatus.APPROVED
+
+
+async def test_edit_and_approve_statement_blocks_unresolved_consistency_checks(db, test_user):
+    """AC16.22.3: Edit+approve blocked if statement has unresolved checks."""
+    from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+
+    account = await create_statement_account(db, test_user.id, "DBS Edit Check Account")
+    statement = build_statement(test_user.id, "hash_edit_checks", 80)
+    statement.account_id = account.id
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 15),
+        description="Test Txn",
+        amount=Decimal("10.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+
+    db.add(
+        ConsistencyCheck(
+            user_id=test_user.id,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=[str(txn.id)],
+            details={"count": 1, "amount": "10.00"},
+            severity="high",
+        )
+    )
+    await db.commit()
+
+    edit_req = EditAndApproveRequest(
+        edits=[
+            TransactionEditRequest(
+                txn_id=txn.id,
+                amount=Decimal("10.00"),
+                description="Test Txn",
+                txn_date=date(2025, 1, 15),
+                direction="IN",
+            )
+        ]
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.edit_and_approve_statement(
+            statement_id=statement.id, request=edit_req, db=db, user_id=test_user.id
+        )
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "unresolved consistency checks" in str(exc.value.detail)
 
 
 async def test_edit_and_approve_statement_balance_invalid(db, test_user):
