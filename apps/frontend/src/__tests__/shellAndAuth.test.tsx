@@ -55,6 +55,7 @@ describe("AppShell and AuthGuard", () => {
     expect(screen.getByTestId("workspace-tabs")).toBeInTheDocument()
     expect(screen.getByText("Shell Child")).toBeInTheDocument()
     expect(container.querySelector('[class*="md:ml-16"]')).not.toBeNull()
+    expect(screen.getByTestId("workspace-tabs").parentElement?.className).toContain("hidden md:block")
   })
 
   it("AC16.19.2 redirects unauthenticated protected routes", async () => {

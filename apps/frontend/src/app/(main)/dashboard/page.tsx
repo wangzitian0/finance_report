@@ -7,7 +7,7 @@ import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { amountToChartNumber, compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal } from "@/lib/currency";
 import { BarChart } from "@/components/charts/BarChart";
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
 import { PieChart } from "@/components/charts/PieChart";
@@ -27,7 +27,83 @@ import {
 
 const CHART_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
-const toNumber = (value: number | string) => typeof value === "string" ? Number(value) : value;
+const EMPTY_BALANCE_SHEET: BalanceSheetResponse = {
+  as_of_date: "",
+  currency: "SGD",
+  assets: [],
+  liabilities: [],
+  equity: [],
+  total_assets: 0,
+  total_liabilities: 0,
+  total_equity: 0,
+  equation_delta: 0,
+  is_balanced: true,
+};
+
+const EMPTY_INCOME_STATEMENT: IncomeStatementResponse = {
+  start_date: "",
+  end_date: "",
+  currency: "SGD",
+  income: [],
+  expenses: [],
+  total_income: 0,
+  total_expenses: 0,
+  net_income: 0,
+  trends: [],
+};
+
+const EMPTY_ANNUALIZED_INCOME: AnnualizedIncomeResponse = {
+  annualized_salary: 0,
+  annualized_bonus: 0,
+  annualized_dividend: 0,
+  annualized_total: 0,
+  currency: "SGD",
+  as_of: "",
+};
+
+function normalizeBalanceSheet(data?: Partial<BalanceSheetResponse> | null): BalanceSheetResponse {
+  return {
+    ...EMPTY_BALANCE_SHEET,
+    ...data,
+    assets: data?.assets ?? [],
+    liabilities: data?.liabilities ?? [],
+    equity: data?.equity ?? [],
+    total_assets: data?.total_assets ?? 0,
+    total_liabilities: data?.total_liabilities ?? 0,
+    total_equity: data?.total_equity ?? 0,
+    equation_delta: data?.equation_delta ?? 0,
+    currency: data?.currency ?? "SGD",
+    as_of_date: data?.as_of_date ?? "",
+    is_balanced: data?.is_balanced ?? true,
+  };
+}
+
+function normalizeIncomeStatement(data?: Partial<IncomeStatementResponse> | null): IncomeStatementResponse {
+  return {
+    ...EMPTY_INCOME_STATEMENT,
+    ...data,
+    income: data?.income ?? [],
+    expenses: data?.expenses ?? [],
+    trends: data?.trends ?? [],
+    total_income: data?.total_income ?? 0,
+    total_expenses: data?.total_expenses ?? 0,
+    net_income: data?.net_income ?? 0,
+    currency: data?.currency ?? "SGD",
+  };
+}
+
+function normalizeAnnualizedIncome(data?: Partial<AnnualizedIncomeResponse> | null): AnnualizedIncomeResponse {
+  return {
+    ...EMPTY_ANNUALIZED_INCOME,
+    ...data,
+    annualized_salary: data?.annualized_salary ?? 0,
+    annualized_bonus: data?.annualized_bonus ?? 0,
+    annualized_dividend: data?.annualized_dividend ?? 0,
+    annualized_total: data?.annualized_total ?? 0,
+    currency: data?.currency ?? "SGD",
+    as_of: data?.as_of ?? "",
+  };
+}
 
 interface OnboardingStatus {
   accountCount: number;
@@ -81,10 +157,10 @@ export default function DashboardPage() {
         apiFetch<BankStatementListResponse>("/api/statements"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?status_filter=posted&limit=1"),
       ]);
-      setBalanceSheet(balanceData || { assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "", is_balanced: true });
-      setIncomeStatement(incomeData || { start_date: "", end_date: "", currency: "SGD", income: [], expenses: [], total_income: 0, total_expenses: 0, net_income: 0, trends: [] });
-      setAnnualizedIncome(annualizedData || { annualized_salary: 0, annualized_bonus: 0, annualized_dividend: 0, annualized_total: 0, currency: "SGD", as_of: "" });
-      setRestrictedHoldings(restrictedData || []);
+      setBalanceSheet(normalizeBalanceSheet(balanceData));
+      setIncomeStatement(normalizeIncomeStatement(incomeData));
+      setAnnualizedIncome(normalizeAnnualizedIncome(annualizedData));
+      setRestrictedHoldings(Array.isArray(restrictedData) ? restrictedData : []);
       setStats(statsData || { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
       setUnmatched(unmatchedData || { items: [], total: 0 });
       setRecentEntries(journalData || { items: [], total: 0 });
@@ -104,7 +180,7 @@ export default function DashboardPage() {
 
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet || !balanceSheet.assets) return;
-    const sortedAssets = [...balanceSheet.assets].sort((a, b) => toNumber(b.amount) - toNumber(a.amount));
+    const sortedAssets = [...balanceSheet.assets].sort((a, b) => compareAmounts(b.amount, a.amount));
     const target = trendAccountId
       ? sortedAssets.find((a) => a.account_id === trendAccountId) ?? sortedAssets[0]
       : sortedAssets[0];
@@ -127,13 +203,17 @@ export default function DashboardPage() {
   }, [fetchTrend, balanceSheet]);
 
   const netAssets = useMemo(() => {
-    return balanceSheet ? toNumber(balanceSheet.total_assets) - toNumber(balanceSheet.total_liabilities) : 0;
+    return balanceSheet ? subtractAmounts(balanceSheet.total_assets ?? 0, balanceSheet.total_liabilities ?? 0) : toDecimal("0");
   }, [balanceSheet]);
-  const trendPoints = useMemo(() => trend ? trend.points.map((p) => ({ label: formatMonthLabel(p.period_start), value: toNumber(p.amount) })) : [], [trend]);
-  const incomeBars = useMemo(() => incomeStatement && incomeStatement.trends ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [incomeStatement]);
+  const trendPoints = useMemo(() => trend ? trend.points.map((p) => ({ label: formatMonthLabel(p.period_start), value: amountToChartNumber(p.amount) })) : [], [trend]);
+  const incomeBars = useMemo(() => incomeStatement && incomeStatement.trends ? incomeStatement.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: amountToChartNumber(t.total_income), expense: amountToChartNumber(t.total_expenses) })) : [], [incomeStatement]);
   const assetSegments = useMemo(() => {
     if (!balanceSheet || !balanceSheet.assets) return [];
-    return balanceSheet.assets.filter((a) => toNumber(a.amount) > 0).sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).slice(0, 5).map((a, i) => ({ label: a.name, value: toNumber(a.amount), color: CHART_PALETTE[i % CHART_PALETTE.length] }));
+    return balanceSheet.assets
+      .filter((a) => compareAmounts(a.amount, "0") > 0)
+      .sort((a, b) => compareAmounts(b.amount, a.amount))
+      .slice(0, 5)
+      .map((a, i) => ({ label: a.name, value: amountToChartNumber(a.amount), color: CHART_PALETTE[i % CHART_PALETTE.length] }));
   }, [balanceSheet]);
   const isCoreFlowComplete = (onboardingStatus?.approvedStatementCount ?? 0) > 0 && (onboardingStatus?.postedEntryCount ?? 0) > 0;
   const showOnboarding = onboardingStatus !== null && !isCoreFlowComplete;
@@ -240,14 +320,14 @@ export default function DashboardPage() {
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Assets</p>
           <p className="text-2xl font-semibold text-[var(--success)] mt-1">
-            {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_assets), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
+            {balanceSheet ? formatCurrencyLocale(balanceSheet.total_assets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : "—"}</p>
         </div>
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Liabilities</p>
           <p className="text-2xl font-semibold text-[var(--error)] mt-1">
-            {balanceSheet ? formatCurrencyLocale(toNumber(balanceSheet.total_liabilities), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
+            {balanceSheet ? formatCurrencyLocale(balanceSheet.total_liabilities, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">Obligations</p>
         </div>
@@ -265,7 +345,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-xs text-muted uppercase tracking-wide mb-1">Net Worth</p>
-              <p className={`text-4xl font-bold ${netAssets >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+              <p className={`text-4xl font-bold ${netAssets.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}`}>
                 {formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 })}
               </p>
               <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
@@ -308,7 +388,7 @@ export default function DashboardPage() {
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Annualized Income</p>
           <p className="text-2xl font-semibold mt-1">
-            {annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_total), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
+            {annualizedIncome ? formatCurrencyLocale(annualizedIncome.annualized_total, annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">
             As of {annualizedIncome?.as_of ? formatDateDisplay(annualizedIncome.as_of) : "—"}
@@ -316,15 +396,15 @@ export default function DashboardPage() {
           <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted">Salary</p>
-              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_salary), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
+              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(annualizedIncome.annualized_salary, annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
             </div>
             <div>
               <p className="text-xs text-muted">Bonus</p>
-              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_bonus), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
+              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(annualizedIncome.annualized_bonus, annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
             </div>
             <div>
               <p className="text-xs text-muted">Dividend</p>
-              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(toNumber(annualizedIncome.annualized_dividend), annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
+              <p className="font-medium">{annualizedIncome ? formatCurrencyLocale(annualizedIncome.annualized_dividend, annualizedIncome.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}</p>
             </div>
           </div>
         </div>
@@ -340,7 +420,7 @@ export default function DashboardPage() {
                       Unlock {holding.unlock_date ? formatDateDisplay(holding.unlock_date) : "TBD"}
                     </p>
                   </div>
-                  <p className="font-semibold">{formatCurrencyLocale(toNumber(holding.fair_value), holding.currency, "en-US", { maximumFractionDigits: 0 })}</p>
+                  <p className="font-semibold">{formatCurrencyLocale(holding.fair_value, holding.currency, "en-US", { maximumFractionDigits: 0 })}</p>
                 </div>
               ))}
             </div>
@@ -353,9 +433,9 @@ export default function DashboardPage() {
       {/* This Month KPI Cards */}
       {incomeStatement && incomeStatement.trends && incomeStatement.trends.length > 0 && (() => {
         const latest = incomeStatement.trends[incomeStatement.trends.length - 1];
-        const monthIncome = toNumber(latest.total_income);
-        const monthExpense = toNumber(latest.total_expenses);
-        const monthNet = monthIncome - monthExpense;
+        const monthIncome = toDecimal(latest.total_income);
+        const monthExpense = toDecimal(latest.total_expenses);
+        const monthNet = monthIncome.minus(monthExpense);
         const currency = incomeStatement.currency;
         const fmtOpts = { maximumFractionDigits: 0 } as const;
         return (
@@ -372,8 +452,8 @@ export default function DashboardPage() {
             </Link>
             <Link href="/reports/income-statement" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
               <p className="text-xs text-muted uppercase tracking-wide">This Month — Net</p>
-              <p className={`text-2xl font-semibold mt-1 ${monthNet >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{formatCurrencyLocale(monthNet, currency, "en-US", fmtOpts)}</p>
-              <p className="text-xs text-muted mt-1">{monthNet >= 0 ? "Surplus" : "Deficit"}</p>
+              <p className={`text-2xl font-semibold mt-1 ${monthNet.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}`}>{formatCurrencyLocale(monthNet, currency, "en-US", fmtOpts)}</p>
+              <p className="text-xs text-muted mt-1">{monthNet.isNegative() ? "Deficit" : "Surplus"}</p>
             </Link>
           </div>
         );
@@ -396,7 +476,7 @@ export default function DashboardPage() {
                 className="input text-xs py-1 px-2 w-auto"
               >
                 <option value="">Top Asset</option>
-                {[...balanceSheet.assets].sort((a, b) => toNumber(b.amount) - toNumber(a.amount)).map((a) => (
+                {[...balanceSheet.assets].sort((a, b) => compareAmounts(b.amount, a.amount)).map((a) => (
                   <option key={a.account_id} value={a.account_id}>{a.name}</option>
                 ))}
               </select>
@@ -466,7 +546,7 @@ export default function DashboardPage() {
             {unmatched?.items?.length ? unmatched.items.map((t) => (
               <div key={t.id} className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
                 <div><p className="font-medium">{t.description}</p><p className="text-xs text-muted">{formatDateDisplay(t.txn_date)}</p></div>
-                <span className="font-semibold">{balanceSheet ? formatCurrencyLocale(toNumber(t.amount), balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : t.amount}</span>
+                <span className="font-semibold">{balanceSheet ? formatCurrencyLocale(t.amount, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : t.amount}</span>
               </div>
             )) : <p className="text-sm text-muted">No unmatched transactions.</p>}
             <Link href="/reconciliation/unmatched" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">

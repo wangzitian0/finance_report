@@ -3,28 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-    LayoutDashboard,
-    FileText,
-    Zap,
-    Wallet,
-    Menu,
-    LucideIcon
-} from "lucide-react";
+import { Menu } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
-
-interface NavItem {
-    icon: LucideIcon;
-    label: string;
-    href: string;
-}
-
-const mobileNavItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-    { icon: FileText, label: "Review", href: "/statements" },
-    { icon: Zap, label: "Processing", href: "/processing" },
-    { icon: Wallet, label: "Portfolio", href: "/portfolio" },
-];
+import { primaryNavItems } from "@/components/navigation";
 
 export function MobileNav() {
     const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +15,7 @@ export function MobileNav() {
         <div className="md:hidden">
             <button
                 onClick={() => setIsOpen(true)}
-                className="p-2 text-muted hover:text-[var(--foreground)]"
+                className="inline-flex h-11 w-11 items-center justify-center text-muted hover:text-[var(--foreground)]"
                 aria-label="Open navigation menu"
             >
                 <Menu className="w-6 h-6" />
@@ -47,7 +28,7 @@ export function MobileNav() {
                 width="max-w-xs"
             >
                 <nav className="space-y-1">
-                    {mobileNavItems.map((item) => {
+                    {primaryNavItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                         

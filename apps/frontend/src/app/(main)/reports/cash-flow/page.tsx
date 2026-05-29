@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { API_URL, apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 
 interface CashFlowItem {
@@ -34,12 +34,6 @@ interface CashFlowResponse {
   financing: CashFlowItem[];
   summary: CashFlowSummary;
 }
-
-const toNumber = (value: number | string): number => {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
 
 export default function CashFlowPage() {
   const [report, setReport] = useState<CashFlowResponse | null>(null);
@@ -78,7 +72,7 @@ export default function CashFlowPage() {
                 <p className="font-medium truncate">{item.subcategory}</p>
                 {item.description && <p className="text-xs text-muted truncate">{item.description}</p>}
               </div>
-              <span className="font-medium ml-2">{report ? formatCurrencyLocale(toNumber(item.amount), report.currency) : "—"}</span>
+              <span className="font-medium ml-2">{report ? formatCurrencyLocale(item.amount, report.currency) : "—"}</span>
             </div>
           ))}
         </div>
@@ -115,17 +109,17 @@ export default function CashFlowPage() {
         <div className="grid gap-4 md:grid-cols-3 mb-6">
           <div className="card p-5">
             <p className="text-xs text-muted uppercase">Net Cash Flow</p>
-            <p className={`text-2xl font-semibold mt-1 ${toNumber(summary.net_cash_flow) >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
-              {formatCurrencyLocale(toNumber(summary.net_cash_flow), report?.currency || "SGD")}
+            <p className={`text-2xl font-semibold mt-1 ${compareAmounts(summary.net_cash_flow, "0") >= 0 ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+              {formatCurrencyLocale(summary.net_cash_flow, report?.currency || "SGD")}
             </p>
           </div>
           <div className="card p-5">
             <p className="text-xs text-muted uppercase">Beginning Cash</p>
-            <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(toNumber(summary.beginning_cash), report?.currency || "SGD")}</p>
+            <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(summary.beginning_cash, report?.currency || "SGD")}</p>
           </div>
           <div className="card p-5">
             <p className="text-xs text-muted uppercase">Ending Cash</p>
-            <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(toNumber(summary.ending_cash), report?.currency || "SGD")}</p>
+            <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(summary.ending_cash, report?.currency || "SGD")}</p>
           </div>
         </div>
       )}
@@ -155,15 +149,15 @@ export default function CashFlowPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div className="p-4 rounded-md bg-[var(--success-muted)]">
               <p className="text-xs text-muted uppercase">Operating</p>
-              <p className="text-xl font-semibold text-[var(--success)]">{formatCurrencyLocale(toNumber(summary.operating_activities), report?.currency || "SGD")}</p>
+              <p className="text-xl font-semibold text-[var(--success)]">{formatCurrencyLocale(summary.operating_activities, report?.currency || "SGD")}</p>
             </div>
             <div className="p-4 rounded-md bg-[var(--accent-muted)]">
               <p className="text-xs text-muted uppercase">Investing</p>
-              <p className="text-xl font-semibold text-[var(--accent)]">{formatCurrencyLocale(toNumber(summary.investing_activities), report?.currency || "SGD")}</p>
+              <p className="text-xl font-semibold text-[var(--accent)]">{formatCurrencyLocale(summary.investing_activities, report?.currency || "SGD")}</p>
             </div>
             <div className="p-4 rounded-md bg-[var(--warning-muted)]">
               <p className="text-xs text-muted uppercase">Financing</p>
-              <p className="text-xl font-semibold text-[var(--warning)]">{formatCurrencyLocale(toNumber(summary.financing_activities), report?.currency || "SGD")}</p>
+              <p className="text-xl font-semibold text-[var(--warning)]">{formatCurrencyLocale(summary.financing_activities, report?.currency || "SGD")}</p>
             </div>
           </div>
         </div>

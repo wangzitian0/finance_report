@@ -43,7 +43,7 @@ export function BalanceIndicator({
                 <div className="text-lg font-semibold">
                     {formatCurrencyLocale(
                         validationResult
-                            ? parseFloat(validationResult.calculated_closing)
+                            ? validationResult.calculated_closing
                             : 0,
                         currency
                     )}

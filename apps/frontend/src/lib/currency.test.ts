@@ -10,6 +10,7 @@ import {
   compareAmounts,
   isAmountZero,
   formatCurrency,
+  formatCurrencyLocale,
 } from './currency';
 
 describe('parseAmount', () => {
@@ -232,5 +233,23 @@ describe('formatCurrency', () => {
 
   it('should format negative values', () => {
     expect(formatCurrency(-50.25)).toBe('SGD -50.25');
+  });
+});
+
+describe('formatCurrencyLocale', () => {
+  it('AC2.8.2 formats large monetary strings without JS Number precision loss', () => {
+    expect(formatCurrencyLocale('9007199254740993.01', 'USD')).toBe('$9,007,199,254,740,993.01');
+  });
+
+  it('AC2.8.2 respects maximumFractionDigits without converting money through Number', () => {
+    expect(formatCurrencyLocale(new Decimal('1234567.89'), 'USD', 'en-US', { maximumFractionDigits: 0 })).toBe('$1,234,568');
+  });
+
+  it('AC2.8.2 trims optional trailing decimal zeros without converting money through Number', () => {
+    expect(formatCurrencyLocale('12.3400', 'USD', 'en-US', { maximumFractionDigits: 4 })).toBe('$12.34');
+  });
+
+  it('AC2.8.2 preserves negative monetary formatting', () => {
+    expect(formatCurrencyLocale('-42.50', 'USD')).toBe('-$42.50');
   });
 });

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_URL, apiFetch } from "@/lib/api";
 import { BarChart } from "@/components/charts/BarChart";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 
 interface ReportLine {
@@ -40,12 +40,6 @@ interface IncomeStatementResponse {
     account_type: string | null;
   };
 }
-
-const toNumber = (value: number | string): number => {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
 
 const ACCOUNT_TYPE_OPTIONS = [
   { value: "", label: "All Types" },
@@ -109,7 +103,7 @@ export default function IncomeStatementPage() {
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  const barItems = useMemo(() => report ? report.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: toNumber(t.total_income), expense: toNumber(t.total_expenses) })) : [], [report]);
+  const barItems = useMemo(() => report ? report.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: amountToChartNumber(t.total_income), expense: amountToChartNumber(t.total_expenses) })) : [], [report]);
   const exportUrl = useMemo(() => `${API_URL}/api/reports/export?report_type=income-statement&format=csv&${buildQueryParams()}`, [buildQueryParams]);
   const aiPrompt = useMemo(() => encodeURIComponent(`Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`), [currency, endDate, startDate]);
 
@@ -172,9 +166,9 @@ export default function IncomeStatementPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="card p-5"><p className="text-xs text-muted uppercase">Total Income</p><p className="text-2xl font-semibold text-[var(--success)] mt-1">{report ? formatCurrencyLocale(toNumber(report.total_income), report.currency) : "—"}</p></div>
-        <div className="card p-5"><p className="text-xs text-muted uppercase">Total Expenses</p><p className="text-2xl font-semibold text-[var(--error)] mt-1">{report ? formatCurrencyLocale(toNumber(report.total_expenses), report.currency) : "—"}</p></div>
-        <div className="card p-5"><p className="text-xs text-muted uppercase">Net Income</p><p className="text-2xl font-semibold mt-1">{report ? formatCurrencyLocale(toNumber(report.net_income), report.currency) : "—"}</p></div>
+        <div className="card p-5"><p className="text-xs text-muted uppercase">Total Income</p><p className="text-2xl font-semibold text-[var(--success)] mt-1">{report ? formatCurrencyLocale(report.total_income, report.currency) : "—"}</p></div>
+        <div className="card p-5"><p className="text-xs text-muted uppercase">Total Expenses</p><p className="text-2xl font-semibold text-[var(--error)] mt-1">{report ? formatCurrencyLocale(report.total_expenses, report.currency) : "—"}</p></div>
+        <div className="card p-5"><p className="text-xs text-muted uppercase">Net Income</p><p className="text-2xl font-semibold mt-1">{report ? formatCurrencyLocale(report.net_income, report.currency) : "—"}</p></div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
@@ -195,7 +189,7 @@ export default function IncomeStatementPage() {
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {report?.income?.length ? report.income.map((l) => (
               <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-                <span>{l.name}</span><span className="font-medium">{formatCurrencyLocale(toNumber(l.amount), report.currency)}</span>
+                <span>{l.name}</span><span className="font-medium">{formatCurrencyLocale(l.amount, report.currency)}</span>
               </div>
             )) : <p className="text-sm text-muted">No income categories.</p>}
           </div>
@@ -207,7 +201,7 @@ export default function IncomeStatementPage() {
         <div className="grid gap-2 md:grid-cols-2 max-h-96 overflow-y-auto">
           {report?.expenses?.length ? report.expenses.map((l) => (
             <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-              <span>{l.name}</span><span className="font-medium">{formatCurrencyLocale(toNumber(l.amount), report.currency)}</span>
+              <span>{l.name}</span><span className="font-medium">{formatCurrencyLocale(l.amount, report.currency)}</span>
             </div>
           )) : <p className="text-sm text-muted">No expense categories.</p>}
         </div>

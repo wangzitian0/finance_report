@@ -8,7 +8,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale, sumAmounts } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry, JournalEntryListResponse, JournalLine } from "@/lib/types";
 
@@ -52,7 +52,7 @@ export default function JournalPage() {
     }, [fetchEntries]);
 
     const calculateDebits = (lines: JournalLine[]) => {
-        return lines.filter((l) => l.direction === "DEBIT").reduce((sum, l) => sum + l.amount, 0);
+        return sumAmounts(lines.filter((l) => l.direction === "DEBIT").map((line) => line.amount));
     };
 
     const handlePostEntry = async (entryId: string) => {

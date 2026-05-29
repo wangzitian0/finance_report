@@ -4,15 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import type { NetWorthRange, NetWorthTimeSeriesResponse } from "@/lib/types";
 
 const RANGE_OPTIONS: NetWorthRange[] = ["1M", "3M", "6M", "1Y", "All"];
-
-function toNumber(value: number | string): number {
-  return typeof value === "string" ? Number(value) : value;
-}
 
 function addMonths(date: Date, months: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + months, date.getDate());
@@ -55,12 +51,12 @@ export function NetWorthTimeSeriesChart() {
     fetchSeries();
   }, [fetchSeries]);
 
-  const points = data?.points ?? [];
+  const points = useMemo(() => data?.points ?? [], [data?.points]);
   const option = useMemo(() => {
     const labels = points.map((point) =>
       data?.granularity === "monthly" ? formatMonthLabel(point.date) : point.date.slice(5),
     );
-    const values = points.map((point) => toNumber(point.net_worth));
+    const values = points.map((point) => amountToChartNumber(point.net_worth));
     return {
       grid: { left: 48, right: 18, top: 24, bottom: 32 },
       tooltip: {

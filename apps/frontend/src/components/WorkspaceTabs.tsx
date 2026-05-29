@@ -4,56 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useWorkspace, WorkspaceTab } from "@/hooks/useWorkspace";
-import {
-    LayoutDashboard,
-    Landmark,
-    BookOpen,
-    FileText,
-    BarChart3,
-    Link2,
-    MessageSquare,
-    Zap,
-    X,
-    type LucideIcon,
-} from "lucide-react";
-
-interface RouteConfig {
-    label: string;
-    Icon: LucideIcon;
-}
-
-const ROUTE_CONFIG: Record<string, RouteConfig> = {
-    "/dashboard": { label: "Dashboard", Icon: LayoutDashboard },
-    "/accounts": { label: "Accounts", Icon: Landmark },
-    "/journal": { label: "Journal", Icon: BookOpen },
-    "/statements": { label: "Statements", Icon: FileText },
-    "/assets": { label: "Portfolio", Icon: Landmark },
-    "/reports": { label: "Reports", Icon: BarChart3 },
-    "/reports/balance-sheet": { label: "Balance Sheet", Icon: BarChart3 },
-    "/reports/income-statement": { label: "Income Statement", Icon: BarChart3 },
-    "/reports/cash-flow": { label: "Cash Flow", Icon: BarChart3 },
-    "/reconciliation": { label: "Reconciliation", Icon: Link2 },
-    "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
-    "/chat": { label: "AI Advisor", Icon: MessageSquare },
-    "/ping-pong": { label: "Ping-Pong", Icon: Zap },
-};
-
-const DEFAULT_ICON = FileText;
-
-function getRouteConfig(pathname: string): RouteConfig {
-    if (ROUTE_CONFIG[pathname]) return ROUTE_CONFIG[pathname];
-    const segments = pathname.split("/").filter(Boolean);
-    while (segments.length > 0) {
-        const parentPath = "/" + segments.join("/");
-        if (ROUTE_CONFIG[parentPath]) return ROUTE_CONFIG[parentPath];
-        segments.pop();
-    }
-    const derivedSegments = pathname.split("/").filter(Boolean);
-    const lastSegment = derivedSegments[derivedSegments.length - 1];
-    const rawLabel = lastSegment ?? "Page";
-    const label = rawLabel.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    return { label, Icon: DEFAULT_ICON };
-}
+import { X } from "lucide-react";
+import { getRouteConfig } from "@/components/navigation";
 
 export function WorkspaceTabs() {
     const pathname = usePathname();
@@ -101,7 +53,7 @@ export function WorkspaceTabs() {
     }
 
     return (
-        <div className="h-11 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
+        <div className="h-11 min-w-0 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
             <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-[var(--border)] h-full flex items-center mr-1">Open Tabs</span>
             <div role="tablist" onKeyDown={handleKeyDown} className="flex items-center gap-0.5 px-2">
                 {tabs.map((tab) => (
@@ -126,8 +78,8 @@ interface TabItemProps {
 }
 
 function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
-    const config = ROUTE_CONFIG[tab.href];
-    const IconComponent = config?.Icon ?? DEFAULT_ICON;
+    const config = getRouteConfig(tab.href);
+    const IconComponent = config.Icon;
 
     return (
         <div
