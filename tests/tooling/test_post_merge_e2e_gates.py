@@ -1099,8 +1099,9 @@ def test_AC8_13_76_pr_preview_validates_preflight_env_before_e2e_uploads() -> No
     assert preview.index("- name: Storage Capacity Preflight") < preview.index(
         "- name: End-to-End Tests"
     )
-    assert "DOKPLOY_API_KEY is required before PR preview deploy" in validation_block
-    assert "VPS_SSH_KEY is required before PR preview deploy" in validation_block
+    assert "require_nonempty DOKPLOY_API_KEY" in validation_block
+    assert "require_nonempty VPS_SSH_KEY" in validation_block
+    assert "$name is required before PR preview deploy" in validation_block
     assert "DOKPLOY_API_URL must use https://" in validation_block
     assert "VPS_SSH_KEY must be an SSH private key" in validation_block
     assert "PR_NUMBER must be numeric" in validation_block
