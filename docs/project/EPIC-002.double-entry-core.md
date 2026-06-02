@@ -152,6 +152,12 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.6.3 | Decimal precision loss detection | `test_amount_precision_loss_detection()` | `accounting/test_accounting_equation.py` | P1 |
 | AC2.6.4 | Many-line complex entry (salary breakdown) | `test_many_lines_complex_salary_correct()` | `accounting/test_accounting_equation.py` | P1 |
 
+### AC2.12: Account Management UI Responsiveness
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.12.3 | Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap | `AC2.12.3 mobile accounts avoids document horizontal scroll and overlapping row controls` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+
 ### AC2.7: API Router & Error Handling
 
 | ID | Test Case | Test Function | File | Priority |

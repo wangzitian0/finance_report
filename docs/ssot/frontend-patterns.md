@@ -84,15 +84,22 @@ document-level horizontal scrolling.
 **Rules:**
 - Key review routes and dialogs must keep `document.documentElement.scrollWidth`
   less than or equal to `clientWidth` at 375-390 px viewports.
-- Desktop data tables may remain tables at `md` and wider breakpoints.
+- Account-management and review routes must keep `document.documentElement.scrollWidth`
+  less than or equal to `clientWidth` at 375-390 px viewports.
+- Desktop data tables may remain tables at `md` and wider breakpoints only when
+  their local scroll containers do not hide required review information at
+  1440 px with the sidebar visible.
 - Phone layouts for action-heavy review queues should use stacked cards so
   primary actions and correction inputs are visible without horizontal dragging.
 - Dense accounting details may keep desktop tables, but phone layouts must expose
   account, direction, amount, and currency as readable line cards.
+- Phone account rows must stack account identity, metadata, balance, and row
+  actions so long account names cannot overlap amounts or controls.
 - Use Playwright for route-level mobile overflow checks and component tests for
   mobile card affordances.
 
 **Applied In:**
+- `app/(main)/accounts/page.tsx`
 - `app/(main)/review/ai-suggestions/page.tsx`
 - `app/(main)/statements/[id]/review/page.tsx`
 - `components/review/Stage2ReviewQueue.tsx`

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import * as currency from "@/lib/currency";
 import { TransactionTable } from "@/components/review/TransactionTable";
 import type { BankStatementTransaction } from "@/lib/types";
@@ -89,7 +89,7 @@ describe("TransactionTable", () => {
         expect(onDiscard).toHaveBeenCalled();
     });
 
-    it("keeps the desktop table when matchMedia is unavailable", () => {
+    it("keeps desktop table and mobile first-paint markup when matchMedia is unavailable", () => {
         Object.defineProperty(window, "matchMedia", {
             configurable: true,
             writable: true,
@@ -108,8 +108,51 @@ describe("TransactionTable", () => {
             />
         );
 
-        expect(screen.queryByTestId("stage1-mobile-transaction-card-t1")).not.toBeInTheDocument();
-        expect(screen.getByText("Coffee")).toBeInTheDocument();
+        expect(screen.getByTestId("stage1-mobile-transaction-card-t1")).toBeInTheDocument();
+        expect(screen.getAllByText("Coffee").length).toBeGreaterThan(0);
+    });
+
+    it("AC16.27.1 keeps mobile transaction cards in the DOM without matchMedia gating", () => {
+        Object.defineProperty(window, "matchMedia", {
+            configurable: true,
+            writable: true,
+            value: undefined,
+        });
+
+        render(
+            <TransactionTable
+                transactions={sample}
+                currency="SGD"
+                onEdit={onEdit}
+                pendingEdits={new Map()}
+                onSave={onSave}
+                onDiscard={onDiscard}
+                actionLoading={false}
+            />
+        );
+
+        expect(screen.getByTestId("stage1-mobile-transaction-card-t1")).toBeInTheDocument();
+        expect(screen.getAllByText("Coffee").length).toBeGreaterThan(0);
+    });
+
+    it("AC8.13.82/AC16.27.2 exposes a fixed desktop transaction region for responsive UX proofs", () => {
+        render(
+            <TransactionTable
+                transactions={sample}
+                currency="SGD"
+                onEdit={onEdit}
+                pendingEdits={new Map()}
+                onSave={onSave}
+                onDiscard={onDiscard}
+                actionLoading={false}
+            />
+        );
+
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        expect(region).toHaveClass("overflow-hidden");
+        const table = region.querySelector("table");
+        expect(table).toHaveClass("table-fixed", "border-collapse");
+        expect(table).toHaveStyle({ width: "calc(100% - 4px)" });
     });
 
     it("renders rows and shows Save/Discard when pending edits exist", () => {
@@ -130,7 +173,7 @@ describe("TransactionTable", () => {
         );
 
         expect(screen.getByText("Transactions")).toBeInTheDocument();
-        expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
+        expect(screen.getAllByText("Coffee Shop").length).toBeGreaterThan(0);
         const saveBtn = screen.getByRole("button", { name: /Save Edits/ });
         fireEvent.click(saveBtn);
         expect(onSave).toHaveBeenCalled();
@@ -157,10 +200,11 @@ describe("TransactionTable", () => {
         );
 
         // click description cell to begin edit
-        const descCell = screen.getByText("Coffee");
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const descCell = desktopRegion.getByText("Coffee");
         fireEvent.click(descCell);
         // simulate typing
-        const input = screen.getByDisplayValue("Coffee");
+        const input = desktopRegion.getByDisplayValue("Coffee");
         fireEvent.change(input, { target: { value: "Coffee - Latte" } });
         expect(onEdit).toHaveBeenCalledWith("t1", "description", "Coffee - Latte");
     });
@@ -197,16 +241,17 @@ describe("TransactionTable", () => {
         );
 
         // click amount cell to begin edit
-        const amountCell = screen.getByText("+", { exact: false });
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const amountCell = desktopRegion.getByText("+", { exact: false });
         fireEvent.click(amountCell);
 
         // select direction dropdown and change to OUT
-        const select = screen.getByDisplayValue("IN");
+        const select = desktopRegion.getByDisplayValue("IN");
         fireEvent.change(select, { target: { value: "OUT" } });
         expect(onEdit).toHaveBeenCalledWith("t2", "direction", "OUT");
 
         // change amount input
-        const amtInput = screen.getByDisplayValue("1000");
+        const amtInput = desktopRegion.getByDisplayValue("1000");
         fireEvent.change(amtInput, { target: { value: "900" } });
         expect(onEdit).toHaveBeenCalledWith("t2", "amount", "900");
     });
@@ -227,9 +272,10 @@ describe("TransactionTable", () => {
             />
         );
 
-        const dateCell = screen.getByText("2024-01-10");
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const dateCell = desktopRegion.getByText("2024-01-10");
         fireEvent.click(dateCell);
-        const dateInput = screen.getByDisplayValue("2024-01-10");
+        const dateInput = desktopRegion.getByDisplayValue("2024-01-10");
         fireEvent.change(dateInput, { target: { value: "2024-01-11" } });
         expect(onEdit).toHaveBeenCalledWith("t1", "txn_date", "2024-01-11");
     });
@@ -273,18 +319,19 @@ describe("TransactionTable", () => {
         );
 
         // begin editing amount by clicking the amount cell
-        const amountCell = screen.getByText(/SGD/);
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const amountCell = desktopRegion.getByText(/SGD/);
         fireEvent.click(amountCell);
 
         // now inputs should be present
-        const amtInput = screen.getByDisplayValue("3.5");
+        const amtInput = desktopRegion.getByDisplayValue("3.5");
         expect(amtInput).toBeTruthy();
 
         // press Enter to end edit
         fireEvent.keyDown(amtInput, { key: "Enter" });
 
         // after ending edit, the input should no longer be in the document
-        expect(container.querySelector('input[value="3.5"]')).toBeNull();
+        expect(desktopRegion.queryByDisplayValue("3.5")).toBeNull();
     });
 
     it("renders negative sign for OUT transactions", () => {
@@ -302,7 +349,7 @@ describe("TransactionTable", () => {
         );
 
         // look specifically for the currency string prefixed with a minus sign
-        const negAmount = screen.getByText(/-SGD/);
+        const negAmount = within(screen.getByTestId("stage1-desktop-transaction-region")).getByText(/-SGD/);
         expect(negAmount).toBeTruthy();
     });
 
@@ -325,9 +372,10 @@ describe("TransactionTable", () => {
             />
         );
 
-        const high = screen.getByText('high');
-        const medium = screen.getByText('medium');
-        const low = screen.getByText('low');
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const high = desktopRegion.getByText('high');
+        const medium = desktopRegion.getByText('medium');
+        const low = desktopRegion.getByText('low');
 
         expect(high.className).toContain('badge-success');
         expect(medium.className).toContain('badge-warning');
@@ -351,12 +399,13 @@ describe("TransactionTable", () => {
         );
 
         // click amount cell to open combined editor
-        const amountCell = screen.getByText(/SGD/);
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const amountCell = desktopRegion.getByText(/SGD/);
         fireEvent.click(amountCell);
 
         // inputs should be present
-        const select = screen.getByDisplayValue("OUT");
-        const input = screen.getByDisplayValue("3.5");
+        const select = desktopRegion.getByDisplayValue("OUT");
+        const input = desktopRegion.getByDisplayValue("3.5");
         expect(select).toBeTruthy();
         expect(input).toBeTruthy();
 
@@ -365,7 +414,7 @@ describe("TransactionTable", () => {
         fireEvent.blur(wrapper, { relatedTarget: null });
 
         // after blur the inputs should be removed
-        expect(container.querySelector('input[value="3.5"]')).toBeNull();
+        expect(desktopRegion.queryByDisplayValue("3.5")).toBeNull();
     });
 
     it("calls formatCurrencyLocale for numeric and string amounts", () => {
@@ -425,10 +474,11 @@ describe("TransactionTable", () => {
         );
 
         // open editor
-        const amountCell = screen.getByText(/SGD/);
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const amountCell = desktopRegion.getByText(/SGD/);
         fireEvent.click(amountCell);
 
-        const select = screen.getByDisplayValue("OUT");
+        const select = desktopRegion.getByDisplayValue("OUT");
         fireEvent.change(select, { target: { value: "IN" } });
         expect(onEdit).toHaveBeenCalledWith("t1", "direction", "IN");
 
@@ -437,7 +487,7 @@ describe("TransactionTable", () => {
         fireEvent.blur(wrapper, { relatedTarget: null });
 
         // editor should be closed
-        expect(screen.queryByDisplayValue("IN")).toBeNull();
+        expect(desktopRegion.queryByDisplayValue("IN")).toBeNull();
     });
 
     it("changing amount input calls onEdit and hides editor on blur", () => {
@@ -455,16 +505,17 @@ describe("TransactionTable", () => {
             />
         );
 
-        const amountCell = screen.getByText(/SGD/);
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        const amountCell = desktopRegion.getByText(/SGD/);
         fireEvent.click(amountCell);
 
-        const amtInput = screen.getByDisplayValue("3.5");
+        const amtInput = desktopRegion.getByDisplayValue("3.5");
         fireEvent.change(amtInput, { target: { value: "4.25" } });
         expect(onEdit).toHaveBeenCalledWith("t1", "amount", "4.25");
 
         // blur to close
         fireEvent.blur(amtInput, { relatedTarget: null });
-        expect(screen.queryByDisplayValue("4.25")).toBeNull();
+        expect(desktopRegion.queryByDisplayValue("4.25")).toBeNull();
     });
 
     it("renders no ring class when pendingEdits empty and ring when present", () => {

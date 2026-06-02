@@ -167,7 +167,8 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
         renderReviewComponent(<ReviewQueuePage /> as never);
 
-        fireEvent.click(await screen.findByText("Transfer"));
+        const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
+        fireEvent.click(within(desktopRegion).getByText("Transfer"));
         fireEvent.click(screen.getByRole("button", { name: /Approve Selected/i }));
 
         await waitFor(() => {
@@ -204,7 +205,8 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
         renderReviewComponent(<ReviewQueuePage /> as never);
 
-        fireEvent.click(await screen.findByText("Transfer"));
+        const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
+        fireEvent.click(within(desktopRegion).getByText("Transfer"));
         fireEvent.click(screen.getByRole("button", { name: "Reject" }));
 
         await waitFor(() => {

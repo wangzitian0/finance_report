@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
@@ -16,6 +16,7 @@ const mockedApi = vi.mocked(apiFetch);
 describe("ReviewQueuePage - coverage additions", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockedApi.mockReset();
     });
 
     it("renders checks and pending matches, toggles severity and minScore filter, select/deselect all", async () => {
@@ -30,14 +31,13 @@ describe("ReviewQueuePage - coverage additions", () => {
             has_unresolved_checks: false,
         };
 
-        mockedApi.mockResolvedValueOnce(data as any);
-        // filtered checks list
-        mockedApi.mockResolvedValueOnce({ items: data.consistency_checks } as any);
-
-        // approve batch endpoint
-        mockedApi.mockResolvedValueOnce({ success: true, approved_count: 1 } as any);
-        // reject batch endpoint
-        mockedApi.mockResolvedValueOnce({ success: true, rejected_count: 1 } as any);
+        mockedApi.mockImplementation((path: string) => {
+            if (String(path).includes("/stage2/queue")) return Promise.resolve(data as any);
+            if (String(path).includes("consistency-checks/list")) return Promise.resolve({ items: data.consistency_checks } as any);
+            if (String(path).includes("batch-approve-matches")) return Promise.resolve({ success: true, approved_count: 1 } as any);
+            if (String(path).includes("batch-reject-matches")) return Promise.resolve({ success: true, rejected_count: 1 } as any);
+            return Promise.resolve(null as any);
+        });
 
         renderReviewComponent(<ReviewQueuePage /> as any);
 
@@ -59,12 +59,16 @@ describe("ReviewQueuePage - coverage additions", () => {
         const approve = await screen.findByRole("button", { name: /Approve Selected/i });
         fireEvent.click(approve);
 
-        expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch-approve-matches"))).toBe(true);
+        await waitFor(() => expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch-approve-matches"))).toBe(true));
 
-        // reject selected
+        // reject selected after the approve flow clears selection
+        const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
+        const row = within(desktopRegion).getByText("Good match").closest("tr") as HTMLTableRowElement;
+        const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        fireEvent.click(checkbox);
         const reject = await screen.findByRole("button", { name: /Reject/i });
         fireEvent.click(reject);
-        expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch-reject-matches"))).toBe(true);
+        await waitFor(() => expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch-reject-matches"))).toBe(true));
     });
 
     it("handles resolve dialog open and keydown escape to close", async () => {

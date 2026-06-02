@@ -50,8 +50,8 @@ describe("EPIC-016 Componentization Tests", () => {
                 actionLoading={false}
             />
         );
-        expect(screen.getByText("Test Txn")).toBeInTheDocument();
-        expect(screen.getByText("high")).toBeInTheDocument();
+        expect(screen.getAllByText("Test Txn").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("high").length).toBeGreaterThan(0);
     });
 
     it("mounts ConflictResolutionDialog and asserts primary affordance (AC16.23.6)", () => {

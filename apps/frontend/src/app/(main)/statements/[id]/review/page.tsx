@@ -219,7 +219,7 @@ export default function StatementReviewPage() {
     const balanceValid = data.balance_validation_result?.closing_match ?? false;
 
     return (
-        <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 lg:h-[calc(100vh-2rem)]">
+        <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Link href="/statements" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,7 +283,7 @@ export default function StatementReviewPage() {
                 currency={data.currency || "SGD"}
             />
 
-            <div className="grid flex-1 grid-cols-1 gap-4 lg:min-h-0 lg:grid-cols-2">
+            <div className="grid flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
                 <PdfPreviewPane pdfUrl={data.pdf_url} />
 
                 <TransactionTable 

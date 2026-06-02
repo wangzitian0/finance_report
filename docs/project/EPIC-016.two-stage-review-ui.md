@@ -673,6 +673,14 @@ delivery status table.
 | AC16.26.2 | Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible without horizontal dragging | `AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 | AC16.26.3 | Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without document-level horizontal scrolling | `AC16.26.3 stage 2 run review preserves mobile approval gate and match workflow` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 
+### AC16.27 — Responsive Review Layout Completion
+
+| AC ID | Description | Test Function | File | Priority |
+|-------|-------------|---------------|------|----------|
+| AC16.27.1 | Stage 1 and Stage 2 mobile review lists render without JavaScript breakpoint gating that can create first-paint blank content | `AC16.27.1 mobile review lists are present without matchMedia gating` | `apps/frontend/src/__tests__/TransactionTable.test.tsx`, `apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx` | P0 |
+| AC16.27.2 | Stage 1 desktop review keeps the transaction review surface readable at 1440px with the sidebar visible without local horizontal clipping | `AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC16.27.3 | Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible without local horizontal clipping | `AC16.27.3 desktop stage 2 review keeps pending matches readable at 1440px` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+
 
 ---
 

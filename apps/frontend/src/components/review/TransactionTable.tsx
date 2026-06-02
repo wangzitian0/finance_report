@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { formatCurrencyLocale } from "@/lib/currency";
 import type { BankStatementTransaction } from "@/lib/types";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
@@ -34,20 +34,7 @@ export function TransactionTable({
     actionLoading
 }: TransactionTableProps) {
     const [editing, setEditing] = useState<EditingCell | null>(null);
-    const [isMobileLayout, setIsMobileLayout] = useState(false);
     const transactionRows = transactions ?? [];
-
-    useEffect(() => {
-        if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-            return;
-        }
-
-        const media = window.matchMedia("(max-width: 767px)");
-        const updateMobileLayout = () => setIsMobileLayout(media.matches);
-        updateMobileLayout();
-        media.addEventListener("change", updateMobileLayout);
-        return () => media.removeEventListener("change", updateMobileLayout);
-    }, []);
 
     const isEditingCell = (txnId: string, field: EditableField) =>
         editing?.txnId === txnId && editing?.field === field;
@@ -74,8 +61,7 @@ export function TransactionTable({
                 <span className="text-xs text-muted">{transactionRows.length} total</span>
             </div>
 
-            {isMobileLayout && (
-                <div data-testid="stage1-mobile-transaction-list" className="flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden">
+            <div data-testid="stage1-mobile-transaction-list" className="flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden">
                 {transactionRows.map((txn) => {
                     const edit = pendingEdits.get(txn.id);
                     const displayDate = edit?.txn_date ?? txn.txn_date;
@@ -174,16 +160,15 @@ export function TransactionTable({
                         </article>
                     );
                     })}
-                </div>
-            )}
+            </div>
 
-            <div className="hidden flex-1 overflow-auto md:block">
-                <table className="w-full text-sm">
+            <div data-testid="stage1-desktop-transaction-region" className="hidden flex-1 overflow-hidden md:block">
+                <table className="table-fixed border-collapse text-sm" style={{ width: "calc(100% - 4px)" }}>
                     <thead className="sticky top-0 bg-[var(--background)]">
                         <tr className="border-b border-[var(--border)]">
-                            <th className="text-left px-4 py-2 font-medium w-32">Date</th>
+                            <th className="text-left px-4 py-2 font-medium w-28">Date</th>
                             <th className="text-left px-4 py-2 font-medium">Description</th>
-                            <th className="text-right px-4 py-2 font-medium w-40">Amount</th>
+                            <th className="text-right px-4 py-2 font-medium w-32">Amount</th>
                             <th className="text-center px-4 py-2 font-medium w-24">Confidence</th>
                         </tr>
                     </thead>

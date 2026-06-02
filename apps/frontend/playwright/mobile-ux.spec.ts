@@ -81,6 +81,32 @@ const baseStage2Queue = {
   has_unresolved_checks: false,
 };
 
+const baseAccounts = {
+  items: [
+    {
+      id: "account-mobile-long",
+      name: "DBS Multiplier Main Operating Account With Long Name",
+      code: "1010",
+      type: "ASSET",
+      currency: "SGD",
+      balance: "123456.78",
+      is_active: true,
+      description: "Primary cash account used for statement imports",
+    },
+    {
+      id: "income-mobile",
+      name: "Salary Income",
+      code: "4010",
+      type: "INCOME",
+      currency: "SGD",
+      balance: "0.00",
+      is_active: true,
+      description: "Monthly employment income",
+    },
+  ],
+  total: 2,
+};
+
 async function installMobileApiMocks(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("finance_access_token", "mobile-review-token");
@@ -131,6 +157,8 @@ async function installMobileApiMocks(page: Page) {
         currency: "SGD",
         oldest_pending_date: null,
       };
+    } else if (path === "/api/accounts") {
+      body = baseAccounts;
     }
 
     await route.fulfill({
@@ -150,6 +178,15 @@ async function expectNoDocumentHorizontalScroll(page: Page) {
 
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
   expect(metrics.scrollX).toBe(0);
+}
+
+async function expectNoLocalHorizontalScroll(page: Page, testId: string) {
+  const metrics = await page.getByTestId(testId).evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
 }
 
 async function gotoReady(page: Page, path: string) {
@@ -232,6 +269,31 @@ test("AC16.26.3 stage 2 run review preserves mobile approval gate and match work
   await expectNoDocumentHorizontalScroll(page);
 });
 
+test("AC2.12.3 mobile accounts avoids document horizontal scroll and overlapping row controls", async ({ page }) => {
+  await gotoReady(page, "/accounts");
+
+  await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+  await expect(page.getByTestId("account-row-account-mobile-long")).toBeVisible();
+  await expectNoDocumentHorizontalScroll(page);
+
+  const rowMetrics = await page.getByTestId("account-row-account-mobile-long").evaluate((row) => {
+    const name = row.querySelector("[data-account-field='identity']")?.getBoundingClientRect();
+    const balance = row.querySelector("[data-account-field='balance']")?.getBoundingClientRect();
+    const actions = row.querySelector("[data-account-field='actions']")?.getBoundingClientRect();
+    return {
+      hasTargets: Boolean(name && balance && actions),
+      nameBottom: name?.bottom ?? 0,
+      balanceTop: balance?.top ?? 0,
+      balanceBottom: balance?.bottom ?? 0,
+      actionsTop: actions?.top ?? 0,
+    };
+  });
+
+  expect(rowMetrics.hasTargets).toBe(true);
+  expect(rowMetrics.nameBottom).toBeLessThanOrEqual(rowMetrics.balanceTop);
+  expect(rowMetrics.balanceBottom).toBeLessThanOrEqual(rowMetrics.actionsTop);
+});
+
 test.describe("375px mobile review proof", () => {
   test.use({
     viewport: { width: 375, height: 812 },
@@ -253,6 +315,34 @@ test.describe("375px mobile review proof", () => {
     await gotoReady(page, "/review/run/run-mobile-1");
     await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
     await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expectNoDocumentHorizontalScroll(page);
+  });
+});
+
+test.describe("1440px desktop review proof", () => {
+  test.use({
+    viewport: { width: 1440, height: 1000 },
+    isMobile: false,
+    hasTouch: false,
+  });
+
+  test("AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px", async ({ page }) => {
+    await gotoReady(page, "/statements/stmt-mobile/review");
+
+    const desktopRegion = page.getByTestId("stage1-desktop-transaction-region");
+    await expect(desktopRegion).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(desktopRegion.getByText("Long mobile grocery transaction from a bank statement")).toBeVisible();
+    await expectNoLocalHorizontalScroll(page, "stage1-desktop-transaction-region");
+    await expectNoDocumentHorizontalScroll(page);
+  });
+
+  test("AC8.13.82/AC16.27.3 desktop stage 2 review keeps pending matches readable at 1440px", async ({ page }) => {
+    await gotoReady(page, "/reconciliation/review-queue");
+
+    const desktopRegion = page.getByTestId("stage2-desktop-match-region");
+    await expect(desktopRegion).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(desktopRegion.getByText("Long reconciliation match needing mobile approval")).toBeVisible();
+    await expectNoLocalHorizontalScroll(page, "stage2-desktop-match-region");
     await expectNoDocumentHorizontalScroll(page);
   });
 });

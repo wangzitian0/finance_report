@@ -72,7 +72,6 @@ export function Stage2ReviewQueue() {
 
     const [filteredChecks, setFilteredChecks] = useState<ConsistencyCheck[] | null>(null);
     const [filtering, setFiltering] = useState(false);
-    const [isMobileLayout, setIsMobileLayout] = useState(false);
     const resolveTitleId = useId();
     const runIdMatch = pathname.match(/^\/review\/run\/([^/?#]+)/);
     const runId = runIdMatch ? decodeURIComponent(runIdMatch[1]) : null;
@@ -108,18 +107,6 @@ export function Stage2ReviewQueue() {
     useEffect(() => {
         fetchProcessingSummary();
     }, [fetchProcessingSummary]);
-
-    useEffect(() => {
-        if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-            return;
-        }
-
-        const media = window.matchMedia("(max-width: 767px)");
-        const updateMobileLayout = () => setIsMobileLayout(media.matches);
-        updateMobileLayout();
-        media.addEventListener("change", updateMobileLayout);
-        return () => media.removeEventListener("change", updateMobileLayout);
-    }, []);
 
     const updateUrlParams = useCallback(() => {
         const params = new URLSearchParams();
@@ -551,7 +538,7 @@ export function Stage2ReviewQueue() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
                 <div className="card">
                     <div className="card-header flex items-center justify-between">
                         <h3 className="text-sm font-medium">Consistency Checks</h3>
@@ -613,8 +600,7 @@ export function Stage2ReviewQueue() {
                         <div className="p-8 text-center text-muted">No pending matches</div>
                     ) : (
                         <>
-                            {isMobileLayout && (
-                                <div data-testid="stage2-mobile-match-list" className="divide-y divide-[var(--border)] md:hidden">
+                            <div data-testid="stage2-mobile-match-list" className="divide-y divide-[var(--border)] md:hidden">
                                     {matchesFilteredByScore.map((match) => (
                                         <article
                                             key={match.id}
@@ -672,11 +658,10 @@ export function Stage2ReviewQueue() {
                                             </div>
                                         </article>
                                     ))}
-                                </div>
-                            )}
+                            </div>
 
-                            <div className="hidden max-h-[400px] overflow-auto md:block">
-                                <table className="w-full text-sm">
+                            <div data-testid="stage2-desktop-match-region" className="hidden max-h-[400px] overflow-hidden md:block">
+                                <table className="table-fixed border-collapse text-sm" style={{ width: "calc(100% - 4px)" }}>
                                     <thead className="sticky top-0 bg-[var(--background)]">
                                         <tr className="border-b border-[var(--border)]">
                                             <th className="text-left px-4 py-2 w-8">
@@ -687,11 +672,11 @@ export function Stage2ReviewQueue() {
                                                     className="rounded"
                                                 />
                                             </th>
-                                            <th className="text-left px-4 py-2 font-medium">Score</th>
+                                            <th className="text-left px-4 py-2 font-medium w-20">Score</th>
                                             <th className="text-left px-4 py-2 font-medium">Description</th>
-                                            <th className="text-right px-4 py-2 font-medium">Amount</th>
-                                            <th className="text-left px-4 py-2 font-medium">Date</th>
-                                            <th className="text-left px-4 py-2 font-medium">Status</th>
+                                            <th className="text-right px-4 py-2 font-medium w-28">Amount</th>
+                                            <th className="text-left px-4 py-2 font-medium w-28">Date</th>
+                                            <th className="text-left px-4 py-2 font-medium w-32">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[var(--border)]">
@@ -726,7 +711,7 @@ export function Stage2ReviewQueue() {
                                                         {match.match_score}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-2 text-muted truncate max-w-[200px]">
+                                                <td className="truncate px-4 py-2 text-muted">
                                                     {match.description || "—"}
                                                 </td>
                                                 <td className="px-4 py-2 text-right font-medium">

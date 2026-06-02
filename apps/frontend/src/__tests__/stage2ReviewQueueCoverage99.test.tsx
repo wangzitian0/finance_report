@@ -160,7 +160,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(await screen.findByTestId("stage2-mobile-match-card-m1")).toBeInTheDocument()
   })
 
-  it("keeps the desktop pending-match table when matchMedia is unavailable", async () => {
+  it("keeps desktop table and mobile first-paint markup when matchMedia is unavailable", async () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       writable: true,
@@ -180,8 +180,51 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     renderReviewComponent(<Stage2ReviewQueue />)
 
     expect(await screen.findByText("Pending Matches")).toBeInTheDocument()
-    expect(screen.queryByTestId("stage2-mobile-match-card-m1")).not.toBeInTheDocument()
-    expect(screen.getByText("Salary transfer")).toBeInTheDocument()
+    expect(screen.getByTestId("stage2-mobile-match-card-m1")).toBeInTheDocument()
+    expect(screen.getAllByText("Salary transfer").length).toBeGreaterThan(0)
+  })
+
+  it("AC16.27.1 keeps mobile pending-match cards in the DOM without matchMedia gating", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    })
+
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/stage2/queue") {
+        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
+      }
+      if (path.startsWith("/api/statements/consistency-checks/list")) {
+        return Promise.resolve({ items: [] } as never)
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    renderReviewComponent(<Stage2ReviewQueue />)
+
+    expect(await screen.findByTestId("stage2-mobile-match-card-m1")).toBeInTheDocument()
+    expect(screen.getAllByText("Salary transfer").length).toBeGreaterThan(0)
+  })
+
+  it("AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/stage2/queue") {
+        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
+      }
+      if (path.startsWith("/api/statements/consistency-checks/list")) {
+        return Promise.resolve({ items: [] } as never)
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    renderReviewComponent(<Stage2ReviewQueue />)
+
+    const region = await screen.findByTestId("stage2-desktop-match-region")
+    expect(region).toHaveClass("overflow-hidden")
+    const table = region.querySelector("table")
+    expect(table).toHaveClass("table-fixed", "border-collapse")
+    expect(table).toHaveStyle({ width: "calc(100% - 4px)" })
   })
 
   it("test_AC8_13_48_run_review_approves_matches_after_filter_changes", async () => {
@@ -358,9 +401,10 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     await waitFor(() => expect(screen.queryByText("manual_review")).not.toBeInTheDocument())
     expect(screen.getAllByText("Duplicate").length).toBeGreaterThan(0)
 
-    fireEvent.click(screen.getByText("Salary transfer"))
+    const desktopMatches = within(screen.getByTestId("stage2-desktop-match-region"))
+    fireEvent.click(desktopMatches.getByText("Salary transfer"))
     await waitFor(() => expect(screen.getByText("1 selected")).toBeInTheDocument())
-    fireEvent.click(screen.getByText("Salary transfer"))
+    fireEvent.click(desktopMatches.getByText("Salary transfer"))
     await waitFor(() => expect(screen.getByText("0 selected")).toBeInTheDocument())
   })
 

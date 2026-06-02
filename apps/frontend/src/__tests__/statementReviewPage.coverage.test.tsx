@@ -63,10 +63,12 @@ describe("StatementReviewPage - coverage additions", () => {
         expect(approveBtn).toBeEnabled();
 
         // begin edit by clicking description cell
-        const desc = await screen.findByText("Lunch");
+        const desktopRegion = await screen.findByTestId("stage1-desktop-transaction-region");
+        const desktopTransactions = within(desktopRegion);
+        const desc = desktopTransactions.getByText("Lunch");
         fireEvent.click(desc);
 
-        const input = await screen.findByDisplayValue("Lunch");
+        const input = desktopTransactions.getByDisplayValue("Lunch");
         fireEvent.change(input, { target: { value: "Lunch at cafe" } });
         // blur to end edit
         fireEvent.blur(input);
@@ -77,8 +79,8 @@ describe("StatementReviewPage - coverage additions", () => {
         const discardBtn = await screen.findByRole("button", { name: /Discard/i });
         fireEvent.click(discardBtn);
 
-        fireEvent.click(await screen.findByText("Lunch"));
-        const secondInput = await screen.findByDisplayValue("Lunch");
+        fireEvent.click(desktopTransactions.getByText("Lunch"));
+        const secondInput = desktopTransactions.getByDisplayValue("Lunch");
         fireEvent.change(secondInput, { target: { value: "Lunch at cafe" } });
         fireEvent.blur(secondInput);
 
@@ -231,9 +233,11 @@ describe("StatementReviewPage - coverage additions", () => {
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
-        fireEvent.click(await screen.findByText("Lunch"));
-        fireEvent.change(await screen.findByDisplayValue("Lunch"), { target: { value: "Lunch at cafe" } });
-        fireEvent.blur(screen.getByDisplayValue("Lunch at cafe"));
+        const desktopRegion = await screen.findByTestId("stage1-desktop-transaction-region");
+        const desktopTransactions = within(desktopRegion);
+        fireEvent.click(desktopTransactions.getByText("Lunch"));
+        fireEvent.change(desktopTransactions.getByDisplayValue("Lunch"), { target: { value: "Lunch at cafe" } });
+        fireEvent.blur(desktopTransactions.getByDisplayValue("Lunch at cafe"));
         fireEvent.click(await screen.findByRole("button", { name: /Save Edits/i }));
 
         expect(await screen.findByText("edit failed")).toBeInTheDocument();

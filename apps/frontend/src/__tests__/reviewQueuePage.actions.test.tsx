@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import { renderReviewComponent } from "@/__tests__/helpers/renderReviewComponent";
 import { apiFetch } from "@/lib/api";
@@ -33,7 +33,8 @@ describe("Review queue actions", () => {
         expect(await screen.findByText('Pending Matches')).toBeInTheDocument();
 
         // select first row checkbox
-        const row = await screen.findByText('A');
+        const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
+        const row = within(desktopRegion).getByText('A');
         const tr = row.closest('tr') as HTMLTableRowElement;
         const cb = tr.querySelector('input[type="checkbox"]') as HTMLInputElement;
         fireEvent.click(cb);
@@ -122,7 +123,8 @@ describe("Review queue actions", () => {
         expect(screen.getByText(/Unresolved consistency checks block batch approval/i)).toBeInTheDocument();
 
         // select the row
-        const row = await screen.findByText('X');
+        const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
+        const row = within(desktopRegion).getByText('X');
         const tr = row.closest('tr') as HTMLTableRowElement;
         const cb = tr.querySelector('input[type="checkbox"]') as HTMLInputElement;
         fireEvent.click(cb);
