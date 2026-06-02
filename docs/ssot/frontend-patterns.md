@@ -76,13 +76,44 @@ Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as
 - Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
 - Do not create separate reduced mobile menus that hide core routes.
 
-## 7. Security & Authentication
+## 7. Mobile Review Surfaces
+
+Review and journal workflows must be usable at phone widths without relying on
+document-level horizontal scrolling.
+
+**Rules:**
+- Key review routes and dialogs must keep `document.documentElement.scrollWidth`
+  less than or equal to `clientWidth` at 375-390 px viewports.
+- Desktop data tables may remain tables at `md` and wider breakpoints.
+- Phone layouts for action-heavy review queues should use stacked cards so
+  primary actions and correction inputs are visible without horizontal dragging.
+- Dense accounting details may keep desktop tables, but phone layouts must expose
+  account, direction, amount, and currency as readable line cards.
+- Use Playwright for route-level mobile overflow checks and component tests for
+  mobile card affordances.
+
+**Applied In:**
+- `app/(main)/review/ai-suggestions/page.tsx`
+- `components/journal/JournalEntryDetailsModal.tsx`
+- `playwright/mobile-ux.spec.ts`
+
+## 8. App Metadata & PWA Head Tags
+
+Root app metadata lives in `app/layout.tsx`.
+
+**Rules:**
+- Keep PWA manifest and icon metadata in the `metadata` export.
+- Keep viewport-related fields, including `themeColor`, in the `viewport` export.
+- Use `appleWebApp` for iOS web-app capability metadata; do not duplicate
+  `apple-mobile-web-app-capable` in `metadata.other`.
+
+## 9. Security & Authentication
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
 - **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
 
-## 8. Shared Types
+## 10. Shared Types
 
 To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
 
@@ -100,7 +131,7 @@ import { Account, AccountListResponse } from "@/lib/types";
 // components/accounts/AccountFormModal.tsx
 ```
 
-## 9. Brokerage Import Completion Path
+## 11. Brokerage Import Completion Path
 
 After a brokerage PDF is uploaded and parsed, users must be able to see the import status and navigate to their portfolio.
 
@@ -131,7 +162,7 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 
-## 10. Dashboard First-Run Onboarding
+## 12. Dashboard First-Run Onboarding
 
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
 

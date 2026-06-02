@@ -911,6 +911,20 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "merge readiness follows the `finish` check" in readme
 
 
+def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
+    """AC8.13.75: Coverage summary display cannot fail final CI aggregation."""
+    workflow = read(".github/workflows/ci.yml")
+
+    summary_block = workflow.split("- name: Write coverage gate summary", 1)[1].split(
+        "- name: Check job status", 1
+    )[0]
+
+    assert "if: ${{ always() }}" in summary_block
+    assert "continue-on-error: true" in summary_block
+    assert "Authoritative coverage gate" in summary_block
+    assert "reporting-only" in summary_block
+
+
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     """AC8.13.66: Coveralls reports the same line-only metric as the CI gate."""
     workflow = read(".github/workflows/ci.yml")

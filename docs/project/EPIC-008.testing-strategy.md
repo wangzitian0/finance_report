@@ -114,6 +114,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.72**: Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs.
 - **AC8.13.73**: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
 - **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
+- **AC8.13.75**: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
@@ -497,6 +498,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.72 | Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs | `test_AC8_13_72_*` | `tests/tooling/test_dokploy_redaction.py`, `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.73 | VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage | `test_AC8_13_73_*` | `tests/tooling/test_vps_host_hygiene.py` | P0 |
 | AC8.13.74 | Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene | `test_AC8_13_74_*` | `tests/tooling/test_pr_preview_lifecycle.py`, `tests/tooling/test_vps_host_hygiene.py` | P0 |
+| AC8.13.75 | Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail | `test_AC8_13_75_coverage_gate_summary_is_nonblocking` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

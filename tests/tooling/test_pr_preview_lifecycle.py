@@ -41,6 +41,16 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["COMPOSE_PROFILES"] == "infra,app"
 
 
+def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime() -> None:
+    compose = (ROOT / "docker-compose.yml").read_text()
+    backend_block = compose.split("  backend:", 1)[1].split("  frontend:", 1)[0]
+
+    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in backend_block
+    assert backend_block.index("environment:") < backend_block.index(
+        "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}"
+    )
+
+
 def test_AC8_13_71_dash_prefixed_environment_id_is_accepted() -> None:
     lifecycle = lifecycle_module()
 

@@ -134,6 +134,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-https://.*\.zitian\.party}
       DEBUG: ${DEBUG:-false}
+      GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-finance-report-backend}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=development}

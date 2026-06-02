@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   title: "Finance Report",
   description: "Personal financial management",
   manifest: "/site.webmanifest",
-  themeColor: "#7c3aed",
   icons: {
     icon: "/icon.svg",
     apple: "/apple-touch-icon.png",
@@ -27,7 +26,6 @@ export const metadata: Metadata = {
   },
   other: {
     "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
   },
 };
 
@@ -35,6 +33,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#7c3aed",
 };
 
 export default function RootLayout({

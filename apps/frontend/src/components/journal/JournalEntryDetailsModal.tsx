@@ -68,7 +68,49 @@ export default function JournalEntryDetailsModal({
 
                 <div>
                     <h4 className="font-semibold mb-3">Lines</h4>
-                    <div className="border border-[var(--border)] rounded-lg overflow-x-auto">
+                    <div data-testid="journal-lines-mobile" className="space-y-3 md:hidden">
+                        {entry.lines.map((line) => (
+                            <div
+                                key={line.id}
+                                data-testid={`journal-line-mobile-${line.id}`}
+                                className="rounded-lg border border-[var(--border)] bg-[var(--background-card)] p-4"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-medium uppercase text-muted">Account</p>
+                                        <p className="mt-1 break-all font-mono text-xs">{line.account_id}</p>
+                                    </div>
+                                    <span className={`badge flex-shrink-0 ${line.direction === "DEBIT" ? "badge-success" : "badge-error"}`}>
+                                        {line.direction}
+                                    </span>
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <p className="text-xs font-medium uppercase text-muted">Amount</p>
+                                        <p className={`mt-1 font-semibold ${line.direction === "DEBIT" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                                            {formatCurrencyLocale(line.amount, line.currency)}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium uppercase text-muted">Currency</p>
+                                        <p className="mt-1 text-muted">{line.currency}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--background-muted)]/30 p-4 text-sm">
+                            <p className="text-xs font-medium uppercase text-muted">Totals</p>
+                            <div className="mt-2 flex items-center justify-between gap-3 text-[var(--success)]">
+                                <span>DR</span>
+                                <span className="font-semibold">{formatCurrencyLocale(sumAmounts(totalDebits), baseCurrency)}</span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-3 text-[var(--error)]">
+                                <span>CR</span>
+                                <span className="font-semibold">{formatCurrencyLocale(sumAmounts(totalCredits), baseCurrency)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="hidden border border-[var(--border)] rounded-lg overflow-x-auto md:block">
                         <table className="w-full min-w-[640px] text-sm text-left">
                             <thead className="bg-[var(--background-muted)]/50 text-muted font-medium border-b border-[var(--border)]">
                                 <tr>

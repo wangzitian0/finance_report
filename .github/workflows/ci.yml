@@ -670,6 +670,7 @@ jobs:
 
     - name: Write coverage gate summary
       if: ${{ always() }}
+      continue-on-error: true
       run: |
         {
           echo "## Coverage Gate"

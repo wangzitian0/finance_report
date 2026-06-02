@@ -656,6 +656,15 @@ delivery status table.
 | AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
 | AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_get_statement_for_update_wrong_user_raises` | `review/test_statement_validation.py` | P1 |
 
+### AC16.25 — Mobile Review UX Hardening
+
+| AC ID | Description | Test Function | File | Priority |
+|-------|-------------|---------------|------|----------|
+| AC16.25.1 | Review, journal details, and mobile navigation surfaces do not create document-level horizontal scrolling at phone widths | `AC16.25.1 mobile review routes avoid document horizontal scrolling` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC16.25.2 | AI suggestion review queue exposes accept, reject, correction, and edit-accept actions directly in a mobile card layout | `AC16.25.2 AI suggestions mobile cards expose feedback actions` | `apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx` | P0 |
+| AC16.25.3 | Journal entry details expose line account, direction, amount, and currency as mobile line cards | `AC16.25.3 journal entry details mobile line cards expose all line fields` | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | P1 |
+| AC16.25.4 | Root layout keeps theme color in the viewport export and avoids duplicate iOS web-app capability metadata | `AC16.25.4 root layout metadata keeps viewport-only theme color` | `apps/frontend/src/__tests__/rootLayout.test.tsx` | P1 |
+
 
 ---
 
