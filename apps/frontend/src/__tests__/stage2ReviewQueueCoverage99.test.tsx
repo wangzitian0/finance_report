@@ -222,7 +222,9 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     const region = await screen.findByTestId("stage2-desktop-match-region")
     expect(region).toHaveClass("overflow-hidden")
-    expect(region.querySelector("table")).toHaveClass("table-fixed", "w-full")
+    const table = region.querySelector("table")
+    expect(table).toHaveClass("table-fixed", "border-collapse")
+    expect(table).toHaveStyle({ width: "calc(100% - 4px)" })
   })
 
   it("test_AC8_13_48_run_review_approves_matches_after_filter_changes", async () => {

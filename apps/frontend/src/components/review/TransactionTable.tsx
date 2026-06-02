@@ -163,7 +163,7 @@ export function TransactionTable({
             </div>
 
             <div data-testid="stage1-desktop-transaction-region" className="hidden flex-1 overflow-hidden md:block">
-                <table className="w-full table-fixed border-collapse text-sm">
+                <table className="table-fixed border-collapse text-sm" style={{ width: "calc(100% - 4px)" }}>
                     <thead className="sticky top-0 bg-[var(--background)]">
                         <tr className="border-b border-[var(--border)]">
                             <th className="text-left px-4 py-2 font-medium w-28">Date</th>

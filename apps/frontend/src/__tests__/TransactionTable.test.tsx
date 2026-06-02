@@ -150,7 +150,9 @@ describe("TransactionTable", () => {
 
         const region = screen.getByTestId("stage1-desktop-transaction-region");
         expect(region).toHaveClass("overflow-hidden");
-        expect(region.querySelector("table")).toHaveClass("table-fixed", "w-full");
+        const table = region.querySelector("table");
+        expect(table).toHaveClass("table-fixed", "border-collapse");
+        expect(table).toHaveStyle({ width: "calc(100% - 4px)" });
     });
 
     it("renders rows and shows Save/Discard when pending edits exist", () => {
