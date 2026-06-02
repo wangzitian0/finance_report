@@ -68,57 +68,59 @@ export default function AiSuggestionsPage() {
         {suggestions.length === 0 ? (
           <div className="p-8 text-center text-muted">No pending AI suggestions</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--background-muted)]/50 border-b border-[var(--border)]">
-              <tr>
-                <th className="text-left px-4 py-3">Transaction</th>
-                <th className="text-left px-4 py-3">Suggestion</th>
-                <th className="text-left px-4 py-3">AI Score</th>
-                <th className="text-left px-4 py-3">AI Reasoning</th>
-                <th className="text-left px-4 py-3">Corrected value</th>
-                <th className="text-right px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {suggestions.map((suggestion) => (
-                <tr key={suggestion.suggestion_id}>
-                  <td className="px-4 py-3 font-medium">{suggestion.transaction}</td>
-                  <td className="px-4 py-3">{suggestion.suggested_category_or_match}</td>
-                  <td className="px-4 py-3 text-[var(--warning)] font-semibold">{suggestion.ai_score}</td>
-                  <td className="px-4 py-3 text-muted">{suggestion.ai_reasoning}</td>
-                  <td className="px-4 py-3">
-                    <label className="sr-only" htmlFor={`corrected-${suggestion.suggestion_id}`}>Corrected value</label>
-                    <input
-                      id={`corrected-${suggestion.suggestion_id}`}
-                      aria-label="Corrected value"
-                      className="input py-1 text-sm"
-                      value={correctedValues[suggestion.suggestion_id] ?? ""}
-                      onChange={(event) =>
-                        setCorrectedValues((current) => ({
-                          ...current,
-                          [suggestion.suggestion_id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Optional correction"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button type="button" className="btn-primary text-xs" onClick={() => submitFeedback(suggestion, "accept")}>
-                        Accept
-                      </button>
-                      <button type="button" className="btn-secondary text-xs" onClick={() => submitFeedback(suggestion, "reject")}>
-                        Reject
-                      </button>
-                      <button type="button" className="btn-secondary text-xs" onClick={() => submitFeedback(suggestion, "edit_accept")}>
-                        Edit-then-Accept
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="bg-[var(--background-muted)]/50 border-b border-[var(--border)]">
+                <tr>
+                  <th className="text-left px-4 py-3">Transaction</th>
+                  <th className="text-left px-4 py-3">Suggestion</th>
+                  <th className="text-left px-4 py-3">AI Score</th>
+                  <th className="text-left px-4 py-3">AI Reasoning</th>
+                  <th className="text-left px-4 py-3">Corrected value</th>
+                  <th className="text-right px-4 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {suggestions.map((suggestion) => (
+                  <tr key={suggestion.suggestion_id}>
+                    <td className="px-4 py-3 font-medium">{suggestion.transaction}</td>
+                    <td className="px-4 py-3">{suggestion.suggested_category_or_match}</td>
+                    <td className="px-4 py-3 text-[var(--warning)] font-semibold">{suggestion.ai_score}</td>
+                    <td className="px-4 py-3 text-muted">{suggestion.ai_reasoning}</td>
+                    <td className="px-4 py-3 min-w-[220px]">
+                      <label className="sr-only" htmlFor={`corrected-${suggestion.suggestion_id}`}>Corrected value</label>
+                      <input
+                        id={`corrected-${suggestion.suggestion_id}`}
+                        aria-label="Corrected value"
+                        className="input py-1 text-sm"
+                        value={correctedValues[suggestion.suggestion_id] ?? ""}
+                        onChange={(event) =>
+                          setCorrectedValues((current) => ({
+                            ...current,
+                            [suggestion.suggestion_id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Optional correction"
+                      />
+                    </td>
+                    <td className="px-4 py-3 min-w-[220px]">
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="btn-primary text-xs whitespace-nowrap" onClick={() => submitFeedback(suggestion, "accept")}>
+                          Accept
+                        </button>
+                        <button type="button" className="btn-secondary text-xs whitespace-nowrap" onClick={() => submitFeedback(suggestion, "reject")}>
+                          Reject
+                        </button>
+                        <button type="button" className="btn-secondary text-xs whitespace-nowrap" onClick={() => submitFeedback(suggestion, "edit_accept")}>
+                          Edit-then-Accept
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

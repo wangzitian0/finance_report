@@ -111,6 +111,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Upload unified coverage to Coveralls" in workflow
     assert "Upload backend to Coveralls (per-flag)" in workflow
     assert "Upload frontend to Coveralls (per-flag)" in workflow
+    assert "Write coverage gate summary" in workflow
+    assert "Authoritative coverage gate" in workflow
+    assert "external comparison baseline" in workflow
     assert "tools/strip_lcov_branches.py" in workflow
     assert "coverage/coveralls-unified.lcov" in workflow
     assert "coverage/coveralls-backend.lcov" in workflow
@@ -137,6 +140,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "unclassified E2E-like assets outside declared roots" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "coverage gate summary" in ci_cd
     assert "strip branch records before upload" in ci_cd
     assert "not behavioral coverage" in traceability
     assert "placeholder assertions" in traceability
@@ -221,6 +225,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("coverage/tools.lcov" in error for error in errors)
     assert any("tools/build_ac_traceability.py --output" in error for error in errors)
     assert any("Upload unified coverage to Coveralls" in error for error in errors)
+    assert any("Write coverage gate summary" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
     assert any("README EPIC map drift" in error for error in errors)
@@ -229,6 +234,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
         "Coveralls uploads are reporting-only and do not block CI pass/fail" in error
         for error in errors
     )
+    assert any("coverage gate summary" in error for error in errors)
     assert any("New `apps/*/src`" in error for error in errors)
     assert any("not behavioral coverage" in error for error in errors)
 
@@ -251,6 +257,9 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
                 "Upload unified coverage to Coveralls",
                 "Upload backend to Coveralls (per-flag)",
                 "Upload frontend to Coveralls (per-flag)",
+                "Write coverage gate summary",
+                "Authoritative coverage gate",
+                "external comparison baseline",
                 "tools/strip_lcov_branches.py",
                 "coverage/coveralls-unified.lcov",
                 "coverage/coveralls-backend.lcov",
@@ -278,6 +287,7 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
         "unclassified E2E-like assets outside declared roots\n"
         "trivial placeholder assertions\n"
         "Coveralls uploads are reporting-only and do not block CI pass/fail\n"
+        "coverage gate summary\n"
         "New `apps/*/src`\n"
         "strip branch records before upload\n",
     )

@@ -849,6 +849,8 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     """AC8.13.27: PR CI reports to Coveralls without external status blocking."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
+    coverage = read("docs/ssot/coverage.md")
+    readme = read("README.md")
 
     unified_block = workflow.split("- name: Upload unified coverage to Coveralls", 1)[
         1
@@ -871,10 +873,19 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "Wait for Coveralls unified status" not in workflow
     assert "mark_coveralls_reporting_status.py" not in workflow
     assert "wait_for_github_status.py" not in workflow
+    assert "Write coverage gate summary" in workflow
+    assert "Authoritative coverage gate" in workflow
+    assert "external comparison baseline" in workflow
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "coverage gate summary" in ci_cd
     assert "Coveralls contexts are not required checks" in ci_cd
     assert "coverage/coveralls" in ci_cd
     assert "Coveralls - unified" in ci_cd
+    assert "Coveralls badge and contexts are reporting-only" in coverage
+    assert "authoritative coverage gate" in coverage
+    assert "external comparison baseline" in coverage
+    assert "Coveralls badge is reporting-only" in readme
+    assert "merge readiness follows the `finish` check" in readme
 
 
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:

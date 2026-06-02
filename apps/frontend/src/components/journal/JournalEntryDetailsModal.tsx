@@ -68,8 +68,8 @@ export default function JournalEntryDetailsModal({
 
                 <div>
                     <h4 className="font-semibold mb-3">Lines</h4>
-                    <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                        <table className="w-full text-sm text-left">
+                    <div className="border border-[var(--border)] rounded-lg overflow-x-auto">
+                        <table className="w-full min-w-[640px] text-sm text-left">
                             <thead className="bg-[var(--background-muted)]/50 text-muted font-medium border-b border-[var(--border)]">
                                 <tr>
                                     <th className="px-4 py-2">Account</th>
@@ -81,13 +81,13 @@ export default function JournalEntryDetailsModal({
                             <tbody className="divide-y divide-[var(--border)]">
                                 {entry.lines.map((line) => (
                                     <tr key={line.id} className={line.direction === "DEBIT" ? "bg-[var(--success-muted)]/5" : "bg-[var(--error-muted)]/5"}>
-                                        <td className="px-4 py-3 font-mono text-xs">{line.account_id}</td>
+                                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{line.account_id}</td>
                                         <td className="px-4 py-3">
                                             <span className={`badge ${line.direction === "DEBIT" ? "badge-success" : "badge-error"}`}>
                                                 {line.direction}
                                             </span>
                                         </td>
-                                        <td className={`px-4 py-3 text-right font-semibold ${line.direction === "DEBIT" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                                        <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${line.direction === "DEBIT" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
                                             {formatCurrencyLocale(line.amount, line.currency)}
                                         </td>
                                         <td className="px-4 py-3 text-muted">{line.currency}</td>
