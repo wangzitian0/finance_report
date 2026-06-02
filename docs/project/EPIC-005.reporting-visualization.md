@@ -154,6 +154,19 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_reporting_dashboard_fixture_exact_totals` | `reporting/test_reporting.py` | P0 |
 | AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow` | `portfolio/test_performance_service.py` | P1 |
 
+### AC5.8: Personal Report Package Investment Performance Consumption
+
+EPIC-005 consumes the EPIC-017 schedule endpoint
+`GET /api/portfolio/performance/report-schedule` as the
+`investment_performance` report section in the personal financial-report
+package. The report section must preserve `source_links` and `notes` from the
+schedule payload so the package can explain market-data freshness, cost-basis
+method, dividends, realized/unrealized P&L, and return metric limitations.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.8.1 | Personal report package defines the `investment_performance` report section as a consumer of the EPIC-017 schedule API | `test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract` | `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+
 **Traceability Result**:
 - Total AC IDs: 19
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)

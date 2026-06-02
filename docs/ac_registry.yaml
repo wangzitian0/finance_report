@@ -1178,6 +1178,13 @@ groups:
         epic_name: reporting-visualization
         description: Frontend unit test mounts NetWorthTimeSeries component and asserts chart container exists
         mandatory: true
+    AC5.8:
+      - id: AC5.8.1
+        epic: 5
+        epic_name: reporting-visualization
+        description: Personal report package defines the investment_performance report section as a consumer of the EPIC-017
+          schedule API
+        mandatory: true
   AC6:
     AC6.1:
       - id: AC6.1.1
@@ -4226,6 +4233,17 @@ groups:
         epic: 17
         epic_name: portfolio-management
         description: Portfolio page exposes an as-of date selector and passes it to /api/portfolio/holdings
+        mandatory: true
+    AC17.10:
+      - id: AC17.10.1
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance schedule API exposes report-ready metrics and rows
+        mandatory: true
+      - id: AC17.10.2
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance schedule API exposes data freshness, source links, and notes for report traceability
         mandatory: true
   AC18:
     AC18.1:
