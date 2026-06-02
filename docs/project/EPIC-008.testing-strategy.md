@@ -558,7 +558,7 @@ finance_report AC coverage.
 | `test_simple_expense_entry` | AC8.3.1 | $5 coffee with Expense+Asset accounts |
 | `test_void_journal_entry` | AC8.3.2 | Post then void with reason |
 | `test_post_draft_entry` | AC8.3.3 | Draft → posted status transition |
-| `test_unbalanced_journal_entry_rejection` | AC8.3.4 | 400 on unbalanced lines |
+| `test_unbalanced_journal_entry_rejection` | AC8.3.4 | 422 on unbalanced schema validation |
 | `test_journal_entry_crud` | AC8.3.5, AC8.8.3 | Create/read/list/delete lifecycle |
 | `test_reconciliation_engine_runs` | AC8.5.1, AC8.8.5 | POST /reconciliation/run |
 | `test_reconciliation_stats` | AC8.5.2 | GET /reconciliation/stats |

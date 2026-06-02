@@ -323,7 +323,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
     EPIC-002 / AC8.3.4: Unbalanced entry rejected
     GIVEN a user attempts to create an unbalanced journal entry
     WHEN sending the request
-    THEN it should return 400 validation error
+    THEN it should return 422 schema validation error
     """
     account_resp = await client.post(
         "/accounts",
@@ -352,7 +352,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
             ],
         },
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert "not balanced" in response.json()["detail"].lower()
 
 
@@ -1075,7 +1075,7 @@ async def test_traceability_unbalanced_entry_rejected(client, test_user):
             ],
         },
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 @pytest.mark.e2e
