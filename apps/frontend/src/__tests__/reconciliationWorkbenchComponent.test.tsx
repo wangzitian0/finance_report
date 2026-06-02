@@ -279,7 +279,7 @@ describe("ReconciliationWorkbench", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
     await waitFor(() => expect(screen.getByText("No pending matches")).toBeInTheDocument())
-    expect(screen.getByText("Select a match to review")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("Select a match to review")).toBeInTheDocument())
   })
 
 })
