@@ -177,6 +177,49 @@ export interface PersonalReportPackageContractResponse {
     };
 }
 
+export interface AnnualizedIncomeScheduleIncome {
+    annualized_salary: number | string;
+    annualized_bonus: number | string;
+    annualized_dividend: number | string;
+    annualized_total: number | string;
+    currency: string;
+    calculation_basis: string;
+}
+
+export interface AnnualizedIncomeScheduleHolding {
+    ticker: string;
+    compensation_type: string;
+    fair_value: number | string;
+    currency: string;
+    valuation_basis: string;
+    vesting_schedule?: string | null;
+    unlock_date?: string | null;
+    liquidity_class: string;
+    net_worth_treatment: string;
+}
+
+export interface AnnualizedIncomeScheduleNetWorthTreatment {
+    liquid_net_worth_default: string;
+    restricted_wealth_basis: string;
+    include_restricted_query: string;
+    exclude_restricted_query: string;
+}
+
+export interface AnnualizedIncomeScheduleResponse {
+    section_id: string;
+    label: string;
+    as_of_date: string;
+    trailing_period_start: string;
+    trailing_period_end: string;
+    trailing_period_days: number;
+    income: AnnualizedIncomeScheduleIncome;
+    restricted_holdings: AnnualizedIncomeScheduleHolding[];
+    restricted_fair_value_total: number | string;
+    restricted_fair_value_total_currency: string;
+    net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment;
+    notes: string[];
+}
+
 export interface AnnualizedIncomeResponse {
     annualized_salary: number | string;
     annualized_bonus: number | string;

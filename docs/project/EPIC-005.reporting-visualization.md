@@ -191,11 +191,23 @@ personal financial-report package.
 | AC5.10.1 | Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances | `test_AC5_10_1_cash_flow_uses_cumulative_cash_balances()` | `reporting/test_financial_logic_audit.py` | P0 |
 | AC5.10.2 | Cash-flow operating, investing, and financing totals preserve inflow/outflow signs | `test_AC5_10_2_cash_flow_activity_totals_preserve_signs()` | `reporting/test_financial_logic_audit.py` | P0 |
 
+### AC5.11: Personal Report Package Annualized Income Schedule Consumption
+
+Issue [#566](https://github.com/wangzitian0/finance_report/issues/566)
+supplies the report-ready annualized income and long-term compensation schedule
+that plugs into the `annualized_income_long_term` package section defined by
+AC5.9. Supporting calculations remain owned by EPIC-011.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.11.1 | Package contract marks `annualized_income_long_term` as ready and points to the schedule endpoint | `test_AC5_11_1_package_contract_marks_annualized_schedule_ready` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 23
+- Total AC IDs: 25
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
-- Test files: 7
+- Test files: 8
 
 ---
 
@@ -286,13 +298,14 @@ compliance.
 
 Remaining blocker breakdown after the #565 post-merge proof:
 
-- [#570](https://github.com/wangzitian0/finance_report/issues/570) defines the
+- [#570](https://github.com/wangzitian0/finance_report/issues/570) defined the
   package-level API/export contract and stable section IDs through
   `GET /api/reports/package/contract`.
 - [#564](https://github.com/wangzitian0/finance_report/issues/564) supplies the
   investment performance schedule input from EPIC-017.
 - [#566](https://github.com/wangzitian0/finance_report/issues/566) supplies the
-  annualized income and long-term compensation schedule input from EPIC-011.
+  annualized income and long-term compensation schedule input from EPIC-011
+  through `GET /api/reports/package/annualized-income-schedule`.
 - [#571](https://github.com/wangzitian0/finance_report/issues/571) codifies the
   standards-inspired note and disclosure taxonomy without claiming regulated
   filing compliance.
@@ -311,11 +324,12 @@ Closure status:
    frontend, export, and E2E assertions share stable package section IDs,
    labels, period semantics, and Decimal-safe export fields.
 3. Done: deliver the investment-performance schedule input consumed by this
-   package (#564, promoted by #596). Still open: annualized income/long-term
-   compensation (#566).
-4. Deliver explanation outputs for the package output shape: notes/disclosures
+   package (#564, promoted by #596).
+4. Done: deliver the annualized income and long-term compensation schedule
+   input consumed by this package (#566).
+5. Deliver explanation outputs for the package output shape: notes/disclosures
    (#571) and traceability appendix (#572).
-5. Build deterministic fixture coverage (#573) against the same contract and
+6. Build deterministic fixture coverage (#573) against the same contract and
    schedules, then extend the #565 guard as those package sections become
    report-ready.
 

@@ -208,9 +208,24 @@ Required section IDs:
 | `income_statement` | EPIC-005 | `/api/reports/income-statement` | ready |
 | `cash_flow` | EPIC-005 | `/api/reports/cash-flow` | ready |
 | `investment_performance` | EPIC-017 | `/api/portfolio/performance/report-schedule` | ready |
-| `annualized_income_long_term` | EPIC-011 | `/api/reports/package/annualized-income-schedule` | planned by #566 |
+| `annualized_income_long_term` | EPIC-011 | `/api/reports/package/annualized-income-schedule` | ready |
 | `notes` | EPIC-005 | `/api/reports/package/notes` | planned by #571 |
 | `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | planned by #572 |
+
+Annualized income and long-term compensation schedule:
+
+- Endpoint: `GET /api/reports/package/annualized-income-schedule`
+- Period semantics: trailing 365 days ending at `as_of_date`; when omitted,
+  `as_of_date` defaults to the request date.
+- Income basis: `POSTED` or `RECONCILED` income journal lines in the trailing
+  period, bucketed into salary, bonus, dividend, and total by income account
+  name.
+- Restricted compensation basis: latest as-of manual valuation snapshots for
+  `esop`, `rsu`, and `stock_options` with `liquidity_class=restricted`.
+- Liquid net worth default: restricted holdings are excluded by default and are
+  only included through the balance-sheet restricted toggle.
+- Decimal fields serialize as strings; restricted fair-value totals are reported
+  in the schedule currency and do not imply cross-currency conversion.
 
 Export contract:
 

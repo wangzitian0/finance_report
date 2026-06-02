@@ -55,6 +55,10 @@ from src.schemas.reconciliation import (
 )
 from src.schemas.reporting import (
     AccountTrendResponse,
+    AnnualizedIncomeScheduleHolding,
+    AnnualizedIncomeScheduleIncome,
+    AnnualizedIncomeScheduleNetWorthTreatment,
+    AnnualizedIncomeScheduleResponse,
     BalanceSheetResponse,
     BreakdownPeriod,
     BreakdownType,
@@ -114,6 +118,10 @@ __all__ = [
     "AccountResponse",
     "AccountTrendResponse",
     "AccountUpdate",
+    "AnnualizedIncomeScheduleHolding",
+    "AnnualizedIncomeScheduleIncome",
+    "AnnualizedIncomeScheduleNetWorthTreatment",
+    "AnnualizedIncomeScheduleResponse",
     "AnomalyResponse",
     "AuthResponse",
     "BalanceSheetResponse",
