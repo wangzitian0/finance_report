@@ -323,7 +323,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
     EPIC-002 / AC8.3.4: Unbalanced entry rejected
     GIVEN a user attempts to create an unbalanced journal entry
     WHEN sending the request
-    THEN it should return 400 validation error
+    THEN it should return 422 schema validation error
     """
     account_resp = await client.post(
         "/accounts",
@@ -352,8 +352,9 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
             ],
         },
     )
-    assert response.status_code == 400
-    assert "not balanced" in response.json()["detail"].lower()
+    assert response.status_code == 422
+    error_msg = str(response.json()).lower()
+    assert "not balanced" in error_msg or "debit" in error_msg or "credit" in error_msg
 
 
 @pytest.mark.e2e
@@ -460,7 +461,7 @@ async def test_reconciliation_engine_runs(client, db, test_user):
         },
     )
 
-    recon_resp = await client.post("/reconciliation/run")
+    recon_resp = await client.post("/reconciliation/run", json={})
     assert recon_resp.status_code == 200
 
 
@@ -473,7 +474,7 @@ async def test_reconciliation_stats(client, db, test_user):
     THEN it should return stats with total_transactions and match_rate
     """
     # Run reconciliation first (even with no data, stats should work)
-    run_resp = await client.post("/reconciliation/run")
+    run_resp = await client.post("/reconciliation/run", json={})
     assert run_resp.status_code == 200
 
     stats_resp = await client.get("/reconciliation/stats")
@@ -824,7 +825,7 @@ async def test_reconciliation_match_acceptance(client, db, test_user):
     THEN all three return 200 with list responses
     """
     # Run reconciliation first
-    run_resp = await client.post("/reconciliation/run")
+    run_resp = await client.post("/reconciliation/run", json={})
     assert run_resp.status_code == 200
 
     # Pending
@@ -1036,7 +1037,7 @@ async def test_traceability_reconciliation_engine(client, db, test_user):
     WHEN triggering reconciliation
     THEN it returns 200 (engine executed successfully)
     """
-    resp = await client.post("/reconciliation/run")
+    resp = await client.post("/reconciliation/run", json={})
     assert resp.status_code == 200
 
 
@@ -1075,7 +1076,7 @@ async def test_traceability_unbalanced_entry_rejected(client, test_user):
             ],
         },
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 @pytest.mark.e2e

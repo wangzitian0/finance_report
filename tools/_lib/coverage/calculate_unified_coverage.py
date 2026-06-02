@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""
-Unified Coverage Calculator
+"""Unified LCOV line-coverage calculator.
 
-Calculates unified test coverage across backend, frontend, common, and tools.
-Uses blacklist approach: all .py/.ts/.sh files count as code UNLESS:
-- Filename starts with 'test_'
-- Path contains '/test/' or '__tests__/'
+The CI gate uses component LCOV reports for backend, frontend, common, and
+tools. LCOV ``LF`` is the denominator and ``LH`` is the numerator; filesystem
+line counts are diagnostic helpers only and do not define the enforced metric.
+
+Scope is deny-list based inside each governed source root: every file matching
+the component extensions is expected in LCOV unless it is explicitly excluded
+by ``common.coverage.policy``. New source roots are caught by the CI metrics
+contract before this calculator runs.
 
 Output: unified-coverage.json with:
 - backend: {total_lines, covered_lines, coverage_percent}

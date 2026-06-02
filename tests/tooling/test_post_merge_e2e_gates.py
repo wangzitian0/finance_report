@@ -426,7 +426,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]"
+        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, unified-coverage, ac-traceability]"
         in workflow
     )
     assert (
@@ -840,10 +840,32 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
         "  finish:", 1
     )[0]
 
-    assert "needs: [changes]" in backend_block
+    assert "needs: [changes, backend-integration, backend-e2e-tier1]" in backend_block
     assert "needs: [changes, lint]" not in backend_block
+    assert "needs: [changes, backend-integration, backend-e2e-tier1, lint]" not in backend_block
     assert "needs: [lint]" not in traceability_block
     assert "run in parallel with lint" in ci_cd
+
+
+def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
+    """AC8.13.67: Tier-1 backend API E2E does not collect Playwright browser E2E."""
+    workflow = read(".github/workflows/ci.yml")
+    pyproject = read("apps/backend/pyproject.toml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
+        "  frontend:", 1
+    )[0]
+
+    assert "tests/e2e/test_core_journeys.py" in tier1_block
+    assert "tests/e2e/test_auth_flows.py" not in tier1_block
+    assert "tests/e2e/test_e2e_flows.py" not in tier1_block
+    assert "playwright install" not in tier1_block
+    assert (
+        "e2e: End-to-end tests, including backend API scenarios and browser UI flows"
+        in pyproject
+    )
+    assert "apps/backend/tests/e2e/test_core_journeys.py" in ci_cd
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
@@ -913,6 +935,8 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     assert "file: coverage/coveralls-backend.lcov" in workflow
     assert "file: coverage/coveralls-frontend.lcov" in workflow
     assert "Coveralls upload LCOV files are line-only" in coverage
+    assert "Coveralls is not the merge gate" in coverage
+    assert "Coverage scope is deny-list based within each governed source root" in ci_cd
     assert "strip branch records before upload" in ci_cd
 
 

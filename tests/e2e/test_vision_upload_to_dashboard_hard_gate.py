@@ -131,11 +131,21 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     await page.set_input_files("#file-upload", str(fixture_path))
     await expect(page.locator("p.font-medium", has_text=fixture_path.name)).to_be_visible(timeout=5_000)
 
-    async with page.expect_response(lambda r: "/api/statements/upload" in r.url, timeout=30_000) as upload_info:
-        await page.get_by_role("button", name="Upload & Parse Statement").click()
-    upload_resp = await upload_info.value
+    upload_resp = None
+    upload_body_text = ""
+    for attempt in range(1, 4):
+        async with page.expect_response(lambda r: "/api/statements/upload" in r.url, timeout=30_000) as upload_info:
+            await page.get_by_role("button", name="Upload & Parse Statement").click()
+        upload_resp = await upload_info.value
+        upload_body_text = await upload_resp.text()
+        if upload_resp.status in (200, 201, 202):
+            break
+        if upload_resp.status != 503 or attempt == 3:
+            break
+        await asyncio.sleep(attempt * 2)
+    assert upload_resp is not None
     assert upload_resp.status in (200, 201, 202), (
-        f"Upload endpoint returned unexpected status {upload_resp.status}. Body: {await upload_resp.text()}"
+        f"Upload endpoint returned unexpected status {upload_resp.status}. Body: {upload_body_text}"
     )
     upload_body = await upload_resp.json()
     statement_id = upload_body.get("id")

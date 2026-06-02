@@ -12,7 +12,7 @@
 The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
 
 ```
-classify-changes → backend shards + frontend → unified-coverage → finish
+changes (classify-changes) → backend-integration + backend-e2e-tier1 → backend shards + frontend → unified-coverage → finish
                ↘ lint ─────────────────────────────────────↗
                ↘ ac-traceability ──────────────────────────↗
 ```
@@ -21,14 +21,16 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 
 | Job | Purpose | Dependencies |
 |-----|---------|--------------|
-| **classify-changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
+| **changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
-| **backend** (Shards 1-6) | Backend unit + integration tests when heavy CI is required | `needs: [classify-changes]` |
-| **frontend** | Frontend build + tests when heavy CI is required | `needs: [classify-changes]` |
-| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [classify-changes]` |
-| **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [classify-changes, backend, frontend]` |
+| **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes, backend-integration, backend-e2e-tier1]` |
+| **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes]` |
+| **frontend** | Frontend build + tests when heavy CI is required | `needs: [changes, backend-integration, backend-e2e-tier1]` |
+| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes, backend-integration, backend-e2e-tier1]` |
+| **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [changes, backend, frontend]` |
 | **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
-| **finish** | Aggregate all required and skipped job results | `needs: [classify-changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]` |
+| **finish** | Aggregate all required and skipped job results | `needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, unified-coverage, ac-traceability]` |
 
 ### Key CI Properties
 
@@ -36,12 +38,24 @@ classify-changes → backend shards + frontend → unified-coverage → finish
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, tooling, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `tools/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `tools/check_ac_traceability.py` as the fail-closed gate, then runs `tools/check_e2e_epic_traceability.py` to ensure product E2E root test functions carry function-level EPIC IDs, every project EPIC has product E2E ownership, the README EPIC map matches project EPIC files, and unclassified E2E-like assets outside declared roots fail CI, then runs `tools/check_critical_proof_matrix.py` to validate the small core proof matrix, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact together with the critical proof matrix report. The audit distinguishes real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, and pure skipped tests. CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; full-strikethrough deprecated ACs are excluded from the mandatory gate. The macro gate fails README/matrix/owner-EPIC drift, E2E/EPIC ownership drift, and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies were retired to reduce merge conflicts.
-5. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. CI strips branch records before upload so Coveralls percentages track the line-only unified gate. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging. The `finish` job writes a coverage gate summary that identifies `Calculate Unified Coverage` plus `finish` as authoritative and calls out that Coveralls may use a different external comparison baseline.
-6. **Single CI Metrics Contract**: `tools/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
-7. **Toolchain Contract**: `tools/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
-8. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
-9. **Coverage Policy Audit**: `tools/check_coverage_policy.py` fails CI if backend, frontend, common, or tools source files drift from their LCOV report.
-10. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+5. **Backend stages are explicit and split**: Backend fast-path remains shard stage (`backend`) with `-m "not slow and not e2e and not integration"`. Integration (`backend-integration`) and API E2E (`backend-e2e-tier1`) are explicit behavior-only jobs and run before the heavier shard/frontend/image stages.
+6. **Coveralls Upload Is Reporting-Only**: Unified, backend, and frontend Coveralls uploads run on both pull requests and `main` pushes when heavy CI is required. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`). Coveralls remains enabled for dashboards and history, but Coveralls contexts are not required checks and CI does not write synthetic GitHub statuses for them. CI strips branch records before upload so Coveralls percentages track the line-only unified gate. External Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, `Coveralls - backend`, and `Coveralls - frontend` must not block merges or post-merge staging. The `finish` job writes a coverage gate summary that identifies `Calculate Unified Coverage` plus `finish` as authoritative and calls out that Coveralls may use a different external comparison baseline.
+7. **Single CI Metrics Contract**: `tools/check_ci_metrics_contract.py` is the single CI metrics contract. It validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage is calculated.
+8. **Toolchain Contract**: `tools/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
+9. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
+10. **Coverage Policy Audit**: `tools/check_coverage_policy.py` fails CI if backend, frontend, common, or tools source files drift from their LCOV report.
+11. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+12. **Deny-list coverage scope**: Coverage scope is deny-list based within each governed source root. CI recursively expects every eligible source file in backend, frontend, common, and tools LCOV unless `common/coverage/policy.py` explicitly excludes it. New source roots fail the metrics contract until added to the policy and report pipeline.
+
+### Stage Matrix and Left-Move Guidance
+
+| Stage | Current execution | Scope in CI | Coverage effect | Left-move action |
+|---|---|---|---|---|
+| Unit (fast/shard) | `backend` job, 6 shards after integration/Tier-1 gates pass | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and expand shards if needed |
+| Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
+| Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
+| Tier 2 HTTP E2E | PR/staging/prod HTTP command windows | Not in unified coverage baseline | Behavioral proof only | Introduce marker-pinned CI smoke before post-merge where network stability allows |
+| Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
 
 ### PR vs Main CI Responsibilities
 
@@ -250,10 +264,11 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 
 ## Coverage Requirements
 
-- Backend line coverage: **≥ 90%** (enforced by `pytest-cov`)
-- Frontend line coverage: **≥ 99%** (enforced by `vitest`)
-- Unified coverage: **no-regression from `unified-coverage.json`** (currently 94.38% floor after AC8.13.15 policy unification)
-- Branch coverage: Required (via `--cov-branch`)
+- Backend default local/pre-push coverage: enforced by `apps/backend/pyproject.toml`.
+- Frontend local coverage: enforced by `apps/frontend/vitest.config.ts`.
+- PR/main unified coverage: **no regression from `unified-coverage.json`** across backend, frontend, common, and tools.
+- CI backend shards set `--cov-fail-under=0`; per-shard percentages are artifacts, while the merged unified job is the stable source of truth.
+- Branch coverage may be collected locally and by backend pytest, but the unified gate and Coveralls uploads are line-only.
 - See [coverage.md](./coverage.md) and [tdd.md](./tdd.md) for details
 
 ---
