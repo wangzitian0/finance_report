@@ -393,7 +393,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         },
     ]
     assert cash_flow["summary"] == {
-        "operating_activities": Decimal("700.00"),
+        "operating_activities": Decimal("300.00"),
         "investing_activities": Decimal("0.00"),
         "financing_activities": Decimal("1300.00"),
         "net_cash_flow": Decimal("1600.00"),

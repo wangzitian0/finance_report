@@ -214,6 +214,8 @@ def entry_total_amount(entry: JournalEntry) -> Decimal:
 
 def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str) -> Decimal:
     """Return the bank/cash-side amount that should match a statement transaction."""
+    if not transaction_direction:
+        return entry_total_amount(entry)
     direction = transaction_direction.upper()
     bank_line_direction = Direction.DEBIT if direction == "IN" else Direction.CREDIT
     bank_lines = [
