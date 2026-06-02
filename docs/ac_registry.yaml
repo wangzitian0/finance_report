@@ -219,6 +219,11 @@ groups:
         epic_name: double-entry-core
         description: Unbalanced post attempt fails
         mandatory: true
+      - id: AC2.2.7
+        epic: 2
+        epic_name: double-entry-core
+        description: Balance validation treats omitted currency as base currency
+        mandatory: true
     AC2.3:
       - id: AC2.3.1
         epic: 2
@@ -2309,8 +2314,8 @@ groups:
       - id: AC8.13.82
         epic: 8
         epic_name: testing-strategy
-        description: Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop
-          local table clipping.
+        description: Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and
+          desktop local table clipping.
         mandatory: true
   AC11:
     AC11.1:
@@ -3999,8 +4004,8 @@ groups:
       - id: AC16.27.2
         epic: 16
         epic_name: two-stage-review-ui
-        description: Stage 1 desktop review keeps the transaction review surface readable at 1440px with the sidebar visible without
-          local horizontal clipping.
+        description: Stage 1 desktop review keeps the transaction review surface readable at 1440px with the sidebar visible
+          without local horizontal clipping.
         mandatory: true
       - id: AC16.27.3
         epic: 16
@@ -4502,6 +4507,11 @@ groups:
         epic: 17
         epic_name: portfolio-management
         description: Portfolio TWR excludes unrelated bank atomic transactions from period cash-flow adjustment
+        mandatory: true
+      - id: AC17.11.4
+        epic: 17
+        epic_name: portfolio-management
+        description: Non-structured source document payloads produce no audit links
         mandatory: true
   AC18:
     AC18.1:

@@ -317,8 +317,9 @@ Remaining blocker breakdown after the #565 post-merge proof:
 
 Closure status:
 
-1. Done: #565 added the behavioral post-merge package journey and promoted
-   `personal-financial-report-package` to `covered` in
+1. Done: #565 added the behavioral post-merge package journey and provides the
+   current baseline proof anchor for
+   `personal-financial-report-package` in
    `docs/ssot/critical-proof-matrix.yaml`.
 2. Done: #570 defines `GET /api/reports/package/contract` so backend,
    frontend, export, and E2E assertions share stable package section IDs,
@@ -332,6 +333,9 @@ Closure status:
 6. Build deterministic fixture coverage (#573) against the same contract and
    schedules, then extend the #565 guard as those package sections become
    report-ready.
+
+The macro outcome remains `partial` until notes/disclosures (#571),
+traceability appendix (#572), and representative fixture coverage (#573) close.
 
 ## 📄 Owned Documentation Surfaces
 

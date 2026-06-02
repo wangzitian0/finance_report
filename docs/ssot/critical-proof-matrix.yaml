@@ -7,14 +7,14 @@ description: >
 outcomes:
   - id: personal-financial-report-package
     question: "Can I generate one auditable personal financial-report package with statements, schedules, notes, and source traceability?"
-    status: covered
+    status: partial
     owner_epics:
       - EPIC-005
       - EPIC-008
       - EPIC-011
       - EPIC-017
       - EPIC-018
-    issue: "#565"
+    issue: "#563"
     proof_ids:
       - personal-financial-report-package-post-merge
 
@@ -55,12 +55,14 @@ outcomes:
 
   - id: annualized-income-long-term
     question: "What is my annualized income across salary, ESOP, dividends, and other long-term components?"
-    status: partial
+    status: covered
     owner_epics:
       - EPIC-005
       - EPIC-011
       - EPIC-017
-    issue: "#521"
+    proof_ids:
+      - personal-financial-report-package-post-merge
+    issue: "#566"
 
   - id: source-ledger-report-traceability
     question: "Can every trusted dashboard number be traced from source document to ledger to report?"
@@ -180,5 +182,7 @@ proofs:
       - AC11.9.1
       - AC11.9.2
       - AC11.9.3
+      - AC11.11.1
+      - AC11.11.2
       - AC17.10.1
       - AC17.10.2

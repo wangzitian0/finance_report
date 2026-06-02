@@ -375,6 +375,7 @@ Response object:
 | AC17.11.1 | Portfolio XIRR and MWR use investment transactions only, excluding unrelated bank atomic transactions | `test_AC17_11_1_xirr_excludes_unrelated_bank_transactions()` | `portfolio/test_financial_logic_audit.py` | P0 |
 | AC17.11.2 | Portfolio summary YTD realized P&L and dividend income are converted to presentation currency before aggregation | `test_AC17_11_2_summary_ytd_amounts_convert_to_presentation_currency()` | `portfolio/test_financial_logic_audit.py` | P0 |
 | AC17.11.3 | Portfolio TWR excludes unrelated bank atomic transactions from period cash-flow adjustment | `test_AC17_11_3_twr_excludes_unrelated_bank_transactions()` | `portfolio/test_financial_logic_audit.py` | P0 |
+| AC17.11.4 | Non-structured source document payloads produce no audit links | `test_AC17_11_4_source_document_links_ignore_non_structured_payloads()` | `portfolio/test_financial_logic_audit.py` | P0 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 
