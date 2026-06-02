@@ -345,3 +345,9 @@ def test_AC8_13_38_workflow_runs_on_schedule_and_manual_dispatch() -> None:
     assert "workflow_dispatch:" in workflow
     assert "tools/cleanup_pr_preview_resources.py" in workflow
     assert "VPS_SSH_KEY" in workflow
+    missing_key_block = workflow.split('if [ -z "$VPS_SSH_KEY" ]; then', 1)[1].split(
+        "fi",
+        1,
+    )[0]
+    assert "::error::VPS_SSH_KEY is required" in missing_key_block
+    assert "exit 1" in missing_key_block

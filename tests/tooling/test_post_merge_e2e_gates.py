@@ -980,6 +980,45 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
     assert "PR preview non-LLM E2E mirrors the staging non-LLM command shape" in ci_cd
 
 
+def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
+    """AC8.13.38: PR preview Dokploy API responses are captured, not logged raw."""
+    preview = read(".github/workflows/pr-test.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "PR preview Dokploy API responses are captured in temporary files" in ci_cd
+    assert "PR_TITLE: ${{ github.event.pull_request.title }}" in preview
+
+    for name, next_name in (
+        ("Create compose", "Get compose ID"),
+        ("Configure GitHub source", "Configure environment variables"),
+        ("Configure environment variables", "Deploy compose"),
+        ("Deploy compose", "Poll Deployment Status"),
+        ("Rollback on E2E Failure", "Comment on PR"),
+        ("Find and remove compose", "Clean up Docker volumes"),
+    ):
+        block = preview.split(f"- name: {name}", 1)[1].split(
+            f"- name: {next_name}",
+            1,
+        )[0]
+        assert "-o " in block
+        assert (
+            "jq -r" in block
+            or "jq -e" in block
+            or "curl_exit" in block
+            or "stop_exit" in block
+        )
+
+    unsafe_patterns = (
+        r"response=\$\(curl[^)]*/compose\.create",
+        r"curl -sf -X POST [^\n]*/compose\.update[\s\S]*?\n\s*-d \"\$PAYLOAD\"\n(?![\s\S]*?-o )",
+        r"curl -sf -X POST [^\n]*/compose\.deploy[\s\S]*?\n\s*-d \"\{\\\"composeId",
+        r"curl -sf -X POST [^\n]*/compose\.delete[\s\S]*?\n\s*-d \"\{\\\"composeId",
+        r"echo \"Response: \$response\"",
+    )
+    for pattern in unsafe_patterns:
+        assert re.search(pattern, preview) is None
+
+
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
     """AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
