@@ -1185,6 +1185,27 @@ groups:
         description: Personal report package defines the investment_performance report section as a consumer of the EPIC-017
           schedule API
         mandatory: true
+    AC5.9:
+      - id: AC5.9.1
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package contract endpoint defines required section IDs, labels, owners, and source endpoints
+        mandatory: true
+      - id: AC5.9.2
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package contract exposes Decimal-safe total fields and explicit period/as-of semantics
+        mandatory: true
+      - id: AC5.9.3
+        epic: 5
+        epic_name: reporting-visualization
+        description: Frontend personal package page renders the contract section IDs and labels from the API contract
+        mandatory: true
+      - id: AC5.9.4
+        epic: 5
+        epic_name: reporting-visualization
+        description: Frontend/export contract surfaces stable export format and CSV columns for package consumers
+        mandatory: true
   AC6:
     AC6.1:
       - id: AC6.1.1
@@ -4323,12 +4344,14 @@ groups:
       - id: AC17.10.3
         epic: 17
         epic_name: portfolio-management
-        description: Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction source, and report-section anchors
+        description: Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction
+          source, and report-section anchors
         mandatory: true
       - id: AC17.10.4
         epic: 17
         epic_name: portfolio-management
-        description: Investment performance schedule data freshness marks the schedule stale when any holding lacks current as-of-date price evidence
+        description: Investment performance schedule data freshness marks the schedule stale when any holding lacks current
+          as-of-date price evidence
         mandatory: true
       - id: AC17.10.5
         epic: 17

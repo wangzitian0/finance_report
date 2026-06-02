@@ -26,6 +26,7 @@ from src.schemas import (
     IncomeStatementResponse,
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
+    PersonalReportPackageContractResponse,
     TrendPeriod,
 )
 from src.services.market_data import ensure_market_data_fresh
@@ -97,6 +98,117 @@ class ReportType(str, Enum):
 
     BALANCE_SHEET = "balance-sheet"
     INCOME_STATEMENT = "income-statement"
+
+
+PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
+    "package_id": "personal-financial-report-package",
+    "version": "1.0",
+    "period_semantics": {
+        "start_date": "required for period sections",
+        "end_date": "required for period sections",
+        "as_of_date": "required for point-in-time sections",
+        "currency": "ISO-4217 code; defaults to base currency when omitted",
+        "decimal_serialization": "string",
+    },
+    "sections": [
+        {
+            "section_id": "balance_sheet",
+            "label": "Balance Sheet",
+            "owner_epic": "EPIC-005",
+            "period_type": "as_of",
+            "source_endpoint": "/api/reports/balance-sheet",
+            "status": "ready",
+            "decimal_total_fields": ["total_assets", "total_liabilities", "total_equity", "equation_delta"],
+        },
+        {
+            "section_id": "income_statement",
+            "label": "Income Statement",
+            "owner_epic": "EPIC-005",
+            "period_type": "period",
+            "source_endpoint": "/api/reports/income-statement",
+            "status": "ready",
+            "decimal_total_fields": ["total_income", "total_expenses", "net_income"],
+        },
+        {
+            "section_id": "cash_flow",
+            "label": "Cash Flow",
+            "owner_epic": "EPIC-005",
+            "period_type": "period",
+            "source_endpoint": "/api/reports/cash-flow",
+            "status": "ready",
+            "decimal_total_fields": [
+                "operating_activities",
+                "investing_activities",
+                "financing_activities",
+                "net_cash_flow",
+                "beginning_cash",
+                "ending_cash",
+            ],
+        },
+        {
+            "section_id": "investment_performance",
+            "label": "Investment Performance",
+            "owner_epic": "EPIC-017",
+            "period_type": "period_and_as_of",
+            "source_endpoint": "/api/portfolio/performance/report-schedule",
+            "status": "ready",
+            "decimal_total_fields": [
+                "xirr",
+                "time_weighted_return",
+                "money_weighted_return",
+                "realized_pnl",
+                "unrealized_pnl",
+                "dividend_income",
+            ],
+        },
+        {
+            "section_id": "annualized_income_long_term",
+            "label": "Annualized Income & Long-Term Compensation",
+            "owner_epic": "EPIC-011",
+            "period_type": "trailing_12_months_and_as_of",
+            "source_endpoint": "/api/reports/package/annualized-income-schedule",
+            "status": "planned",
+            "blocking_issue": "#566",
+            "decimal_total_fields": [
+                "annualized_salary",
+                "annualized_bonus",
+                "annualized_dividend",
+                "annualized_total",
+                "restricted_fair_value",
+            ],
+        },
+        {
+            "section_id": "notes",
+            "label": "Notes & Disclosures",
+            "owner_epic": "EPIC-005",
+            "period_type": "package",
+            "source_endpoint": "/api/reports/package/notes",
+            "status": "planned",
+            "blocking_issue": "#571",
+            "decimal_total_fields": [],
+        },
+        {
+            "section_id": "traceability_appendix",
+            "label": "Traceability Appendix",
+            "owner_epic": "EPIC-018",
+            "period_type": "package",
+            "source_endpoint": "/api/reports/package/traceability",
+            "status": "planned",
+            "blocking_issue": "#572",
+            "decimal_total_fields": [],
+        },
+    ],
+    "export_contract": {
+        "formats": ["json", "csv"],
+        "csv_columns": ["package_id", "section_id", "line_id", "label", "amount", "currency", "source_state"],
+    },
+}
+
+
+@router.get("/package/contract", response_model=PersonalReportPackageContractResponse)
+def personal_report_package_contract() -> PersonalReportPackageContractResponse:
+    """Return the stable package-level API/export contract."""
+    return PersonalReportPackageContractResponse(**PERSONAL_REPORT_PACKAGE_CONTRACT)
 
 
 @router.get("/balance-sheet", response_model=BalanceSheetResponse)

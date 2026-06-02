@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BarChart2, TrendingUp, DollarSign } from "lucide-react";
+import { BarChart2, TrendingUp, DollarSign, FileText } from "lucide-react";
 
 const reports = [
+    { id: "personal-package", title: "Personal Report Package", description: "Stable package contract for statements, schedules, notes, and traceability", icon: FileText, href: "/reports/package", available: true },
     { id: "balance-sheet", title: "Balance Sheet", description: "Assets, liabilities, and equity at a point in time", icon: BarChart2, href: "/reports/balance-sheet", available: true },
     { id: "income-statement", title: "Income Statement", description: "Revenue and expenses over a period", icon: TrendingUp, href: "/reports/income-statement", available: true },
     { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: DollarSign, href: "/reports/cash-flow", available: true },
@@ -15,7 +16,7 @@ export default function ReportsPage() {
                 <p className="page-description">Generate and view financial reports following standard accounting principles.</p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
                 {reports.map((report) => (
                     <ReportCard key={report.id} report={report} />
                 ))}

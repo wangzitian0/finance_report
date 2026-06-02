@@ -15,7 +15,9 @@ describe("ReportsPage", () => {
     expect(screen.getByText("Balance Sheet")).toBeInTheDocument()
     expect(screen.getByText("Income Statement")).toBeInTheDocument()
     expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument()
+    expect(screen.getByText("Personal Report Package")).toBeInTheDocument()
 
+    expect(screen.getByRole("link", { name: /Personal Report Package/i })).toHaveAttribute("href", "/reports/package")
     expect(screen.getByRole("link", { name: /Balance Sheet/i })).toHaveAttribute("href", "/reports/balance-sheet")
     expect(screen.getByRole("link", { name: /Income Statement/i })).toHaveAttribute("href", "/reports/income-statement")
     expect(screen.getByRole("link", { name: /Cash Flow Statement/i })).toHaveAttribute("href", "/reports/cash-flow")
@@ -41,6 +43,6 @@ describe("ReportsPage", () => {
 
     // SVG elements are rendered for each report card icon
     const svgs = document.querySelectorAll("svg")
-    expect(svgs.length).toBeGreaterThanOrEqual(3)
+    expect(svgs.length).toBeGreaterThanOrEqual(4)
   })
 })
