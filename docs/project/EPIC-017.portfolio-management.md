@@ -372,7 +372,8 @@ For #521 closure, this EPIC should be sequenced as:
    - report notes (`#571`)
    - traceability appendix (`#572`)
 4. Provide deterministic fixture inputs for the package proof (`#573`).
-5. Enable post-merge package proof in `#565` once EPIC-005 can consume this data.
+5. Extend the implemented `#565` post-merge package proof once the investment
+   schedule is report-ready.
 
 The post-merge proof test is owned by EPIC-008.
 

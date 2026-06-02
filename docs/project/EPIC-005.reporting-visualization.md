@@ -247,7 +247,7 @@ US GAAP and Hong Kong listed-company reporting are reference structures for
 coverage and naming discipline. This EPIC does not claim regulated filing
 compliance.
 
-Current blocker breakdown:
+Remaining blocker breakdown after the #565 post-merge proof:
 
 - [#570](https://github.com/wangzitian0/finance_report/issues/570) defines the
   package-level API/export contract and stable section IDs.
@@ -261,22 +261,23 @@ Current blocker breakdown:
 - [#572](https://github.com/wangzitian0/finance_report/issues/572) defines the
   source-ledger-report traceability appendix for package output.
 - [#573](https://github.com/wangzitian0/finance_report/issues/573) supplies the
-  representative fixture contract consumed by the post-merge package E2E in
-  [#565](https://github.com/wangzitian0/finance_report/issues/565).
+  representative fixture contract used to expand the package E2E beyond the
+  current #565 guard.
 
-Closure order:
+Closure status:
 
-1. Land the package contract (#570) so backend, frontend, export, and E2E
-   assertions share one shape.
-2. Deliver schedule inputs that this package consumes: investment performance
-   (#564), annualized income/long-term compensation (#566).
-3. Deliver explanation outputs for the package output shape: notes/disclosures
-   (#571) and traceability appendix (#572).
-4. Build deterministic fixture coverage (#573) against the same contract and
-   schedules.
-5. Attach the post-merge E2E proof in #565 (behavioral package journey) and then
-   promote `personal-financial-report-package` from `partial` in
+1. Done: #565 added the behavioral post-merge package journey and promoted
+   `personal-financial-report-package` to `covered` in
    `docs/ssot/critical-proof-matrix.yaml`.
+2. Land the package contract (#570) so backend, frontend, export, and E2E
+   assertions share one shape.
+3. Deliver schedule inputs that this package consumes: investment performance
+   (#564), annualized income/long-term compensation (#566).
+4. Deliver explanation outputs for the package output shape: notes/disclosures
+   (#571) and traceability appendix (#572).
+5. Build deterministic fixture coverage (#573) against the same contract and
+   schedules, then extend the #565 guard as those package sections become
+   report-ready.
 
 ## 📄 Owned Documentation Surfaces
 

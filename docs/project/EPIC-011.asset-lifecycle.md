@@ -2097,8 +2097,9 @@ For #521 closure, this EPIC should be sequenced as:
    - report notes (`#571`)
    - traceability appendix (`#572`)
 4. Provide deterministic fixture inputs for the package proof (`#573`).
-5. Enable post-merge package proof in `#565` once EPIC-005 can consume this data.
+5. Extend the implemented `#565` post-merge package proof once these schedules
+   are report-ready.
 
 `#570`, `#571`, and `#572` are shared package prerequisites with EPIC-005;
-`#566`, `#573`, and `#565` are specifically the issue chain to close
+`#566` and `#573` are specifically the issue chain to close
 `annualized-income-long-term` in `docs/ssot/critical-proof-matrix.yaml`.
