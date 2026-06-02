@@ -64,6 +64,9 @@ Use these sources instead:
 - Coverage baseline data: `unified-coverage.json`
 - Coverage policy owner: `common/coverage/policy.py`
 
+The Coveralls badge is reporting-only. It can show an external comparison
+baseline that differs from the repository's deterministic coverage gate; merge readiness follows the `finish` check and the committed `unified-coverage.json` baseline.
+
 Important caveat: the current AC coverage analyzer excludes `_ac_stubs`,
 trivial placeholder assertions, pure `pass`, and pure skipped tests from
 covered counts. CI fails mandatory AC coverage that is missing,

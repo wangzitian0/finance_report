@@ -464,6 +464,17 @@ jobs:
           --title "CI Timing Summary" \
           --summary-path "$GITHUB_STEP_SUMMARY"
 
+    - name: Write coverage gate summary
+      if: ${{ always() }}
+      run: |
+        {
+          echo "## Coverage Gate"
+          echo ""
+          echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\`."
+          echo "- Coveralls contexts (\`coverage/coveralls\`, \`Coveralls - unified\`, \`Coveralls - backend\`, \`Coveralls - frontend\`) are reporting-only."
+          echo "- Coveralls may show a different external comparison baseline; merge readiness follows \`finish\`."
+        } >> "$GITHUB_STEP_SUMMARY"
+
     - name: Check job status
       run: |
         echo "Change Classification: ${{ needs.changes.result }}"

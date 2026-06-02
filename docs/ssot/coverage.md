@@ -469,10 +469,15 @@ uv run pytest --cov=src --cov-report=xml --cov-report=lcov
 
 ### Coveralls Integration
 
-**Badge**: README shows real-time coverage from Coveralls
-**Update frequency**: After every CI run
-**Comparison**: CI line coverage should match the Coveralls badge; branch
-coverage is collected separately and stripped from Coveralls upload LCOV files.
+**Badge**: README shows real-time coverage from Coveralls.
+**Update frequency**: After every CI run.
+**Reporting-only status**: Coveralls badge and contexts are reporting-only. The
+authoritative coverage gate is the local CI calculation against
+`unified-coverage.json`, aggregated by `finish`.
+**Comparison**: Coveralls receives line-only LCOV files so its coverage
+percentage should track the local line metric, but Coveralls may still report a
+different external comparison baseline. Branch coverage is collected separately
+and stripped from Coveralls upload LCOV files.
 
 ---
 
