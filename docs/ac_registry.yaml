@@ -126,8 +126,8 @@ groups:
         mandatory: true
       - id: AC1.6.2
         epic: 1
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC1.7:
       - id: AC1.7.1
@@ -147,8 +147,8 @@ groups:
         mandatory: true
       - id: AC1.7.4
         epic: 1
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC1.8:
       - id: AC1.8.1
@@ -247,33 +247,33 @@ groups:
         mandatory: true
       - id: AC2.3.6
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.3.7
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.3.8
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.3.9
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.3.10
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.3.11
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC2.4:
       - id: AC2.4.1
@@ -303,8 +303,8 @@ groups:
         mandatory: true
       - id: AC2.4.6
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC2.5:
       - id: AC2.5.1
@@ -361,23 +361,23 @@ groups:
         mandatory: true
       - id: AC2.7.4
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.7.5
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.7.6
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.7.7
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC2.8:
       - id: AC2.8.1
@@ -392,8 +392,8 @@ groups:
         mandatory: true
       - id: AC2.8.3
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC2.9:
       - id: AC2.9.1
@@ -439,8 +439,8 @@ groups:
         mandatory: true
       - id: AC2.10.5
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC2.11:
       - id: AC2.11.4
@@ -451,8 +451,8 @@ groups:
     AC2.12:
       - id: AC2.12.1
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.12.2
         epic: 2
@@ -461,8 +461,8 @@ groups:
         mandatory: true
       - id: AC2.12.5
         epic: 2
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC2.12.6
         epic: 2
@@ -572,103 +572,103 @@ groups:
         mandatory: true
       - id: AC3.5.6
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.7
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.8
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.9
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.10
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.11
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.12
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.13
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.14
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.15
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.16
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.17
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.18
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.19
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.20
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.21
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.22
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.23
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.24
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC3.5.25
         epic: 3
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC3.6:
       - id: AC3.6.1
@@ -834,63 +834,63 @@ groups:
         mandatory: true
       - id: AC4.3.4
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.5
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.6
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.7
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.8
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.9
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.10
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.11
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.12
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.13
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.14
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.3.15
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC4.4:
       - id: AC4.4.1
@@ -911,8 +911,8 @@ groups:
         mandatory: true
       - id: AC4.5.2
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC4.6:
       - id: AC4.6.1
@@ -942,44 +942,44 @@ groups:
         mandatory: true
       - id: AC4.6.6
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.6.7
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.6.8
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.6.9
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC4.7:
       - id: AC4.7.1
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.7.2
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.7.3
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC4.7.4
         epic: 4
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC4.8:
       - id: AC4.8.1
@@ -1045,18 +1045,18 @@ groups:
         mandatory: true
       - id: AC5.3.3
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.3.4
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.3.5
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC5.4:
       - id: AC5.4.1
@@ -1087,18 +1087,18 @@ groups:
         mandatory: true
       - id: AC5.5.3
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.5.4
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.5.5
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC5.6:
       - id: AC5.6.1
@@ -1134,28 +1134,28 @@ groups:
         mandatory: true
       - id: AC5.6.7
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.6.8
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.6.9
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.6.10
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC5.6.11
         epic: 5
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC5.7:
       - id: AC5.7.1
@@ -1200,9 +1200,30 @@ groups:
       - id: AC5.9.1
         epic: 5
         epic_name: reporting-visualization
-        description: Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances
+        description: Package contract endpoint defines required section IDs, labels, owners, and source endpoints
         mandatory: true
       - id: AC5.9.2
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package contract exposes Decimal-safe total fields and explicit period/as-of semantics
+        mandatory: true
+      - id: AC5.9.3
+        epic: 5
+        epic_name: reporting-visualization
+        description: Frontend personal package page renders the contract section IDs and labels from the API contract
+        mandatory: true
+      - id: AC5.9.4
+        epic: 5
+        epic_name: reporting-visualization
+        description: Frontend/export contract surfaces stable export format and CSV columns for package consumers
+        mandatory: true
+    AC5.10:
+      - id: AC5.10.1
+        epic: 5
+        epic_name: reporting-visualization
+        description: Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances
+        mandatory: true
+      - id: AC5.10.2
         epic: 5
         epic_name: reporting-visualization
         description: Cash-flow operating, investing, and financing totals preserve inflow/outflow signs
@@ -1466,18 +1487,18 @@ groups:
         mandatory: true
       - id: AC6.11.4
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC6.11.5
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC6.11.6
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC6.12:
       - id: AC6.12.1
@@ -1513,28 +1534,28 @@ groups:
     AC6.13:
       - id: AC6.13.1
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC6.13.2
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC6.13.3
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC6.13.4
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC6.13.6
         epic: 6
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
   AC8:
     AC8.1:
@@ -1586,8 +1607,8 @@ groups:
         mandatory: true
       - id: AC8.2.6
         epic: 8
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC8.3:
       - id: AC8.3.1
@@ -1806,28 +1827,28 @@ groups:
     AC8.12:
       - id: AC8.12.1
         epic: 8
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC8.12.2
         epic: 8
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC8.12.3
         epic: 8
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC8.12.4
         epic: 8
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC8.12.5
         epic: 8
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC8.12.6
         epic: 8
@@ -2241,6 +2262,32 @@ groups:
         epic_name: testing-strategy
         description: Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal
           scroll and expose direct completion actions at phone widths.
+        mandatory: true
+      - id: AC8.13.77
+        epic: 8
+        epic_name: testing-strategy
+        description: Registry-to-EPIC consistency fails active stub or orphan AC entries instead of silently excluding them.
+        mandatory: true
+      - id: AC8.13.78
+        epic: 8
+        epic_name: testing-strategy
+        description: Mandatory AC traceability requires at least one real proof file that is mapped to a CI-required execution
+          stage.
+        mandatory: true
+      - id: AC8.13.79
+        epic: 8
+        epic_name: testing-strategy
+        description: Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E.
+        mandatory: true
+      - id: AC8.13.80
+        epic: 8
+        epic_name: testing-strategy
+        description: AC coverage analysis supports no-write and stale-report check modes for local verification.
+        mandatory: true
+      - id: AC8.13.81
+        epic: 8
+        epic_name: testing-strategy
+        description: Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values.
         mandatory: true
   AC11:
     AC11.1:
@@ -2809,13 +2856,13 @@ groups:
     AC13.11:
       - id: AC13.11.1
         epic: 13
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC13.11.2
         epic: 13
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
   AC15:
     AC15.1:
@@ -3120,18 +3167,18 @@ groups:
         mandatory: true
       - id: AC16.6.2
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.6.3
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.6.4
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC16.7:
       - id: AC16.7.1
@@ -3259,28 +3306,28 @@ groups:
         mandatory: true
       - id: AC16.10.15
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.10.16
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.10.17
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.10.18
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.10.19
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC16.12:
       - id: AC16.12.1
@@ -3345,23 +3392,23 @@ groups:
         mandatory: true
       - id: AC16.12.13
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.12.14
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.12.15
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.12.16
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.12.17
         epic: 16
@@ -3472,23 +3519,23 @@ groups:
         mandatory: true
       - id: AC16.15.7
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.15.8
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.15.9
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.15.10
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC16.16:
       - id: AC16.16.1
@@ -3656,33 +3703,33 @@ groups:
         mandatory: true
       - id: AC16.19.12
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.19.13
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.19.14
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.19.15
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.19.16
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.19.17
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC16.20:
       - id: AC16.20.1
@@ -3712,13 +3759,13 @@ groups:
         mandatory: true
       - id: AC16.20.6
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC16.20.7
         epic: 16
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC16.21:
       - id: AC16.21.1
@@ -3940,18 +3987,18 @@ groups:
         mandatory: true
       - id: AC17.1.7
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.1.8
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.1.9
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC17.2:
       - id: AC17.2.1
@@ -3971,33 +4018,33 @@ groups:
         mandatory: true
       - id: AC17.2.4
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.2.5
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.2.6
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.2.7
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.2.8
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.2.9
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC17.3:
       - id: AC17.3.1
@@ -4017,58 +4064,58 @@ groups:
         mandatory: true
       - id: AC17.3.4
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.5
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.6
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.7
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.8
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.9
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.10
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.11
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.12
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.13
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.3.14
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC17.4:
       - id: AC17.4.1
@@ -4130,23 +4177,23 @@ groups:
         mandatory: true
       - id: AC17.5.5
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.5.6
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.5.7
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.5.8
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC17.6:
       - id: AC17.6.1
@@ -4161,98 +4208,98 @@ groups:
         mandatory: true
       - id: AC17.6.3
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.4
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.5
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.6
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.7
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.8
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.9
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.10
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.11
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.12
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.13
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.14
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.15
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.16
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.17
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.18
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.19
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.20
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC17.6.21
         epic: 17
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC17.7:
       - id: AC17.7.1

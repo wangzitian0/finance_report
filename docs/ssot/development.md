@@ -114,10 +114,11 @@ moon run :dev -- --frontend       # Next.js on :3000
 moon run :lint && moon run :test  # One-button local gate (same gate family as GitHub CI)
 
 # Testing
-moon run :test                    # All tests (default, 90% backend coverage)
+moon run :test                    # All tests (backend threshold is code-owned by apps/backend/pyproject.toml)
 moon run :test -- --fast          # TDD mode (no coverage, fastest)
 moon run :test -- --smart         # Coverage on changed files only
-moon run :test -- --e2e           # E2E tests (Playwright)
+moon run :test -- --e2e           # Root deployment E2E tests under tests/e2e/
+moon run :test -- --backend-e2e   # Backend Tier-1 API E2E under apps/backend/tests/e2e/
 moon run :test -- tests/accounting/  # Run specific module
 moon run :test -- tests/accounting/test_journal_service.py  # Run specific file
 

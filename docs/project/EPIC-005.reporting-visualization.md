@@ -167,18 +167,35 @@ method, dividends, realized/unrealized P&L, and return metric limitations.
 |----|-----------|---------------|------|----------|
 | AC5.8.1 | Personal report package defines the `investment_performance` report section as a consumer of the EPIC-017 schedule API | `AC5.8.1 renders investment performance report schedule from the schedule API`; `test_personal_financial_report_package_post_merge_journey`; `test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract` | `apps/frontend/src/__tests__/portfolioPage.test.tsx`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
 
-### AC5.9: Financial Statement Logic Audit Fixes
+### AC5.9: Personal Report Package Contract
+
+Issue [#570](https://github.com/wangzitian0/finance_report/issues/570)
+defines the package-level API/export contract before the annualized income,
+notes, traceability appendix, and representative fixture follow-up work lands.
+The contract owns stable section IDs, labels, period/as-of semantics, and
+Decimal-safe total field names. Supporting EPICs keep ownership of their
+calculations; this contract only describes how their outputs plug into one
+personal financial-report package.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.9.1 | Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances | `test_AC5_9_1_cash_flow_uses_cumulative_cash_balances()` | `reporting/test_financial_logic_audit.py` | P0 |
-| AC5.9.2 | Cash-flow operating, investing, and financing totals preserve inflow/outflow signs | `test_AC5_9_2_cash_flow_activity_totals_preserve_signs()` | `reporting/test_financial_logic_audit.py` | P0 |
+| AC5.9.1 | Package contract endpoint defines required section IDs, labels, owners, and source endpoints | `test_AC5_9_1_package_contract_endpoint_defines_required_sections` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.9.2 | Package contract exposes Decimal-safe total fields and explicit period/as-of semantics | `test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.9.3 | Frontend personal package page renders the contract section IDs and labels from the API contract | `AC5.9.3 renders personal package contract sections from API` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.9.4 | Frontend/export contract surfaces stable export format and CSV columns for package consumers | `AC5.9.4 renders export contract metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P1 |
+
+### AC5.10: Financial Statement Logic Audit Fixes
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.10.1 | Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances | `test_AC5_10_1_cash_flow_uses_cumulative_cash_balances()` | `reporting/test_financial_logic_audit.py` | P0 |
+| AC5.10.2 | Cash-flow operating, investing, and financing totals preserve inflow/outflow signs | `test_AC5_10_2_cash_flow_activity_totals_preserve_signs()` | `reporting/test_financial_logic_audit.py` | P0 |
 
 **Traceability Result**:
-- Total AC IDs: 19
+- Total AC IDs: 23
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
-- Test files: 5
+- Test files: 7
 
 ---
 
@@ -270,7 +287,8 @@ compliance.
 Remaining blocker breakdown after the #565 post-merge proof:
 
 - [#570](https://github.com/wangzitian0/finance_report/issues/570) defines the
-  package-level API/export contract and stable section IDs.
+  package-level API/export contract and stable section IDs through
+  `GET /api/reports/package/contract`.
 - [#564](https://github.com/wangzitian0/finance_report/issues/564) supplies the
   investment performance schedule input from EPIC-017.
 - [#566](https://github.com/wangzitian0/finance_report/issues/566) supplies the
@@ -289,8 +307,9 @@ Closure status:
 1. Done: #565 added the behavioral post-merge package journey and promoted
    `personal-financial-report-package` to `covered` in
    `docs/ssot/critical-proof-matrix.yaml`.
-2. Land the package contract (#570) so backend, frontend, export, and E2E
-   assertions share one shape.
+2. Done: #570 defines `GET /api/reports/package/contract` so backend,
+   frontend, export, and E2E assertions share stable package section IDs,
+   labels, period semantics, and Decimal-safe export fields.
 3. Done: deliver the investment-performance schedule input consumed by this
    package (#564, promoted by #596). Still open: annualized income/long-term
    compensation (#566).

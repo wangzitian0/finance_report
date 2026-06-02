@@ -308,8 +308,8 @@ groups:
         mandatory: true
       - id: AC9.3.7
         epic: 9
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC9.4:
       - id: AC9.4.1
@@ -756,8 +756,8 @@ groups:
         mandatory: true
       - id: AC12.18.7
         epic: 12
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC12.19:
       - id: AC12.19.1
@@ -783,13 +783,13 @@ groups:
         mandatory: true
       - id: AC12.20.4
         epic: 12
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
       - id: AC12.20.5
         epic: 12
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC12.21:
       - id: AC12.21.1
@@ -814,8 +814,8 @@ groups:
         mandatory: true
       - id: AC12.21.5
         epic: 12
-        title: stub
-        status: stub
+        description: ~~retired historical registry placeholder~~
+        status: deprecated
         mandatory: false
     AC12.22:
       - id: AC12.22.1

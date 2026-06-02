@@ -1,4 +1,4 @@
-"""AC5.9: Financial statement logic audit tests."""
+"""AC5.10: Financial statement logic audit tests."""
 
 from datetime import date
 from decimal import Decimal
@@ -49,10 +49,10 @@ async def cash_flow_accounts(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_AC5_9_1_cash_flow_uses_cumulative_cash_balances(
+async def test_AC5_10_1_cash_flow_uses_cumulative_cash_balances(
     db: AsyncSession, cash_flow_accounts
 ):
-    """AC5.9.1: Cash-flow beginning/ending cash are cumulative balances."""
+    """AC5.10.1: Cash-flow beginning/ending cash are cumulative balances."""
     user_id, cash, equity, rent = cash_flow_accounts
     await _add_entry(
         db,
@@ -77,10 +77,10 @@ async def test_AC5_9_1_cash_flow_uses_cumulative_cash_balances(
 
 
 @pytest.mark.asyncio
-async def test_AC5_9_2_cash_flow_activity_totals_preserve_signs(
+async def test_AC5_10_2_cash_flow_activity_totals_preserve_signs(
     db: AsyncSession, cash_flow_accounts
 ):
-    """AC5.9.2: Cash-flow activities preserve outflow signs."""
+    """AC5.10.2: Cash-flow activities preserve outflow signs."""
     user_id, cash, equity, rent = cash_flow_accounts
     await _add_entry(
         db,

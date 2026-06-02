@@ -112,11 +112,27 @@ def cmd_test(args, extra_args: list[str]):
     if args.frontend:
         run(["npm", "run", "test"] + extra_args, cwd=FRONTEND_DIR)
         return
+    if getattr(args, "backend_e2e", False):
+        run(
+            uv_run(
+                "python",
+                "-m",
+                "pytest",
+                "--override-ini",
+                "addopts=",
+                "tests/e2e/test_core_journeys.py",
+                "-m",
+                "e2e and not slow and not integration and not perf",
+            )
+            + extra_args,
+            cwd=BACKEND_DIR,
+        )
+        return
     if args.e2e:
         run(
             uv_run("python", "-m", "pytest", "-m", "e2e", "tests/e2e/")
             + extra_args,
-            cwd=BACKEND_DIR,
+            cwd=REPO_ROOT,
         )
         return
     if args.perf:
@@ -232,7 +248,16 @@ def main():
         action="store_true",
         help="Ephemeral mode: destroy all infra after run",
     )
-    p_test.add_argument("--e2e", action="store_true", help="E2E tests (Playwright)")
+    p_test.add_argument(
+        "--e2e",
+        action="store_true",
+        help="Root deployment E2E tests from tests/e2e/",
+    )
+    p_test.add_argument(
+        "--backend-e2e",
+        action="store_true",
+        help="Backend Tier-1 API E2E tests from apps/backend/tests/e2e/test_core_journeys.py",
+    )
     p_test.add_argument("--perf", action="store_true", help="Performance tests")
     p_test.add_argument("--frontend", action="store_true", help="Frontend tests")
 

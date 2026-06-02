@@ -100,6 +100,11 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.57**: SSOT and AC command entry points run from `tools/` while shared implementations live under `common/ssot/`.
 - **AC8.13.58**: CI and toolchain command entry points run from `tools/`; reusable contracts stay under `common/ci/`, while report and shell command implementations live under `tools/_lib/`.
 - **AC8.13.59**: Config validation command entry points run from `tools/` while shared implementations live under `common/config/`.
+- **AC8.13.77**: Registry-to-EPIC consistency fails active stub or orphan AC entries instead of silently excluding them.
+- **AC8.13.78**: Mandatory AC traceability requires at least one real proof file that is mapped to a CI-required execution stage.
+- **AC8.13.79**: Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E.
+- **AC8.13.80**: AC coverage analysis supports no-write and stale-report check modes for local verification.
+- **AC8.13.81**: Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values.
 - **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
 - **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
 - **AC8.13.62**: Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope.
@@ -130,6 +135,7 @@ Integration tests and E2E tests are intentionally different in this project:
 | Unit (Fast/Shard) | Backend tests excluding `slow`, `e2e`, and `integration` markers | Required on `main`/heavy PR after integration/Tier-1 gates pass: `backend` job, 6-way shard, `-m "not slow and not e2e and not integration"` | Contributes to unified line coverage (backend part), AC traceability generation, and baseline no-regression gate |
 | Integration (backend) | Backend tests marked `integration` | Explicit CI stage: `backend-integration` job, marker-scoped and service-backed | Not included in unified coverage by default; AC proof channel only |
 | Tier 1 API E2E (`-m e2e`) | `apps/backend/tests/e2e/test_core_journeys.py` ASGI/API contract flows | Explicit CI stage: `backend-e2e-tier1` job with marker override and explicit Tier-1 scope | Behavioral proof for ACs and regression risk; **not included in unified line coverage** |
+| Frontend Playwright | Provider-free specs under `apps/frontend/playwright` | Explicit CI stage inside the `frontend` job after build and Vitest; env-gated specs are not required proof | Browser UI behavioral proof only, not part of unified line coverage |
 | Tier 2 HTTP E2E | Deploy-aware HTTP-level flows in staging/prod | Not a CI-shard job today; kept for staged/manual/prod smoke command evolution | Behavioral proof only, not part of unified line coverage |
 | Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates and PR preview where appropriate | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
 
@@ -139,7 +145,7 @@ Integration tests and E2E tests are intentionally different in this project:
 |---|---|---|---|
 | Unified Line Coverage | `(sum covered LF) / (sum executable LF)` over unified files only | `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov` after policy mapping | No-regression vs `unified-coverage.json`; line-based only |
 | AC Pass Rate | `(ACs with at least one passing qualifying test) / (Total ACs)` | Generated AC coverage audit report | Informational for behavior completeness; not a line-coverage substitute |
-| AC Traceability Gate | Real AC references in mandatory code paths | `tools/check_ac_traceability.py` / `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, or placeholder-only |
+| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_traceability.py`, `docs/ssot/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
 
 AC rates are generated on each CI run from `python tools/analyze_test_ac_coverage.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
 
@@ -500,13 +506,20 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.74 | Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene | `test_AC8_13_74_*` | `tests/tooling/test_pr_preview_lifecycle.py`, `tests/tooling/test_vps_host_hygiene.py` | P0 |
 | AC8.13.75 | Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail | `test_AC8_13_75_coverage_gate_summary_is_nonblocking` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.76 | Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths | `AC16.26.*` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC8.13.77 | Registry-to-EPIC consistency fails active stub or orphan AC entries instead of silently excluding them | `test_AC8_13_77_*` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
+| AC8.13.78 | Mandatory AC traceability requires at least one real proof file that is mapped to a CI-required execution stage | `test_AC8_13_78_*` | `tests/tooling/test_check_ac_traceability.py` | P0 |
+| AC8.13.79 | Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E | `test_AC8_13_79_*` | `tests/tooling/test_cli_and_dev_servers.py` | P0 |
+| AC8.13.80 | AC coverage analysis supports no-write and stale-report check modes for local verification | `test_AC8_13_80_*` | `tests/tooling/test_analyze_test_ac_coverage.py` | P0 |
+| AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
   owned by [the generated coverage report](../analysis/test-ac-coverage-report.md)
-  and `python tools/analyze_test_ac_coverage.py --stdout`.
+  and `python tools/analyze_test_ac_coverage.py --no-write --stdout`.
 - Mandatory AC gate behavior is owned by `python tools/check_ac_traceability.py`.
+- Test path execution status for AC proof is owned by
+  [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml).
 - Critical product proof-path anchoring is owned by
   `docs/ssot/critical-proof-matrix.yaml` and
   `python tools/check_critical_proof_matrix.py`.
@@ -656,11 +669,11 @@ finance_report AC coverage.
 ### 5.5 Running Tests
 
 ```bash
-# Run all E2E tests locally
-bash tools/smoke_test.sh
+# Run root deployment E2E tests locally
+moon run :test -- --e2e
 
 # Run Tier 1 API E2E tests (requires DB)
-moon run :test -- -m e2e
+moon run :test -- --backend-e2e
 
 # Run against specific environment
 APP_URL=https://report.zitian.party pytest tests/e2e -v -m "smoke or e2e"

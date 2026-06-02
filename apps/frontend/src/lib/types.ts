@@ -154,6 +154,29 @@ export interface IncomeStatementResponse {
     trends: IncomeStatementTrend[];
 }
 
+export interface PersonalReportPackageSectionContract {
+    section_id: string;
+    label: string;
+    owner_epic: string;
+    period_type?: string;
+    source_endpoint: string;
+    status: string;
+    required?: boolean;
+    blocking_issue?: string | null;
+    decimal_total_fields?: string[];
+}
+
+export interface PersonalReportPackageContractResponse {
+    package_id: string;
+    version: string;
+    period_semantics: Record<string, string>;
+    sections: PersonalReportPackageSectionContract[];
+    export_contract: {
+        formats: string[];
+        csv_columns: string[];
+    };
+}
+
 export interface AnnualizedIncomeResponse {
     annualized_salary: number | string;
     annualized_bonus: number | string;

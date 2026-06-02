@@ -123,7 +123,8 @@ which separates actionable refs from fixture-only fake IDs.
 
 Current coverage enforcement:
 
-- Backend pytest keeps a 90% local source-coverage threshold.
+- Backend pytest local source-coverage threshold is code-owned by
+  `apps/backend/pyproject.toml` (`--cov-fail-under`).
 - Unified coverage is a no-regression baseline gate from
   `unified-coverage.json`, not a hand-written fixed percentage in this TDD doc.
 - Branch coverage tracking is enabled for backend tests.
@@ -136,7 +137,7 @@ Use these before claiming a documentation or implementation change is aligned:
 
 ```bash
 python tools/generate_ac_registry.py --check
-python tools/analyze_test_ac_coverage.py --stdout
+python tools/analyze_test_ac_coverage.py --no-write --stdout
 python tools/check_e2e_epic_traceability.py
 python tools/check_critical_proof_matrix.py
 python tools/check_manifest.py
@@ -145,8 +146,8 @@ python tools/check_ssot_ownership.py
 
 Coverage is governed by `docs/ssot/coverage.md` and
 `common/coverage/policy.py`. The current policy is no-regression from
-`unified-coverage.json`; there is no fixed 96% unified gate at the time of this
-writing.
+`unified-coverage.json`; this TDD document intentionally links to code-owned
+thresholds instead of copying mutable percentage values.
 
 ## Development Workflow
 
