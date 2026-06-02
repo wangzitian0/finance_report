@@ -1,5 +1,7 @@
+import importlib
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -56,8 +58,10 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
     """AC7.8.2: PR compose S3 endpoint avoids unsupported nested expansion."""
     import yaml
 
-    compose_path = Path(__file__).parent.parent.parent.parent.parent / "docker-compose.yml"
-    workflow_path = Path(__file__).parent.parent.parent.parent.parent / ".github" / "workflows" / "pr-test.yml"
+    root = Path(__file__).parent.parent.parent.parent.parent
+    sys.path.insert(0, str(root))
+    lifecycle = importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
+    compose_path = root / "docker-compose.yml"
 
     with open(compose_path) as f:
         config = yaml.safe_load(f)
@@ -69,10 +73,16 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
     assert "$$(seq 1 10)" in minio_entrypoint
     assert "\\$(seq 1 10)" not in minio_entrypoint
 
-    workflow = workflow_path.read_text()
-    assert 'echo "S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER:9000"' in workflow
-    assert 'echo "MINIO_ROOT_PASSWORD=minio_local_secret"' in workflow
-    assert 'echo "S3_SECRET_KEY=minio_local_secret"' in workflow
+    preview_env = lifecycle.build_preview_env(
+        pr_number=489,
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="wangzitian0/finance_report",
+        internal_domain="zitian.party",
+    )
+    assert preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489:9000"
+    assert preview_env["MINIO_ROOT_PASSWORD"] == "minio_local_secret"
+    assert preview_env["S3_SECRET_KEY"] == "minio_local_secret"
 
 
 @pytest.mark.integration

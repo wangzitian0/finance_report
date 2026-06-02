@@ -1,0 +1,11 @@
+[Unit]
+Description=Finance Report VPS host hygiene
+Documentation=https://github.com/wangzitian0/finance_report
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/finance-report-vps-hygiene
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+

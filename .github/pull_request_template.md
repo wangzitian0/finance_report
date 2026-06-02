@@ -46,6 +46,18 @@ Closes #<!-- issue number -->
 - [ ] `tools/check_manifest.py` passes (if SSOT files changed)
 - [ ] `tools/lint_doc_consistency.py` passes
 
+### CI/CD, Runtime, and VPS Infra Audit
+
+Required when this PR changes workflows, deploy tooling, Dokploy runtime config,
+VPS host scripts, or logs:
+
+- [ ] Lifecycle ownership is unified: create/update/deploy/delete/cleanup/reconcile paths share one tool or explicitly documented owner.
+- [ ] Logs do not print raw Dokploy API bodies, full env strings, tokens, `.env`, PEM content, or SSH keys.
+- [ ] API/CLI diagnostics show only allowlisted effective-state diffs; unchanged and secret fields are not logged.
+- [ ] VPS host hygiene is local to the VPS and does not require Dokploy, GitHub, or Vault credentials.
+- [ ] Cleanup is scoped: PR-preview cleanup removes only the matching compose stack, matching compose volumes, and closed-PR leftovers.
+- [ ] Proof command includes focused tests for redaction, lifecycle cleanup, and host hygiene.
+
 ---
 
 ## Testing

@@ -163,6 +163,8 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
             "tools.cleanup_pr_preview_resources",
             "tools._lib.dev.cleanup_pr_preview_resources",
         ),
+        ("tools.pr_preview_lifecycle", "tools._lib.dev.pr_preview_lifecycle"),
+        ("tools.vps_host_hygiene", "tools._lib.dev.vps_host_hygiene"),
         ("tools.cli", "tools._lib.dev.cli"),
         ("tools.debug", "tools._lib.dev.debug"),
         ("tools.dev_backend", "tools._lib.dev.dev_backend"),

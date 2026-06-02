@@ -108,6 +108,21 @@ the tag into backend images, and `tools/dokploy_deploy.sh` refreshes
 `IAC_CONFIG_HASH` on every deploy attempt so Dokploy restarts the app even when
 redeploying the same tag.
 
+Dokploy deploy diagnostics must never print raw API response bodies. The shared
+deploy helper reports only endpoint, HTTP status, safe message fields, and an
+allowlisted effective environment diff for `IMAGE_TAG`, `GIT_COMMIT_SHA`,
+`IAC_CONFIG_HASH`, `ENV_SUFFIX`, and `COMPOSE_PROFILES`.
+
+Dokploy API and CLI usage should stay minimal and state-oriented. Use whichever
+surface exposes the required operation, then prove correctness by comparing the
+effective runtime state against the requested allowlist; do not log full API
+responses or full environment templates.
+
+VPS disk hygiene is not a Dokploy deployment responsibility. The local
+`finance-report-vps-hygiene.timer` runs generic Docker and journal cleanup on
+the host; PR preview workflows only create, update, deploy, delete, and
+reconcile PR-scoped preview resources.
+
 **Hotfix flow**:
 ```bash
 git checkout -b hotfix/bug v1.2.3

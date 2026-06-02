@@ -592,6 +592,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
 
     assert (
         "group: staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
@@ -634,12 +635,12 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "@pytest.mark.llm" in brokerage
     assert "@pytest.mark.llm" in four_asset
     assert upload.count("@pytest.mark.llm") >= 2
-    assert 'echo "ZAI_API_KEY="' in pr_workflow
-    assert 'echo "AI_BASE_URL=https://api.z.ai/api/coding/paas/v4"' in pr_workflow
-    assert 'echo "OCR_MODEL=glm-4.6v"' in pr_workflow
-    assert 'echo "AI_JSON_TIMEOUT_SECONDS=360"' in pr_workflow
-    assert 'echo "AI_JSON_MAX_TOKENS=8192"' in pr_workflow
-    assert 'echo "AI_JSON_DISABLE_THINKING=true"' in pr_workflow
+    assert '"ZAI_API_KEY": ""' in preview_lifecycle
+    assert '"AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4"' in preview_lifecycle
+    assert '"OCR_MODEL": "glm-4.6v"' in preview_lifecycle
+    assert '"AI_JSON_TIMEOUT_SECONDS": "360"' in preview_lifecycle
+    assert '"AI_JSON_MAX_TOKENS": "8192"' in preview_lifecycle
+    assert '"AI_JSON_DISABLE_THINKING": "true"' in preview_lifecycle
     assert "https://api.z.ai/api/coding/paas/v4" in read("docs/ssot/ci-cd.md")
     assert '-m "(smoke or e2e) and not llm"' in pr_workflow
     assert '-m "smoke or e2e"' not in pr_workflow
@@ -995,29 +996,16 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     """AC8.13.38: PR preview Dokploy API responses are captured, not logged raw."""
     preview = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
+    lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
 
-    assert "PR preview Dokploy API responses are captured in temporary files" in ci_cd
-    assert "PR_TITLE: ${{ github.event.pull_request.title }}" in preview
-
-    for name, next_name in (
-        ("Create compose", "Get compose ID"),
-        ("Configure GitHub source", "Configure environment variables"),
-        ("Configure environment variables", "Deploy compose"),
-        ("Deploy compose", "Poll Deployment Status"),
-        ("Rollback on E2E Failure", "Comment on PR"),
-        ("Find and remove compose", "Clean up Docker volumes"),
-    ):
-        block = preview.split(f"- name: {name}", 1)[1].split(
-            f"- name: {next_name}",
-            1,
-        )[0]
-        assert "-o " in block
-        assert (
-            "jq -r" in block
-            or "jq -e" in block
-            or "curl_exit" in block
-            or "stop_exit" in block
-        )
+    assert "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
+    assert "Deploy preview lifecycle" in preview
+    assert "Cleanup preview lifecycle" in preview
+    assert "Rollback on E2E Failure" in preview
+    assert "--action delete" in preview
+    assert "Response body" not in lifecycle
+    assert "raw_body_printed: false" in lifecycle
+    assert "safe_message" in lifecycle
 
     unsafe_patterns = (
         r"response=\$\(curl[^)]*/compose\.create",
@@ -1028,6 +1016,28 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     )
     for pattern in unsafe_patterns:
         assert re.search(pattern, preview) is None
+
+
+def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
+    """AC8.13.72: staging proof checks health git_sha, not just Dokploy trigger."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    health_check = read("tools/_lib/shell/health_check.sh")
+
+    deploy_block = workflow.split("- name: Deploy to Staging", 1)[1].split(
+        "- name: Setup E2E Tests", 1
+    )[0]
+
+    assert 'IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}' in deploy_block
+    assert "bash tools/dokploy_deploy.sh" in deploy_block
+    assert "bash tools/health_check.sh" in deploy_block
+    assert deploy_block.index("bash tools/dokploy_deploy.sh") < deploy_block.index(
+        "bash tools/health_check.sh"
+    )
+    assert '"https://report-staging.zitian.party/api/health"' in deploy_block
+    assert '"$IMAGE_TAG"' in deploy_block
+    assert "actual_sha=$(echo \"$health_response\" | jq -r '.git_sha // .version // \"\"')" in health_check
+    assert "Git SHA Mismatch" in health_check
+    assert "exit 1" in health_check
 
 
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:

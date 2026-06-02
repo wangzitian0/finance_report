@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Finance Report VPS host hygiene every six hours
+
+[Timer]
+OnCalendar=*-*-* 03,09,15,21:17:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target
