@@ -28,6 +28,7 @@ from src.schemas.portfolio import (
 )
 from src.services import allocation, performance
 from src.services.brokerage_positions import BrokeragePositionImportService
+from src.services.fx import FxRateError, convert_amount
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
 
@@ -174,7 +175,21 @@ async def get_portfolio_summary(
         .where(InvestmentTransaction.transaction_date >= year_start)
         .where(InvestmentTransaction.transaction_date <= report_date)
     )
-    realized_pnl_ytd = sum((txn.realized_pnl or Decimal("0.00")) for txn in realized_result.scalars().all())
+    summary_currency = summary.currency.upper()
+    realized_pnl_ytd = Decimal("0.00")
+    for txn in realized_result.scalars().all():
+        realized_amount = txn.realized_pnl or Decimal("0.00")
+        try:
+            realized_pnl_ytd += await convert_amount(
+                db,
+                realized_amount,
+                txn.currency,
+                summary_currency,
+                txn.transaction_date,
+                lazy_load=True,
+            )
+        except FxRateError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     dividend_result = await db.execute(
         select(DividendIncome)
@@ -182,7 +197,19 @@ async def get_portfolio_summary(
         .where(DividendIncome.payment_date >= year_start)
         .where(DividendIncome.payment_date <= report_date)
     )
-    dividend_income_ytd = sum(dividend.amount for dividend in dividend_result.scalars().all())
+    dividend_income_ytd = Decimal("0.00")
+    for dividend in dividend_result.scalars().all():
+        try:
+            dividend_income_ytd += await convert_amount(
+                db,
+                dividend.amount,
+                dividend.currency,
+                summary_currency,
+                dividend.payment_date,
+                lazy_load=True,
+            )
+        except FxRateError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     data = summary.model_dump()
     data["realized_pnl_ytd"] = Decimal(realized_pnl_ytd).quantize(Decimal("0.01"))

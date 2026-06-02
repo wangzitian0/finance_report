@@ -167,6 +167,13 @@ method, dividends, realized/unrealized P&L, and return metric limitations.
 |----|-----------|---------------|------|----------|
 | AC5.8.1 | Personal report package defines the `investment_performance` report section as a consumer of the EPIC-017 schedule API | `AC5.8.1 renders investment performance report schedule from the schedule API`; `test_personal_financial_report_package_post_merge_journey`; `test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract` | `apps/frontend/src/__tests__/portfolioPage.test.tsx`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
 
+### AC5.9: Financial Statement Logic Audit Fixes
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.9.1 | Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances | `test_AC5_9_1_cash_flow_uses_cumulative_cash_balances()` | `reporting/test_financial_logic_audit.py` | P0 |
+| AC5.9.2 | Cash-flow operating, investing, and financing totals preserve inflow/outflow signs | `test_AC5_9_2_cash_flow_activity_totals_preserve_signs()` | `reporting/test_financial_logic_audit.py` | P0 |
+
 **Traceability Result**:
 - Total AC IDs: 19
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)

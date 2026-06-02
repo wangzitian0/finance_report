@@ -2,9 +2,9 @@
 
 import DetailDialog from "@/components/ui/DetailDialog";
 import AuditTrailPanel from "@/components/AuditTrailPanel";
-import { formatCurrencyLocale, sumAmounts } from "@/lib/currency";
+import { formatAmount, formatCurrencyLocale, multiplyAmount, sumAmounts } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
-import { JournalEntry } from "@/lib/types";
+import { JournalEntry, JournalLine } from "@/lib/types";
 
 interface JournalEntryDetailsModalProps {
     entry: JournalEntry | null;
@@ -19,14 +19,18 @@ export default function JournalEntryDetailsModal({
 }: JournalEntryDetailsModalProps) {
     if (!entry) return null;
 
+    const baseCurrency = "SGD";
+    const baseAmount = (line: JournalLine) => {
+        if (line.currency.toUpperCase() === baseCurrency) return line.amount;
+        if (!line.fx_rate) return 0;
+        return multiplyAmount(line.amount, line.fx_rate);
+    };
     const totalDebits = entry.lines
         .filter((l) => l.direction === "DEBIT")
-        .map((line) => line.amount);
+        .map(baseAmount);
     const totalCredits = entry.lines
         .filter((l) => l.direction === "CREDIT")
-        .map((line) => line.amount);
-
-    const baseCurrency = entry.lines[0]?.currency || "SGD";
+        .map(baseAmount);
 
     return (
         <DetailDialog isOpen={isOpen} onClose={onClose} title="Journal Entry Details" maxWidth="max-w-2xl">
@@ -95,6 +99,18 @@ export default function JournalEntryDetailsModal({
                                         <p className="text-xs font-medium uppercase text-muted">Currency</p>
                                         <p className="mt-1 text-muted">{line.currency}</p>
                                     </div>
+                                    <div>
+                                        <p className="text-xs font-medium uppercase text-muted">FX Rate</p>
+                                        <p className="mt-1 text-muted">
+                                            {line.fx_rate ? formatAmount(line.fx_rate, 6) : "1.000000"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium uppercase text-muted">SGD Base</p>
+                                        <p className="mt-1 font-semibold">
+                                            {formatCurrencyLocale(baseAmount(line), baseCurrency)}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -118,6 +134,8 @@ export default function JournalEntryDetailsModal({
                                     <th className="px-4 py-2">Direction</th>
                                     <th className="px-4 py-2 text-right">Amount</th>
                                     <th className="px-4 py-2">Currency</th>
+                                    <th className="px-4 py-2 text-right">FX Rate</th>
+                                    <th className="px-4 py-2 text-right">SGD Base</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
@@ -133,12 +151,18 @@ export default function JournalEntryDetailsModal({
                                             {formatCurrencyLocale(line.amount, line.currency)}
                                         </td>
                                         <td className="px-4 py-3 text-muted">{line.currency}</td>
+                                        <td className="px-4 py-3 text-right text-muted">
+                                            {line.fx_rate ? formatAmount(line.fx_rate, 6) : "1.000000"}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
+                                            {formatCurrencyLocale(baseAmount(line), baseCurrency)}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                             <tfoot className="bg-[var(--background-muted)]/30 font-bold border-t border-[var(--border)]">
                                 <tr>
-                                    <td colSpan={2} className="px-4 py-3 text-right text-muted">Totals</td>
+                                    <td colSpan={5} className="px-4 py-3 text-right text-muted">SGD Base Totals</td>
                                     <td className="px-4 py-3">
                                         <div className="flex flex-col items-end gap-1">
                                             <div className="text-[var(--success)]">

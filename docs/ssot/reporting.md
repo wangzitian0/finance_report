@@ -135,6 +135,21 @@ Shows cash movements by category.
 └─────────────────────────────────────────────┘
 ```
 
+Cash-flow balances and activities use two different accounting views:
+
+- `beginning_cash` is the cumulative signed balance of cash/bank asset accounts before `start_date`.
+- `ending_cash` is the cumulative signed balance of cash/bank asset accounts through `end_date`.
+- `net_cash_flow = ending_cash - beginning_cash`.
+- Operating, investing, and financing activity rows are period movements only, converted into cash-flow signs: inflows are positive and outflows are negative.
+- Activity totals must sum signed row amounts. They must not sum absolute values.
+
+Cash-flow account classification:
+
+- Operating: income and expense accounts.
+- Investing: non-cash asset accounts.
+- Financing: liability and equity accounts.
+- Cash/bank asset accounts are used for beginning/ending cash and are not repeated as activity rows.
+
 ### 2.5 Investment Performance Schedule
 
 The investment performance schedule is the report-ready portfolio input for the

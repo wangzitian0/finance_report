@@ -70,6 +70,18 @@ Structured brokerage transactions are posted through `InvestmentAccountingServic
 
 Investment-accounting journal entries use `source_type=system` for deterministic postings and preserve any upstream parser/source identifier in `source_id`. User-entered, parsed, matched, and confirmed statement entries follow the trust hierarchy in [source-type-priority.md](./source-type-priority.md).
 
+### Portfolio Performance Cash Flows
+
+Portfolio return calculations use investment-domain cash flows only:
+
+- XIRR and money-weighted return use `InvestmentTransaction` rows up to `as_of_date`.
+- Time-weighted return removes only investment-domain cash flows in the measurement period.
+- General bank `AtomicTransaction` rows are excluded from portfolio performance because they include salary, bill payment, transfer, and other non-investment cash movements.
+- BUY transactions are investor cash outflows for XIRR and positive contributions for TWR cash-flow adjustment.
+- SELL and DIVIDEND transactions are investor cash inflows for XIRR and negative withdrawals for TWR cash-flow adjustment.
+
+Portfolio summary YTD realized P&L and dividend income are presentation-currency values. Each transaction/dividend is converted from its source currency to the summary currency on its transaction/payment date before aggregation.
+
 ---
 
 ## 3. API Endpoints

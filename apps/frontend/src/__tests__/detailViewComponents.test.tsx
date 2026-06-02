@@ -126,8 +126,10 @@ describe("JournalEntryDetailsModal", () => {
 
     expect(within(debitCard).getByText("assets:cash:mobile")).toBeInTheDocument()
     expect(within(debitCard).getByText("DEBIT")).toBeInTheDocument()
-    expect(within(debitCard).getByText(/1,234\.56/)).toBeInTheDocument()
+    expect(within(debitCard).getAllByText(/1,234\.56/)).toHaveLength(2)
     expect(within(debitCard).getByText("SGD")).toBeInTheDocument()
+    expect(within(debitCard).getByText("FX Rate")).toBeInTheDocument()
+    expect(within(debitCard).getByText("SGD Base")).toBeInTheDocument()
     expect(within(creditCard).getByText("income:salary:mobile")).toBeInTheDocument()
     expect(within(creditCard).getByText("CREDIT")).toBeInTheDocument()
   })

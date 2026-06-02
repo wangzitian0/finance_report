@@ -1193,11 +1193,31 @@ async def generate_cash_flow(
     result_during = await db.execute(agg_stmt_during)
     rows_during = result_during.all()
 
+    agg_stmt_ending = (
+        select(
+            Account.id.label("account_id"),
+            JournalLine.currency,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= end_date)
+        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
+    )
+    result_ending = await db.execute(agg_stmt_ending)
+    rows_ending = result_ending.all()
+
     fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
     for row in rows_before:
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, start_date, None, None))
     for row in rows_during:
+        if row.currency.upper() != target_currency:
+            fx_needs.append((row.currency, target_currency, end_date, None, None))
+    for row in rows_ending:
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, end_date, None, None))
 
@@ -1229,7 +1249,7 @@ async def generate_cash_flow(
                 balances_before[row.account_id] = Decimal("0")
             balances_before[row.account_id] += _signed_amount(account.type, row.direction, converted)
 
-    balances_after: dict[UUID, Decimal] = {}
+    activity_movements: dict[UUID, Decimal] = {}
     for row in rows_during:
         rate = fx_rates.get_rate(row.currency, target_currency, end_date)
         if rate is None:
@@ -1241,15 +1261,25 @@ async def generate_cash_flow(
         converted = Decimal(str(row.total)) * rate
         account = account_id_to_account.get(row.account_id)
         if account:
-            if row.account_id not in balances_after:
-                balances_after[row.account_id] = Decimal("0")
-            balances_after[row.account_id] += _signed_amount(account.type, row.direction, converted)
+            if row.account_id not in activity_movements:
+                activity_movements[row.account_id] = Decimal("0")
+            activity_movements[row.account_id] += _signed_amount(account.type, row.direction, converted)
 
-    movements: dict[UUID, Decimal] = {}
-    for acc_id in account_id_to_account:
-        before = balances_before.get(acc_id, Decimal("0"))
-        after = balances_after.get(acc_id, Decimal("0"))
-        movements[acc_id] = after - before
+    balances_ending: dict[UUID, Decimal] = {}
+    for row in rows_ending:
+        rate = fx_rates.get_rate(row.currency, target_currency, end_date)
+        if rate is None:
+            if row.currency.upper() == target_currency:
+                rate = Decimal("1")
+            else:
+                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {end_date}")
+
+        converted = Decimal(str(row.total)) * rate
+        account = account_id_to_account.get(row.account_id)
+        if account:
+            if row.account_id not in balances_ending:
+                balances_ending[row.account_id] = Decimal("0")
+            balances_ending[row.account_id] += _signed_amount(account.type, row.direction, converted)
 
     beginning_cash = Decimal("0")
     ending_cash = Decimal("0")
@@ -1264,38 +1294,47 @@ async def generate_cash_flow(
     for acc_id, account in account_id_to_account.items():
         if is_cash_account(account):
             beginning_cash += balances_before.get(acc_id, Decimal("0"))
-            ending_cash += balances_after.get(acc_id, Decimal("0"))
+            ending_cash += balances_ending.get(acc_id, Decimal("0"))
 
     operating_items: list[dict[str, object]] = []
     investing_items: list[dict[str, object]] = []
     financing_items: list[dict[str, object]] = []
 
-    for acc_id, movement in movements.items():
+    def cash_flow_amount(account: Account, movement: Decimal) -> Decimal:
+        if account.type == AccountType.INCOME:
+            return movement
+        if account.type == AccountType.EXPENSE:
+            return -movement
+        if account.type == AccountType.ASSET:
+            return -movement
+        return movement
+
+    for acc_id, movement in activity_movements.items():
         if movement == Decimal("0"):
             continue
         account = account_id_to_account[acc_id]
-        abs_movement = abs(movement)
+        if is_cash_account(account):
+            continue
+        amount = cash_flow_amount(account, movement)
         item = {
             "category": "",
             "subcategory": account.name,
-            "amount": _quantize_money(abs_movement),
-            "description": f"{'Inflow' if movement > 0 else 'Outflow'} - {account.name}",
+            "amount": _quantize_money(amount),
+            "description": f"{'Inflow' if amount > 0 else 'Outflow'} - {account.name}",
         }
         if account.type in (AccountType.INCOME, AccountType.EXPENSE):
             item["category"] = "Operating"
             operating_items.append(item)
         elif account.type == AccountType.ASSET:
-            if is_cash_account(account):
-                continue
             item["category"] = "Investing"
             investing_items.append(item)
         else:
             item["category"] = "Financing"
             financing_items.append(item)
 
-    operating_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
-    investing_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
-    financing_items.sort(key=lambda x: Decimal(str(x["amount"])), reverse=True)
+    operating_items.sort(key=lambda x: abs(Decimal(str(x["amount"]))), reverse=True)
+    investing_items.sort(key=lambda x: abs(Decimal(str(x["amount"]))), reverse=True)
+    financing_items.sort(key=lambda x: abs(Decimal(str(x["amount"]))), reverse=True)
 
     operating_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in operating_items], Decimal("0")))
     investing_total = _quantize_money(sum([Decimal(str(item["amount"])) for item in investing_items], Decimal("0")))

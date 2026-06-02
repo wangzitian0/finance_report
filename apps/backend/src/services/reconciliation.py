@@ -212,6 +212,20 @@ def entry_total_amount(entry: JournalEntry) -> Decimal:
     return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
 
 
+def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str) -> Decimal:
+    """Return the bank/cash-side amount that should match a statement transaction."""
+    direction = transaction_direction.upper()
+    bank_line_direction = Direction.DEBIT if direction == "IN" else Direction.CREDIT
+    bank_lines = [
+        line.amount
+        for line in entry.lines
+        if line.direction == bank_line_direction and line.account and line.account.type == AccountType.ASSET
+    ]
+    if bank_lines:
+        return sum(bank_lines, Decimal("0.00"))
+    return entry_total_amount(entry)
+
+
 def is_entry_balanced(entry: JournalEntry) -> bool:
     """Return True if entry is balanced."""
     try:
@@ -614,7 +628,7 @@ async def calculate_match_score(
     history_score_override: float | None = None,
 ) -> MatchCandidate:
     """Calculate match score for a transaction against entry candidates."""
-    entry_amounts = [entry_total_amount(entry) for entry in entries]
+    entry_amounts = [entry_bank_side_amount(entry, transaction.direction) for entry in entries]
     total_amount = sum(entry_amounts, Decimal("0.00"))
     entry_dates = [entry.entry_date for entry in entries]
     entry_memo = " / ".join([entry.memo for entry in entries]).strip()
@@ -899,7 +913,7 @@ def _find_many_to_one_candidates(
 
             # Inline scoring using pure functions (no DB)
             txn_amount = group_total
-            entry_amount = entry_total_amount(entry)
+            entry_amount = entry_bank_side_amount(entry, group[0].direction)
             amount_score = score_amount(txn_amount, entry_amount, config, is_multi=True)
             date_score = score_date(group[0].txn_date, entry.entry_date, config)
             description_score = score_description(group[0].description, entry.memo)
@@ -961,7 +975,7 @@ def _find_normal_candidates(
         history_score: float,
         is_multi: bool = False,
     ) -> MatchCandidate:
-        entry_amounts = [entry_total_amount(e) for e in entries]
+        entry_amounts = [entry_bank_side_amount(e, txn.direction) for e in entries]
         total_amount = sum(entry_amounts, Decimal("0.00"))
         entry_dates = [e.entry_date for e in entries]
         entry_memo = " / ".join([e.memo for e in entries]).strip()
@@ -1013,7 +1027,7 @@ def _find_normal_candidates(
         for entry_a, entry_b in combinations(candidates, 2):
             if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
                 continue
-            combined = entry_total_amount(entry_a) + entry_total_amount(entry_b)
+            combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
             tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
             if abs(combined - txn.amount) > tolerance * 2:
                 continue
@@ -1026,7 +1040,11 @@ def _find_normal_candidates(
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
             if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
                 continue
-            combined = entry_total_amount(entry_a) + entry_total_amount(entry_b) + entry_total_amount(entry_c)
+            combined = (
+                entry_bank_side_amount(entry_a, txn.direction)
+                + entry_bank_side_amount(entry_b, txn.direction)
+                + entry_bank_side_amount(entry_c, txn.direction)
+            )
             tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
             if abs(combined - txn.amount) > tolerance * 2:
                 continue
@@ -1354,7 +1372,7 @@ async def execute_matching(
         for entry_a, entry_b in combinations(candidates, 2):
             if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
                 continue
-            combined = entry_total_amount(entry_a) + entry_total_amount(entry_b)
+            combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
             tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
             if abs(combined - txn.amount) > tolerance * 2:
                 continue
@@ -1374,7 +1392,11 @@ async def execute_matching(
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
             if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
                 continue
-            combined = entry_total_amount(entry_a) + entry_total_amount(entry_b) + entry_total_amount(entry_c)
+            combined = (
+                entry_bank_side_amount(entry_a, txn.direction)
+                + entry_bank_side_amount(entry_b, txn.direction)
+                + entry_bank_side_amount(entry_c, txn.direction)
+            )
             tolerance = max(txn.amount * config.amount_percent, config.amount_absolute)
             if abs(combined - txn.amount) > tolerance * 2:
                 continue

@@ -21,22 +21,44 @@ const journalLineSchema = z.object({
     direction: z.enum(["DEBIT", "CREDIT"]),
     amount: z.string().min(1, "Amount is required"),
     currency: z.string(),
+    fx_rate: z.string().optional(),
 });
+
+const BASE_CURRENCY = "SGD";
+
+function lineBaseAmount(line: z.infer<typeof journalLineSchema>) {
+    const currency = line.currency.trim().toUpperCase();
+    if (!line.amount) return parseAmount(0);
+    const amount = parseAmount(line.amount);
+    if (currency === BASE_CURRENCY) return amount;
+    if (!line.fx_rate) return null;
+    const fxRate = parseAmount(line.fx_rate);
+    if (fxRate.lessThanOrEqualTo(0)) return null;
+    return amount.times(fxRate);
+}
 
 const journalEntrySchema = z.object({
     entry_date: z.string().min(1, "Date is required"),
     memo: z.string().min(1, "Memo is required").trim(),
     lines: z.array(journalLineSchema).min(2, "At least 2 lines are required"),
 }).refine((data) => {
+    const baseLines = data.lines.map(lineBaseAmount);
+    if (baseLines.some((amount) => amount === null)) return false;
     const totalDebits = sumAmounts(
-        data.lines.filter((l) => l.direction === "DEBIT" && l.amount).map((l) => parseAmount(l.amount))
+        data.lines
+            .map((line, index) => ({ line, amount: baseLines[index] }))
+            .filter(({ line, amount }) => line.direction === "DEBIT" && amount !== null)
+            .map(({ amount }) => amount!)
     );
     const totalCredits = sumAmounts(
-        data.lines.filter((l) => l.direction === "CREDIT" && l.amount).map((l) => parseAmount(l.amount))
+        data.lines
+            .map((line, index) => ({ line, amount: baseLines[index] }))
+            .filter(({ line, amount }) => line.direction === "CREDIT" && amount !== null)
+            .map(({ amount }) => amount!)
     );
     return isAmountZero(totalDebits.minus(totalCredits), 0.01);
 }, {
-    message: "Entry must be balanced (Debits = Credits)",
+    message: "Entry must be balanced in SGD base currency and non-SGD lines require FX rates",
     path: ["lines"],
 });
 
@@ -84,11 +106,19 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
         }
     }, [isOpen]);
 
+    const baseLines = lines.map(lineBaseAmount);
+    const hasMissingFxRate = baseLines.some((amount) => amount === null);
     const totalDebits = sumAmounts(
-        lines.filter((l) => l.direction === "DEBIT" && l.amount).map((l) => parseAmount(l.amount))
+        lines
+            .map((line, index) => ({ line, amount: baseLines[index] }))
+            .filter(({ line, amount }) => line.direction === "DEBIT" && amount !== null)
+            .map(({ amount }) => amount!)
     );
     const totalCredits = sumAmounts(
-        lines.filter((l) => l.direction === "CREDIT" && l.amount).map((l) => parseAmount(l.amount))
+        lines
+            .map((line, index) => ({ line, amount: baseLines[index] }))
+            .filter(({ line, amount }) => line.direction === "CREDIT" && amount !== null)
+            .map(({ amount }) => amount!)
     );
     const isBalanced = isAmountZero(totalDebits.minus(totalCredits), 0.01);
 
@@ -106,7 +136,11 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                         account_id: l.account_id,
                         direction: l.direction,
                         amount: formatAmount(l.amount, 2),
-                        currency: l.currency,
+                        currency: l.currency.trim().toUpperCase(),
+                        fx_rate:
+                            l.currency.trim().toUpperCase() === BASE_CURRENCY || !l.fx_rate
+                                ? undefined
+                                : formatAmount(l.fx_rate, 6),
                     })),
                 }),
             });
@@ -176,10 +210,14 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                         </div>
                         <div className="space-y-2">
                             {fields.map((field, index) => (
-                                <div key={field.id} className="flex gap-2 items-center">
+                                <div
+                                    key={field.id}
+                                    className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_96px_112px_88px_112px_auto] md:items-center"
+                                >
                                     <select
                                         {...register(`lines.${index}.account_id`)}
                                         className="input flex-1 text-sm"
+                                        aria-label={`Line ${index + 1} account`}
                                     >
                                         <option value="">Select Account</option>
                                         {accounts.map((acc) => (
@@ -195,6 +233,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                                                 ? "text-[var(--info)]"
                                                 : "text-[var(--success)]"
                                             }`}
+                                        aria-label={`Line ${index + 1} direction`}
                                     >
                                         <option value="DEBIT">Debit</option>
                                         <option value="CREDIT">Credit</option>
@@ -205,7 +244,26 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                                         min="0"
                                         {...register(`lines.${index}.amount`)}
                                         placeholder="0.00"
-                                        className="input w-28 text-sm text-right"
+                                        className="input text-sm text-right"
+                                        aria-label={`Line ${index + 1} amount`}
+                                    />
+                                    <input
+                                        type="text"
+                                        maxLength={3}
+                                        {...register(`lines.${index}.currency`)}
+                                        placeholder="SGD"
+                                        className="input text-sm uppercase"
+                                        aria-label={`Line ${index + 1} currency`}
+                                    />
+                                    <input
+                                        type="number"
+                                        step="0.000001"
+                                        min="0"
+                                        {...register(`lines.${index}.fx_rate`)}
+                                        placeholder="FX rate"
+                                        disabled={(lines[index]?.currency || BASE_CURRENCY).trim().toUpperCase() === BASE_CURRENCY}
+                                        className="input text-sm text-right disabled:opacity-40"
+                                        aria-label={`Line ${index + 1} FX rate`}
                                     />
                                     {fields.length > 2 && (
                                         <button
@@ -256,7 +314,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             className={`text-sm font-medium ${isBalanced ? "text-[var(--success)]" : "text-[var(--error)]"
                                 }`}
                         >
-                            {isBalanced ? "✓ Balanced" : "⚠ Unbalanced"}
+                            {isBalanced && !hasMissingFxRate ? "✓ Balanced in SGD" : "⚠ Unbalanced or missing FX"}
                         </span>
                     </div>
 
@@ -281,7 +339,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                         </button>
                         <button
                             type="submit"
-                            disabled={isSubmitting || !isBalanced}
+                            disabled={isSubmitting || !isBalanced || hasMissingFxRate}
                             className="btn-primary flex-1"
                         >
                             {isSubmitting

@@ -45,6 +45,16 @@ def validate_fx_rates(lines: list[JournalLine]) -> None:
             raise ValidationError(f"fx_rate required for currency {line.currency} (base {base_currency})")
 
 
+def _line_base_amount(line: JournalLine) -> Decimal:
+    """Return line amount converted to the configured base currency."""
+    base_currency = settings.base_currency.upper()
+    if line.currency.upper() == base_currency:
+        return line.amount
+    if line.fx_rate is None:
+        raise ValidationError(f"fx_rate required for currency {line.currency} (base {base_currency})")
+    return line.amount * line.fx_rate
+
+
 def validate_journal_balance(lines: list[JournalLine]) -> None:
     """
     Validate that journal entry lines are balanced (debit = credit).
@@ -58,8 +68,8 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
     if len(lines) < 2:
         raise ValidationError("Journal entry must have at least 2 lines")
 
-    total_debit = sum(line.amount for line in lines if line.direction == Direction.DEBIT)
-    total_credit = sum(line.amount for line in lines if line.direction == Direction.CREDIT)
+    total_debit = sum(_line_base_amount(line) for line in lines if line.direction == Direction.DEBIT)
+    total_credit = sum(_line_base_amount(line) for line in lines if line.direction == Direction.CREDIT)
 
     if abs(total_debit - total_credit) > Decimal("0.01"):
         raise ValidationError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
@@ -132,6 +142,8 @@ async def calculate_account_balances(
     db: AsyncSession,
     accounts: list[Account],
     user_id: UUID,
+    *,
+    use_base_currency: bool = False,
 ) -> dict[UUID, Decimal]:
     """
     Calculate balances for multiple accounts in a single query.
@@ -142,14 +154,23 @@ async def calculate_account_balances(
         return {}
 
     account_ids = [account.id for account in accounts]
+    if use_base_currency:
+        base_currency = settings.base_currency.upper()
+        amount_expr = case(
+            (func.upper(JournalLine.currency) == base_currency, JournalLine.amount),
+            else_=JournalLine.amount * JournalLine.fx_rate,
+        )
+    else:
+        amount_expr = JournalLine.amount
+
     net_query = (
         select(
             JournalLine.account_id,
             func.coalesce(
                 func.sum(
                     case(
-                        (JournalLine.direction == Direction.DEBIT, JournalLine.amount),
-                        else_=-JournalLine.amount,
+                        (JournalLine.direction == Direction.DEBIT, amount_expr),
+                        else_=-amount_expr,
                     )
                 ),
                 Decimal("0"),
@@ -195,7 +216,7 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     result = await db.execute(select(Account).where(Account.user_id == user_id))
     accounts = result.scalars().all()
 
-    balances = await calculate_account_balances(db, accounts, user_id)
+    balances = await calculate_account_balances(db, accounts, user_id, use_base_currency=True)
 
     totals = {
         AccountType.ASSET: Decimal("0"),

@@ -1,0 +1,46 @@
+"""AC4.9: Reconciliation financial logic tests."""
+
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+
+from src.models import Account, AccountType, BankStatementTransaction, Direction, JournalEntry, JournalLine
+from src.services.reconciliation import DEFAULT_CONFIG, calculate_match_score
+
+
+@pytest.mark.asyncio
+async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):
+    """AC4.9.1: Matching amount uses the bank/cash line for bank outflows."""
+    bank = Account(id=uuid4(), user_id=uuid4(), name="Checking", type=AccountType.ASSET, currency="SGD")
+    expense = Account(id=uuid4(), user_id=bank.user_id, name="Expense", type=AccountType.EXPENSE, currency="SGD")
+    clearing = Account(id=uuid4(), user_id=bank.user_id, name="Clearing", type=AccountType.ASSET, currency="SGD")
+    payable = Account(id=uuid4(), user_id=bank.user_id, name="Payable", type=AccountType.LIABILITY, currency="SGD")
+    entry = JournalEntry(id=uuid4(), user_id=bank.user_id, entry_date=date(2026, 1, 5), memo="Vendor split")
+    entry.lines = [
+        JournalLine(account=expense, direction=Direction.DEBIT, amount=Decimal("100.00")),
+        JournalLine(account=clearing, direction=Direction.DEBIT, amount=Decimal("20.00")),
+        JournalLine(account=bank, direction=Direction.CREDIT, amount=Decimal("100.00")),
+        JournalLine(account=payable, direction=Direction.CREDIT, amount=Decimal("20.00")),
+    ]
+    transaction = BankStatementTransaction(
+        id=uuid4(),
+        statement_id=uuid4(),
+        txn_date=date(2026, 1, 5),
+        description="Vendor payment",
+        amount=Decimal("100.00"),
+        direction="OUT",
+        currency="SGD",
+    )
+
+    candidate = await calculate_match_score(
+        db,
+        transaction,
+        [entry],
+        DEFAULT_CONFIG,
+        user_id=bank.user_id,
+        history_score_override=0,
+    )
+
+    assert candidate.breakdown["amount"] == 100.0
