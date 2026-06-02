@@ -54,8 +54,8 @@ VPS host scripts, or logs:
 - [ ] Lifecycle ownership is unified: create/update/deploy/delete/cleanup/reconcile paths share one tool or explicitly documented owner.
 - [ ] Logs do not print raw Dokploy API bodies, full env strings, tokens, `.env`, PEM content, or SSH keys.
 - [ ] API/CLI diagnostics show only allowlisted effective-state diffs; unchanged and secret fields are not logged.
-- [ ] VPS host hygiene is local to the VPS and does not require Dokploy, GitHub, or Vault credentials.
-- [ ] Cleanup is scoped: PR-preview cleanup removes only the matching compose stack, matching compose volumes, and closed-PR leftovers.
+- [ ] VPS host hygiene is managed by a Dokploy server schedule and does not require GitHub SSH or Vault credentials.
+- [ ] Cleanup is scoped: PR-preview cleanup removes only Dokploy compose/GHCR PR artifacts; Docker volume/container leftovers are handled by the Dokploy host hygiene schedule.
 - [ ] Proof command includes focused tests for redaction, lifecycle cleanup, and host hygiene.
 
 ---

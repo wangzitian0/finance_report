@@ -311,27 +311,14 @@ jobs:
       - name: Cleanup preview lifecycle
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          if [ -z "$VPS_SSH_KEY" ]; then
-            echo "::error::VPS_SSH_KEY is required for PR preview volume cleanup."
-            exit 1
-          fi
-
-          mkdir -p ~/.ssh
-          echo "$VPS_SSH_KEY" > ~/.ssh/vps_key
-          chmod 600 ~/.ssh/vps_key
-          ssh-keyscan -H "cloud.zitian.party" >> ~/.ssh/known_hosts 2>/dev/null
           python tools/pr_preview_lifecycle.py \
             --action cleanup \
             --pr-number "${{ needs.setup.outputs.pr_number }}" \
             --compose-name "${{ needs.setup.outputs.compose_name }}" \
             --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --api-key "$DOKPLOY_API_KEY" \
-            --host cloud.zitian.party \
-            --ssh-key ~/.ssh/vps_key
-          rm -f ~/.ssh/vps_key
+            --api-key "$DOKPLOY_API_KEY"
 
       - name: Delete GHCR images
         continue-on-error: true
@@ -386,8 +373,8 @@ jobs:
             All temporary resources for this PR have been released:
 
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
-            - **Docker Volumes**: Cleaned (postgres_data, minio_data)
             - **GHCR Images**: Deleted (backend:pr-${{ needs.setup.outputs.pr_number }}, frontend:pr-${{ needs.setup.outputs.pr_number }})
+            - **Host Docker leftovers**: Managed by the Dokploy host hygiene schedule
 
             _Cleanup completed successfully._`;
 

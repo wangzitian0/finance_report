@@ -66,7 +66,8 @@ money-weighted return, realized P&L, unrealized P&L, dividend income, dividend
 yield, holdings, allocation, data freshness, `source_links`, and `notes`.
 Those fields let the package explain how investment-performance values were
 calculated and how they trace back to brokerage statements, market prices, and
-ledger/report output.
+ledger/report output. `data_freshness.stale_holdings` lists holdings whose price
+evidence is older than the requested `as_of_date`.
 
 ## Dashboard Widgets
 

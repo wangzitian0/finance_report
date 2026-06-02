@@ -2222,7 +2222,8 @@ groups:
       - id: AC8.13.73
         epic: 8
         epic_name: testing-strategy
-        description: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
+        description: VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage while keeping
+          PR preview resources from the last 3 days or the most recent 3 PRs.
         mandatory: true
       - id: AC8.13.74
         epic: 8
@@ -2234,6 +2235,12 @@ groups:
         epic_name: testing-strategy
         description: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary
           writes fail.
+        mandatory: true
+      - id: AC8.13.76
+        epic: 8
+        epic_name: testing-strategy
+        description: Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal
+          scroll and expose direct completion actions at phone widths.
         mandatory: true
   AC11:
     AC11.1:
@@ -3880,6 +3887,25 @@ groups:
         epic_name: two-stage-review-ui
         description: Root layout keeps theme color in the viewport export and avoids duplicate iOS web-app capability metadata
         mandatory: true
+    AC16.26:
+      - id: AC16.26.1
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 1 statement review uses editable transaction cards on phone widths, with save, discard, approve,
+          and reject actions visible without horizontal dragging.
+        mandatory: true
+      - id: AC16.26.2
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible
+          without horizontal dragging.
+        mandatory: true
+      - id: AC16.26.3
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without
+          document-level horizontal scrolling.
+        mandatory: true
   AC17:
     AC17.1:
       - id: AC17.1.1
@@ -4315,6 +4341,23 @@ groups:
         epic: 17
         epic_name: portfolio-management
         description: Investment performance schedule API exposes data freshness, source links, and notes for report traceability
+        mandatory: true
+      - id: AC17.10.3
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction
+          source, and report-section anchors
+        mandatory: true
+      - id: AC17.10.4
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance schedule data freshness marks the schedule stale when any holding lacks current
+          as-of-date price evidence
+        mandatory: true
+      - id: AC17.10.5
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance XIRR solver does not convert monetary Decimal cash flows to float
         mandatory: true
     AC17.11:
       - id: AC17.11.1

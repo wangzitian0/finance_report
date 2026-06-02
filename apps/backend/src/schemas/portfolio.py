@@ -134,6 +134,7 @@ class InvestmentPerformanceDataFreshness(BaseModel):
     latest_price_date: date | None
     market_data_provider: str | None
     stale: bool
+    stale_holdings: list[str] = Field(default_factory=list)
     manual_override_basis: str | None = None
 
 

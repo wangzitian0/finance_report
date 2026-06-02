@@ -665,6 +665,14 @@ delivery status table.
 | AC16.25.3 | Journal entry details expose line account, direction, amount, and currency as mobile line cards | `AC16.25.3 journal entry details mobile line cards expose all line fields` | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | P1 |
 | AC16.25.4 | Root layout keeps theme color in the viewport export and avoids duplicate iOS web-app capability metadata | `AC16.25.4 root layout metadata keeps viewport-only theme color` | `apps/frontend/src/__tests__/rootLayout.test.tsx` | P1 |
 
+### AC16.26 — Mobile Review Workflow Completion
+
+| AC ID | Description | Test Function | File | Priority |
+|-------|-------------|---------------|------|----------|
+| AC16.26.1 | Stage 1 statement review uses editable transaction cards on phone widths, with save, discard, approve, and reject actions visible without horizontal dragging | `AC16.26.1 stage 1 mobile review exposes editable transaction cards and completion actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC16.26.2 | Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible without horizontal dragging | `AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC16.26.3 | Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without document-level horizontal scrolling | `AC16.26.3 stage 2 run review preserves mobile approval gate and match workflow` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+
 
 ---
 

@@ -3,12 +3,14 @@
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
+from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
@@ -68,7 +70,15 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
         geography="US",
         asset_type="stock",
         dedup_hash="aapl_test",
-        source_documents={},
+        source_documents={
+            "documents": [
+                {
+                    "doc_id": "brokerage-doc-aapl",
+                    "doc_type": "brokerage_statement",
+                    "broker": "Test Broker",
+                }
+            ]
+        },
     )
     db.add(atomic)
     await db.commit()
@@ -431,8 +441,18 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     test_user,
     portfolio_with_data,
 ):
-    """AC17.10.1 AC17.10.2: report schedule exposes metrics, rows, freshness, sources, and notes."""
+    """AC17.10.1 AC17.10.2 AC17.10.3: schedule exposes metrics, rows, freshness, sources, and notes."""
     position = portfolio_with_data["position"]
+    source_id = uuid4()
+    journal_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date.today() - timedelta(days=5),
+        memo="Realized investment sale",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(journal_entry)
+    await db.flush()
     dividend = DividendIncome(
         user_id=test_user.id,
         position_id=position.id,
@@ -454,6 +474,8 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
         cost_basis=Decimal("500.00"),
         realized_pnl=Decimal("149.00"),
         cost_basis_method=CostBasisMethod.FIFO,
+        journal_entry_id=journal_entry.id,
+        source_id=source_id,
     )
     db.add_all([dividend, sell])
     await db.commit()
@@ -482,10 +504,67 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     assert data["holdings"][0]["dividend_income"] == "42.50"
     assert data["allocation"]
     assert data["data_freshness"]["latest_price_date"] == as_of_date
-    assert "source_links" in data
+    assert set(data["source_links"]) >= {
+        "brokerage_statement:brokerage-doc-aapl",
+        f"investment_transaction_source:{source_id}",
+        f"journal_entry:{journal_entry.id}",
+        "report_section:investment_performance",
+    }
+    assert any(link.startswith("price_source:atomic_position:AAPL:") for link in data["source_links"])
     assert data["notes"]
     if data["time_weighted_return"] is None:
         assert any("TWR unavailable" in note for note in data["notes"])
+
+
+@pytest.mark.asyncio
+async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_stale(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+    portfolio_with_data,
+):
+    """AC17.10.4: freshness is stale when any holding lacks current as-of-date price evidence."""
+    stale_date = date.today() - timedelta(days=7)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="MSFT",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("2500.00"),
+        currency="SGD",
+        acquisition_date=stale_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=stale_date,
+        asset_identifier="MSFT",
+        broker="Stale Broker",
+        quantity=Decimal("10"),
+        market_value=Decimal("2700.00"),
+        currency="SGD",
+        sector="Technology",
+        geography="US",
+        asset_type="stock",
+        dedup_hash="msft_stale_snapshot",
+        source_documents=[{"doc_id": "brokerage-doc-msft", "doc_type": "brokerage_statement"}],
+    )
+    db.add_all([position, atomic])
+    await db.commit()
+
+    as_of_date = date.today().isoformat()
+    response = await client.get(
+        "/portfolio/performance/report-schedule"
+        f"?period_start={date.today().replace(month=1, day=1).isoformat()}"
+        f"&period_end={as_of_date}&as_of_date={as_of_date}&currency=SGD"
+    )
+
+    assert response.status_code == 200
+    freshness = response.json()["data_freshness"]
+    assert freshness["stale"] is True
+    assert freshness["stale_holdings"] == ["MSFT"]
 
 
 @pytest.mark.asyncio

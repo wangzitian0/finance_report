@@ -143,32 +143,10 @@ def test_AC8_13_72_dokploy_failure_log_is_redacted(
     assert "secret-key" not in err
 
 
-def test_AC8_13_71_cleanup_preview_resources_uses_exact_pr_metadata() -> None:
+def test_AC8_13_71_preview_compose_project_uses_safe_deterministic_name() -> None:
     lifecycle = lifecycle_module()
 
-    script = lifecycle.build_preview_cleanup_script(
-        pr_number=591,
-        compose_project="finance_report_pr_591",
-        dry_run=True,
-    )
-
-    assert "finance-report-(backend|frontend|db|minio)-pr-591" in script
-    assert "finance_report_pr_591_" in script
-    assert "docker volume prune" not in script
-    assert "docker system prune" not in script
-    assert "docker builder prune" not in script
-    assert "journalctl" not in script
-
-
-def test_AC8_13_71_cleanup_preview_resources_rejects_unsafe_project() -> None:
-    lifecycle = lifecycle_module()
-
-    with pytest.raises(ValueError, match="Unsafe compose project"):
-        lifecycle.build_preview_cleanup_script(
-            pr_number=591,
-            compose_project="finance_report_pr_591;docker volume rm all",
-            dry_run=True,
-        )
+    assert lifecycle.preview_compose_project(591) == "finance_report_pr_591"
 
 
 def test_AC8_13_71_create_compose_requires_compose_id(
@@ -193,7 +171,9 @@ def test_AC8_13_71_get_or_create_reuses_existing_compose(
 ) -> None:
     lifecycle = lifecycle_module()
 
-    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: "cmp-591")
+    monkeypatch.setattr(
+        lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: "cmp-591"
+    )
 
     compose_id = lifecycle.get_or_create_compose(
         lifecycle.DokployConfig("https://cloud.example/api", "secret"),
@@ -211,8 +191,12 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
 ) -> None:
     lifecycle = lifecycle_module()
 
-    monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *args, **kwargs: '{"ok":true}')
-    monkeypatch.setattr(lifecycle, "get_compose_env", lambda *args, **kwargs: "IMAGE_TAG=old")
+    monkeypatch.setattr(
+        lifecycle, "dokploy_api_call", lambda *args, **kwargs: '{"ok":true}'
+    )
+    monkeypatch.setattr(
+        lifecycle, "get_compose_env", lambda *args, **kwargs: "IMAGE_TAG=old"
+    )
 
     with pytest.raises(RuntimeError, match="effective environment"):
         lifecycle.update_compose_env(
@@ -228,13 +212,12 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
         )
 
 
-def test_AC8_13_71_cleanup_action_deletes_compose_and_volumes(
+def test_AC8_13_71_cleanup_action_deletes_compose_without_ssh(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
-    ssh_payloads: list[str | None] = []
 
     def fake_run_command(
         cmd: list[str],
@@ -243,7 +226,7 @@ def test_AC8_13_71_cleanup_action_deletes_compose_and_volumes(
         check: bool = True,
     ) -> subprocess.CompletedProcess[str]:
         calls.append(cmd)
-        ssh_payloads.append(input_text)
+        assert input_text is None
         if "environment.one" in " ".join(cmd):
             return subprocess.CompletedProcess(
                 cmd,
@@ -268,9 +251,6 @@ def test_AC8_13_71_cleanup_action_deletes_compose_and_volumes(
         registry="ghcr.io",
         image_prefix="owner/finance_report",
         internal_domain="zitian.party",
-        host="cloud.zitian.party",
-        user="root",
-        ssh_key="/tmp/key",
         dry_run=True,
     )
 
@@ -280,20 +260,21 @@ def test_AC8_13_71_cleanup_action_deletes_compose_and_volumes(
     assert "environment.one" in rendered_calls
     assert "compose.delete" in rendered_calls
     assert "compose.stop" not in rendered_calls
-    assert any(payload and "finance_report_pr_591_" in payload for payload in ssh_payloads)
+    assert "ssh" not in rendered_calls
     out = capsys.readouterr().out
     assert "Raw Dokploy response" not in out
     assert "secret-key" not in out
 
 
-def test_AC8_13_71_cleanup_action_still_removes_volumes_when_compose_missing(
+def test_AC8_13_71_cleanup_action_is_idempotent_when_compose_missing(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     lifecycle = lifecycle_module()
 
-    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: None)
-    monkeypatch.setattr(lifecycle, "cleanup_preview_volumes", lambda **kwargs: 0)
+    monkeypatch.setattr(
+        lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: None
+    )
     args = SimpleNamespace(
         action="cleanup",
         pr_number=591,
@@ -302,9 +283,6 @@ def test_AC8_13_71_cleanup_action_still_removes_volumes_when_compose_missing(
         environment_id="env-test",
         api_url="https://cloud.example/api",
         api_key="secret-key",
-        host="cloud.zitian.party",
-        user="root",
-        ssh_key="/tmp/key",
         dry_run=True,
     )
 
@@ -319,7 +297,9 @@ def test_AC8_13_71_delete_action_is_idempotent_when_compose_missing(
 ) -> None:
     lifecycle = lifecycle_module()
 
-    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: None
+    )
     args = SimpleNamespace(
         action="delete",
         pr_number=591,
@@ -361,9 +341,13 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
         calls.append(cmd)
         rendered = " ".join(cmd)
         if "environment.one" in rendered:
-            return subprocess.CompletedProcess(cmd, 0, stdout='{"compose":[]}', stderr="")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"compose":[]}', stderr=""
+            )
         if "compose.create" in rendered:
-            return subprocess.CompletedProcess(cmd, 0, stdout='{"composeId":"cmp-591"}', stderr="")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591"}', stderr=""
+            )
         if "compose.one" in rendered:
             return subprocess.CompletedProcess(
                 cmd,
@@ -413,8 +397,12 @@ def test_AC8_13_71_deploy_action_writes_github_output(
     output_path = tmp_path / "github-output.txt"
 
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
-    monkeypatch.setattr(lifecycle, "get_or_create_compose", lambda *args, **kwargs: "cmp-591")
-    monkeypatch.setattr(lifecycle, "update_compose_source", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        lifecycle, "get_or_create_compose", lambda *args, **kwargs: "cmp-591"
+    )
+    monkeypatch.setattr(
+        lifecycle, "update_compose_source", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(lifecycle, "update_compose_env", lambda *args, **kwargs: None)
     monkeypatch.setattr(lifecycle, "deploy_compose", lambda *args, **kwargs: None)
     args = SimpleNamespace(
@@ -436,21 +424,22 @@ def test_AC8_13_71_deploy_action_writes_github_output(
     assert output_path.read_text() == "compose_id=cmp-591\n"
 
 
-def test_AC8_13_74_reconcile_cleans_only_stale_closed_prs(
+def test_AC8_13_74_reconcile_deletes_only_stale_dokploy_composes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lifecycle = lifecycle_module()
     deleted: list[str] = []
-    cleaned: list[int] = []
 
     monkeypatch.setattr(lifecycle, "list_open_pr_numbers", lambda: {591})
-    monkeypatch.setattr(lifecycle, "list_remote_preview_prs", lambda host, user, ssh_key: {591, 592})
-    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: "cmp-592")
-    monkeypatch.setattr(lifecycle, "delete_compose", lambda config, *, compose_id: deleted.append(compose_id))
     monkeypatch.setattr(
         lifecycle,
-        "cleanup_preview_volumes",
-        lambda **kwargs: cleaned.append(kwargs["pr_number"]) or 0,
+        "list_preview_composes",
+        lambda config, environment_id: {591: "cmp-591", 592: "cmp-592"},
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "delete_compose",
+        lambda config, *, compose_id: deleted.append(compose_id),
     )
     args = SimpleNamespace(
         action="reconcile",
@@ -460,19 +449,15 @@ def test_AC8_13_74_reconcile_cleans_only_stale_closed_prs(
         environment_id="env-test",
         api_url="https://cloud.example/api",
         api_key="secret-key",
-        host="cloud.zitian.party",
-        user="root",
-        ssh_key="/tmp/key",
-        dry_run=True,
+        dry_run=False,
     )
 
     assert lifecycle.main_from_args(args) == 0
 
     assert deleted == ["cmp-592"]
-    assert cleaned == [592]
 
 
-def test_AC8_13_74_pr_number_listing_parsers_and_remote_commands(
+def test_AC8_13_74_pr_number_listing_and_dokploy_compose_parsers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lifecycle = lifecycle_module()
@@ -492,11 +477,36 @@ def test_AC8_13_74_pr_number_listing_parsers_and_remote_commands(
     monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
 
     assert lifecycle.list_open_pr_numbers() == {591, 592}
-    assert lifecycle.list_remote_preview_prs("cloud.zitian.party", "root", "/tmp/key") == {591, 592}
+    assert lifecycle.parse_preview_pr_from_compose_name("pr-591") == 591
+    assert lifecycle.parse_preview_pr_from_compose_name("not-pr-591") is None
 
     rendered = "\n".join(" ".join(call) for call in calls)
     assert "gh pr list" in rendered
-    assert "finance-report-[^-]*-pr-" in rendered
+
+
+def test_AC8_13_74_list_preview_composes_reads_dokploy_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(
+        lifecycle,
+        "dokploy_api_call",
+        lambda *args, **kwargs: json.dumps(
+            {
+                "compose": [
+                    {"name": "pr-591", "composeId": "cmp-591"},
+                    {"name": "pr-592", "composeId": "cmp-592"},
+                    {"name": "staging", "composeId": "cmp-staging"},
+                ]
+            }
+        ),
+    )
+
+    assert lifecycle.list_preview_composes(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        "env-test",
+    ) == {591: "cmp-591", 592: "cmp-592"}
 
 
 def test_AC8_13_71_main_rejects_unsupported_action() -> None:
@@ -515,6 +525,8 @@ def test_AC8_13_74_scheduled_cleanup_only_reconciles_closed_prs() -> None:
     assert "docker builder prune" not in workflow
     assert "docker image prune" not in workflow
     assert "journalctl" not in workflow
+    assert "VPS_SSH_KEY" not in workflow
+    assert "ssh-keyscan" not in workflow
 
 
 def test_AC8_13_71_pr_test_workflow_uses_lifecycle_for_delete() -> None:
@@ -532,3 +544,15 @@ def test_AC8_13_71_close_cleanup_checks_out_lifecycle_tool() -> None:
     assert cleanup_block.index("uses: actions/checkout@v4") < cleanup_block.index(
         "python tools/pr_preview_lifecycle.py"
     )
+    assert "VPS_SSH_KEY" not in cleanup_block
+    assert "ssh-keyscan" not in cleanup_block
+
+
+def test_AC8_13_74_close_cleanup_notice_does_not_claim_host_volume_cleanup() -> None:
+    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+
+    cleanup_block = workflow.split("  cleanup:", 1)[1]
+    assert "Docker Volumes" not in cleanup_block
+    assert "postgres_data, minio_data" not in cleanup_block
+    assert "Host Docker leftovers" in cleanup_block
+    assert "Dokploy host hygiene schedule" in cleanup_block

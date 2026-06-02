@@ -18,6 +18,7 @@ def test_AC8_13_38_legacy_cleanup_entrypoint_is_deprecated(
     assert "tools/cleanup_pr_preview_resources.py is deprecated" in err
     assert "tools/pr_preview_lifecycle.py --action reconcile" in err
     assert "tools/vps_host_hygiene.py" in err
+    assert "--ensure-dokploy-schedule" in err
     assert "no longer performs SSH cleanup" in err
 
 
@@ -44,6 +45,8 @@ def test_AC8_13_74_workflow_runs_lifecycle_reconciliation_only() -> None:
     assert "docker builder prune" not in workflow
     assert "docker image prune" not in workflow
     assert "journal-vacuum" not in workflow
+    assert "VPS_SSH_KEY" not in workflow
+    assert "ssh-keyscan" not in workflow
 
 
 def test_AC8_13_38_pr_preview_compose_caps_docker_json_logs() -> None:

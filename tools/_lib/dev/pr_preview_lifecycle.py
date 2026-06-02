@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from urllib.parse import quote
 
 ALLOWLIST_ENV_KEYS = (
     "IMAGE_TAG",
@@ -19,7 +20,6 @@ ALLOWLIST_ENV_KEYS = (
     "ENV_SUFFIX",
     "COMPOSE_PROFILES",
 )
-SAFE_COMPOSE_PROJECT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 @dataclass(frozen=True)
@@ -43,17 +43,6 @@ def run_command(
     )
 
 
-def ssh_command(
-    host: str, user: str, ssh_key: str | None, remote_command: str
-) -> list[str]:
-    cmd = ["ssh", "-o", "StrictHostKeyChecking=accept-new"]
-    if ssh_key:
-        cmd.extend(["-i", ssh_key])
-    cmd.append(f"{user}@{host}")
-    cmd.append(remote_command)
-    return cmd
-
-
 def parse_env(env_text: str) -> dict[str, str]:
     values: dict[str, str] = {}
     for line in env_text.splitlines():
@@ -70,7 +59,9 @@ def render_env(env: dict[str, str]) -> str:
 
 def allowlisted_env_matches(expected: dict[str, str], actual_env_text: str) -> bool:
     actual = parse_env(actual_env_text)
-    return all(expected.get(key, "") == actual.get(key, "") for key in ALLOWLIST_ENV_KEYS)
+    return all(
+        expected.get(key, "") == actual.get(key, "") for key in ALLOWLIST_ENV_KEYS
+    )
 
 
 def render_allowlisted_env_diff(expected: dict[str, str], actual_env_text: str) -> str:
@@ -320,7 +311,9 @@ def get_compose_env(config: DokployConfig, *, compose_id: str) -> str:
     return str(env) if env else ""
 
 
-def update_compose_env(config: DokployConfig, *, compose_id: str, env: dict[str, str]) -> None:
+def update_compose_env(
+    config: DokployConfig, *, compose_id: str, env: dict[str, str]
+) -> None:
     expected = {key: env[key] for key in ALLOWLIST_ENV_KEYS}
     dokploy_api_call(
         config,
@@ -331,7 +324,9 @@ def update_compose_env(config: DokployConfig, *, compose_id: str, env: dict[str,
     effective_env = get_compose_env(config, compose_id=compose_id)
     print(render_allowlisted_env_diff(expected, effective_env))
     if not allowlisted_env_matches(expected, effective_env):
-        raise RuntimeError("Dokploy effective environment did not match requested deploy env")
+        raise RuntimeError(
+            "Dokploy effective environment did not match requested deploy env"
+        )
     print(f"Environment variables configured for compose: {compose_id}")
 
 
@@ -353,61 +348,6 @@ def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
         payload={"composeId": compose_id},
     )
     print(f"Compose deleted: {compose_id}")
-
-
-def build_preview_cleanup_script(
-    *,
-    pr_number: int,
-    compose_project: str,
-    dry_run: bool,
-) -> str:
-    if not SAFE_COMPOSE_PROJECT_RE.match(compose_project):
-        raise ValueError(f"Unsafe compose project: {compose_project}")
-    mode = "echo [dry-run]" if dry_run else ""
-    return "\n".join(
-        [
-            "set -eu",
-            f"PR_NUMBER='{pr_number}'",
-            f"COMPOSE_PROJECT='{compose_project}'",
-            f'echo "Cleaning PR preview resources for #${{PR_NUMBER}}"',
-            (
-                'docker ps -a --format "{{.Names}}" | grep -E '
-                f'"^finance-report-(backend|frontend|db|minio)-pr-{pr_number}$" '
-                f"| xargs -r {mode} docker rm -f"
-            ),
-            (
-                f'docker volume ls --format "{{{{.Name}}}}" | grep -E "^{compose_project}_" '
-                f"| xargs -r {mode} docker volume rm"
-            ),
-            "",
-        ]
-    )
-
-
-def cleanup_preview_volumes(
-    *,
-    host: str,
-    user: str,
-    ssh_key: str | None,
-    pr_number: int,
-    compose_project: str,
-    dry_run: bool,
-) -> int:
-    script = build_preview_cleanup_script(
-        pr_number=pr_number,
-        compose_project=compose_project,
-        dry_run=dry_run,
-    )
-    result = run_command(
-        ssh_command(host, user, ssh_key, "sh -s"),
-        input_text=script,
-        check=False,
-    )
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
-    return result.returncode
 
 
 def deploy_action(args: argparse.Namespace) -> int:
@@ -455,14 +395,7 @@ def cleanup_action(args: argparse.Namespace) -> int:
         delete_compose(config, compose_id=compose_id)
     else:
         print(f"Compose not found: {args.compose_name}")
-    return cleanup_preview_volumes(
-        host=args.host,
-        user=args.user,
-        ssh_key=args.ssh_key,
-        pr_number=args.pr_number,
-        compose_project=preview_compose_project(args.pr_number),
-        dry_run=args.dry_run,
-    )
+    return 0
 
 
 def delete_action(args: argparse.Namespace) -> int:
@@ -502,44 +435,44 @@ def list_open_pr_numbers() -> set[int]:
     return parse_open_pr_numbers(result.stdout)
 
 
-def list_remote_preview_prs(host: str, user: str, ssh_key: str | None) -> set[int]:
-    result = run_command(
-        ssh_command(
-            host,
-            user,
-            ssh_key,
-            "docker ps -a --format '{{.Names}}' | sed -n 's/^finance-report-[^-]*-pr-\\([0-9][0-9]*\\)$/\\1/p' | sort -nu",
-        )
+def parse_preview_pr_from_compose_name(name: str) -> int | None:
+    match = re.fullmatch(r"pr-([1-9][0-9]*)", name)
+    return int(match.group(1)) if match else None
+
+
+def list_preview_composes(config: DokployConfig, environment_id: str) -> dict[int, str]:
+    body = dokploy_api_call(
+        config,
+        "GET",
+        f"environment.one?environmentId={quote(environment_id, safe='')}",
     )
-    return parse_open_pr_numbers(result.stdout)
+    data = json.loads(body or "{}")
+    previews: dict[int, str] = {}
+    for compose in data.get("compose", []):
+        name = str(compose.get("name") or "")
+        pr_number = parse_preview_pr_from_compose_name(name)
+        compose_id = compose.get("composeId")
+        if pr_number is not None and compose_id:
+            previews[pr_number] = str(compose_id)
+    return previews
 
 
 def reconcile_action(args: argparse.Namespace) -> int:
     open_prs = list_open_pr_numbers()
-    remote_prs = list_remote_preview_prs(args.host, args.user, args.ssh_key)
+    config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
+    preview_composes = list_preview_composes(config, args.environment_id)
+    remote_prs = set(preview_composes)
     stale_prs = sorted(remote_prs - open_prs)
     print(f"Open PRs: {sorted(open_prs)}")
-    print(f"Preview PRs on VPS: {sorted(remote_prs)}")
+    print(f"Preview PRs in Dokploy: {sorted(remote_prs)}")
     print(f"Stale preview PRs: {stale_prs}")
-    config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-    result_code = 0
     for pr_number in stale_prs:
-        compose_name = f"pr-{pr_number}"
-        compose_id = find_compose_id_by_name(config, args.environment_id, compose_name)
-        if compose_id:
+        compose_id = preview_composes[pr_number]
+        if args.dry_run:
+            print(f"[dry-run] Would delete compose for PR #{pr_number}: {compose_id}")
+        else:
             delete_compose(config, compose_id=compose_id)
-        result_code = max(
-            result_code,
-            cleanup_preview_volumes(
-                host=args.host,
-                user=args.user,
-                ssh_key=args.ssh_key,
-                pr_number=pr_number,
-                compose_project=preview_compose_project(pr_number),
-                dry_run=args.dry_run,
-            ),
-        )
-    return result_code
+    return 0
 
 
 def main_from_args(args: argparse.Namespace) -> int:
@@ -570,7 +503,9 @@ def normalize_dash_prefixed_values(argv: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = normalize_dash_prefixed_values(list(argv) if argv is not None else sys.argv[1:])
+    argv = normalize_dash_prefixed_values(
+        list(argv) if argv is not None else sys.argv[1:]
+    )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--action", choices=["deploy", "delete", "cleanup", "reconcile"], required=True
@@ -587,9 +522,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", default="ghcr.io")
     parser.add_argument("--image-prefix", default="")
     parser.add_argument("--internal-domain", default="zitian.party")
-    parser.add_argument("--host", default="cloud.zitian.party")
-    parser.add_argument("--user", default="root")
-    parser.add_argument("--ssh-key")
     parser.add_argument("--dry-run", action="store_true")
     return main_from_args(parser.parse_args(argv))
 

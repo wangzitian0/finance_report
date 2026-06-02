@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const COLD_ROUTE_TIMEOUT_MS = 10_000;
+
 const baseEntry = {
   id: "entry-mobile",
   entry_date: "2026-06-01",
@@ -23,6 +25,60 @@ const baseEntry = {
       currency: "SGD",
     },
   ],
+};
+
+const baseStatementReview = {
+  id: "stmt-mobile",
+  account_id: "account-mobile",
+  original_filename: "very-long-mobile-statement-name-june-2026.pdf",
+  institution: "Mobile Bank",
+  account_last4: "1234",
+  currency: "SGD",
+  period_start: "2026-06-01",
+  period_end: "2026-06-30",
+  opening_balance: "1000.00",
+  closing_balance: "1123.45",
+  status: "pending_review",
+  stage1_status: "pending_review",
+  balance_validation_result: {
+    opening_balance: "1000.00",
+    closing_balance: "1123.45",
+    calculated_closing: "1123.45",
+    opening_delta: "0.00",
+    closing_delta: "0.00",
+    opening_match: true,
+    closing_match: true,
+    validated_at: "2026-06-30T08:00:00Z",
+  },
+  pdf_url: null,
+  transactions: [
+    {
+      id: "txn-mobile-1",
+      txn_date: "2026-06-05",
+      description: "Long mobile grocery transaction from a bank statement",
+      amount: "123.45",
+      direction: "OUT",
+      currency: "SGD",
+      confidence: "medium",
+      confidence_tier: "medium",
+    },
+  ],
+};
+
+const baseStage2Queue = {
+  pending_matches: [
+    {
+      id: "match-mobile-1",
+      match_score: 91,
+      status: "pending_review",
+      created_at: "2026-06-01T08:00:00Z",
+      description: "Long reconciliation match needing mobile approval",
+      amount: "123.45",
+      txn_date: "2026-06-05",
+    },
+  ],
+  consistency_checks: [],
+  has_unresolved_checks: false,
 };
 
 async function installMobileApiMocks(page: Page) {
@@ -53,11 +109,28 @@ async function installMobileApiMocks(page: Page) {
     } else if (path.startsWith("/api/transactions/") && path.endsWith("/audit")) {
       body = { items: [] };
     } else if (path === "/api/statements/pending-review") {
-      body = { items: [], total: 0 };
+      body = { items: [{ id: "stmt-mobile" }], total: 1 };
+    } else if (path === "/api/statements/stmt-mobile/review") {
+      body = baseStatementReview;
+    } else if (path === "/api/statements/stmt-mobile/review/edit") {
+      body = { success: true };
+    } else if (path === "/api/statements/stmt-mobile/review/approve") {
+      body = { journal_entries_created: 1 };
+    } else if (path === "/api/statements/stmt-mobile/review/reject") {
+      body = { success: true };
     } else if (path === "/api/statements/stage2/queue") {
-      body = { pending_matches: [] };
+      body = baseStage2Queue;
+    } else if (path === "/api/statements/batch-approve-matches") {
+      body = { success: true, approved_count: 1 };
+    } else if (path === "/api/statements/batch-reject-matches") {
+      body = { success: true, rejected_count: 1 };
     } else if (path === "/api/accounts/processing/summary") {
-      body = { current_balance: "0.00", pending_total: "0.00" };
+      body = {
+        pending_count: 0,
+        pending_total: "0.00",
+        currency: "SGD",
+        oldest_pending_date: null,
+      };
     }
 
     await route.fulfill({
@@ -97,7 +170,7 @@ test.beforeEach(async ({ page }) => {
 
 test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async ({ page }) => {
   await gotoReady(page, "/review/ai-suggestions");
-  await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible();
+  await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
   await page.getByLabel("Open navigation menu").click();
   await expect(page.getByRole("dialog", { name: "Finance Report" })).toBeVisible();
@@ -106,7 +179,7 @@ test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async
 
   await gotoReady(page, "/journal");
   await page.getByText("Mobile review sample entry").click();
-  await expect(page.getByTestId("journal-lines-mobile")).toBeVisible();
+  await expect(page.getByTestId("journal-lines-mobile")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
 });
 
@@ -114,11 +187,72 @@ test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ p
   await gotoReady(page, "/review/ai-suggestions");
 
   const card = page.getByTestId("ai-suggestion-mobile-card-suggestion-mobile");
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expect(card.getByText("Long mobile transaction description")).toBeVisible();
   await expect(card.getByLabel("Corrected value")).toBeVisible();
   await expect(card.getByRole("button", { name: "Accept", exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Edit-then-Accept", exact: true })).toBeVisible();
   await expectNoDocumentHorizontalScroll(page);
+});
+
+test("AC16.26.1 stage 1 mobile review exposes editable transaction cards and completion actions", async ({ page }) => {
+  await gotoReady(page, "/statements/stmt-mobile/review");
+
+  await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+  await expect(page.getByLabel("Description for txn-mobile-1")).toBeVisible();
+  await expect(page.getByLabel("Amount for txn-mobile-1")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+
+  await page.getByLabel("Description for txn-mobile-1").fill("Edited mobile grocery transaction");
+  await expect(page.getByRole("button", { name: "Save Edits (1)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Discard" })).toBeVisible();
+  await expectNoDocumentHorizontalScroll(page);
+});
+
+test("AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch actions", async ({ page }) => {
+  await gotoReady(page, "/reconciliation/review-queue");
+
+  const card = page.getByTestId("stage2-mobile-match-card-match-mobile-1");
+  await expect(card).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+  await expect(card.getByText("Long reconciliation match needing mobile approval")).toBeVisible();
+  await card.getByRole("checkbox", { name: "Select match match-mobile-1" }).check();
+  await expect(page.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve Selected", exact: true })).toBeVisible();
+  await expectNoDocumentHorizontalScroll(page);
+});
+
+test("AC16.26.3 stage 2 run review preserves mobile approval gate and match workflow", async ({ page }) => {
+  await gotoReady(page, "/review/run/run-mobile-1");
+
+  await expect(page.getByText("Run approval gate")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
+  await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+  await expectNoDocumentHorizontalScroll(page);
+});
+
+test.describe("375px mobile review proof", () => {
+  test.use({
+    viewport: { width: 375, height: 812 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px", async ({ page }) => {
+    await gotoReady(page, "/statements/stmt-mobile/review");
+    await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+    await expectNoDocumentHorizontalScroll(page);
+
+    await gotoReady(page, "/reconciliation/review-queue");
+    await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(page.getByRole("button", { name: "Approve Selected", exact: true })).toBeVisible();
+    await expectNoDocumentHorizontalScroll(page);
+
+    await gotoReady(page, "/review/run/run-mobile-1");
+    await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
+    await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expectNoDocumentHorizontalScroll(page);
+  });
 });

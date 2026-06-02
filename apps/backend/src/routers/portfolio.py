@@ -11,6 +11,7 @@ from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
+from src.models.market_data import StockPrice
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType, MarketDataOverride
 from src.schemas.portfolio import (
     BrokerageImportRequest,
@@ -89,6 +90,10 @@ def _source_document_links(source_documents: object) -> list[str]:
             if doc_id:
                 links.append(f"{doc_type}:{doc_id}")
     return links
+
+
+def _freshness_link(asset_identifier: str, source_kind: str, source_id: object, evidence_date: date) -> str:
+    return f"price_source:{source_kind}:{asset_identifier}:{source_id}:{evidence_date.isoformat()}"
 
 
 @router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
@@ -455,7 +460,7 @@ async def get_investment_performance_report_schedule(
         .where(InvestmentTransaction.transaction_date <= period_end)
     )
     realized_by_asset: dict[str, Decimal] = {}
-    source_links: set[str] = set()
+    source_links: set[str] = {"report_section:investment_performance"}
     for txn in realized_result.scalars().all():
         realized_by_asset[txn.asset_identifier] = realized_by_asset.get(txn.asset_identifier, Decimal("0.00")) + (
             txn.realized_pnl or Decimal("0.00")
@@ -524,8 +529,9 @@ async def get_investment_performance_report_schedule(
         .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
     )
     atomics = list(latest_atomic_result.scalars().all())
-    latest_atomic = atomics[0] if atomics else None
+    latest_atomic_by_asset: dict[str, AtomicPosition] = {}
     for atomic in atomics:
+        latest_atomic_by_asset.setdefault(atomic.asset_identifier, atomic)
         for link in _source_document_links(atomic.source_documents):
             source_links.add(link)
 
@@ -535,12 +541,61 @@ async def get_investment_performance_report_schedule(
         .where(MarketDataOverride.price_date <= as_of_date)
         .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
     )
-    latest_override = latest_override_result.scalars().first()
+    overrides = list(latest_override_result.scalars().all())
+    latest_override = overrides[0] if overrides else None
+    latest_override_by_asset: dict[str, MarketDataOverride] = {}
+    for override in overrides:
+        latest_override_by_asset.setdefault(override.asset_identifier, override)
+
+    stock_prices: list[StockPrice] = []
+    if asset_identifiers:
+        stock_price_result = await db.execute(
+            select(StockPrice)
+            .where(StockPrice.symbol.in_(asset_identifiers))
+            .where(StockPrice.price_date <= as_of_date)
+            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
+        )
+        stock_prices = list(stock_price_result.scalars().all())
+    latest_stock_price_by_asset: dict[str, StockPrice] = {}
+    for stock_price in stock_prices:
+        latest_stock_price_by_asset.setdefault(stock_price.symbol, stock_price)
+
+    price_dates: list[date] = []
+    providers: set[str] = set()
+    stale_holdings: list[str] = []
+    for asset_identifier in asset_identifiers:
+        override = latest_override_by_asset.get(asset_identifier)
+        stock_price = latest_stock_price_by_asset.get(asset_identifier)
+        atomic = latest_atomic_by_asset.get(asset_identifier)
+
+        candidates: list[tuple[date, str, object, str | None]] = []
+        if override is not None:
+            candidates.append((override.price_date, "market_data_override", override.id, override.source.value))
+        if stock_price is not None:
+            candidates.append((stock_price.price_date, "stock_price", stock_price.id, stock_price.source))
+        if atomic is not None:
+            candidates.append((atomic.snapshot_date, "atomic_position", atomic.id, atomic.broker))
+
+        if not candidates:
+            stale_holdings.append(asset_identifier)
+            continue
+
+        evidence_date, source_kind, source_id, provider = max(candidates, key=lambda candidate: candidate[0])
+        price_dates.append(evidence_date)
+        source_links.add(_freshness_link(asset_identifier, source_kind, source_id, evidence_date))
+        if provider:
+            providers.add(provider)
+        if evidence_date < as_of_date:
+            stale_holdings.append(asset_identifier)
+
+    latest_price_date = max(price_dates) if price_dates else None
+    market_data_provider = ", ".join(sorted(providers)) if providers else None
 
     data_freshness = InvestmentPerformanceDataFreshness(
-        latest_price_date=latest_atomic.snapshot_date if latest_atomic else None,
-        market_data_provider=latest_atomic.broker if latest_atomic else None,
-        stale=latest_atomic is None or latest_atomic.snapshot_date < as_of_date,
+        latest_price_date=latest_price_date,
+        market_data_provider=market_data_provider,
+        stale=bool(stale_holdings),
+        stale_holdings=sorted(stale_holdings),
         manual_override_basis=(
             f"{latest_override.asset_identifier}:{latest_override.price_date.isoformat()}"
             if latest_override is not None

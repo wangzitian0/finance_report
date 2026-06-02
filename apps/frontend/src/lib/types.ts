@@ -397,6 +397,7 @@ export interface InvestmentPerformanceDataFreshness {
     latest_price_date: string | null;
     market_data_provider: string | null;
     stale: boolean;
+    stale_holdings: string[];
     manual_override_basis?: string | null;
 }
 

@@ -31,6 +31,7 @@ def test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract() -> N
         "holdings",
         "allocation",
         "data_freshness",
+        "stale_holdings",
         "source_links",
         "notes",
     ]:
