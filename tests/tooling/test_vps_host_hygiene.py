@@ -85,12 +85,40 @@ def test_AC8_13_73_hygiene_script_runs_real_prune_commands_without_credentials()
     assert 'docker network prune -f --filter "until=240h"' in script
     assert 'journalctl --vacuum-time="30d" --vacuum-size="512M"' in script
     assert ': > "$log_path"' in script
-    assert 'docker rm -f "$container_name"' in script
+    assert 'docker rm -f "$container_name" || true' in script
     assert 'docker rm -f "$non_preview_container" || true' in script
     assert 'docker volume rm "$volume_name" || true' in script
+    assert 'date -u -d "$created_at" +%s 2>/dev/null || echo 0' not in script
+    assert 'parse_utc_epoch "$created_at" || true' in script
+    assert "Skipping deletion because timestamp is missing or unparseable" in script
     assert "docker container prune" not in script
     assert "[dry-run]" not in script
     assert "GITHUB" not in script
+
+
+def test_AC8_13_73_hygiene_script_skips_unparseable_resource_timestamps() -> None:
+    hygiene = hygiene_module()
+
+    script = hygiene.build_hygiene_script(
+        dry_run=False,
+        container_prune_until="48h",
+        builder_prune_until="72h",
+        image_prune_until="240h",
+        network_prune_until="240h",
+        journal_vacuum_time="30d",
+        journal_vacuum_size="512M",
+        docker_log_truncate_size_mib=50,
+        disk_warning_percent=80,
+        disk_error_percent=90,
+        pr_preview_max_age_days=3,
+        pr_preview_keep_recent=3,
+    )
+
+    assert "parse_utc_epoch() {" in script
+    assert 'created_epoch="$(parse_utc_epoch "$created_at" || true)"' in script
+    assert 'if [ -z "$created_epoch" ]; then' in script
+    assert "return 1" in script
+    assert "continue" in script
 
 
 def test_AC8_13_73_hygiene_script_is_shell_parseable() -> None:
@@ -173,7 +201,25 @@ def test_AC8_13_73_dokploy_schedule_payload_is_server_job_with_retention() -> No
     assert payload["script"] == script
     assert "PR_PREVIEW_MAX_AGE_DAYS='3'" in str(payload["command"])
     assert "PR_PREVIEW_KEEP_RECENT='3'" in str(payload["command"])
+    assert "within 3 days" in str(payload["description"])
+    assert "most recent 3 PRs" in str(payload["description"])
     assert "VPS_SSH_KEY" not in json.dumps(payload)
+
+
+def test_AC8_13_73_dokploy_schedule_payload_describes_overridden_retention() -> None:
+    hygiene = hygiene_module()
+
+    payload = hygiene.build_schedule_payload(
+        server_id="srv-1",
+        script="echo clean",
+        pr_preview_max_age_days=7,
+        pr_preview_keep_recent=5,
+    )
+
+    assert "within 7 days" in str(payload["description"])
+    assert "most recent 5 PRs" in str(payload["description"])
+    assert "within 3 days" not in str(payload["description"])
+    assert "most recent 3 PRs" not in str(payload["description"])
 
 
 def test_AC8_13_73_ensure_schedule_updates_existing_named_job(monkeypatch) -> None:

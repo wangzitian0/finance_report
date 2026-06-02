@@ -546,3 +546,13 @@ def test_AC8_13_71_close_cleanup_checks_out_lifecycle_tool() -> None:
     )
     assert "VPS_SSH_KEY" not in cleanup_block
     assert "ssh-keyscan" not in cleanup_block
+
+
+def test_AC8_13_74_close_cleanup_notice_does_not_claim_host_volume_cleanup() -> None:
+    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+
+    cleanup_block = workflow.split("  cleanup:", 1)[1]
+    assert "Docker Volumes" not in cleanup_block
+    assert "postgres_data, minio_data" not in cleanup_block
+    assert "Host Docker leftovers" in cleanup_block
+    assert "Dokploy host hygiene schedule" in cleanup_block
