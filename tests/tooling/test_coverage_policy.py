@@ -45,6 +45,30 @@ def test_expected_sources_include_new_modules_by_default(tmp_path):
     assert component.expected_sources(tmp_path) == {"src/services/new_module.py"}
 
 
+def test_expected_sources_recursively_include_all_eligible_files_except_exclusions(tmp_path):
+    """AC8.13.15: Coverage scope is recursive and deny-list based."""
+    component = _component(
+        tmp_path,
+        exclude_patterns=(
+            "src/__init__.py",
+            "src/**/__init__.py",
+            "src/generated/**",
+        ),
+    )
+    _write(tmp_path, "apps/backend/src/domain/service.py")
+    _write(tmp_path, "apps/backend/src/domain/deep/worker.py")
+    _write(tmp_path, "apps/backend/src/presentation/page.py")
+    _write(tmp_path, "apps/backend/src/__init__.py")
+    _write(tmp_path, "apps/backend/src/domain/__init__.py")
+    _write(tmp_path, "apps/backend/src/generated/client.py")
+
+    assert component.expected_sources(tmp_path) == {
+        "src/domain/deep/worker.py",
+        "src/domain/service.py",
+        "src/presentation/page.py",
+    }
+
+
 def test_compare_component_fails_when_source_file_is_missing_from_lcov(tmp_path):
     """AC8.13.15: Tree-vs-LCOV audit catches modules missing from coverage reports."""
     component = _component(tmp_path)

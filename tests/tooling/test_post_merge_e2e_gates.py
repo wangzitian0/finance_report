@@ -914,6 +914,8 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     assert "file: coverage/coveralls-backend.lcov" in workflow
     assert "file: coverage/coveralls-frontend.lcov" in workflow
     assert "Coveralls upload LCOV files are line-only" in coverage
+    assert "Coveralls is not the merge gate" in coverage
+    assert "Coverage scope is deny-list based within each governed source root" in ci_cd
     assert "strip branch records before upload" in ci_cd
 
 

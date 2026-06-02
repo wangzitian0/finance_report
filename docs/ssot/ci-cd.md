@@ -45,6 +45,7 @@ changes (classify-changes) → backend-integration + backend-e2e-tier1 → backe
 9. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
 10. **Coverage Policy Audit**: `tools/check_coverage_policy.py` fails CI if backend, frontend, common, or tools source files drift from their LCOV report.
 11. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
+12. **Deny-list coverage scope**: Coverage scope is deny-list based within each governed source root. CI recursively expects every eligible source file in backend, frontend, common, and tools LCOV unless `common/coverage/policy.py` explicitly excludes it. New source roots fail the metrics contract until added to the policy and report pipeline.
 
 ### Stage Matrix and Left-Move Guidance
 
@@ -263,10 +264,11 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../project/DELIVERY_ENGINE_RECO
 
 ## Coverage Requirements
 
-- Backend line coverage: **≥ 90%** (enforced by `pytest-cov`)
-- Frontend line coverage: **≥ 99%** (enforced by `vitest`)
-- Unified coverage: **no-regression from `unified-coverage.json`** (currently 94.38% floor after AC8.13.15 policy unification)
-- Branch coverage: Required (via `--cov-branch`)
+- Backend default local/pre-push coverage: enforced by `apps/backend/pyproject.toml`.
+- Frontend local coverage: enforced by `apps/frontend/vitest.config.ts`.
+- PR/main unified coverage: **no regression from `unified-coverage.json`** across backend, frontend, common, and tools.
+- CI backend shards set `--cov-fail-under=0`; per-shard percentages are artifacts, while the merged unified job is the stable source of truth.
+- Branch coverage may be collected locally and by backend pytest, but the unified gate and Coveralls uploads are line-only.
 - See [coverage.md](./coverage.md) and [tdd.md](./tdd.md) for details
 
 ---

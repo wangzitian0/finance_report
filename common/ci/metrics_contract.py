@@ -224,6 +224,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "trivial placeholder assertions",
             "Coveralls uploads are reporting-only and do not block CI pass/fail",
             "coverage gate summary",
+            "Coverage scope is deny-list based within each governed source root",
             "strip branch records before upload",
             "PR CI dry-runs staging image builds before merge",
             "Main push CI is the only path that pushes SHA-tagged images",

@@ -141,6 +141,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "trivial placeholder assertions" in ci_cd
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "coverage gate summary" in ci_cd
+    assert "Coverage scope is deny-list based within each governed source root" in ci_cd
     assert "strip branch records before upload" in ci_cd
     assert "not behavioral coverage" in traceability
     assert "placeholder assertions" in traceability
@@ -288,6 +289,7 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
         "trivial placeholder assertions\n"
         "Coveralls uploads are reporting-only and do not block CI pass/fail\n"
         "coverage gate summary\n"
+        "Coverage scope is deny-list based within each governed source root\n"
         "New `apps/*/src`\n"
         "strip branch records before upload\n",
     )
