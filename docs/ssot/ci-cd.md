@@ -210,9 +210,10 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
 - PR preview environments do not inject `ZAI_API_KEY`; they validate app wiring without real GLM/OCR provider calls.
+- PR preview Dokploy API responses are captured in temporary files and parsed for required fields only. Workflows must not print raw Dokploy response JSON because compose responses can include environment data and refresh tokens.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - PR preview non-LLM E2E mirrors the staging non-LLM command shape: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, and `-n 4` parallelism. The provider-backed `llm` marker remains post-merge only.
-- PR preview cleanup has two paths: the PR `closed` event removes the Dokploy stack, volumes, and GHCR PR images; the scheduled `PR Preview Cleanup` fallback removes stale VPS preview containers/compose volumes for closed or missing PRs and prunes aged Docker build cache/images without touching open PR previews.
+- PR preview cleanup has two paths: the PR `closed` event removes the Dokploy stack, volumes, and GHCR PR images; the scheduled `PR Preview Cleanup` fallback removes stale VPS preview containers/compose volumes for closed or missing PRs and prunes aged Docker build cache/images without touching open PR previews. Both VPS cleanup paths require `VPS_SSH_KEY` and fail closed when it is missing, because skipped cleanup can leave stale volumes/build cache until the VPS runs out of disk.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 **Production release dry-run** (`.github/workflows/production-release.yml`):

@@ -127,16 +127,19 @@ jobs:
         id: check
         run: |
           # Try to find existing compose
+          response_file=$(mktemp)
           set +e
-          response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
+          curl -fsS --max-time 30 -o "$response_file" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}"
           curl_exit=$?
           set -e
 
           if [ $curl_exit -ne 0 ]; then
             echo "::warning::Failed to fetch environment (curl exit $curl_exit). Assuming compose doesn't exist."
-            echo "Response: $response"
             response='{"compose":[]}'
+          else
+            response=$(cat "$response_file")
           fi
 
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
@@ -157,16 +160,23 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           # Create new compose
-          response=$(curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.create" \
+          payload=$(jq -n \
+            --arg name "${{ needs.setup.outputs.compose_name }}" \
+            --arg description "PR #${{ needs.setup.outputs.pr_number }}: $PR_TITLE" \
+            --arg environment_id "${{ env.TEST_ENV_ID }}" \
+            '{name: $name, description: $description, environmentId: $environment_id}')
+          create_response=$(mktemp)
+          curl -fsS --max-time 30 -o "$create_response" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.create" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{
-              \"name\": \"${{ needs.setup.outputs.compose_name }}\",
-              \"description\": \"PR #${{ needs.setup.outputs.pr_number }}: $PR_TITLE\",
-              \"environmentId\": \"${{ env.TEST_ENV_ID }}\"
-            }")
+            -d "$payload"
 
-          compose_id=$(echo "$response" | jq -r '.composeId')
+          compose_id=$(jq -r '.composeId // empty' "$create_response")
+          if [ -z "$compose_id" ]; then
+            echo "::error::Dokploy compose.create response did not include composeId"
+            exit 1
+          fi
           echo "compose_id=$compose_id" >> "$GITHUB_OUTPUT"
           echo "Created compose: $compose_id"
 
@@ -197,10 +207,14 @@ jobs:
               githubId: "${{ env.GITHUB_INTEGRATION_ID }}"
             }')
 
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          source_update_response=$(mktemp)
+          curl -fsS --max-time 30 -o "$source_update_response" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$PAYLOAD"
+          jq -e '.' "$source_update_response" >/dev/null
+          echo "GitHub source configured for compose: $COMPOSE_ID"
 
       - name: Configure environment variables
         run: |
@@ -278,12 +292,15 @@ jobs:
           # Use --arg properly without extra escaping that breaks shell/jq boundary
           PAYLOAD=$(jq -n --arg id "$COMPOSE_ID" --arg env "$ENV_CONTENT" '{composeId: $id, env: $env}')
 
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
+          env_update_response=$(mktemp)
+          curl -fsS --max-time 30 -o "$env_update_response" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.update" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
             -d "$PAYLOAD"
+          jq -e '.' "$env_update_response" >/dev/null
 
-          echo "Environment variables configured"
+          echo "Environment variables configured for compose: $COMPOSE_ID"
 
       - name: Deploy compose
         id: deploy
@@ -296,12 +313,19 @@ jobs:
 
           # Stop existing compose (best-effort, log but don't fail)
           echo "Stopping existing compose..."
-          STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          stop_response=$(mktemp)
+          set +e
+          STOP_HTTP=$(curl -sS --max-time 30 -o "$stop_response" -w "%{http_code}" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>/dev/null)
+          stop_exit=$?
+          set -e
+          if [ $stop_exit -ne 0 ]; then
+            STOP_HTTP="000"
+          fi
 
-          STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
           if [[ "$STOP_HTTP" != "200" && "$STOP_HTTP" != "000" ]]; then
             echo "::warning::compose.stop returned HTTP $STOP_HTTP (may be expected if already stopped)"
           fi
@@ -313,10 +337,13 @@ jobs:
           echo "Deploy trigger time: $TRIGGER_TIME"
 
 
-          curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
+          deploy_response=$(mktemp)
+          curl -fsS --max-time 60 -o "$deploy_response" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -d "{\"composeId\": \"$COMPOSE_ID\"}"
+          jq -e '.' "$deploy_response" >/dev/null
 
           echo "Deployment triggered, waiting 10s for status to update..."
           sleep 10
@@ -332,9 +359,11 @@ jobs:
           LAST_STATUS=""
           LAST_DEPLOY_STATUS=""
           for i in $(seq 1 120); do
+            response_file=$(mktemp)
             set +e
-            response=$(curl -sf -H "x-api-key: $DOKPLOY_API_KEY" \
-              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID" 2>&1)
+            curl -fsS --max-time 30 -o "$response_file" \
+              -H "x-api-key: $DOKPLOY_API_KEY" \
+              "${{ env.DOKPLOY_API_URL }}/compose.one?composeId=$COMPOSE_ID"
             curl_exit=$?
             set -e
             if [ $curl_exit -ne 0 ]; then
@@ -342,6 +371,7 @@ jobs:
               sleep 5
               continue
             fi
+            response=$(cat "$response_file")
             status=$(echo "$response" | jq -r '.composeStatus // "unknown"')
             LAST_STATUS="$status"
             latest_deploy=$(echo "$response" | jq -r '[.deployments[] // {}] | sort_by(.startedAt) | last // {}')
@@ -447,17 +477,23 @@ jobs:
           echo "::warning::E2E tests failed. Stopping compose to prevent broken deployment..."
 
           # Best-effort stop, log result but don't fail the job
-          STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+          stop_response=$(mktemp)
+          set +e
+          STOP_HTTP=$(curl -sS --max-time 30 -o "$stop_response" -w "%{http_code}" \
+            -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
             -H "Content-Type: application/json" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
-            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>&1) || true
+            -d "{\"composeId\": \"$COMPOSE_ID\"}" 2>/dev/null)
+          stop_exit=$?
+          set -e
+          if [ $stop_exit -ne 0 ]; then
+            STOP_HTTP="000"
+          fi
 
-          STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
           if [[ "$STOP_HTTP" == "200" ]]; then
             echo "✅ Compose stopped successfully"
           else
             echo "::warning::compose.stop returned HTTP $STOP_HTTP"
-            echo "Response: $(echo "$STOP_RESPONSE" | head -n -1)"
           fi
 
           echo "Check logs for E2E failure details."
@@ -529,15 +565,19 @@ jobs:
           echo "Looking for compose: ${{ needs.setup.outputs.compose_name }}"
 
           # Get environment to find compose
+          response_file=$(mktemp)
           set +e
-          response=$(curl -sf -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}" 2>&1)
+          curl -fsS --max-time 30 -o "$response_file" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${{ env.DOKPLOY_API_URL }}/environment.one?environmentId=${{ env.TEST_ENV_ID }}"
           curl_exit=$?
           set -e
 
           if [ $curl_exit -ne 0 ]; then
-            echo "::warning::Failed to fetch environment (curl exit $curl_exit). Response: $response"
+            echo "::warning::Failed to fetch environment (curl exit $curl_exit). Assuming compose doesn't exist."
             response='{"compose":[]}'
+          else
+            response=$(cat "$response_file")
           fi
 
           compose_id=$(echo "$response" | jq -r --arg name "${{ needs.setup.outputs.compose_name }}" '.compose[] | select(.name == $name) | .composeId' | head -1)
@@ -547,12 +587,19 @@ jobs:
 
             # Stop compose (best-effort with logging)
             echo "Stopping compose..."
-            STOP_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
+            stop_response=$(mktemp)
+            set +e
+            STOP_HTTP=$(curl -sS --max-time 30 -o "$stop_response" -w "%{http_code}" \
+              -X POST "${{ env.DOKPLOY_API_URL }}/compose.stop" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-              -d "{\"composeId\": \"$compose_id\"}" 2>&1) || true
+              -d "{\"composeId\": \"$compose_id\"}" 2>/dev/null)
+            stop_exit=$?
+            set -e
+            if [ $stop_exit -ne 0 ]; then
+              STOP_HTTP="000"
+            fi
 
-            STOP_HTTP=$(echo "$STOP_RESPONSE" | tail -1)
             if [[ "$STOP_HTTP" != "200" ]]; then
               echo "::warning::compose.stop returned HTTP $STOP_HTTP (continuing with deletion)"
             fi
@@ -560,10 +607,13 @@ jobs:
             sleep 15
 
             # Delete compose (removes containers but may leave volumes)
-            curl -sf -X POST "${{ env.DOKPLOY_API_URL }}/compose.delete" \
+            delete_response=$(mktemp)
+            curl -fsS --max-time 30 -o "$delete_response" \
+              -X POST "${{ env.DOKPLOY_API_URL }}/compose.delete" \
               -H "Content-Type: application/json" \
               -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
               -d "{\"composeId\": \"$compose_id\"}"
+            jq -e '.' "$delete_response" >/dev/null
 
             echo "Compose deleted"
           else
@@ -577,11 +627,10 @@ jobs:
         run: |
           echo "🧹 Cleaning Docker volumes for PR #$PR_NUMBER..."
 
-          # Use GitHub's built-in SSH key if available, or skip volume cleanup
+          # Volume cleanup is required to prevent stale PR previews from filling the VPS.
           if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
-            echo "::warning::VPS_SSH_KEY not configured. Skipping volume cleanup."
-            echo "Volumes will be cleaned by scheduled system prune."
-            exit 0
+            echo "::error::VPS_SSH_KEY is required for PR preview volume cleanup."
+            exit 1
           fi
 
           # Setup SSH key
