@@ -141,11 +141,8 @@ async def _auto_create_posted_entries_for_statement(
     db: DbSession,
     statement: BankStatement,
     user_id: UUID,
+    statement_transactions: list[BankStatementTransaction],
 ) -> int:
-    txn_result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.statement_id == statement.id)
-    )
-    statement_transactions = list(txn_result.scalars().all())
     txn_ids = [txn.id for txn in statement_transactions]
     if not txn_ids:
         return 0
@@ -221,13 +218,10 @@ async def _resolve_statement_posting_account(
 async def _assert_no_unresolved_checks_for_statement(
     db: DbSession,
     user_id: UUID,
-    statement: BankStatement,
+    statement_transactions: list[BankStatementTransaction],
 ) -> None:
     """Ensure statement-related unresolved checks are resolved before Stage 1 approval."""
-    txn_result = await db.execute(
-        select(BankStatementTransaction.id).where(BankStatementTransaction.statement_id == statement.id)
-    )
-    txn_ids = {str(txn_id) for txn_id in txn_result.scalars().all()}
+    txn_ids = {str(txn.id) for txn in statement_transactions}
     if not txn_ids:
         return
 
@@ -240,6 +234,20 @@ async def _assert_no_unresolved_checks_for_statement(
     )
     if pending_checks_result.scalar_one_or_none():
         raise ValueError("Cannot approve statement while there are unresolved consistency checks for this statement.")
+
+
+async def _prepare_stage1_posting_context(
+    db: DbSession,
+    user_id: UUID,
+    statement: BankStatement,
+) -> list[BankStatementTransaction]:
+    """Load transactions and enforce Stage 1 approval guards shared by approval paths."""
+    txn_result = await db.execute(
+        select(BankStatementTransaction).where(BankStatementTransaction.statement_id == statement.id)
+    )
+    statement_transactions = list(txn_result.scalars().all())
+    await _assert_no_unresolved_checks_for_statement(db, user_id, statement_transactions)
+    return statement_transactions
 
 
 async def _create_statement_account_from_confirmation(
@@ -918,10 +926,10 @@ async def approve_statement_stage1(
     """Stage 1: Approve statement with balance validation."""
     try:
         statement = await approve_statement_svc(db, statement_id, user_id)
-        await _assert_no_unresolved_checks_for_statement(db, user_id, statement)
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
-        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id)
+        statement_transactions = await _prepare_stage1_posting_context(db, user_id, statement)
+        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id, statement_transactions)
         await db.commit()
     except ValueError as e:
         await db.rollback()
@@ -977,8 +985,8 @@ async def edit_and_approve_statement(
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-        await _assert_no_unresolved_checks_for_statement(db, user_id, statement)
-        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id)
+        statement_transactions = await _prepare_stage1_posting_context(db, user_id, statement)
+        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id, statement_transactions)
         await db.commit()
     except ValueError as e:
         await db.rollback()

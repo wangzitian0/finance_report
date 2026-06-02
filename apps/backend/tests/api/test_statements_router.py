@@ -1539,7 +1539,7 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     assert all(any(line.account_id == bank_account_id for line in entry.lines) for entry in entries)
 
 
-async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
+async def test_approve_statement_stage1_requires_explicit_mapping_despite_prior_confirmed_account(db, test_user):
     """AC3.6.1: Unique prior mapping no longer auto applies; explicit mapping is required."""
     user_id = test_user.id
     bank_account = Account(

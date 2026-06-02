@@ -162,7 +162,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 ### AC3.6: Statement-Account Mapping Hardening
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.6.1 | Prior statement metadata is advisory only; Stage 1 posting requires explicit account mapping | `test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
+| AC3.6.1 | Prior statement metadata is advisory only; Stage 1 posting requires explicit account mapping | `test_approve_statement_stage1_requires_explicit_mapping_despite_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
 | AC3.6.2 | No Silent Fallback Posting | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
 | AC3.6.3 | Ambiguous Mapping Blocked | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
 | AC3.6.4 | Explicit First-Upload Account Creation | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
