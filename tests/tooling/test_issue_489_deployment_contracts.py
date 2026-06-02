@@ -265,6 +265,7 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
     assert "name: Deploy Test Environment" in workflow
+    assert "python tools/pr_preview_lifecycle.py" in workflow
     preview_env = lifecycle.build_preview_env(
         pr_number=489,
         commit_sha="abc123",
