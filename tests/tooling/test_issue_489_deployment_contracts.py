@@ -281,6 +281,13 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
         "docker-compose.yml"
     )
     assert "Wait for API readiness" in workflow
+    readiness_block = workflow.split("- name: Wait for API readiness", 1)[1].split(
+        "- name: Setup E2E Tests", 1
+    )[0]
+    assert "EXPECTED_SHA: ${{ github.sha }}" in readiness_block
+    assert 'expected_sha = os.environ["EXPECTED_SHA"]' in readiness_block
+    assert 'payload.get("git_sha") or payload.get("version")' in readiness_block
+    assert "Existing deployment is still serving; waiting for rollout" in readiness_block
     assert 'url = os.environ["APP_URL"] + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow

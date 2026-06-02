@@ -146,8 +146,10 @@ jobs:
       - name: Wait for API readiness
         env:
           APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           python3 - << 'EOF'
+          import json
           import urllib.request
           import ssl
           import time
@@ -155,7 +157,9 @@ jobs:
           import sys
 
           url = os.environ["APP_URL"] + "/api/health"
+          expected_sha = os.environ["EXPECTED_SHA"]
           print(f"Waiting for API readiness at {url}")
+          print(f"Expecting deployed git_sha={expected_sha}")
 
           ctx = ssl.create_default_context()
           ctx.check_hostname = False
@@ -167,16 +171,26 @@ jobs:
               try:
                   with urllib.request.urlopen(url, timeout=15, context=ctx) as response:
                       if 200 <= response.getcode() < 400:
-                          print(f"✅ API ready (status {response.getcode()})")
-                          sys.exit(0)
-                      print(f"⚠️ Attempt {attempt}/{max_attempts}: status {response.getcode()}")
+                          payload = json.loads(response.read().decode("utf-8"))
+                          actual_sha = payload.get("git_sha") or payload.get("version")
+                          if actual_sha == expected_sha:
+                              print(f"✅ API ready with expected git_sha {actual_sha}")
+                              sys.exit(0)
+                          print(
+                              f"⚠️ Attempt {attempt}/{max_attempts}: "
+                              f"status {response.getcode()}, git_sha={actual_sha}, "
+                              f"expected={expected_sha}"
+                          )
+                          print("   Existing deployment is still serving; waiting for rollout...")
+                      else:
+                          print(f"⚠️ Attempt {attempt}/{max_attempts}: status {response.getcode()}")
               except Exception as e:
                   print(f"❌ Attempt {attempt}/{max_attempts}: {type(e).__name__}: {e}")
 
               print(f"   Retrying in {delay}s...")
               time.sleep(delay)
 
-          print("::error::API not ready after all attempts")
+          print("::error::API not ready with expected git_sha after all attempts")
           sys.exit(1)
           EOF
 
