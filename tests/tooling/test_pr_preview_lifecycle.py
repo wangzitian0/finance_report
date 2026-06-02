@@ -52,6 +52,16 @@ def test_AC8_13_71_dash_prefixed_environment_id_is_accepted() -> None:
     assert "-fzh5EGJN74I1AjNEpVUr" not in argv
 
 
+def test_AC8_13_71_env_parser_ignores_comments_and_blank_lines() -> None:
+    lifecycle = lifecycle_module()
+
+    parsed = lifecycle.parse_env(
+        "\n# comment\n IMAGE_TAG = pr-591 \ninvalid-line\nGIT_COMMIT_SHA=abc123\n"
+    )
+
+    assert parsed == {"IMAGE_TAG": " pr-591 ", "GIT_COMMIT_SHA": "abc123"}
+
+
 def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
     lifecycle = lifecycle_module()
 
@@ -85,6 +95,44 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
     assert "DATABASE_URL" not in diff
 
 
+def test_AC8_13_72_dokploy_failure_log_is_redacted(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout='{"message":"failed","refreshToken":"secret-refresh"}\n500',
+            stderr="curl stderr without secret",
+        )
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+
+    with pytest.raises(RuntimeError, match="compose.update"):
+        lifecycle.dokploy_api_call(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
+            "POST",
+            "compose.update",
+            payload={"composeId": "cmp-1"},
+        )
+
+    err = capsys.readouterr().err
+    assert "endpoint=compose.update" in err
+    assert "http_code: 500" in err
+    assert "safe_message: failed" in err
+    assert "raw_body_printed: false" in err
+    assert "secret-refresh" not in err
+    assert "secret-key" not in err
+
+
 def test_AC8_13_71_cleanup_preview_resources_uses_exact_pr_metadata() -> None:
     lifecycle = lifecycle_module()
 
@@ -100,6 +148,74 @@ def test_AC8_13_71_cleanup_preview_resources_uses_exact_pr_metadata() -> None:
     assert "docker system prune" not in script
     assert "docker builder prune" not in script
     assert "journalctl" not in script
+
+
+def test_AC8_13_71_cleanup_preview_resources_rejects_unsafe_project() -> None:
+    lifecycle = lifecycle_module()
+
+    with pytest.raises(ValueError, match="Unsafe compose project"):
+        lifecycle.build_preview_cleanup_script(
+            pr_number=591,
+            compose_project="finance_report_pr_591;docker volume rm all",
+            dry_run=True,
+        )
+
+
+def test_AC8_13_71_create_compose_requires_compose_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *args, **kwargs: "{}")
+
+    with pytest.raises(RuntimeError, match="composeId"):
+        lifecycle.create_compose(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            environment_id="env-test",
+            compose_name="pr-591",
+            pr_number=591,
+        )
+
+
+def test_AC8_13_71_get_or_create_reuses_existing_compose(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: "cmp-591")
+
+    compose_id = lifecycle.get_or_create_compose(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        environment_id="env-test",
+        compose_name="pr-591",
+        pr_number=591,
+    )
+
+    assert compose_id == "cmp-591"
+    assert "Found existing compose: cmp-591" in capsys.readouterr().out
+
+
+def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *args, **kwargs: '{"ok":true}')
+    monkeypatch.setattr(lifecycle, "get_compose_env", lambda *args, **kwargs: "IMAGE_TAG=old")
+
+    with pytest.raises(RuntimeError, match="effective environment"):
+        lifecycle.update_compose_env(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            compose_id="cmp-591",
+            env={
+                "IMAGE_TAG": "pr-591",
+                "GIT_COMMIT_SHA": "abc123",
+                "IAC_CONFIG_HASH": "pr-591-abc123",
+                "ENV_SUFFIX": "-pr-591",
+                "COMPOSE_PROFILES": "infra,app",
+            },
+        )
 
 
 def test_AC8_13_71_cleanup_action_deletes_compose_and_volumes(
@@ -158,6 +274,55 @@ def test_AC8_13_71_cleanup_action_deletes_compose_and_volumes(
     out = capsys.readouterr().out
     assert "Raw Dokploy response" not in out
     assert "secret-key" not in out
+
+
+def test_AC8_13_71_cleanup_action_still_removes_volumes_when_compose_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: None)
+    monkeypatch.setattr(lifecycle, "cleanup_preview_volumes", lambda **kwargs: 0)
+    args = SimpleNamespace(
+        action="cleanup",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        host="cloud.zitian.party",
+        user="root",
+        ssh_key="/tmp/key",
+        dry_run=True,
+    )
+
+    assert lifecycle.cleanup_action(args) == 0
+
+    assert "Compose not found: pr-591" in capsys.readouterr().out
+
+
+def test_AC8_13_71_delete_action_is_idempotent_when_compose_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: None)
+    args = SimpleNamespace(
+        action="delete",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    assert "Compose not found: pr-591" in capsys.readouterr().out
 
 
 def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
@@ -228,6 +393,107 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "secret-key" not in rendered_calls
     assert "VAULT_APP_TOKEN" not in rendered_calls
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
+
+
+def test_AC8_13_71_deploy_action_writes_github_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lifecycle = lifecycle_module()
+    output_path = tmp_path / "github-output.txt"
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(lifecycle, "get_or_create_compose", lambda *args, **kwargs: "cmp-591")
+    monkeypatch.setattr(lifecycle, "update_compose_source", lambda *args, **kwargs: None)
+    monkeypatch.setattr(lifecycle, "update_compose_env", lambda *args, **kwargs: None)
+    monkeypatch.setattr(lifecycle, "deploy_compose", lambda *args, **kwargs: None)
+    args = SimpleNamespace(
+        pr_number=591,
+        compose_name="pr-591",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+    )
+
+    assert lifecycle.deploy_action(args) == 0
+
+    assert output_path.read_text() == "compose_id=cmp-591\n"
+
+
+def test_AC8_13_74_reconcile_cleans_only_stale_closed_prs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+    deleted: list[str] = []
+    cleaned: list[int] = []
+
+    monkeypatch.setattr(lifecycle, "list_open_pr_numbers", lambda: {591})
+    monkeypatch.setattr(lifecycle, "list_remote_preview_prs", lambda host, user, ssh_key: {591, 592})
+    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: "cmp-592")
+    monkeypatch.setattr(lifecycle, "delete_compose", lambda config, *, compose_id: deleted.append(compose_id))
+    monkeypatch.setattr(
+        lifecycle,
+        "cleanup_preview_volumes",
+        lambda **kwargs: cleaned.append(kwargs["pr_number"]) or 0,
+    )
+    args = SimpleNamespace(
+        action="reconcile",
+        pr_number=0,
+        compose_name="",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        host="cloud.zitian.party",
+        user="root",
+        ssh_key="/tmp/key",
+        dry_run=True,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    assert deleted == ["cmp-592"]
+    assert cleaned == [592]
+
+
+def test_AC8_13_74_pr_number_listing_parsers_and_remote_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+    calls: list[list[str]] = []
+
+    assert lifecycle.parse_open_pr_numbers("591\n\n592\n") == {591, 592}
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="591\n592\n", stderr="")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+
+    assert lifecycle.list_open_pr_numbers() == {591, 592}
+    assert lifecycle.list_remote_preview_prs("cloud.zitian.party", "root", "/tmp/key") == {591, 592}
+
+    rendered = "\n".join(" ".join(call) for call in calls)
+    assert "gh pr list" in rendered
+    assert "finance-report-[^-]*-pr-" in rendered
+
+
+def test_AC8_13_71_main_rejects_unsupported_action() -> None:
+    lifecycle = lifecycle_module()
+
+    with pytest.raises(ValueError, match="Unsupported action"):
+        lifecycle.main_from_args(SimpleNamespace(action="unsupported"))
 
 
 def test_AC8_13_74_scheduled_cleanup_only_reconciles_closed_prs() -> None:

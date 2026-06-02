@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,6 +42,54 @@ def test_AC8_13_73_hygiene_script_prunes_generic_host_garbage() -> None:
     assert "DOKPLOY" not in script
     assert "GITHUB" not in script
     assert "VPS_SSH_KEY" not in script
+
+
+def test_AC8_13_73_hygiene_script_runs_real_prune_commands_without_credentials() -> None:
+    hygiene = hygiene_module()
+
+    script = hygiene.build_hygiene_script(
+        dry_run=False,
+        container_prune_until="48h",
+        builder_prune_until="72h",
+        image_prune_until="240h",
+        network_prune_until="240h",
+        journal_vacuum_time="30d",
+        journal_vacuum_size="512M",
+        docker_log_truncate_size_mib=50,
+        disk_warning_percent=80,
+        disk_error_percent=90,
+    )
+
+    assert 'docker container prune -f --filter "until=48h"' in script
+    assert 'docker builder prune -af --filter "until=72h"' in script
+    assert 'docker image prune -af --filter "until=240h"' in script
+    assert 'docker network prune -f --filter "until=240h"' in script
+    assert 'journalctl --vacuum-time="30d" --vacuum-size="512M"' in script
+    assert ': > "$log_path"' in script
+    assert "[dry-run]" not in script
+    assert "DOKPLOY" not in script
+    assert "GITHUB" not in script
+
+
+def test_AC8_13_73_hygiene_main_streams_output_and_returns_command_status(
+    monkeypatch,
+    capsys,
+) -> None:
+    hygiene = hygiene_module()
+    captured_scripts: list[str | None] = []
+
+    def fake_run_command(cmd, *, input_text=None, check=True):
+        captured_scripts.append(input_text)
+        return subprocess.CompletedProcess(cmd, 7, stdout="out\n", stderr="err\n")
+
+    monkeypatch.setattr(hygiene, "run_command", fake_run_command)
+
+    assert hygiene.main(["--dry-run", "--disk-error-percent", "99"]) == 7
+
+    captured = capsys.readouterr()
+    assert "out\n" in captured.out
+    assert "err\n" in captured.err
+    assert captured_scripts and "DISK_ERROR_PERCENT='99'" in captured_scripts[0]
 
 
 def test_AC8_13_73_systemd_timer_installs_local_hygiene_only() -> None:
