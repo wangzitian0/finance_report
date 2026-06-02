@@ -56,6 +56,7 @@ describe("TransactionTable key handlers", () => {
 
         const select = screen.getByDisplayValue("OUT");
         fireEvent.focus(select);
+        fireEvent.keyDown(select, { key: "Enter" });
 
         // blur the combined editor wrapper to close
         const wrapper = select.closest("div") as HTMLDivElement;

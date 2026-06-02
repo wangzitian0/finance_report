@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue"
 import { apiFetch } from "@/lib/api"
@@ -21,6 +21,7 @@ vi.mock("next/navigation", () => ({
 }))
 
 const mockedApiFetch = vi.mocked(apiFetch)
+const originalMatchMedia = window.matchMedia
 
 const pendingMatch = {
   id: "m1",
@@ -81,6 +82,19 @@ function queue(overrides: Partial<{
   }
 }
 
+function mockMobileViewport() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  })
+}
+
 describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
@@ -88,6 +102,86 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.searchParams = new URLSearchParams()
     navState.replace.mockReset()
     navState.push.mockReset()
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: originalMatchMedia,
+    })
+  })
+
+  it("AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions", async () => {
+    mockMobileViewport()
+
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/stage2/queue") {
+        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
+      }
+      if (path.startsWith("/api/statements/consistency-checks/list")) {
+        return Promise.resolve({ items: [] } as never)
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    renderReviewComponent(<Stage2ReviewQueue />)
+
+    const card = await screen.findByTestId("stage2-mobile-match-card-m1")
+    expect(within(card).getByText("Salary transfer")).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole("checkbox", { name: "Select match m1" }))
+
+    await waitFor(() => expect(screen.getByText("1 selected")).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Approve Selected" })).toBeEnabled()
+  })
+
+  it("AC16.26.3 mobile run review preserves approval gate and pending match workflow", async () => {
+    mockMobileViewport()
+    navState.pathname = "/review/run/mobile-run"
+
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/stage2/queue") {
+        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
+      }
+      if (path === "/api/accounts/processing/summary") {
+        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
+      }
+      if (path.startsWith("/api/statements/consistency-checks/list")) {
+        return Promise.resolve({ items: [] } as never)
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    renderReviewComponent(<Stage2ReviewQueue />)
+
+    expect(await screen.findByText("Run approval gate")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Approve Run" })).toBeEnabled()
+    expect(await screen.findByTestId("stage2-mobile-match-card-m1")).toBeInTheDocument()
+  })
+
+  it("keeps the desktop pending-match table when matchMedia is unavailable", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    })
+
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/statements/stage2/queue") {
+        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
+      }
+      if (path.startsWith("/api/statements/consistency-checks/list")) {
+        return Promise.resolve({ items: [] } as never)
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    renderReviewComponent(<Stage2ReviewQueue />)
+
+    expect(await screen.findByText("Pending Matches")).toBeInTheDocument()
+    expect(screen.queryByTestId("stage2-mobile-match-card-m1")).not.toBeInTheDocument()
+    expect(screen.getByText("Salary transfer")).toBeInTheDocument()
   })
 
   it("test_AC8_13_48_run_review_approves_matches_after_filter_changes", async () => {

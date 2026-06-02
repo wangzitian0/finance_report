@@ -85,7 +85,7 @@ describe("ReconciliationWorkbench", () => {
     render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("Reconciliation Workbench")).toBeInTheDocument())
-    await waitFor(() => expect(screen.getByText("Transfer")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText("Transfer").length).toBeGreaterThan(0))
     await waitFor(() => expect(screen.getByText("Score 88")).toBeInTheDocument())
     await waitFor(() => expect(screen.getByText("Anomaly Signals")).toBeInTheDocument())
   })

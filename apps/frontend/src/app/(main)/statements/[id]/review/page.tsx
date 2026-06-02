@@ -219,8 +219,8 @@ export default function StatementReviewPage() {
     const balanceValid = data.balance_validation_result?.closing_match ?? false;
 
     return (
-        <div className="p-6 h-[calc(100vh-2rem)] flex flex-col">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 lg:h-[calc(100vh-2rem)]">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Link href="/statements" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -228,7 +228,7 @@ export default function StatementReviewPage() {
                     Back to Statements
                 </Link>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto">
                     {(() => {
                         const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
                         const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
@@ -261,8 +261,8 @@ export default function StatementReviewPage() {
                 </div>
             </div>
 
-            <div className="page-header flex items-start justify-between gap-4 mb-4">
-                <div>
+            <div className="page-header mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
                     <h1 className="page-title">{data.original_filename}</h1>
                     <p className="page-description">
                         {data.institution} • {data.currency || "—"} • {data.period_start || "?"} to {data.period_end || "?"}
@@ -283,7 +283,7 @@ export default function StatementReviewPage() {
                 currency={data.currency || "SGD"}
             />
 
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+            <div className="grid flex-1 grid-cols-1 gap-4 lg:min-h-0 lg:grid-cols-2">
                 <PdfPreviewPane pdfUrl={data.pdf_url} />
 
                 <TransactionTable 

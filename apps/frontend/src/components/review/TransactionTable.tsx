@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatCurrencyLocale } from "@/lib/currency";
 import type { BankStatementTransaction } from "@/lib/types";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
@@ -34,6 +34,20 @@ export function TransactionTable({
     actionLoading
 }: TransactionTableProps) {
     const [editing, setEditing] = useState<EditingCell | null>(null);
+    const [isMobileLayout, setIsMobileLayout] = useState(false);
+    const transactionRows = transactions ?? [];
+
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+            return;
+        }
+
+        const media = window.matchMedia("(max-width: 767px)");
+        const updateMobileLayout = () => setIsMobileLayout(media.matches);
+        updateMobileLayout();
+        media.addEventListener("change", updateMobileLayout);
+        return () => media.removeEventListener("change", updateMobileLayout);
+    }, []);
 
     const isEditingCell = (txnId: string, field: EditableField) =>
         editing?.txnId === txnId && editing?.field === field;
@@ -42,12 +56,12 @@ export function TransactionTable({
     const endEdit = () => setEditing(null);
 
     return (
-        <div className="card flex flex-col min-h-0 h-full">
-            <div className="card-header flex items-center justify-between">
-                <div className="flex items-center gap-4">
+        <div className="card flex flex-col min-h-0 h-full overflow-hidden">
+            <div className="card-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <h3 className="text-sm font-medium">Transactions</h3>
                     {pendingEdits.size > 0 && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <button onClick={onSave} disabled={actionLoading} className="btn-primary btn-sm py-1">
                                 {actionLoading ? "Saving..." : `Save Edits (${pendingEdits.size})`}
                             </button>
@@ -57,9 +71,113 @@ export function TransactionTable({
                         </div>
                     )}
                 </div>
-                <span className="text-xs text-muted">{transactions.length} total</span>
+                <span className="text-xs text-muted">{transactionRows.length} total</span>
             </div>
-            <div className="flex-1 overflow-auto">
+
+            {isMobileLayout && (
+                <div data-testid="stage1-mobile-transaction-list" className="flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden">
+                {transactionRows.map((txn) => {
+                    const edit = pendingEdits.get(txn.id);
+                    const displayDate = edit?.txn_date ?? txn.txn_date;
+                    const displayDesc = edit?.description ?? txn.description;
+                    const displayAmount = edit?.amount ?? txn.amount.toString();
+                    const displayDir = edit?.direction ?? txn.direction;
+
+                    return (
+                        <article
+                            key={txn.id}
+                            data-testid={`stage1-mobile-transaction-card-${txn.id}`}
+                            className="space-y-4 p-4"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium uppercase text-muted">Transaction</p>
+                                    <p className="mt-1 break-words font-medium">{displayDesc}</p>
+                                </div>
+                                <div className="flex-shrink-0">
+                                    {txn.confidence_tier ? (
+                                        <ConfidenceBadge tier={txn.confidence_tier} />
+                                    ) : (
+                                        <span
+                                            className={`badge ${
+                                                txn.confidence === "high"
+                                                    ? "badge-success"
+                                                    : txn.confidence === "medium"
+                                                      ? "badge-warning"
+                                                      : "badge-error"
+                                            }`}
+                                        >
+                                            {txn.confidence}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <label className="space-y-1.5 text-sm">
+                                    <span className="block text-xs font-medium uppercase text-muted">Date</span>
+                                    <input
+                                        type="date"
+                                        aria-label={`Date for ${txn.id}`}
+                                        value={displayDate}
+                                        onChange={(e) => onEdit(txn.id, "txn_date", e.target.value)}
+                                        className="input text-sm"
+                                    />
+                                </label>
+
+                                <label className="space-y-1.5 text-sm">
+                                    <span className="block text-xs font-medium uppercase text-muted">Description</span>
+                                    <input
+                                        type="text"
+                                        aria-label={`Description for ${txn.id}`}
+                                        value={displayDesc}
+                                        onChange={(e) => onEdit(txn.id, "description", e.target.value)}
+                                        className="input text-sm"
+                                    />
+                                </label>
+
+                                <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] gap-3">
+                                    <label className="space-y-1.5 text-sm">
+                                        <span className="block text-xs font-medium uppercase text-muted">Direction</span>
+                                        <select
+                                            aria-label={`Direction for ${txn.id}`}
+                                            value={displayDir}
+                                            onChange={(e) => onEdit(txn.id, "direction", e.target.value)}
+                                            className="input text-sm"
+                                        >
+                                            <option value="IN">IN</option>
+                                            <option value="OUT">OUT</option>
+                                        </select>
+                                    </label>
+
+                                    <label className="space-y-1.5 text-sm">
+                                        <span className="block text-xs font-medium uppercase text-muted">Amount</span>
+                                        <input
+                                            type="text"
+                                            aria-label={`Amount for ${txn.id}`}
+                                            value={displayAmount}
+                                            onChange={(e) => onEdit(txn.id, "amount", e.target.value)}
+                                            className="input text-right text-sm"
+                                        />
+                                    </label>
+                                </div>
+
+                                <p
+                                    className={`text-right text-sm font-semibold ${
+                                        displayDir === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
+                                    }`}
+                                >
+                                    {displayDir === "IN" ? "+" : "-"}
+                                    {formatCurrencyLocale(displayAmount, txn.currency || currency)}
+                                </p>
+                            </div>
+                        </article>
+                    );
+                    })}
+                </div>
+            )}
+
+            <div className="hidden flex-1 overflow-auto md:block">
                 <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-[var(--background)]">
                         <tr className="border-b border-[var(--border)]">
@@ -70,7 +188,7 @@ export function TransactionTable({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border)]">
-                        {transactions.map((txn) => {
+                        {transactionRows.map((txn) => {
                             const edit = pendingEdits.get(txn.id);
                             const displayDate = edit?.txn_date ?? txn.txn_date;
                             const displayDesc = edit?.description ?? txn.description;
