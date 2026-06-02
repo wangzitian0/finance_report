@@ -53,10 +53,13 @@ def is_placeholder_file(path: Path, content: str) -> bool:
     """
     if is_stub_file(path):
         return False
-    if _TRIVIAL_EXPECT_RE.search(content):
-        return True
     if not AC_PATTERN.search(content):
         return False
+    content_without_trivial_expect = _TRIVIAL_EXPECT_RE.sub("", content)
+    if _TRIVIAL_EXPECT_RE.search(content) and not any(
+        token in content_without_trivial_expect for token in _ASSERTION_TOKENS
+    ):
+        return True
     if any(token in content for token in _ASSERTION_TOKENS):
         return False
     return bool(

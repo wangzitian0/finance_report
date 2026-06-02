@@ -29,6 +29,7 @@ class TraceabilityResult(NamedTuple):
     covered: list[str]
     placeholder_only: list[str]
     stub_only: list[str]
+    unexecuted_only: list[str]
     missing: list[str]
     total: int
     mandatory_total: int
@@ -37,6 +38,7 @@ class TraceabilityResult(NamedTuple):
 @dataclass
 class ACReferenceStats:
     real_files: set[str] = field(default_factory=set)
+    ci_real_files: set[str] = field(default_factory=set)
     placeholder_files: set[str] = field(default_factory=set)
     stub_files: set[str] = field(default_factory=set)
 
@@ -45,9 +47,68 @@ class ACReferenceStats:
         return self.real_files | self.placeholder_files | self.stub_files
 
 
+@dataclass(frozen=True)
+class ExecutionRule:
+    path_prefix: str
+    stage: str
+    ci_required: bool
+
+
+@dataclass(frozen=True)
+class ExecutionMatrix:
+    rules: list[ExecutionRule]
+
+    def classify(self, path: str) -> ExecutionRule:
+        normalized = path.strip().replace("\\", "/")
+        best: ExecutionRule | None = None
+        for rule in self.rules:
+            prefix = rule.path_prefix
+            matches = normalized == prefix.rstrip("/") or normalized.startswith(prefix)
+            if matches and (best is None or len(prefix) > len(best.path_prefix)):
+                best = rule
+        if best is not None:
+            return best
+        if Path(normalized).is_absolute():
+            return ExecutionRule(path_prefix=normalized, stage="external_test", ci_required=True)
+        return ExecutionRule(path_prefix="", stage="unclassified", ci_required=False)
+
+
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
+DEFAULT_EXECUTION_MATRIX = Path("docs/ssot/test-execution-matrix.yaml")
+
+
+def load_execution_matrix(path: Path = DEFAULT_EXECUTION_MATRIX) -> ExecutionMatrix:
+    if not path.exists():
+        return ExecutionMatrix(rules=[])
+    try:
+        import yaml
+    except ImportError:
+        print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
+        sys.exit(1)
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    rules: list[ExecutionRule] = []
+    for item in data.get("rules", []):
+        path_prefix = str(item.get("path", "")).strip().replace("\\", "/")
+        if not path_prefix:
+            continue
+        rules.append(
+            ExecutionRule(
+                path_prefix=path_prefix,
+                stage=str(item.get("stage", "unclassified")),
+                ci_required=bool(item.get("ci_required", False)),
+            )
+        )
+    return ExecutionMatrix(rules=rules)
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(Path.cwd())).replace("\\", "/")
+    except ValueError:
+        return str(path).replace("\\", "/")
 
 
 def load_registry(registry_path: Path) -> list[AC]:
@@ -95,23 +156,32 @@ def find_test_files(test_dirs: list[Path]) -> list[Path]:
     return test_files
 
 
-def collect_referenced_acs(test_files: list[Path]) -> dict[str, ACReferenceStats]:
+def collect_referenced_acs(
+    test_files: list[Path],
+    execution_matrix: ExecutionMatrix | None = None,
+) -> dict[str, ACReferenceStats]:
     references: dict[str, ACReferenceStats] = {}
+    if execution_matrix is None:
+        execution_matrix = load_execution_matrix()
     for fpath in test_files:
         try:
             content = fpath.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         kind = classify_reference_file(fpath, content)
+        display_path = _display_path(fpath)
+        execution = execution_matrix.classify(display_path)
         for m in AC_PATTERN.finditer(content):
             ac_id = m.group(0)
             stats = references.setdefault(ac_id, ACReferenceStats())
             if kind == "stub":
-                stats.stub_files.add(str(fpath))
+                stats.stub_files.add(display_path)
             elif kind == "placeholder":
-                stats.placeholder_files.add(str(fpath))
+                stats.placeholder_files.add(display_path)
             else:
-                stats.real_files.add(str(fpath))
+                stats.real_files.add(display_path)
+                if execution.ci_required:
+                    stats.ci_real_files.add(display_path)
     return references
 
 
@@ -131,7 +201,14 @@ def check_traceability(
     covered = [
         ac.id
         for ac in mandatory
-        if references.get(ac.id) and references[ac.id].real_files
+        if references.get(ac.id) and references[ac.id].ci_real_files
+    ]
+    unexecuted_only = [
+        ac.id
+        for ac in mandatory
+        if references.get(ac.id)
+        and references[ac.id].real_files
+        and not references[ac.id].ci_real_files
     ]
     placeholder_only = [
         ac.id
@@ -157,6 +234,7 @@ def check_traceability(
         covered=covered,
         placeholder_only=placeholder_only,
         stub_only=stub_only,
+        unexecuted_only=unexecuted_only,
         missing=missing,
         total=len(acs),
         mandatory_total=len(mandatory),
@@ -180,11 +258,28 @@ def print_report(
     print("AC TRACEABILITY REPORT")
     print(f"{'=' * 60}")
     print(f"Registry: {result.total} total ACs, {result.mandatory_total} mandatory")
-    print(f"Real covered     : {len(result.covered)} ({coverage_pct:.1f}%)")
+    print(f"CI real covered  : {len(result.covered)} ({coverage_pct:.1f}%)")
+    print(f"Unexecuted-only  : {len(result.unexecuted_only)}")
     print(f"Placeholder-only : {len(result.placeholder_only)}")
     print(f"Stub-only        : {len(result.stub_only)}")
     print(f"Missing          : {len(result.missing)}")
     print(f"{'=' * 60}\n")
+
+    if result.unexecuted_only:
+        print("WARNING: ACs WITH ONLY NON-CI REAL TEST REFERENCES:\n")
+        by_epic: dict[int, list[str]] = {}
+        for ac_id in sorted(
+            result.unexecuted_only, key=lambda x: [int(p) for p in x[2:].split(".")]
+        ):
+            by_epic.setdefault(ac_by_id[ac_id].epic, []).append(ac_id)
+        for epic_num in sorted(by_epic):
+            ac_sample = ac_by_id[by_epic[epic_num][0]]
+            print(f"  EPIC-{epic_num:03d} ({ac_sample.epic_name}):")
+            for ac_id in by_epic[epic_num]:
+                print(f"    UNEXECUTED {ac_id}: {ac_by_id[ac_id].description}")
+                for f in sorted(references.get(ac_id, ACReferenceStats()).real_files)[:3]:
+                    print(f"       -> {f}")
+        print()
 
     if result.missing:
         print("WARNING: ACs WITH NO TEST REFERENCE (gaps):\n")
@@ -201,12 +296,12 @@ def print_report(
         print()
 
     if verbose and result.covered:
-        print("ACs WITH REAL TEST REFERENCES:\n")
+        print("ACs WITH CI-EXECUTED REAL TEST REFERENCES:\n")
         for ac_id in sorted(
             result.covered, key=lambda x: [int(p) for p in x[2:].split(".")]
         ):
             print(f"  OK {ac_id}: {ac_by_id[ac_id].description}")
-            for f in sorted(references.get(ac_id, ACReferenceStats()).real_files)[:2]:
+            for f in sorted(references.get(ac_id, ACReferenceStats()).ci_real_files)[:2]:
                 print(f"       -> {f}")
         print()
 
@@ -232,9 +327,15 @@ def parse_args() -> argparse.Namespace:
         default=[
             "apps/backend/tests",
             "apps/frontend/src",
+            "apps/frontend/playwright",
             "tests/tooling",
             "tests/e2e",
         ],
+    )
+    parser.add_argument(
+        "--execution-matrix",
+        default=str(DEFAULT_EXECUTION_MATRIX),
+        help="Path to test execution matrix (default: docs/ssot/test-execution-matrix.yaml)",
     )
     parser.add_argument("--report-only", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -275,15 +376,27 @@ def main() -> int:
     test_files = find_test_files(test_dirs)
     print(f"Scanning {len(test_files)} test files in: {[str(d) for d in test_dirs]}")
 
-    references = collect_referenced_acs(test_files)
+    execution_matrix = load_execution_matrix(Path(args.execution_matrix))
+    references = collect_referenced_acs(test_files, execution_matrix=execution_matrix)
     print(f"Found AC references to {len(references)} unique ACs in tests")
 
     result = check_traceability(acs, references)
     print_report(result, acs, references, verbose=args.verbose)
 
     if (
-        result.missing or result.placeholder_only or result.stub_only
+        result.missing
+        or result.placeholder_only
+        or result.stub_only
+        or result.unexecuted_only
     ) and not args.report_only:
+        if result.unexecuted_only:
+            print(
+                "TRACEABILITY GATE FAILED: "
+                f"{len(result.unexecuted_only)} mandatory AC(s) have real references only in non-CI-required stages.\n"
+                "  Move at least one behavioral proof into a CI-required test stage or update docs/ssot/test-execution-matrix.yaml with the matching CI workflow.",
+                file=sys.stderr,
+            )
+            return 1
         if result.placeholder_only:
             print(
                 "TRACEABILITY GATE FAILED: "
@@ -307,10 +420,15 @@ def main() -> int:
         )
         return 1
 
-    if not result.missing and not result.placeholder_only and not result.stub_only:
+    if (
+        not result.missing
+        and not result.placeholder_only
+        and not result.stub_only
+        and not result.unexecuted_only
+    ):
         print(
             "TRACEABILITY GATE PASSED: all mandatory ACs have at least one "
-            "real, non-placeholder AC reference."
+            "CI-executed real, non-placeholder AC reference."
         )
 
     return 0

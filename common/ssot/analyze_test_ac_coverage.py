@@ -4,6 +4,7 @@
 This analyzer scans AC references (``ACx.y.z``) in:
 - ``apps/backend/tests/**/*.py``
 - ``apps/frontend/src/**/*.test.ts(x)``
+- ``apps/frontend/playwright/**/*.spec.ts(x)``
 - ``tests/tooling/**/*.py``
 - ``tests/e2e/**/*.py``
 
@@ -23,7 +24,7 @@ import argparse
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from common.ssot.ac_registry_format import load_registry_entries
@@ -43,9 +44,16 @@ SCAN_TARGETS: tuple[tuple[str, Path, tuple[str, ...]], ...] = (
         REPO_ROOT / "apps" / "frontend" / "src",
         ("**/*.test.ts", "**/*.test.tsx"),
     ),
+    (
+        "frontend_playwright",
+        REPO_ROOT / "apps" / "frontend" / "playwright",
+        ("**/*.spec.ts", "**/*.spec.tsx"),
+    ),
     ("tooling_tests", REPO_ROOT / "tests" / "tooling", ("**/*.py",)),
     ("e2e", REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
 )
+
+GENERATED_LINE_RE = re.compile(r"^> Generated: .*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -370,7 +378,7 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     lines.append("# AC Coverage Analysis Report")
     lines.append("")
     lines.append(
-        f"> Generated: {generated_at.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')} by `tools/analyze_test_ac_coverage.py`"
+        f"> Generated: {generated_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')} by `tools/analyze_test_ac_coverage.py`"
     )
     lines.append(
         "> Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs."
@@ -527,6 +535,10 @@ def render_markdown(result: AnalysisResult, generated_at: datetime) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def normalize_generated_report(report: str) -> str:
+    return GENERATED_LINE_RE.sub("> Generated: <normalized>", report)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Analyze AC coverage across test suites."
@@ -548,6 +560,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also print report content to stdout",
     )
+    parser.add_argument(
+        "--no-write",
+        action="store_true",
+        help="Do not write the Markdown report file",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail if the existing report is missing or stale; does not write files",
+    )
     return parser.parse_args()
 
 
@@ -556,13 +578,25 @@ def main() -> int:
     repo_root = args.repo_root.resolve()
 
     result = analyze_repo(repo_root=repo_root)
-    report = render_markdown(result, generated_at=datetime.now(timezone.utc))
+    report = render_markdown(result, generated_at=datetime.now(UTC))
 
     output_path = args.output if args.output.is_absolute() else repo_root / args.output
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(report, encoding="utf-8")
+    if args.check:
+        if not output_path.exists():
+            print(f"AC coverage report missing: {output_path}")
+            return 1
+        current = output_path.read_text(encoding="utf-8")
+        if normalize_generated_report(current) != normalize_generated_report(report):
+            print(f"AC coverage report is stale: {output_path}")
+            return 1
+        print(f"AC coverage report is current: {output_path}")
+    elif args.no_write:
+        print(f"Skipped writing AC coverage report: {output_path}")
+    else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(report, encoding="utf-8")
+        print(f"Wrote AC coverage report: {output_path}")
 
-    print(f"Wrote AC coverage report: {output_path}")
     print(
         "Summary: "
         f"registered={len(result.registry)}, active={len(result.registry) - len(result.deprecated_ids)}, "

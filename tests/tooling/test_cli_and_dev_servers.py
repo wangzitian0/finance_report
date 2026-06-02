@@ -59,6 +59,7 @@ def test_AC16_11_17_cmd_test_frontend_route(monkeypatch):
         SimpleNamespace(
             frontend=True,
             e2e=False,
+            backend_e2e=False,
             perf=False,
             fast=False,
             smart=False,
@@ -70,6 +71,7 @@ def test_AC16_11_17_cmd_test_frontend_route(monkeypatch):
 
 
 def test_AC16_11_17_cmd_test_e2e_route(monkeypatch):
+    """AC8.13.79: --e2e routes to the root deployment E2E suite."""
     calls = []
     monkeypatch.setattr(
         cli,
@@ -80,6 +82,7 @@ def test_AC16_11_17_cmd_test_e2e_route(monkeypatch):
         SimpleNamespace(
             frontend=False,
             e2e=True,
+            backend_e2e=False,
             perf=False,
             fast=False,
             smart=False,
@@ -97,6 +100,33 @@ def test_AC16_11_17_cmd_test_e2e_route(monkeypatch):
         "pytest",
     ]
     assert "-m" in calls[0][0]
+    assert "tests/e2e/" in calls[0][0]
+    assert calls[0][1] == cli.REPO_ROOT
+
+
+def test_AC8_13_79_cmd_test_backend_e2e_route(monkeypatch):
+    """AC8.13.79: --backend-e2e routes to backend Tier-1 API E2E."""
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "run",
+        lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
+    )
+    cli.cmd_test(
+        SimpleNamespace(
+            frontend=False,
+            e2e=False,
+            backend_e2e=True,
+            perf=False,
+            fast=False,
+            smart=False,
+            ephemeral=False,
+        ),
+        ["--maxfail=1"],
+    )
+
+    assert "tests/e2e/test_core_journeys.py" in calls[0][0]
+    assert calls[0][1] == cli.BACKEND_DIR
 
 
 def test_AC16_11_17_cmd_test_perf_route(monkeypatch):
@@ -110,6 +140,7 @@ def test_AC16_11_17_cmd_test_perf_route(monkeypatch):
         SimpleNamespace(
             frontend=False,
             e2e=False,
+            backend_e2e=False,
             perf=True,
             fast=False,
             smart=False,
@@ -139,6 +170,7 @@ def test_AC16_11_17_cmd_test_backend_path_route(monkeypatch):
         SimpleNamespace(
             frontend=False,
             e2e=False,
+            backend_e2e=False,
             perf=False,
             fast=False,
             smart=False,
@@ -168,6 +200,7 @@ def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
         SimpleNamespace(
             frontend=False,
             e2e=False,
+            backend_e2e=False,
             perf=False,
             fast=True,
             smart=False,
@@ -512,6 +545,7 @@ class TestCmdTestSmart:
             SimpleNamespace(
                 frontend=False,
                 e2e=False,
+                backend_e2e=False,
                 perf=False,
                 fast=False,
                 smart=True,

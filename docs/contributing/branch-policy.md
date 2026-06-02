@@ -46,9 +46,10 @@ uvx pre-commit install
 | `moon run :dev -- --frontend` | Next.js on :3000 |
 | `moon run :lint` | Lint all |
 | `moon run :lint -- --fix` | Auto-fix Python |
-| `moon run :test` | All tests (90% backend coverage) |
+| `moon run :test` | All tests (backend threshold code-owned by `apps/backend/pyproject.toml`) |
 | `moon run :test -- --fast` | TDD mode (no coverage, fastest) |
-| `moon run :test -- --e2e` | E2E tests (Playwright) |
+| `moon run :test -- --e2e` | Root deployment E2E tests |
+| `moon run :test -- --backend-e2e` | Backend Tier-1 API E2E tests |
 | `moon run :build` | Build all |
 
 Full reference: [docs/ssot/development.md](../ssot/development.md)
