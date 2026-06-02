@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tools._lib.dev import cleanup_pr_preview_resources as cleanup  # noqa: E402
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 def test_AC8_13_38_run_command_uses_checked_text_subprocess(
     monkeypatch: pytest.MonkeyPatch,
@@ -190,10 +192,20 @@ def test_AC8_13_38_remote_cleanup_script_targets_only_stale_projects() -> None:
     assert "PRS='434'" in script
     assert "PROJECTS='compose-old'" in script
     assert "pr-${pr}" in script
+    assert "grep -E '\"" not in script
     assert "compose-open" not in script
     assert "bad project name" not in script
+    assert "[dry-run] docker container prune -f --filter until=24h" in script
     assert "[dry-run] docker builder prune -af --filter until=24h" in script
     assert "[dry-run] docker image prune -af --filter until=168h" in script
+    assert "[dry-run] docker network prune -f --filter until=168h" in script
+    assert "[dry-run] journalctl --vacuum-time=14d --vacuum-size=1G" in script
+    assert "DOCKER_LOG_TRUNCATE_SIZE_MIB='100'" in script
+    assert "DISK_WARNING_PERCENT='85'" in script
+    assert "DISK_ERROR_PERCENT='95'" in script
+    assert "docker system df -v || docker system df" in script
+    assert "docker system prune" not in script
+    assert "docker volume prune" not in script
 
 
 def test_AC8_13_38_remote_cleanup_script_can_run_real_prune_commands() -> None:
@@ -207,15 +219,35 @@ def test_AC8_13_38_remote_cleanup_script_can_run_real_prune_commands() -> None:
         dry_run=False,
         prune_build_cache=True,
         prune_images=True,
+        prune_stopped_containers=True,
+        prune_networks=True,
+        vacuum_journal=True,
         builder_prune_until="48h",
         image_prune_until="240h",
+        container_prune_until="36h",
+        network_prune_until="336h",
+        journal_vacuum_time="21d",
+        journal_vacuum_size="2G",
+        docker_log_truncate_size_mib=64,
+        disk_warning_percent=80,
+        disk_error_percent=92,
     )
 
     assert "PROJECTS='compose-old'" in script
     assert "compose;unsafe" not in script
     assert "[dry-run]" not in script
+    assert 'docker container prune -f --filter "until=36h"' in script
     assert 'docker builder prune -af --filter "until=48h"' in script
     assert 'docker image prune -af --filter "until=240h"' in script
+    assert 'docker network prune -f --filter "until=336h"' in script
+    assert 'journalctl --vacuum-time="21d" --vacuum-size="2G"' in script
+    assert "DOCKER_LOG_TRUNCATE_SIZE_MIB='64'" in script
+    assert "DISK_WARNING_PERCENT='80'" in script
+    assert "DISK_ERROR_PERCENT='92'" in script
+    assert "docker inspect -f '{{.LogPath}}'" in script
+    assert ': > "$log_path"' in script
+    assert "docker system prune" not in script
+    assert "docker volume prune" not in script
 
 
 def test_AC8_13_38_remote_cleanup_script_can_skip_optional_prunes() -> None:
@@ -224,15 +256,25 @@ def test_AC8_13_38_remote_cleanup_script_can_skip_optional_prunes() -> None:
         dry_run=False,
         prune_build_cache=False,
         prune_images=False,
+        prune_stopped_containers=False,
+        prune_networks=False,
+        vacuum_journal=False,
         builder_prune_until="48h",
         image_prune_until="240h",
+        docker_log_truncate_size_mib=0,
     )
 
     assert "PRS=''" in script
     assert "PROJECTS=''" in script
+    assert "docker container prune" not in script
     assert "docker builder prune" not in script
     assert "docker image prune" not in script
+    assert "docker network prune" not in script
+    assert "journalctl" not in script
+    assert "docker inspect -f '{{.LogPath}}'" not in script
     assert "docker system df" in script
+    assert "docker system prune" not in script
+    assert "docker volume prune" not in script
 
 
 def test_AC8_13_38_cleanup_orchestrates_stale_remote_cleanup(
@@ -275,8 +317,18 @@ def test_AC8_13_38_cleanup_orchestrates_stale_remote_cleanup(
         dry_run=True,
         no_prune_build_cache=False,
         no_prune_images=True,
+        no_prune_stopped_containers=False,
+        no_prune_networks=False,
+        no_vacuum_journal=False,
         builder_prune_until="24h",
         image_prune_until="168h",
+        container_prune_until="24h",
+        network_prune_until="168h",
+        journal_vacuum_time="14d",
+        journal_vacuum_size="1G",
+        docker_log_truncate_size_mib=100,
+        disk_warning_percent=85,
+        disk_error_percent=95,
     )
 
     assert cleanup.cleanup(args) == 7
@@ -316,10 +368,27 @@ def test_AC8_13_38_main_parses_cleanup_arguments(
             "--dry-run",
             "--no-prune-build-cache",
             "--no-prune-images",
+            "--no-prune-stopped-containers",
+            "--no-prune-networks",
+            "--no-vacuum-journal",
             "--builder-prune-until",
             "72h",
             "--image-prune-until",
             "360h",
+            "--container-prune-until",
+            "96h",
+            "--network-prune-until",
+            "720h",
+            "--journal-vacuum-time",
+            "30d",
+            "--journal-vacuum-size",
+            "512M",
+            "--docker-log-truncate-size-mib",
+            "32",
+            "--disk-warning-percent",
+            "70",
+            "--disk-error-percent",
+            "88",
         ],
     )
 
@@ -332,14 +401,22 @@ def test_AC8_13_38_main_parses_cleanup_arguments(
     assert args.dry_run is True
     assert args.no_prune_build_cache is True
     assert args.no_prune_images is True
+    assert args.no_prune_stopped_containers is True
+    assert args.no_prune_networks is True
+    assert args.no_vacuum_journal is True
     assert args.builder_prune_until == "72h"
     assert args.image_prune_until == "360h"
+    assert args.container_prune_until == "96h"
+    assert args.network_prune_until == "720h"
+    assert args.journal_vacuum_time == "30d"
+    assert args.journal_vacuum_size == "512M"
+    assert args.docker_log_truncate_size_mib == 32
+    assert args.disk_warning_percent == 70
+    assert args.disk_error_percent == 88
 
 
 def test_AC8_13_38_workflow_runs_on_schedule_and_manual_dispatch() -> None:
-    workflow = (
-        Path(__file__).resolve().parents[2] / ".github/workflows/pr-preview-cleanup.yml"
-    ).read_text()
+    workflow = (ROOT / ".github/workflows/pr-preview-cleanup.yml").read_text()
 
     assert 'cron: "37 */6 * * *"' in workflow
     assert "workflow_dispatch:" in workflow
@@ -351,3 +428,23 @@ def test_AC8_13_38_workflow_runs_on_schedule_and_manual_dispatch() -> None:
     )[0]
     assert "::error::VPS_SSH_KEY is required" in missing_key_block
     assert "exit 1" in missing_key_block
+
+
+def test_AC8_13_38_pr_preview_compose_caps_docker_json_logs() -> None:
+    compose = (ROOT / "docker-compose.yml").read_text()
+
+    assert "x-json-logging: &json-logging" in compose
+    assert "driver: json-file" in compose
+    assert 'max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"' in compose
+    assert 'max-file: "${DOCKER_LOG_MAX_FILE:-3}"' in compose
+
+    lines = compose.splitlines()
+    for service in ["postgres", "minio", "minio-init", "backend", "frontend"]:
+        start = lines.index(f"  {service}:")
+        block_lines: list[str] = []
+        for line in lines[start + 1 :]:
+            if line.startswith("  ") and not line.startswith("    "):
+                break
+            block_lines.append(line)
+        service_block = "\n".join(block_lines)
+        assert "logging: *json-logging" in service_block

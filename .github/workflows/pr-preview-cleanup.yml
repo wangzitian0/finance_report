@@ -54,6 +54,13 @@ jobs:
           python tools/cleanup_pr_preview_resources.py \
             --host cloud.zitian.party \
             --ssh-key ~/.ssh/vps_key \
+            --container-prune-until 24h \
             --builder-prune-until 24h \
             --image-prune-until 168h \
+            --network-prune-until 168h \
+            --journal-vacuum-time 14d \
+            --journal-vacuum-size 1G \
+            --docker-log-truncate-size-mib 100 \
+            --disk-warning-percent 85 \
+            --disk-error-percent 95 \
             ${DRY_RUN:+"$DRY_RUN"}
