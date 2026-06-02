@@ -284,8 +284,9 @@ Closure status:
    `docs/ssot/critical-proof-matrix.yaml`.
 2. Land the package contract (#570) so backend, frontend, export, and E2E
    assertions share one shape.
-3. Deliver schedule inputs that this package consumes: investment performance
-   (#564), annualized income/long-term compensation (#566).
+3. Done: deliver the investment-performance schedule input consumed by this
+   package (#564, promoted by #596). Still open: annualized income/long-term
+   compensation (#566).
 4. Deliver explanation outputs for the package output shape: notes/disclosures
    (#571) and traceability appendix (#572).
 5. Build deterministic fixture coverage (#573) against the same contract and
