@@ -25,7 +25,7 @@ changes (classify-changes) → backend-integration + backend-e2e-tier1 → backe
 | **lint** | Static analysis (ruff check + format check) + manifest/doc checks | None (first job) |
 | **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes, backend-integration, backend-e2e-tier1]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`-m e2e`), executed with explicit marker override | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes]` |
 | **frontend** | Frontend build + tests when heavy CI is required | `needs: [changes, backend-integration, backend-e2e-tier1]` |
 | **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes, backend-integration, backend-e2e-tier1]` |
 | **unified-coverage** | Calculate unified coverage, audit source-tree/LCOV policy, compare to baseline, update Coveralls when heavy CI is required | `needs: [changes, backend, frontend]` |
@@ -53,7 +53,7 @@ changes (classify-changes) → backend-integration + backend-e2e-tier1 → backe
 |---|---|---|---|---|
 | Unit (fast/shard) | `backend` job, 6 shards after integration/Tier-1 gates pass | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and expand shards if needed |
 | Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
-| Tier 1 API E2E | `backend-e2e-tier1` job (`-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness | Behavioral proof only; AC traceability-backed | Stabilize a deterministic e2e subset first, then scale by marker or folder |
+| Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
 | Tier 2 HTTP E2E | PR/staging/prod HTTP command windows | Not in unified coverage baseline | Behavioral proof only | Introduce marker-pinned CI smoke before post-merge where network stability allows |
 | Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
 

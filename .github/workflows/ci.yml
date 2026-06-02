@@ -371,7 +371,7 @@ jobs:
         run: |
           cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## Backend Tier-1 API E2E Stage
-          - Scope: `-m "e2e and not slow and not integration and not perf"` backend suites
+          - Scope: `tests/e2e/test_core_journeys.py` with `-m "e2e and not slow and not integration and not perf"`
           - Contribution: behavior proof channel only
           - Coverage effect: **not included** in unified line coverage baseline for now
           EOF

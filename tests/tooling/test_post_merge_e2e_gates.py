@@ -847,6 +847,27 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
     assert "run in parallel with lint" in ci_cd
 
 
+def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
+    """AC8.13.67: Tier-1 backend API E2E does not collect Playwright browser E2E."""
+    workflow = read(".github/workflows/ci.yml")
+    pyproject = read("apps/backend/pyproject.toml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
+        "  frontend:", 1
+    )[0]
+
+    assert "tests/e2e/test_core_journeys.py" in tier1_block
+    assert "tests/e2e/test_auth_flows.py" not in tier1_block
+    assert "tests/e2e/test_e2e_flows.py" not in tier1_block
+    assert "playwright install" not in tier1_block
+    assert (
+        "e2e: End-to-end tests, including backend API scenarios and browser UI flows"
+        in pyproject
+    )
+    assert "apps/backend/tests/e2e/test_core_journeys.py" in ci_cd
+
+
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     """AC8.13.27: PR CI reports to Coveralls without external status blocking."""
     workflow = read(".github/workflows/ci.yml")

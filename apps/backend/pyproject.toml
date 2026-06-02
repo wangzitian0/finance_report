@@ -83,7 +83,7 @@ markers = [
     "slow: Long-running tests (>1s)",
     "perf: Performance tests",
     "integration: Backend cross-module integration tests with infrastructure and service boundaries",
-    "e2e: End-to-end UI tests with Playwright",
+    "e2e: End-to-end tests, including backend API scenarios and browser UI flows",
 ]
 
 # Default: Run all tests except slow/perf/e2e
