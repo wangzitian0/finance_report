@@ -2092,7 +2092,7 @@ For #521 closure, this EPIC should be sequenced as:
 
 1. Consume the package section contract from `#570`.
 2. Finalize annualized income and long-term compensation schedule data
-   (`#566`).
+   (`#566`, done via `GET /api/reports/package/annualized-income-schedule`).
 3. Land supporting explanation assets:
    - report notes (`#571`)
    - traceability appendix (`#572`)
@@ -2103,3 +2103,13 @@ For #521 closure, this EPIC should be sequenced as:
 `#570`, `#571`, and `#572` are shared package prerequisites with EPIC-005;
 `#566` and `#573` are specifically the issue chain to close
 `annualized-income-long-term` in `docs/ssot/critical-proof-matrix.yaml`.
+`#566` supplies the report-ready schedule contract; `#573` remains responsible
+for the representative fixture and E2E proof needed before that macro can move
+from `partial` to `covered`.
+
+### Acceptance Criteria — Report Package Annualized Income Schedule
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.11.1 | `GET /api/reports/package/annualized-income-schedule` returns annualized salary, bonus, dividend, total income, currency, as-of date, and trailing-period boundaries for the personal report package | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 |
+| AC11.11.2 | The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock metadata, fair value, and explicit liquid-versus-restricted net worth treatment | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 |

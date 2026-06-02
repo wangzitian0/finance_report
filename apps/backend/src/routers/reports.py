@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import csv
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from enum import Enum
 from io import StringIO
 from uuid import UUID
@@ -15,9 +16,18 @@ from sqlalchemy import select, union
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import Account, AccountType, FxRate
+from src.models import Account, AccountType, Direction, FxRate, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.layer3 import (
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+)
 from src.schemas import (
     AccountTrendResponse,
+    AnnualizedIncomeScheduleHolding,
+    AnnualizedIncomeScheduleIncome,
+    AnnualizedIncomeScheduleNetWorthTreatment,
+    AnnualizedIncomeScheduleResponse,
     BalanceSheetResponse,
     BreakdownPeriod,
     BreakdownType,
@@ -167,8 +177,8 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
             "owner_epic": "EPIC-011",
             "period_type": "trailing_12_months_and_as_of",
             "source_endpoint": "/api/reports/package/annualized-income-schedule",
-            "status": "planned",
-            "blocking_issue": "#566",
+            "status": "ready",
+            "blocking_issue": None,
             "decimal_total_fields": [
                 "annualized_salary",
                 "annualized_bonus",
@@ -205,10 +215,125 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
 }
 
 
+def _annualized_income_bucket(account_name: str) -> str | None:
+    normalized = account_name.casefold()
+    if "salary" in normalized or "payroll" in normalized:
+        return "salary"
+    if "bonus" in normalized:
+        return "bonus"
+    if "dividend" in normalized:
+        return "dividend"
+    return None
+
+
 @router.get("/package/contract", response_model=PersonalReportPackageContractResponse)
 def personal_report_package_contract() -> PersonalReportPackageContractResponse:
     """Return the stable package-level API/export contract."""
     return PersonalReportPackageContractResponse(**PERSONAL_REPORT_PACKAGE_CONTRACT)
+
+
+@router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)
+async def annualized_income_schedule(
+    as_of_date: date | None = Query(default=None),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> AnnualizedIncomeScheduleResponse:
+    """Return report-ready annualized income and restricted compensation schedule."""
+    report_date = as_of_date or date.today()
+    start_date = report_date - timedelta(days=365)
+    income_result = await db.execute(
+        select(JournalLine, Account)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.entry_date > start_date)
+        .where(JournalEntry.entry_date <= report_date)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(Account.type == AccountType.INCOME)
+    )
+
+    totals = {
+        "salary": Decimal("0.00"),
+        "bonus": Decimal("0.00"),
+        "dividend": Decimal("0.00"),
+        "total": Decimal("0.00"),
+    }
+    currency = settings.base_currency
+    for line, account in income_result.all():
+        signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
+        bucket = _annualized_income_bucket(account.name)
+        if bucket:
+            totals[bucket] += signed_amount
+        totals["total"] += signed_amount
+        currency = line.currency or account.currency or currency
+
+    restricted_types = (
+        ManualValuationComponentType.ESOP,
+        ManualValuationComponentType.RSU,
+        ManualValuationComponentType.STOCK_OPTIONS,
+    )
+    restricted_result = await db.execute(
+        select(ManualValuationSnapshot)
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.as_of_date <= report_date)
+        .where(ManualValuationSnapshot.component_type.in_(restricted_types))
+        .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
+        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+    )
+
+    latest_holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationSnapshot] = {}
+    for snapshot in restricted_result.scalars().all():
+        key = (snapshot.component_type, snapshot.source, snapshot.currency)
+        latest_holdings.setdefault(key, snapshot)
+
+    holdings = [
+        AnnualizedIncomeScheduleHolding(
+            ticker=snapshot.source,
+            compensation_type=snapshot.component_type.value,
+            fair_value=snapshot.value.quantize(Decimal("0.01")),
+            currency=snapshot.currency,
+            valuation_basis="manual_valuation_snapshot",
+            vesting_schedule=snapshot.notes,
+            unlock_date=snapshot.reminder_date,
+            liquidity_class=snapshot.liquidity_class.value,
+            net_worth_treatment="excluded_from_liquid_net_worth_by_default",
+        )
+        for snapshot in latest_holdings.values()
+    ]
+    restricted_total = sum(
+        (holding.fair_value for holding in holdings if holding.currency == currency),
+        Decimal("0.00"),
+    ).quantize(Decimal("0.01"))
+
+    return AnnualizedIncomeScheduleResponse(
+        section_id="annualized_income_long_term",
+        label="Annualized Income & Long-Term Compensation",
+        as_of_date=report_date,
+        trailing_period_start=start_date,
+        trailing_period_end=report_date,
+        trailing_period_days=365,
+        income=AnnualizedIncomeScheduleIncome(
+            annualized_salary=totals["salary"].quantize(Decimal("0.01")),
+            annualized_bonus=totals["bonus"].quantize(Decimal("0.01")),
+            annualized_dividend=totals["dividend"].quantize(Decimal("0.01")),
+            annualized_total=totals["total"].quantize(Decimal("0.01")),
+            currency=currency,
+            calculation_basis="posted_or_reconciled_income_journal_lines_trailing_12_months",
+        ),
+        restricted_holdings=holdings,
+        restricted_fair_value_total=restricted_total,
+        restricted_fair_value_total_currency=currency,
+        net_worth_treatment=AnnualizedIncomeScheduleNetWorthTreatment(
+            liquid_net_worth_default="exclude_restricted_holdings",
+            restricted_wealth_basis="manual_valuation_snapshot_fair_value",
+            include_restricted_query="/api/reports/balance-sheet?include_restricted=true",
+            exclude_restricted_query="/api/reports/balance-sheet?include_restricted=false",
+        ),
+        notes=[
+            "Personal management report only; not tax advice.",
+            "Restricted holdings are excluded from liquid net worth by default.",
+        ],
+    )
 
 
 @router.get("/balance-sheet", response_model=BalanceSheetResponse)

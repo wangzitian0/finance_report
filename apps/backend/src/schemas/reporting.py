@@ -208,3 +208,54 @@ class PersonalReportPackageContractResponse(BaseModel):
     period_semantics: dict[str, str]
     sections: list[PersonalReportPackageSectionContract]
     export_contract: PersonalReportPackageExportContract
+
+
+class AnnualizedIncomeScheduleIncome(BaseModel):
+    """Trailing income totals for the personal report package."""
+
+    annualized_salary: Decimal
+    annualized_bonus: Decimal
+    annualized_dividend: Decimal
+    annualized_total: Decimal
+    currency: str = Field(min_length=3, max_length=3)
+    calculation_basis: str
+
+
+class AnnualizedIncomeScheduleHolding(BaseModel):
+    """Restricted long-term compensation holding for the personal report package."""
+
+    ticker: str
+    compensation_type: str
+    fair_value: Decimal
+    currency: str = Field(min_length=3, max_length=3)
+    valuation_basis: str
+    vesting_schedule: str | None = None
+    unlock_date: date | None = None
+    liquidity_class: str
+    net_worth_treatment: str
+
+
+class AnnualizedIncomeScheduleNetWorthTreatment(BaseModel):
+    """Net-worth presentation semantics for restricted compensation."""
+
+    liquid_net_worth_default: str
+    restricted_wealth_basis: str
+    include_restricted_query: str
+    exclude_restricted_query: str
+
+
+class AnnualizedIncomeScheduleResponse(BaseModel):
+    """Report-ready annualized income and long-term compensation schedule."""
+
+    section_id: str
+    label: str
+    as_of_date: date
+    trailing_period_start: date
+    trailing_period_end: date
+    trailing_period_days: int
+    income: AnnualizedIncomeScheduleIncome
+    restricted_holdings: list[AnnualizedIncomeScheduleHolding]
+    restricted_fair_value_total: Decimal
+    restricted_fair_value_total_currency: str = Field(min_length=3, max_length=3)
+    net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
+    notes: list[str]

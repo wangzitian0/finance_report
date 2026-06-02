@@ -32,7 +32,6 @@ def test_AC5_9_1_package_contract_endpoint_defines_required_sections():
     assert sections["balance_sheet"]["label"] == "Balance Sheet"
     assert sections["balance_sheet"]["source_endpoint"] == "/api/reports/balance-sheet"
     assert sections["investment_performance"]["owner_epic"] == "EPIC-017"
-    assert sections["annualized_income_long_term"]["blocking_issue"] == "#566"
     assert sections["notes"]["blocking_issue"] == "#571"
     assert sections["traceability_appendix"]["blocking_issue"] == "#572"
 
@@ -71,3 +70,15 @@ def test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics():
         "currency",
         "source_state",
     ]
+
+
+def test_AC5_11_1_package_contract_marks_annualized_schedule_ready():
+    """AC5.11.1: Annualized income package section points to the ready schedule endpoint."""
+    response = personal_report_package_contract()
+    payload = response.model_dump(mode="json")
+
+    sections = {section["section_id"]: section for section in payload["sections"]}
+    section = sections["annualized_income_long_term"]
+    assert section["status"] == "ready"
+    assert section["blocking_issue"] is None
+    assert section["source_endpoint"] == "/api/reports/package/annualized-income-schedule"

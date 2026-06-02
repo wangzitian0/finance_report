@@ -25,6 +25,18 @@ cash-flow view, investment performance, annualized income and long-term
 compensation, notes, and traceability appendix. Decimal fields serialize as
 strings to preserve money precision in frontend and export consumers.
 
+Annualized income and long-term compensation schedule endpoint:
+
+```bash
+curl "https://report.zitian.party/api/reports/package/annualized-income-schedule?as_of_date=2026-05-20"
+```
+
+This schedule reports trailing-12-month salary, bonus, dividend, and total
+income from posted or reconciled income journal lines. It also lists restricted
+ESOP/RSU/stock-option manual valuation snapshots with valuation basis,
+vesting/unlock metadata, and the default net-worth treatment that excludes
+restricted holdings from liquid net worth.
+
 ### Balance Sheet
 
 Shows your financial position at a point in time:

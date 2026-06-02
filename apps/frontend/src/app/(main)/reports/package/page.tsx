@@ -3,21 +3,32 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import type { PersonalReportPackageContractResponse } from "@/lib/types";
+import { formatCurrencyLocale } from "@/lib/currency";
+import type { AnnualizedIncomeScheduleResponse, PersonalReportPackageContractResponse } from "@/lib/types";
+
+function formatScheduleCurrency(value: number | string, currency: string): string {
+    return formatCurrencyLocale(value, currency, "en-US", { maximumFractionDigits: 0 }).replace(/\u00a0/g, " ");
+}
 
 export default function PersonalReportPackagePage() {
     const [contract, setContract] = useState<PersonalReportPackageContractResponse | null>(null);
+    const [annualizedSchedule, setAnnualizedSchedule] = useState<AnnualizedIncomeScheduleResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
 
-        apiFetch<PersonalReportPackageContractResponse>("/api/reports/package/contract")
-            .then((data) => {
-                if (isMounted) setContract(data);
+        Promise.all([
+            apiFetch<PersonalReportPackageContractResponse>("/api/reports/package/contract"),
+            apiFetch<AnnualizedIncomeScheduleResponse>("/api/reports/package/annualized-income-schedule"),
+        ])
+            .then(([contractData, scheduleData]) => {
+                if (!isMounted) return;
+                setContract(contractData);
+                setAnnualizedSchedule(scheduleData);
             })
             .catch((err) => {
-                if (isMounted) setError(err instanceof Error ? err.message : "Failed to load package contract.");
+                if (isMounted) setError(err instanceof Error ? err.message : "Failed to load package data.");
             });
 
         return () => {
@@ -29,7 +40,7 @@ export default function PersonalReportPackagePage() {
         return <div className="p-6 text-[var(--error)]">{error}</div>;
     }
 
-    if (!contract) {
+    if (!contract || !annualizedSchedule) {
         return <div className="p-6 text-muted">Loading package contract...</div>;
     }
 
@@ -69,6 +80,98 @@ export default function PersonalReportPackagePage() {
                     </section>
                 ))}
             </div>
+
+            <section className="card p-5 mb-6">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-mono text-muted">{annualizedSchedule.section_id}</p>
+                        <h2 className="font-semibold mt-1">Annualized Income Schedule</h2>
+                    </div>
+                    <span className="badge badge-muted">{annualizedSchedule.trailing_period_days} days</span>
+                </div>
+                <div className="mt-4 grid md:grid-cols-4 gap-3">
+                    <div>
+                        <p className="text-xs text-muted">Total</p>
+                        <p className="mt-1 font-semibold">
+                            {formatScheduleCurrency(annualizedSchedule.income.annualized_total, annualizedSchedule.income.currency)}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-muted">Salary</p>
+                        <p className="mt-1 font-semibold">
+                            {formatScheduleCurrency(annualizedSchedule.income.annualized_salary, annualizedSchedule.income.currency)}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-muted">Bonus</p>
+                        <p className="mt-1 font-semibold">
+                            {formatScheduleCurrency(annualizedSchedule.income.annualized_bonus, annualizedSchedule.income.currency)}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-muted">Dividend</p>
+                        <p className="mt-1 font-semibold">
+                            {formatScheduleCurrency(annualizedSchedule.income.annualized_dividend, annualizedSchedule.income.currency)}
+                        </p>
+                    </div>
+                </div>
+                <div className="mt-5 grid lg:grid-cols-2 gap-4">
+                    <div>
+                        <h3 className="text-sm font-semibold">Restricted Holdings</h3>
+                        <div className="mt-3 space-y-2">
+                            {annualizedSchedule.restricted_holdings.map((holding) => (
+                                <div key={`${holding.compensation_type}:${holding.ticker}`} className="border border-[var(--border)] rounded p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="font-medium">{holding.ticker}</p>
+                                            <p className="text-xs text-muted">{holding.compensation_type}</p>
+                                        </div>
+                                        <p className="font-semibold">
+                                            {formatScheduleCurrency(holding.fair_value, holding.currency)}
+                                        </p>
+                                    </div>
+                                    <dl className="mt-3 space-y-1 text-xs">
+                                        {holding.vesting_schedule ? (
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted">Vesting</dt>
+                                                <dd>{holding.vesting_schedule}</dd>
+                                            </div>
+                                        ) : null}
+                                        {holding.unlock_date ? (
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted">Unlock</dt>
+                                                <dd>{holding.unlock_date}</dd>
+                                            </div>
+                                        ) : null}
+                                    </dl>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-semibold">Net Worth Treatment</h3>
+                        <dl className="mt-3 space-y-2 text-sm">
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted">Liquid Default</dt>
+                                <dd className="font-mono text-xs text-right">
+                                    {annualizedSchedule.net_worth_treatment.liquid_net_worth_default}
+                                </dd>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <dt className="text-muted">Restricted Basis</dt>
+                                <dd className="font-mono text-xs text-right">
+                                    {annualizedSchedule.net_worth_treatment.restricted_wealth_basis}
+                                </dd>
+                            </div>
+                        </dl>
+                        <ul className="mt-4 space-y-1 text-sm text-muted">
+                            {annualizedSchedule.notes.map((note) => (
+                                <li key={note}>{note}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            </section>
 
             <section className="card p-5">
                 <h2 className="font-semibold">Export Contract</h2>
