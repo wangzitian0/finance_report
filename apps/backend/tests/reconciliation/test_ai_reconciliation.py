@@ -50,9 +50,9 @@ async def test_ai_semantic_score_returns_score():
             mock_accumulate,
         ),
     ):
-        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
         mock_settings.primary_model = "test-model"
-        mock_settings.openrouter_base_url = "https://test.api"
+        mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score(
             txn_description="SALARY ACME CORP",
@@ -82,9 +82,9 @@ async def test_ai_semantic_score_returns_low_for_unrelated():
             mock_accumulate,
         ),
     ):
-        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
         mock_settings.primary_model = "test-model"
-        mock_settings.openrouter_base_url = "https://test.api"
+        mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score(
             txn_description="COFFEE SHOP PURCHASE",
@@ -109,9 +109,9 @@ async def test_ai_semantic_score_fallback_on_error():
             mock_stream,
         ),
     ):
-        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
         mock_settings.primary_model = "test-model"
-        mock_settings.openrouter_base_url = "https://test.api"
+        mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score(
             txn_description="test",
@@ -126,7 +126,37 @@ async def test_ai_semantic_score_fallback_on_error():
 async def test_ai_semantic_score_no_api_key_returns_50():
     """When no API key is configured, fall back to neutral score."""
     with patch("src.services.reconciliation.settings") as mock_settings:
-        mock_settings.openrouter_api_key = ""
+        mock_settings.ai_api_key = ""
+
+        score = await ai_semantic_score(
+            txn_description="test",
+            entry_memo="test",
+            date_diff_days=0,
+            amount_match_pct=100.0,
+        )
+        assert score == 50
+
+
+@pytest.mark.asyncio
+async def test_ai_semantic_score_empty_response_returns_50():
+    """Empty AI responses fall back to neutral score."""
+    mock_accumulate = AsyncMock(return_value="  ")
+    mock_stream = MagicMock()
+
+    with (
+        patch("src.services.reconciliation.settings") as mock_settings,
+        patch(
+            "src.services.openrouter_streaming.stream_openrouter_json",
+            return_value=mock_stream,
+        ),
+        patch(
+            "src.services.openrouter_streaming.accumulate_stream",
+            mock_accumulate,
+        ),
+    ):
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.primary_model = "test-model"
+        mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score(
             txn_description="test",
@@ -156,9 +186,9 @@ async def test_ai_semantic_score_clamps_to_range():
             mock_accumulate,
         ),
     ):
-        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
         mock_settings.primary_model = "test-model"
-        mock_settings.openrouter_base_url = "https://test.api"
+        mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score(
             txn_description="test",

@@ -11,6 +11,7 @@ from src.models import Account, AccountType, FxRate
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.routers.portfolio import _source_document_links
 from src.services.performance import calculate_money_weighted_return, calculate_time_weighted_return, calculate_xirr
 
 
@@ -32,6 +33,11 @@ async def _investment_position(db: AsyncSession, test_user, *, asset_identifier:
     db.add(position)
     await db.flush()
     return position
+
+
+def test_AC17_11_4_source_document_links_ignore_non_structured_payloads():
+    """AC17.11.4: Non-structured source document payloads produce no audit links."""
+    assert _source_document_links("legacy-import") == []
 
 
 @pytest.mark.asyncio
