@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
@@ -83,9 +83,9 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     render(<AiSuggestionsPage />);
 
-    expect(await screen.findByText("CARD PURCHASE COFFEE")).toBeInTheDocument();
-    expect(screen.getByText("Expense - Food & Dining")).toBeInTheDocument();
-    expect(screen.getByText("Merchant name indicates dining.")).toBeInTheDocument();
+    expect((await screen.findAllByText("CARD PURCHASE COFFEE")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Expense - Food & Dining").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Merchant name indicates dining.").length).toBeGreaterThan(0);
   });
 
   it("AC18.5.4 — feedback POST on accept/reject/edit", async () => {
@@ -108,17 +108,64 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     render(<AiSuggestionsPage />);
 
-    await screen.findByText("PAYNOW TRANSFER");
-    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
-    fireEvent.change(screen.getByLabelText("Corrected value"), { target: { value: "Expense - Transport" } });
-    fireEvent.click(screen.getByRole("button", { name: "Edit-then-Accept" }));
+    await screen.findAllByText("PAYNOW TRANSFER");
+    const mobileCard = screen.getByTestId("ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000012");
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), { target: { value: "Expense - Transport" } });
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }));
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/ai/feedback", {
         method: "POST",
         body: JSON.stringify({
           suggestion_id: "00000000-0000-0000-0000-000000000012",
+          action: "edit_accept",
+          corrected_value: { value: "Expense - Transport" },
+        }),
+      }),
+    );
+  });
+
+  it("AC16.25.2 — AI suggestions mobile cards expose feedback actions", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [
+          {
+            suggestion_id: "00000000-0000-0000-0000-000000000025",
+            transaction: "MOBILE CARD PURCHASE",
+            suggested_category_or_match: "Expense - Food & Dining",
+            ai_score: 72,
+            ai_reasoning: "Merchant category and prior corrections match dining.",
+          },
+        ],
+        total: 1,
+      })
+      .mockResolvedValueOnce({ id: "feedback-accept" })
+      .mockResolvedValueOnce({ id: "feedback-reject" })
+      .mockResolvedValueOnce({ id: "feedback-edit" });
+
+    render(<AiSuggestionsPage />);
+
+    const mobileList = await screen.findByTestId("ai-suggestions-mobile-list");
+    const mobileCard = within(mobileList).getByTestId(
+      "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000025",
+    );
+
+    expect(within(mobileCard).getByText("MOBILE CARD PURCHASE")).toBeInTheDocument();
+    expect(within(mobileCard).getByLabelText("Corrected value")).toBeInTheDocument();
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
+      target: { value: "Expense - Transport" },
+    });
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }));
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/ai/feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          suggestion_id: "00000000-0000-0000-0000-000000000025",
           action: "edit_accept",
           corrected_value: { value: "Expense - Transport" },
         }),

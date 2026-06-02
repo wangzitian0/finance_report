@@ -16,6 +16,17 @@ from unittest import mock
 from common.ssot import lint_doc_consistency as ldc
 
 
+def test_AC16_25_1_playwright_specs_are_traceability_test_roots() -> None:
+    """AC16.25.1: Frontend Playwright mobile specs count as AC proof."""
+    playwright_root = ldc.REPO_ROOT / "apps" / "frontend" / "playwright"
+
+    assert playwright_root in ldc.TEST_ROOTS
+    assert any(
+        base == playwright_root and "**/*.spec.ts" in patterns
+        for base, patterns in ldc.NO_AC_SCAN_TARGETS
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------

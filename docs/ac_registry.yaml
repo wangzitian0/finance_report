@@ -2200,6 +2200,12 @@ groups:
         epic_name: testing-strategy
         description: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
         mandatory: true
+      - id: AC8.13.75
+        epic: 8
+        epic_name: testing-strategy
+        description: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary
+          writes fail.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
@@ -3821,6 +3827,29 @@ groups:
         epic_name: two-stage-review-ui
         description: Stage 2 batch approval routes accepted matches through the ledger-safe acceptance path, creating missing
           journal entries
+        mandatory: true
+    AC16.25:
+      - id: AC16.25.1
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Review, journal details, and mobile navigation surfaces do not create document-level horizontal scrolling
+          at phone width
+        mandatory: true
+      - id: AC16.25.2
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: AI suggestion review queue exposes accept, reject, correction, and edit-accept actions directly in a
+          mobile card layout
+        mandatory: true
+      - id: AC16.25.3
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Journal entry details expose line account, direction, amount, and currency as mobile line cards
+        mandatory: true
+      - id: AC16.25.4
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Root layout keeps theme color in the viewport export and avoids duplicate iOS web-app capability metadata
         mandatory: true
   AC17:
     AC17.1:

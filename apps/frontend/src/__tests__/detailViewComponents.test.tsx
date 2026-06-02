@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 
@@ -93,14 +93,43 @@ describe("JournalEntryDetailsModal", () => {
     expect(screen.getByText("No memo")).toBeInTheDocument()
 
     
-    expect(screen.getByText("a1")).toBeInTheDocument()
-    expect(screen.getByText("DEBIT")).toBeInTheDocument()
-    expect(screen.getByText("a2")).toBeInTheDocument()
-    expect(screen.getByText("CREDIT")).toBeInTheDocument()
+    expect(screen.getAllByText("a1").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("DEBIT").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("a2").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("CREDIT").length).toBeGreaterThan(0)
 
     
     expect(screen.getByText(/DR:/)).toBeInTheDocument()
     expect(screen.getByText(/CR:/)).toBeInTheDocument()
+  })
+
+  it("AC16.25.3 journal entry details mobile line cards expose all line fields", () => {
+    const lines: JournalLine[] = [
+      { id: "line-debit", account_id: "assets:cash:mobile", direction: "DEBIT", amount: 1234.56, currency: "SGD" },
+      { id: "line-credit", account_id: "income:salary:mobile", direction: "CREDIT", amount: 1234.56, currency: "SGD" },
+    ]
+    const entry: JournalEntry = {
+      id: "je-mobile",
+      entry_date: "2026-06-01",
+      memo: "Mobile detail entry",
+      source_type: "manual_adjustment",
+      status: "posted",
+      lines,
+      created_at: "2026-06-01T08:00:00Z",
+    }
+
+    render(<JournalEntryDetailsModal entry={entry} isOpen onClose={vi.fn()} />)
+
+    const mobileLines = screen.getByTestId("journal-lines-mobile")
+    const debitCard = within(mobileLines).getByTestId("journal-line-mobile-line-debit")
+    const creditCard = within(mobileLines).getByTestId("journal-line-mobile-line-credit")
+
+    expect(within(debitCard).getByText("assets:cash:mobile")).toBeInTheDocument()
+    expect(within(debitCard).getByText("DEBIT")).toBeInTheDocument()
+    expect(within(debitCard).getByText(/1,234\.56/)).toBeInTheDocument()
+    expect(within(debitCard).getByText("SGD")).toBeInTheDocument()
+    expect(within(creditCard).getByText("income:salary:mobile")).toBeInTheDocument()
+    expect(within(creditCard).getByText("CREDIT")).toBeInTheDocument()
   })
 
   it("handles different statuses rendering badge variants", () => {

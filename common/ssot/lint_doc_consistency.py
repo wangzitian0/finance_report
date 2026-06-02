@@ -16,8 +16,8 @@ Hard-fail checks enforced in CI:
      two registries (no dangling AC IDs in EPIC docs).
   5. Every AC ID present in either registry MUST appear at least once
      under apps/backend/tests/, apps/frontend/src/__tests__/,
-     tests/tooling/, or tests/e2e/, unless the AC is marked ``deprecated``
-     (full traceability).
+     apps/frontend/playwright/, tests/tooling/, or tests/e2e/, unless the
+     AC is marked ``deprecated`` (full traceability).
   6. Every ``ACx.y.z`` referenced from a test file MUST exist in one of
      the two registries AND its ``epic`` field MUST equal ``x`` (the
      epic prefix of the AC ID). Test fixtures under ``tests/tooling/``
@@ -78,6 +78,7 @@ TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "analysis" / "traceability-except
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
     REPO_ROOT / "apps" / "frontend" / "src" / "__tests__",
+    REPO_ROOT / "apps" / "frontend" / "playwright",
     REPO_ROOT / "tests" / "tooling",
     REPO_ROOT / "tests" / "e2e",
 ]
@@ -87,6 +88,10 @@ NO_AC_SCAN_TARGETS: tuple[tuple[Path, tuple[str, ...]], ...] = (
     (
         REPO_ROOT / "apps" / "frontend" / "src",
         ("**/*.test.ts", "**/*.test.tsx"),
+    ),
+    (
+        REPO_ROOT / "apps" / "frontend" / "playwright",
+        ("**/*.spec.ts", "**/*.spec.tsx"),
     ),
     (REPO_ROOT / "tests" / "tooling", ("**/*.py",)),
     (REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
@@ -300,6 +305,10 @@ def discover_no_ac_test_files(
             (
                 REPO_ROOT / "apps" / "frontend" / "src",
                 ("**/*.test.ts", "**/*.test.tsx"),
+            ),
+            (
+                REPO_ROOT / "apps" / "frontend" / "playwright",
+                ("**/*.spec.ts", "**/*.spec.tsx"),
             ),
             (REPO_ROOT / "tests" / "tooling", ("**/*.py",)),
             (REPO_ROOT / "tests" / "e2e", ("**/*.py",)),
@@ -525,7 +534,8 @@ def check_registry_to_tests(
                     message=(
                         f"{ac_id}: present in registry but not referenced "
                         "by any test under apps/backend/tests/, "
-                        "apps/frontend/src/__tests__/, or tests/tooling/"
+                        "apps/frontend/src/__tests__/, apps/frontend/playwright/, "
+                        "or tests/tooling/"
                     ),
                 )
             )
