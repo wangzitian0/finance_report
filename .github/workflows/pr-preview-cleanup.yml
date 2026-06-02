@@ -33,23 +33,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure SSH
-        id: ssh
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_HOST: cloud.zitian.party
-        run: |
-          if [ -z "$VPS_SSH_KEY" ]; then
-            echo "::error::VPS_SSH_KEY is required for stale preview cleanup."
-            exit 1
-          fi
-
-          mkdir -p ~/.ssh
-          echo "$VPS_SSH_KEY" > ~/.ssh/vps_key
-          chmod 600 ~/.ssh/vps_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          echo "enabled=true" >> "$GITHUB_OUTPUT"
-
       - name: Remove stale preview resources
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,6 +46,4 @@ jobs:
             --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY" \
-            --host cloud.zitian.party \
-            --ssh-key ~/.ssh/vps_key \
             ${DRY_RUN:+"$DRY_RUN"}

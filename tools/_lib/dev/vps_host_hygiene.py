@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
-"""Run generic VPS host hygiene without Dokploy or GitHub credentials."""
+"""Run VPS host hygiene and manage its Dokploy server schedule."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
+from urllib.parse import quote
+
+from tools._lib.dev.pr_preview_lifecycle import (
+    DokployConfig,
+    dokploy_api_call,
+)
+
+
+DEFAULT_SCHEDULE_NAME = "finance-report-vps-host-hygiene"
+DEFAULT_CRON_EXPRESSION = "17 3,9,15,21 * * *"
+DEFAULT_TIMEZONE = "Asia/Singapore"
+DEFAULT_SCHEDULE_TYPE = "server"
 
 
 def run_command(
@@ -35,12 +48,17 @@ def build_hygiene_script(
     docker_log_truncate_size_mib: int,
     disk_warning_percent: int,
     disk_error_percent: int,
+    pr_preview_max_age_days: int,
+    pr_preview_keep_recent: int,
 ) -> str:
     lines = [
         "set -eu",
         f"DOCKER_LOG_TRUNCATE_SIZE_MIB='{docker_log_truncate_size_mib}'",
         f"DISK_WARNING_PERCENT='{disk_warning_percent}'",
         f"DISK_ERROR_PERCENT='{disk_error_percent}'",
+        f"CONTAINER_PRUNE_UNTIL='{container_prune_until}'",
+        f"PR_PREVIEW_MAX_AGE_DAYS='{pr_preview_max_age_days}'",
+        f"PR_PREVIEW_KEEP_RECENT='{pr_preview_keep_recent}'",
         'DISK_PATHS="/"',
         'if [ -d /data ]; then DISK_PATHS="$DISK_PATHS /data"; fi',
         'echo "Disk usage before host hygiene:"',
@@ -52,6 +70,91 @@ def build_hygiene_script(
         '  echo "::warning::docker unavailable; skipping Docker usage summary"',
         "fi",
     ]
+
+    lines.extend(
+        [
+            'echo "Cleaning old PR preview Docker resources"',
+            "if command -v docker >/dev/null 2>&1; then",
+            '  cutoff_epoch="$(date -u -d "${PR_PREVIEW_MAX_AGE_DAYS} days ago" +%s)"',
+            '  recent_prs="$(',
+            "    {",
+            "      docker ps -a --format '{{.Names}}' | "
+            "sed -n 's/^finance-report-[^-]*-pr-\\([0-9][0-9]*\\)$/\\1/p'",
+            "      docker volume ls --format '{{.Name}}' | "
+            "sed -n 's/^finance_report_pr_\\([0-9][0-9]*\\)_.*/\\1/p'",
+            '    } | sort -nu | tail -n "$PR_PREVIEW_KEEP_RECENT"',
+            '  )"',
+            "  is_recent_pr() {",
+            '    printf "%s\\n" "$recent_prs" | grep -qx "$1"',
+            "  }",
+            "  should_delete_pr_resource() {",
+            '    pr_number="$1"',
+            '    created_at="$2"',
+            '    if is_recent_pr "$pr_number"; then',
+            "      return 1",
+            "    fi",
+            '    created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"',
+            '    [ "$created_epoch" -lt "$cutoff_epoch" ]',
+            "  }",
+            "  docker ps -a --format '{{.Names}}' | "
+            "grep -E '^finance-report-(backend|frontend|db|minio)-pr-[0-9]+$' | "
+            "while read -r container_name; do",
+            '    pr_number="$(printf "%s\\n" "$container_name" | '
+            "sed -n 's/^finance-report-[^-]*-pr-\\([0-9][0-9]*\\)$/\\1/p')\"",
+            '    created_at="$(docker inspect --format "{{.Created}}" "$container_name" 2>/dev/null || echo "")"',
+            '    if [ -n "$pr_number" ] && should_delete_pr_resource "$pr_number" "$created_at"; then',
+            (
+                '      echo "[dry-run] docker rm -f ${container_name}"'
+                if dry_run
+                else '      docker rm -f "$container_name"'
+            ),
+            "    fi",
+            "  done",
+            "  docker volume ls --format '{{.Name}}' | "
+            "grep -E '^finance_report_pr_[0-9]+_' | "
+            "while read -r volume_name; do",
+            '    pr_number="$(printf "%s\\n" "$volume_name" | '
+            "sed -n 's/^finance_report_pr_\\([0-9][0-9]*\\)_.*/\\1/p')\"",
+            '    created_at="$(docker volume inspect --format "{{.CreatedAt}}" "$volume_name" 2>/dev/null || echo "")"',
+            '    if [ -n "$pr_number" ] && should_delete_pr_resource "$pr_number" "$created_at"; then',
+            (
+                '      echo "[dry-run] docker volume rm ${volume_name}"'
+                if dry_run
+                else '      docker volume rm "$volume_name" || true'
+            ),
+            "    fi",
+            "  done",
+            "else",
+            '  echo "::warning::docker unavailable; skipping PR preview resource cleanup"',
+            "fi",
+        ]
+    )
+
+    lines.extend(
+        [
+            'echo "Cleaning old non-preview stopped containers"',
+            "if command -v docker >/dev/null 2>&1; then",
+            '  container_cutoff_epoch="$(date -u -d "${CONTAINER_PRUNE_UNTIL} ago" +%s)"',
+            "  docker ps -a --format '{{.Names}}' | "
+            "grep -Ev '^finance-report-(backend|frontend|db|minio)-pr-[0-9]+$' | "
+            "while read -r non_preview_container; do",
+            '    status="$(docker inspect --format "{{.State.Status}}" "$non_preview_container" 2>/dev/null || echo "")"',
+            '    case "$status" in exited|created|dead) ;; *) continue ;; esac',
+            '    created_at="$(docker inspect --format "{{.Created}}" "$non_preview_container" 2>/dev/null || echo "")"',
+            '    created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"',
+            '    if [ "$created_epoch" -lt "$container_cutoff_epoch" ]; then',
+            (
+                '      echo "[dry-run] docker rm -f ${non_preview_container}"'
+                if dry_run
+                else '      docker rm -f "$non_preview_container" || true'
+            ),
+            "    fi",
+            "  done",
+            "else",
+            '  echo "::warning::docker unavailable; skipping non-preview container cleanup"',
+            "fi",
+        ]
+    )
 
     if docker_log_truncate_size_mib > 0:
         lines.extend(
@@ -77,10 +180,6 @@ def build_hygiene_script(
         )
 
     prune_commands = [
-        (
-            f"docker container prune -f --filter until={container_prune_until}",
-            f'docker container prune -f --filter "until={container_prune_until}"',
-        ),
         (
             f"docker builder prune -af --filter until={builder_prune_until}",
             f'docker builder prune -af --filter "until={builder_prune_until}"',
@@ -112,18 +211,18 @@ def build_hygiene_script(
                 ]
             )
         else:
-            lines.append(command)
+            lines.append(f"{command} || true")
 
     lines.extend(
         [
             'echo "Disk usage after host hygiene:"',
-        "df -h $DISK_PATHS",
-        'echo "Docker usage after host hygiene:"',
-        "if command -v docker >/dev/null 2>&1; then",
-        '  docker system df -v || docker system df || echo "::warning::docker system df unavailable"',
-        "else",
-        '  echo "::warning::docker unavailable; skipping Docker usage summary"',
-        "fi",
+            "df -h $DISK_PATHS",
+            'echo "Docker usage after host hygiene:"',
+            "if command -v docker >/dev/null 2>&1; then",
+            '  docker system df -v || docker system df || echo "::warning::docker system df unavailable"',
+            "else",
+            '  echo "::warning::docker unavailable; skipping Docker usage summary"',
+            "fi",
             'df -P $DISK_PATHS | awk -v warn="$DISK_WARNING_PERCENT" '
             '-v err="$DISK_ERROR_PERCENT" \''
             'NR > 1 { usage=$5; gsub(/%/, "", usage); '
@@ -139,18 +238,126 @@ def build_hygiene_script(
     return "\n".join(lines) + "\n"
 
 
+def build_schedule_payload(
+    *,
+    server_id: str,
+    script: str,
+    name: str = DEFAULT_SCHEDULE_NAME,
+    cron_expression: str = DEFAULT_CRON_EXPRESSION,
+    timezone: str = DEFAULT_TIMEZONE,
+    enabled: bool = True,
+    schedule_id: str = "",
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "name": name,
+        "description": (
+            "Finance Report VPS host hygiene. Keeps PR preview resources created "
+            "within 3 days or among the most recent 3 PRs; prunes older host garbage."
+        ),
+        "cronExpression": cron_expression,
+        "shellType": "bash",
+        "scheduleType": DEFAULT_SCHEDULE_TYPE,
+        "command": script,
+        "script": script,
+        "serverId": server_id,
+        "enabled": enabled,
+        "timezone": timezone,
+    }
+    if schedule_id:
+        payload["scheduleId"] = schedule_id
+    return payload
+
+
+def extract_schedules(payload: str) -> list[dict[str, object]]:
+    data = json.loads(payload or "{}")
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if not isinstance(data, dict):
+        return []
+    for key in ("schedules", "schedule", "items", "data"):
+        value = data.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def find_schedule_id_by_name(
+    config: DokployConfig,
+    *,
+    server_id: str,
+    name: str,
+    schedule_type: str = DEFAULT_SCHEDULE_TYPE,
+) -> str | None:
+    body = dokploy_api_call(
+        config,
+        "GET",
+        (
+            "schedule.list?"
+            f"id={quote(server_id, safe='')}&scheduleType={quote(schedule_type, safe='')}"
+        ),
+    )
+    for schedule in extract_schedules(body):
+        if schedule.get("name") == name and schedule.get("scheduleId"):
+            return str(schedule["scheduleId"])
+    return None
+
+
+def ensure_dokploy_schedule(
+    config: DokployConfig,
+    *,
+    server_id: str,
+    script: str,
+    name: str,
+    cron_expression: str,
+    timezone: str,
+    enabled: bool,
+) -> str:
+    schedule_id = find_schedule_id_by_name(config, server_id=server_id, name=name)
+    payload = build_schedule_payload(
+        server_id=server_id,
+        script=script,
+        name=name,
+        cron_expression=cron_expression,
+        timezone=timezone,
+        enabled=enabled,
+        schedule_id=schedule_id or "",
+    )
+    endpoint = "schedule.update" if schedule_id else "schedule.create"
+    body = dokploy_api_call(config, "POST", endpoint, payload=payload)
+    created_or_updated = json.loads(body or "{}")
+    effective_schedule_id = str(
+        created_or_updated.get("scheduleId") or schedule_id or ""
+    )
+    print(
+        f"Dokploy host hygiene schedule {'updated' if schedule_id else 'created'}: "
+        f"{effective_schedule_id or name}"
+    )
+    return effective_schedule_id
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--container-prune-until", default="24h")
-    parser.add_argument("--builder-prune-until", default="24h")
-    parser.add_argument("--image-prune-until", default="168h")
-    parser.add_argument("--network-prune-until", default="168h")
-    parser.add_argument("--journal-vacuum-time", default="14d")
+    parser.add_argument("--container-prune-until", default="72h")
+    parser.add_argument("--builder-prune-until", default="72h")
+    parser.add_argument("--image-prune-until", default="72h")
+    parser.add_argument("--network-prune-until", default="72h")
+    parser.add_argument("--journal-vacuum-time", default="3d")
     parser.add_argument("--journal-vacuum-size", default="1G")
     parser.add_argument("--docker-log-truncate-size-mib", type=int, default=100)
     parser.add_argument("--disk-warning-percent", type=int, default=85)
     parser.add_argument("--disk-error-percent", type=int, default=95)
+    parser.add_argument("--pr-preview-max-age-days", type=int, default=3)
+    parser.add_argument("--pr-preview-keep-recent", type=int, default=3)
+    parser.add_argument("--print-dokploy-schedule-payload", action="store_true")
+    parser.add_argument("--ensure-dokploy-schedule", action="store_true")
+    parser.add_argument("--api-url", default="https://cloud.zitian.party/api")
+    parser.add_argument("--api-key", default="")
+    parser.add_argument("--server-id", default="")
+    parser.add_argument("--schedule-name", default=DEFAULT_SCHEDULE_NAME)
+    parser.add_argument("--cron-expression", default=DEFAULT_CRON_EXPRESSION)
+    parser.add_argument("--timezone", default=DEFAULT_TIMEZONE)
+    parser.add_argument("--disabled", action="store_true")
     args = parser.parse_args(argv)
 
     script = build_hygiene_script(
@@ -164,7 +371,43 @@ def main(argv: list[str] | None = None) -> int:
         docker_log_truncate_size_mib=args.docker_log_truncate_size_mib,
         disk_warning_percent=args.disk_warning_percent,
         disk_error_percent=args.disk_error_percent,
+        pr_preview_max_age_days=args.pr_preview_max_age_days,
+        pr_preview_keep_recent=args.pr_preview_keep_recent,
     )
+    if args.print_dokploy_schedule_payload:
+        if not args.server_id:
+            parser.error("--server-id is required for Dokploy schedule payloads")
+        print(
+            json.dumps(
+                build_schedule_payload(
+                    server_id=args.server_id,
+                    script=script,
+                    name=args.schedule_name,
+                    cron_expression=args.cron_expression,
+                    timezone=args.timezone,
+                    enabled=not args.disabled,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    if args.ensure_dokploy_schedule:
+        if not args.api_key:
+            parser.error("--api-key is required with --ensure-dokploy-schedule")
+        if not args.server_id:
+            parser.error("--server-id is required with --ensure-dokploy-schedule")
+        ensure_dokploy_schedule(
+            DokployConfig(api_url=args.api_url, api_key=args.api_key),
+            server_id=args.server_id,
+            script=script,
+            name=args.schedule_name,
+            cron_expression=args.cron_expression,
+            timezone=args.timezone,
+            enabled=not args.disabled,
+        )
+        return 0
+
     result = run_command(["sh", "-s"], input_text=script, check=False)
     if result.stdout:
         print(result.stdout, end="")

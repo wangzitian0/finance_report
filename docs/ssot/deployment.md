@@ -118,10 +118,27 @@ surface exposes the required operation, then prove correctness by comparing the
 effective runtime state against the requested allowlist; do not log full API
 responses or full environment templates.
 
-VPS disk hygiene is not a Dokploy deployment responsibility. The local
-`finance-report-vps-hygiene.timer` runs generic Docker and journal cleanup on
-the host; PR preview workflows only create, update, deploy, delete, and
-reconcile PR-scoped preview resources.
+VPS disk hygiene is not a GitHub Actions SSH responsibility. Dokploy owns the
+operational schedule through a `server` Schedule Job managed by
+`tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The job prunes generic
+Docker and journal garbage, and keeps PR preview Docker resources created within
+the last 3 days or belonging to the most recent 3 PR numbers. PR preview
+workflows only create, update, deploy, delete, and reconcile Dokploy compose
+resources.
+
+Install or update the Dokploy host hygiene schedule with:
+
+```bash
+python tools/vps_host_hygiene.py \
+  --ensure-dokploy-schedule \
+  --api-url https://cloud.zitian.party/api \
+  --api-key "$DOKPLOY_API_KEY" \
+  --server-id "$DOKPLOY_SERVER_ID"
+```
+
+Use `--print-dokploy-schedule-payload --server-id "$DOKPLOY_SERVER_ID"` to
+inspect the exact payload without mutating Dokploy. The default retention policy
+is `--pr-preview-max-age-days 3 --pr-preview-keep-recent 3`.
 
 **Hotfix flow**:
 ```bash

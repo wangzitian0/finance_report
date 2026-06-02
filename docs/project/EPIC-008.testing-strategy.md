@@ -112,7 +112,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.70**: E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots.
 - **AC8.13.71**: One lifecycle tool owns PR preview deploy, stop, cleanup, reconciliation, and stable metadata.
 - **AC8.13.72**: Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs.
-- **AC8.13.73**: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
+- **AC8.13.73**: VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage while keeping PR preview resources from the last 3 days or the most recent 3 PRs.
 - **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
 - **AC8.13.75**: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail.
 
@@ -496,7 +496,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.70 | E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots | `test_AC8_13_70_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.71 | One lifecycle tool owns PR preview deploy, stop, cleanup, reconciliation, and stable metadata | `test_AC8_13_71_*` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.72 | Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs | `test_AC8_13_72_*` | `tests/tooling/test_dokploy_redaction.py`, `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
-| AC8.13.73 | VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage | `test_AC8_13_73_*` | `tests/tooling/test_vps_host_hygiene.py` | P0 |
+| AC8.13.73 | VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage while keeping PR preview resources from the last 3 days or the most recent 3 PRs | `test_AC8_13_73_*` | `tests/tooling/test_vps_host_hygiene.py` | P0 |
 | AC8.13.74 | Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene | `test_AC8_13_74_*` | `tests/tooling/test_pr_preview_lifecycle.py`, `tests/tooling/test_vps_host_hygiene.py` | P0 |
 | AC8.13.75 | Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail | `test_AC8_13_75_coverage_gate_summary_is_nonblocking` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 
@@ -530,7 +530,7 @@ serve as E2E proof surfaces.
 | `tests/e2e/test_statement_full_journey.py` | Full statement hard gate | AC8.13.1-AC8.13.8 |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Brokerage portfolio hard gate | AC8.13.10, AC8.13.18, AC8.13.19 |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Deterministic upload-to-dashboard hard gate | AC8.13.28-AC8.13.32 |
-| `tests/e2e/test_personal_financial_report_package.py` | Personal financial report package post-merge proof | AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC11.8.3, AC11.9.1, AC11.9.2, AC11.9.3 |
+| `tests/e2e/test_personal_financial_report_package.py` | Personal financial report package post-merge proof | AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC11.8.3, AC11.9.1, AC11.9.2, AC11.9.3, AC17.10.1, AC17.10.2 |
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Four-asset net-worth hard gate | AC8.13.42, AC8.13.10, AC5.7.3, AC11.9.1, AC11.9.2, AC11.9.3, AC17.5.4 |
 | `tests/e2e/test_market_data_price_paths.py` | Provider-backed market-data price path gate | AC11.10.7, AC11.10.11 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-safe read-only smoke | AC8.13.9 |

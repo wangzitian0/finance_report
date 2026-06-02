@@ -2200,7 +2200,8 @@ groups:
       - id: AC8.13.73
         epic: 8
         epic_name: testing-strategy
-        description: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
+        description: VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage while keeping
+          PR preview resources from the last 3 days or the most recent 3 PRs.
         mandatory: true
       - id: AC8.13.74
         epic: 8
