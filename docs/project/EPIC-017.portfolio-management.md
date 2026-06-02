@@ -356,7 +356,7 @@ Response object:
 | `realized_pnl`, `unrealized_pnl`, `dividend_income`, `dividend_yield` | Decimal-safe return components |
 | `holdings` | Per holding `{asset_identifier, quantity, cost_basis, market_value, unrealized_pnl, realized_pnl, dividend_income, currency}` rows |
 | `allocation` | Sector, geography, and asset-class allocation rows |
-| `data_freshness` | Market-data source, latest price date, stale flag, and manual override basis |
+| `data_freshness` | Market-data source, latest price date, stale flag, `stale_holdings` per-holding stale list, and manual override basis |
 | `source_links` | Source document, brokerage import, price source, and ledger/report traceability anchors |
 | `notes` | Human-readable methods and limitations for cost basis, market prices, and return metrics |
 
@@ -364,6 +364,9 @@ Response object:
 |----|-----------|---------------|------|----------|
 | AC17.10.1 | Investment performance schedule API exposes report-ready metrics and rows | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
 | AC17.10.2 | Investment performance schedule API exposes data freshness, source links, and notes for report traceability | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC17.10.3 | Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction source, and report-section anchors | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
+| AC17.10.4 | Investment performance schedule data freshness marks the schedule stale when any holding lacks current as-of-date price evidence | `test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_stale` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
+| AC17.10.5 | Investment performance XIRR solver does not convert monetary Decimal cash flows to float | `test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows` | `apps/backend/tests/portfolio/test_performance_service.py` | P0 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

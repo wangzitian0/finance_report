@@ -4294,6 +4294,21 @@ groups:
         epic_name: portfolio-management
         description: Investment performance schedule API exposes data freshness, source links, and notes for report traceability
         mandatory: true
+      - id: AC17.10.3
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction source, and report-section anchors
+        mandatory: true
+      - id: AC17.10.4
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance schedule data freshness marks the schedule stale when any holding lacks current as-of-date price evidence
+        mandatory: true
+      - id: AC17.10.5
+        epic: 17
+        epic_name: portfolio-management
+        description: Investment performance XIRR solver does not convert monetary Decimal cash flows to float
+        mandatory: true
   AC18:
     AC18.1:
       - id: AC18.1.1

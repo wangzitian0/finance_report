@@ -126,6 +126,7 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
           latest_price_date: "2026-12-31",
           market_data_provider: "Test Broker",
           stale: false,
+          stale_holdings: [],
           manual_override_basis: null,
         },
         source_links: ["brokerage_statement:aapl"],

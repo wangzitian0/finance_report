@@ -1,7 +1,7 @@
 """Portfolio performance metrics service - XIRR, TWR, MWR calculations."""
 
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
@@ -194,8 +194,8 @@ def _xirr_newton(amounts: list[Decimal], days: list[int], guess: Decimal, max_it
     """
     Calculate XIRR using Newton's method with bisection fallback.
 
-    Accepts Decimal parameters and returns a Decimal result; uses float internally
-    for power and rate operations for performance and compatibility.
+    Accepts Decimal parameters and returns a Decimal result without converting
+    monetary cash flows to float.
 
     Args:
         amounts: Cash flow amounts (negative for outflows, positive for inflows)
@@ -209,24 +209,36 @@ def _xirr_newton(amounts: list[Decimal], days: list[int], guess: Decimal, max_it
     Raises:
         ValueError: If calculation fails to converge
     """
-    # Use float internally for the power/division operations (Decimal ** Decimal is slow
-    # and Decimal doesn't support fractional exponents natively), but convert result back.
-    rate = float(guess)
-    float_amounts = [float(a) for a in amounts]
-    float_tol = float(tolerance)
+    rate = guess
 
     for _ in range(max_iter):
-        npv = sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(float_amounts, days))
-        d_npv = sum(-(d / 365.0) * cf / (1 + rate) ** (d / 365.0 + 1) for cf, d in zip(float_amounts, days))
-        if abs(d_npv) < 1e-10:
+        base = Decimal("1") + rate
+        if base <= Decimal("0"):
+            break
+
+        npv = sum(cf / _decimal_power(base, Decimal(day) / Decimal("365")) for cf, day in zip(amounts, days))
+        d_npv = sum(
+            -(Decimal(day) / Decimal("365")) * cf / _decimal_power(base, (Decimal(day) / Decimal("365")) + Decimal("1"))
+            for cf, day in zip(amounts, days)
+        )
+        if abs(d_npv) < Decimal("1e-10"):
             break
 
         new_rate = rate - npv / d_npv
-        if abs(new_rate - rate) < float_tol:
-            return Decimal(str(new_rate))
+        if abs(new_rate - rate) < tolerance:
+            return new_rate
 
         rate = new_rate
     return _xirr_bisection(amounts, days, max_iter=200, tolerance=tolerance)
+
+
+def _decimal_power(base: Decimal, exponent: Decimal) -> Decimal:
+    """Raise a positive Decimal base to a fractional Decimal exponent."""
+    if base <= Decimal("0"):
+        raise ValueError("XIRR rate must be greater than -100%")
+    with localcontext() as ctx:
+        ctx.prec = max(ctx.prec, 34)
+        return (base.ln() * exponent).exp()
 
 
 def _xirr_bisection(amounts: list[Decimal], days: list[int], max_iter: int, tolerance: Decimal) -> Decimal:
@@ -247,12 +259,11 @@ def _xirr_bisection(amounts: list[Decimal], days: list[int], max_iter: int, tole
     Raises:
         ValueError: If no root found in search range
     """
-    lo, hi = -0.99, 10.0
-    float_amounts = [float(a) for a in amounts]
-    float_tol = float(tolerance)
+    lo, hi = Decimal("-0.99"), Decimal("10.0")
 
-    def npv(rate: float) -> float:
-        return sum(cf / (1 + rate) ** (d / 365.0) for cf, d in zip(float_amounts, days))
+    def npv(rate: Decimal) -> Decimal:
+        base = Decimal("1") + rate
+        return sum(cf / _decimal_power(base, Decimal(day) / Decimal("365")) for cf, day in zip(amounts, days))
 
     npv_lo = npv(lo)
     npv_hi = npv(hi)
@@ -260,11 +271,11 @@ def _xirr_bisection(amounts: list[Decimal], days: list[int], max_iter: int, tole
     if npv_lo * npv_hi > 0:
         raise ValueError(f"No root in [{lo}, {hi}]: NPV({lo})={npv_lo:.4f}, NPV({hi})={npv_hi:.4f}")
     for _ in range(max_iter):
-        mid = (lo + hi) / 2
+        mid = (lo + hi) / Decimal("2")
         npv_mid = npv(mid)
 
-        if abs(npv_mid) < float_tol or (hi - lo) / 2 < float_tol:
-            return Decimal(str(mid))
+        if abs(npv_mid) < tolerance or (hi - lo) / Decimal("2") < tolerance:
+            return mid
 
         if npv_lo * npv_mid < 0:
             hi = mid
@@ -273,7 +284,7 @@ def _xirr_bisection(amounts: list[Decimal], days: list[int], max_iter: int, tole
             lo = mid
             npv_lo = npv_mid
 
-    return Decimal(str((lo + hi) / 2))
+    return (lo + hi) / Decimal("2")
 
 
 async def calculate_time_weighted_return(
