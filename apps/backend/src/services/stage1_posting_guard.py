@@ -9,7 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Text, select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Account, AccountType, BankStatement, BankStatementTransaction
@@ -62,7 +63,7 @@ async def assert_no_unresolved_checks_for_statement(
         select(ConsistencyCheck.id)
         .where(ConsistencyCheck.user_id == user_id)
         .where(ConsistencyCheck.status == CheckStatus.PENDING)
-        .where(ConsistencyCheck.related_txn_ids.has_any(sorted(txn_ids)))
+        .where(ConsistencyCheck.related_txn_ids.has_any(array(sorted(txn_ids), type_=Text)))
         .limit(1)
     )
     if pending_checks_result.scalar_one_or_none():
