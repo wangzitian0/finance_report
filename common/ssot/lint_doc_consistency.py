@@ -8,10 +8,10 @@ Hard-fail checks enforced in CI:
      ``<a id="...">`` anchor in vision.md.
   2. Every ``<a id="...">`` anchor in vision.md MUST be referenced by at
      least one EPIC file (no orphan anchors).
-  3. Every AC ID listed in docs/ac_registry.yaml or
+  3. Every active AC ID listed in docs/ac_registry.yaml or
      docs/infra_registry.yaml MUST be referenced by at least one EPIC
      file (registry <-> EPIC linkage), unless the AC is marked
-     ``deprecated``.
+     ``deprecated``. Active stubs are not exempt.
   4. Every AC ID referenced in an EPIC file MUST exist in one of the
      two registries (no dangling AC IDs in EPIC docs).
   5. Every AC ID present in either registry MUST appear at least once
@@ -31,6 +31,8 @@ Hard-fail checks enforced in CI:
      docs/analysis/traceability-exceptions.md.
   9. Product E2E test files MUST NOT be listed as traceability exceptions;
      attach AC IDs to the test or remove the obsolete file instead.
+ 10. Mutable backend coverage threshold numbers MUST be owned by
+     apps/backend/pyproject.toml instead of copied into TDD SSOT prose.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -73,6 +75,7 @@ EPIC_DIR = REPO_ROOT / "docs" / "project"
 AC_REGISTRY = REPO_ROOT / "docs" / "ac_registry.yaml"
 INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 CI_CD_SSOT = REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
+TDD_SSOT = REPO_ROOT / "docs" / "ssot" / "tdd.md"
 TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
 
 TEST_ROOTS = [
@@ -470,10 +473,10 @@ def check_registry_to_epic(
     registry_acs: list[dict],
     epic_refs: dict[str, set[str]],
 ) -> list[Violation]:
-    """Check #3: every non-deprecated, non-stub AC ID is referenced by some EPIC."""
+    """Check #3: every non-deprecated AC ID is referenced by some EPIC."""
     violations: list[Violation] = []
     for ac in registry_acs:
-        if is_deprecated(ac) or is_stub(ac):
+        if is_deprecated(ac):
             continue
         ac_id = ac.get("id")
         if not ac_id:
@@ -489,6 +492,42 @@ def check_registry_to_epic(
                 )
             )
     return violations
+
+
+BACKEND_COVERAGE_COPY_RE = re.compile(
+    r"backend[^.\n]*(?:coverage|source-coverage|pytest)[^.\n]*\b\d{2,3}%",
+    re.IGNORECASE,
+)
+
+
+def check_code_owned_coverage_threshold_doc(
+    doc_path: Path | None = None,
+) -> list[Violation]:
+    """Check #10: backend coverage threshold docs point to the code owner."""
+    if doc_path is None:
+        doc_path = TDD_SSOT
+    try:
+        text = doc_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [
+            Violation(
+                check="check10_code_owned_coverage_threshold_doc",
+                message=f"{_display_path(doc_path)}: cannot read file ({exc})",
+            )
+        ]
+
+    if BACKEND_COVERAGE_COPY_RE.search(text):
+        return [
+            Violation(
+                check="check10_code_owned_coverage_threshold_doc",
+                message=(
+                    f"{_display_path(doc_path)}: backend coverage threshold "
+                    "must be code-owned by apps/backend/pyproject.toml "
+                    "`--cov-fail-under`, not copied as a mutable percentage"
+                ),
+            )
+        ]
+    return []
 
 
 def check_epic_to_registry(
@@ -685,6 +724,7 @@ def main() -> int:
     violations.extend(check_proof_placement_policy())
     violations.extend(check_no_ac_test_exceptions())
     violations.extend(check_no_e2e_product_test_exceptions())
+    violations.extend(check_code_owned_coverage_threshold_doc())
 
     if args.verbose or violations:
         print("=" * 72)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from common.ssot import analyze_test_ac_coverage as coverage
@@ -177,7 +177,7 @@ groups:
         result = coverage.analyze_repo(tmp_path)
         report = coverage.render_markdown(
             result,
-            generated_at=datetime(2026, 5, 19, 13, 29, 12, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 5, 19, 13, 29, 12, tzinfo=UTC),
         )
 
         assert "Coverage accounting (EPIC-008 aligned)" in report
@@ -334,3 +334,76 @@ class TestMain:
         captured = capsys.readouterr()
         assert "AC Coverage Analysis Report" in captured.out
         assert "Summary: registered=1" in captured.out
+
+    def test_AC8_13_80_no_write_stdout_does_not_create_report(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        capsys,
+    ) -> None:
+        """AC8.13.80: --no-write supports read-only local AC coverage checks."""
+        docs = tmp_path / "docs"
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "ac_registry.yaml").write_text(
+            "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n        epic: 1\n        epic_name: phase0\n        description: demo\n        mandatory: true\n",
+            encoding="utf-8",
+        )
+        (docs / "infra_registry.yaml").write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
+        backend = tmp_path / "apps" / "backend" / "tests"
+        backend.mkdir(parents=True, exist_ok=True)
+        (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
+        output = tmp_path / "docs" / "analysis" / "out.md"
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "analyze_test_ac_coverage.py",
+                "--repo-root",
+                str(tmp_path),
+                "--output",
+                str(output),
+                "--no-write",
+                "--stdout",
+            ],
+        )
+
+        assert coverage.main() == 0
+        assert not output.exists()
+        assert "AC Coverage Analysis Report" in capsys.readouterr().out
+
+    def test_AC8_13_80_check_mode_fails_stale_report(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        """AC8.13.80: --check reports stale generated AC coverage reports."""
+        docs = tmp_path / "docs"
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "ac_registry.yaml").write_text(
+            "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n        epic: 1\n        epic_name: phase0\n        description: demo\n        mandatory: true\n",
+            encoding="utf-8",
+        )
+        (docs / "infra_registry.yaml").write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
+        backend = tmp_path / "apps" / "backend" / "tests"
+        backend.mkdir(parents=True, exist_ok=True)
+        (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
+        output = tmp_path / "docs" / "analysis" / "out.md"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text("stale report\n", encoding="utf-8")
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "analyze_test_ac_coverage.py",
+                "--repo-root",
+                str(tmp_path),
+                "--output",
+                str(output),
+                "--check",
+            ],
+        )
+
+        assert coverage.main() == 1
+        assert output.read_text(encoding="utf-8") == "stale report\n"

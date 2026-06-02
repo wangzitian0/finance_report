@@ -3,12 +3,8 @@ Covers AC traceability verification: every mandatory AC has at least one
 test reference, and the check correctly identifies covered vs missing ACs.
 """
 
-from pathlib import Path
-
 import pytest
-
 from common.ssot import check_ac_traceability as cat
-
 
 SAMPLE_REGISTRY_YAML = """\
 version: '1.0'
@@ -171,6 +167,22 @@ class TestCollectReferencedAcs:
         assert str(f) in refs["AC1.1.1"].placeholder_files
         assert refs["AC1.1.1"].real_files == set()
 
+    def test_AC8_13_78_fixture_placeholder_string_does_not_taint_file(
+        self, tmp_path
+    ):
+        """AC8.13.78: Fixture text with trivial assertions does not hide real proof."""
+        f = self._write_test(
+            tmp_path,
+            "test_tooling_contract.py",
+            'def test_contract():\n'
+            '    """AC1.1.1: behavior proof"""\n'
+            '    fixture = "expect(true).toBe(true)"\n'
+            '    assert "expect" in fixture\n',
+        )
+        refs = cat.collect_referenced_acs([f])
+        assert str(f) in refs["AC1.1.1"].real_files
+        assert refs["AC1.1.1"].placeholder_files == set()
+
     def test_classifies_pure_pass_ac_file_as_placeholder(self, tmp_path):
         """AC8.13.35: Pure pass tests are not real AC coverage."""
         f = self._write_test(
@@ -204,6 +216,28 @@ class TestCollectReferencedAcs:
         assert str(f) in refs["AC1.1.1"].real_files
         assert refs["AC1.1.1"].placeholder_files == set()
 
+    def test_AC8_13_78_unexecuted_real_reference_is_tracked(self, tmp_path):
+        """AC8.13.78: Real refs outside CI-required stages do not prove mandatory ACs."""
+        f = self._write_test(
+            tmp_path,
+            "test_local_e2e.py",
+            'def test_flow():\n    """AC1.1.1: local-only behavior"""\n    assert True\n',
+        )
+        matrix = cat.ExecutionMatrix(
+            rules=[
+                cat.ExecutionRule(
+                    path_prefix=str(tmp_path),
+                    stage="local_only",
+                    ci_required=False,
+                )
+            ]
+        )
+
+        refs = cat.collect_referenced_acs([f], execution_matrix=matrix)
+
+        assert str(f) in refs["AC1.1.1"].real_files
+        assert refs["AC1.1.1"].ci_real_files == set()
+
     def test_classifies_ac_stub_directory(self, tmp_path):
         """AC8.13.35: AC stub files are tracked separately from real tests."""
         stub_dir = tmp_path / "_ac_stubs"
@@ -227,8 +261,12 @@ class TestCheckTraceability:
     def test_all_covered(self):
         acs = [self._make_ac("AC1.1.1"), self._make_ac("AC1.1.2")]
         refs = {
-            "AC1.1.1": cat.ACReferenceStats(real_files={"test_a.py"}),
-            "AC1.1.2": cat.ACReferenceStats(real_files={"test_b.py"}),
+            "AC1.1.1": cat.ACReferenceStats(
+                real_files={"test_a.py"}, ci_real_files={"test_a.py"}
+            ),
+            "AC1.1.2": cat.ACReferenceStats(
+                real_files={"test_b.py"}, ci_real_files={"test_b.py"}
+            ),
         }
         result = cat.check_traceability(acs, refs)
         assert result.missing == []
@@ -245,7 +283,11 @@ class TestCheckTraceability:
             self._make_ac("AC1.1.1", mandatory=True),
             self._make_ac("AC1.1.2", mandatory=False),
         ]
-        refs = {"AC1.1.1": cat.ACReferenceStats(real_files={"test_a.py"})}
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(
+                real_files={"test_a.py"}, ci_real_files={"test_a.py"}
+            )
+        }
         result = cat.check_traceability(acs, refs)
         assert result.missing == []
         assert result.mandatory_total == 1
@@ -255,7 +297,11 @@ class TestCheckTraceability:
             cat.AC("AC1.1.1", 1, "test", "active behavior", True),
             cat.AC("AC1.1.2", 1, "test", "~~deprecated behavior~~", True),
         ]
-        refs = {"AC1.1.1": cat.ACReferenceStats(real_files={"test_a.py"})}
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(
+                real_files={"test_a.py"}, ci_real_files={"test_a.py"}
+            )
+        }
         result = cat.check_traceability(acs, refs)
         assert result.missing == []
         assert result.mandatory_total == 1
@@ -263,7 +309,12 @@ class TestCheckTraceability:
     def test_total_count(self):
         acs = [self._make_ac("AC1.1.1"), self._make_ac("AC1.1.2")]
         result = cat.check_traceability(
-            acs, {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})}
+            acs,
+            {
+                "AC1.1.1": cat.ACReferenceStats(
+                    real_files={"f.py"}, ci_real_files={"f.py"}
+                )
+            },
         )
         assert result.total == 2
         assert result.mandatory_total == 2
@@ -275,8 +326,12 @@ class TestCheckTraceability:
             self._make_ac("AC1.1.3"),
         ]
         refs = {
-            "AC1.1.1": cat.ACReferenceStats(real_files={"f.py"}),
-            "AC1.1.3": cat.ACReferenceStats(real_files={"g.py"}),
+            "AC1.1.1": cat.ACReferenceStats(
+                real_files={"f.py"}, ci_real_files={"f.py"}
+            ),
+            "AC1.1.3": cat.ACReferenceStats(
+                real_files={"g.py"}, ci_real_files={"g.py"}
+            ),
         }
         result = cat.check_traceability(acs, refs)
         assert "AC1.1.2" in result.missing
@@ -300,6 +355,36 @@ class TestCheckTraceability:
         assert result.stub_only == ["AC1.1.2"]
         assert result.missing == ["AC1.1.3"]
 
+    def test_AC8_13_78_unexecuted_real_refs_fail_mandatory_gate(self):
+        """AC8.13.78: Mandatory ACs require a CI-required real proof file."""
+        acs = [self._make_ac("AC1.1.1")]
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(
+                real_files={"apps/backend/tests/e2e/test_auth_flows.py"}
+            )
+        }
+
+        result = cat.check_traceability(acs, refs)
+
+        assert result.covered == []
+        assert result.unexecuted_only == ["AC1.1.1"]
+        assert result.missing == []
+
+    def test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate(self):
+        """AC8.13.78: CI-required real proof files satisfy mandatory ACs."""
+        acs = [self._make_ac("AC1.1.1")]
+        refs = {
+            "AC1.1.1": cat.ACReferenceStats(
+                real_files={"apps/backend/tests/e2e/test_core_journeys.py"},
+                ci_real_files={"apps/backend/tests/e2e/test_core_journeys.py"},
+            )
+        }
+
+        result = cat.check_traceability(acs, refs)
+
+        assert result.covered == ["AC1.1.1"]
+        assert result.unexecuted_only == []
+
 
 class TestPrintReport:
     """print_report outputs a human-readable report without errors."""
@@ -319,6 +404,7 @@ class TestPrintReport:
             covered=["AC1.1.1"],
             placeholder_only=[],
             stub_only=[],
+            unexecuted_only=[],
             missing=[],
             total=1,
             mandatory_total=1,
@@ -335,6 +421,7 @@ class TestPrintReport:
             covered=[],
             placeholder_only=[],
             stub_only=[],
+            unexecuted_only=[],
             missing=["AC1.1.1"],
             total=1,
             mandatory_total=1,
@@ -350,6 +437,7 @@ class TestPrintReport:
             covered=["AC1.1.1"],
             placeholder_only=[],
             stub_only=[],
+            unexecuted_only=[],
             missing=[],
             total=1,
             mandatory_total=1,
@@ -357,17 +445,52 @@ class TestPrintReport:
         cat.print_report(
             result,
             acs,
-            {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})},
+            {
+                "AC1.1.1": cat.ACReferenceStats(
+                    real_files={"f.py"},
+                    ci_real_files={"f.py"},
+                )
+            },
             verbose=True,
         )
         out = capsys.readouterr().out
         assert "OK" in out or "AC1.1.1" in out
+        assert "f.py" in out
+
+    def test_AC8_13_78_shows_unexecuted_real_refs(self, capsys):
+        """AC8.13.78: Reports identify real refs outside CI-required stages."""
+        acs = [self._make_ac("AC1.1.1")]
+        result = cat.TraceabilityResult(
+            covered=[],
+            placeholder_only=[],
+            stub_only=[],
+            unexecuted_only=["AC1.1.1"],
+            missing=[],
+            total=1,
+            mandatory_total=1,
+        )
+
+        cat.print_report(
+            result,
+            acs,
+            {
+                "AC1.1.1": cat.ACReferenceStats(
+                    real_files={"apps/backend/tests/e2e/test_auth_flows.py"}
+                )
+            },
+        )
+
+        out = capsys.readouterr().out
+        assert "WARNING: ACs WITH ONLY NON-CI REAL TEST REFERENCES" in out
+        assert "UNEXECUTED AC1.1.1" in out
+        assert "apps/backend/tests/e2e/test_auth_flows.py" in out
 
     def test_zero_mandatory_no_crash(self, capsys):
         result = cat.TraceabilityResult(
             covered=[],
             placeholder_only=[],
             stub_only=[],
+            unexecuted_only=[],
             missing=[],
             total=0,
             mandatory_total=0,
@@ -477,6 +600,74 @@ class TestMain:
             ],
         )
         assert cat.main() == 1
+
+    def test_AC8_13_78_returns_one_with_unexecuted_only(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """AC8.13.78: Non-CI real refs fail the default mandatory gate."""
+        reg, test_dir = self._setup(
+            tmp_path,
+            SAMPLE_REGISTRY_YAML,
+            'def test_flow_one():\n'
+            '    """AC1.1.1: local-only behavior"""\n'
+            '    assert True\n\n'
+            'def test_flow_two():\n'
+            '    """AC1.1.2: local-only behavior"""\n'
+            '    assert True\n',
+        )
+        matrix = tmp_path / "execution-matrix.yaml"
+        matrix.write_text(
+            "version: '1.0'\n"
+            "rules:\n"
+            f"  - path: {test_dir.name}\n"
+            "    stage: local_only\n"
+            "    ci_required: false\n"
+        )
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ngroups: {}\n")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "check_ac_traceability.py",
+                "--registry",
+                reg.name,
+                "--infra-registry",
+                empty_infra.name,
+                "--test-dirs",
+                test_dir.name,
+                "--execution-matrix",
+                matrix.name,
+            ],
+        )
+
+        assert cat.main() == 1
+        assert "non-CI-required stages" in capsys.readouterr().err
+
+    def test_explicit_missing_infra_registry_returns_one(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        reg, test_dir = self._setup(
+            tmp_path,
+            SAMPLE_REGISTRY_YAML,
+            "# AC1.1.1\n# AC1.1.2\n",
+        )
+        missing_infra = tmp_path / "missing_infra.yaml"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "check_ac_traceability.py",
+                "--registry",
+                str(reg),
+                "--infra-registry",
+                str(missing_infra),
+                "--test-dirs",
+                str(test_dir),
+            ],
+        )
+
+        assert cat.main() == 1
+        assert "Infra registry file not found" in capsys.readouterr().err
 
     def test_report_only_returns_zero_even_with_missing(self, tmp_path, monkeypatch):
         reg, test_dir = self._setup(

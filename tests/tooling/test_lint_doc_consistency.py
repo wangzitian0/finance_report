@@ -550,8 +550,16 @@ class TestCheckRegistryToEpic:
         violations = ldc.check_registry_to_epic(acs, {})
         assert violations == []
 
-    def test_stub_skipped(self):
-        acs = [{"id": "AC1.1.1", "status": "stub"}]
+    def test_AC8_13_77_active_stub_orphan_fails(self):
+        """AC8.13.77: Active stub registry entries cannot bypass EPIC ownership."""
+        acs = [{"id": "AC1.1.1", "status": "stub", "mandatory": False}]
+        violations = ldc.check_registry_to_epic(acs, {})
+        assert len(violations) == 1
+        assert "AC1.1.1" in violations[0].message
+
+    def test_AC8_13_77_deprecated_stub_orphan_is_retained_as_history(self):
+        """AC8.13.77: Deprecated historical placeholders do not count as active ACs."""
+        acs = [{"id": "AC1.1.1", "status": "deprecated"}]
         violations = ldc.check_registry_to_epic(acs, {})
         assert violations == []
 
@@ -559,6 +567,29 @@ class TestCheckRegistryToEpic:
         acs = [{"epic": 1, "description": "no id field"}]
         violations = ldc.check_registry_to_epic(acs, {})
         assert violations == []
+
+
+class TestCoverageThresholdDocs:
+    def test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number(self, tmp_path):
+        """AC8.13.81: Coverage threshold docs should link to the code owner."""
+        doc = tmp_path / "tdd.md"
+        doc.write_text(
+            "Backend local coverage threshold is code-owned by "
+            "`apps/backend/pyproject.toml` `--cov-fail-under`.\n",
+            encoding="utf-8",
+        )
+
+        assert ldc.check_code_owned_coverage_threshold_doc(doc) == []
+
+    def test_AC8_13_81_doc_fails_when_backend_threshold_number_is_copied(self, tmp_path):
+        """AC8.13.81: Mutable backend coverage percentages should not be copied."""
+        doc = tmp_path / "tdd.md"
+        doc.write_text("Backend pytest keeps a 90% local source-coverage threshold.\n", encoding="utf-8")
+
+        violations = ldc.check_code_owned_coverage_threshold_doc(doc)
+
+        assert len(violations) == 1
+        assert "code-owned" in violations[0].message
 
 
 # ---------------------------------------------------------------------------

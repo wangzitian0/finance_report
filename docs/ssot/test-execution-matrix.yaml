@@ -1,0 +1,29 @@
+version: 1
+rules:
+  - path: apps/backend/tests/e2e/test_auth_flows.py
+    stage: backend_ui_e2e_local
+    ci_required: false
+  - path: apps/backend/tests/e2e/test_e2e_flows.py
+    stage: backend_ui_e2e_local
+    ci_required: false
+  - path: apps/backend/tests/e2e/test_core_journeys.py
+    stage: backend_tier1_api_e2e
+    ci_required: true
+  - path: apps/backend/tests/
+    stage: backend_ci
+    ci_required: true
+  - path: apps/frontend/playwright/inline-edit-happy-path.spec.ts
+    stage: frontend_playwright_env_gated
+    ci_required: false
+  - path: apps/frontend/playwright/
+    stage: frontend_playwright_ci
+    ci_required: true
+  - path: apps/frontend/src/
+    stage: frontend_vitest
+    ci_required: true
+  - path: tests/tooling/
+    stage: tooling_ci
+    ci_required: true
+  - path: tests/e2e/
+    stage: deployment_e2e
+    ci_required: true

@@ -58,7 +58,7 @@ change whenever registries, tests, or coverage baselines change.
 Use these sources instead:
 
 - Checked-in AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
-- Live local AC coverage: `python tools/analyze_test_ac_coverage.py --stdout`
+- Live local AC coverage: `python tools/analyze_test_ac_coverage.py --no-write --stdout`
 - Traceability gate: `python tools/check_ac_traceability.py`
 - E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
@@ -207,7 +207,8 @@ moon run :lint -- --fix    # Lint and auto-fix where supported
 moon run :test             # Full tests with coverage
 moon run :test -- --fast   # Fast TDD loop without coverage
 moon run :test -- --smart  # Changed-file coverage mode
-moon run :test -- --e2e    # E2E tests
+moon run :test -- --e2e    # Root deployment E2E tests
+moon run :test -- --backend-e2e # Backend Tier-1 API E2E tests
 
 moon run :build            # Build frontend
 moon run :clean            # Clean local resources

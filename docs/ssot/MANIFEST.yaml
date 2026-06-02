@@ -239,6 +239,14 @@ concepts:
       - docs/ssot/development.md
       - docs/ssot/coverage.md
 
+  test_execution_matrix:
+    owner: docs/ssot/test-execution-matrix.yaml
+    description: Path-to-stage mapping for AC traceability execution proof.
+    cross_refs:
+      - docs/ssot/ci-cd.md
+      - docs/ssot/tdd.md
+      - tools/check_ac_traceability.py
+
   # ── Deployment ─────────────────────────────────────────────────────────
   deployment_architecture:
     owner: docs/ssot/deployment.md
