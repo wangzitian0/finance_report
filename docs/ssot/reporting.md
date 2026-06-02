@@ -144,6 +144,10 @@ as the `investment_performance` report section.
 Endpoint:
 `GET /api/portfolio/performance/report-schedule?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD&as_of_date=YYYY-MM-DD&currency=SGD`
 
+If dates are omitted, the schedule defaults to year-to-date: `period_end`
+defaults to today, `period_start` defaults to January 1 of the period-end year,
+and `as_of_date` defaults to `period_end`.
+
 Response object:
 
 | Field | Rule |

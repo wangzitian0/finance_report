@@ -425,6 +425,70 @@ async def test_get_performance_with_period(client: AsyncClient, portfolio_with_d
 
 
 @pytest.mark.asyncio
+async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    portfolio_with_data,
+):
+    """AC17.10.1 AC17.10.2: report schedule exposes metrics, rows, freshness, sources, and notes."""
+    position = portfolio_with_data["position"]
+    dividend = DividendIncome(
+        user_id=test_user.id,
+        position_id=position.id,
+        payment_date=date.today() - timedelta(days=10),
+        amount=Decimal("42.50"),
+        currency="SGD",
+    )
+    sell = InvestmentTransaction(
+        user_id=test_user.id,
+        position_id=position.id,
+        transaction_date=date.today() - timedelta(days=5),
+        transaction_type=InvestmentTransactionType.SELL,
+        asset_identifier="AAPL",
+        quantity=Decimal("5"),
+        unit_price=Decimal("130.00"),
+        gross_amount=Decimal("650.00"),
+        fees=Decimal("1.00"),
+        currency="SGD",
+        cost_basis=Decimal("500.00"),
+        realized_pnl=Decimal("149.00"),
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add_all([dividend, sell])
+    await db.commit()
+
+    period_start = (date.today() - timedelta(days=90)).isoformat()
+    as_of_date = date.today().isoformat()
+    response = await client.get(
+        "/portfolio/performance/report-schedule"
+        f"?period_start={period_start}&period_end={as_of_date}&as_of_date={as_of_date}&currency=SGD"
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["period_start"] == period_start
+    assert data["period_end"] == as_of_date
+    assert data["as_of_date"] == as_of_date
+    assert data["currency"] == "SGD"
+    for key in ["xirr", "time_weighted_return", "money_weighted_return", "dividend_yield"]:
+        assert key in data
+        assert data[key] is None or isinstance(data[key], str)
+    assert data["realized_pnl"] == "149.00"
+    assert data["dividend_income"] == "42.50"
+    assert data["unrealized_pnl"] == "2000.00"
+    assert data["holdings"][0]["asset_identifier"] == "AAPL"
+    assert data["holdings"][0]["realized_pnl"] == "149.00"
+    assert data["holdings"][0]["dividend_income"] == "42.50"
+    assert data["allocation"]
+    assert data["data_freshness"]["latest_price_date"] == as_of_date
+    assert "source_links" in data
+    assert data["notes"]
+    if data["time_weighted_return"] is None:
+        assert any("TWR unavailable" in note for note in data["notes"])
+
+
+@pytest.mark.asyncio
 async def test_get_sector_allocation_empty(client: AsyncClient):
     """AC17.6.7: GET /portfolio/allocation/sector on empty portfolio returns [].
 

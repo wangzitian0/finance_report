@@ -343,6 +343,10 @@ a stable, report-ready payload with source traceability and explanation fields.
 Endpoint:
 `GET /api/portfolio/performance/report-schedule?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD&as_of_date=YYYY-MM-DD&currency=SGD`
 
+When dates are omitted, the API defaults to year-to-date reporting using
+`period_end=today`, `period_start=January 1` of the period-end year, and
+`as_of_date=period_end`.
+
 Response object:
 
 | Field | Meaning |
@@ -358,8 +362,8 @@ Response object:
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.10.1 | Investment performance schedule API exposes report-ready metrics and rows | `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `tests/tooling/test_investment_performance_report_contract.py` | P0 |
-| AC17.10.2 | Investment performance schedule API exposes data freshness, source links, and notes for report traceability | `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC17.10.1 | Investment performance schedule API exposes report-ready metrics and rows | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC17.10.2 | Investment performance schedule API exposes data freshness, source links, and notes for report traceability | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

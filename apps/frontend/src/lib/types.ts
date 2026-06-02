@@ -373,6 +373,51 @@ export interface PerformanceMetrics {
     money_weighted_return: string;
 }
 
+export interface InvestmentPerformanceHoldingRow {
+    asset_identifier: string;
+    quantity: string;
+    cost_basis: string;
+    market_value: string;
+    unrealized_pnl: string;
+    realized_pnl: string;
+    dividend_income: string;
+    currency: string;
+}
+
+export interface InvestmentPerformanceAllocationRow {
+    dimension: "sector" | "geography" | "asset_class" | string;
+    category: string;
+    value: string;
+    percentage: string;
+    count: number;
+}
+
+export interface InvestmentPerformanceDataFreshness {
+    latest_price_date: string | null;
+    market_data_provider: string | null;
+    stale: boolean;
+    manual_override_basis?: string | null;
+}
+
+export interface InvestmentPerformanceReportSchedule {
+    period_start: string;
+    period_end: string;
+    as_of_date: string;
+    currency: string;
+    xirr: string | null;
+    time_weighted_return: string | null;
+    money_weighted_return: string | null;
+    realized_pnl: string;
+    unrealized_pnl: string;
+    dividend_income: string;
+    dividend_yield: string | null;
+    holdings: InvestmentPerformanceHoldingRow[];
+    allocation: InvestmentPerformanceAllocationRow[];
+    data_freshness: InvestmentPerformanceDataFreshness;
+    source_links: string[];
+    notes: string[];
+}
+
 export interface AllocationBreakdown {
     category: string;
     value: string;

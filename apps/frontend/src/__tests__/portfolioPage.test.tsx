@@ -91,9 +91,45 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
         holdings_count: holdings.length,
         active_positions_count: holdings.filter((h) => h.status === "active").length,
         disposed_positions_count: holdings.filter((h) => h.status === "disposed").length,
-        currency: "USD",
+        currency: "SGD",
         realized_pnl_ytd: "149.00",
         dividend_income_ytd: "42.50",
+      })
+    }
+    if (path.startsWith("/api/portfolio/performance/report-schedule")) {
+      return Promise.resolve({
+        period_start: "2026-01-01",
+        period_end: "2026-12-31",
+        as_of_date: "2026-12-31",
+        currency: "USD",
+        xirr: "12.50",
+        time_weighted_return: "8.30",
+        money_weighted_return: "10.10",
+        realized_pnl: "149.00",
+        unrealized_pnl: "300.00",
+        dividend_income: "42.50",
+        dividend_yield: "2.36",
+        holdings: [
+          {
+            asset_identifier: "AAPL",
+            quantity: "10.000000",
+            cost_basis: "1500.00",
+            market_value: "1800.00",
+            unrealized_pnl: "300.00",
+            realized_pnl: "149.00",
+            dividend_income: "42.50",
+            currency: "SGD",
+          },
+        ],
+        allocation: [{ dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 }],
+        data_freshness: {
+          latest_price_date: "2026-12-31",
+          market_data_provider: "Test Broker",
+          stale: false,
+          manual_override_basis: null,
+        },
+        source_links: ["brokerage_statement:aapl"],
+        notes: ["Cost basis uses FIFO where available."],
       })
     }
     if (path.startsWith("/api/portfolio/holdings")) {
@@ -229,8 +265,21 @@ describe("PortfolioPage", () => {
 
     await waitFor(() => expect(screen.getByText("Realized P&L YTD")).toBeInTheDocument())
     expect(screen.getByText("Dividend Income YTD")).toBeInTheDocument()
-    expect(screen.getByText("$149.00")).toBeInTheDocument()
-    expect(screen.getByText("$42.50")).toBeInTheDocument()
+    expect(screen.getAllByText("$149.00").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("$42.50").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("AC5.8.1 renders investment performance report schedule from the schedule API", async () => {
+    mockPortfolioApi()
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("investment_performance")).toBeInTheDocument())
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/performance/report-schedule")
+    expect(screen.getByText(/Report section/)).toBeInTheDocument()
+    expect(screen.getByText("Source Links")).toBeInTheDocument()
+    expect(screen.getByText("brokerage_statement:aapl")).toBeInTheDocument()
+    expect(screen.getByText("Cost basis uses FIFO where available.")).toBeInTheDocument()
   })
 
   it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {

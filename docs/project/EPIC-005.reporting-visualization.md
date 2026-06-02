@@ -165,7 +165,7 @@ method, dividends, realized/unrealized P&L, and return metric limitations.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.8.1 | Personal report package defines the `investment_performance` report section as a consumer of the EPIC-017 schedule API | `test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract` | `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC5.8.1 | Personal report package defines the `investment_performance` report section as a consumer of the EPIC-017 schedule API | `AC5.8.1 renders investment performance report schedule from the schedule API`; `test_personal_financial_report_package_post_merge_journey`; `test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract` | `apps/frontend/src/__tests__/portfolioPage.test.tsx`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
 
 **Traceability Result**:
 - Total AC IDs: 19
