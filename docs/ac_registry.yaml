@@ -4008,6 +4008,31 @@ groups:
         description: Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible without local
           horizontal clipping.
         mandatory: true
+    AC16.28:
+      - id: AC16.28.1
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Shared React UI primitives live under apps/frontend/src/components/ui and cover button, icon button, badge,
+          alert, empty state, loading state, and page header usage without requiring page-local class recipes.
+        mandatory: true
+      - id: AC16.28.2
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Icon-only actions require an accessible label through the primitive API and representative account/statement
+          delete-edit actions use those labels.
+        mandatory: true
+      - id: AC16.28.3
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: At least two representative frontend pages are migrated to the primitive layer without changing their existing
+          workflows or API calls.
+        mandatory: true
+      - id: AC16.28.4
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Primitive component tests cover variants, accessibility-facing props, and the migrated loading/error/empty
+          states.
+        mandatory: true
   AC17:
     AC17.1:
       - id: AC17.1.1

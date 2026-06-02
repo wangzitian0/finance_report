@@ -148,6 +148,33 @@ describe("StatementsPage", () => {
     expect(showToastMock).toHaveBeenCalledWith("Statement deleted successfully", "success")
 })
 
+  it("AC16.28.2 AC16.28.3 exposes statement delete action with an accessible label", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s3",
+          original_filename: "delete.pdf",
+          institution: "DBS",
+          status: "approved",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 88,
+          transactions: [],
+          opening_balance: 50,
+          closing_balance: 70,
+          balance_validated: true,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("delete.pdf")).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Delete Statement" })).toBeInTheDocument()
+  })
+
   it("test_AC8_13_48 renders missing statement values and surfaces delete failures", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({

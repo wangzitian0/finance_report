@@ -47,7 +47,45 @@ bg-white
 text-gray-500
 ```
 
-## 4. API Integration
+## 4. UI Primitives
+
+Frontend application controls use a small React primitive layer in
+`apps/frontend/src/components/ui/index.tsx`. New page code should prefer these
+primitives over repeating page-local class recipes.
+
+### Current primitives
+
+- `Button` — primary, secondary, ghost, and danger actions.
+- `IconButton` — icon-only actions with a required `label` that maps to
+  `aria-label` and `title`.
+- `Badge` — semantic status labels.
+- `Alert` — error/success/warning/info messages with live-region semantics.
+- `EmptyState` — reusable empty and retry surfaces.
+- `LoadingState` — reusable loading state with `role="status"`.
+- `PageHeader` — consistent page title, description, and action layout.
+
+### Rules
+
+- Use `IconButton` for icon-only actions. Do not rely on `title` alone for an
+  accessible name.
+- Use `Alert`, `EmptyState`, and `LoadingState` for repeated loading/error/empty
+  surfaces before adding page-local markup.
+- Use `framed={false}` for states rendered inside an existing card so the UI
+  does not create nested cards.
+- Preserve existing CSS variable usage. The primitive layer does not replace the
+  design-token follow-up tracked by issue #613.
+- Component tests must reference the owning AC IDs when primitives gain new
+  behavior or variants.
+
+### Applied In
+
+- `app/(main)/accounts/page.tsx`
+- `app/(main)/statements/page.tsx`
+- `src/__tests__/uiPrimitives.test.tsx`
+- `src/__tests__/accountsPage.test.tsx`
+- `src/__tests__/statementsPage.test.tsx`
+
+## 5. API Integration
 
 All API calls must go through the centralized `apiFetch` or `apiUpload` utility in `lib/api.ts`.
 
@@ -56,7 +94,7 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 - **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 
-## 5. Monetary Amounts
+## 6. Monetary Amounts
 
 Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/currency.ts`.
 
@@ -66,7 +104,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/
 - Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
 - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 
-## 6. Responsive Navigation
+## 7. Responsive Navigation
 
 Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as the route source of truth.
 
@@ -76,7 +114,7 @@ Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as
 - Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
 - Do not create separate reduced mobile menus that hide core routes.
 
-## 7. Mobile Review Surfaces
+## 8. Mobile Review Surfaces
 
 Review and journal workflows must be usable at phone widths without relying on
 document-level horizontal scrolling.
@@ -107,7 +145,7 @@ document-level horizontal scrolling.
 - `components/journal/JournalEntryDetailsModal.tsx`
 - `playwright/mobile-ux.spec.ts`
 
-## 8. App Metadata & PWA Head Tags
+## 9. App Metadata & PWA Head Tags
 
 Root app metadata lives in `app/layout.tsx`.
 
@@ -117,13 +155,13 @@ Root app metadata lives in `app/layout.tsx`.
 - Use `appleWebApp` for iOS web-app capability metadata; do not duplicate
   `apple-mobile-web-app-capable` in `metadata.other`.
 
-## 9. Security & Authentication
+## 10. Security & Authentication
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
 - **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
 
-## 10. Shared Types
+## 11. Shared Types
 
 To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
 
@@ -141,7 +179,7 @@ import { Account, AccountListResponse } from "@/lib/types";
 // components/accounts/AccountFormModal.tsx
 ```
 
-## 11. Brokerage Import Completion Path
+## 12. Brokerage Import Completion Path
 
 After a brokerage PDF is uploaded and parsed, users must be able to see the import status and navigate to their portfolio.
 
@@ -172,7 +210,7 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 
-## 12. Dashboard First-Run Onboarding
+## 13. Dashboard First-Run Onboarding
 
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
 

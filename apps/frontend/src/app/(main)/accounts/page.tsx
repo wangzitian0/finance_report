@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { Account, AccountListResponse } from "@/lib/types";
@@ -74,19 +76,16 @@ export default function AccountsPage() {
 
     return (
         <div className="p-4 sm:p-6">
-            {/* Header */}
-            <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="page-title">Accounts</h1>
-                    <p className="page-description">Manage your chart of accounts</p>
-                </div>
-                <button onClick={() => { setEditingAccount(null); setIsModalOpen(true); }} className="btn-primary flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Account
-                </button>
-            </div>
+            <PageHeader
+                title="Accounts"
+                description="Manage your chart of accounts"
+                actions={(
+                    <Button onClick={() => { setEditingAccount(null); setIsModalOpen(true); }} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        Add Account
+                    </Button>
+                )}
+            />
 
             {/* Tabs */}
             <div className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-[var(--background-muted)] p-1 sm:w-fit">
@@ -106,47 +105,41 @@ export default function AccountsPage() {
 
             {/* Error */}
             {error && (
-                <div className="mb-4 alert-error">
+                <Alert variant="error" className="mb-4">
                     {error instanceof Error ? error.message : "Failed to load accounts"}
-                </div>
+                </Alert>
             )}
 
             {/* Content */}
             {isLoading ? (
-                <div className="card p-8 text-center text-muted">
-                    <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-                    <p className="text-sm">Loading accounts...</p>
-                </div>
+                <LoadingState label="Loading accounts" />
             ) : error ? (
                 <div className="card p-8 text-center" role="alert" aria-live="polite">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
                     <p className="text-[var(--foreground)] font-medium mb-2">Failed to load accounts</p>
                     <p className="text-sm text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
-                    <button
+                    <Button
+                        variant="secondary"
                         onClick={() => refetch()}
-                        className="btn-secondary"
                         aria-label="Retry loading accounts"
                     >
                         Retry
-                    </button>
+                    </Button>
                 </div>
             ) : filteredAccounts.length === 0 ? (
-                <div className="card p-8 text-center">
-                    <p className="text-muted mb-4">No accounts yet</p>
-                    <button onClick={() => { setEditingAccount(null); setIsModalOpen(true); }} className="btn-primary">
-                        Create First Account
-                    </button>
-                </div>
+                <EmptyState
+                    title="No accounts yet"
+                    action={(
+                        <Button onClick={() => { setEditingAccount(null); setIsModalOpen(true); }}>
+                            Create First Account
+                        </Button>
+                    )}
+                />
             ) : (
                 <div className="space-y-4">
                     {Object.entries(groupedAccounts).map(([type, typeAccounts]) => (
                         <div key={type} className="card">
                             <div className="card-header flex items-center justify-between">
-                                <span className="badge badge-primary">{type}</span>
+                                <Badge variant="primary">{type}</Badge>
                                 <span className="text-xs text-muted">{typeAccounts.length} accounts</span>
                             </div>
                             <div className="divide-y divide-[var(--border)]">
@@ -161,7 +154,7 @@ export default function AccountsPage() {
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span className="break-words font-medium">{account.name}</span>
                                                 {account.code && <span className="text-xs text-muted font-mono">{account.code}</span>}
-                                                {!account.is_active && <span className="badge badge-muted">Inactive</span>}
+                                                {!account.is_active && <Badge variant="muted">Inactive</Badge>}
                                             </div>
                                             {account.description && <p className="break-words text-xs text-muted sm:truncate">{account.description}</p>}
                                         </div>
@@ -170,25 +163,19 @@ export default function AccountsPage() {
                                                 <div className="font-semibold">{formatCurrencyLocale(account.balance ?? 0, account.currency)}</div>
                                             </div>
                                             <div data-account-field="actions" className="flex items-center gap-2">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setEditingAccount(account); setIsModalOpen(true); }}
-                                                className="btn-ghost p-2 hover:text-[var(--accent)]"
-                                                title="Edit Account"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
-                                                className="btn-ghost p-2 text-muted hover:text-[var(--error)]"
-                                                title="Delete Account"
-                                                disabled={deleteMutation.isPending}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
-                                            </button>
+                                                <IconButton
+                                                    icon={Pencil}
+                                                    label="Edit Account"
+                                                    onClick={(e) => { e.stopPropagation(); setEditingAccount(account); setIsModalOpen(true); }}
+                                                    className="hover:text-[var(--accent)]"
+                                                />
+                                                <IconButton
+                                                    icon={Trash2}
+                                                    label="Delete Account"
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
+                                                    className="text-muted hover:text-[var(--error)]"
+                                                    disabled={deleteMutation.isPending}
+                                                />
                                             </div>
                                         </div>
                                     </div>
