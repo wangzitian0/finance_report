@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { TransactionTable } from "@/components/review/TransactionTable";
 import type { BankStatementTransaction } from "@/lib/types";
 
@@ -28,7 +28,7 @@ describe("TransactionTable key handlers", () => {
     it("handles Enter on date and description inputs and focus on select triggers beginEdit", () => {
         const pending = new Map<string, Partial<{ description: string; amount: string; direction: string; txn_date: string }>>();
 
-        const { container } = render(
+        render(
             <TransactionTable
                 transactions={sample}
                 currency="SGD"
@@ -40,21 +40,22 @@ describe("TransactionTable key handlers", () => {
             />
         );
 
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+
         // click date cell to edit
-        fireEvent.click(screen.getByText("2024-01-01"));
-        const dateInput = screen.getByDisplayValue("2024-01-01");
+        fireEvent.click(desktopRegion.getByText("2024-01-01"));
+        const dateInput = desktopRegion.getByDisplayValue("2024-01-01");
         fireEvent.keyDown(dateInput, { key: "Enter" });
 
         // click description cell to edit
-        fireEvent.click(screen.getByText("Test"));
-        const descInput = screen.getByDisplayValue("Test");
+        fireEvent.click(desktopRegion.getByText("Test"));
+        const descInput = desktopRegion.getByDisplayValue("Test");
         fireEvent.keyDown(descInput, { key: "Enter" });
 
         // click amount to open combined editor
-        const amountCell = container.querySelector('td[role="cell"]') || screen.getByText(/SGD/);
-        fireEvent.click(screen.getByText(/SGD/));
+        fireEvent.click(desktopRegion.getByText(/SGD/));
 
-        const select = screen.getByDisplayValue("OUT");
+        const select = desktopRegion.getByDisplayValue("OUT");
         fireEvent.focus(select);
         fireEvent.keyDown(select, { key: "Enter" });
 

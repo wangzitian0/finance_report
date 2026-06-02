@@ -459,6 +459,11 @@ groups:
         epic_name: double-entry-core
         description: Accounting equation verification uses base-currency converted account balances
         mandatory: true
+      - id: AC2.12.3
+        epic: 2
+        epic_name: double-entry-core
+        description: Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap
+        mandatory: true
       - id: AC2.12.5
         epic: 2
         description: ~~retired historical registry placeholder~~
@@ -2289,6 +2294,12 @@ groups:
         epic_name: testing-strategy
         description: Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values.
         mandatory: true
+      - id: AC8.13.82
+        epic: 8
+        epic_name: testing-strategy
+        description: Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop
+          local table clipping.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
@@ -3952,6 +3963,25 @@ groups:
         epic_name: two-stage-review-ui
         description: Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without
           document-level horizontal scrolling.
+        mandatory: true
+    AC16.27:
+      - id: AC16.27.1
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 1 and Stage 2 mobile review lists render without JavaScript breakpoint gating that can create first-paint
+          blank content.
+        mandatory: true
+      - id: AC16.27.2
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 1 desktop review keeps the transaction review surface readable at 1440px with the sidebar visible without
+          local horizontal clipping.
+        mandatory: true
+      - id: AC16.27.3
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible without local
+          horizontal clipping.
         mandatory: true
   AC17:
     AC17.1:

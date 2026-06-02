@@ -511,6 +511,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.79 | Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E | `test_AC8_13_79_*` | `tests/tooling/test_cli_and_dev_servers.py` | P0 |
 | AC8.13.80 | AC coverage analysis supports no-write and stale-report check modes for local verification | `test_AC8_13_80_*` | `tests/tooling/test_analyze_test_ac_coverage.py` | P0 |
 | AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
+| AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.12.3`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
