@@ -212,7 +212,7 @@ def entry_total_amount(entry: JournalEntry) -> Decimal:
     return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
 
 
-def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str) -> Decimal:
+def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str | None) -> Decimal:
     """Return the bank/cash-side amount that should match a statement transaction."""
     if not transaction_direction:
         return entry_total_amount(entry)

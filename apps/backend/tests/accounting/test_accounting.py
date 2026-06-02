@@ -133,3 +133,52 @@ async def test_fx_rate_required_for_non_base_currency():
 
     with pytest.raises(ValidationError, match="fx_rate required"):
         validate_fx_rates(lines)
+
+
+@pytest.mark.asyncio
+async def test_missing_currency_is_treated_as_base_currency_for_fx_validation():
+    """AC2.2.6: Legacy lines without currency are treated as base currency.
+
+    Older records may omit currency. They must not require fx_rate because the
+    accounting base currency is SGD.
+    """
+    lines = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency=None,
+            fx_rate=None,
+        ),
+    ]
+
+    validate_fx_rates(lines)
+
+
+@pytest.mark.asyncio
+async def test_missing_currency_balances_as_base_currency():
+    """AC2.2.7: Balance validation treats omitted currency as base currency."""
+    lines = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency=None,
+            fx_rate=None,
+        ),
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency=None,
+            fx_rate=None,
+        ),
+    ]
+
+    validate_journal_balance(lines)
