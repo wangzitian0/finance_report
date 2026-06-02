@@ -320,9 +320,11 @@ async def _create_manual_snapshot(
 async def test_personal_financial_report_package_post_merge_journey(authenticated_page_unique: Page) -> None:
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
-    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3:
+    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3
+    AC17.10.1 AC17.10.2:
     one complete fresh-user report package with bank data, brokerage import,
-    manual valuation, restricted notes, and source traceability.
+    investment performance schedule, manual valuation, restricted notes, and
+    source traceability.
     """
     page = authenticated_page_unique
     fixture_rows = _read_fixture_rows()
@@ -428,6 +430,32 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
         brokerage_value = sum((_money(item["market_value"]) for item in holdings), Decimal("0.00"))
         assert brokerage_value > Decimal("0.00"), f"brokerage holdings have no value: {holdings}"
+
+        schedule_response = await client.get(
+            _api_url(
+                "/portfolio/performance/report-schedule"
+                f"?period_start={fixture_period_start.isoformat()}"
+                f"&period_end={fixture_period_end.isoformat()}"
+                f"&as_of_date={fixture_period_end.isoformat()}&currency=SGD"
+            )
+        )
+        assert schedule_response.status_code == 200, (
+            f"investment performance schedule failed: {schedule_response.status_code} {schedule_response.text}"
+        )
+        schedule = schedule_response.json()
+        assert schedule["period_start"] == fixture_period_start.isoformat()
+        assert schedule["period_end"] == fixture_period_end.isoformat()
+        assert schedule["as_of_date"] == fixture_period_end.isoformat()
+        assert schedule["currency"] == "SGD"
+        assert schedule["holdings"], f"investment schedule has no holdings: {schedule}"
+        assert _money(schedule["unrealized_pnl"]) >= Decimal("0.00")
+        assert "data_freshness" in schedule
+        assert schedule["source_links"], f"investment schedule missing source links: {schedule}"
+        assert schedule["notes"], f"investment schedule missing notes: {schedule}"
+
+        await page.goto(_get_url("/portfolio"))
+        await expect(page.get_by_text("Investment Performance Report Schedule")).to_be_visible()
+        await expect(page.get_by_text("investment_performance")).to_be_visible()
 
         property_snapshot = await _create_manual_snapshot(
             client,

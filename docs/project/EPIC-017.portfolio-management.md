@@ -333,6 +333,38 @@ issues.
 | AC17.9.2 | Portfolio holdings API returns date-bounded snapshot quantities for explicit `as_of_date` requests | `test_get_holdings_explicit_date_uses_historical_snapshot_quantity` | `portfolio/test_portfolio_router.py` | P0 |
 | AC17.9.3 | Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings` | `AC17.9.3 passes selected as-of date to holdings API` | `frontend/src/__tests__/portfolioPage.test.tsx` | P0 |
 
+### AC17.10: Investment Performance Report Schedule API
+
+This API contract is the EPIC-017-owned schedule input for the personal
+financial-report package tracked by #564. It is intentionally separate from
+the dashboard-only `/api/portfolio/performance` summary so EPIC-005 can consume
+a stable, report-ready payload with source traceability and explanation fields.
+
+Endpoint:
+`GET /api/portfolio/performance/report-schedule?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD&as_of_date=YYYY-MM-DD&currency=SGD`
+
+When dates are omitted, the API defaults to year-to-date reporting using
+`period_end=today`, `period_start=January 1` of the period-end year, and
+`as_of_date=period_end`.
+
+Response object:
+
+| Field | Meaning |
+|---|---|
+| `period_start`, `period_end`, `as_of_date`, `currency` | Schedule boundary and presentation currency |
+| `xirr`, `time_weighted_return`, `money_weighted_return` | Portfolio performance metrics as percentages |
+| `realized_pnl`, `unrealized_pnl`, `dividend_income`, `dividend_yield` | Decimal-safe return components |
+| `holdings` | Per holding `{asset_identifier, quantity, cost_basis, market_value, unrealized_pnl, realized_pnl, dividend_income, currency}` rows |
+| `allocation` | Sector, geography, and asset-class allocation rows |
+| `data_freshness` | Market-data source, latest price date, stale flag, and manual override basis |
+| `source_links` | Source document, brokerage import, price source, and ledger/report traceability anchors |
+| `notes` | Human-readable methods and limitations for cost basis, market prices, and return metrics |
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.10.1 | Investment performance schedule API exposes report-ready metrics and rows | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC17.10.2 | Investment performance schedule API exposes data freshness, source links, and notes for report traceability | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+
 ### Brokerage PDF to Asset Report Proof Matrix
 
 This is the detailed EPIC-017 counterpart to the README core proof path. It

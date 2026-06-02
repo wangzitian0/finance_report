@@ -105,6 +105,59 @@ class PortfolioSummaryDashboardResponse(PortfolioSummaryResponse):
     dividend_income_ytd: Annotated[Decimal, Field(decimal_places=2)]
 
 
+class InvestmentPerformanceHoldingRow(BaseModel):
+    """Per-holding row for the investment performance report schedule."""
+
+    asset_identifier: str
+    quantity: Annotated[Decimal, Field(decimal_places=6)]
+    cost_basis: Annotated[Decimal, Field(decimal_places=2)]
+    market_value: Annotated[Decimal, Field(decimal_places=2)]
+    unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
+    realized_pnl: Annotated[Decimal, Field(decimal_places=2)]
+    dividend_income: Annotated[Decimal, Field(decimal_places=2)]
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+
+
+class InvestmentPerformanceAllocationRow(BaseModel):
+    """Allocation row for one report-schedule dimension."""
+
+    dimension: str
+    category: str
+    value: Annotated[Decimal, Field(decimal_places=2)]
+    percentage: Annotated[Decimal, Field(decimal_places=2)]
+    count: int
+
+
+class InvestmentPerformanceDataFreshness(BaseModel):
+    """Market data freshness metadata for the report schedule."""
+
+    latest_price_date: date | None
+    market_data_provider: str | None
+    stale: bool
+    manual_override_basis: str | None = None
+
+
+class InvestmentPerformanceReportScheduleResponse(BaseModel):
+    """Report-ready investment performance schedule consumed by EPIC-005."""
+
+    period_start: date
+    period_end: date
+    as_of_date: date
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    xirr: Annotated[Decimal | None, Field(decimal_places=2)]
+    time_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
+    money_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
+    realized_pnl: Annotated[Decimal, Field(decimal_places=2)]
+    unrealized_pnl: Annotated[Decimal, Field(decimal_places=2)]
+    dividend_income: Annotated[Decimal, Field(decimal_places=2)]
+    dividend_yield: Annotated[Decimal | None, Field(decimal_places=2)]
+    holdings: list[InvestmentPerformanceHoldingRow]
+    allocation: list[InvestmentPerformanceAllocationRow]
+    data_freshness: InvestmentPerformanceDataFreshness
+    source_links: list[str]
+    notes: list[str]
+
+
 class DividendEventResponse(BaseModel):
     """Dividend event shown on a holding detail page."""
 

@@ -10,7 +10,9 @@ import { PortfolioHolding, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
+import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
 import { formatCurrencyLocale, sumAmounts } from "@/lib/currency";
+import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 export default function PortfolioPage() {
     const [showDisposed, setShowDisposed] = useState(false);
@@ -33,6 +35,26 @@ export default function PortfolioPage() {
     const { data: summary } = useQuery({
         queryKey: ["portfolio-summary", asOfDate],
         queryFn: () => apiFetch<PortfolioSummaryResponse>(`/api/portfolio/summary${asOfDate ? `?as_of_date=${asOfDate}` : ""}`),
+    });
+    const {
+        data: performanceSchedule,
+        isLoading: isPerformanceScheduleLoading,
+        error: performanceScheduleError,
+    } = useQuery({
+        queryKey: ["portfolio-performance-report-schedule", asOfDate],
+        queryFn: () => {
+            if (!asOfDate) {
+                return apiFetch<InvestmentPerformanceReportSchedule>("/api/portfolio/performance/report-schedule");
+            }
+            const yearStart = `${asOfDate.slice(0, 4)}-01-01`;
+            const params = new URLSearchParams({
+                period_start: yearStart,
+                period_end: asOfDate,
+                as_of_date: asOfDate,
+                currency: "SGD",
+            });
+            return apiFetch<InvestmentPerformanceReportSchedule>(`/api/portfolio/performance/report-schedule?${params}`);
+        },
     });
 
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
@@ -86,6 +108,12 @@ export default function PortfolioPage() {
                 <AllocationChart type="sector" title="Sector Allocation" />
                 <AllocationChart type="geography" title="Geography Allocation" />
             </div>
+
+            <InvestmentPerformanceSchedule
+                schedule={performanceSchedule}
+                isLoading={isPerformanceScheduleLoading}
+                error={performanceScheduleError}
+            />
 
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                 <h2 className="text-lg font-semibold">Holdings</h2>

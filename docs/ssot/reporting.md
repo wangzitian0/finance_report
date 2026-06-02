@@ -135,6 +135,36 @@ Shows cash movements by category.
 └─────────────────────────────────────────────┘
 ```
 
+### 2.5 Investment Performance Schedule
+
+The investment performance schedule is the report-ready portfolio input for the
+personal financial-report package and is owned by EPIC-017. EPIC-005 consumes it
+as the `investment_performance` report section.
+
+Endpoint:
+`GET /api/portfolio/performance/report-schedule?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD&as_of_date=YYYY-MM-DD&currency=SGD`
+
+If dates are omitted, the schedule defaults to year-to-date: `period_end`
+defaults to today, `period_start` defaults to January 1 of the period-end year,
+and `as_of_date` defaults to `period_end`.
+
+Response object:
+
+| Field | Rule |
+|---|---|
+| `period_start`, `period_end`, `as_of_date`, `currency` | Echo the requested reporting period, valuation date, and presentation currency |
+| `xirr`, `time_weighted_return`, `money_weighted_return` | Decimal-safe percentage metrics; return `null` with a note when input data is insufficient |
+| `realized_pnl`, `unrealized_pnl`, `dividend_income`, `dividend_yield` | Decimal-safe schedule totals in `currency` |
+| `holdings` | Per holding rows with quantity, cost basis, market value, realized/unrealized P&L, dividend income, and source currency |
+| `allocation` | Sector, geography, and asset-class allocation rows whose percentages reconcile to the schedule market value |
+| `data_freshness` | Latest price date, market-data provider, stale flag, and manual override basis |
+| `source_links` | Brokerage statement/import IDs, price source IDs, ledger entry IDs, and report anchors needed for source-to-ledger-to-report traceability |
+| `notes` | Methods and limitations for cost basis, price freshness, dividends, XIRR/TWR/MWR, and any manual overrides |
+
+The schedule must not mutate ledger state. It assembles existing portfolio,
+market-data, dividend, and journal-entry facts into a reporting payload that can
+be exported or embedded by EPIC-005.
+
 ---
 
 ## 3. Multi-Currency Consolidation
