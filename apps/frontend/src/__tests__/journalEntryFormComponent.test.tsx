@@ -101,6 +101,17 @@ describe("JournalEntryForm", () => {
     expect(screen.getAllByPlaceholderText("0.00")).toHaveLength(2)
   })
 
+  it("AC16.21.6 handles account option load failures", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("accounts unavailable"))
+
+    render(<JournalEntryForm isOpen onClose={onClose} onSuccess={onSuccess} />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("option", { name: "Select Account" })).toHaveLength(2)
+    })
+    expect(screen.queryByRole("option", { name: "1000 - Cash" })).not.toBeInTheDocument()
+  })
+
   it("AC16.21.5 submits create-draft payload with normalized amounts", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
