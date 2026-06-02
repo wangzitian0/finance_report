@@ -65,6 +65,9 @@ from src.schemas.reporting import (
     IncomeStatementResponse,
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
+    PersonalReportPackageContractResponse,
+    PersonalReportPackageExportContract,
+    PersonalReportPackageSectionContract,
     TrendPeriod,
 )
 from src.schemas.review import (
@@ -151,6 +154,9 @@ __all__ = [
     "ManagedPositionResponse",
     "NetWorthGranularity",
     "NetWorthTimeSeriesResponse",
+    "PersonalReportPackageContractResponse",
+    "PersonalReportPackageExportContract",
+    "PersonalReportPackageSectionContract",
     "ParsedStatementPreview",
     "PingStateResponse",
     "ProcessingPendingItem",

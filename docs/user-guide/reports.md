@@ -9,6 +9,22 @@ metrics live in generated reports such as
 
 ## Available Reports
 
+### Personal Report Package
+
+The personal financial-report package contract defines the stable report package
+shape used by backend, frontend, export, and E2E assertions.
+
+Contract endpoint:
+
+```bash
+curl "https://report.zitian.party/api/reports/package/contract"
+```
+
+The contract includes stable section IDs for balance sheet, income statement,
+cash-flow view, investment performance, annualized income and long-term
+compensation, notes, and traceability appendix. Decimal fields serialize as
+strings to preserve money precision in frontend and export consumers.
+
 ### Balance Sheet
 
 Shows your financial position at a point in time:

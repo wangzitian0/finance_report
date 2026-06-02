@@ -165,6 +165,46 @@ The schedule must not mutate ledger state. It assembles existing portfolio,
 market-data, dividend, and journal-entry facts into a reporting payload that can
 be exported or embedded by EPIC-005.
 
+### 2.6 Personal Financial-Report Package Contract
+
+Issue [#570](https://github.com/wangzitian0/finance_report/issues/570) owns the
+stable package-level API/export contract. The contract defines how existing and
+future report sections plug into one personal financial-report package; it does
+not duplicate the calculation ownership of the supporting EPICs.
+
+Endpoint:
+`GET /api/reports/package/contract`
+
+Contract response:
+
+| Field | Rule |
+|---|---|
+| `package_id` | Always `personal-financial-report-package` |
+| `version` | Contract version, currently `1.0` |
+| `period_semantics` | Defines required `start_date`, `end_date`, `as_of_date`, `currency`, and `decimal_serialization` semantics |
+| `sections` | Stable ordered section contracts with `section_id`, label, owner EPIC, period type, source endpoint, status, optional blocking issue, and Decimal-safe total fields |
+| `export_contract` | Stable export formats and CSV column names for package consumers |
+
+Required section IDs:
+
+| Section ID | Owner | Source endpoint | Status |
+|---|---|---|---|
+| `balance_sheet` | EPIC-005 | `/api/reports/balance-sheet` | ready |
+| `income_statement` | EPIC-005 | `/api/reports/income-statement` | ready |
+| `cash_flow` | EPIC-005 | `/api/reports/cash-flow` | ready |
+| `investment_performance` | EPIC-017 | `/api/portfolio/performance/report-schedule` | ready |
+| `annualized_income_long_term` | EPIC-011 | `/api/reports/package/annualized-income-schedule` | planned by #566 |
+| `notes` | EPIC-005 | `/api/reports/package/notes` | planned by #571 |
+| `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | planned by #572 |
+
+Export contract:
+
+- Formats: `json`, `csv`
+- CSV columns: `package_id`, `section_id`, `line_id`, `label`, `amount`,
+  `currency`, `source_state`
+- Decimal fields must serialize as strings so frontend, CSV export, and E2E
+  assertions do not lose money precision.
+
 ---
 
 ## 3. Multi-Currency Consolidation

@@ -177,3 +177,34 @@ class CashFlowResponse(BaseModel):
     investing: list[CashFlowItem]
     financing: list[CashFlowItem]
     summary: CashFlowSummary
+
+
+class PersonalReportPackageSectionContract(BaseModel):
+    """Stable section contract for the personal financial-report package."""
+
+    section_id: str
+    label: str
+    owner_epic: str
+    period_type: str
+    source_endpoint: str
+    status: str
+    required: bool = True
+    blocking_issue: str | None = None
+    decimal_total_fields: list[str] = Field(default_factory=list)
+
+
+class PersonalReportPackageExportContract(BaseModel):
+    """Stable export contract for personal package consumers."""
+
+    formats: list[str]
+    csv_columns: list[str]
+
+
+class PersonalReportPackageContractResponse(BaseModel):
+    """Package-level API/export contract for the north-star report package."""
+
+    package_id: str
+    version: str
+    period_semantics: dict[str, str]
+    sections: list[PersonalReportPackageSectionContract]
+    export_contract: PersonalReportPackageExportContract
