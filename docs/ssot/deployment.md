@@ -23,7 +23,7 @@ The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.
 - Actual deployment config managed in `infra2`
 - Env vars for staging/prod stored in HashiCorp Vault
 - Container names include env suffix (e.g., `-staging`)
-- PR previews must set explicit internal service URLs such as `S3_ENDPOINT=http://minio:9000`; nested compose env expansion is not portable.
+- PR previews must set explicit internal service URLs such as `S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER:9000`; nested compose env expansion is not portable.
 
 ---
 
