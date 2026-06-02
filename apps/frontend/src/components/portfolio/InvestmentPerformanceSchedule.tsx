@@ -55,6 +55,7 @@ export function InvestmentPerformanceSchedule({
         { label: "MWR", value: schedule.money_weighted_return },
         { label: "Dividend Yield", value: schedule.dividend_yield },
     ];
+    const staleHoldings = schedule.data_freshness.stale_holdings ?? [];
 
     return (
         <section className="card p-5 mb-6" aria-labelledby="investment-performance-schedule-title">
@@ -109,6 +110,9 @@ export function InvestmentPerformanceSchedule({
                         <p>Latest price date: {schedule.data_freshness.latest_price_date ?? "N/A"}</p>
                         <p>Provider: {schedule.data_freshness.market_data_provider ?? "N/A"}</p>
                         <p>Status: {schedule.data_freshness.stale ? "Stale" : "Current"}</p>
+                        {staleHoldings.length > 0 ? (
+                            <p>Stale holdings: {staleHoldings.join(", ")}</p>
+                        ) : null}
                         {schedule.data_freshness.manual_override_basis ? (
                             <p>Manual override: {schedule.data_freshness.manual_override_basis}</p>
                         ) : null}

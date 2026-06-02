@@ -157,7 +157,7 @@ Response object:
 | `realized_pnl`, `unrealized_pnl`, `dividend_income`, `dividend_yield` | Decimal-safe schedule totals in `currency` |
 | `holdings` | Per holding rows with quantity, cost basis, market value, realized/unrealized P&L, dividend income, and source currency |
 | `allocation` | Sector, geography, and asset-class allocation rows whose percentages reconcile to the schedule market value |
-| `data_freshness` | Latest price date, market-data provider, stale flag, and manual override basis |
+| `data_freshness` | Latest price date, market-data provider, stale flag, `stale_holdings` per-holding stale list, and manual override basis |
 | `source_links` | Brokerage statement/import IDs, price source IDs, ledger entry IDs, and report anchors needed for source-to-ledger-to-report traceability |
 | `notes` | Methods and limitations for cost basis, price freshness, dividends, XIRR/TWR/MWR, and any manual overrides |
 

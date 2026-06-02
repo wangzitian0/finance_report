@@ -4,6 +4,7 @@ AC17.3 block: Performance metrics — XIRR, TWR, MWR calculations.
 AC5.6.1 AC5.6.2 AC5.6.3 AC5.6.6: Portfolio return and yield metric calculations.
 """
 
+import inspect
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -599,6 +600,18 @@ def test_xirr_bisection_no_root_raises():
     days = [0, 180, 365]
     with pytest.raises(ValueError, match="No root in"):
         _xirr_bisection(amounts, days, max_iter=200, tolerance=Decimal("1e-6"))
+
+
+def test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows():
+    """AC17.10.5: XIRR internals do not convert monetary Decimal cash flows to float."""
+    import src.services.performance as performance_module
+
+    solver_source = inspect.getsource(performance_module._xirr_newton) + inspect.getsource(
+        performance_module._xirr_bisection
+    )
+
+    assert "float_amounts" not in solver_source
+    assert "float(a) for a in amounts" not in solver_source
 
 
 def test_xirr_bisection_max_iter_returns():
