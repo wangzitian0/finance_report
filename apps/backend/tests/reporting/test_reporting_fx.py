@@ -789,7 +789,7 @@ async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_a
     summary = cf["summary"]
     assert isinstance(summary, dict)
     assert summary["financing_activities"] == Decimal("5000.00")
-    assert summary["investing_activities"] == Decimal("2000.00")
+    assert summary["investing_activities"] == Decimal("-2000.00")
     assert summary["net_cash_flow"] == Decimal("3000.00")
 
 
