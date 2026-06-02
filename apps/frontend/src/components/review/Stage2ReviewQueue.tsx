@@ -661,7 +661,7 @@ export function Stage2ReviewQueue() {
                             </div>
 
                             <div data-testid="stage2-desktop-match-region" className="hidden max-h-[400px] overflow-hidden md:block">
-                                <table className="w-full table-fixed text-sm">
+                                <table className="w-full table-fixed border-collapse text-sm">
                                     <thead className="sticky top-0 bg-[var(--background)]">
                                         <tr className="border-b border-[var(--border)]">
                                             <th className="text-left px-4 py-2 w-8">
