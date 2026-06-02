@@ -18,6 +18,7 @@ from src.models import (
     BankTransactionStatus,
     ConfidenceLevel,
     Direction,
+    FxRate,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
@@ -607,6 +608,15 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
     )
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.350000"),
+            rate_date=date(2024, 4, 10),
+            source="test",
+        )
+    )
     db.add(statement)
     await db.flush()
 
@@ -625,6 +635,7 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     entry = await create_entry_from_txn(db, txn, user_id=user_id)
     assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert all(line.currency == "USD" for line in entry.lines)
+    assert all(line.fx_rate == Decimal("1.350000") for line in entry.lines)
 
     result = await db.execute(
         select(Account).where(Account.name == "Income - Uncategorized").where(Account.user_id == user_id)

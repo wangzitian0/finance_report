@@ -373,8 +373,8 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         {
             "category": "Operating",
             "subcategory": "Dining",
-            "amount": Decimal("200.00"),
-            "description": "Inflow - Dining",
+            "amount": Decimal("-200.00"),
+            "description": "Outflow - Dining",
         },
     ]
     assert cash_flow["investing"] == []

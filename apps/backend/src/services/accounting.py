@@ -41,17 +41,19 @@ def validate_fx_rates(lines: list[JournalLine]) -> None:
     """
     base_currency = settings.base_currency.upper()
     for line in lines:
-        if line.currency.upper() != base_currency and line.fx_rate is None:
-            raise ValidationError(f"fx_rate required for currency {line.currency} (base {base_currency})")
+        line_currency = (line.currency or base_currency).upper()
+        if line_currency != base_currency and line.fx_rate is None:
+            raise ValidationError(f"fx_rate required for currency {line_currency} (base {base_currency})")
 
 
 def _line_base_amount(line: JournalLine) -> Decimal:
     """Return line amount converted to the configured base currency."""
     base_currency = settings.base_currency.upper()
-    if line.currency.upper() == base_currency:
+    line_currency = (line.currency or base_currency).upper()
+    if line_currency == base_currency:
         return line.amount
     if line.fx_rate is None:
-        raise ValidationError(f"fx_rate required for currency {line.currency} (base {base_currency})")
+        raise ValidationError(f"fx_rate required for currency {line_currency} (base {base_currency})")
     return line.amount * line.fx_rate
 
 
@@ -157,8 +159,8 @@ async def calculate_account_balances(
     if use_base_currency:
         base_currency = settings.base_currency.upper()
         amount_expr = case(
-            (func.upper(JournalLine.currency) == base_currency, JournalLine.amount),
-            else_=JournalLine.amount * JournalLine.fx_rate,
+            (func.coalesce(func.upper(JournalLine.currency), base_currency) == base_currency, JournalLine.amount),
+            else_=JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1")),
         )
     else:
         amount_expr = JournalLine.amount

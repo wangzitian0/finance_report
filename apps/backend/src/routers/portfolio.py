@@ -423,7 +423,8 @@ async def get_investment_performance_report_schedule(
             notes.append(f"{metric_name} unavailable: {exc}")
             return None
         except PerformanceError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+            notes.append(f"{metric_name} unavailable: {exc}")
+            return None
 
     xirr = await _metric_or_note(
         "XIRR", lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date)

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.config import settings
 from src.logger import get_logger
 from src.models import (
     Account,
@@ -26,6 +27,7 @@ from src.models import (
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.services.accounting import ValidationError, validate_journal_balance
+from src.services.fx import FxRateError, get_exchange_rate
 from src.services.reconciliation import entry_total_amount
 from src.services.source_type_priority import (
     STATEMENT_SOURCE_TYPES,
@@ -293,7 +295,14 @@ async def create_entry_from_txn(
         if not statement:
             raise ValueError("Transaction does not belong to user")
 
-    currency = statement.currency or "SGD"
+    currency = (statement.currency or "SGD").upper()
+    base_currency = settings.base_currency.upper()
+    line_fx_rate: Decimal | None = None
+    if currency != base_currency:
+        try:
+            line_fx_rate = await get_exchange_rate(db, currency, base_currency, txn.txn_date)
+        except FxRateError as exc:
+            raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     # Use statement's linked account if available.
     bank_account: Account | None = preloaded_bank_account
@@ -411,6 +420,7 @@ async def create_entry_from_txn(
             direction=Direction.DEBIT,
             amount=txn.amount,
             currency=currency,
+            fx_rate=line_fx_rate,
             event_type="bank_txn",
         )
     )
@@ -420,6 +430,7 @@ async def create_entry_from_txn(
             direction=Direction.CREDIT,
             amount=txn.amount,
             currency=currency,
+            fx_rate=line_fx_rate,
             event_type="bank_txn",
         )
     )
